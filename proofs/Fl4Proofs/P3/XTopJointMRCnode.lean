@@ -40,7 +40,7 @@ abbrev EJPM (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState �
 /-- **The caller's restart keeps `EJLM`**: `EJL.restart` and `MRV` (the
 restart's `setThreadState` keeps `msFT`, the arch state is kept). -/
 theorem EJLM.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hM : MachPlat arI MR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hM : MachPlat arI MR)
     (hmv : MRV MR ar σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) {K : Nat} (hDE : DelE (L := L) Z.th K s σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) :

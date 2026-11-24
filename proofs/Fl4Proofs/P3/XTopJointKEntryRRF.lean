@@ -195,7 +195,7 @@ theorem JAtZ.capSW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
 caps reachable from the current thread's root are CNodes of `Z.th` with their
 radix (`SlotsValid`, `StateRel.ctable`), whose indexed slots
 `x &&& mask r < 2 ^ r` are slots of `Z.th` (`JAtZ.capSW`). -/
-theorem JAtZ.cnOff {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.cnOff {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (et : sched.cur_thread st s = ok t) :
     P1.CnOff (L := L) (P1.Heap.tcbs H) Cs (P1.Heap.frame H) s t := by
   have htcb := J.curW_tcb et
@@ -273,7 +273,7 @@ theorem JAtZ.rrDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
 /-- **`P1.RRPreAt` from the joint relation** (module docstring): at every
 dispatch state of the entry, `RRPre` from `JAtZ` there, `RV` at the entry's
 spec state and m67's `nvm` read (`RRPreAt5`). -/
-theorem JAtZ.rrPreAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.rrPreAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -295,7 +295,7 @@ docstring) by `hRV : SInvR.RV σ` [J] (l4v `valid_refills` / `refills_sum`, at
 the entry's spec state; a conjunct of the carried `SInvW`, `SInvW.rv`) and
 m67's `nvm` read `hRP5 : P1.RRPreAt5` (kept). -/
 theorem kernel_entryJ33F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (n : I64) (c : Fl4Spec.Syscall)
@@ -327,7 +327,7 @@ theorem kernel_entryJ33F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
 set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ33F` without `hLv`** (`J.live`, as `kernel_entryJ34R`). -/
 theorem kernel_entryJ34F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (n : I64) (c : Fl4Spec.Syscall)
@@ -364,7 +364,7 @@ set_option maxHeartbeats 4000000 in
 line's carried bundle, `kentry_rdyOffW`): no spec-side premise beyond the
 carried ones. -/
 theorem kernel_entryJ34FW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hSW : SInvR.B8w.SInvW σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (n : I64) (c : Fl4Spec.Syscall)

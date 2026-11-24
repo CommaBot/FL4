@@ -33,7 +33,7 @@ the pre-state `σ` by `hk0`/`hk0t`/`hk0s`/`hsk0`); the sender's own
 `reply_push` (its `set_thread_state`) sets `ChooseNewThread` (`stsAct`):
 `ActIdle`, `CurRunM` and `cur` after from that. -/
 theorem JAtZ.sendTmoRecvCtPJ {s0 : S} {σ0 : Fl4Spec.State Unit} (hAT : P0.ArchTotal arI)
-    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s0 a σ0)
+    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s0 a σ0) [VxE Z]
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     {t : U64} (ht : t ∈ Z.T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))

@@ -742,7 +742,7 @@ then the receiver's new state by the given step `hQ` (for each outcome
 `rst` of the spec's `handle_fault_reply`). The spec's fault reply ends at
 `frSt`. -/
 theorem faultBranchJ
-    {s2 : S} {ar : A} {σ2 : Fl4Spec.State Unit} (J2 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 ar σ2)
+    {s2 : S} {ar : A} {σ2 : Fl4Spec.State Unit} (J2 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 ar σ2) [VxE Z]
     {ct i : U64} (hne : ct ≠ i) (hiT : i ∈ Z.T) (hcT : ct ∈ Z.T) {xs xi : Fl4Spec.Tcb} {f : Fl4Spec.Fault}
     (hks : σ2.kheap ct.bv = some (.tcb xs)) (hki : σ2.kheap i.bv = some (.tcb xi)) (hfi : xi.tcbFault = some f)
     (hns : ∀ e d, xi.tcbState ≠ .blockedOnSend e d)
@@ -1607,7 +1607,7 @@ end StKX
 
 /-- The timeout handler cap of a TCB names an endpoint object (the cap
 valid in `J`, as in XTopJointSendBlockG's `JAtZ.runTmoJ`). -/
-theorem JAtZ.tmoEpObj (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZ.tmoEpObj (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {p bd : Fl4Spec.Word} {r : Fl4Spec.CapRights}
     (hth : x.tcbTimeoutHandler = .endpointCap p bd r) : ∃ xe, σ.kheap p = some (.endpoint xe) := by
   have hI := J.xtop.irelK J.ks J.buf

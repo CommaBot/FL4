@@ -1275,7 +1275,7 @@ scheduler-action word (outside the objects, `JKern.act`), no flags word
 (offset 3456 of a TCB of `T`, the TCBs disjoint); the spec changes the
 caller's state only. -/
 theorem JAtZ.flagsRestart {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hFl : FlagsRel Z.T (L.mem s) σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hFl : FlagsRel Z.T (L.mem s) σ)
     {ct : U64} (hth : Z.th ct = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x))
     {s1 : S} (h1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
     FlagsRel Z.T (L.mem s1) (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
@@ -1397,7 +1397,7 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   have tail : ∀ (a1 : A) (σ3 : Fl4Spec.State Unit) (Z3 : XSets) (Ac3 : Set U64) (Lst3 : U64 → List U64)
       (D3 : Set U64),
       ((), σ3) ∈ (Fl4Spec.NonDet.when (Fl4Spec.TcbFlag.fpuDisabled ∈ nf) (Fl4Spec.fpuRelease (Z := Unit) p.bv)
-        σ2).1 → JAtZ (L := L) arI AR Z3 H Cs Ac3 Lst3 D3 s2 a1 σ3 → Z3.th = Z.th → σ3.curThread = ct.bv →
+        σ2).1 → JAtZ (L := L) arI AR Z3 H Cs Ac3 Lst3 D3 s2 a1 σ3 → [VxE Z3] → Z3.th = Z.th → σ3.curThread = ct.bv →
       (∃ y, σ3.kheap ct.bv = some (.tcb y) ∧ y.tcbState = .restart) →
       (if call = true then (do
         let buf ← msg.lookup_ipc_buffer st s2 true ct
@@ -1411,7 +1411,7 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
         TopPostRMX (L := L) (JAt (L := L) arI AR) σ blk call don (Fl4Spec.NonDetE.liftME
           Fl4Spec.Fl4Invocation.invokeFl4TCB (Fl4Spec.decodeFl4SetFlags (Z := Unit)
             ((y0 :: y1 :: rest).map UScalar.bv) p.bv)) ct s res ⦄ := by
-    intro a1 σ3 Z3 Ac3 Lst3 D3 h3 J3 hth3 hcur3 ⟨y3, hk3, hrs3⟩
+    intro a1 σ3 Z3 Ac3 Lst3 D3 h3 J3 _ hth3 hcur3 ⟨y3, hk3, hrs3⟩
     have hX3 := J3.xtop
     have hmem : (.ok [f2.bv], σ3) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
         (.invokeFl4TCB (.setFlags p.bv y0.bv y1.bv))).run σ1).1 := by

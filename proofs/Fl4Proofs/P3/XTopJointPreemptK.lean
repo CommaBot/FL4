@@ -128,7 +128,7 @@ theorem hPre_ofZK (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPZJ` with `JPreemptRestHypK`** (kp12). -/
 theorem dispatch_invokeJPZK [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -147,7 +147,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJEPZJ` with `JPreemptRestHypK`** (kp12; against
 `fl4HandleEvent true`'s branch). -/
 theorem dispatch_invokeJEPZK [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)

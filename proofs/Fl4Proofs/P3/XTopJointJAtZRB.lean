@@ -355,7 +355,7 @@ theorem JAtZR.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :=
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZR` across timer-word writes** (module docstring): the timer words
 written, `REPROGRAM` kept or set to 1, P1's `BlkOK` after given. -/
-theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
     (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
       L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)
@@ -2090,7 +2090,7 @@ set_option maxHeartbeats 2000000 in
 {σ'}` (module docstring). -/
 theorem JAtZR.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
     (hSch : SchS σ σ') (hik : σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc)
     (hw : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ))
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hR' : NtfnStateRel Z.N Z.T (L.mem s') σ') (hN' : NSC Z.N Z.C σ')

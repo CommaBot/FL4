@@ -143,7 +143,7 @@ theorem JPathAtMU17.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
 /-- **`KDispHypsKVU17` gives `KDispHypsKVU12`** at a `JAtZ` dispatch state with `DevRangeS`. -/
 theorem KDispHypsKVU17.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : SInvDV.DevRangeS σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hD : SInvDV.DevRangeS σ)
     (h : KDispHypsKVU17 (L := L) arI AR Z H Cs D s a σ n c) : KDispHypsKVU12 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi; ⟨e, p.toU12 (devFreeT_of arI J hD)⟩,
     fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm; ⟨e, p.toU12 (devFreeT_of arI J hD)⟩⟩

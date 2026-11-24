@@ -182,7 +182,7 @@ theorem jEntryGlobM32_of {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.M
 
 theorem KDispHypsKV35.to33 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hG : JEntryGlobM32 arI AR MR Z.th) (h : KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c) :
     KDispHypsKV33 (L := L) arI AR MR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hI => let ⟨e, p, v⟩ := h.inv ct call bl don hct hI; ⟨hG, e, p.toM J, v⟩,
@@ -214,7 +214,7 @@ open per-state bundles, KENTRY-PLAN g4a class (d)), the [P] bundle (with
 `hRef`, `hPI` from `JEntryGlobM32`), `hnd` [S], `hFast` [P]. -/
 theorem kernel_entryJ35 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ)
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)

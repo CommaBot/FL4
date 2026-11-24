@@ -1406,7 +1406,7 @@ wrapper): from `JAtZ` at the decode (no reschedule pending), the decoded
 arguments (`RetCtx`, no reset: the source cap has a child), the source a
 CNode slot's RAM untyped cap, FL4's restart (`JAtZ.restartJ`) and then
 `JAtZ.utTcbBodyJ` end in `UtRetPostJ`. -/
-theorem JAtZ.utTcbJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utTcbJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))

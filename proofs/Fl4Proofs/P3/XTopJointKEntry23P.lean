@@ -629,7 +629,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 theorem mid_invRecvJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (rg : U64) (sr : Fl4Spec.Register) (cr : Bool)
     (hrg : regIdx sr = rg)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -696,7 +696,7 @@ theorem mid_invRecvJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
 
 set_option maxHeartbeats 4000000 in
 theorem dispatch_midJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (c : Fl4Spec.Syscall) (rg : U64)
     (sr : Fl4Spec.Register) (cr : Bool) (hn : MidSysR number c rg sr cr)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -733,7 +733,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The invoking dispatches ending in `PPQJI` under `MachPlat`**
 (`dispatch_invokeJAll` with mr3's `hPre_ofZQIM`; no `PPPlat`/`IrqPlat`). -/
 theorem dispatch_invokeJAllMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -779,7 +779,7 @@ set_option maxHeartbeats 4000000 in
 `KDispHyps13PU`; the mid receive leaves narrowed as `KDispHyps15M.to14M` …
 `to9M`). -/
 theorem dispatch_all13PU [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c) (hK : KDispHyps13PU (L := L) arI AR MR Z H Cs D s a σ n c)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
@@ -814,7 +814,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`kernel_entryJ13PB` on `KDispHyps13PU`** (module docstring). -/
 theorem kernel_entryJ13PU [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
@@ -949,7 +949,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- Untyped (RAM native, device) by `decode_invocation_untypedJM`, as `jPreDecHyp_of14` (given `JPathM`). -/
 theorem jPreDecHyp_of14U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hPD : JPreDecHypKM (L := L) arI PreKind14 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI (fun c _ => NoPreKind c → False) AR MR Z H Cs D s ar σ ct := by
@@ -992,7 +992,7 @@ theorem jPreDecHyp_of14U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4
 set_option maxHeartbeats 4000000 in
 /-- CNode by `decode_invocation_cnodeJ_stepsLM`, as `jPreDecHyp_of17` (given `JPathM`). -/
 theorem jPreDecHyp_of17U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hPD : JPreDecHypKM (L := L) arI PreKind17 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI PreKind14 AR MR Z H Cs D s ar σ ct := by
@@ -1024,7 +1024,7 @@ theorem jPreDecHyp_of17U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4
 set_option maxHeartbeats 4000000 in
 /-- Thread by the MachPlat installs, as `jPreDecHyp_of18` (given `JPathM`). -/
 theorem jPreDecHyp_of18U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hPD : JPreDecHypKM (L := L) arI PreKind18 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI PreKind17 AR MR Z H Cs D s ar σ ct := by
@@ -1196,7 +1196,7 @@ theorem KDispHypsKV21.to23 {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {a
 conversions of `KDispHypsKV21.to13P` at `JPathM`). -/
 theorem KDispHypsKV23.to13PU [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ σ0 : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : KDispHypsKV23 (L := L) arI AR MR Z H Cs D s a σ n c) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (h : KDispHypsKV23 (L := L) arI AR MR Z H Cs D s a σ n c) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hBA : BudgetAt σ0 σ true) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
@@ -1221,7 +1221,7 @@ docstring): `KDispHypsKV23` (path premise `JPathAtM`, scope premise
 `JVtxHypMU`) and `KBudgetB`. -/
 theorem kernel_entryJ23P [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)

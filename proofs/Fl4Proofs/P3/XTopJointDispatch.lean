@@ -62,7 +62,7 @@ theorem map_bv_ofBv (l : List Fl4Spec.Data) : (l.map (fun b => (⟨b⟩ : U64)))
 set_option maxHeartbeats 4000000 in
 /-- **The front end's reads at `J`**: FL4's succeed, the spec's have one
 outcome each (the equations of `handle_invocation_refinesJ`). -/
-theorem JAtZ.frontEx {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.frontEx {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct) :
     ∃ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)

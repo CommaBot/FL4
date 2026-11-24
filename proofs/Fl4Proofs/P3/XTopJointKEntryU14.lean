@@ -39,7 +39,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **The bridge** (module docstring): `DevFreeT` from the spec's `DevRangeS` at a `JAtZ` state. -/
 theorem devFreeT_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : SInvDV.DevRangeS σ) : DevFreeT (L.mem s) Z.G σ := by
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hD : SInvDV.DevRangeS σ) : DevFreeT (L.mem s) Z.G σ := by
   intro x hx p sb fi d hc hP o ko ho
   obtain ⟨hd, -⟩ := hP
   subst hd
@@ -188,7 +188,7 @@ theorem JPathAtMU14.toU7 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
 /-- **`KDispHypsKVU14` gives `KDispHypsKVU7`** at a `JAtZ` dispatch state with `DevRangeS`. -/
 theorem KDispHypsKVU14.toU7 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : SInvDV.DevRangeS σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hD : SInvDV.DevRangeS σ)
     (h : KDispHypsKVU14 (L := L) arI AR Z H Cs D s a σ n c) : KDispHypsKVU7 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi; ⟨e, p.toU7 (devFreeT_of arI J hD)⟩,
     fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm; ⟨e, p.toU7 (devFreeT_of arI J hD)⟩⟩

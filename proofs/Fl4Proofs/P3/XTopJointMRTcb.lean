@@ -620,7 +620,7 @@ structure TcbInsWM (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.Machine
 
 /-- **The caller's restart at the installs' invariant**: `JAtZ.restartWJR`
 with `W` after it (`RestartWJ`), at the kernel-state base after. -/
-theorem JAtZ.restartWM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.restartWM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
     (hI : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)

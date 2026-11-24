@@ -674,7 +674,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
 
 
 /-- An SC bound to a thread is not dead (a dead SC's `TCB` word is 0). -/
-theorem JAtZ.scOwned_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t q : U64} (ht : t ∈ Z.T)
+theorem JAtZ.scOwned_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t q : U64} (ht : t ∈ Z.T)
     {y : Fl4Spec.SchedContext} {k : Nat} (hq : σ.kheap q.bv = some (.schedContext y k))
     (hyt : y.scTcb = some t.bv) : ¬ DeadP (L := L) H s q := by
   intro hd

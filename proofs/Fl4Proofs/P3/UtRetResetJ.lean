@@ -323,7 +323,7 @@ theorem utCn_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64
 
 set_option maxHeartbeats 8000000 in
 /-- **The retype with a reset at `J`** (module docstring). -/
-theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -584,7 +584,7 @@ types by `JAtZ.utResetJ` with their bodies (`utEp_bodyHyp`, `utUt_bodyHyp`,
 `utSc_bodyHyp`, `utPm_bodyHyp`, `utCn_bodyHyp`, `utTcb_bodyHyp`), the rest `JUtRetHypR2` [W]. Premises of the
 reset: `PPPlat`, `resetChunkBits = 16` [P], `hRd0` [J], `VsReachMiss` [J] at
 the restart's state (no extra roots), `ArchFitHyp`/`RegionUnrefJ` [J]. -/
-theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))

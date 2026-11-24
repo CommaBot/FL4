@@ -85,7 +85,7 @@ set_option maxHeartbeats 16000000 in
 the same body, the preemption branch by `kPreFinAtGMS`). -/
 theorem kernel_entryJ13PUGMD4S [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hNS0 : NativeScope σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
@@ -249,7 +249,7 @@ variable {arI}
 state's `JAtZ`, `valid_irq_handlers`, `SInvIR`, `LargeFrOK`). -/
 theorem KDispHypsKV42.to41 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : SInvV.ValidIrqHandlers σ) (hI : SInvIR σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hV : SInvV.ValidIrqHandlers σ) (hI : SInvIR σ)
     (hLF : LargeFrOK Z.G (L.mem s)) (h : KDispHypsKV42 (L := L) arI AR Z H Cs D s a σ n c) :
     KDispHypsKV41 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi;
@@ -287,7 +287,7 @@ dispatch states, `hFin : KFinAtR31` at the front outcomes, the [P] bundle,
 `hRP5 : RRPreAt5` [J] (m67's `nvm`, ReplyRecv only). -/
 theorem kernel_entryJ42 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ) (hI : SInvIP σ) (hLF : LargeFrOK Z.G (L.mem s))
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)

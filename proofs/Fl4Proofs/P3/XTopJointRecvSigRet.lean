@@ -792,7 +792,7 @@ theorem JAtZ.maybeReturnJQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
 /-- **`maybe_return_sched_context` at `J`** (module docstring): a thread
 `t`, not runnable, neither the idle thread nor the switch target, whose SC
 `i` is the notification `n`'s, gives it back. -/
-theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n i : U64} {x : Fl4Spec.Tcb}
+theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t n i : U64} {x : Fl4Spec.Tcb}
     {xn : Fl4Spec.Notification} (ht : t ∈ Z.T) (hn : n ∈ Z.N) (hiC : i ∈ Z.C)
     (hk : σ.kheap t.bv = some (.tcb x)) (hkn : σ.kheap n.bv = some (.notification xn))
     (hsp : x.tcbSchedContext = some i.bv) (hxn : xn.ntfnSc = some i.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
@@ -810,7 +810,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The blocking receive at `J` up to `maybe_return_sched_context`** (as
 `JAtZ.recvSigBlockJ`, for any SC of the notification): `JAtZ` at the state
 after `rsPre`, the thread blocked, a reschedule pending. -/
-theorem JAtZ.recvSigBlockPreJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigBlockPreJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -1007,7 +1007,7 @@ the blocking receive (`JAtZ.recvSigBlockJ`) and the blocking receive giving
 the SC back (`JAtZ.recvSigRetJ`), the held cap's slot covering the
 notification (`JAtZ.cover_cap`). No premise left. -/
 theorem jRecvSigHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
     (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (blocking : Bool) :
     JRecvSigHyp (L := L) arI AR Z.th ct blocking s a σ := by
   rintro p b w rd ac hcr ⟨x, hk⟩ ⟨y, hy, hcv⟩

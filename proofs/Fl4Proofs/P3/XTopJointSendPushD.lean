@@ -649,7 +649,7 @@ every such send, any grant (XTopJointXferG's `JAtZ.xferStepGJ`):
 `JAtZ.sendDonJ` for `SendRecvDon`, `JAtZ.sendCallPJ` for `SendRecvCP`,
 `JAtZ.sendCallPDJ` for `SendRecvCPD`. -/
 theorem jSendRest_of (hAT : P0.ArchTotal arI) {s1 : S} {ar : A} {σ1 : Fl4Spec.State Unit}
-    (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 ar σ1) {ct p : U64} (hct : ct ∈ Z.T) (hp : p ∈ Z.E)
+    (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 ar σ1) [VxE Z] {ct p : U64} (hct : ct ∈ Z.T) (hp : p ∈ Z.E)
     {xt : Fl4Spec.Tcb} (hkt : σ1.kheap ct.bv = some (.tcb xt)) (hrs : xt.tcbState = .restart)
     (hft0 : xt.tcbFault = none) (hcur : σ1.curThread = ct.bv) (hres : σ1.schedulerAction = .resumeCurThread)
     (hti : σ1.curThread ≠ σ1.idleThread) (hnq : ∀ dm q, ct.bv ∉ σ1.readyQueues dm q)

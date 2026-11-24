@@ -365,7 +365,7 @@ set_option maxHeartbeats 8000000 in
 (ScSignalDonJ's `JAtZ.wake_postD` for the frame `DWFr` up to `σa`, then
 `ciSt`: the caller `c`'s TCB to `Inactive`, the action maybe a reschedule;
 `c` not dead). -/
-theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t c : Fl4Spec.ObjRef}
+theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {n t c : Fl4Spec.ObjRef}
     {s' : S} {σa : Fl4Spec.State Unit} {xc : Fl4Spec.Tcb} (hkc : σa.kheap c = some (.tcb xc))
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' (ciSt σa c xc))
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))

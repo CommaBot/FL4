@@ -1398,7 +1398,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 /-- **The caller's restart at the deletion loop's invariant**: `JAtZ.restartJ`,
 with `NoSwitch` after (`Entered`), `SpecGlob` (`SpecGlob.sts`) and `PPR0` kept
 (`PPK.restart`). -/
-theorem JAtZ.restartWJR {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.restartWJR {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
     ∃ s1 σ1, tcb.restart_caller st s = ok s1 ∧
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
@@ -1429,7 +1429,7 @@ abbrev RestartWJ (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
 
 /-- **The caller's restart at the installs' invariant**: `JAtZ.restartWJR`
 with `W` after it (`RestartWJ`), at the kernel-state base after. -/
-theorem JAtZ.restartW {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.restartW {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
     (hI : TcbInsW (L := L) arI AR Z H Cs W Rd Rz)

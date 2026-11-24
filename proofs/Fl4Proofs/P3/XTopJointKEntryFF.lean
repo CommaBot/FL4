@@ -196,7 +196,7 @@ theorem JAtZ.curNb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
   exact nb_of_code hnb hv
 
 /-- **The fault-handler cap typed** (`JPlaced.typed` at the TCB's slot 3). -/
-theorem JAtZ.fhTyped {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZ.fhTyped {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] :
     obj.Tcb.slot (L.curW s) layout.tcb.SLOT_FAULT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => P1.CapTyped H (P1.Heap.replies H) (P1.Heap.ntfns H) c ⦄ ⦄ := by
   have htcb := J.curW_tcb (cur_thread_curW (L := L) s)
@@ -263,7 +263,7 @@ theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
 set_option maxHeartbeats 4000000 in
 /-- **`P1.FastFaultOK` at a `JAtZ` entry state** (module docstring): no
 premise beyond what `JReachE4` / `JReachU` carry. -/
-theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))

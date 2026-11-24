@@ -169,7 +169,7 @@ set_option maxHeartbeats 2000000 in
 {σ'}` (module docstring). -/
 theorem JAtZ.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
     (hSch : SchS σ σ') (hik : σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc)
     (hw : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ))
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hR' : NtfnStateRel Z.N Z.T (L.mem s') σ') (hN' : NSC Z.N Z.C σ')

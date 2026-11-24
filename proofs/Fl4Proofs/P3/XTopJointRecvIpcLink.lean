@@ -658,7 +658,7 @@ theorem jRecvIpcLink_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = 
 /-- **`JRecvIpcHyp`** (`jRecvIpcU_of` for a null or free
 reply, `jRecvIpcLink_of` for a linked one). -/
 theorem jRecvIpcHypL_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) : JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ := by
   intro p b sd g gr rc rc' hpE hrc hHd hHr

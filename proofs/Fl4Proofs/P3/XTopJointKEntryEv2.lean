@@ -648,7 +648,7 @@ agreement: FL4 sends `number` / `code` unmasked; the x86 vector and error
 code are below those bounds). -/
 theorem jEvRef_user {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (n c : U64)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hB : JFltHyp (L := L) arI AR MR Z H Cs
       (fun s1 a1 => do let t ← sched.cur_thread st s1; faults.handle_fault st arI s1 a1 t (.UserException n c))
@@ -678,7 +678,7 @@ spec's (`handleVmFault`'s machine fault address and error register, caught by
 spec's reads is part of that premise. -/
 theorem jEvRef_vmf {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (ad c : U64) (ft : Fl4Spec.VMFaultType)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hB : JFltHyp (L := L) arI AR MR Z H Cs
       (fun s1 a1 => do

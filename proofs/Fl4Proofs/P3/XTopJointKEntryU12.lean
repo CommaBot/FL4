@@ -72,7 +72,7 @@ set_option maxHeartbeats 2000000 in
 /-- **C27 at a `JAtZ` state from the spec fact** (module docstring). -/
 theorem devGpm_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hI : SInvGp.GpmOutV σ) (hU : SInvU.UtInv'' σ) :
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hI : SInvGp.GpmOutV σ) (hU : SInvU.UtInv'' σ) :
     DevGpm (L.mem s) Z.G σ := by
   intro x hx p sb fi hcv hr
   have hM := J.xtop.rel.2.1.2.2.1

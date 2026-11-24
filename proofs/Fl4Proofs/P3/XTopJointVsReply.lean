@@ -67,7 +67,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- **`set_thread_state Running` of a runnable thread at `J`** (XTopJointReply's
 `JAtZ.runJ` for `Restart`, `Running` or `RunningVM`). -/
-theorem JAtZ.runRJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZ.runRJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .restart ∨ x.tcbState = .running ∨ x.tcbState = .runningVM) :
     sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 => ∃ (Lst' : U64 → List U64) (D' : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst' D' s6 a

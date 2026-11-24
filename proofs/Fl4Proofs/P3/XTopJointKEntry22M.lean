@@ -78,7 +78,7 @@ theorem JRecvLeavesRN13.toRN12 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicks
     {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hni1 : σ.curThread ≠ σ.idleThread) (hrun : CurRun σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (h : JRecvLeavesRN13 (L := L) arI AR Z.th ct s a σ) : JRecvLeavesRN12 (L := L) arI AR Z.th ct s a σ where
   sig := h.sig
