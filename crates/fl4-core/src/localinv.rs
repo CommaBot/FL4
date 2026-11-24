@@ -1,8 +1,9 @@
 //! Frame-capability invocations beside the serial gate (DESIGN.md §7,
 //! "Local paths"): CNode Copy and Mint of a frame cap, CNode Delete of a
-//! small RAM frame cap, and X86Page_Map of a small frame. A guest maps
-//! every page through its own frame-cap copy (l4h's vspace.c), so fork,
-//! exit and page faults are mostly these three.
+//! small RAM frame cap, and the page map of a small frame (X86Page_Map on
+//! x86_64, ARMPage_Map on AArch64). A guest maps every page through its
+//! own frame-cap copy (l4h's vspace.c), so fork, exit and page faults are
+//! mostly these three.
 //!
 //! `plan` resolves, without locks, the kernel words the general path of
 //! the invocation may write besides the caller and this core: capability
@@ -17,13 +18,22 @@
 //! Delete), the CDT links of any slot next to one, and a leaf page-table
 //! entry of a small page. Every lookup a plan makes reads only other words:
 //! CNode caps along a CPtr's path (a path through a slot being written
-//! fails, as it does on either side of the write: the type tag is in the
-//! first cap word, which a write stores first, and x86 keeps stores and
-//! loads in order), the vspace cap, the ASID table and the paging
-//! structures above the leaf. CPtrs, depths and the virtual address come
-//! from the caller's saved registers; extra caps are looked up once, here,
-//! and the decode uses those slots, so a change to the caller's IPC buffer
-//! in between cannot move a write onto an unlocked word. x86_64 only.
+//! fails, as it does on either side of the write: the type tag is all in
+//! the first cap word, an aligned 64-bit word that a load reads whole, and
+//! neither the old nor the new cap of such a slot is a CNode, so this holds
+//! whatever order the two words become visible in, on AArch64 as on x86),
+//! the vspace cap, the ASID table and the paging structures above the leaf.
+//! CPtrs, depths and the virtual address come from the caller's saved
+//! registers; extra caps are looked up once, here, and the decode uses
+//! those slots, so a change to the caller's IPC buffer in between cannot
+//! move a write onto an unlocked word.
+//!
+//! The only Arch operation these paths make is the invalidation of one
+//! page's translations by an unmap or a remap. On x86_64 it may make a
+//! remote call (`CALL_LOCK`, fl4-arch-x86_64 smp.rs). On AArch64 it is a
+//! broadcast TLBI that writes no kernel state; a map that would clean the
+//! frame's cache lines first (a RAM frame mapped non-cacheable,
+//! `vspace::install_page`) is left to the gate.
 //!
 //! Not yet exercised by fl4-sim, which generates no frame-cap copies,
 //! maps or deletes.
@@ -135,7 +145,7 @@ fn reg_arg<S: Store>(s: &S, t: Tcb, i: u64) -> u64 {
 /// A label `plan` may take, by the label alone (a register).
 #[inline(always)]
 pub fn is_local_label(lbl: u64) -> bool {
-    !cfg!(feature = "aarch64") && (lbl == label::CNodeCopy || lbl == label::CNodeMint || lbl == label::CNodeDelete || is_page_map(lbl))
+    lbl == label::CNodeCopy || lbl == label::CNodeMint || lbl == label::CNodeDelete || is_page_map(lbl)
 }
 
 #[cfg(not(feature = "aarch64"))]
@@ -144,8 +154,8 @@ fn is_page_map(lbl: u64) -> bool {
 }
 
 #[cfg(feature = "aarch64")]
-fn is_page_map(_lbl: u64) -> bool {
-    false
+fn is_page_map(lbl: u64) -> bool {
+    lbl == label::ARMPageMap
 }
 
 /// A small, non-device frame cap outside an EPT.
@@ -235,6 +245,9 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
             Cap::Pml4 { ptr, mapped: true, .. } => ptr,
             _ => return None,
         };
+        if !map_attr_local(reg_arg(s, t, 2)) {
+            return None;
+        }
         let e = page_entry(s, root, reg_arg(s, t, 0))?;
         let ok = p.add(slot.0) && p.add_pte(e);
         some_if(ok, p)
@@ -243,6 +256,8 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
     }
 }
 
+/// The page-table entry `unmap_page` would clear for a small frame mapped
+/// at `vaddr` with ASID `asid`; None if it would clear none.
 #[cfg(not(feature = "aarch64"))]
 fn small_page_entry<S: Store>(s: &S, asid: u64, vaddr: u64) -> Option<u64> {
     let root = crate::vspace::find_vspace_for_asid(s, asid).ok()?;
@@ -250,8 +265,9 @@ fn small_page_entry<S: Store>(s: &S, asid: u64, vaddr: u64) -> Option<u64> {
 }
 
 /// Only user addresses: a map above USER_TOP fails in the decode, and a
-/// plan for one would walk (and lock) the kernel's half of the tables.
-#[cfg(not(feature = "aarch64"))]
+/// plan for one would walk (and lock) the kernel's half of the tables (on
+/// x86_64; an AArch64 VSpace holds no kernel mappings, but maps nothing
+/// above USER_TOP either).
 fn page_entry<S: Store>(s: &S, root: u64, vaddr: u64) -> Option<u64> {
     if vaddr > fl4_abi::consts::USER_TOP {
         return None;
@@ -259,12 +275,25 @@ fn page_entry<S: Store>(s: &S, root: u64, vaddr: u64) -> Option<u64> {
     crate::vspace::small_page_entry(s, root, vaddr)
 }
 
-#[cfg(feature = "aarch64")]
-fn small_page_entry<S: Store>(_s: &S, _asid: u64, _vaddr: u64) -> Option<u64> {
-    None
+/// x86_64 maps never maintain caches.
+#[cfg(not(feature = "aarch64"))]
+fn map_attr_local(_attr: u64) -> bool {
+    true
 }
 
+/// The page-table entry `unmap_page` would clear for a small frame mapped
+/// at `vaddr` with ASID `asid`, in a VSpace or an `ArmHighVSpace`; None if
+/// it would clear none. (Its invalidation, `invalidate_page` or
+/// `invalidate_high_page`, is a broadcast TLBI either way.)
 #[cfg(feature = "aarch64")]
-fn page_entry<S: Store>(_s: &S, _root: u64, _vaddr: u64) -> Option<u64> {
-    None
+fn small_page_entry<S: Store>(s: &S, asid: u64, vaddr: u64) -> Option<u64> {
+    let (root, _) = crate::vspace::unmap_root(s, asid)?;
+    crate::vspace::small_page_entry(s, root, vaddr)
+}
+
+/// A cacheable mapping: `install_page` maintains no cache for it, so the
+/// map makes no Arch operation but the TLBI of a remap (module comment).
+#[cfg(feature = "aarch64")]
+fn map_attr_local(attr: u64) -> bool {
+    attr & fl4_abi::consts::arm_vm_attr::PAGE_CACHEABLE != 0
 }
