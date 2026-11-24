@@ -194,7 +194,7 @@ theorem jPreemptHypLML (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
   · exact hWP
   · have hWP' : WJPM (L := L) arI AR MR Z H Cs kb s' a' σ' G := hWP
     have hLv' := J.liveDN_ppw arI hDS ⟨hL, ⟨lst, hDW⟩, hN⟩ hw hK hSS hm
-    exact ⟨hWP'.1, ⟨s, a, σ, Z.mv G V, H, Cs, Ac, Lst, D, ⟨J, hns, hp0, hR, hV, hVI⟩, hr, hm, hLv'⟩, hLv'⟩
+    exact ⟨hWP'.1, ⟨s, a, σ, Z.mv G V, H, Cs, Ac, Lst, D, ⟨J, hns, hp0, hR, hV, hVI, inferInstance⟩, hr, hm, hLv'⟩, hLv'⟩
 
 /-- **The deletion loop's named steps at `MachPlat` with `WJPML`** (module
 docstring). -/
@@ -235,7 +235,7 @@ def JAtL (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State U
 
 theorem JAtL.toJAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtL (L := L) arI AR s a σ) :
     JAt (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 /-- **`DelE` and `WJPML`** (after a preemption). -/
 abbrev EJPML (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets) (H : P1.Heap)

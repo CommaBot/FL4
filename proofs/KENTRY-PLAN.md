@@ -17963,3 +17963,33 @@ a start-state fact as `BndS` / `JPlaced`). Estimate XL (several sessions of buil
 
 ### (5) Builds
 None (no Lean change).
+
+### (6) f6b: lead decision = option (a); implemented — new top **`kernel_entry_reachU29`**
+- **Encoding.** JointAt: `class VxE (Z : XSets) : Prop` (`eq : Z.vx = ∅`) with instances `VxE.ofMk` (a structure
+  literal whose `vx` is `VxV`), `VxV.ofE`, `VxE.mv` (and in their files `VxE.keep`, `VxE.dropV`, `VxE.mp`, `VxE.addW`),
+  so `Z.mv …` / `{Z with …}` / retype and drop sets get it from the input's instance with no threading in proofs.
+  **`JAt s a σ := ∃ Z H Cs Ac Lst D, JAtZ … ∧ VxE Z`** (in place; `RJ`, `RJM`, `JAtM`, `JAtPre*` inherit it).
+  `JAtZ` unchanged (the deletion window keeps its `{Z with vx := E}` states).
+- The other ghost-existential wrappers that flow into `JAt` carry it too: `JAtS`, `RJR`, `JAtR`, `JAtL`, `JAtZLB`,
+  `JAtD`, `JAtPreMVL`, the written-out `∃ Z …, JAtZ(R)` posts (jreach_inv*, `DispPostR`, the `∃ (Z' …) (Ac' …)
+  (Lst' …) (D' …), JAtZ Z' H Cs …` posts of the budget / fault / SC steps) and the preemption path's
+  `JHoleAtV` (new; = old `JHoleAt` ∧ `VxE`; `JHoleAtT` likewise). `JHoleAt` itself is unchanged: it is the
+  antecedent of the `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` hypotheses, which `signalRestJHyp_of_ns` applies at
+  `JAtZ` states without `VxE`; `JHoleAtV.hole` converts.
+- Every `JReach*` inductive's `start` takes `VxE Z` (the boot state's `JAtZ` must have `vx = ∅`, i.e. `VsNamed`
+  at boot — a start-state fact like `BndS` / `JPlaced`); `JReachU13.start` / `JReachU15.start` take `hvx`.
+  `jreach_invU(2,3)` end in `∧ VxE Z`.
+- Generic lemmas: an instance binder `[VxE Z]` on every lemma that packs `JAt` (or one of the wrappers) from a
+  `JAtZ`/`JHole`/`JTH` binder, and on their callers (scripted closure; ~600 binders). Hypothesis defs quantifying a
+  `JAtZ` whose conclusion is `JAt`-level take `[VxE Z] →` after the `JAtZ` binder: `JReplyHyp`, `RunTmoP`,
+  `UtBodyHyp`, `JMidLeavesHyp*` (17), `JDelHypLM`, `JDelHypLML` (the deletion loop's preemption exit is a kernel
+  exit: the loop's base `Z` has `VxE`; `delHypsJLM(L)`, `jPreemptHypLM(L)`, `tcbInsWM_wjl` take it). Window
+  states (`WJLx`, `finVsJb`'s pool case) never need it.
+- **V-chain**: each top `kernel_entry_reachUn` (U2, U2F, U3, U3L, U4, U7, U9, U10, U8, U11, U12, U15, U17–U21,
+  U25–U28) gets a twin `kernel_entry_reachUnV` (same statement with `VxE Z ∧` before the `JAtZ` conjunct, same
+  proof calling the previous `…V`); the original top is now proved from its twin by dropping `VxE`. Statement texts
+  of all existing tops unchanged.
+- **U29** (P3/XTopJointKEntryU29): `JUtPathMU29` = `JUtPathMU28` without `vsReach`; the AsidControl case of
+  `JPathMEU29` is `True`; `KDispHypsKVU29.toU28 J' hni` fills C23 by `JAtZ.vsReachMissR J'.vsNamedE` and C17 by
+  `JAtZ.vsReachAsidC J'.vsNamedE` (new `JAtZ.vsNamedE : [VxE Z] → VsNamed`, VsNamedJ), the instance at
+  `Z.mv Z.G V'` from `kernel_entry_reachU28V`'s `VxE Z`.
