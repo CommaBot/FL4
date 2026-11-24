@@ -220,7 +220,7 @@ theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       σ.interruptStates i = .irqInactive ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
+  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, inferInstance⟩) w i hwi h126 h127
 
 
 variable (arI) in

@@ -272,7 +272,7 @@ theorem PPQZ.toPPQ {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQZ (L := L) ar
     PPQ (L := L) arI AR σ1 r := by
   rcases h with h | ⟨z, hz, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ | h⟩
   · exact Or.inl h
-  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole⟩⟩
+  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole, inferInstance⟩⟩
   · exact Or.inr ⟨z, hz, Or.inr h⟩
 
 set_option maxHeartbeats 16000000 in

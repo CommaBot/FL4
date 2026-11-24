@@ -257,7 +257,7 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
       rw [hs.consumed]; exact h1
     have hs' : Fl4Spec.schedulable σ.curThread σ = false := by rw [ect]; exact hsch
-    refine ⟨σ', ?_, ?_, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
+    refine ⟨σ', ?_, ?_, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole, inferInstance⟩
     · exact fun y hy => mem_pp_charge hs' hga (by rw [h1']; rfl) hy
     · exact fun hy => fail_pp_charge hs' hga (by rw [h1']; rfl) hy
   · simp only [↓reduceIte]
@@ -274,12 +274,12 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
         simp only at ha
         subst a'
         exact ⟨σ', fun y hy => mem_pp_sched hs' (by rw [h1]; rfl) hy,
-          fun hy => fail_pp_sched hs' (by rw [h1]; rfl) hy, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
+          fun hy => fail_pp_sched hs' (by rw [h1]; rfl) hy, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole, inferInstance⟩
       · refine WP.spec_mono (Hh.checkBudgetT hAT hC hni hres hnq hmrt hmb hkt hrr hth hper hcb) ?_
         rintro ⟨r, s', a'⟩ hF hr
         obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF hr
         exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, fun hy => fail_pp_sched hs' hz hy,
-          Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole⟩
+          Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole, inferInstance⟩
     refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb) hFT) ?_
     rintro ⟨r, s', a'⟩ ⟨hT, hF⟩
     refine (WP.spec_ok _).2 ?_

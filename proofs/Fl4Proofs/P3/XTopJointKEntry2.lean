@@ -58,7 +58,7 @@ theorem signalRestJHyp_of_ns {AR : A → Fl4Spec.Cr3 → Prop}
     (H : P1.Heap) (Cs : Set U64) : SignalRestJHyp (L := L) arI AR H Cs := by
   intro Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ _ hb
   obtain ⟨-, t, tcb, -, hkt, hvm⟩ := hb
-  exact absurd hvm (hNS s1 a1 σ1 ⟨Z1, H, Cs, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole⟩ t tcb hkt)
+  exact absurd hvm (hNS s1 a1 σ1 ⟨Z1, H, Cs, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole, inferInstance⟩ t tcb hkt)
 
 /-- **`kernel_entryJ`'s `hvm` from the native scope** (module docstring). -/
 theorem hvm_of_ns {AR : A → Fl4Spec.Cr3 → Prop}
@@ -66,7 +66,7 @@ theorem hvm_of_ns {AR : A → Fl4Spec.Cr3 → Prop}
     ∀ s1 a1 σ1, JAt (L := L) arI AR s1 a1 σ1 → ∀ x, σ1.kheap σ1.curThread = some (.tcb x) →
       x.tcbState ≠ .runningVM := by
   rintro s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ x hk
-  exact hNS s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole⟩ _ x hk
+  exact hNS s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole, inferInstance⟩ _ x hk
 
 theorem KFinAt2.toK {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit}

@@ -260,7 +260,7 @@ theorem JAtZ.handleIrqJJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
+  J.handleIrqJJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, inferInstance⟩) w i hwi h126 h127
 
 
 /-- **`JIrqHypJ` from the platform facts alone** (module docstring). -/
@@ -297,7 +297,7 @@ theorem PPQJ.toPPQ {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQJ (L := L) ar
     PPQ (L := L) arI AR σ1 r := by
   rcases h with h | ⟨z, hz, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩⟩
   · exact Or.inl h
-  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole⟩⟩
+  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole, inferInstance⟩⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`JHole.afterInvJZ` with `JAt` after a handled line** (module docstring). -/

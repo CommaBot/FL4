@@ -676,7 +676,7 @@ theorem mid_invRecvJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   rw [hcp] at hreg
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
   refine WP.spec_bind (WP.spec_mono (handle_invocation_entryJM arI s ar σ J ct hct false false true true _ hG hE hP
-    hPD hR0 hVT hVI (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩))
+    hPD hR0 hVT hVI (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole, inferInstance⟩))
     fun res h => And.intro (h.toPreMV.mid arI (MidRun.jMidRunHyp_of hW) (J.midEntry hni hE.cnf)) h) ?_
   rintro ⟨r, s1, a1⟩ ⟨⟨⟨y1, σm⟩, hy, ⟨hr1, hy1, hM⟩ | ⟨hr1, hy1, hrel, hX⟩⟩, hMV⟩
   · dsimp only at hr1 hy1 hM
@@ -765,7 +765,7 @@ theorem dispatch_invokeJAllM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       DispPost (L := L) arI AR (PPQJI (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ := by
   rw [fl4HandleSyscall_inv hn]
   exact dispatch_invokeJM arI s ar σ J ct hct number call bl don hn hG hE hP hPD hR hVT hVI
-    (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩) _
+    (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole, inferInstance⟩) _
     fun s1 a1 σ1 h1 h2 => WP.spec_mono (hPre_ofZQIM hARI hA hnd hM hMK hPA hIA hmrt hNS hG.maxTU hG.tu s1 a1 σ1 h1 h2)
       fun _ h => h.2
 
