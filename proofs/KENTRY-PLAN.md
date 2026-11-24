@@ -19773,3 +19773,9 @@ None (no Lean change).
   (int/j6 5b462fb8 merged): lt1-m6 `MODE=mod Fl4Proofs.P1.LocalTimer Fl4Proofs.P3.XTopJointKEntryU29T`, no stub:
   "Build completed successfully (7402 jobs)", ERRORS 0, SORRY 0. Fixes on the way: no `subst` of the number (it hid the
   run hypothesis), explicit store on store-free helpers.
+- **Full build** lt1-full1 (`MODE=build AX=axlt1.lean`, tree of 76dcc250; d884cc9a adds only this file and the A64 P0
+  files): "Build completed successfully (7513 jobs)", ERRORS 0, SORRY 0. Axioms (axlt1.lean, untracked):
+  `kernel_entry_reachU29T`, `kernel_entry_reachU29TD`, `declIrq_of`, `JAtZ.threadCapT`, `set_timer_local_same` /
+  `_triple` / `_decline`, `irq_local_same` / `_triple` / `_decline`, `irq_pre_same`, `lt_prefix`, `found_cap_keep`,
+  `decode_set_timer`, P0 `in_core_timer_tree_loop` / `handle_set_timer_local` / `handle_timer_irq_local`,
+  `kernel_entry_reachU29`, `kernel_entry_reachU29D`: all `[propext, Classical.choice, Quot.sound]`.
