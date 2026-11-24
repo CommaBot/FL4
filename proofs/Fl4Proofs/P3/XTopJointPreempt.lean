@@ -192,7 +192,6 @@ def JHoleAtV (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.Sta
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s0 : S) (a0 : A)
     (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ ∧ VxE Z
 
-variable {arI} in
 theorem JHoleAtV.hole {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JHoleAtV (L := L) arI AR s a σ) : JHoleAt (L := L) arI AR s a σ :=
   let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
@@ -291,7 +290,7 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
         rintro ⟨r, s', a'⟩ hF hr
         obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF hr
         exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, fun hy => fail_pp_sched hs' hz hy,
-          Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole⟩
+          Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole, inferInstance⟩
     refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb) hFT) ?_
     rintro ⟨r, s', a'⟩ ⟨hT, hF⟩
     refine (WP.spec_ok _).2 ?_
