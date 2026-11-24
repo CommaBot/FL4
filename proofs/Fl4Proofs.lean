@@ -173,6 +173,9 @@ import Fl4Proofs.P2.FootIoport
 import Fl4Proofs.P2.AccessLeaf
 import Fl4Proofs.P2.AccessSched
 import Fl4Proofs.P2.AccessCSpace
+import Fl4Proofs.P2.AccessIo
+import Fl4Proofs.P2.AccessIoDec
+import Fl4Proofs.P2.AccessSc
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
