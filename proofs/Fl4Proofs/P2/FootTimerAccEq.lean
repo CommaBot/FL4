@@ -1,6 +1,9 @@
 /-
-WIP (p2lt, not imported): `ictt_body_eq` still elaborates past 10 GiB on afkprover (also with
-`↓reduceIte` replaced and no `scalar_tac` over the unfolded goal); cause not yet isolated.
+WIP (p2lt, not imported). Memory bisect on afkprover (scratch modules, `sorry`-truncated, not committed):
+the `do`-notation copy of the step tail alone cost ~5 GiB, hence `ictTail`/`ictRight` in term mode
+(def + `body_split` by `rfl`: 3.9 GiB, fine); `ictt_body_eq` up to `rw [body_split, body_split]`: 4.3 GiB,
+fine; the segment `by_cases`/`rw [if_pos ..]`/`cases found`/`cases ov`/`simp only [..]` after it still runs
+past 9 GiB (next bisect point). `FootTimerAccStep` (rewritten on `ictTail`) is not yet compiled.
 
 # P2: `in_core_timer_tree` reads only core `c`'s tree (`PathObl.acc` piece)
 
@@ -38,7 +41,7 @@ def StackOK (Ks : List U64) (a : Array U64 32#usize) (sp : Usize) : Prop :=
 
 theorem StackOK.pop {Ks : List U64} {a : Array U64 32#usize} {sp sp1 : Usize} (h : StackOK Ks a sp)
     (e : sp1.val + 1 = sp.val) : StackOK Ks a sp1 :=
-  ⟨by omega, fun j hj hjs => h.2 j hj (by omega)⟩
+  ⟨by have := h.1; omega, fun j hj hjs => h.2 j hj (by omega)⟩
 
 theorem StackOK.top {Ks : List U64} {a : Array U64 32#usize} {sp sp1 : Usize} (h : StackOK Ks a sp)
     (e : sp1.val + 1 = sp.val) (hl : sp1.val < a.val.length) : a.val[sp1.val] ∈ Ks :=
@@ -53,49 +56,97 @@ theorem StackOK.push {Ks : List U64} {a : Array U64 32#usize} {n m : Usize} {v :
   · rename_i hne
     exact h.2 j (by simpa using hj) (by omega)
 
-set_option maxHeartbeats 4000000 in
-/-- One step of the search reads only `TreeReads` words. -/
+/-- The search step after the pop, with the popped node's three reads given as results `rd` (deadline),
+`rl` (left), `rr` (right): the extracted body is the pop followed by this (`body_split`, by `rfl`), so the
+guarded and the real step differ only in those three arguments. The right child: -/
+def ictRight (d : U64) (visits1 : U64) (found overflow : Bool) (rr : Result U64) (a : Array U64 32#usize)
+    (n : Usize) (cd : U64) : Result (ControlFlow ((Array U64 32#usize) × Usize × U64 × Bool × Bool) Bool) :=
+  if d >= cd then
+    Std.bind rr fun r =>
+      if r != 0#u64 then
+        if n = localtimer.TREE_STACK then ok (ControlFlow.cont (a, n, visits1, found, true))
+        else Std.bind (Array.update a n r) fun a1 =>
+          Std.bind (n + 1#usize) fun n1 => ok (ControlFlow.cont (a1, n1, visits1, found, overflow))
+      else ok (ControlFlow.cont (a, n, visits1, found, overflow))
+  else ok (ControlFlow.cont (a, n, visits1, found, overflow))
+
+/-- The search step after the pop (`ictRight`: the right child of a stack `a` at depth `n`). In term
+mode: the `do` elaboration of this body took ~5 GiB. -/
+def ictTail (i d : U64) (stack : Array U64 32#usize) (sp1 : Usize) (visits1 : U64) (found overflow : Bool)
+    (i1 : U64) (rd rl rr : Result U64) :
+    Result (ControlFlow ((Array U64 32#usize) × Usize × U64 × Bool × Bool) Bool) :=
+  Std.bind (obj.Tcb.Insts.CoreCmpPartialEqTcb.eq i1 i) fun b =>
+  if b then ok (ControlFlow.cont (stack, sp1, visits1, true, overflow))
+  else Std.bind rd fun cd =>
+    if d <= cd then
+      Std.bind rl fun l =>
+        if l != 0#u64 then
+          if sp1 = localtimer.TREE_STACK then ok (ControlFlow.cont (stack, sp1, visits1, found, true))
+          else Std.bind (Array.index_mut_usize stack sp1) fun p =>
+            Std.bind (sp1 + 1#usize) fun sp2 =>
+              if overflow then ok (ControlFlow.cont (p.2 l, sp2, visits1, found, overflow))
+              else ictRight d visits1 found overflow rr (p.2 l) sp2 cd
+        else if overflow then ok (ControlFlow.cont (stack, sp1, visits1, found, overflow))
+        else ictRight d visits1 found overflow rr stack sp1 cd
+    else if overflow then ok (ControlFlow.cont (stack, sp1, visits1, found, overflow))
+    else ictRight d visits1 found overflow rr stack sp1 cd
+
+/-- The extracted step is the pop, then `ictTail` of the popped node's reads. -/
+theorem body_split (M : machine.Store S) (s : S) (i d : U64) (stack : Array U64 32#usize) (sp : Usize)
+    (visits : U64) (found overflow : Bool) :
+    localtimer.in_core_timer_tree_loop.body M s i d stack sp visits found overflow =
+      (if sp > 0#usize then
+        if visits < localtimer.TREE_VISITS then
+          if found then ok (ControlFlow.done found)
+          else if overflow then ok (ControlFlow.done found)
+          else do
+            let visits1 ← visits + 1#u64
+            let sp1 ← sp - 1#usize
+            let i1 ← Array.index_usize stack sp1
+            ictTail i d stack sp1 visits1 found overflow i1 (obj.Tcb.timer_deadline M i1 s)
+              (obj.Tcb.timer_left M i1 s) (obj.Tcb.timer_right M i1 s)
+        else ok (ControlFlow.done found)
+      else ok (ControlFlow.done found)) := rfl
+
+/-- **One step of the search reads only `TreeReads` words**: the guarded step is the real step. -/
 theorem ictt_body_eq {s : S} {c target d : U64} {Ks : List U64}
     (hR : ∀ w, TreeReads st s c Ks w → R w)
     (x : Array U64 32#usize × Usize × U64 × Bool × Bool) (hx : StackOK Ks x.1 x.2.1) :
     localtimer.in_core_timer_tree_loop.body (guard st R Wr) s target d x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2 =
       localtimer.in_core_timer_tree_loop.body st s target d x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2 := by
   obtain ⟨stack, sp, visits, found, ov⟩ := x
-  simp only at hx ⊢
-  unfold localtimer.in_core_timer_tree_loop.body
+  rw [body_split, body_split]
   by_cases h1 : sp > 0#usize
-  swap
+  · rw [if_pos h1, if_pos h1]
+    by_cases h2 : visits < localtimer.TREE_VISITS
+    · rw [if_pos h2, if_pos h2]
+      cases found
+      · cases ov
+        · simp only [Bool.false_eq_true, ite_false]
+          refine PathObl.bind_guard_congr rfl fun v1 _ => ?_
+          refine PathObl.bind_guard_congr rfl fun sp1 esp1 => ?_
+          refine PathObl.bind_guard_congr rfl fun i1 ei1 => ?_
+          have hsp1 : sp1.val + 1 = sp.val := by
+            obtain ⟨z, ez, hz⟩ := spec_ex_fd (Usize.sub_spec (x := sp) (y := 1#usize) (by scalar_tac))
+            rw [ez] at esp1
+            have e := ok_inj_ff esp1
+            subst e
+            scalar_tac
+          have hl : sp1.val < stack.length := by
+            have : stack.length = 32 := by simp
+            have := hx.1
+            scalar_tac
+          have hi := Array.index_usize_spec stack sp1 hl
+          rw [ei1, WP.spec_ok] at hi
+          have hi1m : i1 ∈ Ks := by rw [hi]; exact hx.top hsp1 hl
+          have rd : R (tdA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inl rfl⟩))
+          have rl : R (tlA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inl rfl)⟩))
+          have rr : R (trA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inr rfl)⟩))
+          rw [tdG (Wr := Wr) (s := s) rd, tlG (Wr := Wr) (s := s) rl, trG (Wr := Wr) (s := s) rr]
+        · rfl
+      · rfl
+    · rw [if_neg h2, if_neg h2]
   · rw [if_neg h1, if_neg h1]
-  rw [if_pos h1, if_pos h1]
-  by_cases h2 : visits < localtimer.TREE_VISITS
-  swap
-  · rw [if_neg h2, if_neg h2]
-  rw [if_pos h2, if_pos h2]
-  cases found
-  swap
-  · rfl
-  cases ov
-  swap
-  · rfl
-  simp only [Bool.false_eq_true, ite_false]
-  have hv : visits.val < 64 := by
-    have := h2; unfold localtimer.TREE_VISITS at this; scalar_tac
-  obtain ⟨v1, ev1, -⟩ := spec_ex_fd (U64.add_spec (x := visits) (y := 1#u64) (by scalar_tac))
-  obtain ⟨sp1, esp1, hsp1⟩ := spec_ex_fd (Usize.sub_spec (x := sp) (y := 1#usize) (by scalar_tac))
-  rw [ev1, esp1]
-  simp only [bind_ok]
-  have hl : sp1.val < stack.length := by
-    have : stack.length = 32 := by simp
-    have := hx.1
-    scalar_tac
-  obtain ⟨i1, ei1, hi1⟩ := spec_ex_fd (Array.index_usize_spec stack sp1 hl)
-  rw [ei1]
-  simp only [bind_ok]
-  have hi1m : i1 ∈ Ks := by rw [hi1]; exact hx.top (by scalar_tac) hl
-  have rd : R (tdA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inl rfl⟩))
-  have rl : R (tlA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inl rfl)⟩))
-  have rr : R (trA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inr rfl)⟩))
-  rw [tdG (Wr := Wr) (s := s) rd, tlG (Wr := Wr) (s := s) rl, trG (Wr := Wr) (s := s) rr]
 
 end
 
