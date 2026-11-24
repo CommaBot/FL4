@@ -494,7 +494,7 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
          simp [layout.reg.MSG_INFO, layout.reg.BADGE, layout.reg.FAULT_IP, layout.reg.RSI, layout.reg.RDI]),
      fun s1 v h1 hv => vcpu.set.xs hH hv (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING]) h1⟩
     (fun s1 x1 => report_final h x1 ht (NB _ x1)) x00
-    (E.buf _ _ _ _ s t ⟨s0, he, h.fr⟩ x0.1 ht) hbd
+    (E.buf _ _ _ _ s t ⟨s0, he, h.fr⟩ x0.1 ht) (fun h0 _ => hbd h0)
 end
 
 

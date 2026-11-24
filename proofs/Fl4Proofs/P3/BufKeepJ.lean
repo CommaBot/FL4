@@ -13,6 +13,9 @@ so the fact at `J` carries to every state reached from `J` by writes of
 
 * `JAtZ.bufFact`: the buffer fact at `J` (P1's `BufFact`, every TCB of `H`).
 * `JAtZ.bufU_outside`: the buffer words lie outside the TCBs and nodes.
+* `JAtZ.bufAt` / `JAtZ.bufAtU`: the int6 core's placement carrier `P1.BufAt`
+  (`UserOK` for `BufU Z σ` and the buffer fact) at `J`, for any `Ω` missing the
+  buffer words, e.g. `OmegaU` (the set `JAtZ.bxiU` uses).
 * `JAtZ.bufFact_of_footDBU` / `JAtZ.bufFact_of_footDB`: the fact at any state
   `s'` with such a footprint from `J` (the fire loop's states: the loop
   carries `FootDB` from its start, plus the full-state reports' `BufU` words).
@@ -39,6 +42,17 @@ theorem JAtZ.bufU_outside {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : b ∈ BufU Z σ) :
     P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b :=
   (J.bufU_out hb).1
+
+/-- **The core's placement carrier at `J`** (`P1.BufAt`, int6), at any `Ω`
+missing the IPC-buffer words. -/
+theorem JAtZ.bufAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {Ω : Set U64} (hΩ : ∀ b ∈ BufU Z σ, b ∉ Ω) : P1.BufAt st (P1.Heap.tcbs H) Cs Ω H (BufU Z σ) s :=
+  ⟨fun b hb => ⟨(J.bufU_rbuf hb).1, hΩ b hb, (J.bufU_rbuf hb).2.1⟩, fun _ hy => J.bufOK hy⟩
+
+/-- `JAtZ.bufAt` at `OmegaU` (`JAtZ.bxiU`'s set). -/
+theorem JAtZ.bufAtU {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    P1.BufAt st (P1.Heap.tcbs H) Cs (OmegaU H Z (L.ksb s) σ) H (BufU Z σ) s :=
+  J.bufAt fun _ hb => (J.bufU_out hb).2
 
 /-- **The buffer fact after a `KWB` / debug-list / `BufU` footprint from `J`**
 (any state inside `schedule`'s fire loop). -/

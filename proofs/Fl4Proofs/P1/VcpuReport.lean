@@ -178,12 +178,15 @@ set_option maxHeartbeats 16000000 in
 /-- **`vcpu.report` from the four step kinds** (module docstring): `P` kept by
 the thread's message registers (`Bok` of the buffer looked up at the start),
 its three registers and the bound VCPU's `PENDING` word (`vOk` of the TCB's
-VCPU word, when nonzero), and `Q` after it is made running. -/
+VCPU word, when it and that VCPU's `PENDING` word are nonzero: the word is
+only cleared when it was set), and `Q` after it is made running. -/
 theorem vcpu.report.gen {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (R : RepSteps st t Bok P vOk) {Q : S → Prop} (hfin : ∀ s1, P s1 → sched.set_thread_state st s1 t sched.TS_RUNNING ⦃ Q ⦄)
     {s : S} {a : A} {badge : U64} (h : P s)
     (hbuf : msg.lookup_ipc_buffer st s true t ⦃ Bok ⦄)
-    (hv : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 → vOk (L.mem s (core.num.U64.wrapping_add t 3664#u64))) :
+    (hv : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) ≠ 0#u64 →
+      vOk (L.mem s (core.num.U64.wrapping_add t 3664#u64))) :
     vcpu.report st ar s a t badge ⦃ Q ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold vcpu.report vcpu.bound
@@ -191,20 +194,28 @@ theorem vcpu.report.gen {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   simp only [lift, bind_ok]
   refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
   subst ho
-  have hvk : v ≠ 0#u64 → vOk v := fun hv0 => by rw [ev] at hv0 ⊢; exact hv hv0
-  refine WP.spec_bind (Pₘ := fun _ => True) (by
+  refine WP.spec_bind (Pₘ := fun p => p = true → vOk v) (by
     split
-    · exact WP.spec_bind (Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ hS) fun _ _ => (WP.spec_ok _).2 trivial
-    · exact (WP.spec_ok _).2 trivial) fun pending _ => ?_
+    · rename_i hv0
+      unfold vcpu.get
+      simp only [lift, bind_ok]
+      refine WP.spec_bind (LawfulStore.read_spec s _) fun i ei => (WP.spec_ok _).2 fun hp => ?_
+      have hv0' : v ≠ 0#u64 := by simpa using hv0
+      have hi0 : i ≠ 0#u64 := by simpa using hp
+      have hp' : L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) ≠
+          0#u64 := by rw [← ev, ← ei]; exact hi0
+      rw [ev] at hv0' ⊢; exact hv hv0' hp'
+    · exact (WP.spec_ok _).2 fun hp => absurd hp (by simp)) fun pending hpv => ?_
   refine WP.spec_bind hbuf fun b hb => ?_
   refine WP.spec_bind (Fl4Proofs.P0.vcpu.full_reply.p0 _ _ _ hS) fun full _ => ?_
   have FN := fun (s1 : S) (vec : Bool) (h1 : P s1) =>
     vcpu.finish_notification.gen (a := a) (badge := badge) (vectoring := vec) hA R hfin hb h1
-  have PD : ∀ s1, P s1 → v ≠ 0#u64 → vcpu.set st s1 v vcpu.PENDING 0#u64 ⦃ P ⦄ :=
-    fun s1 h1 hv0 => R.pend s1 v h1 (hvk hv0)
+  have PD : ∀ s1, P s1 → pending = true → vcpu.set st s1 v vcpu.PENDING 0#u64 ⦃ P ⦄ :=
+    fun s1 h1 hp => R.pend s1 v h1 (hpv hp)
   repeat' (first
+    | contradiction
     | exact FN _ _ (by assumption)
-    | (refine WP.spec_bind (PD _ (by assumption) (by first | assumption | simpa using ‹_›)) ?_; intro _ _)
+    | (refine WP.spec_bind (PD _ (by assumption) (by assumption)) ?_; intro _ _)
     | rep_step R, hb, hfin, hS, hA, P)
 
 end
