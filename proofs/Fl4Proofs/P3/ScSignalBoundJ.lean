@@ -25,6 +25,8 @@ import Fl4Proofs.P3.IpcSignalBound
 import Fl4Proofs.P3.IpcSignalBoundSpec
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -534,12 +536,13 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨(wake_inv3B hI1 hk1 hin hrib badge.bv).actReady, NoDon.cfr F1 hND⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irel J.ip s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩, hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1

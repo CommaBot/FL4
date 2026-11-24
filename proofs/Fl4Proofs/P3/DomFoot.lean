@@ -61,14 +61,18 @@ theorem decDomHyp_of_foot {s : S} {ar : A} {lbl length slot : U64} {c : capabili
 
 /-- **The notification cap's footprint**: the restart of a caller blocked on
 nothing (P1's `set_thread_state.restart_blk`), then `send_signal`
-(`send_signal.tinvF`), both writing in `KW`; with no send right, nothing. -/
+(`send_signal.tinvF`), both writing in `KW`; with no send right, nothing.
+(int6: given the buffer placement `send_signal` takes, and that the signal
+completes no VMEnter, `NoVmSig`, after the restart.) -/
 theorem decFootP1_notification {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
     {Ac : Set U64} (hA : P0.ArchTotal arI) (s : S) (ar : A) (lbl length slot : U64) (p b : U64) (sd rv : Bool)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (hB : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hctT : ct ∈ T) (hnb : ¬ P1.Blocked (L.mem s (P1.stA ct)))
     (hnr : L.mem s (P1.stA ct) ≠ sched.TS_BLOCKED_ON_REPLY) (hpN : p ∈ Nt) (hH : H p = some .ntfn)
-    (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) (hDD : DbgDom (L := L) T Cs s) :
+    (hD : KWDom (L := L) T Cs Sg Scs Z (P1.EH H) s) (hDD : DbgDom (L := L) T Cs s)
+    {U : Set U64} (hBA : P1.BufAt st T Cs H Sg Scs Z U s)
+    (hnv : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → P1.NoVmSig st p s1) :
     DecFootP1 (L := L) arI s ar lbl length slot (.Notification p b sd rv) blk call don fp buf extra := by
   refine ⟨T, Cs, Sg, Scs, Z, H, ?_, hD, hDD⟩
   unfold syscall.decode_invocation
@@ -77,11 +81,12 @@ theorem decFootP1_notification {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt :
   · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
     exact P1.Foot.d (P1.Foot.refl _)
   · simp only [↓reduceIte]
-    refine WP.spec_bind (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr) ?_
-    rintro s1 ⟨hB1, f1, -, -⟩
-    refine WP.spec_bind (P1.notification.send_signal.tinvF hA s1 ar p b hB1 hpN hH) ?_
-    rintro ⟨s2, a1⟩ ⟨-, f2, -⟩
-    exact (WP.spec_ok _).2 ((P1.Foot.d f1).trans f2)
+    refine WP.spec_bind (P1.spec_eq' (P1.sched.set_thread_state.restart_blk (Es := P1.EH H) s ct hB hctT hnb hnr)) ?_
+    rintro s1 ⟨e1, hB1, f1, -, k1⟩
+    have hB1' := hBA.of_fr (P1.IbFr.of_keepT k1.toKeepT0)
+    refine WP.spec_bind (P1.notification.send_signal.tinvF hA s1 ar p b hB1 hpN hH hB1'.1 hB1'.2) ?_
+    rintro ⟨s2, a1⟩ ⟨-, -, -, f2⟩
+    exact (WP.spec_ok _).2 ((P1.Foot.d f1).trans (f2 (hnv s1 e1)).1)
 
 
 /-- **`DecDomHyp` from any write footprint** apart from the domain schedule

@@ -148,6 +148,10 @@ theorem MK.notification_maybe_donate_sched_context {s : S} {a : A} {t : obj.Tcb}
     notification.maybe_donate_sched_context st arI s a t n ⦃ r => AR r.2 c ⦄ := by
   unfold notification.maybe_donate_sched_context; mk_walk
 
+theorem MK.notification_kick_guest {s : S} {a : A} {t : obj.Tcb} (h : AR a c) :
+    notification.kick_guest st arI s a t ⦃ r => AR r.2 c ⦄ := by
+  unfold notification.kick_guest; mk_walk
+
 theorem MK.notification_send_signal {s : S} {a : A} {n_ptr : Std.U64} {badge : Std.U64} (h : AR a c) :
     notification.send_signal st arI s a n_ptr badge ⦃ r => AR r.2 c ⦄ := by
   unfold notification.send_signal; mk_walk

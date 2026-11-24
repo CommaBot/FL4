@@ -21,6 +21,8 @@ thread, the slots kept); the dead set stays dead by
 -/
 import Fl4Proofs.P3.ScJointSchTail
 import Fl4Proofs.P3.ScDeadSch
+import Fl4Proofs.P3.BufAtJ
+import Fl4Proofs.P1.IbKeepHolds
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -159,12 +161,12 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
       NtfnStateRel Z.N Z.T (L.mem r.1) σ1 ∧ NSC Z.N Z.C σ1 ∧ SchedPreW Z.T Z.C σ1 ∧
       ((∃ (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64), JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
         timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and hfireJ (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and hfireJ (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, h1, h2, h3, h4, h5, hJ⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     exact ⟨σ1, h1, h2, h3, h4, h5, hJ, hf, hk.1⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWP s a σ hS hR J.nsc hnd hfire2 hA hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
       hTail)) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨Ac1, Lst1, D1, J1⟩, hfr, hkf⟩, hw, hrun⟩,
     hkw⟩, ⟨htinv, hRest⟩⟩

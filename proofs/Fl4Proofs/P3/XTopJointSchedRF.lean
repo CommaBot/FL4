@@ -23,6 +23,7 @@ import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScScheduleF
 import Fl4Proofs.P3.ScFpuOwnK
 import Fl4Proofs.P3.G7dVsRoot
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -88,14 +89,14 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
         timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s ∧ FpuOwnOK σ1) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     have hd1' : σ1.domainTime ≠ 0 := by rw [hd1]; exact hd
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, J1.schedPreW hd1',
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_fires J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWPF s a σ hS hR J.nsc hnd hfire2 (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
       hTail)) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
     hkw⟩, ⟨htinv, hRest⟩⟩

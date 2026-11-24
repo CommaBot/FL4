@@ -29,6 +29,7 @@ import Fl4Proofs.P3.ScNextDomCFR
 import Fl4Proofs.P3.G7cSwitch
 import Fl4Proofs.P3.G7dVsRoot
 import Fl4Proofs.P3.XTopJointJAtZRB
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -183,7 +184,8 @@ theorem JAtZR.rootFr {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
 argument). -/
 theorem JAtZR.fire_ks {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {s1 : S}
-    (hf : P1.FootD st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s1) :
+    {U : Set U64} (hf : P1.FootDU st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) U s s1)
+    (hU : ∀ b ∈ U, ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b) :
     ∀ o : U64, o.val < 256 → o.val % 8 = 0 → L.mem s1 (ksW (L.ksb s) o) = L.mem s (ksW (L.ksb s) o) := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
@@ -192,6 +194,9 @@ theorem JAtZR.fire_ks {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
   have hKW := J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)
   intro o ho h8
   refine hf.mem_eq (ksW_al hkf hka ho h8) fun hb => ?_
+  rcases hb with hb | hu
+  swap
+  · exact hU _ hu o (by omega) h8 rfl
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   rcases hb with hb | hb
   · rcases hKW _ (ksW_al hkf hka ho h8) hb with e | e <;> rw [hv] at e <;> omega
@@ -259,10 +264,10 @@ theorem JAtZR.idleVt_fire (hAT : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs
   have hnp : ∀ p asid, cp ≠ .Pml4 p true asid := fun p asid e => by
     subst e; exact hv0 p.bv asid.bv hv
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
-  have hfk := spec_ok_post (P1.timer.fire.kw hAT hNt s a J.blk) hfr
+  have hfk := spec_ok_post (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a J.blk J.bufAtJ) hfr
   simp only [WP.uncurry'_pair] at hfk
   obtain ⟨⟨Q', R', hq⟩, -⟩ := J.blk
-  have hSS := slotsSame_of_footD J.xtop.rel.1 (hJ.kwOutBlk J.blk) hq.tcbs hq.nodes hfk
+  have hSS := slotsSame_of_footDU J.xtop.rel.1 (hJ.kwOutBlk J.blk) hq.tcbs hq.nodes hfk J.bufU_noSlot
   have hx : IsSlot Z.th (slotOf (nodeW st s Z.c layout.node.IDLE_THREAD) 1) := ⟨_, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
   have hc1 := (hSS.capAt hx).trans hcp'
   obtain ⟨y, hky, hsl1⟩ := J1.xtop.rel.2.1.1.tcb _ hth

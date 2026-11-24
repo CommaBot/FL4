@@ -33,6 +33,7 @@ outcome (`xcap_of_or`). Named [P]: the platform's `min_budget`,
 `ticks_to_us`, `getMaxTicksToUs` and `ArchTotal`; [W] the front end's label.
 -/
 import Fl4Proofs.P3.ScJointConsumed
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -130,12 +131,6 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-
-/-- A thread of `Z.T` is a TCB of the typed heap. -/
-theorem JAtZ.thTcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
-    Z.th t = some .tcb := by
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  exact (hJ.tcb t).2 (J.zH.1 t ht)
 
 set_option maxHeartbeats 4000000 in
 /-- **`dequeue` at `J`** (DomSched's `dequeue_schedStep`, a scheduler step:

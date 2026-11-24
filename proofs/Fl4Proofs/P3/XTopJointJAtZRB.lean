@@ -21,6 +21,8 @@ import Fl4Proofs.P3.ScSignalJ
 import Fl4Proofs.P3.XTopJointSchedRF
 import Fl4Proofs.P3.XTopJointSchedRF2
 import Fl4Proofs.P3.XTopJointSchedRF3
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 -- ===== from ScFireJ
@@ -1112,12 +1114,13 @@ theorem JAtZR.signal_boundJ (hAT : P0.ArchTotal arI) (J : JAtZR (L := L) arI AR 
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨(wake_inv3B hI1 hk1 hin hrib badge.bv).actReady, NoDon.cfr F1 hND⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irel J.ip s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩, hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1
@@ -1587,12 +1590,13 @@ theorem JAtZR.signal_waitDJ (hAT : P0.ArchTotal arI)
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
   have hbl := (J.sv.ntfnQ n.bv x hk).2
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_ntfn hI hn hk (by rw [ho]; intro e; cases e)
   refine WP.spec_mono (WP.spec_and (send_signal_wait_irelD J.ip hmb s a σ hI J.inv J.nsc hn hk ho hbl badge)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, d, xd, σd, σ', hmq, hkd, hxs, hdon, hsend, hmw, hIR, hF, hFS⟩, hb⟩
   try simp only [WP.uncurry'_pair] at hb
-  obtain ⟨hb, -, hfoot⟩ := hb
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hb, -, -, hfoot⟩ := hb
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   have hdn : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
   set σ1 := updK σ n.bv (.notification (afterDequeue x d)) with hσ1
@@ -1681,13 +1685,14 @@ theorem JAtZR.signal_boundDJ (hAT : P0.ArchTotal arI) (hmb : ∀ a : A, sporadic
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨wake_inv3B hI1 hk1 hin hrib badge.bv, F1.nsc J.nsc, (hI1.notQueued hk1 (by rw [hin]; rfl)).1⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irelD J.ip hmb s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σd, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩,
     hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1
@@ -1873,7 +1878,7 @@ theorem signalJHyp_ofZR (hAT : P0.ArchTotal arI) (P : Fl4Spec.State Unit → Pro
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
-  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH)
+  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2
   -- the badge-only branches
   have post : ∀ (y : Fl4Spec.Notification), (∀ l, x.ntfnObj ≠ .waitingNtfn l) → (∀ l, y.ntfnObj ≠ .waitingNtfn l) →
       y.ntfnBoundTcb = x.ntfnBoundTcb → y.ntfnSc = x.ntfnSc →
@@ -1967,7 +1972,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop}
 theorem JAtZR.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hNd : NdOK (L := L) s σ) {s1 : S}
-    (hf : P1.FootD st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s1)
+    {U : Set U64} (hf : P1.FootDU st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) U s s1)
+    (hU : ∀ b ∈ U, ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b)
     (hF : Fires σ σ1) : NdOK (L := L) s1 σ1 := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
@@ -1976,6 +1982,9 @@ theorem JAtZR.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 �
   have hKW := J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)
   obtain ⟨hdl, hdi, hds⟩ := fires_dom hF
   refine hNd.keep hf.1 (fun o ho h8 => hf.mem_eq (ksW_al hkf hka ho h8) fun hb => ?_) hdl hdi hds
+  rcases hb with hb | hu
+  swap
+  · exact hU _ hu o (by omega) h8 rfl
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   rcases hb with hb | hb
   · rcases hKW _ (ksW_al hkf hka ho h8) hb with e | e <;> rw [hv] at e <;> omega
@@ -2047,11 +2056,11 @@ theorem jat_scheduleWP0FZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
           JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
           timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s ∧ FpuOwnOK σ1)) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ P hP hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ P hP hSig) (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, ⟨J1.inv, J1.cur, J1.off, J1.act, J1.own⟩,
-      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk h1), J1.nk,
+      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8) h1), J1.nk,
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_firesZR J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
   exact schedule_refinesWP0FR s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hAN hsni hsend hT
 
@@ -2148,14 +2157,15 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
   -- g7a: the `DOM_SCHED_IDX` word stays 0 (SchedIdx)
-  have hIdx := P1.sched.schedule.idx hAT hNt s a hB J.kern.ksbFit J.kern.ksbAl
-    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc))
+  have hIdx := P1.sched.schedule.idx hAT (P1.ibKeep_holds hAT) hNt s a hB J.kern.ksbFit J.kern.ksbAl
+    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) J.bufAtJ
     (fun s1 hf1 => fire_ks_of J.kern.ksbFit J.kern.ksbAl J.kern.hks J.kern.heap
-      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1)
+      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1
+      (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8))
     (idxI_of J.xtop.rel.2.2.2.1 J.xtop.fin.1.1.1 hd)
   refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
     (jat_scheduleWP0FZR s a σ J hd hnd hAT P hP hSig hA hAN hFO hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
       hTail)) hIdx) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
     hkw⟩, ⟨htinv, hRest⟩⟩, h24'⟩

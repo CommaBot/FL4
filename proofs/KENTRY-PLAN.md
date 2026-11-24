@@ -19537,3 +19537,164 @@ None (no Lean change).
 - **FINDINGs.** (1) closed upstream by #96 (A64 extracts, 0 sorry). (2) `xtask extract --arch aarch64` exits 1 on
   `a64_funs_external`'s template equality (x86 has `Result.is_err`, A64 does not); tooling only, no kernel bug.
   No kernel behaviour bug found.
+
+### int6 core (route A, owner's choice) — interfaces for par/a6f and par/a6x (exact statements in P1/QueueSignal, P1/QueueEntry)
+- **Placement carrier** (QueueSignal; revised, `Ω`-free so that P3's `J.blk` over `Heap.omega H`, whose `other`
+  objects hold the frames, fits): `UsrW st T Cs H Sg Scs Z s b` (structure; named so as not to clash with a6f's `BufW`: `out : OutsideObjs`, `eps` apart from
+  the endpoints/notifications, `sg : b ∉ Sg`, `ks` off the kernel-global area, `sc` in no SC object) and
+  `BufAt st T Cs H Sg Scs Z U s := (∀ b ∈ U, UsrW … s b) ∧ ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ BufOK U ⦄`
+  (`BufOK` moved here from QueueXfer; `UserOK.usrW` / `BufAt.of_user` for P1's entry). `send_signal.tinv` /
+  `.tinvF` / `.tm` / `.tagree` take `(hU : ∀ b ∈ U, UsrW … s b) (hbuf : ∀ y ∈ T, lookup ⦃ BufOK U ⦄)` at the
+  signal's state; buffer writes keep `BlkOK` by `bufw_xfer` (`xfer_all` over `Ω ∖ U`, `BlkOK.shrinkΩ/growΩ`); `vcpu.report.xf`: report = `RepW t U` writes (the thread's register words TCB+256..3328, user words `U`)
+  then `set_thread_state TS_RUNNING`. Footprints widened: `FootU` / `FootDU` (QueueFootS) = `Foot` / `FootD` ∪ `U`;
+  `send_signal.tinvF`, `timer.fire.tinvF/.kw`, `sched.schedule.sfoot/.kw` now end in `FootDU … (EH H) U`.
+- **a6f (gap 1) — what the core expects**: the buffer-lookup frame `IbFr T s s' := L.ksb s' = L.ksb s ∧ ∀ t ∈ T,
+  IbSame s s' t`, `IbSame` = `ibWordA t` (TCB+3512), `sbWordA t` (the buffer cap slot) and `sbWordA t + 8` unchanged;
+  `BufAt.of_fr`, `IbFr.of_keepT` (any `KeepT0`), `lookup_ipc_buffer_same` are proved. The deferred Prop
+  **`IbKeep st ar`** (QueueSignal; as `TmoXG`, a P1 lemma not a premise of any top) asks, for any sets and `U`:
+  (1) `TInv s → t ∈ T → timer.remove st s t ⦃ IbFr T s ⦄`, (2) `TInv s → n ∈ Nt → H n = ntfn → BufAt … U s →
+  send_signal ⦃ s' _ => IbFr T s s' ⦄`, (3) `TInv s → IbFr T s (L.wr s (L.nodeAt s (L.cpu s) REPROGRAM) v)`.
+  Please provide **`theorem ibKeep_holds {A} {ar : machine.Arch A} (hA : P0.ArchTotal ar) : IbKeep st ar`** in a
+  P1 module that `QueueEntryGaps4` can import (it is used there: `kernel_entry.entry_of3 hA (tmoXG_holds hA)
+  (ibKeep_holds hA)`), and the P3 helpers giving `BufAt` at a `JAtZ` state (from `JAtZ.bufOK`, `JAtZ.bufU_out`).
+  `IK : IbKeep st ar` is threaded where `TX : TmoXG` is (QueueEntry chain, `kernel_entry.entry_of`/`_of2`/`_of3`)
+  and into `timer.fire_loop.tinv/.tinvF/.rb'`, `timer.fire.*`, `sched.schedule.tinv/.entry/.sfoot/.kw`.
+- **a6x merged** (1bcc63f9): QueueEntry's finish composites (and `kernel_entry.entry`, `entry_of`, `entry_of2`)
+  moved to the new `P1/EntryFin` (after `EntryXGTop`): `kernel_entry.entry` = `kernel_entry.entryXG` with
+  `finish.entry`, `SigXG` proved there (`sigXG_holds`, from `send_signal.tinvF`'s `FootDU` ⊆ `IpcW`);
+  `kernel_entry.entry` gains the start tuple's `XferHyps` (supplied by `entry_of` from `P3Place.xfer`).
+- (superseded by the line above) **a6x (gap 2) — what the core expects**: `syscall.finish.entry` now takes `(IK : IbKeep st ar)` and
+  `(hG : XG st T Cs Ω H Sg Scs Z P3Ok s)` at the finish state (`EntryHyps0.bufAt`, new field filled in
+  `EntryHyps.of_gaps` from `P3Place.xfer.buf` + `P3Place.blkU`, turns it into `BufAt`). Its four callers in
+  QueueEntry have the hole **`xg_a6x`** where that `XG` must come from: `unknown_syscall_fault_old.entry` (after
+  the fault path / a failed budget check), `set_tls_base_self.entry` (after the TLS write / a failed budget
+  check), `handle_syscall_old.entry` (over `σ3` after the dispatch), `handle_interrupt_entry.entry` (after
+  `handle_interrupt`). Local builds stub them (`proofs/scratch/int6scratch.py`, untracked, SCRS=…).
+
+- **For a6f (after its merge of 1bcc63f9)**: `BufAt` changed to the `Ω`-free form above (`UsrW`, not `UserOK`), so
+  P3 can use it with `J.blk` over `Heap.omega H`: please aim `JAtZ.bufAt` at
+  `P1.BufAt st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (BufU Z σ) s` (no `hΩ`;
+  `UsrW` needs `out`/`eps`/`sg` from `JAtZ.bufU_rbuf`, `ks` from `J.ks.buf` as in `JAtZ.bxiU`, `sc` from the
+  buffer's apartness from `H`'s non-`other` objects, `JAtZ.bufWord`). `IbKeep`'s `send_signal` clause takes this
+  `BufAt`; `UsrW.out` is the `OutsideObjs` `BufKeep.of_blkDBU` needs. `send_signal.tinvF` now has a 4th conjunct:
+  under **`NoVmSig st n s`** (`epState ≠ NTFN_IDLE ∨` the bound thread is not `TS_RUNNING_VM`) the old `FootD` /
+  `DonCore → Foot` footprints (P3's wake proofs, which need `KW`, use it).
+
+- **P3 call sites (core)**: the signal sites use `J.bufAtJ.1 J.bufAtJ.2` and, for `tinvF`'s narrow
+  footprint, `Ipc.noVm_of_recv` / `Ipc.noVm_of_ntfn` (new `P3/SigNoVm`); the whole-loop sites pass
+  `(P1.ibKeep_holds hAT)` and `J.bufAtJ`; `fire_ks` / `ndOK_fire` / `fire_ks_of` take `FootDU … U` with
+  `hU` (`(J.bufAtJ.1 b hb).ks`). The signal and scheduler cones (ScSignal*J, ScFireJ, ScSchTailP1) lie
+  **upstream** of XTopJointData / XTopJointXferB / XTopJointKEntryFF, where the buffer lemmas were, so the core
+  moved them (unchanged names and statements) to the new early module **`P3/BufAtJ`** (after JointAt): `RBufW`,
+  `RcvBufW`, `BufU`, `buf_frame_rng`, `fl4BufA_bv`, `bufCover_of_frameCover`, `JAtZ.thTcb`, `JAtZ.bufWordG`,
+  `JAtZ.rbufU`, `JAtZ.bufU_B`, `JAtZ.bufU_rbuf`, `JAtZ.bufOK`; new there `JAtZ.usrWJ` / **`JAtZ.bufAtJ`** (a6f's
+  `bufUsrW` / `bufAt` proof, under names that do not clash with BufKeepJ's) and **`JAtZ.bufU_noSlot`**
+  (`BufPlaced.slot`). **`P3/BufAtJR`** (after XTopJointJAtZR) has the `JAtZR` copies (`JAtZR.bufAtJ`,
+  `JAtZR.bufU_noSlot`, …), so a6f need not provide them.
+
+## a6x (branch par/a6x from int/j6 f76327d6) — gap 2 of int6 (cont.): `XG` reaches `finish` on every native path; two new P1 modules, no statement changed, no premise added
+- **Modules** `P1/EntryXG` (IPC paths) and `P1/EntryXGTop` (budget check, yield, IRQ, composites), root-imported. `XG`
+  (QueueEntry) is kept by any `Cur0W` frame; every step below is a `KW` / `FootD` step (existing footprint lemmas:
+  `take_reply.kw`, `maybe_return_sched_context.kw`, `maybe_donate_sched_context.tinvF`, `unblock_check.kw`,
+  `unblock_sporadic.kw`, `reply_push.kw`, `set_thread_state.kw`, `possible_switch_to.kw`, `ep_dequeue.head_kw`,
+  `set_fault.kw`, `schedule_tcb` via `blk_sched`/`BlkFoot`, `ep_append.foot`/`ntfn_append.foot`, `reschedule_required.kw`,
+  `foot_node`, `regW_spec`) or a message transfer (kept by `XferOK`'s guard `G := XG`, as `send_ipc.xg` does). New
+  footprint lemmas: `blkfoot_kw`, `ep_append_kw`, `ntfn_append_kw`, `endpoint.wait_for_sender.kw`, `ntfn_block.kw`.
+- **`XG`-preservation lemmas** (each under the hypotheses of the existing `.bxi`/`.ipc` lemma of the same function plus
+  `hG : XG … s`, post `⦃ s' _ => XG … s' ⦄`): `notification.receive_signal.xg`, `notification.complete_signal.xg`,
+  `endpoint.receive_from_sender.xg`, `endpoint.receive_ipc.xg`, `faults.handle_fault.xg` (fault IPC and the no-handler
+  `TS_INACTIVE` case), `syscall.handle_recv.xg` (cap faults via `hfault`), `syscall.handle_yield.xg` (`charge_budget.allG`
+  with `G := XG` and `TmoKG`, then the SC `CONSUMED` word), `syscall.budget_ok.xg` (`XG` after the entry's budget check
+  **whether it passes or fails**: `update_timestamp` node words, `check_budget.allG`, the restart's `set_thread_state`),
+  `interrupt.handle_interrupt.xg` (signal by `SigXG`, timer node words, IPI `reschedule_required.kw`). From
+  `EntryHyps0`: `EntryHyps0.faultXG` / `recvXG` (and `faultB` / `recvB`: `∃ Ac', BXI ∧ XG`).
+- **`SigXG st ar`** (a `def`, like `TmoXG`; not a premise of any existing top): `send_signal` from `XG ∧ BlkOK ∧ UserOK U`,
+  given `XferHyps … U P3Ok`, on `n ∈ Nt` with `H n = ntfn`, ends at `XG`. Needed because since #80/#85 `send_signal` may
+  write the bound thread's IPC buffer, so the old `KW`/`FootD` footprint no longer holds; it is the send_signal line's to
+  discharge, `SigXG.of_ipcFoot` reduces it to an `IpcFoot … (EH H) U s s'` footprint of `send_signal` (KW ∪ XferFoot T U ∪
+  …; buffer words are `UserW` by `UserOK` + `BufOK`). Used only on the IRQ path (`handle_interrupt.xg` and below).
+- **Composites for the core line** (the `finish` call as a hypothesis `hfin` that may use `BXI ∧ XG` at the `finish`
+  state; direct returns `hpost` at `EntryInv`): `syscall.dispatch_syscall.xg` (post `∃ σ', Adm σ' ∧ ∃ Ac', BXIs ∧ XG σ'`),
+  `syscall.unknown_syscall_fault_old.xgF`, `syscall.set_tls_base_self.xgF`, `syscall.handle_unknown_syscall_old.xgF`,
+  `syscall.handle_syscall_old.entryXG` (no `SigXG` needed: after an invocation `postG` already gives `XG`),
+  `syscall.handle_interrupt_entry.entryXG` (`SX : SigXG`, `XH : XferHyps` of the start tuple), `kernel_entry.entryXG`.
+  `syscall.handle_syscall_old.entry'` re-derives QueueEntry's `handle_syscall_old.entry` from `entryXG` (instance check).
+  So `syscall.finish.entry` can be restated with `hG : XG … s` (and use `P3Place.xfer.buf`) and fed to these as `hfin`.
+- **Not covered here:** gap 1 (loop-internal states of `timer.fire_loop` inside `schedule`), the `send_signal` lemmas
+  (another line), `SigXG` itself.
+- **Build** (afkprover, mirror FL4-a6x seeded from FL4-int6, keys `a6x-b1..b4`): `MODE=mod MODS="Fl4Proofs.P1.EntryXG
+  Fl4Proofs.P1.EntryXGTop"` → 0 errors, `Build completed successfully (3788 jobs)`. Because int/j6's `P1/QueueSignal` (and
+  `QueueFootS`'s send_signal lemmas) do not build since #80/#85 and every module here is downstream of it, the builds ran
+  with an untracked local stub (`proofs/scratch/a6xstub.py`, not committed, applied/reverted by `afk-build.sh SCRS=`):
+  the bodies of `vcpu.report.blk`, `vcpu.signal_completes.blk`, `send_signal.tinv`, `vcpu.report.blkF`, `signal_vmF`,
+  `send_signal.tinvF` replaced by `sorry`. Axioms (`#print axioms`): every new lemma of `EntryXG` and `budget_ok.xg`,
+  `handle_yield.xg`, `handle_interrupt.xg`, `SigXG.of_ipcFoot`, `EntryHyps0.faultXG`/`recvXG` — only propext /
+  Classical.choice / Quot.sound; the composites (`dispatch_syscall.xg`, `…entryXG`, `entry'`) show `sorryAx` only through
+  the stubbed `send_signal.tinv` (via the existing `after_invocation.bxi` / `handle_interrupt.bxi`), which disappears when
+  the send_signal line's QueueSignal lands. No full build (int/j6 has no green full build yet).
+
+## a6f (branch par/a6f, from int/j6 f76327d6) — gap 1: the buffer words inside `schedule` (statement first, proofs follow)
+- **Why a footprint refinement.** `lookup_ipc_buffer st s true y` reads three words of TCB `y` (`lookup_buf_agreeB`):
+  `ibA y` (TCB+3512, `IPC_BUFFER`), `sbA y` and `sbA y + 8` (the buffer cap slot, TCB+64/72). The slot words are outside
+  `KW` already (offset < 192, and `KW`'s other words are nodes / `Sg` / SC / endpoint words, all outside the TCBs), but
+  `ibA y` is a `KW` word (TCB clause, 192 ≤ K < 4096). No operation under `schedule` writes offset 3512, so the
+  refinement is `KW` with offset 3512 left out of the TCB clause, exactly as the debug links 3576/3584 already are.
+  `KW`/`Foot`/`FootD` are unchanged; each refined lemma is a new `…B` lemma, the original kept as its instance
+  (`(….kwB …).foot`).
+- **P1 interface (QueueFoot, QueueFinal), names fixed:**
+  - `KWB st T Cs Sg Scs Z Es s0 b` (= `KW` with `K.val ≠ 3512` in the TCB clause), `KWB.kw`, `KWB.ksb`, `KWB.mono`;
+    `FootB` (`WritesIn … (KWB … s)`), `FootB.foot : FootB → Foot`, `FootB.refl/trans/mono/of/of'/of0`,
+    `kwB_field` (`hKd : K.val ≠ 3576 ∧ K.val ≠ 3584 ∧ K.val ≠ 3512`), `kwB_node`, `kwB_sg`, `kwB_sc`, `kwB_ep`,
+    `footB_wr`, `footB_field`, `footB_node`, `LinkOf.kwB`, `LawfulStore.NodeOf.kwB`, `LawfulStore.QFoot.kwB`,
+    `EpFoot.kwB`, `InRing.kwB`; in QueueFinal `FootDB` (`WritesIn (KWB ∨ DbgW)`), `FootB.d`, `FootDB.footD`,
+    `FootDB.trans`, `FootDB.mono`.
+  - `ibA`, `sbA`, `ipc_buffer_ok`, `sbA_val`, `lookup_buf_agreeB`, `lookup_buf_agree` move from FastFaultInv to
+    QueueFoot (same names and statements, so the core line can use them under QueueSignal).
+  - `BufW st T b` (`∃ y ∈ T, b = ibA y ∨ b = sbA y ∨ b = sbA y +w 8`);
+    `BufKeep st T s s'` (the three words of every `y ∈ T` equal), `BufKeep.refl/trans`;
+    `BufFact st T Bok s := ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ Bok ⦄` (`Bok` generic: the core uses
+    `BufOK U`), **`BufFact.keep : BufFact T Bok s → BufKeep T s s' → BufFact T Bok s'`**.
+  - `BufKeep.of_writes (hT : TcbPlaced T) (w : WritesIn st s s' B) (hB : ∀ b, Aligned b → B b → ¬ BufW st T b)`;
+    `notBufW_out` (an `OutsideObjs` word), `notBufW_dbg` (a `DbgW` word), `kwB_notBufW` (a `KWB` word, from
+    `SchedQueuesInvX`/`ObjsOK`/`Sg ⊆ Ω`/`Es` typed, as `kw_not_dbg`);
+    **`BufKeep.of_footB`, `BufKeep.of_footDB`** (from the invariants at the start state) and
+    **`BufKeep.of_footDBU (hU : ∀ b ∈ U, OutsideObjs st T Cs s b)`** for a footprint `KWB ∨ DbgW ∨ U` (the full-state
+    report's IPC-buffer words `U`).
+  - `…B` footprints (originals kept as instances): QueueFoot `sched.enqueue/dequeue/release_remove/set_action/
+    schedule_tcb/set_thread_state/reschedule_required/possible_switch_to.kwB`, `endpoint/notification.unblock_sporadic.kwB`,
+    `ipc.reply_unlink.kwB`; QueueFootD `sched.release_enqueue.kwB`, `schedcontext.donate.kwCB` / `.kwB`; QueueFootS
+    `sched.postpone.kwB`, `schedcontext.resume.kwB`, `notification.maybe_donate_sched_context.tinvFK` / `.tinvFBK`,
+    `signal_tail.FK`, `reg_allFK`, `obj.Tcb.set_reg.blkFK`, `msg.set_mr.blkFK` (`K`: `FootDB`/`FootB` in place of
+    `FootD`/`Foot`, the rest of the post unchanged); QueueTimerR `TF.footB` (`timer.remove`'s `TF` footprint).
+  - Footprints that are `KW` ones with a field frame lift without re-proof: **`FootB.of_foot (f : Foot …)
+    (hib : ∀ y ∈ T, mem s' (ibA y) = mem s (ibA y))`**, `FootDB.of_footD` (QueueFinal); the field frames give `hib`
+    / `BufKeep` directly: `KeepT0.bufKeep` (cancel_ipc / `sts_all`), `BufKeep.of_fields` (the `ntfn_state_all` /
+    `ntfn_dequeue` field frame). So `cancel_ipc.kw`, `dequeue_blocked_kw`, `set_thread_state.kwP` need no `B` copy.
+  - `BufKeep.of_blkDBU (h : BlkOK … s) (hU : ∀ b ∈ U, OutsideObjs st T Cs s b) (f : WritesIn s s' (KWB … (EH H) s ∨
+    DbgW ∨ U))` (QueueFinal): the form the fire loop / P3 use.
+- **Merged int/j6 1bcc63f9 and 24b24b04** (the core's `IbKeep` interface, `FootU`/`FootDU`, `NoVmSig`, `UsrW`). On top: QueueFootS `FootUB` /
+  `FootDUB` (`FootU`/`FootDU` with `KWB`), `RepW.footB`, **`vcpu.report.blkFK`, `signal_vmFK`,
+  `notification.send_signal.tinvFK`** (the core's new `blkF`/`signal_vmF`/`send_signal.tinvF` with `FootUB`/`FootDB`/
+  `FootDUB`; the originals are instances; the cancel and `ntfn_dequeue` steps lift their `KW` footprints by
+  `FootB.of_foot` with `KeepT0.bufKeep` / the dequeue field frame).
+- **`ibKeep_holds`** (new module `P1/IbKeepHolds`, imported by `QueueEntryGaps4`): `theorem ibKeep_holds
+  (hA : P0.ArchTotal ar) : IbKeep st ar`, from `timer.remove.ibFr` (`TF` / `TKeep`), `reprogram.ibFr` (a node word),
+  `notification.send_signal.ibFr` (`send_signal.tinvFK`'s `FootDUB` → `BufKeep.of_blkDBU` with `UserOK` → `IbFr`);
+  `IbFr.of_bufKeep` bridges QueueFoot's `BufKeep` and QueueSignal's `IbFr` (same words: `ibA`/`ibWordA`,
+  `sbA`/`sbWordA` are the same terms). No premise. Fix carried: int/j6's `sbWordA8_eq` (`omega` after a closing `simp`).
+- **P3 helpers** (new module `P3/BufKeepJ`): **`JAtZ.bufAt : P1.BufAt st (tcbs H) Cs H (frame H) (scs H) (scBits H) (BufU Z σ) s`**
+  (int/j6 24b24b04's Ω-free `BufAt`; from **`JAtZ.bufUsrW`**: a `BufU` word is `UsrW` — `bufU_rbuf`, the
+  kernel-state block by `J.ks.buf`, the SCs since an SC word is a frame word), `JAtZ.bufFact : P1.BufFact st (P1.Heap.tcbs H) (P1.BufOK (BufU Z σ)) s`
+  (from `JAtZ.bufOK`), `JAtZ.bufU_outside : b ∈ BufU Z σ → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b`
+  (from `JAtZ.bufU_out`), and `JAtZ.bufFact_of_footDBU` (the buffer fact at any state `s'` with
+  `WritesIn s s' (KWB ∨ DbgW ∨ BufU Z σ)` from `J` at `s`: every state inside the fire loop / `schedule`).
+- **Builds** (afkprover, mirror FL4-a6f, keys `a6f-b1..b10`): unstubbed `MODE=mod MODS="Fl4Proofs.P1.IbKeepHolds
+  Fl4Proofs.P1.QueueTimerR Fl4Proofs.P1.QueueFoot"` → 0 errors, 0 sorry (`a6f-b10`; this covers QueueFoot, QueueFinal,
+  QueueFootD, QueueFootS and the core's QueueSignal/QueueFire at int/j6 24b24b04). `#print axioms` of `ibKeep_holds`,
+  `send_signal.tinvFK`, `send_signal.ibFr`, `BufKeep.of_blkDBU`, `BufFact.keep`, `FootB.of_foot`, `TF.footB`,
+  `donate.kwCB`: propext / Classical.choice / Quot.sound. With an untracked stub (`a6fscratch.py`, SCRS) of int/j6
+  24b24b04's own failing proofs (EntryFin `sigXG_holds` — `hU.bufW` does not exist; MachKeep/MachKeepF
+  `notification_send_signal`; SchedIdx `sched.schedule.sfi`; ScSchTailP1 `jat_scheduleT2`; QueueDecVcpu
+  `vcpu.decode.msr`), `FastFaultInv`, `LocalInv` (the `ibA`/`sbA` move) and **`QueueEntryGaps4` (which uses
+  `ibKeep_holds hA`)** build (`a6f-b8`). **`P3/BufKeepJ` is not yet checked**: it sits downstream of further int/j6 P3
+  breakage (ScFireJ 611–633, `fireJ` against the new `fire`/`schedule` statements), the core line's P3 work.

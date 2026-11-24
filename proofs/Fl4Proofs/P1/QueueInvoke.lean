@@ -419,22 +419,25 @@ theorem ep_send.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U
   exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2⟩
 
 /-- **Notification signal** (`Send` on a notification cap): restart,
-`send_signal`, with its footprint. -/
-theorem ntfn_signal.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (ct n badge : U64)
+`send_signal`, with its footprint (int6: with the TCBs' IPC buffers in the
+user words `U`, `BufAt`; the footprint has those words, `FootDU`). -/
+theorem ntfn_signal.blkF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (ct n badge : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hct : ct ∈ T) (hr : Runnable (L.mem s (stA ct)))
-    (hn : n ∈ Nt) (hH : H n = some .ntfn) :
+    (hn : n ∈ Nt) (hH : H n = some .ntfn) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← notification.send_signal st ar s1 a n badge
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r s' _ =>
-      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootD st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootDU st T Cs Sg Scs Z (EH H) U s s' ⦄ := by
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := EH H) s ct h hct (runnable_ok hr).1
     (runnable_ok hr).2) ?_
-  rintro s1 ⟨h1, f1, -, -⟩
-  refine WP.spec_bind (notification.send_signal.tinvF hA s1 a n badge h1 hn hH) ?_
-  rintro ⟨s2, a1⟩ ⟨h2, f2, -⟩
+  rintro s1 ⟨h1, f1, -, k1⟩
+  have hB1 := hBA.of_fr (IbFr.of_keepT k1.toKeepT0)
+  refine WP.spec_bind (notification.send_signal.tinvF hA s1 a n badge h1 hn hH hB1.1 hB1.2) ?_
+  rintro ⟨s2, a1⟩ ⟨h2, f2, -, -⟩
   try simp only [WP.uncurry'_pair]
-  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2, (Foot.d f1).trans f2⟩
+  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2, (FootD.u (Foot.d f1)).trans f2⟩
 
 /-! ## TCB `SetPriority` (restart, then `set_priority`) -/
 
