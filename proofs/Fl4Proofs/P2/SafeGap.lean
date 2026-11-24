@@ -1,8 +1,10 @@
 /-
-P2: **`BodyOK` does not follow from the per-path obligations** (a
-counterexample to step 4 of the handoff plan in `SerialSafe.lean`).
+P2: **why `SerialSafe.Safe` is stated over `Foreign`-reachable memories**: with
+its first version (v1, kept here as `Safe1`, its speculative-read and write
+rules) `BodyOK` does not follow from the per-path obligations; with v2 the same
+body is `Safe` (`body_safe_v2`).
 
-`SerialSafe.Safe` checks a body in the **start-memory world**: at a
+`Safe1` checks a body in the **start-memory world**: at a
 speculative read (`rds`) it asks every continuation `k v` to be safe from the
 *unchanged* memory `μ`, so a later write is checked (`MoveV`) against owners
 computed with the racy word still at its start value. `PathObl.dec_alt`
@@ -30,13 +32,16 @@ lock `()`, held by `d`, so `c` holds only `core c`):
   enters with `d` holding the lock), while every real execution is `Allowed`:
   `d` cannot make `z = 1` beside the gate (that would move `z` to the gate).
 
-Consequence: `BodyOK` with the present `Safe` cannot be discharged from
+Consequence: `BodyOK` with `Safe1` cannot be discharged from
 `PathObl` v3 + `DecOnce` + `Deciders`. A fix must check the continuation in the
 worlds the interleaving can actually reach, e.g. a `Safe` whose premises are
 required at every memory reachable from `μ` by `Foreign` writes (then
 `Safe.foreign` is immediate and the read value is the reached memory's,
 matching `dec_alt`'s alternative states), or strengthen `PathObl` so the
-per-write check is made against the start-memory world.
+per-write check is made against the start-memory world. The first is
+`SerialSafe.Safe` v2; there `z = 1` is unreachable by `Foreign` writes (it
+would move `z` to the gate), so the bad branch is never explored
+(`freach_inv`, `body_safe_v2`).
 -/
 import Fl4Proofs.P2.SerialSafe
 
@@ -86,23 +91,62 @@ theorem town_move_racy (m : Bool → ℕ) (hz : m false = 1) :
 def tprog : Prog Bool ℕ Unit :=
   .rds false (fun v => if v = 1 then .wr true 1 .done else .done)
 
-/-- **`Safe` fails at the start memory** (any classes). -/
-theorem body_not_safe (cls : Bool → ℕ → ℕ) (ko : Bool → ClsOwner Bool) :
-    ¬ Safe town cls ko false (fun _ : Unit => False) (fun _ => 0) tprog := by
+/-- `Safe` v1's rules for speculative reads and writes (its class condition
+on writes left out, which only weakens it): continuations of a speculative read
+are checked from the unchanged memory. -/
+inductive Safe1 (own : (Bool → ℕ) → Bool → Owner Bool Unit) (c : Bool) (hs : Unit → Prop) :
+    (Bool → ℕ) → Prog Bool ℕ Unit → Prop
+  | done {μ : Bool → ℕ} : Safe1 own c hs μ .done
+  | rds {μ : Bool → ℕ} {a : Bool} {k : ℕ → Prog Bool ℕ Unit} :
+      (∀ v, Safe1 own c hs μ (k v)) → Safe1 own c hs μ (.rds a k)
+  | wr {μ : Bool → ℕ} {a : Bool} {v : ℕ} {k : Prog Bool ℕ Unit} :
+      HeldV c hs (own μ a) → MoveV own c hs μ (Function.update μ a v) →
+      Safe1 own c hs (Function.update μ a v) k → Safe1 own c hs μ (.wr a v k)
+
+/-- **`Safe1` fails at the start memory.** -/
+theorem body_not_safe : ¬ Safe1 town false (fun _ : Unit => False) (fun _ => 0) tprog := by
   intro h
   cases h with
   | rds hk =>
-    have h1 : Safe town cls ko false (fun _ : Unit => False) (fun _ => 0)
+    have h1 : Safe1 town false (fun _ : Unit => False) (fun _ => 0)
         (Prog.wr true 1 Prog.done) := by
       have h0 := hk 1
       dsimp only at h0
       rw [if_pos rfl] at h0
       exact h0
     cases h1 with
-    | wr _ hm _ _ =>
+    | wr _ hm _ =>
       have hne : town (Function.update (fun _ => 0) true 1) true ≠ town (fun _ => 0) true := by
         simp [town]
       have h2 := (hm true hne).2
       simp [town, HeldV] at h2
+
+/-- From `a = 0, z ≠ 1`, `Foreign` writes (another core's, beside the gate)
+keep `a = 0` (it is `c`'s) and `z ≠ 1` (`z = 1` would move `z` to the gate). -/
+theorem freach_inv {cls : Bool → ℕ → ℕ} {ko : Bool → ClsOwner Bool} {μ μ' : Bool → ℕ}
+    (hR : FReach town cls ko false (fun _ : Unit => False) μ μ') :
+    μ true = 0 → μ false ≠ 1 → μ' true = 0 ∧ μ' false ≠ 1 := by
+  induction hR with
+  | refl => exact fun h1 h2 => ⟨h1, h2⟩
+  | @step μ μ' b v hF _ ih =>
+    intro h1 h2
+    cases b
+    · have hv : v ≠ 1 := by
+        rintro rfl
+        have hne : town (Function.update μ false 1) false ≠ town μ false := by
+          simp [town, h2]
+        exact (hF.2.1 false hne).2 (Or.inr (by simp [town]))
+      exact ih (by simp [Function.update, h1]) (by simp [hv])
+    · exact (hF.1 (Or.inl (by simp [town, h1, HeldV]))).elim
+
+/-- **Regression: with `Safe` v2 the body is safe** (any classes). -/
+theorem body_safe_v2 (cls : Bool → ℕ → ℕ) (ko : Bool → ClsOwner Bool) :
+    Safe town cls ko false (fun _ : Unit => False) (fun _ => 0) tprog := by
+  refine .rds fun μ' hR => ?_
+  have h := freach_inv hR rfl (by simp)
+  show Safe town cls ko false (fun _ : Unit => False) μ'
+    (if μ' false = 1 then Prog.wr true 1 Prog.done else Prog.done)
+  rw [if_neg h.2]
+  exact .done
 
 end Fl4Proofs.P2.SafeGap
