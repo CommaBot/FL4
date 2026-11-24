@@ -19500,3 +19500,37 @@ None (no Lean change).
 - **Commits:** d56d1aeb (merge), b3581a19 (extraction + P0), this section's WIP commit (spec, QueueDecVcpu, ArchKeep,
   VcpuReport, QueueVcpu). Untracked helpers in the worktree root: `ex6.sh` (tokyo extraction), `p06.sh` (afkprover
   gen_const_specs + gen_p0).
+
+### int6 (cont., Route A started) — VcpuReport green; int/lc and main 4376f108 merged; A64 re-extracted; **Route A STOPPED at a sizing point** (two gaps the route did not plan for), no statement changed yet
+- **Done:** `P1/VcpuReport` builds (`vcpu.report.gen`, `finish_notification.gen`: the `rep_step` macro now takes the
+  explicit P0 read lemmas, keeps `P` across state-valued `if`s, uses `_root_.p0_if` — `P0.p0_if` did not resolve, which
+  is why the WIP version silently fell through), commit 0ae9f9cd. Merges 70068abd (int/lc 6ab925b0; KENTRY-PLAN
+  conflict: both sections kept, lc first) and d0d6931f (origin/main 4376f108 = #95 fl4-sync gate timing, #96 A64
+  `decode_set_pac_keys`; x86 fl4-core unchanged). A64 extraction at 4376f108 (tokyo, `ex6a.sh`): Funs/Types written,
+  0 `sorry`; `cargo xtask extract --arch aarch64` still exits 1 on its own guard `a64_funs_external`: the x86 template
+  lists `core.result.Result.is_err` (new since the #80–#93 extraction), the A64 one does not (A64 needs a subset; the
+  generated A64 FunsExternal.lean, a copy of the x86 models, is unchanged and still right) — an xtask guard to relax
+  (subset instead of equality), FINDING 2 below.
+- **Gap 1 (P3 whole-schedule callers).** P3 calls P1's `sched.schedule.tinv` / `.kw`, `timer.fire.kw` / `.tinvF`
+  (XTopJointSchedR/RF/RF2/RF3, XTopJointJAtZRB, ScSchTailP1, ScFireJ, SchedIdx, G7eRoot/Tail) at a `JAtZ` state only.
+  The buffer fact `send_signal` now needs is at the *loop-internal* states of `timer.fire_loop`. `JAtZ.bufOK` gives
+  `lookup_ipc_buffer ⦃ BufOK (BufU Z σ) ⦄` at the J state; carrying it to later states needs the three words
+  `lookup_ipc_buffer` reads (`ibA` = TCB+3512, the buffer slot `sbA`, `sbA+8`; `lookup_buf_agree`) unchanged. `sbA`
+  words are TCB low words (never `KW`), but **`ibA` (3512) is a `KW` word**, so no `Foot`/`FootD` footprint gives it,
+  and neither `Fr` nor `TmFr` (3528..3592) covers it. Needs: a new `ibA`/slot clause in `Fr` (13 `fr_wr` + 9
+  `fr_field` sites) and `TmFr` (63 `TmFr.mk0`, 22 `TmFr.wr`, 8 `of_writes` sites), or a dedicated frame re-derived
+  along `send_signal.tm`'s structure; or P3 re-plumbed to its own J-level fire loop (`JAtZR.fireJ`) plus a
+  fire-hypothesis form of `schedule.kw`.
+- **Gap 2 (P1's own entry top).** `syscall.finish.entry` → `sched.schedule.entry` runs at a bare `BXI` state; the only
+  existing source of the buffer fact is `P3Place.xfer.buf` (`XferHyps.buf`), which needs `XG` there. `XG` reaches
+  `finish` only on the invocation path (`postG`); the receive, fault, yield, unknown-syscall/TLS, budget-fail and
+  interrupt paths drop it, and P1 has no `XG`-preservation lemma for `handle_recv`, `handle_fault`, `handle_yield`,
+  `handle_interrupt` (only `send_ipc.xg`, `handle_timeout.xg`). Without a new premise on the P1 entry tops this means
+  new deferred `TmoXG`-style lemmas for those paths (est. 800–1500 lines, `handle_recv` the bulk).
+- **Options** (for the lead): (A) full Route A = gaps 1+2 + the planned statement work (send_signal family with
+  `BufOK`/`UserOK` premise, footprints widened to `FootD ∪ U`, ~20 P3 files supplying `JAtZ.bufOK`/`bufU_out`):
+  XL+, several days of build rounds. (K) kernel change, owner's call: full-state completion only through the target's
+  own `vcpu::check` (`signal_completes` false when `full_reply`; the active notification + `kick_guest` path already
+  delivers it), so `send_signal` writes registers only again: kernel PR (Opus + Gemini review), re-extract, P0, and
+  QueueSignal/QueueFootS/TimerRBSig adapted to the new `signal_completes` (S–M). (A′) Route A with gap 1 closed by
+  P3 re-plumbing instead of new frames: still gap 2 (L–XL).
