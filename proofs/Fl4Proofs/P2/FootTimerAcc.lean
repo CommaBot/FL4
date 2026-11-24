@@ -58,7 +58,7 @@ open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1
 open Fl4Proofs.P2.PathObl (guard guard_read)
 
 section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {R Wr : U64 → Prop}
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R Wr : U64 → Prop}
 
 /-! ## Accessors on the guarded store -/
 
