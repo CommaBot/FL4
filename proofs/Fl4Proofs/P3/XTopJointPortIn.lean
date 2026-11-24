@@ -36,7 +36,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 `jReplyHyp`. -/
 def JReplyHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → [VxE Z] →
     ∀ (ct : U64) (x : Fl4Spec.Tcb) (call : Bool) (v : U64), σ.curThread = ct.bv →
       σ.kheap ct.bv = some (.tcb x) → x.tcbState = .restart →
       ∀ (s2 : S) (z : Unit × Fl4Spec.State Unit), vspace.reply1 st s ct call v = ok s2 →

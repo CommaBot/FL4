@@ -1166,7 +1166,7 @@ XTopJointFaultTmo's `runTmoP_recv` (receivers waiting) downstream, for the
 `J` states whose typed heap is `Z0`'s. `hcr`: the current thread runnable. -/
 def RunTmoP (AR : A → Fl4Spec.Cr3 → Prop) (Z0 : XSets) (EC : Fl4Spec.Endpoint → Prop) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = Z0.th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    (σ : Fl4Spec.State Unit), Z.th = Z0.th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → [VxE Z] →
     (∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true) →
     ∀ (t : U64), t ∈ Z.T → t ∉ D → ∀ (x : Fl4Spec.Tcb), σ.kheap t.bv = some (.tcb x) → x.tcbState = .inactive →
     t.bv ≠ σ.curThread → ∀ (sc : U64), sc ∈ Z.C → x.tcbSchedContext = some sc.bv →

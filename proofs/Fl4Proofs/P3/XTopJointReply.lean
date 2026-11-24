@@ -402,7 +402,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **`JReplyHyp` proved** (`JAtZ.reply1J`). -/
 theorem jReplyHyp {AR : A → Fl4Spec.Cr3 → Prop} (th : TypedHeap) : JReplyHyp (L := L) arI AR th := by
-  intro Z H Cs Ac Lst D s a σ hth J ct x call v hcur hk hrs s2 z h hz _
+  intro Z H Cs Ac Lst D s a σ hth J _ ct x call v hcur hk hrs s2 z h hz _
   have hct : ct ∈ Z.T := J.thT ct (J.xtop.curTcb hcur).1
   have hp := J.reply1J hct hk hrs call v
   rw [h, WP.spec_ok] at hp
