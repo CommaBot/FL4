@@ -557,6 +557,7 @@ import Fl4Proofs.P3.XTopJointFbDel
 import Fl4Proofs.P3.SpecFbCopyRun
 import Fl4Proofs.P3.XTopJointFbCopyIns
 import Fl4Proofs.P3.XTopJointFbCopy
+import Fl4Proofs.P3.XTopJointFbDelOK
 import Fl4Proofs.P3.XTopJointVsFb
 import Fl4Proofs.P3.XTopJointVsOff
 import Fl4Proofs.P3.XTopJointVsReply

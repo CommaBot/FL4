@@ -220,6 +220,7 @@ structure FbDelOK (st : machine.Store S) (s : S) (b : vspace.Batch) (w0 w1 : Std
       obj.Slot.set_cap st val s' (.Frame f.ptr f.size f.rights f.is_device false false 0#u64 0#u64) = ok s'' →
       obj.Slot.cap st val s'' = ok (.Frame f.ptr f.size f.rights f.is_device false false 0#u64 0#u64)
   cpy : ∀ val val1, cspace.lookup_target_slot st s b.dest_cnode w1 b.depth = ok (.Ok val) →
+    cdt.ensure_empty_slot st s val = ok (.Ok ()) →
     cspace.lookup_source_slot st s b.cnode w0 b.depth = ok (.Ok val1) →
     ∀ (c0 m c : capability.Cap) (f : vspace.FrameCap) (rt : capability.Rights) (s' : S),
       obj.Slot.cap st val1 s = ok c0 → vspace.as_frame c0 = ok (some f) →
@@ -302,7 +303,7 @@ theorem MKD.vspace_frame_batch_entry {s : S} {a : A} {b : vspace.Batch} {w0 w1 w
       have e2 : s2 = s1 := herr e rfl
       subst e2
       obtain ⟨f', hf'⟩ := MKD.derive_frame hS hA hK ho hmk hrd
-      have hcv := hD.cpy val val1 hrt hrs c0 mk c f rr s2 hc0 ho hmk hrd hs1
+      have hcv := hD.cpy val val1 hrt hre hrs c0 mk c f rr s2 hc0 ho hmk hrd hs1
       refine WP.spec_bind (MKD.cdt_delete_frame hS hA hK hcv hf' h1) ?_
       rintro ⟨r6, s3, a2⟩ ⟨h2, -⟩
       fb_red
@@ -438,14 +439,23 @@ theorem MKD.vspace_decode_table {s : S} {a : A} {lbl : Std.U64} {length : Std.U6
   unfold vspace.decode_table; mkd_walk
 
 set_option maxHeartbeats 4000000 in
-theorem MKD.vspace_decode {s : S} {a : A} {lbl : Std.U64} {length : Std.U64} {slot : obj.Slot} {cap : capability.Cap} {call : Bool} {buf : Std.U64} {ex : Array obj.Slot 3#usize} (h : AR a c₀) :
+theorem MKD.vspace_decode {s : S} {a : A} {lbl : Std.U64} {length : Std.U64} {slot : obj.Slot} {cap : capability.Cap} {call : Bool} {buf : Std.U64} {ex : Array obj.Slot 3#usize} (h : AR a c₀)
+    (hfb : ∀ p m a', cap = .Pml4 p m a' → lbl ≠ fl4_abi.label.X86PML4FrameBatch := by
+      first | assumption | (intro _ _ _ hc; cases hc)) :
     vspace.decode st arI s a lbl length slot cap call buf ex ⦃ r => AR r.2.2 c₀ ⦄ := by
-  unfold vspace.decode; mkd_walk
+  unfold vspace.decode
+  cases cap
+  case Pml4 p m a' =>
+    have hn := hfb p m a' rfl
+    simp only [hn, ↓reduceIte]
+    mkd_walk
+  all_goals mkd_walk
 
 set_option maxHeartbeats 4000000 in
 /-- **FL4's decode of a quiet cap keeps `MR`** (module docstring). -/
 theorem MKD.decode_quiet {s : S} {a : A} {lbl length : Std.U64} {slot : obj.Slot} {c : capability.Cap}
-    {blk call don fp : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (hq : QuietF c) (h : AR a c₀) :
+    {blk call don fp : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (hq : QuietF c) (h : AR a c₀)
+    (hfb : ∀ p m a', c = .Pml4 p m a' → lbl ≠ fl4_abi.label.X86PML4FrameBatch) :
     syscall.decode_invocation st arI s a lbl length slot c blk call don fp buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
   cases c <;> simp only [QuietF] at hq <;> unfold syscall.decode_invocation <;> mkd_walk
 
