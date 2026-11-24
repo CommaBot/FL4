@@ -187,6 +187,9 @@ import Fl4Proofs.P2.AccessReply
 import Fl4Proofs.P2.AccessSwitchTo
 import Fl4Proofs.P2.AccessFastFault
 import Fl4Proofs.P2.AccessFastRR
+import Fl4Proofs.P2.AccessSyscall
+import Fl4Proofs.P2.MoveStale
+import Fl4Proofs.P2.GSt
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
