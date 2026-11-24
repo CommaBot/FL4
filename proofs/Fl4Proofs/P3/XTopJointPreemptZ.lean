@@ -68,7 +68,7 @@ def JHoleAtT (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.Sta
 
 theorem JHoleAtT.hole {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JHoleAtT (L := L) arI AR s a σ) :
     JHoleAt (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
 
 /-- **`jAtPre_holeT` with the base's no-switch and non-idle facts at the
 hole** (kp10: the preemption point changes neither the action nor the
