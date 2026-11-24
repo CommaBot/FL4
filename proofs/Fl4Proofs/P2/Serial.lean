@@ -215,6 +215,8 @@ structure Cfg (A V C L : Type) where
   seen : Set C
   lk : L → Option C
   ph : C → Phase A V L
+  /-- The ownership map (ghost), replaced only by serial entries. -/
+  own : (A → V) → A → Owner C L
   /-- Completed entries, in completion order (ghost). -/
   log : List (Prog A V L)
 
@@ -262,30 +264,31 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
   | drain : s.holder = some c → s.gate = .draining → (∀ d, d ∈ s.seen) →
       Step s c { s with gate := .closed }
   /-- The serial body, then release (keeping the gate closed or opening it). -/
-  | serial {p : Prog A V L} {m' : A → V} (keep : Bool) :
+  | serial {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L) :
       s.holder = some c → s.gate = .closed → s.ph c = .ser p → Run p s.mem m' →
       Step s c { s with mem := m', holder := none, ph := Function.update s.ph c .idle,
-                        gate := if keep then .closed else .opn, log := s.log ++ [p] }
+                        gate := if keep then .closed else .opn, log := s.log ++ [p],
+                        own := own' }
 
 /-- Core `c` may read `x`: it holds `x`'s owner, or the gate owns `x`. -/
-def Perm (own : (A → V) → A → Owner C L) (s : Cfg A V C L) (c : C) (x : A) : Prop :=
-  Held s.lk c (own s.mem x) ∨ own s.mem x = .gate
+def Perm (s : Cfg A V C L) (c : C) (x : A) : Prop :=
+  Held s.lk c (s.own s.mem x) ∨ s.own s.mem x = .gate
 
 /-- Core `c`'s next local-path access respects ownership. -/
-def Allowed (own : (A → V) → A → Owner C L) (s : Cfg A V C L) (c : C) : Prop :=
+def Allowed (s : Cfg A V C L) (c : C) : Prop :=
   match s.ph c with
-  | .loc _ (.rd a _) _ => Perm own s c a
+  | .loc _ (.rd a _) _ => Perm s c a
   | .loc _ (.wr a v _) _ =>
-      Held s.lk c (own s.mem a) ∧
-      ∀ x, own (Function.update s.mem a v) x ≠ own s.mem x →
-        Held s.lk c (own s.mem x) ∧ Held s.lk c (own (Function.update s.mem a v) x)
+      Held s.lk c (s.own s.mem a) ∧
+      ∀ x, s.own (Function.update s.mem a v) x ≠ s.own s.mem x →
+        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x)
   | _ => True
 
 /-- Executions whose local-path accesses respect ownership. -/
-inductive GReach (own : (A → V) → A → Owner C L) (s0 : Cfg A V C L) : Cfg A V C L → Prop
-  | refl : GReach own s0 s0
+inductive GReach (s0 : Cfg A V C L) : Cfg A V C L → Prop
+  | refl : GReach s0 s0
   | step {s s' : Cfg A V C L} {c : C} :
-      GReach own s0 s → Allowed own s c → Step s c s' → GReach own s0 s'
+      GReach s0 s → Allowed s c → Step s c s' → GReach s0 s'
 
 /-- All executions. -/
 inductive Reach (s0 : Cfg A V C L) : Cfg A V C L → Prop
@@ -300,8 +303,8 @@ def Init (s0 : Cfg A V C L) : Prop := s0.log = [] ∧ NoLoc s0
 
 /-- **Footprint premise** [W]: every local-path access of every execution
 respects ownership (P2 obligation (2) in trace form, per local path). -/
-def FootprintOK (own : (A → V) → A → Owner C L) (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach own s0 s → ∀ c, Allowed own s c
+def FootprintOK (s0 : Cfg A V C L) : Prop :=
+  ∀ s, GReach s0 s → ∀ c, Allowed s c
 
 /-! ## The invariant -/
 
@@ -335,30 +338,29 @@ theorem mix_upd {W : Set A} {m n : A → V} {a : A} {v : V} :
 `p` left to run, having written `W`: it holds the owners of what it wrote, and
 running `p` from any memory that agrees with the history `H` on what `d` may
 read, with `d`'s writes so far in place, is a run of `p0` from that memory. -/
-structure LocInv (own : (A → V) → A → Owner C L) (s : Cfg A V C L) (H : A → V) (d : C)
+structure LocInv (s : Cfg A V C L) (H : A → V) (d : C)
     (p0 p : Prog A V L) (W : Set A) : Prop where
-  held : ∀ x ∈ W, Held s.lk d (own s.mem x)
-  sim : ∀ n n' : A → V, (∀ x, Perm own s d x → n x = H x) →
+  held : ∀ x ∈ W, Held s.lk d (s.own s.mem x)
+  sim : ∀ n n' : A → V, (∀ x, Perm s d x → n x = H x) →
     Run p (mix W s.mem n) n' → Run p0 n n'
 
 /-- The invariant, with `H` the memory of the serial history. -/
-structure InvH (own : (A → V) → A → Owner C L) (m0 : A → V) (s : Cfg A V C L)
+structure InvH (m0 : A → V) (s : Cfg A V C L)
     (H : A → V) : Prop where
   hist : RunAll s.log m0 H
   clo : s.gate = .closed → NoLoc s
   drn : s.gate = .draining → ∀ d ∈ s.seen, ¬ (s.ph d).IsLoc
   agree : ∀ x, (∀ d p0 p W, s.ph d = .loc p0 p W → x ∉ W) → s.mem x = H x
-  loc : ∀ d p0 p W, s.ph d = .loc p0 p W → LocInv own s H d p0 p W
+  loc : ∀ d p0 p W, s.ph d = .loc p0 p W → LocInv s H d p0 p W
 
-variable {own : (A → V) → A → Owner C L}
 
 theorem LocInv.mono {s s' : Cfg A V C L} {H H' : A → V} {d : C} {p0 p : Prog A V L}
-    {W : Set A} (I : LocInv own s H d p0 p W)
-    (hheld : ∀ x, Held s.lk d (own s.mem x) → Held s'.lk d (own s'.mem x))
-    (hperm : ∀ x, Perm own s d x → Perm own s' d x)
-    (hH : ∀ x, Perm own s d x → H' x = H x)
+    {W : Set A} (I : LocInv s H d p0 p W)
+    (hheld : ∀ x, Held s.lk d (s.own s.mem x) → Held s'.lk d (s'.own s'.mem x))
+    (hperm : ∀ x, Perm s d x → Perm s' d x)
+    (hH : ∀ x, Perm s d x → H' x = H x)
     (hmem : ∀ x ∈ W, s'.mem x = s.mem x) :
-    LocInv own s' H' d p0 p W where
+    LocInv s' H' d p0 p W where
   held x hx := hheld x (I.held x hx)
   sim n n' hn hr := by
     have he : mix W s'.mem n = mix W s.mem n := by
@@ -404,13 +406,13 @@ theorem gate_mono {s s' : Cfg A V C L}
 
 /-- Steps that change neither memory, locks nor log, nor which cores run
 which local path. -/
-theorem InvH.frame {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH own m0 s H)
-    (hmem : s'.mem = s.mem) (hlk : s'.lk = s.lk) (hlog : s'.log = s.log)
+theorem InvH.frame {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
+    (hmem : s'.mem = s.mem) (hlk : s'.lk = s.lk) (hown : s'.own = s.own) (hlog : s'.log = s.log)
     (hl : ∀ d q0 q U, s'.ph d = .loc q0 q U → s.ph d = .loc q0 q U)
     (hl' : ∀ d q0 q U, s.ph d = .loc q0 q U → s'.ph d = .loc q0 q U)
     (hclo : s'.gate = .closed → NoLoc s')
     (hdrn : s'.gate = .draining → ∀ d ∈ s'.seen, ¬ (s'.ph d).IsLoc) :
-    InvH own m0 s' H where
+    InvH m0 s' H where
   hist := by rw [hlog]; exact I.hist
   clo := hclo
   drn := hdrn
@@ -418,22 +420,22 @@ theorem InvH.frame {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH o
     rw [hmem]; exact I.agree x (fun d q0 q U hd => hx d q0 q U (hl' d q0 q U hd))
   loc d q0 q U hd :=
     (I.loc d q0 q U (hl d q0 q U hd)).mono
-      (fun x h => by rw [hlk, hmem]; exact h)
-      (fun x h => by unfold Perm; rw [hlk, hmem]; exact h)
+      (fun x h => by rw [hlk, hmem, hown]; exact h)
+      (fun x h => by unfold Perm; rw [hlk, hmem, hown]; exact h)
       (fun _ _ => rfl) (fun x _ => by rw [hmem])
 
 /-- A step of core `c` inside its local path. -/
-theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH own m0 s H)
+theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     {c : C} {p0 p p' : Prog A V L} {W W' : Set A}
     (hc : s.ph c = .loc p0 p W)
     (hph : s'.ph = Function.update s.ph c (.loc p0 p' W'))
     (hlog : s'.log = s.log) (hgate : s'.gate = s.gate) (hseen : s'.seen = s.seen)
     (hWW : W ⊆ W')
     (hmem : ∀ x, x ∉ W' → s'.mem x = s.mem x)
-    (hheld : ∀ d, d ≠ c → ∀ x, Held s.lk d (own s.mem x) → Held s'.lk d (own s'.mem x))
-    (hperm : ∀ d, d ≠ c → ∀ x, Perm own s d x → Perm own s' d x)
+    (hheld : ∀ d, d ≠ c → ∀ x, Held s.lk d (s.own s.mem x) → Held s'.lk d (s'.own s'.mem x))
+    (hperm : ∀ d, d ≠ c → ∀ x, Perm s d x → Perm s' d x)
     (hmemd : ∀ d, d ≠ c → ∀ q0 q U, s.ph d = .loc q0 q U → ∀ x ∈ U, s'.mem x = s.mem x)
-    (hcinv : LocInv own s' H c p0 p' W') : InvH own m0 s' H := by
+    (hcinv : LocInv s' H c p0 p' W') : InvH m0 s' H := by
   have hl : ∀ d, (s'.ph d).IsLoc → (s.ph d).IsLoc := by
     intro d hd
     by_cases hdc : d = c
@@ -456,12 +458,12 @@ theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH
     · exact (I.loc d q0 q U hd).mono (hheld d hdc) (hperm d hdc) (fun _ _ => rfl)
         (hmemd d hdc q0 q U hd)
 
-theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A}
-    (hc : s.ph c = .loc p0 (.rd a k) W) (hp : Perm own s c a) :
-    InvH own m0 { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) } H := by
+    (hc : s.ph c = .loc p0 (.rd a k) W) (hp : Perm s c a) :
+    InvH m0 { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) } H := by
   have Ic := I.loc c p0 _ W hc
-  have hma : ∀ n : A → V, (∀ x, Perm own s c x → n x = H x) → mix W s.mem n a = s.mem a := by
+  have hma : ∀ n : A → V, (∀ x, Perm s c x → n x = H x) → mix W s.mem n a = s.mem a := by
     intro n hn
     by_cases haW : a ∈ W
     · exact mix_mem haW
@@ -476,24 +478,24 @@ theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s
     { held := Ic.held
       sim := fun n n' hn hr => Ic.sim n n' hn (Run.rd (by rw [hma n hn]; exact hr)) }
 
-theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A}
     (hc : s.ph c = .loc p0 (.wr a v k) W)
-    (ha : Held s.lk c (own s.mem a))
-    (hmv : ∀ x, own (Function.update s.mem a v) x ≠ own s.mem x →
-        Held s.lk c (own s.mem x) ∧ Held s.lk c (own (Function.update s.mem a v) x)) :
-    InvH own m0 { s with mem := Function.update s.mem a v,
+    (ha : Held s.lk c (s.own s.mem a))
+    (hmv : ∀ x, s.own (Function.update s.mem a v) x ≠ s.own s.mem x →
+        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x)) :
+    InvH m0 { s with mem := Function.update s.mem a v,
                          ph := Function.update s.ph c (.loc p0 k (insert a W)) } H := by
   have Ic := I.loc c p0 _ W hc
-  have hsame : ∀ d, d ≠ c → ∀ x, (Held s.lk d (own s.mem x) ∨ own s.mem x = .gate) →
-      own (Function.update s.mem a v) x = own s.mem x := by
+  have hsame : ∀ d, d ≠ c → ∀ x, (Held s.lk d (s.own s.mem x) ∨ s.own s.mem x = .gate) →
+      s.own (Function.update s.mem a v) x = s.own s.mem x := by
     intro d hdc x h
     by_contra hne
     exact held_disj (Ne.symm hdc) (hmv x hne).1 h
-  have hcpres : ∀ x, Held s.lk c (own s.mem x) →
-      Held s.lk c (own (Function.update s.mem a v) x) := by
+  have hcpres : ∀ x, Held s.lk c (s.own s.mem x) →
+      Held s.lk c (s.own (Function.update s.mem a v) x) := by
     intro x h
-    by_cases he : own (Function.update s.mem a v) x = own s.mem x
+    by_cases he : s.own (Function.update s.mem a v) x = s.own s.mem x
     · rw [he]; exact h
     · exact (hmv x he).2
   refine I.locstep (p' := k) (W' := insert a W) hc rfl rfl rfl rfl (Set.subset_insert a W)
@@ -501,11 +503,11 @@ theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s
   · intro x hx
     exact Function.update_of_ne (fun h => hx (by rw [h]; exact Set.mem_insert a W)) _ _
   · intro d hdc x h
-    show Held s.lk d (own (Function.update s.mem a v) x)
+    show Held s.lk d (s.own (Function.update s.mem a v) x)
     rw [hsame d hdc x (Or.inl h)]; exact h
   · intro d hdc x h
-    show Held s.lk d (own (Function.update s.mem a v) x) ∨
-      own (Function.update s.mem a v) x = .gate
+    show Held s.lk d (s.own (Function.update s.mem a v) x) ∨
+      s.own (Function.update s.mem a v) x = .gate
     rw [hsame d hdc x h]; exact h
   · intro d hdc q0 q U hd x hx
     have hxa : x ≠ a := by
@@ -519,9 +521,9 @@ theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s
       · exact hcpres x (Ic.held x hx)
     · intro n n' hn hr
       refine Ic.sim n n' (fun x hx => hn x ?_) (Run.wr (by rw [mix_upd]; exact hr))
-      show Held s.lk c (own (Function.update s.mem a v) x) ∨
-        own (Function.update s.mem a v) x = .gate
-      by_cases he : own (Function.update s.mem a v) x = own s.mem x
+      show Held s.lk c (s.own (Function.update s.mem a v) x) ∨
+        s.own (Function.update s.mem a v) x = .gate
+      by_cases he : s.own (Function.update s.mem a v) x = s.own s.mem x
       · rw [he]; exact hx
       · exact Or.inl (hmv x he).2
 
@@ -542,10 +544,10 @@ theorem held_lock {lk : L → Option C} {l : L} {c d : C} {b : Bool}
         rw [Function.update_of_ne hl]; exact h'
     | gate => exact h
 
-theorem inv_lock {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_lock {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {l : L} {k : Bool → Prog A V L} {W : Set A}
     (hc : s.ph c = .loc p0 (.lock l k) W) (b : Bool) (hb : b = true → s.lk l = none) :
-    InvH own m0 { s with lk := if b then Function.update s.lk l (some c) else s.lk,
+    InvH m0 { s with lk := if b then Function.update s.lk l (some c) else s.lk,
                          ph := Function.update s.ph c (.loc p0 (k b) W) } H := by
   have Ic := I.loc c p0 _ W hc
   exact I.locstep (p' := k b) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
@@ -565,9 +567,9 @@ theorem held_release {lk : L → Option C} {c d : C} (hdc : d ≠ c) {o : Owner 
     rw [if_neg (by rw [h']; exact fun e => hdc (Option.some.inj e))]; exact h'
   | gate => exact h
 
-theorem inv_leave {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_leave {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {W : Set A} (hc : s.ph c = .loc p0 .done W) :
-    InvH own m0 { s with lk := release s.lk c, ph := Function.update s.ph c .idle,
+    InvH m0 { s with lk := release s.lk c, ph := Function.update s.ph c .idle,
                          log := s.log ++ [p0] } (mix W s.mem H) := by
   have Ic := I.loc c p0 _ W hc
   have hl : ∀ d, ((Function.update s.ph c Phase.idle) d).IsLoc → (s.ph d).IsLoc :=
@@ -594,17 +596,17 @@ theorem inv_leave {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m
         (fun x hp => mix_nmem (fun hxW => held_disj (Ne.symm hdc) (Ic.held x hxW) hp))
         (fun _ _ => rfl)
 
-theorem inv_phase {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_phase {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {X : Phase A V L} (hX : ¬ X.IsLoc) (hc : ¬ (s.ph c).IsLoc) :
-    InvH own m0 { s with ph := Function.update s.ph c X } H :=
-  I.frame rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mp h)
+    InvH m0 { s with ph := Function.update s.ph c X } H :=
+  I.frame rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mp h)
     (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mpr h)
     (fun h d hd => I.clo h d (upd_isLoc hX hd).2)
     (fun h d hm hd => I.drn h d hm (upd_isLoc hX hd).2)
 
-theorem inv_enter {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_enter {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p : Prog A V L} (hc : s.ph c = .arm p) (hg : s.gate = .opn) :
-    InvH own m0 { s with ph := Function.update s.ph c (.loc p p ∅) } H := by
+    InvH m0 { s with ph := Function.update s.ph c (.loc p p ∅) } H := by
   have hnc : ∀ d q0 q U, s.ph d = .loc q0 q U → d ≠ c := by
     rintro d q0 q U hd rfl; rw [hc] at hd; cases hd
   refine ⟨I.hist, fun h => ?_, fun h => ?_, ?_, ?_⟩
@@ -626,13 +628,13 @@ theorem inv_enter {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m
     · exact (I.loc d q0 q U hd).mono (fun _ h => h) (fun _ h => h) (fun _ _ => rfl)
         (fun _ _ => rfl)
 
-theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
+theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     (p : Prog A V L) (hc : s.ph c = .idle) :
-    InvH own m0 { s with holder := some c, seen := ∅, ph := Function.update s.ph c (.ser p),
+    InvH m0 { s with holder := some c, seen := ∅, ph := Function.update s.ph c (.ser p),
                          gate := if s.gate = .opn then .draining else s.gate } H := by
   have hX : ¬ (Phase.ser p : Phase A V L).IsLoc := Phase.ser_not_loc p
   have hc' : ¬ (s.ph c).IsLoc := by rw [hc]; exact Phase.idle_not_loc
-  refine I.frame rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mp h)
+  refine I.frame rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mp h)
     (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mpr h) ?_ ?_
   · intro h d hd
     have h' : (if s.gate = .opn then Gate.draining else s.gate) = .closed := h
@@ -643,27 +645,28 @@ theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0
     have : d ∈ (∅ : Set C) := hd
     simp at this
 
-theorem inv_scan {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H)
+theorem inv_scan {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     (d : C) (hd : ¬ (s.ph d).Active) :
-    InvH own m0 { s with seen := insert d s.seen } H := by
-  refine I.frame rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h) I.clo ?_
+    InvH m0 { s with seen := insert d s.seen } H := by
+  refine I.frame rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h) I.clo ?_
   intro h e he hl
   rcases Set.mem_insert_iff.mp he with rfl | he
   · exact hd (Phase.active_of_isLoc hl)
   · exact I.drn h e he hl
 
-theorem inv_drain {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H)
+theorem inv_drain {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     (hg : s.gate = .draining) (hall : ∀ d, d ∈ s.seen) :
-    InvH own m0 { s with gate := .closed } H := by
-  refine I.frame rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
+    InvH m0 { s with gate := .closed } H := by
+  refine I.frame rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
     (fun _ d => I.drn hg d (hall d)) ?_
   intro h; cases h
 
-theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own m0 s H) {c : C}
-    {p : Prog A V L} {m' : A → V} (keep : Bool) (hg : s.gate = .closed)
-    (hr : Run p s.mem m') :
-    InvH own m0 { s with mem := m', holder := none, ph := Function.update s.ph c .idle,
-                         gate := if keep then .closed else .opn, log := s.log ++ [p] } m' := by
+theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
+    {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L)
+    (hg : s.gate = .closed) (hr : Run p s.mem m') :
+    InvH m0 { s with mem := m', holder := none, ph := Function.update s.ph c .idle,
+                         gate := if keep then .closed else .opn, log := s.log ++ [p],
+                         own := own' } m' := by
   have nl := I.clo hg
   have hmH : s.mem = H := by
     funext x
@@ -677,8 +680,8 @@ theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH own 
   exact absurd (by rw [hd']; trivial) (nl' d)
 
 theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
-    (I : InvH own m0 s H) (hal : Allowed own s c) (h : Step s c s') :
-    ∃ H', InvH own m0 s' H' := by
+    (I : InvH m0 s H) (hal : Allowed s c) (h : Step s c s') :
+    ∃ H', InvH m0 s' H' := by
   cases h with
   | arm p hc => exact ⟨H, inv_phase I (Phase.arm_not_loc p) (by rw [hc]; exact Phase.idle_not_loc)⟩
   | enter hc hg => exact ⟨H, inv_enter I hc hg⟩
@@ -694,17 +697,17 @@ theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
   | take p hc _ => exact ⟨H, inv_take I p hc⟩
   | scan d _ _ hd => exact ⟨H, inv_scan I d hd⟩
   | drain _ hg hall => exact ⟨H, inv_drain I hg hall⟩
-  | serial keep _ hg _ hr => exact ⟨_, inv_serial I keep hg hr⟩
+  | serial keep own' _ hg _ hr => exact ⟨_, inv_serial I keep own' hg hr⟩
 
-theorem inv_init {s0 : Cfg A V C L} (h0 : Init s0) : InvH own s0.mem s0 s0.mem where
+theorem inv_init {s0 : Cfg A V C L} (h0 : Init s0) : InvH s0.mem s0 s0.mem where
   hist := by rw [h0.1]; rfl
   clo _ := h0.2
   drn _ d _ := h0.2 d
   agree _ _ := rfl
   loc d _ _ _ hd := absurd (by rw [hd]; trivial) (h0.2 d)
 
-theorem greach_inv {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s) :
-    ∃ H, InvH own s0.mem s H := by
+theorem greach_inv {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
+    ∃ H, InvH s0.mem s H := by
   induction h with
   | refl => exact ⟨_, inv_init h0⟩
   | step _ hal hs ih =>
@@ -716,7 +719,7 @@ theorem greach_inv {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s) :
 /-- **Serial entries and local paths never overlap** (the Dekker handshake of
 §7, in the interleaving model): while the gate is closed, which a serial body
 requires, no local path is in progress. -/
-theorem no_overlap {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s) :
+theorem no_overlap {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
     s.gate = .closed → NoLoc s := by
   obtain ⟨H, I⟩ := greach_inv h0 h
   exact I.clo
@@ -726,7 +729,7 @@ state, running the completed entries one after another (serial entries in the
 order they ran under the gate, local paths in the order they finished) from
 the initial memory can give a memory `H` that the current memory equals on
 every word no in-progress local path has written. -/
-theorem serializable {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s) :
+theorem serializable {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
     ∃ H, RunAll s.log s0.mem H ∧
       ∀ x, (∀ d p0 p W, s.ph d = .loc p0 p W → x ∉ W) → s.mem x = H x := by
   obtain ⟨H, I⟩ := greach_inv h0 h
@@ -734,22 +737,22 @@ theorem serializable {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s) :
 
 /-- With no local path in progress, memory is exactly a serial run of the
 completed entries in completion order. -/
-theorem serializable_quiescent {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach own s0 s)
+theorem serializable_quiescent {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s)
     (hq : NoLoc s) : RunAll s.log s0.mem s.mem := by
   obtain ⟨H, hH, hag⟩ := serializable h0 h
   have : s.mem = H := funext fun x =>
     hag x (fun d q0 q U hd => absurd (by rw [hd]; trivial) (hq d))
   rw [this]; exact hH
 
-theorem reach_greach {s0 s : Cfg A V C L} (hfp : FootprintOK own s0) (h : Reach s0 s) :
-    GReach own s0 s := by
+theorem reach_greach {s0 s : Cfg A V C L} (hfp : FootprintOK s0) (h : Reach s0 s) :
+    GReach s0 s := by
   induction h with
   | refl => exact .refl
   | step _ hs ih => exact .step ih (hfp _ ih _) hs
 
 /-- `serializable_quiescent` for every execution, under the footprint premise
 `FootprintOK` [W]. -/
-theorem serializable_reach {s0 s : Cfg A V C L} (h0 : Init s0) (hfp : FootprintOK own s0)
+theorem serializable_reach {s0 s : Cfg A V C L} (h0 : Init s0) (hfp : FootprintOK s0)
     (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem :=
   serializable_quiescent h0 (reach_greach hfp h) hq
 
@@ -837,6 +840,7 @@ def cx0 : Cfg Bool ℕ Bool Empty where
   lk := fun _ => none
   ph := fun _ => .idle
   log := []
+  own := fun _ _ => .gate
 
 theorem cxP_run {m m' : Bool → ℕ} (h : Run cxP m m') : m' = Function.update m true 0 := by
   have h3 := run_wr_inv (run_rd_inv (run_rd_inv h))
