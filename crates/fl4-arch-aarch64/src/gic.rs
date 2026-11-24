@@ -1,6 +1,10 @@
 //! The GIC, version 2 or 3 as found at boot (ACPI MADT or the device
-//! tree). All interrupts share one priority; the kernel takes them one at
-//! a time with interrupts masked except in the idle loop. GICv3: every
+//! tree). All interrupts share one priority but two of each core's: its
+//! remote-call SGI, then its kernel timer, come before the rest (`PRIO`),
+//! so that while the timer is pending an acknowledge returns it or that
+//! SGI, never another interrupt (the timer's local path, fl4-kernel-aarch64
+//! entry.rs). The kernel takes interrupts one at a time with interrupts
+//! masked except in the idle loop. GICv3: every
 //! interrupt is group 1. GICv2: group 0 where GICD_IGROUPR is writable (a
 //! GIC with one security state, or its Secure view), with
 //! GICC_CTLR.AckCtl set so GICC_IAR acknowledges any group 1 interrupt
@@ -11,7 +15,13 @@ use crate::{cpu, gic_layout, percpu};
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const SPURIOUS: u64 = 1023;
+/// Priorities, lower first: every interrupt's, the kernel timer's, the
+/// remote-call SGI's. Distinct in the upper four bits, which every GIC
+/// implements, also as a GICv2's Non-secure view stores them
+/// (`(p >> 1) | 0x80`: 0xd0, 0xc0, 0xb0).
 const PRIO: u32 = 0xa0;
+const TIMER_PRIO: u32 = 0x80;
+const REMOTE_PRIO: u32 = 0x60;
 
 static VERSION: AtomicU64 = AtomicU64::new(0);
 static GICD: AtomicU64 = AtomicU64::new(0);
@@ -397,9 +407,22 @@ pub fn init_cpu(gicr: u64) {
     use fl4_core::layout::irq;
     let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
     let timer_id = crate::timer::timer_irq_id();
+    set_priority(bank, irq::REMOTE_CALL_ID, REMOTE_PRIO);
+    set_priority(bank, timer_id, TIMER_PRIO);
     wr(bank + GICD_ISENABLER,
        (1 << timer_id) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
     cpu::dsb_sy();
+}
+
+/// Set the priority of banked interrupt `id` (an SGI or PPI) in `bank`,
+/// the redistributor's SGI frame or the distributor: a byte of a 32-bit
+/// GICD_IPRIORITYR, read, changed and written back (word accesses, which
+/// every GIC takes; a Non-secure GICv2 view reads back what it stores).
+fn set_priority(bank: u64, id: u64, prio: u32) {
+    let at = bank + GICD_IPRIORITYR + (id & !3);
+    let shift = (id & 3) * 8;
+    let v = (rd(at) & !(0xff << shift)) | (prio << shift);
+    wr(at, v);
 }
 
 /// GICv3: whether the calling core can send SGIs to Aff0 16 and more

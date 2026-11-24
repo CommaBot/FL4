@@ -11,6 +11,9 @@ fl4-core = { path = "../fl4-core" }
 fl4-store = { path = "../fl4-store" }
 
 [features]
+# The AArch64 kernel's runtime: fl4-core's AArch64 slice (timer.rs checks
+# that the two agree).
+aarch64 = ["fl4-abi/aarch64", "fl4-core/aarch64"]
 # Mutation testing only (DESIGN.md §10), for the host simulator: a
 # bare-metal (kernel) build with any of them fails to compile (lib.rs).
 # The gate holder does not wait for active local paths, or a local path
