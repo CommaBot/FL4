@@ -378,11 +378,11 @@ theorem sbA_val {t : U64} (h : TcbAddr t) : (sbA t).val = t.val + 64 := by
   all_goals omega
 
 /-- **`lookup_ipc_buffer` reads three words**: the IPC-buffer word and the
-buffer cap slot's two words. -/
-theorem lookup_buf_agree {s s' : S} {t : U64} (h1 : L.mem s' (ibA t) = L.mem s (ibA t))
+buffer cap slot's two words (either receiver flag; lcv: the sender's buffer). -/
+theorem lookup_buf_agreeB {s s' : S} {t : U64} (b : Bool) (h1 : L.mem s' (ibA t) = L.mem s (ibA t))
     (h2 : L.mem s' (sbA t) = L.mem s (sbA t))
     (h3 : L.mem s' (core.num.U64.wrapping_add (sbA t) 8#u64) = L.mem s (core.num.U64.wrapping_add (sbA t) 8#u64)) :
-    msg.lookup_ipc_buffer st s' true t = msg.lookup_ipc_buffer st s true t := by
+    msg.lookup_ipc_buffer st s' b t = msg.lookup_ipc_buffer st s b t := by
   unfold msg.lookup_ipc_buffer
   rw [ipc_buffer_ok, ipc_buffer_ok, h1]
   have hs : obj.Tcb.slot t layout.tcb.SLOT_BUFFER = ok (sbA t) := by simp [obj.Tcb.slot, lift, sbA]
@@ -390,6 +390,14 @@ theorem lookup_buf_agree {s s' : S} {t : U64} (h1 : L.mem s' (ibA t) = L.mem s (
   have hc : obj.Slot.cap st (sbA t) s' = obj.Slot.cap st (sbA t) s := by
     unfold obj.Slot.cap; rw [L.read_pair_eq, L.read_pair_eq, h2, h3]
   rw [hc]
+
+/-- **`lookup_ipc_buffer` reads three words** (the receiver's lookup:
+`lookup_buf_agreeB` at `true`). -/
+theorem lookup_buf_agree {s s' : S} {t : U64} (h1 : L.mem s' (ibA t) = L.mem s (ibA t))
+    (h2 : L.mem s' (sbA t) = L.mem s (sbA t))
+    (h3 : L.mem s' (core.num.U64.wrapping_add (sbA t) 8#u64) = L.mem s (core.num.U64.wrapping_add (sbA t) 8#u64)) :
+    msg.lookup_ipc_buffer st s' true t = msg.lookup_ipc_buffer st s true t :=
+  lookup_buf_agreeB true h1 h2 h3
 
 end
 

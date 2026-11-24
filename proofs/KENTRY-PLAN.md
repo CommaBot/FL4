@@ -19246,3 +19246,36 @@ None (no Lean change).
 - **Findings**: none of a false invariant. Note: tdx's re-extraction adds `axiom` declarations only in the unimported
   `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
 - Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).
+
+## lcv (branch par/lcv from cbded6b6 = int/j5, top of record `kernel_entry_reachU29`) — `handle_invocation_local` ACCEPTED → U29's syscall clause
+### Design (written before the proof; size L, below XL, so continued)
+- **What the Rust does.** fl4-sync `local_invocation` computes `p = localinv::plan(s, number)` at the entry state
+  `s` (no write in between: the locks live in `m`, not in the store), then runs
+  `handle_invocation_local(s, a, number, &p)`. Accepted (`true`), that ran: `FAULT_IP` write (s1),
+  `update_timestamp` (s2, a1), read-only checks (`action`, `yield_to`, `sufficient`, `schedulable_here`,
+  `still_holds`), then `handle_invocation`'s own decode on `p.slot` / `p.extra`, its reply, `after_invocation`,
+  `finish`. The general `syscall … SysCall true` from `s`: same `FAULT_IP` write; flags (trap clear: the top's
+  `hflag`); `budget_ok s1 a` = the same `update_timestamp` + `check_budget_restart`, which is `(true, s2, a1)`
+  without writes when `sufficient` held (`check_budget_restart_suf`); `dispatch_syscall s2 a1 SysCall` →
+  `handle_invocation s2 a1 true true true false (reg CAP)`: `cur_thread`, `msg_info`, `lookup_slot`, `Slot.cap`,
+  `lookup_ipc_buffer false`, `lookup_extra_caps`, `length`, the same `decode_invocation` call, the same
+  reply arms (`is_call = true`); `after_invocation`; `finish`.
+- **The plan input.** "Any plan" cannot work as a bare argument: `still_holds` only checks the words the plan
+  *read* (dest/src slot words), not that `p.slot` / `p.extra` are what the CSpace lookups find, so an arbitrary
+  `Plan` value with `nseen = 0` would be decoded at an arbitrary slot. The input is fl4-sync's contract
+  `localinv.plan st s n = ok (some p)` at the entry state (as lcs/pf1c's `found = reply_caps s t`): an input of
+  the clause, not a state premise. From it (`plan_fields`): `p.slot = r.slot` and `p.extra = e` where
+  `lookup_slot s t (reg CAP) = ok (Ok r)`, `lookup_extra_caps s t (lookup_ipc_buffer s false t) (msg_info s t) =
+  ok (Ok e)` (`plan_with` only updates `seen` / `nseen` / `ok_words` / `locks` / `n` / `pte`: `KP` chain over
+  `Plan.new` / `read` / `read_cap` / `add` / `add_pte` / `some_if`).
+- **Lookup congruence per plan field** (s → s2, footprint = `t`'s `FAULT_IP` word, the core's `CUR_TIME` /
+  `CONSUMED`, as pf1c's `rr_prefix_keep`): `cur_thread`; registers other than `FAULT_IP` (`MSG_INFO`, `CAP`);
+  `lookup_slot` (root slot words 0/8 of `t` + `CnOff`'s cap-slot words, `rab_loop_congr2`) — gives `p.slot`;
+  `lookup_ipc_buffer` (TCB words `ibA` / `sbA`: `lookup_buf_agree` generalised over the receiver flag);
+  `lookup_extra_caps` (loop induction; the buffer words `BUF_CAPS + i`, i < 3, are `OutsideObjs` by a send-buffer
+  `BufOK` fact, so off the footprint) — gives `p.extra`.
+- **P3.** Send-buffer placement at a `JAtZ` state (`JAtZ.sbufOK`, from `lookup_buf_full … false`, `BufCover` at
+  `false`, `JAtZ.bufWord` generalised in place over the receiver flag (`bufWordG`), `nodeB`), `J.cnOff`, `J.bxi`.
+  Top `SInvR.G5.kernel_entry_reachU29V`: U29's premises verbatim; conclusion = U29's syscall clause with
+  `handle_invocation_local … p ⦃ r => r.1 = true → post ⦄` and the one added input `localinv.plan st s n = ok (some p)`.
+- Size: P1 module ~500 lines (plan fields M, congruence M, assembly M–L), P3 ~150 (S–M): L.
