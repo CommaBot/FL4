@@ -178,6 +178,7 @@ import Fl4Proofs.P2.FootSlEntry
 import Fl4Proofs.P2.AccessSched
 import Fl4Proofs.P2.AccessVm
 import Fl4Proofs.P2.AccessRefill
+import Fl4Proofs.P2.AccessSwitch
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
