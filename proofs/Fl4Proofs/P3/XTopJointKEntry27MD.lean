@@ -60,7 +60,7 @@ theorem jMidLeavesHyp17_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs
     {cptr : Fl4Spec.CapRef} {σ : Fl4Spec.State Unit}
     (hF : ∀ y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) true false false true true cptr).run σ).1,
       MidRun.CtOK y.2) : JMidLeavesHyp17 (L := L) arI AR cptr σ := by
-  intro y hy _ _ hnq _ _ s1 a1 _ hrun hni1 Z H Cs Ac Lst D J ct hct
+  intro y hy _ _ hnq _ _ s1 a1 _ hrun hni1 Z H Cs Ac Lst D J _ ct hct
   exact JRecvLeavesRN17.of_ok hAT hmax hmb (htu a1) J hct hni1 hrun hnq (hF y hy)
 
 end

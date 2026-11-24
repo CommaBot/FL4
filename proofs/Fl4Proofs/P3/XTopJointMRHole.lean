@@ -68,7 +68,7 @@ theorem jAtPreMV_holeQ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
   have e : σ = _ := pp_err_eq hE (doMachineOp_single (getActiveIRQ_eq true _)) _ hσ rfl
   subst e
   have h0 : CurScFree σ0 := curScFree_of J.inv J.own hp00
-  refine ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, vmt_le_gct hV0, rfl⟩, hp00.1.1, hns0,
+  refine ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, ⟨vmt_le_gct hV0, rfl⟩, inferInstance⟩, hp00.1.1, hns0,
     fun u xt hu hs => h0 u xt hu hs, hp00.1.2.2.1, hp00.1.2.2.2.1, hp00.1.2.2.2.2, hR', hV', ?_⟩
   intro i hi
   exact hI0 i hi

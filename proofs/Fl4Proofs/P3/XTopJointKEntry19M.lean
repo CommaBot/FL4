@@ -53,7 +53,7 @@ def JMidLeavesHyp10 (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (�
     (∀ x, y.2.kheap y.2.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler) →
     ∀ (s1 : S) (a1 : A), RelTopM (L := L) s1 y.2 → CurRun y.2 → y.2.curThread ≠ y.2.idleThread →
     ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a1 y.2 → ∀ ct, sched.cur_thread st s1 = ok ct →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a1 y.2 → [VxE Z] → ∀ ct, sched.cur_thread st s1 = ok ct →
         JRecvLeavesRN10 (L := L) arI AR Z.th ct s1 a1 y.2
 
 end
@@ -85,7 +85,7 @@ theorem JRecvLeavesRN10.toRN9 (hAT : P0.ArchTotal arI)
 theorem jMidLeavesHyp_of10 (hAT : P0.ArchTotal arI)
     {cptr : Fl4Spec.CapRef} {σ : Fl4Spec.State Unit}
     (hL : JMidLeavesHyp10 (L := L) arI AR cptr σ) : JMidLeavesHyp9 (L := L) arI AR cptr σ := by
-  intro y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J ct hct
+  intro y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J _ ct hct
   exact (hL y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J ct hct).toRN9 hAT J hct hni1 hrun hnq hvf
 
 end
