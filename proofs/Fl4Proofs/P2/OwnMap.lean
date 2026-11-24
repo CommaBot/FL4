@@ -221,22 +221,28 @@ def GateOnlyK (K : KLayout) (m : U64 → U64) (x : U64) : Prop := PathObl.GateOn
 
 /-! ## Value classes -/
 
-/-- The class of a CNode slot's `CAP0` (Null/Frame lumped together) and of a
-TCB's `STATE` (Recv, RunningVM, other); every other word is its own class. -/
+/-- The class of a CNode slot's `CAP0` (Null/Frame lumped together), of a
+TCB's `STATE` (Recv, RunningVM, other) and `TIMER_DEADLINE` (zero, nonzero);
+every other word is its own class. -/
 def cls (K : KLayout) (b v : U64) : U64 :=
   match region K b with
   | .slot p => if b = p ∧ ¬ TcbSlot K p ∧ NullOrFrame v then 0#u64 else v
   | .tcb t => if b.val - t.val = 3328 then
-      (if v.val = 3 then 3#u64 else if v.val = 8 then 8#u64 else 0#u64) else v
+      (if v.val = 3 then 3#u64 else if v.val = 8 then 8#u64 else 0#u64)
+    else if b.val - t.val = 3528 then (if v.val = 0 then 0#u64 else 1#u64) else v
   | _ => v
 
 /-- Who may change a word's class beside the gate: a CNode slot's `CAP0`, the
-gate (localinv keeps it Null/Frame); a TCB's `STATE`, the thread's home core;
+gate (localinv keeps it Null/Frame); a TCB's `STATE` and whether its timer is
+armed (`TIMER_DEADLINE`), the thread's home core (a timer fires beside the gate
+only on a core that is both its thread's home and its tree's, and `TCB_SetTimer`
+needs its target homed there; another core's tree operations write links only);
 everything else, untracked. -/
 def ko (K : KLayout) (m : U64 → U64) (b : U64) : Serial.ClsOwner U64 :=
   match region K b with
   | .slot p => if b = p ∧ ¬ TcbSlot K p then .gate else .free
-  | .tcb t => if b.val - t.val = 3328 then .core (m (fld t oAFFINITY)) else .free
+  | .tcb t => if b.val - t.val = 3328 ∨ b.val - t.val = 3528 then .core (m (fld t oAFFINITY))
+    else .free
   | _ => .free
 
 /-! ## Where the deciding words lie -/
