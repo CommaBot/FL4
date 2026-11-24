@@ -1404,7 +1404,7 @@ theorem JAtZ.restartWJR {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
       DState (L := L) Z.th s1 σ1 Z.G ∧ WJR (L := L) arI AR Z H Cs (L.ksb s1) s1 ar σ1 Z.G ∧
       SlotsSame Z.th (L.mem s) (L.mem s1) := by
-  obtain ⟨s1, σ1, x1, hrc, hst1, hk, hcur, e1, hns1, -, -, -, Ac1, Lst1, D1, J1, _⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x1, hrc, hst1, hk, hcur, e1, hns1, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
   obtain ⟨s1', σ1', hrc', -, -, hS1, -⟩ := restart_dstate Z.th J.xtop.rel.1 s σ Z.G J.dstate ct hct hcur htcb J.kern.act
   rw [hrc] at hrc'

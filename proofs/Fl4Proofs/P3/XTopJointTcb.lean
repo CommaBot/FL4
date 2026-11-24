@@ -837,7 +837,7 @@ theorem tcb_unbind_ntfnJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L
     rw [hsp0]
     simp only [Notif.optRef, hb0, ↓reduceIte]
     exact (congrArg (fun m : Fl4Spec.SEMonad Unit Fl4Spec.TcbInvocation => m.run σ) (retOk_bind () _)).trans rfl
-  obtain ⟨s1, σ1, x, hrc1, hst, hk, -, he1, -, -, -, -, Ac1, Lst1, D1, J1, _⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x, hrc1, hst, hk, -, he1, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   -- the bound word after the restart, through the spec (the restart keeps the binding)
   have hb1 : L.mem s1 (P1.boundA p) ≠ 0#u64 := by
     intro h1
@@ -907,7 +907,7 @@ theorem tcb_unset_bpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
     rw [hsp]
     exact run_bind_error (by rw [checkBp_run, if_pos hb]) _
   · simp only [hb, ↓reduceIte, core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-    obtain ⟨s1, σ1, x, hrc1, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1, _⟩ := J.restartJ hni hct
+    obtain ⟨s1, σ1, x, hrc1, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
     rw [hrc1]; simp only [bind_ok]
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4UnsetBreakpoint (Z := Unit) buffer p.bv)).run σ =
@@ -982,7 +982,7 @@ theorem tcb_set_bpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L
     | none =>
     have hbpv := bpErrF_bp hF
     simp only
-    obtain ⟨s1, σ1, x, hrc1, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1, _⟩ := J.restartJ hni hct
+    obtain ⟨s1, σ1, x, hrc1, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
     rw [hrc1]; simp only [bind_ok]
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
         (Fl4Spec.decodeFl4SetBreakpoint (Z := Unit) buffer p.bv)).run σ =
@@ -2389,7 +2389,7 @@ theorem tcb_set_mcpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := 
         Fl4Spec.SEMonad Unit Unit)) rfl _
     · rw [ite_eq_right hgt]
       simp only [bind_ok]
-      obtain ⟨s1, σ1, x1, hrc, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1, _⟩ := J.restartJ hni hct
+      obtain ⟨s1, σ1, x1, hrc, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
       rw [hrc]; simp only [bind_ok, tcs_mcp]
       refine (WP.spec_ok _).2 ?_
       have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB

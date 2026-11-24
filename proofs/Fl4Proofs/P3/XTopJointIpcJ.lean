@@ -1006,7 +1006,7 @@ theorem replyRestFaultJ (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb
       exact (hsc6 x4 rst hx4).symm.trans e
     have hJ6 : JAt (L := L) arI AR s6 a2 (frSt σ2 i x4 rst) := by
       cases rst
-      · obtain ⟨V', Lst', J6⟩ := hq.1 rfl; exact ⟨_, _, _, _, _, _, J6, _⟩
+      · obtain ⟨V', Lst', J6⟩ := hq.1 rfl; exact ⟨_, _, _, _, _, _, J6, inferInstance⟩
       · obtain ⟨V', -, hJ, -⟩ := hq.2 rfl
         obtain ⟨Lst', J6⟩ := hJ (fun sp y n h => by rw [hn] at h; cases h)
         exact ⟨_, _, _, _, _, _, J6, inferInstance⟩

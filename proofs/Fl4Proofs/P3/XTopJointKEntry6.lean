@@ -74,9 +74,9 @@ def KPreFinHypC (AR : A → Fl4Spec.Cr3 → Prop) (c : Fl4Spec.Syscall) (σ : Fl
 
 variable {arI}
 
-theorem JAt.toRE [VxE Z] {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAt.toRE {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAt (L := L) arI AR s a σ) : ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
-      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ :=
+      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z :=
   let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toR, inferInstance⟩
 
 theorem DispPost.toR {AR : A → Fl4Spec.Cr3 → Prop} {Q : Fl4Spec.State Unit → S × A → Prop}

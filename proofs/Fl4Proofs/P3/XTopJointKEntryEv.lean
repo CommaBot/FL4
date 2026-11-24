@@ -456,7 +456,7 @@ theorem jreach_invE (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, _⟩, hX, hR⟩
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, hvx⟩, hX, hR⟩
   | @step s a σ s' a' σ' n c _ hct _ _ hy hRJ ih => exact ⟨hRJ.1.2, kentry_sinvX hnd c ih.2.1 hct _ hy, hRJ.2⟩
   | @event s a σ s' a' σ' e fip ev _ _ hev hF _ hO hRJ ih =>
     exact ⟨hRJ.1.2, sinvX_evOut hnd ih.2.1 hev hF hO, hRJ.2⟩

@@ -742,7 +742,7 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
       (by rw [hbv]; omega) ⟨hm1, hm3⟩ (by rw [hbv]; omega) (fun j h1 h2 => by
         rw [hSS.capAt ⟨dest, j, Or.inl ⟨rr, hdp, by omega⟩, rfl⟩]; exact hemp j h1 h2)
       (hDL.same hSS)) ?_
-    rintro s2 ⟨σ', G', hmap, -, -, -, Ac2, Lst2, D2, J2, _⟩
+    rintro s2 ⟨σ', G', hmap, -, -, -, Ac2, Lst2, D2, J2⟩
     have hbase : (core.num.U64.wrapping_add ptr a3).bv = ptr.bv + a3.bv := core.num.U64.wrapping_add_bv_eq _ _
     have hrights : vmRightsOf m = Fl4Spec.maskVmRights (vmRightsOf rt) (Fl4Spec.dataToRights a5.bv) := by
       rw [hmv, rightsW_spec]; rfl

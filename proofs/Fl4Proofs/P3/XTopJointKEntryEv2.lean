@@ -623,7 +623,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
     simp only [bind_ok]
     exact fin s1 a1 σb hE hfr ⟨Z', H, Cs, Ac', Lst', D', J'.toR, inferInstance⟩ hMb
   | true =>
-    obtain ⟨σb, he, -, -, -, -, -, -, -, Ac', Lst', D', J', _⟩ := hTr rfl
+    obtain ⟨σb, he, -, -, -, -, -, -, -, Ac', Lst', D', J'⟩ := hTr rfl
     have hb : (true, σb) ∈ (specBudget σ).1 := by unfold specBudget; rw [he]; exact Set.mem_singleton _
     have hMb := (budget_mr_at hM hnd hb hM1 hS.1.1.vim).1
     show (do let (s2, a2) ← (if true = true then B s1 a1 else ok (s1, a1)); syscall.finish st arI s2 a2) ⦃ _ ⦄
@@ -790,7 +790,7 @@ theorem jreach_invE2 (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spe
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, _⟩, hX, hR⟩
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, hvx⟩, hX, hR⟩
   | @step s a σ s' a' σ' n c _ hct _ _ hy hRJ ih => exact ⟨hRJ.1.2, kentry_sinvX hnd c ih.2.1 hct _ hy, hRJ.2⟩
   | @irq s a a1 σ s' a' σ' w _ _ _ hO hRJ ih =>
     exact ⟨hRJ.1.2, kcall_sinvX hnd true .interrupt ih.2.1 (fun h => absurd rfl h) _ hO, hRJ.2⟩

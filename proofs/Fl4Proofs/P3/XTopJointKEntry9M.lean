@@ -52,7 +52,7 @@ def JMidRecvHypS (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (cr :
     ∀ (s1 : S) (a1 : A), JMid (L := L) arI AR s1 a1 y.2 →
       syscall.handle_recv st arI s1 a1 true cr ⦃ r => ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) true cr y.2).1,
         RelTopM (L := L) r.1 z.2 ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-          JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 z.2 ⦄
+          JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 z.2 ∧ VxE Z ⦄
 
 end
 
