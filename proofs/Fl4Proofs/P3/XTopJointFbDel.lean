@@ -43,7 +43,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
     (hw0 : w0.bv = w.1) (hw1 : w1.bv = w.2.1) (hw2 : w2.bv = w.2.2) (df : Bool) :
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
-      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
+      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
   obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := hM
   subst hth
   have hbop : b.op = .delete := by
@@ -72,7 +72,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
       simp only [core.result.Result.Insts.CoreOpsTry.branch,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
         core.convert.FromSame.from, bind_ok, bind_tc_ok, WP.spec_ok]
-      refine ⟨τ, hM0, Or.inr ⟨err, rfl, rfl, ?_⟩⟩
+      refine ⟨⟨τ, hM0, Or.inr ⟨err, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
       cases err with
       | Sys e1 =>
         show error.SysError.code e1 ⦃ _ ⦄
@@ -96,7 +96,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
       by_cases hcn : c = .Null
       · subst hcn
         rw [cap_is_null_null]; simp only [bind_ok, ↓reduceIte, WP.spec_ok]
-        exact ⟨τ, hM0, Or.inl ⟨rfl, false, fbEntry_del_null hbop hlkm hgm, by simp⟩⟩
+        exact ⟨⟨τ, hM0, Or.inl ⟨rfl, false, fbEntry_del_null hbop hlkm hgm, by simp⟩⟩, CnSlotsKept.refl _ _⟩
       rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
       have hacn : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
       by_cases hfr : ∃ p sz rt dv mp ep asd va, c = .Frame p sz rt dv mp ep asd va
@@ -104,7 +104,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
       · have ho : vspace.as_frame c = ok none := by
           cases c <;> first | rfl | exact absurd ⟨_, _, _, _, _, _, _, _, rfl⟩ hfr
         rw [ho]; simp only [bind_ok, error.illegal, WP.spec_ok]
-        refine ⟨τ, hM0, Or.inr ⟨_, rfl, rfl, ?_⟩⟩
+        refine ⟨⟨τ, hM0, Or.inr ⟨_, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
         show error.SysError.code .IllegalOperation ⦃ _ ⦄
         refine WP.spec_mono (code_fb (e' := .illegalOperation) (Or.inl trivial)) fun cc hcc => ?_
         rw [hcc]
@@ -141,18 +141,18 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
         cases b2 <;> simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, hs] <;> fbj_red <;>
         refine WP.spec_bind (JAtZ.fbDelDeferJ arI J hDP hT hnd hARI hLv hns hsg hp0 hAs hc hfv hu hs) ?_ <;>
         rintro ⟨r1, s4, a4⟩ ⟨hr1, τu, τs, τ1, G', V', Ac', Lst', D', hu1, hs1, hd1, J', hLv', hns', hsg', hp0', hkb,
-          hK', hum'⟩ <;>
+          hK', hum', hCK⟩ <;>
         fbj_red <;>
-        refine (WP.spec_ok _).2 ⟨τ1, FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
+        refine (WP.spec_ok _).2 ⟨⟨τ1, FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
           (FbFootK.of_rel arI J J' rfl rfl hK' hum') hK' hLv' hns' hsg' hp0', Or.inl ⟨hr1, _,
-          fbEntry_del_frameD hbop hlkm hgm hdf (by rw [C.hbv]; exact hu1) hs1 hd1, by simp⟩⟩
+          fbEntry_del_frameD hbop hlkm hgm hdf (by rw [C.hbv]; exact hu1) hs1 hd1, by simp⟩⟩, hCK⟩
       all_goals
         have hnot : ¬ (bt.defer_delete = true ∧ mp = true ∧ ep = false ∧ dv = false ∧ asd = bt.asid) := by
           rintro ⟨q1, q2, q3, q4, q5⟩; simp_all
         try simp only [bind_ok]
         fbj_red
         refine WP.spec_bind (JAtZ.fbDelFrameJN arI J hDP hT hnd hARI hLv hns hsg hp0 hAs hc rfl) ?_
-        rintro ⟨r1, s4, a4⟩ ⟨hr1, σ', G', V', Ac', Lst', D', hd, J', hLv', hns', hsg', hp0', hkb⟩
+        rintro ⟨r1, s4, a4⟩ ⟨hr1, σ', G', V', Ac', Lst', D', hd, J', hLv', hns', hsg', hp0', hkb, hCK⟩
         fbj_red
         have hcA := (SInvU.getCap_capAt hgm).2
         obtain ⟨hK', hum'⟩ := fbKeep_capDelete_frame hcA hd
@@ -167,9 +167,9 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
               obtain ⟨rfl, rfl⟩ := hm
               exact hnot ⟨by rw [← hdd]; exact h1, rfl, rfl, h3, P1.eq_of_bv (h4.trans hba)⟩
             · simp at h2
-        exact (WP.spec_ok _).2 ⟨σ', FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
+        exact (WP.spec_ok _).2 ⟨⟨σ', FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
           (FbFootK.of_rel arI J J' rfl rfl hK' hum') hK' hLv' hns' hsg' hp0', Or.inl ⟨hr1, false,
-          fbEntry_del_frame hbop hlkm hgm hndP hd, by simp⟩⟩
+          fbEntry_del_frame hbop hlkm hgm hndP hd, by simp⟩⟩, hCK⟩
 
 end
 
