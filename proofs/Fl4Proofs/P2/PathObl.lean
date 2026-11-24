@@ -15,33 +15,44 @@ inside `R`, and writes (`write`, every word of a `zero` / `clear_free` range)
 only inside `W`, and fails otherwise; `ks_base`, `cur_cpu` and `frame_masks`
 are not memory and pass through.
 
-## What each local path delivers
+## What each local path delivers (v2)
 
 A line proving a local path (the extracted body `f`, e.g.
 `syscall.handle_syscall_local st ar · · number found`, its arguments other
-than the store, the state and the Arch value fixed) gives
+than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
 
-* `ReadSet WriteSet : S → U64 → Prop`: the words the body may read / write,
-  as functions of the entry state (e.g. `fun s b => b ∈ TcbWords (cur s) ∨ …`);
-  `WriteSet ⊆ ReadSet` is not required (a write needs no read);
-* `Pre : S → Prop`: the entry facts the proof uses (invariants, the plan's
-  checks, what the fl4-sync glue established before calling the body);
-* the lemma, for a `LawfulStore` `st` (the shape of `PathObl.access`):
+* `Acc : X → Prop`: the run was accepted (for the local paths, `x = true`);
+* `ReadSet WriteSet DecSet : S → U64 → Prop`, functions of the entry state:
+  the words an *accepted* run may read and write, and the words a *declined*
+  run may write (`FAULT_IP`, the timestamp words: what the general path
+  repeats);
+* `Pre : S → Prop`: the entry facts the proof uses;
+* the two access lemmas, for a `LawfulStore` `st`:
 
-      theorem <path>_access [L : LawfulStore st] (hpre : Pre s)
-          (h : f st s a = ok r) :
+      theorem <path>_acc [L : LawfulStore st] (hpre : Pre s)
+          (h : f st s a = ok r) (hacc : Acc r.1) :
           f (guard st (ReadSet s) (WriteSet s)) s a = ok r
+      theorem <path>_dec [L : LawfulStore st] (hpre : Pre s)
+          (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
+          f (guard st (fun _ => True) (DecSet s)) s a = ok r
 
-  i.e. the run on the real store succeeds the same way when every access
-  outside the sets fails: every access the run makes lies inside them.
-  Typical proof: the per-path spec proof replayed with `guard_read` /
-  `guard_write` / `guard_read_pair` / `guard_zero` (each access shown inside
-  its set) in place of the store's own equations;
-* once the ownership map `own` is fixed (below), the facts linking the sets to
-  it (`PathObl.read_own`, `write_own`, `move`).
+  An accepted run reads only `ReadSet` and writes only `WriteSet`; a declined
+  run may read anything (a racy read of a word another core may be writing,
+  e.g. an unlocked CSpace walk hitting a Null/Frame slot) but writes only
+  `DecSet`. Typical proof: the spec proof replayed with `guard_read` /
+  `guard_write` / … in place of the store's own equations;
+* once the ownership map is fixed (`P2/OwnMap.lean`), the facts linking the
+  sets to it, kernel words only (`User`, user memory such as IPC buffers, is
+  exempt): `read_own` (accepted reads: held or gate-owned), `write_own`
+  (accepted and declined writes: held), `move` (owners change only between
+  held owners) and `cls_pres` (a write keeps the written word's value class
+  `cls`, e.g. a CNode slot's `CAP0` stays Null/Frame).
 
 `PathObl` packages these. The `Arch` value is threaded unchanged in kind:
 Arch calls are not memory and are outside the model (`Serial.lean`, Scope).
+In `Serial` a read of a user word is an input (any value) and a write to one is
+not tracked: races on a frame two cores' threads share are the user's
+(DESIGN §7); no local path branches on an IPC-buffer word it reads twice.
 
 ## The global side
 
@@ -183,25 +194,33 @@ def OwnMove (own : (U64 → U64) → U64 → Owner U64 U64) (c : U64) (lk : U64 
 
 /-! ## The obligation -/
 
-/-- **The per-path obligation** [W] (per local path, other lines' work) for the
-extracted body `f` (other arguments fixed), under `Pre`, with the locks `Locks`
-the fl4-sync glue holds and the global ownership map `own`; the core is
-`L.cpu s`.
+/-- **The per-path obligation** [W] (per local path, other lines' work), v2,
+for the extracted body `f` (other arguments fixed), under `Pre`, with the
+locks `Locks` the fl4-sync glue holds, the global ownership map `own`, the
+value class `cls` and user memory `User`; the core is `L.cpu s`.
 
-* `access`: every access of a successful run lies in `ReadSet` / `WriteSet`
-  (the run on `guard` succeeds the same way);
-* `read_own` / `write_own`: those sets lie in what the core and its locks
-  own (reads: or the gate);
-* `move`: the run moves owners only between owners the path holds. -/
+* `acc`: an accepted run reads only `ReadSet` and writes only `WriteSet`;
+* `dec`: a declined run writes only `DecSet` (its reads are unrestricted);
+* `read_own`: `ReadSet`'s kernel words are held or gate-owned;
+* `write_own`: `WriteSet`'s and `DecSet`'s kernel words are held;
+* `move`: the run moves owners only between owners the path holds;
+* `cls_pres`: each word the run changes keeps its value class. -/
 structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
-    (f : machine.Store S → S → A → Result (X × S × A))
-    (own : (U64 → U64) → U64 → Owner U64 U64) (Locks : S → U64 → Prop) (Pre : S → Prop)
-    (ReadSet WriteSet : S → U64 → Prop) : Prop where
-  access : ∀ s a r, Pre s → f st s a = ok r → f (guard st (ReadSet s) (WriteSet s)) s a = ok r
-  read_own : ∀ s x, Pre s → ReadSet s x → RPerm own (L.cpu s) (Locks s) (L.mem s) x
-  write_own : ∀ s x, Pre s → WriteSet s x → WPerm own (L.cpu s) (Locks s) (L.mem s) x
+    (f : machine.Store S → S → A → Result (X × S × A)) (Acc : X → Prop)
+    (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 → U64 → Prop) (User : U64 → Prop)
+    (Locks : S → U64 → Prop) (Pre : S → Prop)
+    (ReadSet WriteSet DecSet : S → U64 → Prop) : Prop where
+  acc : ∀ s a r, Pre s → f st s a = ok r → Acc r.1 →
+    f (guard st (ReadSet s) (WriteSet s)) s a = ok r
+  dec : ∀ s a r, Pre s → f st s a = ok r → ¬ Acc r.1 →
+    f (guard st (fun _ => True) (DecSet s)) s a = ok r
+  read_own : ∀ s x, Pre s → ReadSet s x → ¬ User x → RPerm own (L.cpu s) (Locks s) (L.mem s) x
+  write_own : ∀ s x, Pre s → (WriteSet s x ∨ DecSet s x) → ¬ User x →
+    WPerm own (L.cpu s) (Locks s) (L.mem s) x
   move : ∀ s a r, Pre s → f st s a = ok r →
     OwnMove own (L.cpu s) (Locks s) (L.mem s) (L.mem r.2.1)
+  cls_pres : ∀ s a r x, Pre s → f st s a = ok r → ¬ User x →
+    (cls x (L.mem r.2.1 x) ↔ cls x (L.mem s x))
 
 /-! ## A Store-generic body as a tree of trait calls -/
 

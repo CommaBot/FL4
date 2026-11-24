@@ -8,8 +8,10 @@ P2: **the bridge from the per-path obligation to the trace form**
 * `PathObl.within`: for a body that is a trait-call tree (`IsProg` [P]) and
   meets `PathObl.access` [W], every access of its sequential run lies in
   `ReadSet` / `WriteSet` of the entry state.
-* `PathObl.allowed_steps`: with `read_own` / `write_own`, every read along the
-  run is in `RPerm` and every write in `WPerm` of the entry state's ownership;
+* `PathObl.allowed_steps` (accepted runs) / `allowed_steps_dec` (declined
+  runs): with `read_own` / `write_own`, every kernel read of an accepted run is
+  in `RPerm` and every kernel write of either is in `WPerm` of the entry
+  state's ownership;
   these are `Serial.Allowed`'s conditions for the path's steps (the owners a
   path holds do not change under its own writes, `Serial.inv_wr`, nor under
   other cores' steps, `Serial.InvH`).
@@ -239,37 +241,63 @@ theorem Within.mono {st : machine.Store S} {R W R' W' : U64 → Prop}
 
 section obl
 variable {st : machine.Store S} [L : LawfulStore st]
-  {f : machine.Store S → S → A → Result (X × S × A)}
-  {own : (U64 → U64) → U64 → Serial.Owner U64 U64} {Locks : S → U64 → Prop} {Pre : S → Prop}
-  {RS WS : S → U64 → Prop}
+  {f : machine.Store S → S → A → Result (X × S × A)} {Acc : X → Prop}
+  {own : (U64 → U64) → U64 → Serial.Owner U64 U64} {cls : U64 → U64 → Prop}
+  {User : U64 → Prop} {Locks : S → U64 → Prop} {Pre : S → Prop}
+  {RS WS DS : S → U64 → Prop}
 
-/-- **The obligation gives the trace form**: every access of the body's
-sequential run lies in its stated sets. -/
+/-- **Accepted runs, trace form**: every access of an accepted sequential run
+lies in its stated sets. -/
 theorem PathObl.within {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f own Locks Pre RS WS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) : Within st (RS s) (WS s) p s a := by
-  have hg := O.access s a r hpre h
+    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) : Within st (RS s) (WS s) p s a := by
+  have hg := O.acc s a r hpre h hacc
   rw [hp (guard st (RS s) (WS s))] at hg
   exact (interp_guard p s a r hg).2
 
-/-- The guarded run is the real one (projection). -/
-theorem PathObl.same {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f own Locks Pre RS WS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) :
-    f (guard st (RS s) (WS s)) s a = f st s a := by
-  rw [O.access s a r hpre h, h]
+/-- **Declined runs, trace form**: every write of a declined sequential run
+lies in `DecSet`. -/
+theorem PathObl.within_dec {p : SProg A X} (hp : IsProg f p)
+    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
+    Within st (fun _ => True) (DS s) p s a := by
+  have hg := O.dec s a r hpre h hdec
+  rw [hp (guard st (fun _ => True) (DS s))] at hg
+  exact (interp_guard p s a r hg).2
 
-/-- **Ownership along the run**: every read of the body's sequential run is in
-`RPerm` and every write in `WPerm` of the entry state (`Serial.Allowed`'s
-read and write conditions, with the owners the path holds fixed by
-`Serial`'s invariant). -/
+/-- The guarded run is the real one (projection), accepted runs. -/
+theorem PathObl.same {p : SProg A X} (hp : IsProg f p)
+    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
+    f (guard st (RS s) (WS s)) s a = f st s a := by
+  rw [O.acc s a r hpre h hacc, h]
+
+/-- **Ownership along an accepted run**: every read is a user word or in
+`RPerm`, every write a user word or in `WPerm`, of the entry state. -/
 theorem PathObl.allowed_steps {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f own Locks Pre RS WS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) :
-    Within st (RPerm own (L.cpu s) (Locks s) (L.mem s)) (WPerm own (L.cpu s) (Locks s) (L.mem s))
-      p s a :=
-  Within.mono (fun b hb => O.read_own s b hpre hb) (fun b hb => O.write_own s b hpre hb) p s a
-    (O.within hp hpre h)
+    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
+    Within st (fun b => User b ∨ RPerm own (L.cpu s) (Locks s) (L.mem s) b)
+      (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
+  refine Within.mono (fun b hb => ?_) (fun b hb => ?_) p s a (O.within hp hpre h hacc)
+  · by_cases hu : User b
+    · exact Or.inl hu
+    · exact Or.inr (O.read_own s b hpre hb hu)
+  · by_cases hu : User b
+    · exact Or.inl hu
+    · exact Or.inr (O.write_own s b hpre (Or.inl hb) hu)
+
+/-- **Ownership along a declined run**: every write is a user word or in
+`WPerm` of the entry state. -/
+theorem PathObl.allowed_steps_dec {p : SProg A X} (hp : IsProg f p)
+    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
+    Within st (fun _ => True)
+      (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
+  refine Within.mono (fun _ _ => trivial) (fun b hb => ?_) p s a (O.within_dec hp hpre h hdec)
+  by_cases hu : User b
+  · exact Or.inl hu
+  · exact Or.inr (O.write_own s b hpre (Or.inr hb) hu)
 
 end obl
 
