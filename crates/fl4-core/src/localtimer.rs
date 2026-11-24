@@ -1,16 +1,13 @@
 //! The local paths of the kernel timer interrupt and of `TCB_SetTimer`
 //! (GitHub issue #94, DESIGN.md §7): what they check and what they run.
-//! lib.rs wraps them in the gate's handshake and the object locks
-//! (`local_timer_irq`, `local_syscall`), as it wraps the syscall fast paths.
+//! `fl4-sync` wraps them in the gate's handshake and the object locks
+//! (`local_timer_irq`, `local_syscall`), as it wraps `fastpath`,
+//! `fastpath_vm` and `localinv`.
 //!
-//! This module keeps to the Rust fl4-core keeps to (DESIGN.md §6) so that
-//! it can move there, and be extracted, unchanged: kernel memory only
-//! through `Store`, the machine only through `Arch`, no `unsafe`, atomics,
-//! closures or `dyn`, explicit wrapping arithmetic, loops bounded by fuel.
 //! Each local path checks with reads only that the general path's own
 //! code, which it then calls, writes nothing but this core's state, threads
 //! and scheduling contexts on this core, this core's timer tree and the
-//! objects lib.rs has locked for it.
+//! objects `fl4-sync` has locked for it.
 //!
 //! # Proof obligations (P2)
 //!
@@ -26,8 +23,8 @@
 //!   fl4-core functions in `general`'s order, and the checks show that
 //!   `general` would take no other branch before them (no fault, no
 //!   preemption, budget left). For `TCB_SetTimer` the target is given, as
-//!   lib.rs found it with the slots of its lookup locked: `general`'s own
-//!   lookup (`cspace::lookup_slot`) finds the same thread.
+//!   `fl4-sync` found it with the slots of its lookup locked: `general`'s
+//!   own lookup (`cspace::lookup_slot`) finds the same thread.
 //! * Decline. `local s = (false, s')`: `s'` differs from `s` at most by the
 //!   caller's `FAULT_IP` (set to what `general` sets it to first) and by
 //!   `sched::update_timestamp`, which `general` begins with; with one
@@ -45,7 +42,7 @@
 //!   `TIMER_RIGHT` and `TIMER_PARENT` links of a node of a core's tree lead
 //!   only to nodes of that tree (or 0), each with `TIMER_HEIGHT >> 8` that
 //!   core. The local paths check `TIMER_HEIGHT >> 8` of the nodes they
-//!   remove or rearm, but walk links as fl4-core's `timer` does.
+//!   remove or rearm, but walk links as `crate::timer` does.
 //! * Timer ownership. A thread's timer fields, `TIMER_DEADLINE..=
 //!   TIMER_HEIGHT`, belong while it is armed to the core whose tree holds
 //!   it (`TIMER_HEIGHT >> 8`), and while it is disarmed to its `affinity`.
@@ -55,34 +52,27 @@
 //!   and disarms only threads of this core's tree with `affinity` this
 //!   core. `in_core_timer_tree` reads only nodes of this core's tree.
 
-#![forbid(unsafe_code)]
-
+use crate::capability::Cap;
+use crate::interrupt;
+use crate::layout::{irq as irqn, node, reg, NUM_DOMAINS, TREE_FUEL};
+use crate::machine::{Arch, Store};
+use crate::msg;
+use crate::obj::{node_get, Ntfn, Sc, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE, NTFN_WAITING};
+use crate::sched;
+use crate::sporadic;
+use crate::timer;
+use crate::vcpu;
 use fl4_abi::consts::tcb_flag;
 use fl4_abi::label;
 use fl4_abi::syscall as sc;
-use fl4_core::capability::Cap;
-use fl4_core::interrupt;
-use fl4_core::layout::{irq as irqn, node, reg, NUM_DOMAINS, TREE_FUEL};
-use fl4_core::machine::{Arch, Store};
-use fl4_core::msg;
-use fl4_core::obj::{node_get, Ntfn, Sc, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE, NTFN_WAITING};
-use fl4_core::sched;
-use fl4_core::sporadic;
-use fl4_core::vcpu;
 
 /// Bytes of the syscall instruction, which `FAULT_IP` points back at (as
-/// fl4-core's `syscall_insn_len!`). fl4-sync's `aarch64` feature must
-/// follow fl4-core's: their register files differ, which the assertion
-/// below checks.
+/// `syscall::syscall_insn_len!`).
 pub const SYSCALL_INSN_LEN: u64 = if cfg!(feature = "aarch64") { 4 } else { 2 };
-const _: () = assert!(
-    fl4_core::layout::reg::COUNT == if cfg!(feature = "aarch64") { 37 } else { 24 },
-    "fl4-sync's aarch64 feature differs from fl4-core's"
-);
 // `handle_set_timer_local` reads its two arguments from registers.
 const _: () = assert!(msg::N_MSG_REGISTERS >= 2);
 
-/// The core whose timer tree holds an armed thread (fl4-core timer.rs).
+/// The core whose timer tree holds an armed thread (`timer.rs`).
 pub fn core_of<S: Store>(s: &S, t: Tcb) -> u64 {
     t.timer_height(s) >> 8
 }
@@ -207,8 +197,8 @@ fn cnode_mask(bits: u64) -> u64 {
 /// slot that CNode cap `node_cap` resolves `cptr` to with `bits_left` bits
 /// left, and the bits left after it; None where `resolve_address_bits`
 /// fails at this level (not a CNode, a CNode resolving no bits, a guard or
-/// depth mismatch). The caller reads (lib.rs: locks, then reads) the slot,
-/// and goes on from its cap if bits are left and it is a CNode.
+/// depth mismatch). The caller reads (`fl4-sync`: locks, then reads) the
+/// slot, and goes on from its cap if bits are left and it is a CNode.
 pub fn cspace_step(node_cap: Cap, cptr: u64, bits_left: u64) -> Option<(Slot, u64)> {
     let (ptr, radix, guard_size, guard) = match node_cap {
         Cap::CNode { ptr, radix, guard_size, guard } => (ptr, radix, guard_size, guard),
@@ -241,8 +231,8 @@ fn set_timer_target_ok<S: Store>(s: &S, cpu: u64, target: Tcb) -> bool {
 
 /// `handle_syscall` for a `TCB_SetTimer` invocation (`SysCall`) of the
 /// current thread `t` on `target`, the thread its capability register
-/// names (lib.rs `local_set_timer` found it, and holds the locks of the
-/// slots that lookup read, so the general path's lookup finds it too),
+/// names (`fl4-sync` `local_set_timer` found it, and holds the locks of
+/// the slots that lookup read, so the general path's lookup finds it too),
 /// beside the serial gate: when `target` is this core's, `t` keeps running
 /// and nothing becomes due, the general path is `handle_invocation`
 /// through `tcb::decode` to `timer::insert`, its reply, and a `schedule()`
@@ -295,7 +285,7 @@ pub fn handle_set_timer_local<S: Store, A: Arch>(s: &mut S, a: &mut A, number: i
     // `handle_invocation`: `tcb::decode` (`remote_tcb_stall` stalls
     // nothing: `target` is this core's), its TCBSetTimer case, the reply.
     sched::set_thread_state(s, t, sched::TS_RESTART);
-    fl4_core::timer::insert(s, target, deadline, badge);
+    timer::insert(s, target, deadline, badge);
     msg::reply_success_empty(s, t);
     sched::set_thread_state(s, t, sched::TS_RUNNING);
     // `finish`.
@@ -486,7 +476,7 @@ fn fire_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, p: &TimerIrqPlan, now: u64) -> bo
 }
 
 /// `handle_interrupt_entry` for interrupt `irq`, the kernel timer, beside
-/// the serial gate (lib.rs `local_timer_irq`), holding the locks of `p`,
+/// the serial gate (`fl4-sync` `local_timer_irq`), holding the locks of `p`,
 /// which `plan_timer_irq` returned: when it charges a round-robin budget
 /// and keeps the current thread, fires the one due timer of a thread of
 /// this core (signalling its bound notification), or does neither (a

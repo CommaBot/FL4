@@ -13,7 +13,7 @@ bench = false
 [dependencies]
 fl4-abi = { path = "../fl4-abi", features = ["aarch64"] }
 fl4-core = { path = "../fl4-core", features = ["aarch64"] }
-fl4-sync = { path = "../fl4-sync", features = ["aarch64"] }
+fl4-sync = { path = "../fl4-sync" }
 fl4-store = { path = "../fl4-store" }
 fl4-arch-aarch64 = { path = "../fl4-arch-aarch64" }
 fl4-bootinfo = { path = "../fl4-bootinfo" }

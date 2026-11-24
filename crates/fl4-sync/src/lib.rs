@@ -27,9 +27,8 @@
 compile_error!("fl4-sync's mutant features are for the host simulator (cargo xtask mutants), never for a kernel");
 
 use core::sync::atomic::{AtomicU64, Ordering};
+use fl4_core::localtimer;
 use fl4_store::lock::{self, Mem};
-
-pub mod timer;
 
 /// Cores the runtime supports. Do not scan flags for cores it cannot run.
 pub const MAX_CPUS: usize = lock::MAX_CPUS;
@@ -265,7 +264,7 @@ pub fn run_entry<E: EntryEnv>(
 
 /// A syscall: on several cores, first try its local path beside the serial
 /// gate (`fl4_core::syscall::handle_syscall_local`, `handle_ioport_local`,
-/// `handle_invocation_local`, `timer::handle_set_timer_local`), then
+/// `handle_invocation_local`, `localtimer::handle_set_timer_local`), then
 /// `run_entry`. Returns as `run_entry` does.
 ///
 /// The fast paths write only memory of this core (its scheduler state, its
@@ -427,7 +426,7 @@ enum Candidate {
     Port,
     /// A frame-cap invocation (`handle_invocation_local`).
     Invocation,
-    /// A `TCB_SetTimer` (`timer::handle_set_timer_local`).
+    /// A `TCB_SetTimer` (`localtimer::handle_set_timer_local`).
     SetTimer,
 }
 
@@ -547,7 +546,7 @@ fn lookup_slot_locked<S: fl4_core::machine::Store, M: Mem>(
     let mut cap = t.slot(fl4_core::layout::tcb::SLOT_CTABLE).cap(s);
     let mut bits = fl4_core::cspace::WORD_BITS;
     for _ in 0..lock::MAX_HELD {
-        let (slot, rest) = timer::cspace_step(cap, cptr, bits)?;
+        let (slot, rest) = localtimer::cspace_step(cap, cptr, bits)?;
         if !lock_object(m, slot.0, held) {
             return None;
         }
@@ -563,13 +562,13 @@ fn lookup_slot_locked<S: fl4_core::machine::Store, M: Mem>(
     None
 }
 
-/// A `TCB_SetTimer` beside the gate (`timer::handle_set_timer_local`), on
-/// the thread its capability register names, found with the slots of its
+/// A `TCB_SetTimer` beside the gate (`localtimer::handle_set_timer_local`),
+/// on the thread its capability register names, found with the slots of its
 /// lookup locked (`lookup_slot_locked`) and kept locked while it runs. It
 /// writes no slot; it writes this core's state, the caller, the target
 /// thread and the timer tree of this core, all of them this core's alone
-/// while the gate is open (`timer`'s Timer ownership): `observe` sees no
-/// object.
+/// while the gate is open (`localtimer`'s Timer ownership): `observe` sees
+/// no object.
 #[inline(always)]
 fn local_set_timer<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
     s: &mut S,
@@ -589,12 +588,12 @@ fn local_set_timer<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: M
         }
     };
     observe(s, &[]);
-    let done = timer::handle_set_timer_local(s, a, number, target);
+    let done = localtimer::handle_set_timer_local(s, a, number, target);
     lock::unlock_held(m, &mut held);
     done
 }
 
-const _: () = assert!(timer::MAX_TIMER_LOCKS <= lock::MAX_HELD);
+const _: () = assert!(localtimer::MAX_TIMER_LOCKS <= lock::MAX_HELD);
 
 /// A kernel timer interrupt (`IRQ_TIMER`) on a multi-core system: first
 /// its local path beside the serial gate (`local_timer_irq`), then
@@ -631,7 +630,7 @@ pub fn run_timer_irq<E: EntryEnv>(
 }
 
 /// The local path of kernel timer interrupt `irq`
-/// (`timer::handle_timer_irq_local`): plan with reads only, lock the
+/// (`localtimer::handle_timer_irq_local`): plan with reads only, lock the
 /// notification the due timer signals (and, if that wakes its thread from
 /// `Recv`, the endpoint and reply object `cancel_ipc` writes), let
 /// `observe` see them, then run; true if it ran. As `local_syscall`, it
@@ -644,7 +643,7 @@ pub fn local_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, 
     irq: u64,
     observe: impl FnOnce(&S, &[(u64, u64)]),
 ) -> bool {
-    let p = match timer::plan_timer_irq(s, irq) {
+    let p = match localtimer::plan_timer_irq(s, irq) {
         Some(p) => p,
         None => return false,
     };
@@ -655,7 +654,7 @@ pub fn local_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, 
     }
     let done = ok && {
         observe(s, &p.objects[..p.n]);
-        timer::handle_timer_irq_local(s, a, irq, &p)
+        localtimer::handle_timer_irq_local(s, a, irq, &p)
     };
     lock::unlock_held(m, &mut held);
     done
@@ -941,7 +940,7 @@ mod tests {
     fn in_tree(s: &MapStore, cpu: u64, target: u64, d: u64) -> bool {
         let mine = tree(s, cpu);
         s.reads.borrow_mut().clear();
-        let r = timer::in_core_timer_tree(s, cpu, thread(target), d);
+        let r = localtimer::in_core_timer_tree(s, cpu, thread(target), d);
         for &a in s.reads.borrow().iter() {
             if a >= TCB_BASE {
                 let t = TCB_BASE + (a - TCB_BASE) / TCB_STRIDE * TCB_STRIDE;
@@ -970,7 +969,7 @@ mod tests {
             assert!(!in_tree(&s, 1, i, d), "thread {i} not in core 1's tree");
             assert!(in_tree(&s, 1, n + i, d), "thread {} in core 1's tree", n + i);
             assert!(!in_tree(&s, 0, n + i, d), "thread {} not in core 0's tree", n + i);
-            assert_eq!(timer::core_of(&s, thread(i)), 0);
+            assert_eq!(localtimer::core_of(&s, thread(i)), 0);
         }
         // A thread armed on neither.
         assert!(!in_tree(&s, 0, 2 * n, 5));
@@ -1004,7 +1003,7 @@ mod tests {
             assert!(!in_tree(&s, 1, i, 42));
             assert!(!in_tree(&s, 0, n + i, 42));
         }
-        assert!(found >= timer::TREE_VISITS / 2 && found < n, "{found} of {n} found within the bounds");
+        assert!(found >= localtimer::TREE_VISITS / 2 && found < n, "{found} of {n} found within the bounds");
     }
 
     /// A CSpace: root CNode `R` (radix 4, a 56-bit guard of 0), whose slot 1
@@ -1028,7 +1027,7 @@ mod tests {
         (s, t)
     }
 
-    /// `lookup_slot_locked`, one level at a time through `timer::cspace_step`,
+    /// `lookup_slot_locked`, one level at a time through `localtimer::cspace_step`,
     /// finds the slot `cspace::lookup_slot` finds, and fails where it fails
     /// (guard and depth mismatches, a CNode resolving no bits, not a CNode),
     /// on one level and two; it reads only slots it has locked.

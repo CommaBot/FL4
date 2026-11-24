@@ -232,7 +232,7 @@ static FASTPATH_COUNTS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 /// `--conc`) and as run: frame-cap invocations (`fl4_core::localinv`), VM
 /// faults (`fastpath_vm::vm_fault`) and ReplyRecv answering one
 /// (`fastpath_vm::reply_recv_vm_found`, run only), `TCB_SetTimer` and kernel
-/// timer interrupts (`fl4_sync::timer`).
+/// timer interrupts (`fl4_core::localtimer`).
 #[derive(Default, Clone, Copy, Debug)]
 struct LocalCounts {
     inv_tried: u64,
@@ -1161,7 +1161,7 @@ static STATS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 /// a locked endpoint or waiting notification, which belong to the queue.
 /// Of a thread on the core, not the queue links while it is blocked on an
 /// endpoint or notification (they belong to that object's queue), nor its
-/// timer fields while it is armed in another core's tree (`fl4_sync::timer`'s
+/// timer fields while it is armed in another core's tree (`fl4_core::localtimer`'s
 /// Timer ownership: that core's). Read without scheduling points, once
 /// the path holds its locks (`fl4_sync::local_syscall`'s `observe`).
 fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<(u64, u64)> {
@@ -3680,7 +3680,7 @@ fn main() {
             c(20000, true, Some(3), false, Some("guest"), quarter),
             c(20000, false, None, true, Some("guest"), quarter),
             // The kernel timer interrupt and TCB_SetTimer beside the gate
-            // (fl4_sync::timer): checked against the general path, and on
+            // (fl4_core::localtimer): checked against the general path, and on
             // every core at once.
             Campaign { diff: true, ..c(20000, false, None, false, Some("timer"), quarter) },
             c(20000, true, None, false, Some("timer"), quarter),
@@ -3948,7 +3948,7 @@ mod tests {
         assert_eq!(bi_word(&sim, 0), 20);
     }
 
-    // ---- the timer local paths (fl4_sync::timer) --------------------------
+    // ---- the timer local paths (fl4_core::localtimer) --------------------------
 
     /// A new object of type `ty` in the first empty root CNode slot.
     fn retype(sim: &mut Sim, ty: u64) -> u64 {
@@ -4134,7 +4134,7 @@ mod tests {
     }
 
     /// The footprint gives a thread's timer fields to the core that owns
-    /// them (`fl4_sync::timer`'s Timer ownership): a thread of core 1 armed
+    /// them (`fl4_core::localtimer`'s Timer ownership): a thread of core 1 armed
     /// in core 0's tree has its links written by core 0 only, and its
     /// deadline and badge by neither (core 0 fires it only under the gate);
     /// core 1 writes none of its timer fields, though the rest of the
