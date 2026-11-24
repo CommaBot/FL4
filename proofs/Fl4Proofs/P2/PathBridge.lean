@@ -71,27 +71,29 @@ theorem bok {α β : Type _} {m : Result α} {f : α → Result β} {r : β} :
 
 /-- Every access of the run of `p` on `st` from `(s, a)` lies in `R` (reads)
 and `W` (writes). -/
-def Within (st : machine.Store S) (R W : U64 → Prop) : SProg A X → S → A → Prop
+def Within (st : machine.Store S) (ar : machine.Arch A) (R W : U64 → Prop) :
+    SProg X → S → A → Prop
   | .ret _, _, _ => True
   | .err _, _, _ => True
-  | .rd q k, s, a => R q ∧ ∀ v, st.read s q = ok v → Within st R W (k v) s a
+  | .rd q k, s, a => R q ∧ ∀ v, st.read s q = ok v → Within st ar R W (k v) s a
   | .rdp q k, s, a => R q ∧ R (core.num.U64.wrapping_add q 8#u64) ∧
-      ∀ v, st.read_pair s q = ok v → Within st R W (k v) s a
-  | .wr q v k, s, a => W q ∧ ∀ s', st.write s q v = ok s' → Within st R W k s' a
+      ∀ v, st.read_pair s q = ok v → Within st ar R W (k v) s a
+  | .wr q v k, s, a => W q ∧ ∀ s', st.write s q v = ok s' → Within st ar R W k s' a
   | .zero q n k, s, a => (∀ b, InRange q n b → W b) ∧
-      ∀ s', st.zero s q n = ok s' → Within st R W k s' a
+      ∀ s', st.zero s q n = ok s' → Within st ar R W k s' a
   | .clr q n k, s, a => (∀ b, InRange q n b → W b) ∧
-      ∀ s', st.clear_free s q n = ok s' → Within st R W k s' a
-  | .ksb k, s, a => ∀ v, st.ks_base s = ok v → Within st R W (k v) s a
-  | .cpu k, s, a => ∀ v, st.cur_cpu s = ok v → Within st R W (k v) s a
-  | .masks k, s, a => ∀ v, st.frame_masks s = ok v → Within st R W (k v) s a
-  | .eff g k, s, a => ∀ b a', g a = ok (b, a') → Within st R W (k b) s a'
+      ∀ s', st.clear_free s q n = ok s' → Within st ar R W k s' a
+  | .ksb k, s, a => ∀ v, st.ks_base s = ok v → Within st ar R W (k v) s a
+  | .cpu k, s, a => ∀ v, st.cur_cpu s = ok v → Within st ar R W (k v) s a
+  | .masks k, s, a => ∀ v, st.frame_masks s = ok v → Within st ar R W (k v) s a
+  | .arch op k, s, a => ∀ v a', callArch ar op a = ok (v, a') → Within st ar R W (k v) s a'
 
 /-- **Projection and trace**: a successful guarded run is the real run, and
 all its accesses lie in the guard's sets. -/
-theorem interp_guard {st : machine.Store S} {R W : U64 → Prop} (p : SProg A X) :
-    ∀ (s : S) (a : A) (r : X × S × A), interp (guard st R W) p s a = ok r →
-      interp st p s a = ok r ∧ Within st R W p s a := by
+theorem interp_guard {st : machine.Store S} {ar : machine.Arch A} {R W : U64 → Prop}
+    (p : SProg X) :
+    ∀ (s : S) (a : A) (r : X × S × A), interp (guard st R W) ar p s a = ok r →
+      interp st ar p s a = ok r ∧ Within st ar R W p s a := by
   induction p with
   | ret x => intro s a r h; exact ⟨h, trivial⟩
   | err e => intro s a r h; exact absurd h fail_not_ok
@@ -198,7 +200,7 @@ theorem interp_guard {st : machine.Store S} {R W : U64 → Prop} (p : SProg A X)
       exact fun v' hv' => by
         have hv0 : st.frame_masks s = ok v := hv
         obtain rfl := Result.ok_injective (hv0.symm.trans hv'); exact h2
-  | eff g k ih =>
+  | arch op k ih =>
     intro s a r h
     simp only [interp] at h
     obtain ⟨⟨b, a'⟩, hv, hk⟩ := bok.mp h
@@ -212,18 +214,19 @@ theorem interp_guard {st : machine.Store S} {R W : U64 → Prop} (p : SProg A X)
 
 /-- Every write of the run of `p` on `st` from `(s, a)` satisfies `Q` between
 the states before and after it. -/
-def WithinM (st : machine.Store S) (Q : S → S → Prop) : SProg A X → S → A → Prop
+def WithinM (st : machine.Store S) (ar : machine.Arch A) (Q : S → S → Prop) :
+    SProg X → S → A → Prop
   | .ret _, _, _ => True
   | .err _, _, _ => True
-  | .rd q k, s, a => ∀ v, st.read s q = ok v → WithinM st Q (k v) s a
-  | .rdp q k, s, a => ∀ v, st.read_pair s q = ok v → WithinM st Q (k v) s a
-  | .wr q v k, s, a => ∀ s', st.write s q v = ok s' → Q s s' ∧ WithinM st Q k s' a
-  | .zero q n k, s, a => ∀ s', st.zero s q n = ok s' → Q s s' ∧ WithinM st Q k s' a
-  | .clr q n k, s, a => ∀ s', st.clear_free s q n = ok s' → Q s s' ∧ WithinM st Q k s' a
-  | .ksb k, s, a => ∀ v, st.ks_base s = ok v → WithinM st Q (k v) s a
-  | .cpu k, s, a => ∀ v, st.cur_cpu s = ok v → WithinM st Q (k v) s a
-  | .masks k, s, a => ∀ v, st.frame_masks s = ok v → WithinM st Q (k v) s a
-  | .eff g k, s, a => ∀ b a', g a = ok (b, a') → WithinM st Q (k b) s a'
+  | .rd q k, s, a => ∀ v, st.read s q = ok v → WithinM st ar Q (k v) s a
+  | .rdp q k, s, a => ∀ v, st.read_pair s q = ok v → WithinM st ar Q (k v) s a
+  | .wr q v k, s, a => ∀ s', st.write s q v = ok s' → Q s s' ∧ WithinM st ar Q k s' a
+  | .zero q n k, s, a => ∀ s', st.zero s q n = ok s' → Q s s' ∧ WithinM st ar Q k s' a
+  | .clr q n k, s, a => ∀ s', st.clear_free s q n = ok s' → Q s s' ∧ WithinM st ar Q k s' a
+  | .ksb k, s, a => ∀ v, st.ks_base s = ok v → WithinM st ar Q (k v) s a
+  | .cpu k, s, a => ∀ v, st.cur_cpu s = ok v → WithinM st ar Q (k v) s a
+  | .masks k, s, a => ∀ v, st.frame_masks s = ok v → WithinM st ar Q (k v) s a
+  | .arch op k, s, a => ∀ v a', callArch ar op a = ok (v, a') → WithinM st ar Q (k v) s a'
 
 /-- A checked write that succeeds is the real write, and the check held. -/
 theorem mchk {st : machine.Store S} {Q : S → S → Prop} {s s'' : S} {m : Result S}
@@ -238,9 +241,10 @@ theorem mchk {st : machine.Store S} {Q : S → S → Prop} {s s'' : S} {m : Resu
 
 /-- **Projection and per-write check**: a successful run on `mguard` is the
 real run, and every write along it satisfies the check. -/
-theorem interp_mguard {st : machine.Store S} {Q : S → S → Prop} (p : SProg A X) :
-    ∀ (s : S) (a : A) (r : X × S × A), interp (mguard st Q) p s a = ok r →
-      interp st p s a = ok r ∧ WithinM st Q p s a := by
+theorem interp_mguard {st : machine.Store S} {ar : machine.Arch A} {Q : S → S → Prop}
+    (p : SProg X) :
+    ∀ (s : S) (a : A) (r : X × S × A), interp (mguard st Q) ar p s a = ok r →
+      interp st ar p s a = ok r ∧ WithinM st ar Q p s a := by
   induction p with
   | ret x => intro s a r h; exact ⟨h, trivial⟩
   | err e => intro s a r h; exact absurd h fail_not_ok
@@ -327,7 +331,7 @@ theorem interp_mguard {st : machine.Store S} {Q : S → S → Prop} (p : SProg A
     · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
     · simp only [WithinM]
       exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
-  | eff g k ih =>
+  | arch op k ih =>
     intro s a r h
     simp only [interp] at h
     obtain ⟨⟨b, a'⟩, hv, hk⟩ := bok.mp h
@@ -340,9 +344,9 @@ theorem interp_mguard {st : machine.Store S} {Q : S → S → Prop} (p : SProg A
       exact h2
 
 /-- Accesses of a run within sets stay within larger ones. -/
-theorem Within.mono {st : machine.Store S} {R W R' W' : U64 → Prop}
-    (hR : ∀ b, R b → R' b) (hW : ∀ b, W b → W' b) (p : SProg A X) :
-    ∀ (s : S) (a : A), Within st R W p s a → Within st R' W' p s a := by
+theorem Within.mono {st : machine.Store S} {ar : machine.Arch A} {R W R' W' : U64 → Prop}
+    (hR : ∀ b, R b → R' b) (hW : ∀ b, W b → W' b) (p : SProg X) :
+    ∀ (s : S) (a : A), Within st ar R W p s a → Within st ar R' W' p s a := by
   induction p with
   | ret x => intro _ _ _; trivial
   | err e => intro _ _ _; trivial
@@ -364,49 +368,53 @@ theorem Within.mono {st : machine.Store S} {R W R' W' : U64 → Prop}
   | ksb k ih => intro s a h; simp only [Within] at h ⊢; exact fun v hv => ih v s a (h v hv)
   | cpu k ih => intro s a h; simp only [Within] at h ⊢; exact fun v hv => ih v s a (h v hv)
   | masks k ih => intro s a h; simp only [Within] at h ⊢; exact fun v hv => ih v s a (h v hv)
-  | eff g k ih =>
+  | arch op k ih =>
     intro s a h; simp only [Within] at h ⊢
     exact fun b a' hv => ih b s a' (h b a' hv)
 
 section obl
 variable {st : machine.Store S} [L : LawfulStore st]
-  {f : machine.Store S → S → A → Result (X × S × A)} {Acc : X → Prop}
+  {F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A)}
+  {ar : machine.Arch A} {Acc : X → Prop}
   {own : (U64 → U64) → U64 → Serial.Owner U64 U64} {cls : U64 → U64 → U64}
   {ko : U64 → Serial.ClsOwner U64} {User : U64 → Prop} {Locks : S → U64 → Prop} {Pre : S → Prop}
   {RS WS DS : S → U64 → Prop}
 
 /-- **Accepted runs, trace form**: every access of an accepted sequential run
 lies in its stated sets. -/
-theorem PathObl.within {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) : Within st (RS s) (WS s) p s a := by
+theorem PathObl.within {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) : Within st ar (RS s) (WS s) p s a := by
   have hg := O.acc s a r hpre h hacc
-  rw [hp (guard st (RS s) (WS s))] at hg
+  have e : F ar (guard st (RS s) (WS s)) = interp (guard st (RS s) (WS s)) ar p := hp A ar _
+  rw [e] at hg
   exact (interp_guard p s a r hg).2
 
 /-- **Declined runs, trace form**: every write of a declined sequential run
 lies in `DecSet`. -/
-theorem PathObl.within_dec {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
-    Within st (fun _ => True) (DS s) p s a := by
+theorem PathObl.within_dec {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
+    Within st ar (fun _ => True) (DS s) p s a := by
   have hg := O.dec hpre h hdec
-  rw [hp (guard st (fun _ => True) (DS s))] at hg
+  have e : F ar (guard st (fun _ => True) (DS s)) =
+      interp (guard st (fun _ => True) (DS s)) ar p := hp A ar _
+  rw [e] at hg
   exact (interp_guard p s a r hg).2
 
 /-- The guarded run is the real one (projection), accepted runs. -/
-theorem PathObl.same {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
-    f (guard st (RS s) (WS s)) s a = f st s a := by
+theorem PathObl.same {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
+    F ar (guard st (RS s) (WS s)) s a = F ar st s a := by
   rw [O.acc s a r hpre h hacc, h]
 
 /-- **Ownership along an accepted run**: every read is a user word or in
 `RPerm`, every write a user word or in `WPerm`, of the entry state. -/
-theorem PathObl.allowed_steps {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
-    Within st (fun b => User b ∨ RPerm own (L.cpu s) (Locks s) (L.mem s) b)
+theorem PathObl.allowed_steps {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
+    Within st ar (fun b => User b ∨ RPerm own (L.cpu s) (Locks s) (L.mem s) b)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
   refine Within.mono (fun b hb => ?_) (fun b hb => ?_) p s a (O.within hp hpre h hacc)
   · by_cases hu : User b
@@ -418,10 +426,10 @@ theorem PathObl.allowed_steps {p : SProg A X} (hp : IsProg f p)
 
 /-- **Ownership along a declined run**: every write is a user word or in
 `WPerm` of the entry state. -/
-theorem PathObl.allowed_steps_dec {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
-    Within st (fun _ => True)
+theorem PathObl.allowed_steps_dec {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
+    Within st ar (fun _ => True)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
   refine Within.mono (fun _ _ => trivial) (fun b hb => ?_) p s a (O.within_dec hp hpre h hdec)
   by_cases hu : User b
@@ -430,13 +438,16 @@ theorem PathObl.allowed_steps_dec {p : SProg A X} (hp : IsProg f p)
 
 /-- **Owners and classes along the run**: every write of the body's sequential
 run passes `StepOK` (the per-step `Serial.Allowed` write conditions). -/
-theorem PathObl.move_steps {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : f st s a = ok r) :
-    WithinM st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))
+theorem PathObl.move_steps {p : SProg X} (hp : IsProg F p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : F ar st s a = ok r) :
+    WithinM st ar (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))
       p s a := by
   have hg := O.move s a r hpre h
-  rw [hp (mguard st _)] at hg
+  have e : F ar (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))) =
+      interp (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y)))
+        ar p := hp A ar _
+  rw [e] at hg
   exact (interp_mguard p s a r hg).2
 
 end obl

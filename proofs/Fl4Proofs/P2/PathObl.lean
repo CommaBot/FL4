@@ -278,43 +278,146 @@ theorem PathObl.dec {A X : Type} {st : machine.Store S} [L : LawfulStore st]
     f (guard st (fun _ => True) (DS s)) s a = ok r :=
   (O.dec_alt s a r hpre h hdec s a r (Alt.refl s) h).2.1
 
-/-! ## A Store-generic body as a tree of trait calls -/
+/-! ## A Store- and Arch-generic body as a tree of trait calls -/
 
-/-- The trait calls of a Store-generic body, in program order, with Arch calls
-(not memory) as opaque effects on `A`. -/
-inductive SProg (A X : Type) : Type 1 where
+/-- An Arch call's result, uniformly: a word, a flag, or nothing. -/
+inductive AV where
+  | u (x : U64)
+  | b (x : Bool)
+  | none
+
+/-- An Arch-trait call (`machine.Arch`'s methods) with its arguments. -/
+inductive ArchCall where
+  | private_device_frame (x : U64)
+  | dma_ram (x y : U64)
+  | dma_frame (x y : U64) (z : Bool)
+  | virtualization
+  | vcpu_capability (x : U64)
+  | vcpu_barrier
+  | invalidate_ept (x y : U64)
+  | tdx_active
+  | tdx_report (x0 x1 x2 x3 x4 x5 x6 x7 x8 : U64)
+  | tdx_extend_rtmr (x0 x1 x2 x3 x4 x5 x6 : U64)
+  | tdx_get_quote (x y : U64)
+  | now
+  | set_deadline (x : U64)
+  | us_to_ticks (x : U64)
+  | ticks_to_us (x : U64)
+  | max_us
+  | kernel_wcet_ticks
+  | irq_pending
+  | take_pending_irq
+  | mask_irq (x : U64) (y : Bool)
+  | ack_irq (x : U64)
+  | irq_free (x : U64)
+  | set_vspace (x y : U64)
+  | invalidate_page (x y : U64)
+  | invalidate_asid (x : U64)
+  | invalidate_page_structures (x : U64)
+  | ioapic_map (x0 x1 x2 x3 x4 : U64)
+  | ioapic_map_remapped (x0 x1 x2 x3 x4 x5 : U64)
+  | num_ioapics
+  | ioapic_pins (x : U64)
+  | port_in (x y : U64)
+  | port_out (x y z : U64)
+  | fpu_flush (x : U64)
+  | fpu_sanitise (x : U64)
+  | fpu_reload (x : U64)
+  | fpu_release (x : U64)
+  | remote_stall (x : U64)
+  | send_reschedule (x : U64)
+  | putc (x : U64)
+  | get_char
+  | halt
+
+/-- Performing an Arch call on an instance. -/
+def callArch {A : Type} (ar : machine.Arch A) : ArchCall → A → Result (AV × A)
+  | .private_device_frame x, a => do let r ← ar.private_device_frame a x; ok (.b r, a)
+  | .dma_ram x y, a => do let r ← ar.dma_ram a x y; ok (.b r, a)
+  | .dma_frame x y z, a => do let a' ← ar.dma_frame a x y z; ok (.none, a')
+  | .virtualization, a => do let r ← ar.virtualization a; ok (.u r, a)
+  | .vcpu_capability x, a => do let r ← ar.vcpu_capability a x; ok (.u r, a)
+  | .vcpu_barrier, a => do let a' ← ar.vcpu_barrier a; ok (.none, a')
+  | .invalidate_ept x y, a => do let a' ← ar.invalidate_ept a x y; ok (.none, a')
+  | .tdx_active, a => do let r ← ar.tdx_active a; ok (.b r, a)
+  | .tdx_report x0 x1 x2 x3 x4 x5 x6 x7 x8, a => do
+      let (r, a') ← ar.tdx_report a x0 x1 x2 x3 x4 x5 x6 x7 x8; ok (.u r, a')
+  | .tdx_extend_rtmr x0 x1 x2 x3 x4 x5 x6, a => do
+      let (r, a') ← ar.tdx_extend_rtmr a x0 x1 x2 x3 x4 x5 x6; ok (.u r, a')
+  | .tdx_get_quote x y, a => do let (r, a') ← ar.tdx_get_quote a x y; ok (.u r, a')
+  | .now, a => do let (r, a') ← ar.now a; ok (.u r, a')
+  | .set_deadline x, a => do let a' ← ar.set_deadline a x; ok (.none, a')
+  | .us_to_ticks x, a => do let r ← ar.us_to_ticks a x; ok (.u r, a)
+  | .ticks_to_us x, a => do let r ← ar.ticks_to_us a x; ok (.u r, a)
+  | .max_us, a => do let r ← ar.max_us a; ok (.u r, a)
+  | .kernel_wcet_ticks, a => do let r ← ar.kernel_wcet_ticks a; ok (.u r, a)
+  | .irq_pending, a => do let (r, a') ← ar.irq_pending a; ok (.b r, a')
+  | .take_pending_irq, a => do let (r, a') ← ar.take_pending_irq a; ok (.u r, a')
+  | .mask_irq x y, a => do let a' ← ar.mask_irq a x y; ok (.none, a')
+  | .ack_irq x, a => do let a' ← ar.ack_irq a x; ok (.none, a')
+  | .irq_free x, a => do let a' ← ar.irq_free a x; ok (.none, a')
+  | .set_vspace x y, a => do let a' ← ar.set_vspace a x y; ok (.none, a')
+  | .invalidate_page x y, a => do let a' ← ar.invalidate_page a x y; ok (.none, a')
+  | .invalidate_asid x, a => do let a' ← ar.invalidate_asid a x; ok (.none, a')
+  | .invalidate_page_structures x, a => do
+      let a' ← ar.invalidate_page_structures a x; ok (.none, a')
+  | .ioapic_map x0 x1 x2 x3 x4, a => do
+      let (r, a') ← ar.ioapic_map a x0 x1 x2 x3 x4; ok (.b r, a')
+  | .ioapic_map_remapped x0 x1 x2 x3 x4 x5, a => do
+      let (r, a') ← ar.ioapic_map_remapped a x0 x1 x2 x3 x4 x5; ok (.b r, a')
+  | .num_ioapics, a => do let r ← ar.num_ioapics a; ok (.u r, a)
+  | .ioapic_pins x, a => do let r ← ar.ioapic_pins a x; ok (.u r, a)
+  | .port_in x y, a => do let (r, a') ← ar.port_in a x y; ok (.u r, a')
+  | .port_out x y z, a => do let a' ← ar.port_out a x y z; ok (.none, a')
+  | .fpu_flush x, a => do let a' ← ar.fpu_flush a x; ok (.none, a')
+  | .fpu_sanitise x, a => do let a' ← ar.fpu_sanitise a x; ok (.none, a')
+  | .fpu_reload x, a => do let a' ← ar.fpu_reload a x; ok (.none, a')
+  | .fpu_release x, a => do let a' ← ar.fpu_release a x; ok (.none, a')
+  | .remote_stall x, a => do let a' ← ar.remote_stall a x; ok (.none, a')
+  | .send_reschedule x, a => do let a' ← ar.send_reschedule a x; ok (.none, a')
+  | .putc x, a => do let a' ← ar.putc a x; ok (.none, a')
+  | .get_char, a => do let (r, a') ← ar.get_char a; ok (.u r, a')
+  | .halt, a => do let a' ← ar.halt a; ok (.none, a')
+
+/-- The trait calls of a body generic in `Store` and `Arch`, in program order:
+memory calls, and Arch calls by method and arguments (`ArchCall`). -/
+inductive SProg (X : Type) : Type where
   | ret (x : X)
   | err (e : Error)
-  | rd (a : U64) (k : U64 → SProg A X)
-  | rdp (a : U64) (k : U64 × U64 → SProg A X)
-  | wr (a v : U64) (k : SProg A X)
-  | zero (a n : U64) (k : SProg A X)
-  | clr (a n : U64) (k : SProg A X)
-  | ksb (k : U64 → SProg A X)
-  | cpu (k : U64 → SProg A X)
-  | masks (k : U64 × U64 → SProg A X)
-  | eff {B : Type} (g : A → Result (B × A)) (k : B → SProg A X)
+  | rd (a : U64) (k : U64 → SProg X)
+  | rdp (a : U64) (k : U64 × U64 → SProg X)
+  | wr (a v : U64) (k : SProg X)
+  | zero (a n : U64) (k : SProg X)
+  | clr (a n : U64) (k : SProg X)
+  | ksb (k : U64 → SProg X)
+  | cpu (k : U64 → SProg X)
+  | masks (k : U64 × U64 → SProg X)
+  | arch (op : ArchCall) (k : AV → SProg X)
 
-/-- Running the tree on a store instance. -/
-def interp {A X : Type} (st : machine.Store S) : SProg A X → S → A → Result (X × S × A)
+/-- Running the tree on a store and an Arch instance. -/
+def interp {A X : Type} (st : machine.Store S) (ar : machine.Arch A) :
+    SProg X → S → A → Result (X × S × A)
   | .ret x, s, a => ok (x, s, a)
   | .err e, _, _ => fail e
-  | .rd p k, s, a => do let v ← st.read s p; interp st (k v) s a
-  | .rdp p k, s, a => do let v ← st.read_pair s p; interp st (k v) s a
-  | .wr p v k, s, a => do let s' ← st.write s p v; interp st k s' a
-  | .zero p n k, s, a => do let s' ← st.zero s p n; interp st k s' a
-  | .clr p n k, s, a => do let s' ← st.clear_free s p n; interp st k s' a
-  | .ksb k, s, a => do let v ← st.ks_base s; interp st (k v) s a
-  | .cpu k, s, a => do let v ← st.cur_cpu s; interp st (k v) s a
-  | .masks k, s, a => do let v ← st.frame_masks s; interp st (k v) s a
-  | .eff g k, s, a => do let (b, a') ← g a; interp st (k b) s a'
+  | .rd p k, s, a => do let v ← st.read s p; interp st ar (k v) s a
+  | .rdp p k, s, a => do let v ← st.read_pair s p; interp st ar (k v) s a
+  | .wr p v k, s, a => do let s' ← st.write s p v; interp st ar k s' a
+  | .zero p n k, s, a => do let s' ← st.zero s p n; interp st ar k s' a
+  | .clr p n k, s, a => do let s' ← st.clear_free s p n; interp st ar k s' a
+  | .ksb k, s, a => do let v ← st.ks_base s; interp st ar (k v) s a
+  | .cpu k, s, a => do let v ← st.cur_cpu s; interp st ar (k v) s a
+  | .masks k, s, a => do let v ← st.frame_masks s; interp st ar (k v) s a
+  | .arch op k, s, a => do let (v, a') ← callArch ar op a; interp st ar (k v) s a'
 
-/-- **`IsProg f p`** [P]: the extracted body `f` is the tree `p` of its trait
-calls, on every store instance over `S` (a free theorem of Store-generic Rust
-code and its extraction; module docstring). -/
-def IsProg {A X : Type} (f : machine.Store S → S → A → Result (X × S × A)) (p : SProg A X) :
-    Prop :=
-  ∀ st : machine.Store S, f st = interp st p
+/-- **`IsProg F p`** [P], the one schema premise (`PathBridge.lean`): the
+extracted body family `F` (generic in the Arch instance as in the Store one)
+is the tree `p` of its trait calls, on every store and Arch instance (a free
+theorem of Rust code generic in `S: Store` and `A: Arch` and of its
+extraction). -/
+def IsProg {X : Type}
+    (F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A))
+    (p : SProg X) : Prop :=
+  ∀ (A : Type) (ar : machine.Arch A) (st : machine.Store S), F ar st = interp st ar p
 
 end
 
