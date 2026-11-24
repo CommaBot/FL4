@@ -5,7 +5,7 @@ notifications' bound-TCB typing (`TInv`).
 (int6, FL4 #80 / #85) Since #80 a bound `TS_RUNNING_VM` thread's VMEnter
 completion (`vcpu.report`) answers a full-state caller in its IPC buffer, and
 since #85 it does so from any core: `send_signal`'s lemmas take the placement
-of the TCBs' IPC buffers (`BufOK` in the user words `U`, `UserOK`) at the
+of the TCBs' IPC buffers (`BufOK` in the user words `U`, `UsrW`) at the
 signal's state (P3: `JAtZ.bufOK`, `JAtZ.bufU_out`; P1's entry: `XferHyps.buf`).
 -/
 import Fl4Proofs.P1.QueueTimerR
@@ -441,6 +441,88 @@ theorem msg.set_mr.blk (s : S) {t buf i v : U64} (hi : i.val < 3) (h : BlkOK st 
 theorem spec_true_imp {α : Type _} {m : Result α} {Q : α → Prop} (hq : ∀ x, Q x) (h : m ⦃ fun _ => True ⦄) :
     m ⦃ Q ⦄ := WP.spec_mono h fun x _ => hq x
 
+/-- (int6) **A user word a VMEnter completion may write**: outside the TCBs and
+nodes, apart from the endpoints and notifications, off the frame words `Sg`,
+the kernel-global area and the SC objects (with `Ω`-free placement: P1's
+entry gets it from `UserOK`, P3 from `JAtZ`'s buffer facts). -/
+structure UsrW (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (H : Heap) (Sg Scs : Set U64)
+    (Z : U64 → Nat) (s : S) (b : U64) : Prop where
+  out : OutsideObjs st T Cs s b
+  eps : ∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val
+  sg : b ∉ Sg
+  ks : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b
+  sc : ∀ c ∈ Scs, ¬ InSC c (Z c) b
+
+theorem UsrW.ksb {s s' : S} {b : U64} (h : UsrW st T Cs H Sg Scs Z s b) (hk : L.ksb s' = L.ksb s) :
+    UsrW st T Cs H Sg Scs Z s' b :=
+  ⟨h.out.ksb hk, h.eps, h.sg, fun o h1 h2 => by rw [hk]; exact h.ks o h1 h2, h.sc⟩
+
+/-- `UsrW` from P1's `UserOK` (the user words are off `Ω`, which holds `Sg`,
+the kernel-global area and the SC objects). -/
+theorem UserOK.usrW {U : Set U64} {s : S} (hU : UserOK st T Cs Ω H U s) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b := fun b hb => by
+  obtain ⟨⟨Q, R, h0⟩, -, hX, hS, hSg⟩ := h
+  obtain ⟨ho, hn, he⟩ := hU b hb
+  exact ⟨ho, he, fun hs => hn (hSg.sub b hs), fun o h1 h2 e => hn (e ▸ hSg.ksΩ o h1 h2),
+    fun c hc hin => hn (hX.1.scW c hc b ho.1 hin)⟩
+
+/-- `BlkOK` over a smaller `Ω₁` (holding the frame words, the kernel-global
+area and the SC objects). -/
+theorem BlkOK.shrinkΩ {Ω₁ Ω₂ : Set U64} {s : S} (h : BlkOK st T Cs Ω₂ H Sg Rp Scs Nt Z Ac s)
+    (h12 : ∀ b ∈ Ω₁, b ∈ Ω₂)
+    (hks : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ∈ Ω₁)
+    (hsc : ∀ c ∈ Scs, ∀ b : U64, Aligned b → InSC c (Z c) b → b ∈ Ω₁) (hsg : ∀ b ∈ Sg, b ∈ Ω₁) :
+    BlkOK st T Cs Ω₁ H Sg Rp Scs Nt Z Ac s := by
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  obtain ⟨E, EQ, w1, w2, w3, w4, w5, k⟩ := h0.eps
+  have q : SchedQueuesInv st T Cs Ω₁ H s Q R :=
+    { h0 with
+      eps := ⟨E, EQ, w1, w2, fun e he a ha => w3 e he a (h12 a ha), w4, w5, k⟩
+      omega := fun a ha => h0.omega a (h12 a ha) }
+  have x : XInv st T Cs Ω₁ Sg Rp Scs Nt Z s := ⟨{ hX.1 with scW := hsc }, hX.2⟩
+  exact ⟨⟨Q, R, q⟩, hB, x, { hS with sub := hsg, ksΩ := hks }, ⟨hsg, hSg.ks, hks⟩⟩
+
+/-- `BlkOK` over a larger `Ω₂` whose new words are outside the TCBs and nodes
+and apart from the endpoints and notifications. -/
+theorem BlkOK.growΩ {Ω₁ Ω₂ : Set U64} {s : S} (h : BlkOK st T Cs Ω₁ H Sg Rp Scs Nt Z Ac s)
+    (h12 : ∀ b ∈ Ω₁, b ∈ Ω₂)
+    (h21 : ∀ b ∈ Ω₂, b ∈ Ω₁ ∨ (OutsideObjs st T Cs s b ∧
+      ∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val)) :
+    BlkOK st T Cs Ω₂ H Sg Rp Scs Nt Z Ac s := by
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  obtain ⟨E, EQ, w1, w2, w3, w4, w5, k⟩ := h0.eps
+  have k3 := k.2.2.1
+  have q : SchedQueuesInv st T Cs Ω₂ H s Q R :=
+    { h0 with
+      eps := ⟨E, EQ, w1, w2, fun e he a ha => (h21 a ha).elim (w3 e he a) fun hu => hu.2 e ((k3 e).1 he), w4, w5, k⟩
+      omega := fun a ha => (h21 a ha).elim (h0.omega a) fun hu => hu.1 }
+  have x : XInv st T Cs Ω₂ Sg Rp Scs Nt Z s :=
+    ⟨{ hX.1 with scW := fun c hc b ha hin => h12 _ (hX.1.scW c hc b ha hin) }, hX.2⟩
+  exact ⟨⟨Q, R, q⟩, hB, x, { hS with sub := fun b hb => h12 _ (hS.sub b hb), ksΩ := fun o h1 h2 => h12 _ (hS.ksΩ o h1 h2) },
+    ⟨fun b hb => h12 _ (hSg.sub b hb), hSg.ks, fun o h1 h2 => h12 _ (hSg.ksΩ o h1 h2)⟩⟩
+
+/-- **A write of user registers and `UsrW` words keeps `BlkOK`** (`xfer_all`
+over `Ω` without the written user words) and the TCB fields past the
+registers. -/
+theorem bufw_xfer {U : Set U64} {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hw : WritesIn st s s' (XferFoot T U)) :
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      (∀ y ∈ T, ∀ K : U64, 3328 ≤ K.val → K.val < 4096 → K.val % 8 = 0 →
+        L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)) := by
+  have hO := h.2.2.1.1
+  have h1 : BlkOK st T Cs {b | b ∈ Ω ∧ b ∉ U} H Sg Rp Scs Nt Z Ac s :=
+    h.shrinkΩ (fun b hb => hb.1)
+      (fun o h1 h2 => ⟨h.2.2.2.2.ksΩ o h1 h2, fun hu => (hU _ hu).ks o h1 h2 rfl⟩)
+      (fun c hc b ha hin => ⟨hO.scW c hc b ha hin, fun hu => (hU b hu).sc c hc hin⟩)
+      (fun b hb => ⟨h.2.2.2.2.sub b hb, fun hu => (hU b hu).sg hb⟩)
+  have hU1 : UserOK st T Cs {b | b ∈ Ω ∧ b ∉ U} H U s := fun b hb => ⟨(hU b hb).out, fun hm => hm.2 hb, (hU b hb).eps⟩
+  obtain ⟨⟨Q, R, q⟩, hB, hX, hS, hSg⟩ := h1
+  obtain ⟨q2, hB2, hX2, hS2, hSg2, -, -, -, -, f, -⟩ := xfer_all q hB hX hS hSg hU1 hw
+  refine ⟨BlkOK.growΩ ⟨⟨Q, R, q2⟩, hB2, hX2, hS2, hSg2⟩ (fun b hb => hb.1) (fun b hb => ?_), f⟩
+  by_cases hu : b ∈ U
+  · exact Or.inr ⟨(hU b hu).out.ksb hw.1, (hU b hu).eps⟩
+  · exact Or.inl ⟨hb, hu⟩
+
 /-- (int6) The words `vcpu.report` writes before the final state change: the
 thread's register words (TCB+256..3328) and the user words `U`. -/
 def RepW (t : U64) (U : Set U64) (b : U64) : Prop :=
@@ -452,7 +534,7 @@ theorem RepW.xfer {U : Set U64} {t b : U64} (ht : t ∈ T) (h : RepW t U b) : Xf
 /-- (int6) A message-register write of a TCB: a user register, or a word of
 its IPC buffer (user words `U`, `BufOK`). -/
 theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (hta : TcbAddr t) (hb : BufOK U buf)
-    (hU : UserOK st T Cs Ω H U s) (hi : i.val < 127) :
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hi : i.val < 127) :
     msg.set_mr st s t buf i v ⦃ r => WritesIn st s r.2 (RepW t U) ⦄ := by
   unfold msg.set_mr
   split
@@ -481,32 +563,31 @@ theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (hta : TcbAddr t) 
       simp only [lift, bind_ok]
       refine WP.spec_mono (LawfulStore.write_spec s _ v) fun s' e => ?_
       subst e
-      exact (writesIn_wr (hU _ hu).1.1).mono fun b e => Or.inr (e ▸ hu)
+      exact (writesIn_wr (hU _ hu).out.1).mono fun b e => Or.inr (e ▸ hu)
     · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
 
 /-- The report's `RepW` words keep the timer words (`TmFr`). -/
 theorem RepW.tmfr {U : Set U64} {s s1 : S} {t : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hU : UserOK st T Cs Ω H U s) (ht : t ∈ T) (w : WritesIn st s s1 (RepW t U)) : TmFr st T Cs Nt s s1 := by
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (ht : t ∈ T) (w : WritesIn st s s1 (RepW t U)) :
+    TmFr st T Cs Nt s s1 := by
   obtain ⟨⟨Q, R, h0⟩, -, hX, -, hSg⟩ := h
   have hT := h0.tcbs
   have hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n) := fun n hn => h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)
   refine TmFr.of_writes hT h0.nodes hX.1 w fun b hb => ?_
   rcases hb with ⟨K, h1, h2, h3, rfl⟩ | hu
   · exact notTmW_field hT h0.nodes hΩ ht (by omega) (Or.inl (by omega))
-  · exact notTmW_omega hT h0.nodes (hU b hu).1 fun n hn e =>
-      (hU b hu).2.1 (by rw [UScalar.eq_of_val_eq e]; exact hSg.sub _ (hX.1.ntB n hn).2)
+  · exact notTmW_omega hT h0.nodes (hU b hu).out fun n hn e =>
+      (hU b hu).sg (by rw [UScalar.eq_of_val_eq e]; exact (hX.1.ntB n hn).2)
 
 /-- A `RepW` step of the report keeps `BlkOK`, the thread's state word and
 the accumulated `RepW` frame. -/
 theorem xw_step {U : Set U64} {s s1 s2 : S} {t : U64} (h1 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1)
     (st1 : L.mem s1 (stA t) = sched.TS_RUNNING_VM) (w1 : WritesIn st s s1 (RepW t U))
-    (hU1 : UserOK st T Cs Ω H U s1) (w : WritesIn st s1 s2 (RepW t U)) (ht : t ∈ T) :
+    (hU1 : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s1 b) (w : WritesIn st s1 s2 (RepW t U)) (ht : t ∈ T) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2 ∧ L.mem s2 (stA t) = sched.TS_RUNNING_VM ∧
       WritesIn st s s2 (RepW t U) := by
-  obtain ⟨⟨Q, R, q⟩, hB, hX, hS, hSg⟩ := h1
-  obtain ⟨q2, hB2, hX2, hS2, hSg2, -, -, -, -, f, -⟩ :=
-    xfer_all q hB hX hS hSg hU1 (w.mono fun _ hb => RepW.xfer ht hb)
-  refine ⟨⟨⟨Q, R, q2⟩, hB2, hX2, hS2, hSg2⟩, ?_, (w1.trans w).mono fun _ hb => hb.elim id id⟩
+  obtain ⟨h2, f⟩ := bufw_xfer h1 hU1 (w.mono fun _ hb => RepW.xfer ht hb)
+  refine ⟨h2, ?_, (w1.trans w).mono fun _ hb => hb.elim id id⟩
   rw [stA_eq, f t ht _ (by simp) (by simp) (by simp), ← stA_eq]; exact st1
 
 /-- (int6, #63 / #80 / #85) **`vcpu.report` of a `TS_RUNNING_VM` thread
@@ -520,7 +601,7 @@ theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
     (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
     (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
       L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
-    (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => ∃ s1, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧
       L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧ WritesIn st s s1 (RepW t U) ∧
       sched.set_thread_state st s1 t sched.TS_RUNNING = ok s' ⦄ := by
@@ -531,8 +612,8 @@ theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
       WritesIn st s s1 (RepW t U)) hA ⟨?_, ?_, fun _ _ _ hv => hv.elim⟩ ?_ ⟨h, hvm, WritesIn.refl _ _⟩
     hbuf (fun h0 hp => absurd (hc h0) hp)
   · rintro s1 b i v hb ⟨h1, st1, w1⟩ hi
-    exact WP.spec_mono (msg.set_mr.xw s1 (hT t ht) hb (hU.ksb w1.1) (by omega)) fun r w =>
-      xw_step h1 st1 w1 (hU.ksb w1.1) w ht
+    exact WP.spec_mono (msg.set_mr.xw s1 (hT t ht) hb (fun b hb => (hU b hb).ksb w1.1) (by omega)) fun r w =>
+      xw_step h1 st1 w1 (fun b hb => (hU b hb).ksb w1.1) w ht
   · rintro s1 r v ⟨h1, st1, w1⟩ hr
     have hr' : r.val < 384 := by
       rcases hr with rfl | rfl | rfl <;>
@@ -540,7 +621,7 @@ theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
     refine WP.spec_mono (obj.Tcb.set_reg.wrS s1 t r v (hT t ht) hr') fun s2 hs2 => ?_
     obtain ⟨K, hK, e⟩ := hs2
     subst e
-    exact xw_step h1 st1 w1 (hU.ksb w1.1) ((writesIn_wr (field_aligned (hT t ht) (by omega) (by omega))).mono
+    exact xw_step h1 st1 w1 (fun b hb => (hU b hb).ksb w1.1) ((writesIn_wr (field_aligned (hT t ht) (by omega) (by omega))).mono
       fun b e => Or.inl ⟨K, by omega, by omega, by omega, e⟩) ht
   · intro s1 h1
     exact WP.spec_mono (spec_eq' (Fl4Proofs.P0.sched.set_thread_state.p0 _ _ _ _ hS0)) fun s' hs' =>
@@ -554,7 +635,7 @@ theorem vcpu.report.blk {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P
     (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
     (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
       L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
-    (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       L.mem s' (stA t) = sched.TS_RUNNING ⦄ := by
   refine WP.spec_mono (vcpu.report.xf hA s a t badge h ht hvm hc hU hbuf) ?_
@@ -724,7 +805,7 @@ which for a full-state caller writes words of its IPC buffer: hence the
 placement of the threads' IPC buffers in the user words `U` (`hU`, `hbuf`). -/
 theorem notification.send_signal.tinv {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
-    (hH : H n = some .ntfn) (hU : UserOK st T Cs Ω H U s)
+    (hH : H n = some .ntfn) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
     (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hI := h
@@ -896,10 +977,10 @@ theorem sbWordA8_eq (t : U64) :
   apply UScalar.eq_of_val_eq
   rw [sbWordA_eq]
   simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]
-  omega
+  try omega
 
 /-- A `KeepT0` frame (a thread's state change) keeps the buffer-lookup words. -/
-theorem IbFr.of_keepT {Cs Rp Scs Nt : Set U64} {t : U64} {s s' : S} (hT : TcbPlaced T)
+theorem IbFr.of_keepT {Cs Rp Scs Nt : Set U64} {t : U64} {s s' : S}
     (k : KeepT0 st T Cs Rp Scs Nt t s s') : IbFr (L := L) T s s' := by
   refine ⟨k.ksb, fun y hy => ⟨?_, ?_, ?_⟩⟩
   · exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
@@ -924,16 +1005,22 @@ theorem lookup_ipc_buffer_same {s s' : S} {t : U64} (h : IbSame (L := L) s s' t)
     unfold obj.Slot.cap; rw [L.read_pair_eq, L.read_pair_eq, h2, h3]
   rw [hc]
 
-/-- **The IPC-buffer placement at `s`** (int6): the user words `U` lie
-outside the kernel objects (`UserOK`) and every TCB's IPC buffer is in `U`
-(`BufOK`); what `send_signal` needs since #80 / #85. -/
-def BufAt (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (U : Set U64) (s : S) : Prop :=
-  UserOK st T Cs Ω H U s ∧ ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄
+/-- **The IPC-buffer placement at `s`** (int6): the user words `U` are
+`UsrW` words and every TCB's IPC buffer is in `U` (`BufOK`); what
+`send_signal` needs since #80 / #85. -/
+def BufAt (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (H : Heap) (Sg Scs : Set U64) (Z : U64 → Nat)
+    (U : Set U64) (s : S) : Prop :=
+  (∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) ∧ ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄
 
 /-- `BufAt` along the buffer-lookup frame. -/
-theorem BufAt.of_fr {U : Set U64} {s s' : S} (h : BufAt st T Cs Ω H U s) (f : IbFr (L := L) T s s') :
-    BufAt st T Cs Ω H U s' :=
-  ⟨h.1.ksb f.1, fun y hy => by rw [lookup_ipc_buffer_same (f.2 y hy)]; exact h.2 y hy⟩
+theorem BufAt.of_fr {U : Set U64} {s s' : S} (h : BufAt st T Cs H Sg Scs Z U s) (f : IbFr (L := L) T s s') :
+    BufAt st T Cs H Sg Scs Z U s' :=
+  ⟨fun b hb => (h.1 b hb).ksb f.1, fun y hy => by rw [lookup_ipc_buffer_same (f.2 y hy)]; exact h.2 y hy⟩
+
+/-- `BufAt` from P1's `UserOK` and a buffer fact (`XferHyps.buf`). -/
+theorem BufAt.of_user {U : Set U64} {s : S} (hU : UserOK st T Cs Ω H U s) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hb : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) : BufAt st T Cs H Sg Scs Z U s :=
+  ⟨hU.usrW h, hb⟩
 
 /-- **[deferred, int6 → par/a6f: discharged by `ibKeep_holds`] The steps of
 `timer::fire`'s loop keep the buffer-lookup frame** (`IbFr`): `timer.remove`
@@ -945,7 +1032,7 @@ def IbKeep (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machin
     (∀ (s : S) (t : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
       timer.remove st s t ⦃ s' => IbFr (L := L) T s s' ⦄) ∧
     (∀ (s : S) (a : A) (n bd : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s → n ∈ Nt → H n = some .ntfn →
-      BufAt st T Cs Ω H U s → notification.send_signal st ar s a n bd ⦃ s' _ => IbFr (L := L) T s s' ⦄) ∧
+      BufAt st T Cs H Sg Scs Z U s → notification.send_signal st ar s a n bd ⦃ s' _ => IbFr (L := L) T s s' ⦄) ∧
     (∀ (s : S) (v : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       IbFr (L := L) T s (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) v))
 

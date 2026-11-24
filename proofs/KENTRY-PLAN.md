@@ -19539,10 +19539,13 @@ None (no Lean change).
   No kernel behaviour bug found.
 
 ### int6 core (route A, owner's choice) — interfaces for par/a6f and par/a6x (exact statements in P1/QueueSignal, P1/QueueEntry)
-- **Placement carrier** (QueueSignal): `BufAt st T Cs Ω H U s := UserOK st T Cs Ω H U s ∧ ∀ y ∈ T,
-  msg.lookup_ipc_buffer st s true y ⦃ BufOK U ⦄` (`BufOK` moved here from QueueXfer). `send_signal.tinv` /
-  `.tinvF` / `.tm` / `.tagree` take `(hU : UserOK … U s) (hbuf : ∀ y ∈ T, lookup ⦃ BufOK U ⦄)` at the signal's
-  state; `vcpu.report.xf`: report = `RepW t U` writes (the thread's register words TCB+256..3328, user words `U`)
+- **Placement carrier** (QueueSignal; revised, `Ω`-free so that P3's `J.blk` over `Heap.omega H`, whose `other`
+  objects hold the frames, fits): `UsrW st T Cs H Sg Scs Z s b` (structure; named so as not to clash with a6f's `BufW`: `out : OutsideObjs`, `eps` apart from
+  the endpoints/notifications, `sg : b ∉ Sg`, `ks` off the kernel-global area, `sc` in no SC object) and
+  `BufAt st T Cs H Sg Scs Z U s := (∀ b ∈ U, UsrW … s b) ∧ ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ BufOK U ⦄`
+  (`BufOK` moved here from QueueXfer; `UserOK.usrW` / `BufAt.of_user` for P1's entry). `send_signal.tinv` /
+  `.tinvF` / `.tm` / `.tagree` take `(hU : ∀ b ∈ U, UsrW … s b) (hbuf : ∀ y ∈ T, lookup ⦃ BufOK U ⦄)` at the
+  signal's state; buffer writes keep `BlkOK` by `bufw_xfer` (`xfer_all` over `Ω ∖ U`, `BlkOK.shrinkΩ/growΩ`); `vcpu.report.xf`: report = `RepW t U` writes (the thread's register words TCB+256..3328, user words `U`)
   then `set_thread_state TS_RUNNING`. Footprints widened: `FootU` / `FootDU` (QueueFootS) = `Foot` / `FootD` ∪ `U`;
   `send_signal.tinvF`, `timer.fire.tinvF/.kw`, `sched.schedule.sfoot/.kw` now end in `FootDU … (EH H) U`.
 - **a6f (gap 1) — what the core expects**: the buffer-lookup frame `IbFr T s s' := L.ksb s' = L.ksb s ∧ ∀ t ∈ T,
@@ -19556,13 +19559,26 @@ None (no Lean change).
   (ibKeep_holds hA)`), and the P3 helpers giving `BufAt` at a `JAtZ` state (from `JAtZ.bufOK`, `JAtZ.bufU_out`).
   `IK : IbKeep st ar` is threaded where `TX : TmoXG` is (QueueEntry chain, `kernel_entry.entry_of`/`_of2`/`_of3`)
   and into `timer.fire_loop.tinv/.tinvF/.rb'`, `timer.fire.*`, `sched.schedule.tinv/.entry/.sfoot/.kw`.
-- **a6x (gap 2) — what the core expects**: `syscall.finish.entry` now takes `(IK : IbKeep st ar)` and
+- **a6x merged** (1bcc63f9): QueueEntry's finish composites (and `kernel_entry.entry`, `entry_of`, `entry_of2`)
+  moved to the new `P1/EntryFin` (after `EntryXGTop`): `kernel_entry.entry` = `kernel_entry.entryXG` with
+  `finish.entry`, `SigXG` proved there (`sigXG_holds`, from `send_signal.tinvF`'s `FootDU` ⊆ `IpcW`);
+  `kernel_entry.entry` gains the start tuple's `XferHyps` (supplied by `entry_of` from `P3Place.xfer`).
+- (superseded by the line above) **a6x (gap 2) — what the core expects**: `syscall.finish.entry` now takes `(IK : IbKeep st ar)` and
   `(hG : XG st T Cs Ω H Sg Scs Z P3Ok s)` at the finish state (`EntryHyps0.bufAt`, new field filled in
   `EntryHyps.of_gaps` from `P3Place.xfer.buf` + `P3Place.blkU`, turns it into `BufAt`). Its four callers in
   QueueEntry have the hole **`xg_a6x`** where that `XG` must come from: `unknown_syscall_fault_old.entry` (after
   the fault path / a failed budget check), `set_tls_base_self.entry` (after the TLS write / a failed budget
   check), `handle_syscall_old.entry` (over `σ3` after the dispatch), `handle_interrupt_entry.entry` (after
   `handle_interrupt`). Local builds stub them (`proofs/scratch/int6scratch.py`, untracked, SCRS=…).
+
+- **For a6f (after its merge of 1bcc63f9)**: `BufAt` changed to the `Ω`-free form above (`UsrW`, not `UserOK`), so
+  P3 can use it with `J.blk` over `Heap.omega H`: please aim `JAtZ.bufAt` at
+  `P1.BufAt st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (BufU Z σ) s` (no `hΩ`;
+  `UsrW` needs `out`/`eps`/`sg` from `JAtZ.bufU_rbuf`, `ks` from `J.ks.buf` as in `JAtZ.bxiU`, `sc` from the
+  buffer's apartness from `H`'s non-`other` objects, `JAtZ.bufWord`). `IbKeep`'s `send_signal` clause takes this
+  `BufAt`; `UsrW.out` is the `OutsideObjs` `BufKeep.of_blkDBU` needs. `send_signal.tinvF` now has a 4th conjunct:
+  under **`NoVmSig st n s`** (`epState ≠ NTFN_IDLE ∨` the bound thread is not `TS_RUNNING_VM`) the old `FootD` /
+  `DonCore → Foot` footprints (P3's wake proofs, which need `KW`, use it).
 
 ## a6x (branch par/a6x from int/j6 f76327d6) — gap 2 of int6 (cont.): `XG` reaches `finish` on every native path; two new P1 modules, no statement changed, no premise added
 - **Modules** `P1/EntryXG` (IPC paths) and `P1/EntryXGTop` (budget check, yield, IRQ, composites), root-imported. `XG`

@@ -503,15 +503,16 @@ theorem syscall.handle_syscall_old.entryXG (hA : P0.ArchTotal ar) (TX : TmoXG st
     exact hfin σ3 hσ3 Ac3 s3 a2 h3 g3
 
 /-- QueueEntry's `handle_syscall_old.entry` is an instance of `entryXG`
-(`finish.entry`, which ignores `XG`). -/
-theorem syscall.handle_syscall_old.entry' (hA : P0.ArchTotal ar) (TX : TmoXG st ar) {Adm : PSets → Prop}
+(`finish.entry`, int6: which uses `XG` for the buffer placement). -/
+theorem syscall.handle_syscall_old.entry' (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (IK : IbKeep st ar)
+    {Adm : PSets → Prop}
     (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
     {Ac : Set U64} (s : S) (a : A) (number : I64)
     (hNative : number ≠ fl4_abi.syscall.SysVMEnter) (hP : P3Ok s)
     (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     syscall.handle_syscall_old st ar s a number ⦃ s' _ => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄ :=
   syscall.handle_syscall_old.entryXG hA TX EH hσ s a number hNative hP h
-    (fun σ hσ' Ac s a h _ => WP.spec_mono (syscall.finish.entry hA (EH σ hσ').2 (EH σ hσ').1.toEntryHyps0 s a h)
+    (fun σ hσ' Ac s a h g => WP.spec_mono (syscall.finish.entry hA IK (EH σ hσ').2 (EH σ hσ').1.toEntryHyps0 s a h g)
       fun r hr => by obtain ⟨s', a'⟩ := r; obtain ⟨Ac', h'⟩ := hr; exact ⟨σ, hσ', Ac', h'⟩)
     fun σ hσ' Ac s h => ⟨σ, hσ', Ac, h⟩
 
@@ -537,7 +538,8 @@ theorem syscall.handle_interrupt_entry.entryXG (hA : P0.ArchTotal ar) (TX : TmoX
   rintro ⟨r, s2, a2⟩ ⟨⟨h2, g2⟩, -⟩
   try simp only [WP.uncurry'_pair]
   have hU2 := (E.blkU Ac s2 h2).2
-  refine WP.spec_bind (WP.spec_and (interrupt.handle_interrupt.bxi hA hNt s2 a2 irq h2 (E.irqcap Ac s2 g2 h2))
+  refine WP.spec_bind (WP.spec_and (interrupt.handle_interrupt.bxi hA hNt s2 a2 irq h2 (E.irqcap Ac s2 g2 h2)
+      (E.bufAt Ac s2 g2 h2))
     (interrupt.handle_interrupt.xg hA hNt XH SX s2 a2 irq h2 hU2 (E.irqcap Ac s2 g2 h2) g2)) ?_
   rintro ⟨s3, a3⟩ ⟨h3, g3⟩
   try simp only [WP.uncurry'_pair]
