@@ -31,7 +31,7 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 /-- The words `in_core_timer_tree` on core `c` reads, `W` the keys of `c`'s tree. -/
 def TreeReads (st : machine.Store S) [L : LawfulStore st] (s : S) (c : U64) (Ks : List U64) (w : U64) : Prop :=
   w = L.nodeAt s c layout.node.TIMER_ROOT ∨ w = L.nodeAt s c layout.node.TIMER_MIN ∨
-    ∃ y, (y = 0#u64 ∨ y ∈ Ks) ∧ (w = tdA y ∨ w = tlA y ∨ w = trA y)
+    ∃ y, y ∈ Ks ∧ (w = tdA y ∨ w = tlA y ∨ w = trA y)
 
 /-- The search's stack: its first `sp` entries are keys, `sp ≤ 32`. -/
 def StackOK (Ks : List U64) (a : Array U64 32#usize) (sp : Usize) : Prop :=
@@ -137,9 +137,9 @@ theorem ictt_body_eq {s : S} {c target d : U64} {Ks : List U64}
           have hi := Array.index_usize_spec stack sp1 hl
           rw [ei1, WP.spec_ok] at hi
           have hi1m : i1 ∈ Ks := by rw [hi]; exact hx.top hsp1 hl
-          have rd : R (tdA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inl rfl⟩))
-          have rl : R (tlA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inl rfl)⟩))
-          have rr : R (trA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inr rfl)⟩))
+          have rd : R (tdA i1) := hR _ (Or.inr (Or.inr ⟨i1, hi1m, Or.inl rfl⟩))
+          have rl : R (tlA i1) := hR _ (Or.inr (Or.inr ⟨i1, hi1m, Or.inr (Or.inl rfl)⟩))
+          have rr : R (trA i1) := hR _ (Or.inr (Or.inr ⟨i1, hi1m, Or.inr (Or.inr rfl)⟩))
           rw [tdG (Wr := Wr) (s := s) rd, tlG (Wr := Wr) (s := s) rl, trG (Wr := Wr) (s := s) rr]
         · rw [if_neg Bool.false_ne_true, if_neg Bool.false_ne_true, if_pos rfl, if_pos rfl]
       · rw [if_pos rfl, if_pos rfl]

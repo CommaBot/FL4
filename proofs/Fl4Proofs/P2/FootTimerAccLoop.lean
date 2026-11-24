@@ -16,7 +16,7 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {R Wr : U64 → Prop}
 
 /-- **`in_core_timer_tree` reads only `TreeReads`**: core `c`'s root and min words and the deadline and
-child links of the keys of `c`'s tree (with the null handle's, never read). -/
+child links of the keys of `c`'s tree. -/
 theorem in_core_timer_tree_access {s : S} {c target d : U64} {W : TRB.RBT} {b : Bool} (ct : CoreTree st T s c W)
     (hR : ∀ w, TreeReads st s c W.keys w → R w)
     (h : localtimer.in_core_timer_tree st s c target d = ok b) :

@@ -8,8 +8,7 @@ the guarded store `guard st R W`. This module gives the pieces for the timer pat
   (`tdG`, `tlG`, `trG`, `nodeGetG`);
 * `in_core_timer_tree` (`P2/FootTimerAccLoop.lean`, `in_core_timer_tree_access`): it reads only core `c`'s
   `TIMER_ROOT` and `TIMER_MIN` and the `TIMER_DEADLINE` / `TIMER_LEFT` / `TIMER_RIGHT` words of the keys of
-  `c`'s tree (`TreeReads`; the null handle's words are in the set but never read: the stack holds keys
-  only, `StackOK`). Never a word of `target` unless `target` is a key (DESIGN.md §7 "Timer ownership"):
+  `c`'s tree (`TreeReads`: the stack holds keys only, `StackOK`). Never a word of `target` unless `target` is a key (DESIGN.md §7 "Timer ownership"):
   the search compares a popped node with `target` before reading it. Under P2/OwnMap's map (timer fields of
   an armed thread belong to the core of its tree, `TIMER_HEIGHT >> 8`) every one of these words is core
   `c`'s: the keys of `c`'s tree are armed with core bits `c` (`CoreTree.armed`, `CoreTree.core`), also those

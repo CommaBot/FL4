@@ -246,12 +246,11 @@ def CallerRegW (t w : U64) : Prop :=
 
 /-- The words an accepted `TCB_SetTimer` local path reads (entry state `s`, current SC sized by `Z`):
 the tree words `TW` of `StKeys` (this core's node words, the keys' timer fields), the caller's words, the
-target's `AFFINITY`, the null handle's deadline and child words (`TreeReads` names them; never read), the
+target's `AFFINITY`, the
 kernel's `CUR_DOMAIN` / `DOMAIN_TIME`, the current SC, and the release head's SC word and SC. -/
 def StRd (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (target w : U64) :
     Prop :=
   TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerW (L.curW s) w ∨ w = affA target ∨
-    w = tdA 0#u64 ∨ w = tlA 0#u64 ∨ w = trA 0#u64 ∨
     w = core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN ∨
     w = core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME ∨
     InSC (L.cscW s) (Z (L.cscW s)) w ∨
