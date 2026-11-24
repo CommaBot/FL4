@@ -93,7 +93,7 @@ theorem jPreemptRestHypEQ_ofIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
       MR a σ.machineState → ValidIrqMasks σ →
       σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ → CtNQ σ →
       CurInv σ → Fl4Spec.schedulable σ.curThread σ = true →
@@ -103,7 +103,7 @@ theorem jPreemptRestHypEQ_ofIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
       syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r =>
         r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   intro s a σ hJ hn hR hV hi hs hf hc hg hnq hC hsc hnsuf hcov
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   have hnt : ¬ NoTmoSend σ := fun h => hcov (Or.inl ⟨hC, hi, hs σ.curThread, h⟩)
   unfold NoTmoSend at hnt
   simp only [not_or, not_forall] at hnt
@@ -163,7 +163,7 @@ theorem hPre_ofZQIMN (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
       · exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJSM hTs hA hnd (hPA.minBudget a1) hC hni hsc hsuf hM hK hR hV))
           hM hIA hARI hA hPA.minBudget _) fun _ h => h
       · exact jPreemptRestHypEQ_ofIM hARI hA hM hK hPA hIA hmrt hmax htu s1 a1 σ1
-          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
           hN1 hR hV hni hns hfr hct hcg hnq hC hsc hsuf
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>

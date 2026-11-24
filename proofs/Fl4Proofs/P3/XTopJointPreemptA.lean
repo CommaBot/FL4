@@ -89,7 +89,7 @@ queued current thread excluded by `PPR0`'s `CtNQ`, XTopJointPreemptQ). Left: kp5
 → `send_fault_ipc` → `send_ipc` to a receiver waiting on the handler's
 endpoint, for the current thread inside `charge_budget` (a `JTH` state). -/
 def JPreemptRestHypC (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ →
     CurInv σ → Fl4Spec.schedulable σ.curThread σ = true →
     ¬ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →

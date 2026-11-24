@@ -417,7 +417,7 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
     (hSig : JIrqSigHyp (L := L) arI AR) :
     JIrqHyp (L := L) arI AR := by
   intro s a σ w i hJ hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJ hARI hAT hIP hmb hNS
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -427,13 +427,13 @@ theorem jIrqHyp_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hSig : JIrqSigHyp (L := L) arI AR) :
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
-    JHoleAt (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
+    JHoleAtV (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
     w.val ≠ 126 → w.val ≠ 127 →
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
   intro s a σ w i hJ hN hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJN hARI hAT hIP hmb hN
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -442,7 +442,7 @@ variable (arI) in
 preemption path at the `JHoleAt` states outside `PPCov ∨ PPCovT` where no
 thread is `RunningVM` (that case is the scope premise `hNS` [S]). -/
 def JPreemptRestHypN (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     ¬ (PPCov σ ∨ PPCovT σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
 

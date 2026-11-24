@@ -39,7 +39,7 @@ def DispPostR (AR : A → Fl4Spec.Cr3 → Prop) (Q : Fl4Spec.State Unit → S ×
     (σ : Fl4Spec.State Unit) (r : S × A) : Prop :=
   ∃ y ∈ (m.run σ).1,
     (y.1 = .ok () ∧ RelTopM (L := L) r.1 y.2 ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
-      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 y.2) ∨
+      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 y.2 ∧ VxE Z) ∨
     (y.1 = .error () ∧ Q y.2 r)
 
 /-- **The dispatch premises, `mid` [W] ending in `DispPostR` with `PPQC`**

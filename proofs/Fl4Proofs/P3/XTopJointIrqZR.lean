@@ -297,7 +297,7 @@ theorem PPQJ.toPPQ {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQJ (L := L) ar
     PPQ (L := L) arI AR σ1 r := by
   rcases h with h | ⟨z, hz, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩⟩
   · exact Or.inl h
-  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole⟩⟩
+  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole, inferInstance⟩⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`JHole.afterInvJZ` with `JAt` after a handled line** (module docstring). -/
@@ -432,7 +432,7 @@ theorem hPre_ofZEC (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
           hIP hIrq _) fun _ h => Or.inl h.2
       · have hnc : ¬ (PPCov σ1 ∨ PPCovT σ1 ∨ PPCovI σ1) :=
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
-        exact WP.spec_mono (hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+        exact WP.spec_mono (hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
           (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC hsc hsuf hnc)
           fun _ h => Or.inr ⟨⟨hnc, hC, hsc, hsuf⟩, h⟩
     | false =>

@@ -90,7 +90,7 @@ budget check's charge with an endpoint timeout handler outside `PPCovT`
 `check_budget`'s `charge_budget … True` → `end_timeslice` → `handle_timeout`'s
 `send_fault_ipc`). -/
 def JPreemptRestHypS (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ →
     CurInv σ → Fl4Spec.schedulable σ.curThread σ = true → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
@@ -120,7 +120,7 @@ theorem hPre_ofZS (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
   by_cases hC : CurInv σ1
   · cases hsc : Fl4Spec.schedulable σ1.curThread σ1 with
     | true =>
-      exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
         (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC hsc
         fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>

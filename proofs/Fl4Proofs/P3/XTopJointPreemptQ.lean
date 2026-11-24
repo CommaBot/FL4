@@ -54,7 +54,7 @@ the current thread in no ready queue** [W] (kp16: XTopJointPreemptE's
 `JPreemptRestHypE` with `CtNQ σ`, narrower). Proved from
 `JPreemptRestHypC` [W] (`jPreemptRestHypEQ_ofC`). -/
 def JPreemptRestHypEQ (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ → CtNQ σ →
     CurInv σ → Fl4Spec.schedulable σ.curThread σ = true →
     ¬ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
@@ -80,7 +80,7 @@ theorem jPreemptRestHypEQ_ofC (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (h
     (hRC : JPreemptRestHypC (L := L) arI AR) :
     JPreemptRestHypEQ (L := L) arI AR := by
   intro s a σ hJ hn hi hs hf hc hg hnq hC hsc hnsuf hcov
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   have hnt : ¬ NoTmoSend σ := fun h => hcov (Or.inl ⟨hC, hi, hs σ.curThread, h⟩)
   unfold NoTmoSend at hnt
@@ -107,7 +107,7 @@ theorem jPreemptRestHypEQ_ofC (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (h
     obtain ⟨xe, hke, hncb⟩ := hcb
     obtain ⟨q, rfl⟩ : ∃ q, xe = .recvEP q := by
       revert hncb; cases xe <;> simp [Endp.CanBlock]
-    exact hRC s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ hn hi hs hf hc hg hC hsc hnsuf hnq hper xt p bd r q
+    exact hRC s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩ hn hi hs hf hc hg hC hsc hnsuf hnq hper xt p bd r q
       hkt hrr hth hke
 
 /-- **`hPre_ofZE` with `JPreemptRestHypEQ`** (kp16: the hole's `CtNQ` by
@@ -137,7 +137,7 @@ theorem hPre_ofZQ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
           Fl4Spec.refillSufficient σ1.consumedTime (Fl4Spec.refillHd y) = true
       · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJS hTs hA hnd (hP.minBudget a1) hC hni hsc hsuf)
           hIP hIrq _) fun _ h => h.2.toPPQ
-      · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
           (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hnq hC hsc hsuf
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>
