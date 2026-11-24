@@ -242,14 +242,14 @@ theorem Within.mono {st : machine.Store S} {R W R' W' : U64 → Prop}
 section obl
 variable {st : machine.Store S} [L : LawfulStore st]
   {f : machine.Store S → S → A → Result (X × S × A)} {Acc : X → Prop}
-  {own : (U64 → U64) → U64 → Serial.Owner U64 U64} {cls : U64 → U64 → Prop}
+  {own : (U64 → U64) → U64 → Serial.Owner U64 U64}
   {User : U64 → Prop} {Locks : S → U64 → Prop} {Pre : S → Prop}
   {RS WS DS : S → U64 → Prop}
 
 /-- **Accepted runs, trace form**: every access of an accepted sequential run
 lies in its stated sets. -/
 theorem PathObl.within {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) : Within st (RS s) (WS s) p s a := by
   have hg := O.acc s a r hpre h hacc
   rw [hp (guard st (RS s) (WS s))] at hg
@@ -258,7 +258,7 @@ theorem PathObl.within {p : SProg A X} (hp : IsProg f p)
 /-- **Declined runs, trace form**: every write of a declined sequential run
 lies in `DecSet`. -/
 theorem PathObl.within_dec {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
     Within st (fun _ => True) (DS s) p s a := by
   have hg := O.dec s a r hpre h hdec
@@ -267,7 +267,7 @@ theorem PathObl.within_dec {p : SProg A X} (hp : IsProg f p)
 
 /-- The guarded run is the real one (projection), accepted runs. -/
 theorem PathObl.same {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
     f (guard st (RS s) (WS s)) s a = f st s a := by
   rw [O.acc s a r hpre h hacc, h]
@@ -275,7 +275,7 @@ theorem PathObl.same {p : SProg A X} (hp : IsProg f p)
 /-- **Ownership along an accepted run**: every read is a user word or in
 `RPerm`, every write a user word or in `WPerm`, of the entry state. -/
 theorem PathObl.allowed_steps {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : f st s a = ok r) (hacc : Acc r.1) :
     Within st (fun b => User b ∨ RPerm own (L.cpu s) (Locks s) (L.mem s) b)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
@@ -290,7 +290,7 @@ theorem PathObl.allowed_steps {p : SProg A X} (hp : IsProg f p)
 /-- **Ownership along a declined run**: every write is a user word or in
 `WPerm` of the entry state. -/
 theorem PathObl.allowed_steps_dec {p : SProg A X} (hp : IsProg f p)
-    (O : PathObl st f Acc own cls User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
     Within st (fun _ => True)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by

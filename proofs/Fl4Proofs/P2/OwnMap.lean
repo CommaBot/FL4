@@ -35,8 +35,9 @@ state base, the number of cores, and the set of capability slots. In order:
    `CORE` word itself is gate-owned.
 6. **Everything else**: the gate.
 
-`cls K b v`, the value class of `Serial`'s class reads: for a CNode slot's
-`CAP0`, "tag Null or Frame"; True for every other word.
+`cls K b v`: the value class a racing local path can leave in a word (a CNode
+slot's `CAP0`: Null or Frame); not needed by `Serial` (speculative reads), kept
+as the statement of p2io's value-benign argument.
 
 Notes for review (by the path lines):
 

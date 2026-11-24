@@ -44,9 +44,21 @@ than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
 * once the ownership map is fixed (`P2/OwnMap.lean`), the facts linking the
   sets to it, kernel words only (`User`, user memory such as IPC buffers, is
   exempt): `read_own` (accepted reads: held or gate-owned), `write_own`
-  (accepted and declined writes: held), `move` (owners change only between
-  held owners) and `cls_pres` (a write keeps the written word's value class
-  `cls`, e.g. a CNode slot's `CAP0` stays Null/Frame).
+  (accepted and declined writes: held) and `move` (owners change only between
+  held owners).
+
+How the reads of a declined run enter `Serial`: in the path's `Serial.Prog`
+the reads outside `ReadSet` are speculative (`Serial.Prog.rds`): they read
+memory, need no ownership, and the path's sequential meaning lets them return
+any value. So refinement (P2 obligation (2)) for a local path is stated for
+every value of those reads: the run declines (writing only `DecSet`, with
+values from `ReadSet` words) or behaves as the general path (localinv: a plan
+whose recorded words `still_holds` re-checks under the locks). The extracted
+store cannot vary a word between two reads with no write between, so the line
+proves it for every entry state agreeing with the real one on `ReadSet`, and
+`DecOnce` [W] (per path, discharged by the line where it can) states that a
+declined run reads each word outside `ReadSet` at most once, which makes the
+two the same.
 
 `PathObl` packages these. The `Arch` value is threaded unchanged in kind:
 Arch calls are not memory and are outside the model (`Serial.lean`, Scope).
@@ -196,18 +208,17 @@ def OwnMove (own : (U64 → U64) → U64 → Owner U64 U64) (c : U64) (lk : U64 
 
 /-- **The per-path obligation** [W] (per local path, other lines' work), v2,
 for the extracted body `f` (other arguments fixed), under `Pre`, with the
-locks `Locks` the fl4-sync glue holds, the global ownership map `own`, the
-value class `cls` and user memory `User`; the core is `L.cpu s`.
+locks `Locks` the fl4-sync glue holds, the global ownership map `own` and user
+memory `User`; the core is `L.cpu s`.
 
 * `acc`: an accepted run reads only `ReadSet` and writes only `WriteSet`;
 * `dec`: a declined run writes only `DecSet` (its reads are unrestricted);
 * `read_own`: `ReadSet`'s kernel words are held or gate-owned;
 * `write_own`: `WriteSet`'s and `DecSet`'s kernel words are held;
-* `move`: the run moves owners only between owners the path holds;
-* `cls_pres`: each word the run changes keeps its value class. -/
+* `move`: the run moves owners only between owners the path holds. -/
 structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     (f : machine.Store S → S → A → Result (X × S × A)) (Acc : X → Prop)
-    (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 → U64 → Prop) (User : U64 → Prop)
+    (own : (U64 → U64) → U64 → Owner U64 U64) (User : U64 → Prop)
     (Locks : S → U64 → Prop) (Pre : S → Prop)
     (ReadSet WriteSet DecSet : S → U64 → Prop) : Prop where
   acc : ∀ s a r, Pre s → f st s a = ok r → Acc r.1 →
@@ -219,8 +230,6 @@ structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     WPerm own (L.cpu s) (Locks s) (L.mem s) x
   move : ∀ s a r, Pre s → f st s a = ok r →
     OwnMove own (L.cpu s) (Locks s) (L.mem s) (L.mem r.2.1)
-  cls_pres : ∀ s a r x, Pre s → f st s a = ok r → ¬ User x →
-    (cls x (L.mem r.2.1 x) ↔ cls x (L.mem s x))
 
 /-! ## A Store-generic body as a tree of trait calls -/
 

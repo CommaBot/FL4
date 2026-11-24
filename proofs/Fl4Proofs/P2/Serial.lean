@@ -32,7 +32,16 @@ and local paths serialize**, at the abstract level, once for the runtime.
   gate). It is a function of memory, as in the DESIGN (a thread's queue links
   belong to the endpoint it is blocked on). A local path on core `c` *holds*
   owner `core c` and every lock it took (`Held`).
-* `Allowed own s c`: core `c`'s next local-path access is permitted: a read of
+* The ownership map is ghost state of the configuration (`Cfg.own`); a serial
+  step may replace it (retype, delete, migration and binding change it), which
+  is sound because no local path is in progress then (`no_overlap`).
+* Speculative reads (`Prog.rds`): a read that needs no ownership (an unlocked
+  CSpace walk that may meet a slot another core is writing, a plan read before
+  its locks). It reads memory; the sequential meaning `Run` lets it return any
+  value, so a path's log entry is explained for whatever it saw there; that
+  this changes nothing a serial run could not do is the path's refinement
+  obligation (`PathObl.lean`).
+* `Allowed s c`: core `c`'s next local-path access is permitted: a read of
   a word it holds or the gate owns; a write of a word it holds, which changes
   the owner of any word only between owners it holds (e.g. blocking a thread
   on a locked endpoint moves its queue links from the core to the lock).
@@ -63,7 +72,7 @@ and local paths serialize**, at the abstract level, once for the runtime.
 
 ## Premises (nothing else is assumed)
 
-* `FootprintOK own s0` [W] (only in `serializable_reach`; `serializable` and
+* `FootprintOK s0` [W] (only in `serializable_reach`; `serializable` and
   the others quantify over `GReach`, executions whose local steps are
   `Allowed`, and need no premise): every local-path access in every execution
   is `Allowed`. This is P2 obligation (2), footprint, in its trace form, for
@@ -104,6 +113,10 @@ inductive Prog (A V L : Type) where
   | rd (a : A) (k : V → Prog A V L)
   | wr (a : A) (v : V) (k : Prog A V L)
   | lock (l : L) (k : Bool → Prog A V L)
+  /-- A speculative read: of a word the path may not hold (an unlocked CSpace
+  walk, a plan read before its locks). It reads memory like `rd`, but the
+  sequential meaning lets it return any value. -/
+  | rds (a : A) (k : V → Prog A V L)
 
 variable {A V C L : Type} [DecidableEq A]
 
@@ -117,6 +130,8 @@ inductive Run : Prog A V L → (A → V) → (A → V) → Prop
       Run k (Function.update m a v) m' → Run (.wr a v k) m m'
   | lock {l : L} {k : Bool → Prog A V L} {m m' : A → V} (b : Bool) :
       Run (k b) m m' → Run (.lock l k) m m'
+  | rds {a : A} {k : V → Prog A V L} {m m' : A → V} (v : V) :
+      Run (k v) m m' → Run (.rds a k) m m'
 
 /-- Running a list of bodies one after another, each from the memory the
 previous one left. -/
@@ -239,6 +254,10 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
       Step s c { s with ph := Function.update s.ph c .idle }
   | rd {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A} :
       s.ph c = .loc p0 (.rd a k) W →
+      Step s c { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) }
+  /-- A speculative read: no ownership condition. -/
+  | rds {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A} :
+      s.ph c = .loc p0 (.rds a k) W →
       Step s c { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) }
   | wr {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A} :
       s.ph c = .loc p0 (.wr a v k) W →
@@ -478,6 +497,16 @@ theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) 
     { held := Ic.held
       sim := fun n n' hn hr => Ic.sim n n' hn (Run.rd (by rw [hma n hn]; exact hr)) }
 
+theorem inv_rds {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
+    {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A}
+    (hc : s.ph c = .loc p0 (.rds a k) W) :
+    InvH m0 { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) } H := by
+  have Ic := I.loc c p0 _ W hc
+  exact I.locstep (p' := k (s.mem a)) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
+    (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    { held := Ic.held
+      sim := fun n n' hn hr => Ic.sim n n' hn (Run.rds _ hr) }
+
 theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A}
     (hc : s.ph c = .loc p0 (.wr a v k) W)
@@ -693,6 +722,7 @@ theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
     simp only [Allowed, hc] at hal
     exact ⟨H, inv_wr I hc hal.1 hal.2⟩
   | lock b hc hb => exact ⟨H, inv_lock I hc b hb⟩
+  | rds hc => exact ⟨H, inv_rds I hc⟩
   | leave hc => exact ⟨_, inv_leave I hc⟩
   | take p hc _ => exact ⟨H, inv_take I p hc⟩
   | scan d _ _ hd => exact ⟨H, inv_scan I d hd⟩
@@ -764,6 +794,7 @@ inductive Within (F : Set A) : Prog A V L → Prop
   | rd {a : A} {k : V → Prog A V L} : a ∈ F → (∀ v, Within F (k v)) → Within F (.rd a k)
   | wr {a : A} {v : V} {k : Prog A V L} : a ∈ F → Within F k → Within F (.wr a v k)
   | lock {l : L} {k : Bool → Prog A V L} : (∀ b, Within F (k b)) → Within F (.lock l k)
+  | rds {a : A} {k : V → Prog A V L} : a ∈ F → (∀ v, Within F (k v)) → Within F (.rds a k)
 
 /-- (a) An access footprint is a write footprint. -/
 theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -777,6 +808,7 @@ theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Wit
       intro x hx
       rw [ih hk x hx, Function.update_of_ne (fun h => hx (by rw [h]; exact ha))]
   | lock b _ ih => cases hw with | lock hk => exact ih (hk b)
+  | rds v _ ih => cases hw with | rds _ hk => exact ih (hk v)
 
 /-- (b) An access footprint is a frame. -/
 theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -806,6 +838,12 @@ theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within 
       intro n hn
       obtain ⟨n', h1, h2⟩ := ih (hk b) n hn
       exact ⟨n', .lock b h1, h2⟩
+  | rds v _ ih =>
+    cases hw with
+    | rds _ hk =>
+      intro n hn
+      obtain ⟨n', h1, h2⟩ := ih (hk v) n hn
+      exact ⟨n', .rds v h1, h2⟩
 
 theorem run_rd_inv {a : A} {k : V → Prog A V L} {m m' : A → V} (h : Run (.rd a k) m m') :
     Run (k (m a)) m m' := by cases h; assumption
