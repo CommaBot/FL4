@@ -19534,3 +19534,6 @@ None (no Lean change).
   delivers it), so `send_signal` writes registers only again: kernel PR (Opus + Gemini review), re-extract, P0, and
   QueueSignal/QueueFootS/TimerRBSig adapted to the new `signal_completes` (S–M). (A′) Route A with gap 1 closed by
   P3 re-plumbing instead of new frames: still gap 2 (L–XL).
+- **FINDINGs.** (1) closed upstream by #96 (A64 extracts, 0 sorry). (2) `xtask extract --arch aarch64` exits 1 on
+  `a64_funs_external`'s template equality (x86 has `Result.is_err`, A64 does not); tooling only, no kernel bug.
+  No kernel behaviour bug found.
