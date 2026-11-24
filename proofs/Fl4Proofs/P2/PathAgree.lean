@@ -19,6 +19,7 @@ open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
+open Classical
 
 section
 variable {S A X : Type} {st : machine.Store S} {ar : machine.Arch A} {R W : U64 → Prop}
@@ -93,7 +94,7 @@ theorem interp_mono {R' W' : U64 → Prop} (hR : ∀ q, R q → R' q) (hW : ∀ 
 theorem interp_to_mguard [L : LawfulStore st] {Q : S → S → Prop} (hQ : ∀ s q v, W q → Q s (L.wr s q v)) (p : SProg X)
     (hz : NoZero p) (s : S) (a : A) (r : X × S × A) (h : interp (guard st R W) ar p s a = ok r) :
     interp (mguard st Q) ar p s a = ok r :=
-  interp_to (fun _ _ _ => rfl) (fun _ _ _ _ => rfl)
+  interp_to (st := st) (st' := mguard st Q) (fun _ _ _ => rfl) (fun _ _ _ _ => rfl)
     (fun s q v hq => by
       show (do let s' ← st.write s q v
                if Q s s' then ok s' else fail .panic) = _

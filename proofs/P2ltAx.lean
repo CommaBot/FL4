@@ -3,6 +3,8 @@ import Fl4Proofs.P2.FootTimerSetG
 import Fl4Proofs.P2.FootTimerSetAcc
 import Fl4Proofs.P2.MoveTimer
 import Fl4Proofs.P2.FootTimerSetOwn
+import Fl4Proofs.P2.FootTimerSetObl
+import Fl4Proofs.P2.FootTimerIrqG
 open Fl4Proofs.P2
 #print axioms in_core_timer_tree_access
 #print axioms ge_remove
@@ -20,3 +22,7 @@ open Fl4Proofs.P2
 #print axioms Fl4Proofs.P2.MoveTimer.set_height_zero_mguard_fails
 #print axioms Fl4Proofs.P2.MoveTimer.set_deadline_mguard_fails
 #print axioms Fl4Proofs.P2.set_timer_acc_own
+#print axioms Fl4Proofs.P2.set_timer_pathObl
+#print axioms Fl4Proofs.P2.set_timer_pathSide
+#print axioms Fl4Proofs.P2.wake_ok.guard
+#print axioms Fl4Proofs.P2.round_robin_ok.guard

@@ -86,22 +86,29 @@ theorem tw_own {s : S} (hL : StLay K st T Scs Z s) (hT : TcbPlaced T) {target w 
   · exact key_own hL hT ho hz h1 h2 h3
   · exact hL.own_node _ ho'
 
-/-- A running caller's word: the gate's or this core's. -/
-theorem caller_own {s : S} (hL : StLay K st T Scs Z s) (hT : TcbPlaced T) (hct : L.curW s ∈ T) {target k : U64}
-    (ho : StOk st Scs s target) (h1 : 256 ≤ k.val) (h2 : k.val < 4096) (h3 : k.val < 3528 ∨ 3576 ≤ k.val) :
+/-- A caller's word outside its timer fields, the caller on this core and not blocked: the gate's or this core's. -/
+theorem caller_own' {s : S} (hL : StLay K st T Scs Z s) (hT : TcbPlaced T) (hct : L.curW s ∈ T) {k : U64}
+    (aff : L.mem s (affA (L.curW s)) = L.cpu s) (q : ¬ QueuedState (L.mem s (stA (L.curW s))))
+    (r : ¬ ReplyState (L.mem s (stA (L.curW s)))) (h1 : 256 ≤ k.val) (h2 : k.val < 4096)
+    (h3 : k.val < 3528 ∨ 3576 ≤ k.val) :
     own K (L.mem s) (core.num.U64.wrapping_add (L.curW s) k) =
       (if GateField k.val then Owner.gate else Owner.core (L.cpu s)) := by
   have e := hL.own_tcb hT (L.mem s) hct (k := k) h1 h2
   unfold fld at e
   rw [e]
-  have ea : L.mem s (fld (L.curW s) oAFFINITY) = L.cpu s := ho.aff
-  have es : L.mem s (fld (L.curW s) oSTATE) = sched.TS_RUNNING := by
-    have := ho.run; rw [stA_eq] at this; exact this
+  have ea : L.mem s (fld (L.curW s) oAFFINITY) = L.cpu s := aff
+  have es : fld (L.curW s) oSTATE = stA (L.curW s) := by rw [stA_eq]; rfl
   have ht : ¬ TimerField k.val := by unfold TimerField; omega
   rw [tcbOwner, if_neg ht, ea, es]
-  have q : ¬ QueuedState sched.TS_RUNNING := by simp [QueuedState, sched.TS_RUNNING]
-  have r : ¬ ReplyState sched.TS_RUNNING := by simp [ReplyState, sched.TS_RUNNING]
   simp only [gOwner, if_neg q, if_neg r, ite_self]
+
+/-- A running caller's word: the gate's or this core's. -/
+theorem caller_own {s : S} (hL : StLay K st T Scs Z s) (hT : TcbPlaced T) (hct : L.curW s ∈ T) {target k : U64}
+    (ho : StOk st Scs s target) (h1 : 256 ≤ k.val) (h2 : k.val < 4096) (h3 : k.val < 3528 ∨ 3576 ≤ k.val) :
+    own K (L.mem s) (core.num.U64.wrapping_add (L.curW s) k) =
+      (if GateField k.val then Owner.gate else Owner.core (L.cpu s)) :=
+  caller_own' hL hT hct ho.aff (by rw [ho.run]; simp [QueuedState, sched.TS_RUNNING])
+    (by rw [ho.run]; simp [ReplyState, sched.TS_RUNNING]) h1 h2 h3
 
 /-- An SC's word: the gate's (`CORE`) or its core's. -/
 theorem sc_own {s : S} (hL : StLay K st T Scs Z s) {p b : U64} (hp : p ∈ Scs) (hb : InSC p (Z p) b)
