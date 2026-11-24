@@ -91,13 +91,14 @@ theorem JAtZ.batchMapJL [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {
       (res.1 = .Ok () ∧ ∃ τ1, ((.ok (), τ1) : Except Fl4Spec.SyscallError Unit × Fl4Spec.State Unit) ∈
           (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) τ).1 ∧
         JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 τ1 ∧ FbKeep τ τ1 ∧ FbFootK (L := L) Z s res.2.1 ∧
-        LiveDN (L := L) Z.th H Cs Z.G res.2.1 τ1 ∧ Vs.NoSwitch τ1 ∧ SpecGlob τ1 ∧ PPR0 τ1) ⦄ := by
+        LiveDN (L := L) Z.th H Cs Z.G res.2.1 τ1 ∧ Vs.NoSwitch τ1 ∧ SpecGlob τ1 ∧ PPR0 τ1 ∧
+        CnSlotsKept (L := L) Z.th s res.2.1) ⦄ := by
   refine WP.spec_mono (JAtZ.batchMapJX arI hA J hpc hidx has1 has2 hf op depth a1 cr a2 dd cn dcn a0 b hbv hba hbm
     hbat) ?_
-  rintro ⟨r0, s', a'⟩ (h | ⟨h1, τ1, hm, J', hK, hF, F, hW, hsim, hCP, a00, ha00, hp00⟩)
+  rintro ⟨r0, s', a'⟩ (h | ⟨h1, τ1, hm, J', hK, hF, F, hW, hsim, hCP, hCSK, a00, ha00, hp00⟩)
   · exact Or.inl h
   refine Or.inr ⟨h1, τ1, hm, J', hK, hF, ?_, fun u => by rw [F.act]; exact hns u,
-    hsg.of_capPage hCP ⟨a00, ha00, hp00⟩ F.irqN F.idle, hp0.of_ppk (PPK.of_fbKeep hK)⟩
+    hsg.of_capPage hCP ⟨a00, ha00, hp00⟩ F.irqN F.idle, hp0.of_ppk (PPK.of_fbKeep hK), hCSK⟩
   have Ap : VsApart (L := L) Z H Cs s := jVsApartHyp arI Z H Cs Ac Lst D s a τ rfl J
   have hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hW fun b hb =>
     J.notDbg (fun p hp => J.vsxObjW Ap hpc hidx hb hp (fun z h => by cases h))
