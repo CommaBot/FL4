@@ -87,7 +87,7 @@ theorem jAtPre_holeTN (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
       consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
   have e := pp_err_eq hE hIq _ hσ rfl
   subst e
-  exact ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, hle0, rfl⟩, hp00.1.1, hns0⟩
+  exact ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, ⟨hle0, rfl⟩, inferInstance⟩, hp00.1.1, hns0⟩
 
 /-- **Every `JAtPre` state is a `JHole` with `TShift`** (module docstring). -/
 theorem jAtPre_holeT (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
