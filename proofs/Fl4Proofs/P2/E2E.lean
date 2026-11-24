@@ -746,7 +746,7 @@ and not user words. Used only for `OwnDep`; nothing is assumed about who owns
 user words. -/
 structure UserOK (K : KLayout) : Prop where
   tcb : ∀ t, K.heap t = some .tcb → ∀ off, off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨
-    off = oREPLY_OBJ ∨ off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT →
+    off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT →
     Aligned (fld t off) ∧ fld t off ∉ K.user
   slot : ∀ p ∈ K.slots, Aligned p ∧ p ∉ K.user
   ntfn : ∀ p, K.heap p = some .ntfn → Aligned (fld p 24#u64) ∧ fld p 24#u64 ∉ K.user
@@ -759,11 +759,11 @@ theorem ownDep {K : KLayout} (hK : RegionOK K) (hU : UserOK K) :
   have ht : ∀ t, K.heap t = some .tcb → ∀ o, tcbOwner m t o = tcbOwner m' t o := by
     intro t ht o
     have g : ∀ off, off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨
-        off = oREPLY_OBJ ∨ off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT →
+        off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT →
         m (fld t off) = m' (fld t off) :=
       fun off ho => h _ (hU.tcb t ht off ho).1 (hU.tcb t ht off ho).2
     unfold tcbOwner
-    rw [g oAFFINITY (by simp), g oSTATE (by simp), g oBLOCK_OBJ (by simp), g oREPLY_OBJ (by simp),
+    rw [g oAFFINITY (by simp), g oSTATE (by simp), g oBLOCK_OBJ (by simp),
       g oTIMER_DEADLINE (by simp), g oTIMER_HEIGHT (by simp)]
   funext b
   unfold own

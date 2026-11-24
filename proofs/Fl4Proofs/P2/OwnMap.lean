@@ -22,11 +22,21 @@ state base, the number of cores, and the set of capability slots. In order:
    * Timer fields `TIMER_DEADLINE` … `TIMER_HEIGHT`: armed (deadline ≠ 0), the
      core of its tree, `TIMER_HEIGHT >> 8`; disarmed, the home core.
    * Blocked on an endpoint or notification (`STATE` ∈ {3, 4, 6}): `STATE`,
-     `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS`, `REPLY_OBJ`, `EP_NEXT`,
-     `EP_PREV`, `IN_QUEUES` are `lock <BLOCK_OBJ>`'s.
-   * Blocked on reply (`STATE` = 5): `STATE`, `REPLY_OBJ`, the fault and
-     lookup-fault words, `IN_QUEUES` are `lock <REPLY_OBJ>`'s.
-   * Everything else of the TCB: the home core's.
+     `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS`, `EP_NEXT`, `EP_PREV` are
+     `lock <BLOCK_OBJ>`'s.
+   * Everything else of the TCB: the home core's; `STATE` of a thread blocked on
+     reply (5) too, and always `REPLY_OBJ`, the fault and lookup-fault words and
+     `IN_QUEUES`. An accepted local path writes or relies on these words only of
+     threads of its own core: `fault`/`vm_fault` of the current thread `t`, and
+     of `dest` after `schedulable_here(dest)`; ReplyRecv of `t`, and of the
+     replied thread `u` after `schedulable_here(u)`; the timer interrupt of the
+     current thread and of threads `may_run_here` accepts, or the timer's thread
+     `tm` (its `affinity` checked); `TCB_SetTimer` and I/O ports of the caller.
+     A path reading them of another core's thread (`dest.REPLY_OBJ`, `u.STATE`,
+     `u.FAULT_TYPE`, before the check) declines on the thread's (gate-owned)
+     `AFFINITY`. A reply object's lock therefore owns no TCB word: `fault` writes
+     `STATE := 5` before `REPLY_OBJ`, which under a lock-of-`REPLY_OBJ` rule
+     moved the group to the stale reply object for one write.
 4. **Endpoints, reply objects**: `lock <object>`. **Notifications**: bound
    (`BOUND_TCB` ≠ 0), the bound thread's home core (only that core's timer
    path signals it beside the gate); unbound, `lock <object>`; `BOUND_TCB`
@@ -117,9 +127,6 @@ def oREPLY_OBJ : U64 := 3360#u64
 /-- Blocked on an endpoint (receive or send) or a notification. -/
 def QueuedState (v : U64) : Prop := v.val = 3 ∨ v.val = 4 ∨ v.val = 6
 
-/-- Blocked on reply. -/
-def ReplyState (v : U64) : Prop := v.val = 5
-
 /-- TCB words only the gate writes: `AFFINITY`, `DOMAIN`, `MCP`, `PRIO`, `SC`,
 `BOUND_NTFN`, `IPC_BUFFER`, `DEBUG_NEXT` / `DEBUG_PREV`, `VCPU`. -/
 def GateField (o : Nat) : Prop :=
@@ -130,15 +137,13 @@ def GateField (o : Nat) : Prop :=
 def TimerField (o : Nat) : Prop := 3528 ≤ o ∧ o ≤ 3568
 
 /-- The words `STATE` decides: `STATE`, `BLOCK_OBJ` / `BADGE` / `FLAGS`,
-`REPLY_OBJ`, the fault and lookup-fault words, `EP_NEXT` / `EP_PREV`,
-`IN_QUEUES`. -/
+`EP_NEXT` / `EP_PREV`. -/
 def GField (o : Nat) : Prop :=
-  o = 3328 ∨ o = 3336 ∨ o = 3344 ∨ o = 3352 ∨ o = 3360 ∨ (3376 ≤ o ∧ o ≤ 3424) ∨ o = 3496 ∨
-    o = 3504 ∨ o = 3592
+  o = 3328 ∨ o = 3336 ∨ o = 3344 ∨ o = 3352 ∨ o = 3496 ∨ o = 3504
 
 /-- The owner of the `STATE` group. -/
-def gOwner (st bo ro : U64) (home : Owner U64 U64) : Owner U64 U64 :=
-  if QueuedState st then .lock bo else if ReplyState st then .lock ro else home
+def gOwner (st bo : U64) (home : Owner U64 U64) : Owner U64 U64 :=
+  if QueuedState st then .lock bo else home
 
 /-- The owner of the timer group. -/
 def tOwner (dl ht : U64) (home : Owner U64 U64) : Owner U64 U64 :=
@@ -150,8 +155,7 @@ def tcbOwner (m : U64 → U64) (t : U64) (o : Nat) : Owner U64 U64 :=
   else if TimerField o then
     tOwner (m (fld t oTIMER_DEADLINE)) (m (fld t oTIMER_HEIGHT)) (.core (m (fld t oAFFINITY)))
   else if GField o then
-    gOwner (m (fld t oSTATE)) (m (fld t oBLOCK_OBJ)) (m (fld t oREPLY_OBJ))
-      (.core (m (fld t oAFFINITY)))
+    gOwner (m (fld t oSTATE)) (m (fld t oBLOCK_OBJ)) (.core (m (fld t oAFFINITY)))
   else .core (m (fld t oAFFINITY))
 
 /-- A slot word's tag: Null (0) or Frame (13). -/
@@ -349,22 +353,20 @@ theorem deciders {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.Deciders 
     by_cases hGF : GField (x.val - t.val)
     · simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA'] at hx
       left
-      have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ) →
+      have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ) →
           own K m (fld t off) = own K m x := by
         intro off hoff
         have hoff' : off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ ∨
             off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT := by
-          rcases hoff with h | h | h
+          rcases hoff with h | h
           · exact Or.inr (Or.inl h)
           · exact Or.inr (Or.inr (Or.inl h))
-          · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
         rw [own_tcb_at hK ht hoff']
         simp only [own, hR, tcbOwner, if_neg hG, if_neg hT, if_pos hGF]
-        have hv : off.val = 3328 ∨ off.val = 3336 ∨ off.val = 3360 := by
-          rcases hoff with h | h | h <;> subst h
+        have hv : off.val = 3328 ∨ off.val = 3336 := by
+          rcases hoff with h | h <;> subst h
           · exact Or.inl oSTATE_val
-          · exact Or.inr (Or.inl oBOBJ_val)
-          · exact Or.inr (Or.inr oROBJ_val)
+          · exact Or.inr oBOBJ_val
         have h1 : ¬ GateField off.val := by simp only [GateField]; omega
         have h2 : ¬ TimerField off.val := by simp only [TimerField]; omega
         have h3 : GField off.val := by simp only [GField]; omega
@@ -372,12 +374,9 @@ theorem deciders {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.Deciders 
       by_cases hS : b = fld t oSTATE
       · subst hS; exact key _ (Or.inl rfl)
       by_cases hBo : b = fld t oBLOCK_OBJ
-      · subst hBo; exact key _ (Or.inr (Or.inl rfl))
-      by_cases hRo : b = fld t oREPLY_OBJ
-      · subst hRo; exact key _ (Or.inr (Or.inr rfl))
+      · subst hBo; exact key _ (Or.inr rfl)
       exfalso; apply hx
-      rw [Function.update_of_ne (Ne.symm hS), Function.update_of_ne (Ne.symm hBo),
-        Function.update_of_ne (Ne.symm hRo)]
+      rw [Function.update_of_ne (Ne.symm hS), Function.update_of_ne (Ne.symm hBo)]
     · simp only [tcbOwner, if_neg hG, if_neg hT, if_neg hGF, hA'] at hx
       exact absurd rfl hx
 
@@ -456,29 +455,26 @@ theorem moveLocal {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.MoveLoca
       simp only [tcbOwner, if_neg hG, if_pos hT, hA, hag' _ (Or.inl (kT _ (Or.inl rfl))),
         hag' _ (Or.inl (kT _ (Or.inr rfl)))]
     by_cases hGF : GField (x.val - t.val)
-    · have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ) →
+    · have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ) →
           own K m (fld t off) = own K m x := by
         intro off hoff
         have hoff' : off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ ∨
             off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT := by
-          rcases hoff with h | h | h
+          rcases hoff with h | h
           · exact Or.inr (Or.inl h)
           · exact Or.inr (Or.inr (Or.inl h))
-          · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
         rw [own_tcb_at hK ht hoff']
         simp only [own, hR, tcbOwner, if_neg hG, if_neg hT, if_pos hGF]
-        have hv : off.val = 3328 ∨ off.val = 3336 ∨ off.val = 3360 := by
-          rcases hoff with h | h | h <;> subst h
+        have hv : off.val = 3328 ∨ off.val = 3336 := by
+          rcases hoff with h | h <;> subst h
           · exact Or.inl oSTATE_val
-          · exact Or.inr (Or.inl oBOBJ_val)
-          · exact Or.inr (Or.inr oROBJ_val)
+          · exact Or.inr oBOBJ_val
         have h1 : ¬ GateField off.val := by simp only [GateField]; omega
         have h2 : ¬ TimerField off.val := by simp only [TimerField]; omega
         have h3 : GField off.val := by simp only [GField]; omega
         simp only [if_neg h1, if_neg h2, if_pos h3]
       simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA,
-        hag' _ (Or.inl (key _ (Or.inl rfl))), hag' _ (Or.inl (key _ (Or.inr (Or.inl rfl)))),
-        hag' _ (Or.inl (key _ (Or.inr (Or.inr rfl))))]
+        hag' _ (Or.inl (key _ (Or.inl rfl))), hag' _ (Or.inl (key _ (Or.inr rfl)))]
     · simp only [tcbOwner, if_neg hG, if_neg hT, if_neg hGF, hA]
 
 end
