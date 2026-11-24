@@ -152,14 +152,14 @@ def JAtPreMVL (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState
   ∃ (s0 : S) (a0 : A) (σ0 : Fl4Spec.State Unit) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
     (Lst : U64 → List U64) (D : Set U64),
     (JAtZ (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 ∧ Vs.NoSwitch σ0 ∧ PPR0 σ0 ∧ MR a0 σ0.machineState ∧
-      ValidMachineTime σ0 ∧ ValidIrqMasks σ0) ∧
+      ValidMachineTime σ0 ∧ ValidIrqMasks σ0 ∧ VxE Z) ∧
     sched.preemption_point st arI s0 a0 = ok (.Err .Preempted, s, a) ∧
     (.error (), σ) ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ0).1 ∧
     LiveDN (L := L) Z.th H Cs Z.G s σ
 
 theorem JAtPreMVL.toMV {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPreMVL (L := L) arI AR MR s a σ) :
     JAtPreMV (L := L) arI AR MR s a σ :=
-  let ⟨s0, a0, σ0, Z, H, Cs, Ac, Lst, D, ⟨J, h1, h2, h3, h4, h5⟩, hp, hm, _⟩ := h
+  let ⟨s0, a0, σ0, Z, H, Cs, Ac, Lst, D, ⟨J, h1, h2, h3, h4, h5, _⟩, hp, hm, _⟩ := h
   ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, h1, h2, h3, h4, h5⟩, hp, hm⟩
 
 /-- **The deletion's state after a preemption with liveness** (module
@@ -259,7 +259,7 @@ theorem cn_del_topJLML {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   · have hne : e ≠ .Preempted := by rintro rfl; cases e' <;> exact h2.elim
     refine Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ?_⟩
     simp only [core.result.Result.Err.injEq, hne, if_false]
-    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
   · rcases hcase with ⟨rfl, hx⟩ | ⟨rfl, hx⟩
     · obtain ⟨-, ⟨⟨V, Ac', Lst', D', J', -⟩, hL', hDW', hN'⟩, -⟩ := hE'
       have hX' := J'.xtop
@@ -267,7 +267,7 @@ theorem cn_del_topJLML {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
         mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, G', Or.inl ⟨rfl, rfl⟩, hX'.rel.1, hX'.rel.2.1,
           hX'.rel.2.2.1, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ?_⟩
       simp only [reduceCtorEq, if_false]
-      exact ⟨_, H, Cs, Ac', Lst', D', J', hL', hDW', hN'⟩
+      exact ⟨_, H, Cs, Ac', Lst', D', J', ⟨hL', hDW', hN'⟩, inferInstance⟩
     · obtain ⟨-, ⟨-, -, -, -, -, -, hDom, hMO⟩, hPre, -⟩ := hE'
       refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.error (), σ'),
         mem_bindE_err hx, ⟨Z.th, G', Or.inr ⟨rfl, rfl⟩, J.xtop.rel.1, hCR', hFI', hDom, hMO⟩, ?_⟩
@@ -323,7 +323,7 @@ theorem decode_invocation_cnode_revokeJLML (s : S) (ar : A) (σ : Fl4Spec.State 
     refine Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ?_⟩
     show if _ = _ then _ else _
     rw [if_neg (by simp)]
-    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAtL` / `JAtPreMVL` at the Delete label** (26): as
@@ -366,7 +366,7 @@ theorem decode_invocation_cnode_deleteJLML [Fl4Proofs.P1.PlainStore st] (s : S) 
     refine Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ?_⟩
     show if _ = _ then _ else _
     rw [if_neg (by simp)]
-    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    exact ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
 
 end
 

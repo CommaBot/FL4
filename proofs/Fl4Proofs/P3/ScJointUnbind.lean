@@ -70,7 +70,7 @@ set_option maxHeartbeats 8000000 in
 restart (`JAtZ.restartJ`), then `unbind_all_tcbs`, `unbind_ntfn` and
 `unbind_reply` of the SC at `J`; the spec's restart and Unbind. -/
 theorem JAtZ.scUnbindJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) {sc : U64} (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART

@@ -268,7 +268,7 @@ theorem decode_invocation_ioport_inJL (hAM : ARMask arI AR) (s : S) (ar : A)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKRMX (L := L) arI (JAtL (L := L) arI AR) s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf
       extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAtL (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, hL⟩
+  have hJ0 : JAtL (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, hL, inferInstance⟩
   unfold DecOKRMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hsz : portSz lbl = 1 ∨ portSz lbl = 2 ∨ portSz lbl = 4 := by unfold portSz; split_ifs <;> simp
@@ -378,9 +378,9 @@ theorem decode_invocation_ioportJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (a
     exact ⟨a', h⟩
   exact decode_invocation_ioportXS arI Z.th hX.rel.1 s ar σ lbl slbl hlbl length buf ct hct args hlen hargs hcur
     (hX.curTcb hcur).1 J.kern.act first last hfl (by simpa using hl) call hout rfl hX (J.curRun.run hni)
-    (X := JAtL (L := L) arI AR) ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    (X := JAtL (L := L) arI AR) ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
     (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', _⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-      ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩)
+      ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩)
     (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h))
     (cslotAddr sl) blk don fp extra ci sl excaps buffer
     (fun hI => Or.inr (decode_invocation_ioport_inJL arI hARI.toMask s ar σ J hLv hZB lbl hI slbl (hlbl.1 hI) length
@@ -396,7 +396,7 @@ theorem IrqSteps.jatL [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S}
     {σ' : Fl4Spec.State Unit} (h : IrqSteps (L := L) arI Z.th s ar σ s' a' σ') : JAtL (L := L) arI AR s' a' σ' := by
   rcases h with h | ⟨ct, s2, σ1, sl, p, b, w, r, s3, a3, σ3, hct, hs2, hst, -, hA, -, hk, hd, hm, h2⟩
   · obtain ⟨_, V', Ac', Lst', D', J', hL', -⟩ := Steps.jatL hAM h rfl J hLv (J.zNoBlk hsg)
-    exact ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩
+    exact ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩
   have hW := WJL.restart arI J hni hsg hP0 hLv hct s2 σ1 hs2 hst
   have hDS2 : DState (L := L) Z.th s2 σ1 Z.G := by
     obtain ⟨⟨V, Ac2, Lst2, D2, J2, -⟩, -⟩ := hW
@@ -413,7 +413,7 @@ theorem IrqSteps.jatL [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S}
   obtain ⟨⟨V4, Ac4, Lst4, D4, J4, -, -, hsg4, -⟩, hL4⟩ := hW4
   obtain ⟨_, V', Ac', Lst', D', J', hL', -⟩ :=
     Steps.jatL hAM h2 (Z := Z.mv G4 V4) rfl J4 hL4 (J4.zNoBlk hsg4)
-  exact ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩
+  exact ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **An IRQ handler cap, `JAtL` after** (XTopJointIrqL's
@@ -440,7 +440,7 @@ theorem decode_invocation_irq_handlerJLL [Fl4Proofs.P1.PlainStore st] (s : S) (a
   exact decode_invocation_irq_handlerXSD arI Z.th hX.rel.1 s ar σ Z.G J.dstate J.intL
     hX.fin.1.1.2.2.2.1 lbl slbl hlbl ct hct hcur (hX.curTcb hcur).1 J.kern.act (maskIrq_total arI hT) irq hirq hok
     (irqDelOKJL arI J hni hsg hP0 hLv hct irq hirq) (irqDelDKJ arI (jStepHyps arI) J hni hsg hct irq hirq)
-    extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
     (fun _ _ _ h => IrqSteps.jatL arI hARI.toMask J hni hsg hP0 hLv h)
     (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h))
     length (cslotAddr sl) buf blk call don fp args ci sl buffer
@@ -473,9 +473,9 @@ theorem decode_invocation_irq_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.Stat
   obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_irq_controlXS arI Z.th s ar σ Z.G J.intL hHA lbl slbl hlbl hrm length
     buf ct hct args hlen hargs hcur J.kern.act hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA
-    (maskIrq_total arI hT) hAR rfl rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    (maskIrq_total arI hT) hAR rfl rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
     (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', _⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-      ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩)
+      ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩)
     (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h))
     blk call don fp ci buffer
 
@@ -504,9 +504,9 @@ theorem decode_invocation_ioport_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.S
   obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_ioport_controlXS arI Z.th s ar σ Z.G J.ioLay hPA lbl slbl hlbl length
     buf ct hct args hlen hargs hcur J.kern.act hact3 extra x0 hx0 excaps hex hps hls hsrcC rfl rfl hX (J.curRun.run hni) _
-    ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
     (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', _⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-      ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩)
+      ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩)
     (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h)) blk call don fp ci buffer
 
 set_option maxHeartbeats 4000000 in
@@ -537,9 +537,9 @@ theorem decode_invocation_domainJ_stepL (hcfg : DomConfig) (s : S) (ar : A) (σ 
   exact decode_invocation_domainXS arI hcfg Z.th hX.rel.1 s ar σ Z.G hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 ct hct
     hcur (hX.curTcb hcur).1 J.kern.act hkf hP.vs.ksb_al hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0
     hx0 excs hex (domSetHyp_of hX J.thT hC hA hcur) (domResHyp_of hX J.ks J.thT hC hA hcur)
-    (domStallHyp_of arI hX.fin.1.1.1 J.thT) hC ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+    (domStallHyp_of arI hX.fin.1.1.1 J.thT) hC ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
     (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', _⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-      ⟨_, H, Cs, Ac', Lst', D', J', hL'⟩)
+      ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩)
     (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h))
     slot blk call don fp ci sl buffer
 

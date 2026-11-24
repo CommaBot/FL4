@@ -374,7 +374,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`update_timestamp; check_budget` at an entry state of the idle thread** (`JAtZ.utCheckB` with
 `ct = idle` and a resumed scheduler action in place of `Entered`). -/
 theorem JAtZ.utCheckBI {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
-    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) (hres0 : σ0.schedulerAction = .resumeCurThread)
+    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) [VxE Z] (hres0 : σ0.schedulerAction = .resumeCurThread)
     (hid0 : σ0.curThread = σ0.idleThread) (hBu : KBudgetB arI a σ0) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
