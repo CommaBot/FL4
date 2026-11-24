@@ -91,7 +91,7 @@ threads share are the user's (DESIGN §7).
   `ReadSet` / `WriteSet`, which with `read_own` / `write_own` / `move` is
   `Serial.Allowed` at each step of the path's sequential run, hence (by
   `Serial`'s simulation invariant) at each step of every interleaving: the
-  path's share of `Serial.FootprintOK`.
+  path's share of `Serial.GReach` (every step `Allowed`).
 -/
 import Fl4Proofs.P1.Store
 import Fl4Proofs.P2.Serial

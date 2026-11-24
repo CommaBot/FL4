@@ -1,5 +1,5 @@
 /-
-P2: **why the `BodyOK` bridge needs `MoveLocal` beside `Deciders`** (the open
+P2: **why the `SafeStep.start` bridge needs `MoveLocal` beside `Deciders`** (the open
 point of `SerialSafe`'s plan, step 4).
 
 `PathObl.dec_alt` certifies a declined run's writes (`StepOK`, i.e. `MoveV`)
@@ -29,13 +29,12 @@ The toy (words `a`, `b1`, `b2`; cores `c = false`, `d = true`; no locks):
   (`Foreign`), `c` reads 1, `d` writes `b1 := 0` and `b2 := 1`, `c` reads 1,
   and `c`'s write `a := 1` in the memory `b1 = 0, b2 = 1` moves `a` to
   `core d`. This is a real execution (each of `d`'s writes moves no owner, so
-  it is `Allowed` for `d`) whose step of `c` is not `Allowed`: `FootprintOK`
-  fails, not only `BodyOK`.
+  it is `Allowed` for `d`) whose step of `c` is not `Allowed`, not only not `Safe`.
 * `MoveLocal` fails for `mown` (`mown_not_moveLocal`): where `a` moves after
   the write is decided by `b1`, `b2`, which are neither `a`'s owner's nor the
   gate's.
 
-Consequence: `BodyOK` cannot be discharged from `PathObl` v3 + `DecOnce` +
+Consequence: `SafeStep.start` cannot be discharged from `PathObl` v3 + `DecOnce` +
 `Deciders`. With `SerialSafe.MoveHeld` (proved for `OwnMap.own`:
 `OwnMap.moveHeld`; `Deciders` and `MoveLocal` imply it) the per-write check transfers from `μ*` to `μ`
 (`SerialSafe.moveV_transfer`), since `μ` and `μ*` differ only on words the core
