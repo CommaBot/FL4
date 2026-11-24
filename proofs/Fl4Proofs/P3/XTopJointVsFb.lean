@@ -334,6 +334,7 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
         first
           | refine ⟨⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, hRt1⟩, by omega⟩
           | refine ⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, hRt1, by omega⟩
+          | refine ⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, hRt1.1, hRt1.2, by omega⟩
         intro y hy
         apply hpre
         rw [hbe] at hy ⊢
