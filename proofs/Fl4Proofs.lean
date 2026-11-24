@@ -172,6 +172,7 @@ import Fl4Proofs.P2.FootSlTail
 import Fl4Proofs.P2.FootSlDefs
 import Fl4Proofs.P2.FootSlFault
 import Fl4Proofs.P2.FootSyscall
+import Fl4Proofs.P2.FootSlRR
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
