@@ -420,21 +420,21 @@ theorem RepW.foot {U : Set U64} {s s1 : S} {t : U64} (ht : t ∈ T) (w : WritesI
 
 /-- The report's `RepW` words keep `DonCore`. -/
 theorem RepW.doncore {U : Set U64} {s s1 : S} {t n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hU : UserOK st T Cs Ω H U s) (ht : t ∈ T) (hn : n ∈ Nt) (w : WritesIn st s s1 (RepW t U))
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (ht : t ∈ T) (hn : n ∈ Nt) (w : WritesIn st s s1 (RepW t U))
     (hD : DonCore st T Scs n s) : DonCore st T Scs n s1 := by
   obtain ⟨⟨Q, R, h0⟩, -, hX, -, hSg⟩ := h
   have hT := h0.tcbs
   have sg : ∀ b ∈ Sg, L.mem s1 b = L.mem s b := fun b hb => w.mem_eq (h0.omega _ (hSg.sub b hb)).1 (by
     rintro (⟨K, h1, h2, h3, e⟩ | hu)
     · exact out_ne_field (h0.omega _ (hSg.sub b hb)) ht (hT t ht) (by omega) (congrArg UScalar.val e).symm
-    · exact (hU b hu).2.1 (hSg.sub b hb))
+    · exact (hU b hu).sg hb)
   refine hD.keep (sg _ (hX.1.ntW n hn)) (fun y hy => ?_) (fun x hx => sg _ (hX.1.fixW x hx).2)
   rw [affA_eq]
   refine w.mem_eq (field_aligned (hT y hy) (by simp) (by simp)) ?_
   rintro (⟨K, h1, h2, h3, e⟩ | hu)
   · exact field_ne (K1 := 3520#u64) (K2 := K) (hT y hy) (hT t ht) (by simp) (by omega)
       (fun _ => by first | omega | (simp; omega)) e
-  · exact out_ne_field (hU _ hu).1 hy (hT y hy) (by simp) rfl
+  · exact out_ne_field (hU _ hu).out hy (hT y hy) (by simp) rfl
 
 /-! ## #63: the same-core `RunningVM` completion, with its footprint -/
 
@@ -518,7 +518,7 @@ theorem vcpu.report.blkFK {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA :
     (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
     (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
       L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
-    (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       L.mem s' (stA t) = sched.TS_RUNNING ∧ FootUB st T Cs Sg Scs Z Es U s s' ∧
       (DonCore st T Scs n s → DonCore st T Scs n s') ⦄ := by
@@ -543,7 +543,7 @@ theorem vcpu.report.blkF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : 
     (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
     (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
       L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
-    (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       L.mem s' (stA t) = sched.TS_RUNNING ∧ FootU st T Cs Sg Scs Z Es U s s' ∧
       (DonCore st T Scs n s → DonCore st T Scs n s') ⦄ :=
@@ -711,12 +711,20 @@ theorem signal_vmF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s1
     simp only [WP.uncurry'_pair] at hr ⊢
     exact ⟨hr.1, hr.2.1.footD, fun hD => (hr.2.2 hD).foot⟩
 
+/-- (int6) **`send_signal` completes no VMEnter**: the notification is not
+idle, or its bound thread is not `TS_RUNNING_VM` (then the footprint is the
+old `KW` / debug one, `send_signal.tinvF`'s last conjunct). -/
+def NoVmSig (st : machine.Store S) [L : LawfulStore st] (n : U64) (s : S) : Prop :=
+  L.epState s n ≠ obj.NTFN_IDLE ∨ L.mem s (stA (L.mem s (ntfnBtA n))) ≠ sched.TS_RUNNING_VM
+
 theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
-    (hH : H n = some .ntfn) (hU : UserOK st T Cs Ω H U s)
+    (hH : H n = some .ntfn) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
     (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
-      FootDUB st T Cs Sg Scs Z (EH H) U s s' ∧ (DonCore st T Scs n s → FootUB st T Cs Sg Scs Z (EH H) U s s') ⦄ := by
+      FootDUB st T Cs Sg Scs Z (EH H) U s s' ∧ (DonCore st T Scs n s → FootUB st T Cs Sg Scs Z (EH H) U s s') ∧
+      (NoVmSig st n s → FootDB st T Cs Sg Scs Z (EH H) s s' ∧
+        (DonCore st T Scs n s → FootB st T Cs Sg Scs Z (EH H) s s')) ⦄ := by
   have hI := h
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hTm := hX.2.2.tm
@@ -755,21 +763,23 @@ theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine
           let i2 ← obj.Tcb.state st i s1
           if i2 = sched.TS_RUNNING_VM then notification.kick_guest st ar s1 a i else ok (s1, a))
         ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootDUB st T Cs Sg Scs Z (EH H) U s s' ∧
-          (DonCore st T Scs n s → FootUB st T Cs Sg Scs Z (EH H) U s s') ⦄ := by
+          (DonCore st T Scs n s → FootUB st T Cs Sg Scs Z (EH H) U s s') ∧
+          (NoVmSig st n s → FootDB st T Cs Sg Scs Z (EH H) s s' ∧
+            (DonCore st T Scs n s → FootB st T Cs Sg Scs Z (EH H) s s')) ⦄ := by
       refine WP.spec_bind (WP.spec_and sa saF) fun s1 ⟨h1, F1⟩ => ?_
-      refine sig_if _ _ _ _ (fun _ => (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1⟩) (fun _ => ?_)
+      refine sig_if _ _ _ _ (fun _ => (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1, fun _ => ⟨FootB.d F1, fun _ => F1⟩⟩) (fun _ => ?_)
       step with obj.Tcb.state.spec
-      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1⟩)
+      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1, fun _ => ⟨FootB.d F1, fun _ => F1⟩⟩)
       refine WP.spec_mono (notification.kick_guest.same hA s1 a i) fun r hr => ?_
       obtain ⟨s', a'⟩ := r
       simp only at hr
       subst hr
-      exact ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1⟩
+      exact ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1, fun _ => ⟨FootB.d F1, fun _ => F1⟩⟩
     by_cases hb : b = true
     · rw [if_pos hb, if_pos hb]
       refine WP.spec_bind (WP.spec_and sa saF) fun s1 ⟨h1, F1⟩ => ?_
       rw [if_pos hb]
-      exact (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1⟩
+      exact (WP.spec_ok _).2 ⟨h1, FootDB.u (FootB.d F1), fun _ => FootB.u F1, fun _ => ⟨FootB.d F1, fun _ => F1⟩⟩
     rw [if_neg hb]
     have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
     have hiT : i ∈ T := by
@@ -817,7 +827,9 @@ theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine
       rintro ⟨s', a'⟩ ⟨hb', tm', F', F'c⟩
       exact ⟨hI.of_tmfr hb' ((TmFr.of_keepT k1).trans ((TmFr.of_keepT k2).trans tm')),
         FootDB.u ((FootB.d (F1.trans F2)).trans F'),
-        fun hD => FootB.u (F1.trans (F2.trans (F'c ((hD.keepT0 hn k1.toKeepT0).keepT0 hn k2.toKeepT0))))⟩
+        fun hD => FootB.u (F1.trans (F2.trans (F'c ((hD.keepT0 hn k1.toKeepT0).keepT0 hn k2.toKeepT0)))),
+        fun _ => ⟨(FootB.d (F1.trans F2)).trans F',
+          fun hD => F1.trans (F2.trans (F'c ((hD.keepT0 hn k1.toKeepT0).keepT0 hn k2.toKeepT0)))⟩⟩
     · -- not receiving: (#63 / #85) the `RunningVM` completion, else active (and kicked)
       rw [if_neg hb]
       refine sig_if _ _ _ _ (fun hvm => ?_) (fun _ => OLD)
@@ -829,7 +841,11 @@ theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine
       rintro s1 ⟨h1, st1, F1, D1⟩
       refine WP.spec_mono (signal_vmFK (Es := EH H) hA s1 a i n h1 hiT hn st1) ?_
       rintro ⟨s', a'⟩ ⟨hb', F', F'c⟩
-      exact ⟨hb', (FootUB.d F1).trans (FootDB.u F'), fun hD => F1.trans (FootB.u (F'c (D1 hD)))⟩
+      refine ⟨hb', (FootUB.d F1).trans (FootDB.u F'), fun hD => F1.trans (FootB.u (F'c (D1 hD))), fun hnv => ?_⟩
+      exfalso
+      rcases hnv with e | e
+      · exact e (by rw [← hv, hidl])
+      · exact e (by rw [← ei]; exact hvmS)
   · split
     · -- a waiting notification
       rename_i hwait
@@ -879,7 +895,8 @@ theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine
           (fun y hy => by rw [affA_eq]; exact f1 y hy _ (by simp) (by simp) (by simp) (by simp))
           (fun x hx => o1 _ (hSg.sub _ (hX.1.fixW x hx).2))
       exact ⟨hI.of_tmfr hb' (tm1.trans ((TmFr.of_keepT k2).trans tm')), FootDB.u ((FootB.d (F1.trans F2)).trans F'),
-        fun hD => FootB.u (F1.trans (F2.trans (F'c ((dc1 hD).keepT0 hn k2.toKeepT0))))⟩
+        fun hD => FootB.u (F1.trans (F2.trans (F'c ((dc1 hD).keepT0 hn k2.toKeepT0)))),
+        fun _ => ⟨(FootB.d (F1.trans F2)).trans F', fun hD => F1.trans (F2.trans (F'c ((dc1 hD).keepT0 hn k2.toKeepT0)))⟩⟩
     · -- an active notification
       step with obj.Ntfn.badge.val as ⟨i, ei⟩
       simp only [lift, Aeneas.Std.bind_ok]
@@ -889,32 +906,37 @@ theorem notification.send_signal.tinvFK {U : Set U64} {A : Type _} {ar : machine
         (⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) hn
       exact (WP.spec_ok _).2 ⟨hI.of_tmfr b1 tm1, FootDB.u (FootB.d (footB_wr ((h0.omega _ (hSg.sub _ (hX.1.ntB n hn).1)).1)
         (kwB_sg (hX.1.ntB n hn).1))), fun _ => FootB.u (footB_wr ((h0.omega _ (hSg.sub _ (hX.1.ntB n hn).1)).1)
-        (kwB_sg (hX.1.ntB n hn).1))⟩
+        (kwB_sg (hX.1.ntB n hn).1)), fun _ => ⟨FootB.d (footB_wr ((h0.omega _ (hSg.sub _ (hX.1.ntB n hn).1)).1)
+        (kwB_sg (hX.1.ntB n hn).1)), fun _ => footB_wr ((h0.omega _ (hSg.sub _ (hX.1.ntB n hn).1)).1)
+        (kwB_sg (hX.1.ntB n hn).1)⟩⟩
 
 theorem notification.send_signal.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
-    (hH : H n = some .ntfn) (hU : UserOK st T Cs Ω H U s)
+    (hH : H n = some .ntfn) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
     (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
-      FootDU st T Cs Sg Scs Z (EH H) U s s' ∧ (DonCore st T Scs n s → FootU st T Cs Sg Scs Z (EH H) U s s') ⦄ :=
+      FootDU st T Cs Sg Scs Z (EH H) U s s' ∧ (DonCore st T Scs n s → FootU st T Cs Sg Scs Z (EH H) U s s') ∧
+      (NoVmSig st n s → FootD st T Cs Sg Scs Z (EH H) s s' ∧
+        (DonCore st T Scs n s → Foot st T Cs Sg Scs Z (EH H) s s')) ⦄ :=
   WP.spec_mono (notification.send_signal.tinvFK hA s a n badge h hn hH hU hbuf) fun r hr => by
     obtain ⟨s', a'⟩ := r
     simp only [WP.uncurry'_pair] at hr ⊢
-    exact ⟨hr.1, hr.2.1.footDU, fun hD => (hr.2.2 hD).footU⟩
+    exact ⟨hr.1, hr.2.1.footDU, fun hD => (hr.2.2.1 hD).footU,
+      fun hnv => ⟨(hr.2.2.2 hnv).1.footD, fun hD => ((hr.2.2.2 hnv).2 hD).foot⟩⟩
 
 theorem timer.fire_loop.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     timer.fire_loop st ar s a now i ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       FootDU st T Cs Sg Scs Z (EH H) U s s' ⦄ := by
   obtain ⟨IKr, IKs, IKp⟩ := IK T Cs Ω H Sg Rp Scs Nt Z Ac U
   unfold timer.fire_loop
-  refine WP.spec_mono (P := fun r : S × A => (TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
-    FootDU st T Cs Sg Scs Z (EH H) U s r.1) ∧ IbFr (L := L) T s r.1) ?_ fun r hr => hr.1
+  refine WP.spec_mono (P₀ := fun r : S × A => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
+    FootDU st T Cs Sg Scs Z (EH H) U s r.1 ∧ IbFr (L := L) T s r.1) ?_ fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨hr.1, hr.2.1⟩
   apply loop.spec_decr_nat (measure := fun x => 32 - x.2.2.val)
-    (inv := fun x => (TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1 ∧ FootDU st T Cs Sg Scs Z (EH H) U s x.1) ∧
+    (inv := fun x => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1 ∧ FootDU st T Cs Sg Scs Z (EH H) U s x.1 ∧
       IbFr (L := L) T s x.1)
-  · rintro ⟨s1, a1, i1⟩ ⟨⟨h1, F1⟩, f1⟩
+  · rintro ⟨s1, a1, i1⟩ ⟨h1, F1, f1⟩
     simp only at h1 F1 f1
     unfold timer.fire_loop.body
     dsimp only
@@ -925,7 +947,7 @@ theorem timer.fire_loop.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (
       step with obj.node_get.spec as ⟨t, et⟩
       step with obj.Tcb.is_null.spec as ⟨b, eb⟩
       split
-      · exact (WP.spec_ok _).2 ⟨⟨h1, F1⟩, f1⟩
+      · exact (WP.spec_ok _).2 ⟨h1, F1, f1⟩
       rename_i hb
       have ht0 : t ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
       have hI1 := h1
@@ -939,15 +961,15 @@ theorem timer.fire_loop.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (
         · exact e
       step with obj.Tcb.timer_deadline.val as ⟨d, ed⟩
       split
-      · exact (WP.spec_ok _).2 ⟨⟨hI1, F1⟩, f1⟩
+      · exact (WP.spec_ok _).2 ⟨hI1, F1, f1⟩
       step with obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
       refine WP.spec_bind (WP.spec_and (timer.remove.tf (s0 := s1) s1 t (TF.start hI1) htT) (IKr s1 t hI1 htT)) ?_
       rintro s2 ⟨⟨h2, f2, -⟩, g2⟩
       have F2 : FootDU st T Cs Sg Scs Z (EH H) U s s2 := F1.trans (FootD.u (Foot.d (f2.mono (Set.empty_subset _))))
       have f12 := f1.trans g2
       step with obj.Tcb.bound_ntfn.val as ⟨n, en⟩
-      refine WP.spec_bind (Pₘ := fun r : S × A => (TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
-          FootDU st T Cs Sg Scs Z (EH H) U s r.1) ∧ IbFr (L := L) T s r.1) ?_ ?_
+      refine WP.spec_bind (Pₘ := fun r : S × A => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
+          FootDU st T Cs Sg Scs Z (EH H) U s r.1 ∧ IbFr (L := L) T s r.1) ?_ ?_
       · split
         · rename_i hn0
           have hn0' : L.mem s2 (boundA t) ≠ 0#u64 := by rw [← en]; exact bne_ne hn0
@@ -956,9 +978,9 @@ theorem timer.fire_loop.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (
           exact WP.spec_mono (WP.spec_and (notification.send_signal.tinvF hA s2 a1 n bd h2 hn (hNt n hn) hb2.1 hb2.2)
             (IKs s2 a1 n bd h2 hn (hNt n hn) hb2)) fun r hr => by
             obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hr
-            exact ⟨⟨hr.1.1, F2.trans hr.1.2.1⟩, f12.trans hr.2⟩
-        · exact (WP.spec_ok _).2 ⟨⟨h2, F2⟩, f12⟩
-      rintro ⟨s3, a3⟩ ⟨⟨h3, F3⟩, f3⟩
+            exact ⟨hr.1.1, F2.trans hr.1.2.1, f12.trans hr.2⟩
+        · exact (WP.spec_ok _).2 ⟨h2, F2, f12⟩
+      rintro ⟨s3, a3⟩ ⟨h3, F3, f3⟩
       simp only at h3 F3 f3
       try simp only [WP.uncurry'_pair]
       step with LawfulStore.cur_cpu_spec as ⟨c3, ec3⟩
@@ -968,15 +990,15 @@ theorem timer.fire_loop.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (
       subst es4 ec3
       have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
       have hc3 := h3.1.choose_spec.choose_spec.cur
-      exact ⟨⟨⟨reprogram.tinv h3, F3.trans (FootD.u (Foot.d (foot_node (h3.1.choose_spec.choose_spec.nodes _ hc3) hc3
-        (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega))))⟩, f3.trans (IKp s3 1#u64 h3)⟩, by omega⟩
-    · exact (WP.spec_ok _).2 ⟨⟨h1, F1⟩, f1⟩
-  · exact ⟨⟨h, FootD.u (Foot.d (Foot.refl _))⟩, IbFr.refl s⟩
+      exact ⟨reprogram.tinv h3, F3.trans (FootD.u (Foot.d (foot_node (h3.1.choose_spec.choose_spec.nodes _ hc3) hc3
+        (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega)))), f3.trans (IKp s3 1#u64 h3), by omega⟩
+    · exact (WP.spec_ok _).2 ⟨h1, F1, f1⟩
+  · exact ⟨h, FootD.u (Foot.d (Foot.refl _)), IbFr.refl s⟩
 
 /-- seL4 MCS `fireTimers` (l4h): `timer::fire` keeps `TInv`. -/
 theorem timer.fire.tinvF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     timer.fire st ar s a ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       FootDU st T Cs Sg Scs Z (EH H) U s s' ⦄ := by
   unfold timer.fire
@@ -1236,7 +1258,7 @@ theorem sched.awaken_loop.kw (s : S) (fuel : U64) (Q : U64 → U64 → List U64)
 
 theorem sched.schedule.sfoot {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
-    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     sched.schedule st ar s a ⦃ s' _ => ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
       FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ SFoot st T Cs Sg Scs Z H rf.1 s' ⦄ := by
   unfold sched.schedule sched.awaken
@@ -1435,7 +1457,7 @@ theorem sched.schedule.sfoot {U : Set U64} {A : Type _} {ar : machine.Arch A} (h
 notifications). -/
 theorem timer.fire.kw {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
-    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     timer.fire st ar s a ⦃ s' _ => FootDU st T Cs Sg Scs Z (EH H) U s s' ⦄ :=
   WP.spec_mono (timer.fire.tinvF hA IK hNt s a h.tinv hBA) fun r hr => by
     obtain ⟨s', a'⟩ := r; simp only [WP.uncurry'_pair] at hr ⊢; exact hr.2
@@ -1445,7 +1467,7 @@ lists and, int6, the user words of a signalled VMEnter caller's IPC buffer),
 then the words of `SchedW`. -/
 theorem sched.schedule.kw {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
-    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     sched.schedule st ar s a ⦃ s' _ => ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
       FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ WritesIn st rf.1 s' (SchedW st T Cs Sg Scs Z H rf.1) ⦄ :=
   sched.schedule.sfoot hA IK hNt s a h hBA

@@ -39,7 +39,7 @@ current core, if due, out of the tree and signals its thread's bound
 notification. -/
 theorem timer.fire_loop.tinv {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     timer.fire_loop st ar s a now i ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ IbFr (L := L) T s s' ⦄ := by
   obtain ⟨IKr, IKs, IKp⟩ := IK T Cs Ω H Sg Rp Scs Nt Z Ac U
   unfold timer.fire_loop
@@ -95,14 +95,14 @@ theorem timer.fire_loop.tinv {U : Set U64} {A : Type _} {ar : machine.Arch A} (h
       step as ⟨i4, ei4⟩
       try simp only [WP.spec_ok]
       subst es4 ec3
-      exact ⟨⟨reprogram.tinv h3, f3.trans (IKp s3 1#u64 h3)⟩, by omega⟩
+      exact ⟨reprogram.tinv h3, f3.trans (IKp s3 1#u64 h3), by omega⟩
     · exact (WP.spec_ok _).2 ⟨h1, f1⟩
   · exact ⟨h, IbFr.refl s⟩
 
 /-- seL4 MCS `fireTimers` (l4h): `timer::fire` keeps `TInv`. -/
 theorem timer.fire.tinv {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hBA : BufAt st T Cs Ω H U s) :
+    (hBA : BufAt st T Cs H Sg Scs Z U s) :
     timer.fire st ar s a ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ IbFr (L := L) T s s' ⦄ := by
   unfold timer.fire
   refine WP.spec_bind (L.cur_cpu_spec s) fun c _ => ?_
@@ -116,7 +116,7 @@ theorem sched.schedule.tinv {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (Q : U64 → U64 → List U64)
     (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
-    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) (hBA : BufAt st T Cs Ω H U s) :
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     sched.schedule st ar s a ⦃ s' _ => (∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R') ∧ BoundInv st T Ac s' ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧ SCsOK st T Ω Sg Scs Z Ac s' ∧ TimerOK st T Cs s' ∧ L.cscW s' ∈ Ac ∧
       L.actionW s' = 0#u64 ∧ L.cscW s' = L.mem s' (scA (L.curW s')) ⦄ := by
@@ -149,7 +149,7 @@ theorem sched.schedule.entry {U : Set U64} {A : Type _} {ar : machine.Arch A} (h
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (Q : U64 → U64 → List U64)
     (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
-    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) (hBA : BufAt st T Cs Ω H U s) :
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hSg : SgOK st Ω Sg s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     sched.schedule st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   WP.spec_mono (sched.schedule.tinv hA IK hNt s a Q R h hB hS hX hSg hBA) fun r hr => by
     obtain ⟨s', a'⟩ := r

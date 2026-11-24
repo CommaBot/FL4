@@ -479,7 +479,7 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
       L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
       vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄)
     (bufAt : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
-      BufAt st T Cs Ω H U s) :
+      BufAt st T Cs H Sg Scs Z U s) :
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨⟨xfer, tmoOK, blkU, recvOK, irqcap, debug, postG, fun Ac s a h =>
     WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr,

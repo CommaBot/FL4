@@ -5,6 +5,7 @@ and CNode Delete/Revoke (`InvGaps3`), with the CDT placement facts
 -/
 import Fl4Proofs.P1.QueueDecDel
 import Fl4Proofs.P1.QueueDecTdx
+import Fl4Proofs.P1.EntryFin
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1

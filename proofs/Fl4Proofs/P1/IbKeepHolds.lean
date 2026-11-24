@@ -9,7 +9,7 @@ three words `lookup_ipc_buffer` reads of every TCB (`IbFr`).
 * `send_signal`: `notification.send_signal.tinvFK` (QueueFootS) gives its
   footprint as `FootDUB` (`KWB`: `KW` without the `IPC_BUFFER` word, the debug
   lists, and the user words `U`); `BufKeep.of_blkDBU` (QueueFinal) turns that
-  into the buffer words kept, `UserOK` putting `U` outside the TCBs.
+  into the buffer words kept, `UsrW` putting `U` outside the TCBs.
 
 No premise.
 -/
@@ -61,14 +61,14 @@ theorem reprogram.ibFr {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {
 theorem notification.send_signal.ibFr {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
     {Ac U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (n bd : U64)
     (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt) (hH : H n = some .ntfn)
-    (hBA : BufAt st T Cs Ω H U s) :
+    (hBA : BufAt st T Cs H Sg Scs Z U s) :
     notification.send_signal st ar s a n bd ⦃ s' _ => IbFr (L := L) T s s' ⦄ := by
   refine WP.spec_mono (notification.send_signal.tinvFK hA s a n bd h hn hH hBA.1 hBA.2) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   simp only [WP.uncurry'_pair] at hr ⊢
   have f := hr.2.1
   exact IbFr.of_bufKeep f.1 (BufKeep.of_blkDBU (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (fun b hb => (hBA.1 b hb).1)
+    (fun b hb => (hBA.1 b hb).out)
     (WritesIn.mono f fun _ hb => by
       rcases hb with (hb | hb) | hb
       · exact Or.inl hb

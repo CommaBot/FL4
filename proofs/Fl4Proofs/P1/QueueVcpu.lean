@@ -255,60 +255,7 @@ theorem vcpu.set.xs (hH : HeapOK H) {s0 s : S} {v o x : U64} (hv : H v = some (.
   exact WP.spec_mono (LawfulStore.write_spec s _ x) fun s' e => e ▸
     XSV.capw h (writesIn_wr (vcpu_obj_aligned hH hv ho h8)) fun b e => e ▸ vcpu_obj_capw hH hv ho h8
 
-theorem vcpu.report_loop0.xs {s0 s : S} {t v b i : U64}
-    (h : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
-    vcpu.report_loop0 st s t v b i ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
-  have hS : P0.StoreTotal st := L.total
-  unfold vcpu.report_loop0
-  apply loop.spec_decr_nat (measure := fun y => 30 - y.2.val)
-    (inv := fun y => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
-  · rintro ⟨s1, j⟩ h1
-    simp only at h1
-    try dsimp only
-    unfold vcpu.report_loop0.body
-    try dsimp only
-    split
-    swap
-    · exact (WP.spec_ok _).2 h1
-    rename_i hj
-    have hj' : j.val < 30 := by simpa [vcpu.NUM_MRS] using hj
-    step as ⟨i0, hi0⟩
-    step as ⟨i1, _⟩
-    refine WP.spec_bind (vcpu.get.any _ _ _) fun val _ => ?_
-    refine WP.spec_bind (msg.set_mr.xsv (v := val) h1 ht hb (by omega)) ?_
-    rintro ⟨_, s2⟩ ⟨h2, -⟩
-    try simp only [uncurry_apply_pair]
-    step as ⟨j2, hj2⟩
-    exact ⟨h2, by first | omega | (dsimp only; omega)⟩
-  · exact h
-
-theorem vcpu.report_loop1.xs {s0 s : S} {t v b j : U64}
-    (h : XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s) (ht : t ∈ H.tcbs) (hb : BufOK U b) :
-    vcpu.report_loop1 st s t v b j ⦃ s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 s' ⦄ := by
-  have hS : P0.StoreTotal st := L.total
-  unfold vcpu.report_loop1
-  apply loop.spec_decr_nat (measure := fun y => 15 - y.2.val)
-    (inv := fun y => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac ∅ Q R s0 y.1)
-  · rintro ⟨s1, k⟩ h1
-    simp only at h1
-    try dsimp only
-    unfold vcpu.report_loop1.body
-    try dsimp only
-    split
-    swap
-    · exact (WP.spec_ok _).2 h1
-    rename_i hk
-    have hk' : k.val < 15 := by simpa using hk
-    step as ⟨i0, hi0⟩
-    step as ⟨i1, _⟩
-    step as ⟨i2, _⟩
-    refine WP.spec_bind (vcpu.get.any _ _ _) fun val _ => ?_
-    refine WP.spec_bind (msg.set_mr.xsv (v := val) h1 ht hb (by omega)) ?_
-    rintro ⟨_, s2⟩ ⟨h2, -⟩
-    try simp only [uncurry_apply_pair]
-    step as ⟨k2, hk2⟩
-    exact ⟨h2, by first | omega | (dsimp only; omega)⟩
-  · exact h
+-- (int6) `report_loop0.xs` / `report_loop1.xs`: superseded by VcpuReport's `report_loop0..3.gen`.
 
 end
 

@@ -13,9 +13,8 @@ so the fact at `J` carries to every state reached from `J` by writes of
 
 * `JAtZ.bufFact`: the buffer fact at `J` (P1's `BufFact`, every TCB of `H`).
 * `JAtZ.bufU_outside`: the buffer words lie outside the TCBs and nodes.
-* `JAtZ.bufAt` / `JAtZ.bufAtU`: the int6 core's placement carrier `P1.BufAt`
-  (`UserOK` for `BufU Z σ` and the buffer fact) at `J`, for any `Ω` missing the
-  buffer words, e.g. `OmegaU` (the set `JAtZ.bxiU` uses).
+* `JAtZ.bufUsrW`, `JAtZ.bufAt`: the int6 core's placement carrier `P1.BufAt`
+  (every word of `BufU Z σ` a `UsrW` word, and the buffer fact) at `J`.
 * `JAtZ.bufFact_of_footDBU` / `JAtZ.bufFact_of_footDB`: the fact at any state
   `s'` with such a footprint from `J` (the fire loop's states: the loop
   carries `FootDB` from its start, plus the full-state reports' `BufU` words).
@@ -43,16 +42,30 @@ theorem JAtZ.bufU_outside {s : S} {a : A} {σ : Fl4Spec.State Unit}
     P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b :=
   (J.bufU_out hb).1
 
-/-- **The core's placement carrier at `J`** (`P1.BufAt`, int6), at any `Ω`
-missing the IPC-buffer words. -/
-theorem JAtZ.bufAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {Ω : Set U64} (hΩ : ∀ b ∈ BufU Z σ, b ∉ Ω) : P1.BufAt st (P1.Heap.tcbs H) Cs Ω H (BufU Z σ) s :=
-  ⟨fun b hb => ⟨(J.bufU_rbuf hb).1, hΩ b hb, (J.bufU_rbuf hb).2.1⟩, fun _ hy => J.bufOK hy⟩
+/-- **An IPC-buffer word is a user word** (`P1.UsrW`, int6): outside the
+TCBs and nodes, the endpoints and notifications, the frame words, the
+kernel-state block and the SCs. -/
+theorem JAtZ.bufUsrW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : b ∈ BufU Z σ) :
+    P1.UsrW st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) s b := by
+  obtain ⟨ho, he, hf⟩ := J.bufU_rbuf hb
+  refine ⟨ho, he, hf, fun o h1 h2 e => ?_, fun c hc hin => ?_⟩
+  · obtain ⟨wp, hwp, e'⟩ := J.bufU_B hb
+    have h0 := J.ks.buf wp hwp
+    have hv : (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
+      have := J.kern.ksbFit
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rw [e', ← e, hv] at h0; omega
+  · obtain ⟨z, hz⟩ := hc
+    have hz' : P1.Heap.scBits H c = z := by simp [P1.Heap.scBits, hz]
+    rw [hz'] at hin
+    exact hf ⟨ho.1, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), hin⟩
 
-/-- `JAtZ.bufAt` at `OmegaU` (`JAtZ.bxiU`'s set). -/
-theorem JAtZ.bufAtU {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
-    P1.BufAt st (P1.Heap.tcbs H) Cs (OmegaU H Z (L.ksb s) σ) H (BufU Z σ) s :=
-  J.bufAt fun _ hb => (J.bufU_out hb).2
+/-- **The core's placement carrier at `J`** (`P1.BufAt`, int6): the
+IPC-buffer words are user words and every TCB's buffer is among them. -/
+theorem JAtZ.bufAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    P1.BufAt st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (BufU Z σ) s :=
+  ⟨fun _ hb => J.bufUsrW hb, fun _ hy => J.bufOK hy⟩
 
 /-- **The buffer fact after a `KWB` / debug-list / `BufU` footprint from `J`**
 (any state inside `schedule`'s fire loop). -/
