@@ -178,7 +178,7 @@ theorem IoMid.of_entry {s s2 : S} {t sl : U64} {info : msginfo.MessageInfo} {C :
 CNode set `C` whose radix-masked slots lie outside the TCBs and nodes (P1's
 `CnOff`), the current SC's head word outside them, and the release head (if
 any) a placed thread whose SC's head word lies outside them. -/
-theorem io_hmid {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : Set U64} {s : S} {a : A}
+theorem io_hmid' {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : Set U64} {s : S} {a : A}
     {C : U64 → U64 → Prop} {sl : U64}
     (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hcC : L.cpu s ∈ Cs) (hcT : L.curW s ∈ T)
     (M : ∀ info, msg.msg_info st s (L.curW s) = ok info →
@@ -194,7 +194,7 @@ theorem io_hmid {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : 
       obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
-      ∃ C sl, IoMid (L := L) R W s s2 (L.curW s) info (L.mem s2 (regA (L.curW s) layout.reg.CAP)) C sl := by
+      IoMid (L := L) R W s s2 (L.curW s) info (L.mem s2 (regA (L.curW s) layout.reg.CAP)) C sl := by
   intro info nx s1 s2 a1 emi _ es1 eu
   have w := prefix_writes ar hA hT hN hcT es1 eu
   obtain ⟨ecur, tK, -⟩ := inv_prefix ar hT hN hcC (cur_thread_ok s) hcT es1 eu hA
@@ -234,7 +234,6 @@ theorem io_hmid {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : 
     fun o h1 h2 h3 h4 => pre_node w hT hN hcT h1 h2 h3 h4
   have est : L.mem s2 (scA (L.curW s)) = L.mem s (scA (L.curW s)) :=
     tK 3464#u64 (by decide) (by decide) (by decide)
-  refine ⟨C, sl, ?_⟩
   refine IoMid.of_entry M0 w.1 w.2.1 hcur
     (regK _ (by simp [layout.reg.MSG_INFO]) (by simp [layout.reg.MSG_INFO]))
     (regK _ (by simp [layout.reg.CAP]) (by simp [layout.reg.CAP])) esl eC

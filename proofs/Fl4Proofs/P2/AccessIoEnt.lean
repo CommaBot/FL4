@@ -306,12 +306,13 @@ theorem syscall.handle_ioport_local.guard_ent {A : Type} (ar : machine.Arch A) (
     obtain ⟨h8, h128, -⟩ := sc_lo hP hz
     have hh := headA_val' hP hz
     exact hq.omega _ (hS.sub _ ((hS.all _ hc).2.2 _ (by unfold Aligned; omega) ⟨by omega, by omega⟩))
-  have hmid := io_hmid (a := a) ar hA hq.tcbs (hq.nodes _ hq.cur) hq.cur hq.curT M hCo hLo (hd hX.cur)
+  have hmid' := io_hmid' (a := a) ar hA hq.tcbs (hq.nodes _ hq.cur) hq.cur hq.curT M hCo hLo (hd hX.cur)
     (fun h0 => ⟨(bxi_rh E.bxi h0).1, hd (bxi_rh E.bxi h0).2.1⟩)
+  have hmid := fun info nx s1 s2 a1 h1 h2 h3 h4 => (⟨C, sl, hmid' info nx s1 s2 a1 h1 h2 h3 h4⟩ :
+    ∃ C sl, IoMid (L := L) R W s s2 (L.curW s) info (L.mem s2 (regA (L.curW s) layout.reg.CAP)) C sl)
   refine syscall.handle_ioport_local.guard_acc ar E.acc.nd hmi hfl hnx hfi hmid ?_ h
   refine io_hfin hA E fun info nx s1 s2 a1 h1 h2 h3 h4 => ?_
-  obtain ⟨C', sl', M'⟩ := hmid info nx s1 s2 a1 h1 h2 h3 h4
-  exact M'.mi
+  exact (hmid' info nx s1 s2 a1 h1 h2 h3 h4).mi
 
 end
 
