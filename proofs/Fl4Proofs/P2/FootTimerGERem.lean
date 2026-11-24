@@ -34,7 +34,7 @@ theorem ge_core_of (C : TC st T s0 c K R W) {s : S} {t : U64} (ht : K t) (h : ti
 theorem ge_get_min (C : TC st T s0 c K R W) {s : S} {Kr : U64 → Prop} (hI : TI st s0 c K Kr s) :
     GE (obj.node_get (guard st R W) s c layout.node.TIMER_MIN) (obj.node_get st s c layout.node.TIMER_MIN)
       (fun _ => True) :=
-  GE.mono (ge_node_get C hI (by simp [layout.node.TIMER_MIN])) fun _ _ => trivial
+  GE.mono (ge_node_get C hI (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])) fun _ _ => trivial
 
 theorem ge_set_min (C : TC st T s0 c K R W) {s : S} {Kr : U64 → Prop} (hI : TI st s0 c K Kr s) {v : U64} :
     GE (obj.node_set (guard st R W) s c layout.node.TIMER_MIN v) (obj.node_set st s c layout.node.TIMER_MIN v)

@@ -29,8 +29,8 @@ abbrev Kz (K : U64 → Prop) (v : U64) : Prop := v = 0#u64 ∨ K v
 /-- The tree words: the timer fields (`TIMER_DEADLINE ..= TIMER_HEIGHT`) of the keys `K` and the node
 words of core `c` (addresses at the entry state `s0`). -/
 def TW (st : machine.Store S) [L : LawfulStore st] (s0 : S) (c : U64) (K : U64 → Prop) (w : U64) : Prop :=
-  (∃ z, K z ∧ ∃ k : U64, 3528 ≤ k.val ∧ k.val < 3576 ∧ w = core.num.U64.wrapping_add z k) ∨
-    (∃ o : U64, o.val < 4288 ∧ w = L.nodeAt s0 c o)
+  (∃ z, K z ∧ ∃ k : U64, 3528 ≤ k.val ∧ k.val < 3576 ∧ k.val % 8 = 0 ∧ w = core.num.U64.wrapping_add z k) ∨
+    (∃ o : U64, o.val < 4288 ∧ o.val % 8 = 0 ∧ w = L.nodeAt s0 c o)
 
 /-- The fixed context: placement, keys are TCBs, the guard admits `TW`. -/
 structure TC (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s0 : S) (c : U64) (K : U64 → Prop)
@@ -52,11 +52,11 @@ structure TI (st : machine.Store S) [L : LawfulStore st] (s0 : S) (c : U64) (K K
 
 variable {s0 : S} {c : U64} {K Kr : U64 → Prop}
 
-theorem TW.fld {z k : U64} (hz : K z) (h1 : 3528 ≤ k.val) (h2 : k.val < 3576) :
-    TW st s0 c K (core.num.U64.wrapping_add z k) := Or.inl ⟨z, hz, k, h1, h2, rfl⟩
+theorem TW.fld {z k : U64} (hz : K z) (h1 : 3528 ≤ k.val) (h2 : k.val < 3576) (h3 : k.val % 8 = 0 := by simp) :
+    TW st s0 c K (core.num.U64.wrapping_add z k) := Or.inl ⟨z, hz, k, h1, h2, h3, rfl⟩
 
-theorem TW.nd {s : S} {o : U64} (hI : TI st s0 c K Kr s) (ho : o.val < 4288) :
-    TW st s0 c K (L.nodeAt s c o) := Or.inr ⟨o, ho, nodeAt_of_ksb hI.ksb c o⟩
+theorem TW.nd {s : S} {o : U64} (hI : TI st s0 c K Kr s) (ho : o.val < 4288) (h8 : o.val % 8 = 0) :
+    TW st s0 c K (L.nodeAt s c o) := Or.inr ⟨o, ho, h8, nodeAt_of_ksb hI.ksb c o⟩
 
 theorem Kz.tz (C : TC st T s0 c K R W) {v : U64} (h : Kz K v) : Tz T v := h.imp_right (C.inT v)
 
@@ -181,22 +181,23 @@ theorem ge_is_red (C : TC st T s0 c K R W) {s : S} (_hI : TI st s0 c K Kr s) {x 
 theorem ge_root (C : TC st T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) :
     GE (timer.root (guard st R W) s c) (timer.root st s c) (Kz K) := by
   unfold timer.root
-  rw [PathObl.obj.node_get.guard s c _ (C.rd _ (TW.nd hI (by simp [layout.node.TIMER_ROOT])))]
+  rw [PathObl.obj.node_get.guard s c _ (C.rd _ (TW.nd hI (by simp [layout.node.TIMER_ROOT]) (by simp [layout.node.TIMER_ROOT])))]
   refine GE.bind (GE.refl _) fun i hi => GE.ret ?_
   rw [eq_of_spec_fd (obj.node_get.spec (L := L) s c _), nodeAt_of_ksb hI.ksb] at hi
   exact (ok_inj_ff hi) ▸ hI.root
 
-theorem ge_node_get (C : TC st T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {o : U64} (ho : o.val < 4288) :
+theorem ge_node_get (C : TC st T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {o : U64} (ho : o.val < 4288)
+    (ho8 : o.val % 8 = 0) :
     GE (obj.node_get (guard st R W) s c o) (obj.node_get st s c o)
       (fun v => v = L.mem s (L.nodeAt s0 c o)) := by
-  rw [PathObl.obj.node_get.guard s c _ (C.rd _ (TW.nd hI ho))]
+  rw [PathObl.obj.node_get.guard s c _ (C.rd _ (TW.nd hI ho ho8))]
   exact ⟨rfl, fun v e => by
     rw [eq_of_spec_fd (obj.node_get.spec (L := L) s c _), nodeAt_of_ksb hI.ksb] at e; exact (ok_inj_ff e).symm⟩
 
 theorem ge_node_set (C : TC st T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {o v : U64} (ho : o.val < 4288)
     (ho8 : o.val % 8 = 0) (hv : o.val = layout.node.TIMER_ROOT.val → Kz K v) :
     GE (obj.node_set (guard st R W) s c o v) (obj.node_set st s c o v) (TI st s0 c K Kr) := by
-  rw [PathObl.obj.node_set.guard s c _ _ (C.wr _ (TW.nd hI ho))]
+  rw [PathObl.obj.node_set.guard s c _ _ (C.wr _ (TW.nd hI ho ho8))]
   exact ⟨rfl, fun s' e => by
     rw [eq_of_spec_fd (obj.node_set.spec (L := L) s c _ _), nodeAt_of_ksb hI.ksb] at e
     exact (ok_inj_ff e) ▸ TI.wr_node C hI ho ho8 hv⟩

@@ -161,12 +161,12 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
     (hcq : L.rmax s c ≠ 0#u64 → RefillsWF st s c zc) (hcM : InSC c zc (maxA c) ∧ Aligned (maxA c))
     (hti : i ≠ c → RefillsWF st s i zt ∧ ∀ b, InSC i zt b → Outside b c zc)
     (hSc : ScAcc R W c zc) (hSi : i ≠ c → ScAcc R W i zt)
-    (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeA s o) ∧ W (L.nodeA s o)) (hsc : R (scA (L.curW s))) :
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA s o) ∧ W (L.nodeA s o)) (hsc : R (scA (L.curW s))) :
     sched.switch_sched_context (PathObl.guard st R W) ar s a = sched.switch_sched_context st ar s a := by
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have cs : layout.node.CUR_SC.val = 24 := by simp [layout.node.CUR_SC]
   have cn : layout.node.CONSUMED.val = 40 := by simp [layout.node.CONSUMED]
-  have nd : ∀ o : U64, o.val < 4288 → R (L.nodeA s o) ∧ W (L.nodeA s o) := hNd
+  have nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA s o) ∧ W (L.nodeA s o) := hNd
   have aR := (hNo _ (by rw [rp]; omega) (by rw [rp])).1
   have oRc := (hNo _ (by rw [rp]; omega) (by rw [rp])).2.1
   have oRi := (hNo _ (by rw [rp]; omega) (by rw [rp])).2.2
@@ -178,11 +178,11 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
     simp only [LawfulStore.nodeA]; rw [nodeAt_val hN' (by rw [rp]; omega), nodeAt_val hN' (by rw [cs]; omega), rp, cs]
     omega
   unfold sched.switch_sched_context
-  rw [sched.cur_thread.guard s (nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
+  rw [sched.cur_thread.guard s (nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
   simp only [bind_ok]
   rw [obj.Tcb.sc.guard _ s hsc, tcb_sc_ok, hi]
   simp only [bind_ok]
-  rw [sched.cur_sc.guard s (nd _ (by rw [cs]; omega)).1, eq_ok_of_spec (sched.cur_sc.spec s), hc]
+  rw [sched.cur_sc.guard s (nd _ (by rw [cs]; omega) (by rw [cs])).1, eq_ok_of_spec (sched.cur_sc.spec s), hc]
   simp only [bind_ok]
   refine bind_guard_congr rfl fun b hb => ?_
   have hb' : b = true ↔ c ≠ i := post_of_ok (sc_ne.spec' c i) hb
@@ -191,7 +191,7 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
     · rename_i hbt
       have hne : i ≠ c := fun e => (hb'.1 hbt) e.symm
       have hSi' := hSi hne
-      rw [sched.set_reprogram.guard s (nd _ (by rw [rp]; omega)).2]
+      rw [sched.set_reprogram.guard s (nd _ (by rw [rp]; omega) (by rw [rp])).2]
       refine bind_guard_congr rfl fun s3 hs3 => ?_
       rw [eq_ok_of_spec (sched.set_reprogram.spec s)] at hs3
       cases ok_inj_ff hs3
@@ -201,9 +201,9 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
       split
       · have e3 : ∀ o, L.nodeA (L.wr s (L.nodeA s layout.node.REPROGRAM) 1#u64) o = L.nodeA s o := fun o => by simp
         refine sporadic.unblock_check.guardS hSi' hSt3 ⟨by rw [e3]; exact aR, by rw [e3]; exact oRi hne⟩ ?_
-          (by rw [e3]; exact (nd _ (by rw [rp]; omega)).2)
+          (by rw [e3]; exact (nd _ (by rw [rp]; omega) (by rw [rp])).2)
         show R (L.nodeA _ layout.node.CUR_TIME)
-        rw [e3]; exact (nd _ (by simp [layout.node.CUR_TIME])).1
+        rw [e3]; exact (nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
       · rfl
     · rfl
   · -- the state after the first `if`
@@ -248,14 +248,14 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
         exact notC x hin h
     simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
     have eN' : ∀ o, L.nodeAt s2 (L.cpu s2) o = L.nodeA s o := eN
-    rw [obj.node_get.guard s2 _ _ (by rw [eN']; exact (nd _ (by rw [rp]; omega)).1), node_get_ok]
+    rw [obj.node_get.guard s2 _ _ (by rw [eN']; exact (nd _ (by rw [rp]; omega) (by rw [rp])).1), node_get_ok]
     simp only [bind_ok]
     refine bind_guard_congr ?_ fun s3 hs3 => ?_
     · split
       · exact sched.commit_time.guardS hA a c m2 hSc wf2 (hSc.rd _ hcM.1) (by rw [eN]; exact aN)
-          (by rw [eN]; exact oNc) (by rw [eN]; exact (nd _ (by rw [cs]; omega)).1)
-          (by rw [eN]; exact (nd _ (by simp [layout.node.IDLE_SC])).1)
-          (by rw [eN]; exact (nd _ (by rw [cn]; omega)).1) (by rw [eN]; exact (nd _ (by rw [cn]; omega)).2)
+          (by rw [eN]; exact oNc) (by rw [eN]; exact (nd _ (by rw [cs]; omega) (by rw [cs])).1)
+          (by rw [eN]; exact (nd _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])).1)
+          (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).1) (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).2)
       · rfl
     · have k3 : L.ksb s3 = L.ksb s2 ∧ L.cpu s3 = L.cpu s2 := by
         split at hs3
@@ -264,7 +264,7 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
         · cases ok_inj_ff hs3; exact ⟨rfl, rfl⟩
       have e : L.nodeAt s3 (L.cpu s3) layout.node.CUR_SC = L.nodeA s layout.node.CUR_SC := by
         rw [k3.2, nodeAt_of_ksb k3.1]; exact eN' _
-      rw [obj.node_set.guard s3 _ _ _ (by rw [e]; exact (nd _ (by rw [cs]; omega)).2)]
+      rw [obj.node_set.guard s3 _ _ _ (by rw [e]; exact (nd _ (by rw [cs]; omega) (by rw [cs])).2)]
 
 end
 
