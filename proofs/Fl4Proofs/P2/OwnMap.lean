@@ -8,30 +8,35 @@ state base, the number of cores, and the set of capability slots. In order:
 
 1. **Nodes.** A word of core `c`'s node (`ks + 13568 + c * 4288`, size 4288,
    P1's `nodeAt`) is `core c`'s.
-2. **Capability slots.** A word of a slot (32 bytes; CNode slots, a TCB's own
-   slots, IRQ-node slots) is `lock <slot>`'s: `localtimer::cspace_step` locks
-   each slot before reading it, and frame-cap invocations beside the gate write
-   slots they lock.
+2. **Capability slots** (32 bytes: `CAP0`, `CAP1`, `PREV`, `NEXT`). The CDT
+   link words are `lock <slot>`'s (localinv writes the links of a frame cap's
+   neighbours, TCB slots included). The cap words of a TCB's own slot are the
+   gate's. The cap words of a CNode slot are value-dependent: `lock <slot>`'s
+   while `CAP0`'s tag (`w0 >> 59`) is 0 (Null) or 13 (Frame), the gate's
+   otherwise; localinv beside the gate writes cap words only of Null/Frame
+   slots and leaves them Null/Frame, so the owner changes only under the gate.
 3. **TCBs** (`tcbOwner`, offsets of `arch/x86_64/layout.rs`, `F = 0xd00`).
    The thread's home core is its `AFFINITY` word.
-   * Gate-owned (written only under the gate, read by other cores' local
-     paths): `AFFINITY`, `DOMAIN`, `MCP`, `PRIO`, `SC`, `BOUND_NTFN`,
+   * Gate-owned: `AFFINITY`, `DOMAIN`, `MCP`, `PRIO`, `SC`, `BOUND_NTFN`,
      `IPC_BUFFER`, `DEBUG_NEXT` / `DEBUG_PREV`, `VCPU`.
    * Timer fields `TIMER_DEADLINE` … `TIMER_HEIGHT`: armed (deadline ≠ 0), the
-     core of its tree, `TIMER_HEIGHT >> 8`; disarmed, the home core (DESIGN
-     "Timer ownership").
-   * While blocked on an endpoint or notification (`STATE` ∈ {3 recv, 4 send,
-     6 ntfn}): `STATE`, `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS`, `EP_NEXT`,
-     `EP_PREV` are `lock <BLOCK_OBJ>`'s: they change only with the queue's
-     object locked (a waker), and a local path on another core reads a queued
-     receiver's state under that lock.
-   * Everything else of the TCB (registers, FPU image, fault words, reply
-     link, scheduler links, flags, …): the home core's.
-4. **Endpoints, notifications, reply objects**: `lock <object>`.
+     core of its tree, `TIMER_HEIGHT >> 8`; disarmed, the home core.
+   * Blocked on an endpoint or notification (`STATE` ∈ {3, 4, 6}): `STATE`,
+     `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS`, `REPLY_OBJ`, `EP_NEXT`,
+     `EP_PREV`, `IN_QUEUES` are `lock <BLOCK_OBJ>`'s.
+   * Blocked on reply (`STATE` = 5): `STATE`, `REPLY_OBJ`, the fault and
+     lookup-fault words, `IN_QUEUES` are `lock <REPLY_OBJ>`'s.
+   * Everything else of the TCB: the home core's.
+4. **Endpoints, reply objects**: `lock <object>`. **Notifications**: bound
+   (`BOUND_TCB` ≠ 0), the bound thread's home core (only that core's timer
+   path signals it beside the gate); unbound, `lock <object>`; `BOUND_TCB`
+   itself is the gate's.
 5. **Scheduling contexts**: the core in the SC's `CORE` word (offset 16); the
    `CORE` word itself is gate-owned.
-6. **Everything else** (the global kernel state, page tables, untyped
-   bookkeeping, …): the gate.
+6. **Everything else**: the gate.
+
+`cls K b v`, the value class of `Serial`'s class reads: for a CNode slot's
+`CAP0`, "tag Null or Frame"; True for every other word.
 
 Notes for review (by the path lines):
 
@@ -105,35 +110,74 @@ def oDEBUG_NEXT : U64 := 3576#u64
 def oDEBUG_PREV : U64 := 3584#u64
 def oVCPU : U64 := 3664#u64
 
+def oREPLY_OBJ : U64 := 3360#u64
+def oFAULT_TYPE : U64 := 3376#u64
+def oLF_W1 : U64 := 3424#u64
+def oIN_QUEUES : U64 := 3592#u64
+
 /-- Blocked on an endpoint (receive or send) or a notification. -/
 def QueuedState (v : U64) : Prop := v.val = 3 ∨ v.val = 4 ∨ v.val = 6
 
-/-- The owner of the word at offset `o` of the TCB at `t`. -/
+/-- Blocked on reply. -/
+def ReplyState (v : U64) : Prop := v.val = 5
+
+/-- The owner of the word at offset `o` of the TCB at `t` (rule 3). -/
 def tcbOwner (m : U64 → U64) (t : U64) (o : Nat) : Owner U64 U64 :=
   let home : Owner U64 U64 := .core (m (fld t oAFFINITY))
-  if o = oAFFINITY.val ∨ o = oDOMAIN.val ∨ o = oMCP.val ∨ o = oPRIO.val ∨ o = oSC.val ∨ o = oBOUND_NTFN.val ∨
-      o = oIPC_BUFFER.val ∨ o = oDEBUG_NEXT.val ∨ o = oDEBUG_PREV.val ∨ o = oVCPU.val then .gate
+  let st := m (fld t oSTATE)
+  if o = oAFFINITY.val ∨ o = oDOMAIN.val ∨ o = oMCP.val ∨ o = oPRIO.val ∨ o = oSC.val ∨
+      o = oBOUND_NTFN.val ∨ o = oIPC_BUFFER.val ∨ o = oDEBUG_NEXT.val ∨ o = oDEBUG_PREV.val ∨
+      o = oVCPU.val then .gate
   else if oTIMER_DEADLINE.val ≤ o ∧ o ≤ oTIMER_HEIGHT.val then
     if (m (fld t oTIMER_DEADLINE)).val ≠ 0 then .core (treeCore (m (fld t oTIMER_HEIGHT)))
     else home
   else if (o = oSTATE.val ∨ o = oBLOCK_OBJ.val ∨ o = oBLOCK_BADGE.val ∨ o = oBLOCK_FLAGS.val ∨
-      o = oEP_NEXT.val ∨ o = oEP_PREV.val) ∧ QueuedState (m (fld t oSTATE)) then
+      o = oREPLY_OBJ.val ∨ o = oEP_NEXT.val ∨ o = oEP_PREV.val ∨ o = oIN_QUEUES.val) ∧
+      QueuedState st then
     .lock (m (fld t oBLOCK_OBJ))
+  else if (o = oSTATE.val ∨ o = oREPLY_OBJ.val ∨ (oFAULT_TYPE.val ≤ o ∧ o ≤ oLF_W1.val) ∨
+      o = oIN_QUEUES.val) ∧ ReplyState st then
+    .lock (m (fld t oREPLY_OBJ))
   else home
+
+/-- A slot word's tag: Null (0) or Frame (13). -/
+def NullOrFrame (w : U64) : Prop := w.val / 2 ^ 59 = 0 ∨ w.val / 2 ^ 59 = 13
+
+/-- The slot at `p` is one of a TCB's own slots. -/
+def TcbSlot (K : KLayout) (p : U64) : Prop := ∃ t, K.heap t = some .tcb ∧ InW t (2 ^ 12) p
+
+/-- The owner of the word at offset `o` of the slot at `p` (rule 2). -/
+def slotOwner (K : KLayout) (m : U64 → U64) (p : U64) (o : Nat) : Owner U64 U64 :=
+  if 16 ≤ o then .lock p
+  else if TcbSlot K p then .gate
+  else if NullOrFrame (m p) then .lock p
+  else .gate
+
+/-- The owner of the word at offset `o` of the notification at `p` (rule 4). -/
+def ntfnOwner (m : U64 → U64) (p : U64) (o : Nat) : Owner U64 U64 :=
+  if o = 24 then .gate
+  else if (m (fld p 24#u64)).val ≠ 0 then .core (m (fld (m (fld p 24#u64)) oAFFINITY))
+  else .lock p
 
 /-- **The ownership map** (module docstring, rules 1–6). -/
 def own (K : KLayout) (m : U64 → U64) (b : U64) : Owner U64 U64 :=
   if h : ∃ c, InNode K c b then .core (Classical.choose h)
-  else if h : ∃ p ∈ K.slots, InW p 32 b then .lock (Classical.choose h)
+  else if h : ∃ p ∈ K.slots, InW p 32 b then
+    slotOwner K m (Classical.choose h) (b.val - (Classical.choose h).val)
   else if h : ∃ t, K.heap t = some .tcb ∧ InW t (2 ^ 12) b then
     tcbOwner m (Classical.choose h) (b.val - (Classical.choose h).val)
+  else if h : ∃ p, K.heap p = some .ntfn ∧ InW p (2 ^ 6) b then
+    ntfnOwner m (Classical.choose h) (b.val - (Classical.choose h).val)
   else if h : ∃ p, (K.heap p = some .ep ∧ InW p (2 ^ 4) b) ∨
-      (K.heap p = some .ntfn ∧ InW p (2 ^ 6) b) ∨ (K.heap p = some .reply ∧ InW p (2 ^ 5) b) then
+      (K.heap p = some .reply ∧ InW p (2 ^ 5) b) then
     .lock (Classical.choose h)
   else if h : ∃ p z, K.heap p = some (.sc z) ∧ InW p (2 ^ z) b then
     if b.val = (Classical.choose h).val + 16 then .gate
     else .core (m (fld (Classical.choose h) 16#u64))
   else .gate
+
+/-- The value class of `Serial`'s class reads (module docstring). -/
+def cls (K : KLayout) (b v : U64) : Prop := b ∈ K.slots → ¬ TcbSlot K b → NullOrFrame v
 
 /-- Words only the gate writes, for this layout. -/
 def GateOnlyK (K : KLayout) (m : U64 → U64) (x : U64) : Prop := PathObl.GateOnly (own K) m x
