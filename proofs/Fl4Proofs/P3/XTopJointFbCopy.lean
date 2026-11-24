@@ -201,7 +201,8 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     op depth a1 cr a2 dd cn dcn w2 b C.hbv C.hba C.hmr C.hat) ?_
   rintro ⟨r5, s2, a2'⟩ (⟨e5, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ2, hmem2, J2, hK2, hF2, hLv2, hns2, hsg2, hp02⟩)
   · simp only at h1 h4 h5
-    subst h1 h4 h5
+    subst h1
+    subst s2 a2'
     fbj_red
     simp only [core.result.Result.is_err, bind_ok, ↓reduceIte]
     have hc1 : capAt (L.mem s1) (cslotAddr (pd.bv, idxd)) = ok (.Frame p sz rt' d false false 0#u64 0#u64) := by
@@ -219,7 +220,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     obtain ⟨hKd, hum3⟩ := fbKeep_capDelete_frame hcap9 hdel
     refine (WP.spec_ok _).2 ⟨σ3, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
       (D1 := D1) C.hal hth hct hbm hargs hK J3 rfl rfl rfl
-      (fbc_foot_trans rfl rfl hF1 (FbFootK.of_rel arI J1 J3 rfl rfl hKd hum3)) (hK1.trans hKd) hLv3 hns3 hsg3 hp03,
+      (fbc_foot_trans (Z' := Z1.mv G1 Z1.vs) rfl rfl hF1 (FbFootK.of_rel arI J1 J3 rfl rfl hKd hum3)) (hK1.trans hKd) hLv3 hns3 hsg3 hp03,
       Or.inr ⟨e5, rfl, rfl, ?_⟩⟩
     have hm3 : (.error e', σ1) ∈ (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pd.bv, idxd) w.2.2) σ1).1 := by
       rw [← hw2, h3]; exact Set.mem_singleton _
@@ -237,7 +238,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     fbj_red
     simp only [core.result.Result.is_err, bind_ok, Bool.false_eq_true, ↓reduceIte]
     refine (WP.spec_ok _).2 ⟨τ2, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
-      (D1 := D1) C.hal hth hct hbm hargs hK J2 rfl rfl rfl (fbc_foot_trans rfl rfl hF1 hF2) (hK1.trans hK2)
+      (D1 := D1) C.hal hth hct hbm hargs hK J2 rfl rfl rfl (fbc_foot_trans (Z' := Z1.mv G1 Z1.vs) rfl rfl hF1 hF2) (hK1.trans hK2)
       hLv2 hns2 hsg2 hp02, Or.inl ⟨rfl, false, ?_, by simp⟩⟩
     exact fbEntry_copy_ok hbop hdm hem hsm hgsm hp hdvm hcim (by rw [← hw2]; exact hmem2)
 

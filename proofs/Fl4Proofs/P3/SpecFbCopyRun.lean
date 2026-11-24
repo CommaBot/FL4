@@ -126,7 +126,7 @@ theorem fbEntry_copy_mapErr (hop : b.op = .copyMap) {dsl ssl : CslotPtr} {sc nc 
     (fbr_bind_ok (fbr_liftE hg) (fbr_bind_ok (fbr_code_ok (fbr_unless_ok hp _ τ))
       (fbr_bind_ok (fbr_code_ok hv) (fbr_bind_ok (fbr_liftE hi)
         (fbr_bind_err (fbr_handle_err (fbr_code_err hm)
-          (fbr_bind_ok (fbr_liftE (fbr_catch_ok hdl)) (fbr_throw _ τ3)))))))))
+          (fbr_bind_ok (fbr_liftE (fbr_catch_ok hdl)) (fbr_throw _ τ3))))))))))
 
 end
 
