@@ -210,6 +210,135 @@ theorem interp_guard {st : machine.Store S} {R W : U64 → Prop} (p : SProg A X)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective (hv.symm.trans hv'))
       exact h2
 
+/-- Every write of the run of `p` on `st` from `(s, a)` satisfies `Q` between
+the states before and after it. -/
+def WithinM (st : machine.Store S) (Q : S → S → Prop) : SProg A X → S → A → Prop
+  | .ret _, _, _ => True
+  | .err _, _, _ => True
+  | .rd q k, s, a => ∀ v, st.read s q = ok v → WithinM st Q (k v) s a
+  | .rdp q k, s, a => ∀ v, st.read_pair s q = ok v → WithinM st Q (k v) s a
+  | .wr q v k, s, a => ∀ s', st.write s q v = ok s' → Q s s' ∧ WithinM st Q k s' a
+  | .zero q n k, s, a => ∀ s', st.zero s q n = ok s' → Q s s' ∧ WithinM st Q k s' a
+  | .clr q n k, s, a => ∀ s', st.clear_free s q n = ok s' → Q s s' ∧ WithinM st Q k s' a
+  | .ksb k, s, a => ∀ v, st.ks_base s = ok v → WithinM st Q (k v) s a
+  | .cpu k, s, a => ∀ v, st.cur_cpu s = ok v → WithinM st Q (k v) s a
+  | .masks k, s, a => ∀ v, st.frame_masks s = ok v → WithinM st Q (k v) s a
+  | .eff g k, s, a => ∀ b a', g a = ok (b, a') → WithinM st Q (k b) s a'
+
+/-- A checked write that succeeds is the real write, and the check held. -/
+theorem mchk {st : machine.Store S} {Q : S → S → Prop} {s s'' : S} {m : Result S}
+    (h : (do let s' ← m; if Q s s' then ok s' else fail .panic) = ok s'') :
+    m = ok s'' ∧ Q s s'' := by
+  obtain ⟨s', hm, hq⟩ := bok.mp h
+  by_cases hQ : Q s s'
+  · rw [if_pos hQ] at hq
+    obtain rfl := Result.ok_injective hq
+    exact ⟨hm, hQ⟩
+  · rw [if_neg hQ] at hq; exact absurd hq fail_not_ok
+
+/-- **Projection and per-write check**: a successful run on `mguard` is the
+real run, and every write along it satisfies the check. -/
+theorem interp_mguard {st : machine.Store S} {Q : S → S → Prop} (p : SProg A X) :
+    ∀ (s : S) (a : A) (r : X × S × A), interp (mguard st Q) p s a = ok r →
+      interp st p s a = ok r ∧ WithinM st Q p s a := by
+  induction p with
+  | ret x => intro s a r h; exact ⟨h, trivial⟩
+  | err e => intro s a r h; exact absurd h fail_not_ok
+  | rd q k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv' : st.read s q = ok v := hv
+    obtain ⟨h1, h2⟩ := ih v s a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
+    · simp only [WithinM]
+      exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
+  | rdp q k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv' : st.read_pair s q = ok v := hv
+    obtain ⟨h1, h2⟩ := ih v s a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
+    · simp only [WithinM]
+      exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
+  | wr q v k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨s', hv, hk⟩ := bok.mp h
+    obtain ⟨hw, hQ⟩ := mchk (st := st) hv
+    obtain ⟨h1, h2⟩ := ih s' a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨s', hw, h1⟩
+    · simp only [WithinM]
+      exact fun s'' hv'' => by
+        obtain rfl := Result.ok_injective (hw.symm.trans hv''); exact ⟨hQ, h2⟩
+  | zero q n k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨s', hv, hk⟩ := bok.mp h
+    obtain ⟨hw, hQ⟩ := mchk (st := st) hv
+    obtain ⟨h1, h2⟩ := ih s' a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨s', hw, h1⟩
+    · simp only [WithinM]
+      exact fun s'' hv'' => by
+        obtain rfl := Result.ok_injective (hw.symm.trans hv''); exact ⟨hQ, h2⟩
+  | clr q n k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨s', hv, hk⟩ := bok.mp h
+    obtain ⟨hw, hQ⟩ := mchk (st := st) hv
+    obtain ⟨h1, h2⟩ := ih s' a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨s', hw, h1⟩
+    · simp only [WithinM]
+      exact fun s'' hv'' => by
+        obtain rfl := Result.ok_injective (hw.symm.trans hv''); exact ⟨hQ, h2⟩
+  | ksb k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv' : st.ks_base s = ok v := hv
+    obtain ⟨h1, h2⟩ := ih v s a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
+    · simp only [WithinM]
+      exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
+  | cpu k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv' : st.cur_cpu s = ok v := hv
+    obtain ⟨h1, h2⟩ := ih v s a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
+    · simp only [WithinM]
+      exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
+  | masks k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv' : st.frame_masks s = ok v := hv
+    obtain ⟨h1, h2⟩ := ih v s a r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨v, hv', h1⟩
+    · simp only [WithinM]
+      exact fun v' hv'' => by obtain rfl := Result.ok_injective (hv'.symm.trans hv''); exact h2
+  | eff g k ih =>
+    intro s a r h
+    simp only [interp] at h
+    obtain ⟨⟨b, a'⟩, hv, hk⟩ := bok.mp h
+    obtain ⟨h1, h2⟩ := ih b s a' r hk
+    refine ⟨?_, ?_⟩
+    · simp only [interp]; exact bok.mpr ⟨(b, a'), hv, h1⟩
+    · simp only [WithinM]
+      intro b' a'' hv'
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective (hv.symm.trans hv'))
+      exact h2
+
 /-- Accesses of a run within sets stay within larger ones. -/
 theorem Within.mono {st : machine.Store S} {R W R' W' : U64 → Prop}
     (hR : ∀ b, R b → R' b) (hW : ∀ b, W b → W' b) (p : SProg A X) :
@@ -298,6 +427,17 @@ theorem PathObl.allowed_steps_dec {p : SProg A X} (hp : IsProg f p)
   by_cases hu : User b
   · exact Or.inl hu
   · exact Or.inr (O.write_own s b hpre (Or.inr hb) hu)
+
+/-- **Owners along the run**: every write of the body's sequential run moves
+owners only between owners the path holds (the per-step `Serial.Allowed`
+write condition). -/
+theorem PathObl.move_steps {p : SProg A X} (hp : IsProg f p)
+    (O : PathObl st f Acc own User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
+    (hpre : Pre s) (h : f st s a = ok r) :
+    WithinM st (fun x y => OwnMove own (L.cpu s) (Locks s) (L.mem x) (L.mem y)) p s a := by
+  have hg := O.move s a r hpre h
+  rw [hp (mguard st _)] at hg
+  exact (interp_mguard p s a r hg).2
 
 end obl
 

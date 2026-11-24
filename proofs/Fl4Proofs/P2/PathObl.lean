@@ -44,8 +44,9 @@ than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
 * once the ownership map is fixed (`P2/OwnMap.lean`), the facts linking the
   sets to it, kernel words only (`User`, user memory such as IPC buffers, is
   exempt): `read_own` (accepted reads: held or gate-owned), `write_own`
-  (accepted and declined writes: held) and `move` (owners change only between
-  held owners).
+  (accepted and declined writes: held) and `move` (each write changes owners
+  only between owners the path holds: the run on `mguard`, which checks
+  `OwnMove` across every write, succeeds the same way).
 
 How the reads of a declined run enter `Serial`: in the path's `Serial.Prog`
 the reads outside `ReadSet` are speculative (`Serial.Prog.rds`): they read
@@ -177,6 +178,23 @@ theorem guard_mono_read {R' W' : U64 → Prop} (hR : ∀ b, R b → R' b) {s : S
 
 end guard
 
+/-- The store that checks `Q` between the state before and after every write
+(`write`, `zero`, `clear_free`), failing where it does not hold; reads pass. -/
+def mguard (st : machine.Store S) (Q : S → S → Prop) : machine.Store S where
+  frame_masks := st.frame_masks
+  read := st.read
+  read_pair := st.read_pair
+  write s a v := do let s' ← st.write s a v; if Q s s' then ok s' else fail .panic
+  zero s a n := do let s' ← st.zero s a n; if Q s s' then ok s' else fail .panic
+  clear_free s a n := do let s' ← st.clear_free s a n; if Q s s' then ok s' else fail .panic
+  ks_base := st.ks_base
+  cur_cpu := st.cur_cpu
+
+theorem mguard_write {st : machine.Store S} {Q : S → S → Prop} {s s' : S} {a v : U64}
+    (h : st.write s a v = ok s') (hq : Q s s') : (mguard st Q).write s a v = ok s' := by
+  show (do let s' ← st.write s a v; if Q s s' then ok s' else fail .panic) = _
+  rw [h, bind_tc_ok, if_pos hq]
+
 /-! ## Ownership -/
 
 /-- Owners a local path on core `c` holding the locks `lk` holds. -/
@@ -215,7 +233,8 @@ memory `User`; the core is `L.cpu s`.
 * `dec`: a declined run writes only `DecSet` (its reads are unrestricted);
 * `read_own`: `ReadSet`'s kernel words are held or gate-owned;
 * `write_own`: `WriteSet`'s and `DecSet`'s kernel words are held;
-* `move`: the run moves owners only between owners the path holds. -/
+* `move`: every write of the run (each step, not only entry to exit) moves
+  owners only between owners the path holds. -/
 structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     (f : machine.Store S → S → A → Result (X × S × A)) (Acc : X → Prop)
     (own : (U64 → U64) → U64 → Owner U64 U64) (User : U64 → Prop)
@@ -229,7 +248,7 @@ structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
   write_own : ∀ s x, Pre s → (WriteSet s x ∨ DecSet s x) → ¬ User x →
     WPerm own (L.cpu s) (Locks s) (L.mem s) x
   move : ∀ s a r, Pre s → f st s a = ok r →
-    OwnMove own (L.cpu s) (Locks s) (L.mem s) (L.mem r.2.1)
+    f (mguard st (fun x y => OwnMove own (L.cpu s) (Locks s) (L.mem x) (L.mem y))) s a = ok r
 
 /-! ## A Store-generic body as a tree of trait calls -/
 
