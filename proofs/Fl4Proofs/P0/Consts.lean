@@ -234,7 +234,7 @@ open fl4_core
 @[step] theorem vcpu.CR0_OWNED.spec : vcpu.CR0_OWNED ⦃ v => v = 2147155904#u64 ⦄ := by
   unfold vcpu.CR0_OWNED; step*
 
-@[step] theorem vcpu.CR4_ALLOWED.spec : vcpu.CR4_ALLOWED ⦃ v => v = 3608575#u64 ⦄ := by
+@[step] theorem vcpu.CR4_ALLOWED.spec : vcpu.CR4_ALLOWED ⦃ v => v = 7802879#u64 ⦄ := by
   unfold vcpu.CR4_ALLOWED; step*
 
 @[step] theorem regs.FLAGS_TF.spec : regs.FLAGS_TF ⦃ v => v = 256#u64 ⦄ := by
@@ -1506,6 +1506,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem sched.Q_QUEUED.val_eq : sched.Q_QUEUED.val = 1 := by
   unfold sched.Q_QUEUED; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
+  unfold vcpu.NUM_MRS; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.svm.EVENT_INJ.val_eq : vcpu.svm.EVENT_INJ.val = 168 := by
   unfold vcpu.svm.EVENT_INJ; rfl
 
@@ -1514,9 +1517,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vcpu.svm.INTERCEPT_EXC.val_eq : vcpu.svm.INTERCEPT_EXC.val = 8 := by
   unfold vcpu.svm.INTERCEPT_EXC; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
-  unfold vcpu.NUM_MRS; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.EXIT.val_eq : vcpu.EXIT.val = 20992 := by
   unfold vcpu.EXIT; rfl
@@ -1785,7 +1785,7 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.sc.NTFN.val_eq : layout.sc.NTFN.val = 40 := by
   unfold layout.sc.NTFN; rfl
 
-@[simp, scalar_tac_simps] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 32 := by
+@[simp, scalar_tac_simps] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 128 := by
   unfold boot.MAX_REGIONS; rfl
 
 @[simp, scalar_tac_simps] theorem boot.MAX_BOOTINFO_UNTYPEDS.val_eq : boot.MAX_BOOTINFO_UNTYPEDS.val = 230 := by
@@ -1928,6 +1928,12 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vcpu.MSRS.val_eq : vcpu.MSRS.val = 20864 := by
   unfold vcpu.MSRS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.MSR_VM_IBPB_DEFER.val_eq : vcpu.MSR_VM_IBPB_DEFER.val = 4294967293 := by
+  unfold vcpu.MSR_VM_IBPB_DEFER; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.VM_IBPB_DEFER.val_eq : vcpu.VM_IBPB_DEFER.val = 20544 := by
+  unfold vcpu.VM_IBPB_DEFER; rfl
 
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
   unfold untyped.RESET_CHUNK; rfl

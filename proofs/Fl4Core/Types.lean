@@ -49,7 +49,7 @@ inductive capability.FrameSize where
 | Huge : capability.FrameSize
 
 /-- [fl4_core::capability::Cap]
-    Source: 'crates/fl4-core/src/capability.rs', lines 47:0-74:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 47:0-78:1
     Visibility: public -/
 @[discriminant isize]
 inductive capability.Cap where
@@ -103,7 +103,7 @@ structure boot.Region where
   «end» : Std.U64
 
 /-- [fl4_core::boot::Boot]
-    Source: 'crates/fl4-core/src/boot.rs', lines 99:0-116:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 103:0-120:1 -/
 structure boot.Boot where
   root_cnode : Std.U64
   slot_pos : Std.U64
@@ -316,7 +316,7 @@ def ept.slot.closure (S : Type _) := Unit
 def ept.root.closure (S : Type _) := Unit
 
 /-- [fl4_core::capability::Rights]
-    Source: 'crates/fl4-core/src/capability.rs', lines 277:0-282:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 328:0-333:1
     Visibility: public -/
 structure capability.Rights where
   write : Bool
@@ -367,12 +367,14 @@ structure vspace.TableCap where
   vaddr : Std.U64
 
 /-- [fl4_core::boot::BootParams]
-    Source: 'crates/fl4-core/src/boot.rs', lines 43:0-71:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 43:0-75:1
     Visibility: public -/
 structure boot.BootParams where
-  free : Array boot.Region 32#usize
+  free : Array boot.Region 128#usize
   n_free : Std.U64
-  device : Array boot.Region 32#usize
+  zeroed : Array boot.Region 128#usize
+  n_zeroed : Std.U64
+  device : Array boot.Region 128#usize
   n_device : Std.U64
   ui_p_start : Std.U64
   ui_p_end : Std.U64
@@ -386,7 +388,7 @@ structure boot.BootParams where
   kernel_image : boot.Region
 
 /-- [fl4_core::boot::BootError]
-    Source: 'crates/fl4-core/src/boot.rs', lines 74:0-79:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 78:0-83:1
     Visibility: public -/
 @[discriminant isize]
 inductive boot.BootError where
@@ -395,13 +397,13 @@ inductive boot.BootError where
 | TooManyUntypeds : boot.BootError
 
 /-- [fl4_core::boot::Pick]
-    Source: 'crates/fl4-core/src/boot.rs', lines 416:0-419:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 463:0-466:1 -/
 structure boot.Pick where
   k : Std.Usize
   start : Std.U64
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 468:0-480:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 515:0-527:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -416,7 +418,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 485:0-495:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 532:0-542:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64
@@ -442,12 +444,12 @@ structure localinv.Plan where
   ok_words : Bool
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 805:20-805:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:30-781:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 800:30-800:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 

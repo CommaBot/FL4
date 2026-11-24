@@ -252,3 +252,41 @@
   -- of the body into each of their 24 cases.
   unfold localinv.plan_with
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+-- #92: the loop's fuel (the 4th component) bounds it, as before #92; the
+-- generator's first measure guess (`first - x2`) does not decrease.
+@[step] theorem boot.create_untypeds_for_region_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (device : Bool) (i : Std.U64) (first : Std.U64) (zeroed : Array boot.Region 128#usize) (n_zeroed : Std.U64) (start : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.create_untypeds_for_region_loop machineStoreInst s b device i first zeroed n_zeroed start fuel ⦃ _ => True ⦄ := by
+  unfold boot.create_untypeds_for_region_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2, x3) => x3.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3⟩ -
+    unfold boot.create_untypeds_for_region_loop.body
+    p0_body
+  · trivial
+
+-- #92 (`MAX_REGIONS` 128): the loop counts `i` down, as before.
+@[step] theorem boot.find_rootserver_mem_loop.p0 (a : Array boot.Region 128#usize) (size : Std.U64) (align_bits : Std.U64) (i : Std.U64) :
+    boot.find_rootserver_mem_loop a size align_bits i ⦃ _ => True ⦄ := by
+  unfold boot.find_rootserver_mem_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => x0.val) (inv := fun _ => True)
+  · rintro x0 -
+    unfold boot.find_rootserver_mem_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.report machineStoreInst machineArchInst s a t badge ⦃ _ => True ⦄ := by
+  -- #80: the full-state reply copies the rest of the body into each branch;
+  -- `p0_split` times out in `whnf`. Each bind's first action is proved total
+  -- on its own (the continuation is not split with it), then the rest.
+  set_option maxHeartbeats 8000000 in
+  (unfold vcpu.report
+   repeat' (first
+     | (refine WP.spec_bind (Pₘ := fun _ => True) (by
+          repeat' (first | exact (WP.spec_ok _).2 trivial | (step as ⟨_, _⟩) | split)) ?_; intro _ _)
+     | step
+     | (simp only [bind_tc_ok, bind_ok])
+     | p0_cases_prod
+     | p0_ite_head
+     | split)
+   all_goals p0_close)
