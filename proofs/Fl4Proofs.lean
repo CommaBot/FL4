@@ -159,6 +159,7 @@ import Fl4Proofs.P1.QueueDecVs
 import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
+import Fl4Proofs.P1.IbKeepHolds
 import Fl4Proofs.P1.QueueRestartFoot
 import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P2.Runtime
@@ -1418,6 +1419,7 @@ import Fl4Spec.Ext.VirtP3x
 import Fl4Spec.Ext.Tick
 import Fl4Proofs.P3.XTopJointKEntryUH
 import Fl4Proofs.P3.XTopJointKEntryFF
+import Fl4Proofs.P3.BufKeepJ
 import Fl4Proofs.P3.XTopJointKEntryU2
 import Fl4Proofs.P3.XTopJointKEntryU2F
 import Fl4Proofs.P3.XTopJointKEntryU2L
