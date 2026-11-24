@@ -27,6 +27,7 @@ import Fl4Proofs.P3.SpecInvNtfnQG2
 import Fl4Proofs.P3.SpecInvNtfnQP2
 import Fl4Proofs.P3.SpecInvUtR
 import Fl4Proofs.P3.SpecInvUtN
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -581,6 +582,16 @@ theorem nq_invokeTcbK (a0 : TcbInvocation) :
 
 theorem nqP_of {bl : Bool} {s : State Unit} (h : NQ K s) : NQ [] s ∧ (bl = false → NQ K s) :=
   ⟨nq_weak_nil _ h, fun _ => h⟩
+
+set_option maxHeartbeats 4000000 in
+/-- fb3c: one `X86PML4FrameBatch` entry, its frame `cap_delete` written out (SpecFbX). -/
+theorem nq_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : NQKE K (fbEntryX b w) := by
+  unfold fbEntryX fbDeleteX fbDelX; nq_auto
+
+/-- fb3c: the batch. -/
+theorem nq_performFrameBatch (b : Fl4FrameBatchInvocation) : NQK K (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => nq_fbEntryX b w) (by unfold flushAll; nq_auto)
+macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_performFrameBatch _)
 
 set_option maxHeartbeats 4000000 in
 /-- `perform_invocation`: the post keeps `K` unless the invocation blocks (a

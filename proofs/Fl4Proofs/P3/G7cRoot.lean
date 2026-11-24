@@ -97,19 +97,20 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {A : Type} {ar :
 /-- **`set_kernel_vm_root` gives `AR` at the global CR3** (`ArchRefines`,
 `KRootRel`). -/
 theorem set_kernel_vm_root_ar (hRef : ArchRefines ar AR) (s : S) (a : A) (σ : Fl4Spec.State Unit) {c0 : Fl4Spec.Cr3}
-    (hKr : KRootW (L.mem s) (L.ksb s) σ) (hA : AR a c0) :
+    (hKr : KRootRel (L.mem s) (L.ksb s) σ) (hA : AR a c0) :
     vspace.set_kernel_vm_root st ar s a ⦃ r => r.1 = s ∧ AR r.2 (globCr3 σ) ⦄ := by
   unfold vspace.set_kernel_vm_root
   rw [kernel_root_eq]
   apply ok_bind_spec
   refine WP.spec_bind (hRef.setVspace a _ _ 0#u64 hA) fun a' h => (WP.spec_ok _).2 ⟨rfl, ?_⟩
+  replace hKr := hKr.1
   unfold KRootW at hKr
   rw [← hKr]; exact h
 
 /-- **`set_vm_root t` gives `AR` at the CR3 the spec's `setVmRoot t`
 writes** (module docstring). -/
 theorem set_vm_root_ar (hRef : ArchRefines ar AR) {P : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    {c0 : Fl4Spec.Cr3} (hA : AR a c0) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hKr : KRootW (L.mem s) (L.ksb s) σ)
+    {c0 : Fl4Spec.Cr3} (hA : AR a c0) (hR : VsRel P (L.mem s) (L.ksb s) σ) (hKr : KRootRel (L.mem s) (L.ksb s) σ)
     {t : U64} {x : Fl4Spec.Tcb} (hkx : σ.kheap t.bv = some (.tcb x)) {cp : capability.Cap}
     (hc' : capAt (L.mem s) (slotOf t 1) = ok cp) (hv : x.tcbVtable = absCap cp)
     (hasid : ∀ p asid, cp = .Pml4 p true asid → asid ≠ 0#u64) :

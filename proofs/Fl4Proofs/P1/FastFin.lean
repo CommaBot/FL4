@@ -1028,6 +1028,23 @@ variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) 
 def fS14 (S8 : S) (t dest r : U64) : S :=
   L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (stA dest) sched.TS_RUNNING
 
+/-- **The reads of the general fault path for a fault `f` with label `ty`**
+(m60's `FaultOK` over the fault): for an accepted fast run from `s`, at the
+state `s2` that `set_fault f` writes and the run's intermediate states. -/
+def FaultOKG (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (ty : U64) : Prop :=
+  ∀ s2, faults.set_fault st s t f = ok s2 →
+  ∀ ptr badge dest r, FaultChecks st s t ptr badge dest r →
+    ∀ (rb sent : U64) (S6 S7 S8 : S) (mi : msginfo.MessageInfo),
+    msg.lookup_ipc_buffer st (epFast (L := L) s2 ptr dest) true dest = ok rb →
+    faults.set_mrs_fault st ar (epFast (L := L) s2 ptr dest) a t dest rb = ok (sent, S6) →
+    msginfo.MessageInfo.new ty 0#u64 0#u64 sent = ok mi →
+    msg.set_msg_info st S6 dest mi = ok S7 →
+    obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8 →
+    ∃ (T : Set U64) (rest : List U64) (sb : Nat), FaultReadsG (L := L) T s2 t ty ptr dest r rest S6 S8 ∧
+      UsOff (L := L) (fS14 (L := L) S8 t dest r) dest (actA (L := L) (fS14 (L := L) S8 t dest r)) sb ∧
+      ∀ s15, endpoint.unblock_sporadic st (fS14 (L := L) S8 t dest r) dest = ok s15 →
+        actA (L := L) s15 = actA (L := L) (fS14 (L := L) S8 t dest r) ∧ FinReads (L := L) s15 dest
+
 /-- **The reads of the general fault path** at the states it reaches, for an
 accepted fast run from `s` (m58 `FaultReads`, m59 `UsOff`, m60 `FinReads`),
 over the run's intermediate states. -/
@@ -1053,33 +1070,41 @@ def FaultNvm (s : S) (a : A) (t : obj.Tcb) (n : U64) : Prop :=
   ∀ sF aF, fastpath.fault st ar s a t n = ok (true, sF, aF) →
     L.mem sF (stA (L.curW sF)) ≠ sched.TS_RUNNING_VM
 
-/-- **(c4) `FastSame` for the fault fast path**: an accepted `fastpath.fault`
-run ends exactly where the general `handle_fault` + `finish` ends (under
-`StoreExt`, as states; the Arch value the same), given the general path's reads
-(`FaultOK`, and since #57 `FaultNvm`). -/
-theorem fault_same (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {n : U64} {sF : S} {aF : A}
-    (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) (hR : FaultOK (L := L) ar s a t n)
-    (hV : FaultNvm (L := L) ar s a t n) :
+/-- **`fault_same` over the fault**: a run of `faultTailG … f ty` from checks
+that held ends exactly where `handle_fault f` + `finish` ends, given the reads
+`FaultOKG` and that the thread switched to is not `TS_RUNNING_VM` at the end
+(#57, as `FaultNvm`). -/
+theorem fault_sameG (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {f : error.Fault}
+    {ty ptr badge dest r : U64} {sF : S} {aF : A}
+    (hty0 : ty ≠ fl4_abi.consts.fault.NullFault)
+    (hc : FaultChecks st s t ptr badge dest r)
+    (h : faultTailG st ar s a t f ty ptr badge dest r = ok (true, sF, aF))
+    (hR : FaultOKG (L := L) ar s a t f ty)
+    (hV : L.mem sF (stA (L.curW sF)) ≠ sched.TS_RUNNING_VM) :
     (do
-      let (s2, a2) ← faults.handle_fault st ar s a t (error.Fault.UnknownSyscall n)
+      let (s2, a2) ← faults.handle_fault st ar s a t f
       syscall.finish st ar s2 a2) = ok (sF, aF) := by
-  obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
-  rw [faultTail_eq] at hfast
+  have h00 := h
+  unfold faultTailG at h00
+  obtain ⟨s2, hs2, -⟩ := bind_eq_ok h00
+  have hfast := h
+  rw [faultTailG_eq st ar a t f ty ptr badge dest r hs2] at hfast
   have hf0 := hfast
-  unfold faultTail2 at hfast
+  unfold faultTail2G at hfast
   obtain ⟨rb, hbuf, h1⟩ := bind_eq_ok hfast
   obtain ⟨⟨sent, S6⟩, hmrs, h2⟩ := bind_eq_ok h1
   try simp only [uncurry_apply_pair] at h2
   obtain ⟨mi, hmi, h3⟩ := bind_eq_ok h2
   obtain ⟨S7, hS7, h4⟩ := bind_eq_ok h3
   obtain ⟨S8, hS8, -⟩ := bind_eq_ok h4
-  obtain ⟨T, rest, sb, R, hU, hF⟩ := hR ptr badge dest r hc rb sent S6 S7 S8 mi hbuf hmrs hmi hS7 hS8
+  obtain ⟨T, rest, sb, R, hU, hF⟩ := hR s2 hs2 ptr badge dest r hc rb sent S6 S7 S8 mi hbuf hmrs hmi hS7 hS8
   obtain ⟨sl, x, y, g, gr, hsl, hcap, hG⟩ := hc.cap
-  rw [faultTail2_eq ar _ a t dest r badge hbuf hmrs hmi hS7 hS8, faultTail3_eq] at hf0
+  rw [faultTail2G_eq ar _ a t ty dest r badge hbuf hmrs hmi hS7 hS8, faultTail3_eq] at hf0
   obtain ⟨s15, h15, hfin⟩ := bind_eq_ok hf0
   obtain ⟨hA15, FR⟩ := hF s15 h15
-  rw [handle_fault_pre ar hX R.hT s a t n ptr badge dest r rest hsl hcap hG R.hE R.hq1 R.hst1 hbuf hmrs
-      R.hR5 R.hR6 hmi hS7 hS8 R.hR8 hc.r0 R.hdt R.hR10c R.hR10f R.hR10a R.hR13s R.hR13c R.hR13a R.hR13d R.hR14c]
+  rw [handle_fault_preG ar hX R.hT s s2 a t f ty ptr badge dest r rest hty0 hs2 hsl hcap hG R.hE R.hq1 R.hst1
+      hbuf hmrs R.hR5 R.hR6 hmi hS7 hS8 R.hR8 hc.r0 R.hdt R.hR10c R.hR10f R.hR10a R.hR13s R.hR13c R.hR13a
+      R.hR13d R.hR14c]
   have hA14 : actA (L := L) (fS14 (L := L) S8 t dest r) = actA (L := L) S8 := by
     unfold fS14 fS13 fS10; simp only [actA_wr]
   have hW : L.wr (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8) sched.ACTION_CHOOSE_NEW)
@@ -1092,7 +1117,35 @@ theorem fault_same (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {n : U64} {s
   rw [← hA15]
   obtain ⟨s7, h7, hf7⟩ := bind_eq_ok (fault_fin ar hX s15 a dest hfin FR)
   rw [h7]; simp only [bind_ok]
-  exact finish_ok_of_old ar hf7 (hV sF aF h)
+  exact finish_ok_of_old ar hf7 hV
+
+/-- m60's `FaultOK` is `FaultOKG` at an UnknownSyscall fault (pf1). -/
+theorem FaultOK.toG {s : S} {a : A} {t : obj.Tcb} {n : U64} (h : FaultOK (L := L) ar s a t n) :
+    FaultOKG (L := L) ar s a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall := by
+  intro s2 hs2
+  rw [set_fault_us] at hs2
+  obtain rfl := ok_inj_ff hs2
+  exact h
+
+theorem FaultOK.ofG {s : S} {a : A} {t : obj.Tcb} {n : U64}
+    (h : FaultOKG (L := L) ar s a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall) :
+    FaultOK (L := L) ar s a t n := by
+  intro ptr badge dest r hc
+  exact h _ (set_fault_us (L := L) s t n) ptr badge dest r hc
+
+/-- **(c4) `FastSame` for the fault fast path**: an accepted `fastpath.fault`
+run ends exactly where the general `handle_fault` + `finish` ends (under
+`StoreExt`, as states; the Arch value the same), given the general path's reads
+(`FaultOK`, and since #57 `FaultNvm`). -/
+theorem fault_same (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {n : U64} {sF : S} {aF : A}
+    (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) (hR : FaultOK (L := L) ar s a t n)
+    (hV : FaultNvm (L := L) ar s a t n) :
+    (do
+      let (s2, a2) ← faults.handle_fault st ar s a t (error.Fault.UnknownSyscall n)
+      syscall.finish st ar s2 a2) = ok (sF, aF) := by
+  obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
+  exact fault_sameG ar hX (f := error.Fault.UnknownSyscall n) (ty := fl4_abi.consts.fault.UnknownSyscall) us_ne_null hc
+    hfast (FaultOK.toG ar hR) (hV sF aF h)
 
 end
 

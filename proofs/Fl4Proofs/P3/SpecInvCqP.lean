@@ -14,6 +14,7 @@ runnable"), nq3's decode facts `NqDec` (proved at the perform by nq3's
 * Every other invocation: ctq2's T1 family.
 -/
 import Fl4Proofs.P3.SpecInvCqU
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvQ
@@ -22,6 +23,13 @@ open Fl4Spec Fl4Proofs.P3.SInv
 noncomputable section
 
 set_option maxHeartbeats 1000000
+
+/-- fb3e: the frame batch, from the leaves of its writes (`SInv.ik_performFrameBatchW`). -/
+theorem q1_performFrameBatch (b : Fl4FrameBatchInvocation) : Q1K (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => q1_capInsert _ _ _) (fun _ => q1_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => q1_archFinaliseCap _ _) (fun _ => q1_emptySlot _ _) (fun _ _ _ _ => by unfold unmapPageUnflushed; q1_auto)
+    (fun _ _ _ => q1_setCap _ _) (q1_flushAll _ _)
+macro_rules | `(tactic| q1_leaf) => `(tactic| with_reducible exact q1_performFrameBatch _)
 
 /-- The perform's precondition. -/
 def PQ (i : Fl4Invocation) (σ : State Unit) : Prop :=

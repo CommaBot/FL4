@@ -1429,6 +1429,15 @@ theorem ns_performTestAndClearAccessed (_slot : ObjRef) : NSK (performTestAndCle
   unfold performTestAndClearAccessed; ns_auto
 macro_rules | `(tactic| ns_leaf) => `(tactic| with_reducible exact ns_performTestAndClearAccessed _)
 
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem ns_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : NSKE (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; ns_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem ns_performFrameBatch (b : Fl4FrameBatchInvocation) : NSK (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => ns_fbEntry b w) (by unfold flushAll; ns_auto)
+macro_rules | `(tactic| ns_leaf) => `(tactic| with_reducible exact ns_performFrameBatch _)
+
 theorem ns_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : NSKE (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; ns_auto
 macro_rules | `(tactic| ns_leaf) => `(tactic| with_reducible exact ns_fl4ArchPerformInvocation _)

@@ -25,6 +25,7 @@ outside the `JAtZ` cone).
 -/
 import Fl4Proofs.P3.SpecInvUtZX
 import Fl4Proofs.P3.SpecInvUtP6
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvUZ
@@ -356,6 +357,14 @@ theorem yk_archPerformInvocation {D : PgSet} {F : Set Nat} (ai : ArchInvocation)
 
 macro_rules | `(tactic| yk_leaf) => `(tactic| with_reducible exact yk_archPerformInvocation _)
 
+/-- fb3e: the frame batch (`SInv.ik_performFrameBatchW`). -/
+theorem yk_performFrameBatch {D : PgSet} {F : Set Nat} (b : Fl4FrameBatchInvocation) :
+    YK D F (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => yk_capInsert _ _ _) (fun _ => yk_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => yk_archFinaliseCap _ _) (fun _ => yk_emptySlot _ _)
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; yk_auto) (fun _ _ _ => yk_setCap _ _) (yk_flushAll _ _)
+macro_rules | `(tactic| yk_leaf) => `(tactic| with_reducible exact yk_performFrameBatch _)
+
 /-- The arch performs but the TDX frame writes (`zr_tdx`). -/
 theorem yk_fl4ArchPerformInvocation {D : PgSet} {F : Set Nat} (fa : Fl4ArchInvocation)
     (hT : ∀ i, fa ≠ .tdx i) : YKE D F (fl4ArchPerformInvocation (Z := Unit) fa) := by
@@ -436,6 +445,17 @@ theorem hu_archPerformInvocation {U : UtSet} (ai : ArchInvocation) :
   unfold archPerformInvocation; hv_auto
 
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact hu_archPerformInvocation _)
+
+theorem utIn_frame {U : UtSet} {c : Cap} (hc : Fl4Proofs.P3.SInv.IsFrameCap c) : UtIn U c :=
+  fun b n f e => by subst e; exact False.elim hc
+
+/-- fb3e: the frame batch (`SInv.ik_performFrameBatchW`): it inserts and writes frame caps only. -/
+theorem hu_performFrameBatch {U : UtSet} (b : Fl4FrameBatchInvocation) : IKH (HU U) (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun c s d hc => hu_capInsert c s d (utIn_frame hc))
+    (fun _ => hu_performPageInvocation _) (fun _ _ _ _ _ _ _ => hv_archFinaliseCap _ _)
+    (fun sl => by unfold emptySlot; hv_auto) (fun _ _ _ _ => by unfold unmapPageUnflushed; hv_auto)
+    (fun c sl hc => hu_setCap c sl (utIn_frame hc)) (hv_flushAll _ _)
+macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact hu_performFrameBatch _)
 
 theorem hu_fl4ArchPerformInvocation {U : UtSet} (fa : Fl4ArchInvocation) :
     IKHE (HU U) (fl4ArchPerformInvocation (Z := Unit) fa) := by

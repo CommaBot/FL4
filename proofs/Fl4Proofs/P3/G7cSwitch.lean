@@ -33,8 +33,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 structure RootOK (AR : A → Fl4Spec.Cr3 → Prop) (T P : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop where
   ar : ∃ c0, AR a c0
   vs : VsRel P (L.mem s) (L.ksb s) σ
-  /-- The kernel-root half of `KRootRel` (`KRootW`; #65's `HugeRel` is not needed at a switch). -/
-  kr : KRootW (L.mem s) (L.ksb s) σ
+  kr : KRootRel (L.mem s) (L.ksb s) σ
   vt : ∀ t ∈ T, ∃ (x : Fl4Spec.Tcb) (cp : capability.Cap), σ.kheap t.bv = some (.tcb x) ∧
     capAt (L.mem s) (slotOf t 1) = ok cp ∧ x.tcbVtable = absCap cp ∧ ∀ p asid, cp = .Pml4 p true asid → asid ≠ 0#u64
   /-- [J] `IdleVt`: the idle TCB's vtable is no mapped PML4 cap (FL4 switches

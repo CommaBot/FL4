@@ -16,6 +16,7 @@ P3 (DESIGN.md §9), VSpace: **the VSpace caps' domain-schedule frame**
 import Fl4Proofs.P3.VsTopCap
 import Fl4Proofs.P3.VsFootW
 import Fl4Proofs.P3.VsDomOps
+import Fl4Proofs.P3.DomFb
 import Fl4Proofs.P3.TopF
 open Aeneas Aeneas.Std Result
 
@@ -678,7 +679,8 @@ theorem decode_invocation_asid_control_capD (th : TypedHeap) (s : S) (ar : A) (�
 
 set_option maxHeartbeats 8000000 in
 /-- **A PML4 cap with the domain schedule** (`DecOKDM`; FL4 writes the TCB state
-and scheduler-action words only). -/
+and scheduler-action words only), every label but FrameBatch (`hfb`, as
+VsDecTop's `decode_invocation_pml4`). No user. -/
 theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
@@ -686,6 +688,7 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hinv : ∀ (a : A) (asid : U64), ∃ a', arI.invalidate_asid a asid = ok a')
@@ -697,7 +700,7 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
       buffer := by
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
-  refine DecOKM.withDom arI hDR (decode_invocation_pml4 arI th hP s ar σ G hCR hFI hMO lbl slbl hlbl ct hct hcur htcb
+  refine DecOKM.withDom arI hDR (decode_invocation_pml4 arI th hP s ar σ G hCR hFI hMO lbl slbl hlbl hfb ct hct hcur htcb
     hact hinv hVR p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer) ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
@@ -705,7 +708,7 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
   rw [hct]; simp only [bind_ok]
   by_cases hl : lbl = fl4_abi.label.X86PML4Flush
   swap
-  · rw [if_neg hl]
+  · rw [if_neg hl, if_neg hfb.2]
     simp only [error.illegal, bind_ok, WP.spec_ok]
     exact ⟨trivial, fun _ _ => trivial⟩
   rw [if_pos hl]

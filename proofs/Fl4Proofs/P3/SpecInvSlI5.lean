@@ -1,5 +1,6 @@
 /- sl1: idle-SC frame lemmas `IsK t` (sg1 SpecInvSgI5 renamed; see SpecInvSlI1). -/
 import Fl4Proofs.P3.SpecInvSlI4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvL
@@ -286,6 +287,15 @@ macro_rules | `(tactic| isk_leaf) => `(tactic| with_reducible exact isk_performP
 theorem isk_performTestAndClearAccessed (_slot : ObjRef) : IsK N (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; isk_auto
 macro_rules | `(tactic| isk_leaf) => `(tactic| with_reducible exact isk_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem isk_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : IsKE N (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; isk_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem isk_performFrameBatch (b : Fl4FrameBatchInvocation) : IsK N (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => isk_fbEntry b w) (by unfold flushAll; isk_auto)
+macro_rules | `(tactic| isk_leaf) => `(tactic| with_reducible exact isk_performFrameBatch _)
 
 theorem isk_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : IsKE N (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; isk_auto

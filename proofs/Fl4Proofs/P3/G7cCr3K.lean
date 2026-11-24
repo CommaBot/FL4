@@ -17,9 +17,10 @@ open Fl4Spec Classical
 
 noncomputable section
 
-/-- The CR3, the ASID table, the global PML4 and the idle thread. -/
+/-- The CR3, the ASID table, the global PML4, the idle thread and the platform record
+(`x64Plat`: #65's 1 GiB-page flag, #68's TDX values). -/
 def crF (σ : State Unit) := (σ.archState.x64CurrentCr3, σ.archState.x64AsidTable, σ.archState.x64GlobalPml4,
-  σ.idleThread)
+  σ.idleThread, σ.archState.x64Plat)
 
 /-- Every outcome of `m` keeps `crF`. -/
 abbrev CRK {α : Type} (m : NonDet (State Unit) α) : Prop := FK crF m

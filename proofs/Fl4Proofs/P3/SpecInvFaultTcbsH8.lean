@@ -229,6 +229,14 @@ theorem b_fl4PerformInvocation (ct : ObjRef) (bl call don : Bool) (i : Fl4Invoca
   case invokeNotification ep bd =>
     simp only [fl4PerformInvocation, withoutPreemption]
     exact hk_pre (hk_of_ik (ike_bind (ike_liftE (b_sendSignal ep bd)) fun _ => ike_returnOk _)) fun _ h => h.1
+  case invokeArchObject a0 =>
+    simp only [fl4PerformInvocation]
+    by_cases hb : ∃ b, a0 = .frameBatch b
+    · obtain ⟨b, rfl⟩ := hb
+      simp only [fl4ArchPerformInvocation]
+      exact hk_pre (hk_of_ik (ike_liftE (b_performFrameBatch b))) fun _ h => h.1
+    · exact hk_pre (hk_of_ik (b_of_gfE fun _ _ =>
+        fg_fl4ArchPerformInvocation a0 fun b e => hb ⟨b, e⟩)) fun _ h => h.1
   all_goals
     simp only [fl4PerformInvocation]
     exact hk_pre (hk_of_ik (b_of_gfE fun _ _ => by fg_auto)) fun _ h => h.1

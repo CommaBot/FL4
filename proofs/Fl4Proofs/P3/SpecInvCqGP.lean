@@ -19,6 +19,12 @@ noncomputable section
 
 set_option maxHeartbeats 2000000
 
+/-- fb3e: the frame batch keeps `RT` (`ik_performFrameBatchW`). -/
+theorem rt_performFrameBatch (b : Fl4FrameBatchInvocation) : RTK (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchW b (fun _ _ _ _ => rt_capInsert _ _ _) (fun _ => rt_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => rt_archFinaliseCap _ _) (fun _ => rt_emptySlot _ _)
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; rt_auto) (fun _ _ _ => rt_setCap _ _) (rt_flushAll _ _)
+
 set_option maxHeartbeats 8000000 in
 /-- **`perform_invocation` keeps `RT`** (the untyped / MakePool arms from sl4's perform-state facts). -/
 theorem rt_fl4PerformInvocation (I : ObjRef × ObjRef) (N : Irq → ObjRef) (K L : List ObjRef) (d : Prop) (t : ObjRef)
@@ -57,6 +63,10 @@ theorem rt_fl4PerformInvocation (I : ObjRef × ObjRef) (N : Irq → ObjRef) (K L
         refine (?_ : RTKE _) σ hR y hy
         simp only [fl4ArchPerformInvocation, archPerformInvocation]
         rt_auto
+    | frameBatch bi =>
+      simp only [fl4ArchPerformInvocation] at hy
+      obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
+      exact rt_performFrameBatch bi σ hR x hx
     | _ =>
       refine (?_ : RTKE _) σ hR y hy
       simp only [fl4ArchPerformInvocation, archNoReturn]

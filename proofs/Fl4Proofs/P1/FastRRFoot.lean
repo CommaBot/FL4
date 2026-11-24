@@ -395,8 +395,8 @@ unlink, then the unblock check on `u`'s ring), the reply's `TCB` word cleared,
 the Arch value kept, and `u`'s ring after the unblock check: well formed, its
 head ready at `X0`'s current time and holding no less (R4, under the ring-sum
 bound `hsum` of `RRSum`). -/
-theorem rr_x3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
-    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+theorem rr_x3G {ty : U64} [HfrRestart st ar ty] {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
     (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
     (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
     (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
@@ -538,6 +538,27 @@ theorem rr_x3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
     · rw [if_neg hne] at e3; exact same (ok_inj_ff e3).symm
   · rw [if_neg hb] at e3; exact same (ok_inj_ff e3).symm
 
+/-- `rr_x3G` at an UnknownSyscall fault (pf1). -/
+theorem rr_x3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+    (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
+    (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
+    (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
+    (e3s : sporadic.sc_sporadic st X2 usc = ok b9)
+    (e3 : (if b9 then do
+      let i13 ← obj.Sc.cpu st usc X2
+      let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
+      if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
+    else ok X2) = ok X3) :
+    a1 = a ∧ X1 = L.wr X0 (stA t) sched.TS_RESTART ∧
+    WritesIn st X1 X2 (fun b => RpLW Rp b ∨ b = rTcbA rptr ∨ b = stA u) ∧
+    WritesIn st X2 X3 (fun b => InRing usc (Z usc) b ∨ b = L.nodeAt X0 (L.cpu X0) layout.node.REPROGRAM) ∧
+    L.mem X2 (rTcbA rptr) = 0#u64 ∧ RefillsWF st X3 usc (Z usc) ∧
+    (L.refill X3 usc (L.rhead X3 usc)).time ≤ L.curTime X0 ∧
+    (L.refill X0 usc (L.rhead X0 usc)).amount.val ≤ (L.refill X3 usc (L.rhead X3 usc)).amount.val := by
+  apply rr_x3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 end x3
 
 
@@ -622,8 +643,8 @@ set_option maxHeartbeats 1600000 in
 /-- **`RRR3` at `X3`** (`u`'s fault type and `t`'s label, read before the
 restart flag is known): the words are TCB words below the state word, not
 written from `X0` to `X3`. -/
-theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
-    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+theorem rr_r3G {ty : U64} [HfrRestart st ar ty] {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
     (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
     (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
     (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
@@ -632,8 +653,8 @@ theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
       let i13 ← obj.Sc.cpu st usc X2
       let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
       if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
-    else ok X2) = ok X3) : RRR3 (st := st) X3 t u := by
-  obtain ⟨-, w1, w12, w23, -⟩ := rr_x3 ar P C hsum e1 e2 e3s e3
+    else ok X2) = ok X3) : RRR3G (st := st) ty X3 t u := by
+  obtain ⟨-, w1, w12, w23, -⟩ := rr_x3G ar P C hsum e1 e2 e3s e3
   have hT := P.hT
   have ht' := hT t P.ht
   have hu' := hT u P.hu
@@ -658,7 +679,7 @@ theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
       · exact nΩ _ (scΩ _ hba h.inSC) rfl
       · exact P.tcb_node hy hK (by simp [layout.node.REPROGRAM]) h
   -- RRR3
-  have hft3 : obj.Tcb.fault_type st u X3 = ok fl4_abi.consts.fault.UnknownSyscall := by
+  have hft3 : obj.Tcb.fault_type st u X3 = ok ty := by
     obtain ⟨i, hi, hc⟩ := C.uft
     rw [fault_type_ok] at hi ⊢
     have e3328 : L.mem X3 (faultA u) = L.mem X0 (faultA u) := tK3 u P.hu 3376#u64 (by decide) (by decide) (by decide)
@@ -674,14 +695,29 @@ theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
     rw [reg_ok] at hmi ⊢; rw [e]; exact hmi
   exact ⟨hft3, hlb3⟩
 
+/-- `rr_r3G` at an UnknownSyscall fault (pf1). -/
+theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+    (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
+    (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
+    (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
+    (e3s : sporadic.sc_sporadic st X2 usc = ok b9)
+    (e3 : (if b9 then do
+      let i13 ← obj.Sc.cpu st usc X2
+      let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
+      if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
+    else ok X2) = ok X3) : RRR3 (st := st) X3 t u := by
+  apply rr_r3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 set_option maxHeartbeats 3200000 in
 /-- **The run from `X0` to `X8`**: the reads `RRR3` at `X3`, the Arch value
 kept, `FinKeep` at `X6` and `X8` (with the action word kept to `X6`), the
 explicit action / state writes, and the general path's reads `sc2`, `sch6`,
 `sc6`, `rdy6`, `suf6` (R4, under the ring-sum bound), `pst`, `st7`, `act8`,
 `ct8`, `rt8`, `ntfn8`, `ep8`. -/
-theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : U64} {b9 restart : Bool}
-    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+theorem rr_x8G {ty : U64} [HfrRestart st ar ty] {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : U64} {b9 restart : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
     (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
     (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
     (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
@@ -696,7 +732,7 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
     (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
     (e7 : sched.set_action st X6 u = ok X7)
     (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8) :
-    RRR3 (st := st) X3 t u ∧ a2 = a ∧ FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc) ∧
+    RRR3G (st := st) ty X3 t u ∧ a2 = a ∧ FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc) ∧
     WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)) ∧
     (∀ K : U64, K.val < 3328 → K.val % 8 = 0 →
       L.mem X8 (core.num.U64.wrapping_add t K) = L.mem X0 (core.num.U64.wrapping_add t K)) ∧
@@ -709,7 +745,7 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
       (n = 0#u64 ∨ (n ≠ 0#u64 ∧ ∃ i7, obj.Ntfn.state st n X8 = ok i7 ∧ ¬ i7 = obj.NTFN_ACTIVE ∧
         notification.maybe_return_sched_context st X8 n t = ok X8))) ∧
     obj.Ep.state st ep X8 = ok obj.EP_IDLE := by
-  obtain ⟨ha1, w1, w12, w23, hr2, hW3, ht3, ha3⟩ := rr_x3 ar P C hsum e1 e2 e3s e3
+  obtain ⟨ha1, w1, w12, w23, hr2, hW3, ht3, ha3⟩ := rr_x3G ar P C hsum e1 e2 e3s e3
   subst a1
   have hT := P.hT
   have ht' := hT t P.ht
@@ -746,7 +782,7 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
       · exact nΩ _ (scΩ _ hba h.inSC) rfl
       · exact P.tcb_node hy hK (by simp [layout.node.REPROGRAM]) h
   -- RRR3
-  have hft3 : obj.Tcb.fault_type st u X3 = ok fl4_abi.consts.fault.UnknownSyscall := by
+  have hft3 : obj.Tcb.fault_type st u X3 = ok ty := by
     obtain ⟨i, hi, hc⟩ := C.uft
     rw [fault_type_ok] at hi ⊢
     have e3328 : L.mem X3 (faultA u) = L.mem X0 (faultA u) := tK3 u P.hu 3376#u64 (by decide) (by decide) (by decide)
@@ -760,8 +796,8 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
       rw [eK]; exact tK3 t P.ht K (by simp at hK; omega) (by simp at hK; omega) (by simp at hK; omega)
     unfold msg.msg_info at hmi ⊢
     rw [reg_ok] at hmi ⊢; rw [e]; exact hmi
-  have R3 : RRR3 (st := st) X3 t u := ⟨hft3, hlb3⟩
-  obtain ⟨hrs, ha2⟩ := hfr_us st ar hft3 hlb3 e4
+  have R3 : RRR3G (st := st) ty X3 t u := ⟨hft3, hlb3⟩
+  obtain ⟨hrs, ha2⟩ := HfrRestart.restart (st := st) (ar := ar) hft3 hlb3 e4
   subst a2
   refine ⟨R3, rfl, ?_⟩
   -- X3 → X6
@@ -1014,6 +1050,39 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
     by rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) X8), hcur8],
     by rw [eq_of_spec_fd (obj.Reply.tcb.blk (L := L) X8 rptr), hrt8], hntfn, hep8⟩
 
+/-- `rr_x8G` at an UnknownSyscall fault (pf1). -/
+theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : U64} {b9 restart : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+    (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
+    (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
+    (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
+    (e3s : sporadic.sc_sporadic st X2 usc = ok b9)
+    (e3 : (if b9 then do
+      let i13 ← obj.Sc.cpu st usc X2
+      let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
+      if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
+    else ok X2) = ok X3)
+    (e4 : faults.handle_fault_reply st ar X3 a1 u t = ok (restart, X4, a2))
+    (e5 : faults.clear_fault st X4 u = ok X5)
+    (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
+    (e7 : sched.set_action st X6 u = ok X7)
+    (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8) :
+    RRR3 (st := st) X3 t u ∧ a2 = a ∧ FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc) ∧
+    WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)) ∧
+    (∀ K : U64, K.val < 3328 → K.val % 8 = 0 →
+      L.mem X8 (core.num.U64.wrapping_add t K) = L.mem X0 (core.num.U64.wrapping_add t K)) ∧
+    obj.Tcb.sc st u X2 = ok usc ∧ sched.schedule_tcb st X6 u = ok X6 ∧ obj.Tcb.sc st u X6 = ok usc ∧
+    sporadic.ready st X6 usc = ok true ∧ sporadic.sufficient st ar X6 a2 usc 0#u64 = ok true ∧
+    sched.possible_switch_to st X6 u = ok X7 ∧ obj.Tcb.state st t X7 = ok sched.TS_RESTART ∧
+    L.actionW X8 = u ∧ L.actionW X8 ≠ sched.ACTION_RESUME_CURRENT ∧ sched.cur_thread st X8 = ok t ∧
+    obj.Reply.tcb st rptr X8 = ok 0#u64 ∧
+    (∃ n, obj.Tcb.bound_ntfn st t X8 = ok n ∧
+      (n = 0#u64 ∨ (n ≠ 0#u64 ∧ ∃ i7, obj.Ntfn.state st n X8 = ok i7 ∧ ¬ i7 = obj.NTFN_ACTIVE ∧
+        notification.maybe_return_sched_context st X8 n t = ok X8))) ∧
+    obj.Ep.state st ep X8 = ok obj.EP_IDLE := by
+  apply rr_x8G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 end x8
 
 
@@ -1029,8 +1098,8 @@ receive's writes (`t`'s state / block / reply / Ep-link words, the reply's
 `TCB` word, the endpoint's two words): `act11`, `q12`, `T15` / `R15` (the
 entry's `NoDue`, `here_facts`), `act15`, `ct15`, `hp15` (the bitmap kept,
 `le_of_is_hp` / `is_hp_of_le`), `dq15` (`u` not queued). -/
-theorem rr_x15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc : U64}
-    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+theorem rr_x15G {ty : U64} [HfrRestart st ar ty] {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc : U64}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
     (K8 : FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc))
     (w08 : WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)))
     (hact8 : L.actionW X8 = u)
@@ -1266,6 +1335,33 @@ theorem rr_x15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc :
   refine ⟨by rw [hact11]; exact hu0, hq12, hND, by rw [eq_of_spec_fd (sched.action.spec (L := L) X15), hact15],
     by rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) X15), hcur15], hhp15, hdq⟩
 
+/-- `rr_x15G` at an UnknownSyscall fault (pf1). -/
+theorem rr_x15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc : U64}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
+    (K8 : FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc))
+    (w08 : WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)))
+    (hact8 : L.actionW X8 = u)
+    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
+    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
+    (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
+    (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
+    (e14 : obj.Tcb.set_ep_prev st t X13 0#u64 = ok X14)
+    (e15 : obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15) :
+    L.actionW X11 ≠ sched.ACTION_RESUME_CURRENT ∧
+    (∃ q, endpoint.get_queue st X12 ep = ok q ∧ q.head = 0#u64) ∧
+    NoDue (L := L) X15 ∧ sched.action st X15 = ok u ∧ sched.cur_thread st X15 = ok t ∧
+    (∃ t1 b7 ff, sched.idle_thread st X15 = ok t1 ∧ obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1 = ok b7 ∧
+      (if b7 then ok true else do
+        let i11 ← obj.Tcb.prio st u X15
+        let i12 ← obj.Tcb.prio st t X15
+        if i11 < i12 then ok true else ok false) = ok ff ∧
+      (¬ ff = true ∨ (ff = true ∧ ∃ i11 i12 b8, sched.cur_domain st X15 = ok i11 ∧ obj.Tcb.prio st u X15 = ok i12 ∧
+        sched.is_highest_prio st X15 i11 i12 = ok b8 ∧ b8 = true))) ∧
+    sched.dequeue st X15 u = ok X15 := by
+  apply rr_x15G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 end x15
 
 
@@ -1278,14 +1374,14 @@ set_option maxHeartbeats 1600000 in
 /-- **`RRPl` at the dispatch state** from `BXI` / `XG` there, the receive-side
 cap typing (`EntryHyps0.recvOK`, as `rrEnt_of`) and the notifications being
 the heap's (`hNt`, the entry hypotheses' `∀ n ∈ Nt, H n = some .ntfn`). -/
-theorem rrPl_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+theorem rrPl_lkG {ty : U64} [HfrRestart st ar ty] {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
     (et : sched.cur_thread st s = ok t)
-    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecksG st ar ty s a t rptr ep u usc) :
     RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
-  have EE := rrEnt_lk ar hI hlk et hrc C
+  have EE := rrEnt_lkG ar hI hlk et hrc C
   have et' : t = L.curW s := by
     rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
   obtain ⟨⟨Q, R, hSQ⟩, hB, hX, hSg, hS⟩ := hI
@@ -1396,14 +1492,35 @@ theorem rrPl_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
       exact ⟨hn, a1, a2, w3 _ hnE⟩,
     hTM := hX0.tm.min _ hSQ.cur, hRel := hRel, hBM := ⟨_, (hSQ.ready _ hSQ.cur).2⟩ }
 
+/-- `rrPl_lkG` at an UnknownSyscall fault (pf1). -/
+theorem rrPl_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
+    (et : sched.cur_thread st s = ok t)
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
+    RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
+  apply rrPl_lkG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 /-- `rrPl_lk` with the cap typing from `EntryHyps0.recvOK` at an `XG` state. -/
+theorem rrPl_ofG {ty : U64} [HfrRestart st ar ty] {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
+    (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecksG st ar ty s a t rptr ep u usc) :
+    RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc :=
+  rrPl_lkG ar hNt hI (E0.recvOK Ac s hG hI).1 et hrc C
+
+/-- `rrPl_ofG` at an UnknownSyscall fault (pf1). -/
 theorem rrPl_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
     (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
-    RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc :=
-  rrPl_lk ar hNt hI (E0.recvOK Ac s hG hI).1 et hrc C
+    RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
+  apply rrPl_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 end plof
 
@@ -1425,6 +1542,40 @@ structure RRReads4 (t rptr ep u : U64) (X8 X15 : S) (a2 : A) : Prop where
 
 variable {T Cs Ω Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
+theorem RRReads2.of_plG {ty : U64} [HfrRestart st ar ty] {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a a1 a2 : A}
+    {t rptr ep u usc : U64} {b9 : Bool}
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
+    (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
+    (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
+    (e2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
+    (e3s : sporadic.sc_sporadic st X2 usc = ok b9)
+    (e3 : (if b9 then do
+      let i13 ← obj.Sc.cpu st usc X2
+      let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
+      if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
+    else ok X2) = ok X3)
+    (e4 : faults.handle_fault_reply st ar X3 a1 u t = ok (true, X4, a2))
+    (e5 : faults.clear_fault st X4 u = ok X5)
+    (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
+    (e7 : sched.set_action st X6 u = ok X7)
+    (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8)
+    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
+    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
+    (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
+    (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
+    (e14 : obj.Tcb.set_ep_prev st t X13 0#u64 = ok X14)
+    (e15 : obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15)
+    (R : RRReads4 (L := L) ar t rptr ep u X8 X15 a2) :
+    RRReads2 (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2 := by
+  obtain ⟨-, ha2, K8, w08, -, hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8, hact8', hct8, hrt8, hntfn, hep8⟩ :=
+    rr_x8G ar P C hsum e1 e2 e3s e3 e4 e5 e6 e7 e8
+  subst a2
+  obtain ⟨hact11, hq12, hND, hact15, hct15, hhp15, hdq15⟩ := rr_x15G ar P C K8 w08 hact8 e9 e10 e11 e12 e13 e14 e15
+  exact ⟨hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8', hct8, R.lk8, hrt8, hntfn, hep8, hact11, hq12,
+    hND.1, hND.2, hact15, hct15, hhp15, hdq15, R.nvm⟩
+
+/-- `RRReads2.of_plG` at an UnknownSyscall fault (pf1). -/
 theorem RRReads2.of_pl {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a a1 a2 : A}
     {t rptr ep u usc : U64} {b9 : Bool}
     (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc) (C : RRChecks st ar X0 a t rptr ep u usc)
@@ -1451,19 +1602,15 @@ theorem RRReads2.of_pl {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : 
     (e15 : obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15)
     (R : RRReads4 (L := L) ar t rptr ep u X8 X15 a2) :
     RRReads2 (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2 := by
-  obtain ⟨-, ha2, K8, w08, -, hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8, hact8', hct8, hrt8, hntfn, hep8⟩ :=
-    rr_x8 ar P C hsum e1 e2 e3s e3 e4 e5 e6 e7 e8
-  subst a2
-  obtain ⟨hact11, hq12, hND, hact15, hct15, hhp15, hdq15⟩ := rr_x15 ar P C K8 w08 hact8 e9 e10 e11 e12 e13 e14 e15
-  exact ⟨hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8', hct8, R.lk8, hrt8, hntfn, hep8, hact11, hq12,
-    hND.1, hND.2, hact15, hct15, hhp15, hdq15, R.nvm⟩
+  apply RRReads2.of_plG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 /-- **The ReplyRecv read bundle after m68** at a dispatch state: only
 `RRReads4` (`lk8`, `nvm`) along every accepted run. -/
-def RRPre3 (X0 : S) (a : A) : Prop :=
+def RRPre3G (ty : U64) (X0 : S) (a : A) : Prop :=
   ∀ (t rptr ep u usc : U64) (X1 X2 : S) (a1 : A) (b9 : Bool) (X3 : S),
     sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
-    RRChecks st ar X0 a t rptr ep u usc →
+    RRChecksG st ar ty X0 a t rptr ep u usc →
     obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1 →
     ipc.reply_remove st ar X1 a rptr u = ok (X2, a1) →
     sporadic.sc_sporadic st X2 usc = ok b9 →
@@ -1487,26 +1634,44 @@ def RRPre3 (X0 : S) (a : A) : Prop :=
       obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15 →
       RRReads4 (L := L) ar t rptr ep u X8 X15 a2
 
+/-- `RRPre3G` at an UnknownSyscall fault (pf1). -/
+abbrev RRPre3 (X0 : S) (a : A) : Prop :=
+  RRPre3G (L := L) ar fl4_abi.consts.fault.UnknownSyscall X0 a
+
+
 /-- m67's `RRPre2` from `RRPre3`, `RRPl` at every accepted run's checks and
 the ring-sum bound `RRSum` at the dispatch state. -/
+theorem RRPre2.of3G {ty : U64} [HfrRestart st ar ty] {X0 : S} {a : A}
+    (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
+      RRChecksG st ar ty X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (h : RRPre3G (L := L) ar ty X0 a) : RRPre2G (L := L) ar ty X0 a := by
+  intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3
+  have P := hP t rptr ep u usc hct hrc hC
+  have hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64 := hS usc P.hcS
+  refine ⟨rr_r3G ar P hC hsum e1 e2 e3s e3,
+    fun X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15 => ?_⟩
+  exact RRReads2.of_plG ar P hC hsum e1 e2 e3s e3 e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
+    (h t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
+      e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15)
+
+/-- `RRPre2.of3G` at an UnknownSyscall fault (pf1). -/
 theorem RRPre2.of3 {X0 : S} {a : A}
     (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
       RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
     (hS : RRSum (L := L) Scs X0) (h : RRPre3 (L := L) ar X0 a) : RRPre2 (L := L) ar X0 a := by
-  intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3
-  have P := hP t rptr ep u usc hct hrc hC
-  have hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64 := hS usc P.hcS
-  refine ⟨rr_r3 ar P hC hsum e1 e2 e3s e3,
-    fun X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15 => ?_⟩
-  exact RRReads2.of_pl ar P hC hsum e1 e2 e3s e3 e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
-    (h t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
-      e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15)
+  apply RRPre2.of3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 /-- `RRPre3` at every dispatch state of the entry. -/
-def RRPreAt3 (s : S) (a : A) : Prop :=
+def RRPreAt3G (ty : U64) (s : S) (a : A) : Prop :=
   ∀ t nx s1 s2 a2, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
-    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre3 (L := L) ar s2 a2
+    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre3G (L := L) ar ty s2 a2
+
+/-- `RRPreAt3G` at an UnknownSyscall fault (pf1). -/
+abbrev RRPreAt3 (s : S) (a : A) : Prop :=
+  RRPreAt3G (L := L) ar fl4_abi.consts.fault.UnknownSyscall s a
+
 
 /-- **`RRSumAt` [J]** (l4v `valid_refills` / `refills_sum`; P3 `SInvR.RV`):
 m65's `RRSum` at every dispatch state of the entry (after the `FAULT_IP`
@@ -1524,11 +1689,11 @@ def RRSumAt (Scs : Set U64) (s : S) (a : A) : Prop :=
 
 /-- **`RRPreAt2` from `RRPreAt3` and `RRSumAt`** at an entry state (the
 dispatch state is a `BXI` / `XG` state, so `rrPl_of` gives `RRPl` there). -/
-theorem RRPreAt2.of3 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+theorem RRPreAt2.of3G {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
     (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) (hR : RRPreAt3 (L := L) ar s a) : RRPreAt2 (L := L) ar s a := by
+    (hSum : RRSumAt (L := L) ar Scs s a) (hR : RRPreAt3G (L := L) ar ty s a) : RRPreAt2G (L := L) ar ty s a := by
   intro t nx s1 s2 a2 et enx es1 hb
   have h0 := h.1.choose_spec.choose_spec
   have et' : t = L.curW s := by
@@ -1550,8 +1715,17 @@ theorem RRPreAt2.of3 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
   have he1 : EntAt st P3Ok s1 := ⟨s, hP, Ent.prefix hK hal e1' (WritesIn.refl _ _)⟩
   have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
   rw [hb, WP.spec_ok] at hx
-  exact RRPre2.of3 ar (fun t' rptr ep u usc et2 hrc hC => rrPl_of ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC)
+  exact RRPre2.of3G ar (fun t' rptr ep u usc et2 hrc hC => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC)
     (hSum t nx s1 s2 a2 et enx es1 hb) (hR t nx s1 s2 a2 et enx es1 hb)
+
+/-- `RRPreAt2.of3G` at an UnknownSyscall fault (pf1). -/
+theorem RRPreAt2.of3 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hSum : RRSumAt (L := L) ar Scs s a) (hR : RRPreAt3 (L := L) ar s a) : RRPreAt2 (L := L) ar s a := by
+  apply RRPreAt2.of3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 end asm
 

@@ -40,11 +40,14 @@ open fl4_core Fl4Proofs.P0.Consts
 section
 variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) [L : LawfulStore st]
 
-/-- The reads before the restart flag is known: `u`'s fault type and `t`'s
-label at `X3` (where `handle_fault_reply` runs). -/
-structure RRR3 (X3 : S) (t u : U64) : Prop where
-  ft3 : obj.Tcb.fault_type st u X3 = ok fl4_abi.consts.fault.UnknownSyscall
+/-- The reads before the restart flag is known: `u`'s fault type (`ty`) and
+`t`'s label at `X3` (where `handle_fault_reply` runs). -/
+structure RRR3G (ty : U64) (X3 : S) (t u : U64) : Prop where
+  ft3 : obj.Tcb.fault_type st u X3 = ok ty
   lbl3 : ∃ tag, msg.msg_info st X3 t = ok tag ∧ tag.label = 0#u64
+
+/-- `RRR3G` for an UnknownSyscall fault (m66). -/
+abbrev RRR3 (X3 : S) (t u : U64) : Prop := RRR3G (st := st) fl4_abi.consts.fault.UnknownSyscall X3 t u
 
 /-- **The general path's reads along an accepted ReplyRecv run** (the states
 `X1 … X15` are the binds of `rrTail`, restart = true). Each is a read the
@@ -101,13 +104,14 @@ structure RRReads (t rptr ep u usc : U64) (X1 X2 X6 X7 X8 X11 X12 X15 : S) (a2 :
   nvm : ∀ s' a', fastpath.switch_to st ar X15 a2 u = ok (s', a') →
     L.mem s' (stA (L.curW s')) ≠ sched.TS_RUNNING_VM
 
-/-- **The ReplyRecv read bundle at a dispatch state `X0`**: for every accepted
+/-- **The ReplyRecv read bundle at a dispatch state `X0`** (a receiver with a
+fault of type `ty`, pf1): for every accepted
 run's checks (`RRChecks`, the `reply_caps` result) and its intermediate states,
 `RRR3` at `X3` and, once the restart flag is `true`, `RRReads`. -/
-def RRPre (X0 : S) (a : A) : Prop :=
+def RRPreG (ty : U64) (X0 : S) (a : A) : Prop :=
   ∀ (t rptr ep u usc : U64) (X1 X2 : S) (a1 : A) (b9 : Bool) (X3 : S),
     sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
-    RRChecks st ar X0 a t rptr ep u usc →
+    RRChecksG st ar ty X0 a t rptr ep u usc →
     obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1 →
     ipc.reply_remove st ar X1 a rptr u = ok (X2, a1) →
     sporadic.sc_sporadic st X2 usc = ok b9 →
@@ -116,7 +120,7 @@ def RRPre (X0 : S) (a : A) : Prop :=
       let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
       if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
     else ok X2) = ok X3 →
-    RRR3 (st := st) X3 t u ∧
+    RRR3G (st := st) ty X3 t u ∧
     ∀ (X4 : S) (a2 : A) (X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : S),
       faults.handle_fault_reply st ar X3 a1 u t = ok (true, X4, a2) →
       faults.clear_fault st X4 u = ok X5 →
@@ -132,20 +136,25 @@ def RRPre (X0 : S) (a : A) : Prop :=
       obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15 →
       RRReads (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2
 
-/-- **(R-d) The accepted ReplyRecv fast path ends where the general path
-ends**: from the dispatch state `X0`, `dispatch_syscall … SysReplyRecv` then
-`finish` reach the fast path's result, given the read bundle `RRPre`. -/
-theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok (true, s', a'))
-    (hP : RRPre (L := L) ar X0 a) :
+/-- `RRPreG` for an UnknownSyscall fault (m66). -/
+abbrev RRPre (X0 : S) (a : A) : Prop := RRPreG (L := L) ar fl4_abi.consts.fault.UnknownSyscall X0 a
+
+/-- **`rr_same` from the checks, over the fault type** (pf1): an accepted run
+`rrTail` after the checks `RRChecksG ty` (with `(rptr, ep)` what `reply_caps`
+returns at `X0`) ends where `dispatch_syscall … SysReplyRecv` + `finish` end,
+given `RRPreG ty` and the restart flag `HfrRestart ty`. -/
+theorem rr_found_sameG {ty : U64} [HfrRestart st ar ty] (hty0 : ¬ ty = fl4_abi.consts.fault.NullFault)
+    {X0 s' : S} {a a' : A} {t rptr ep u usc : U64}
+    (hct : sched.cur_thread st X0 = ok t) (hrc : fastpath.reply_caps st X0 t = ok (some (rptr, ep)))
+    (hC : RRChecksG st ar ty X0 a t rptr ep u usc) (hT : rrTail st ar X0 a t rptr ep u usc = ok (true, s', a'))
+    (hP : RRPreG (L := L) ar ty X0 a) :
     ∃ X a'', syscall.dispatch_syscall st ar X0 a fl4_abi.syscall.SysReplyRecv = ok (X, a'') ∧
       syscall.finish st ar X a'' = ok (s', a') := by
-  obtain ⟨t, rptr, ep, hct, hrc, hf⟩ := reply_recv_acc st ar h
-  obtain ⟨u, usc, hC, hT⟩ := reply_recv_found_acc st ar hf
   have hRC := reply_caps_some st hrc
   obtain ⟨X1, X2, a1, b9, X3, restart, X4, a2, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15,
     e1, e2, e3s, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16⟩ := rrTail_split st ar hT
   obtain ⟨R3, hR⟩ := hP t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3
-  obtain ⟨hrs, -⟩ := hfr_us st ar R3.ft3 R3.lbl3 e4
+  obtain ⟨hrs, -⟩ := HfrRestart.restart (st := st) (ar := ar) R3.ft3 R3.lbl3 e4
   subst hrs
   rw [if_pos rfl] at e6
   have R := hR X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
@@ -164,7 +173,7 @@ theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok 
   obtain ⟨info, hmi, hex, -⟩ := hC.info
   have hex' : info.extra_caps = 0#u64 := by apply UScalar.eq_of_val_eq; simpa using hex
   obtain ⟨buf, hbuf, -⟩ := spec_ex_fd (P0.msg.lookup_ipc_buffer.p0 st X0 false t L.total)
-  have hdrt := do_reply_transfer_rr st ar (t := t) (g := g) R.rt1 hun R.us1 e2 R.sc2 e3s e3 R3.ft3 e4 e5 e6
+  have hdrt := do_reply_transfer_rrG st ar (t := t) (g := g) (hty0 := hty0) R.rt1 hun R.us1 e2 R.sc2 e3s e3 R3.ft3 e4 e5 e6
     R.sch6 R.sc6 husc R.run6 R.rdy6 R.suf6 R.pst
   have hinv := handle_invocation_rr st ar hct hmi hex' hls hc hbuf e1 (schedule_tcb_sch (L := L) X1 t R.sch1)
     hdrt R.st7 e8 (schedule_tcb_nr (L := L) X8 t R.act8)
@@ -185,6 +194,17 @@ theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok 
     simpa using hbn
   have hsch := schedule_sw ar X15 a2 R.T15 R.R15 R.act15 hu0 R.ucn R.ct15 R.ns15 R.hp15
   exact ⟨X15, a2, hdisp, finish_rr ar e16 hsch R.dq15 (R.nvm _ _ e16)⟩
+
+/-- **(R-d) The accepted ReplyRecv fast path ends where the general path
+ends**: from the dispatch state `X0`, `dispatch_syscall … SysReplyRecv` then
+`finish` reach the fast path's result, given the read bundle `RRPre`. -/
+theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok (true, s', a'))
+    (hP : RRPre (L := L) ar X0 a) :
+    ∃ X a'', syscall.dispatch_syscall st ar X0 a fl4_abi.syscall.SysReplyRecv = ok (X, a'') ∧
+      syscall.finish st ar X a'' = ok (s', a') := by
+  obtain ⟨t, rptr, ep, hct, hrc, hf⟩ := reply_recv_acc st ar h
+  obtain ⟨u, usc, hC, hT⟩ := reply_recv_found_acc st ar hf
+  exact rr_found_sameG ar unknown_ne_null hct hrc hC hT hP
 
 omit L in
 /-- **The general `syscall` on the fast entry's ReplyRecv route**: the same
@@ -211,10 +231,13 @@ theorem syscall_rr_general {s s1 s2 s' X : S} {a a2 a' a'' : A} {n : I64} {t nx 
 
 /-- `RRPre` at every dispatch state of the entry from `s` (the `FAULT_IP`
 write, then a passing `budget_ok`). -/
-def RRPreAt (s : S) (a : A) : Prop :=
+def RRPreAtG (ty : U64) (s : S) (a : A) : Prop :=
   ∀ t nx s1 s2 a2, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
-    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre (L := L) ar s2 a2
+    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPreG (L := L) ar ty s2 a2
+
+/-- `RRPreAtG` for an UnknownSyscall fault (m66). -/
+abbrev RRPreAt (s : S) (a : A) : Prop := RRPreAtG (L := L) ar fl4_abi.consts.fault.UnknownSyscall s a
 
 /-- **`FastAcc` with its ReplyRecv half proved** (`rr_same`): the fault half
 from `StoreExt` [P] and `FastFaultOK` as in `FastAcc.of_split`, the ReplyRecv

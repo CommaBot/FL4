@@ -863,18 +863,24 @@ def FaultEntAt (T Cs Ω U Sg Rp : Set U64) (s : S) (t : obj.Tcb) : Prop :=
   AsidOff (L := L) Ω Sg s ∧ ∀ ptr badge dest r, FaultChecks st s t ptr badge dest r →
     r ∈ Rp ∧ ∃ rest, FaultEnt (L := L) T Cs Ω U s t ptr dest r rest
 
-/-- **m60's `FaultOK` from one state**: the P1 invariants where the fast path
-is entered (`BXI`, what `budget_ok` leaves) and `FaultEntAt` there give the
-general fault path's reads at every state it reaches (m58 `FaultReads`, m59
-`UsOff`, m60 `FinReads`). -/
-theorem faultOK_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s : S} {a : A}
-    {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultOK (L := L) ar s a t n := by
+/-- **m63's `faultOK_of` over the fault** (pf1): the P1 invariants where the fast
+path is entered and `FaultEntAt` there give `FaultOKG f ty`, for a fault `f`
+whose `set_fault` writes `sfG … ty w0 w1 w2`, `ty` an UnknownSyscall or a VM
+fault. -/
+theorem faultOK_ofG {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s : S} {a : A}
+    {t : obj.Tcb} {f : error.Fault} {ty w0 w1 w2 : U64}
+    (hty' : ty = fl4_abi.consts.fault.UnknownSyscall ∨ ty = fl4_abi.consts.fault.VMFault)
+    (hsf : faults.set_fault st s t f = ok (sfG (L := L) s t ty w0 w1 w2))
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) :
+    FaultOKG (L := L) ar s a t f ty := by
   obtain ⟨⟨Q, R, hSQ⟩, hB, ⟨hO, -, hXE⟩, -, hS⟩ := hI
   have hX0 : ScExtra0 st T Cs Scs Nt s := hXE.toScExtra0
-  intro ptr badge dest r hc rb sent S6 S7 S8 mi hbuf hmrs hmi hS7 hS8
+  intro s2 hs2 ptr badge dest r hc rb sent S6 S7 S8 mi hbuf hmrs hmi hS7 hS8
+  rw [hsf] at hs2
+  obtain rfl := ok_inj_ff hs2
   obtain ⟨hr, rest, E⟩ := hF.2 ptr badge dest r hc
-  obtain ⟨FR, -, K⟩ := faultReads_of ar E hbuf hmrs hS7 hS8
+  obtain ⟨FR, -, K⟩ := faultReads_ofG ar hty' E hbuf hmrs hS7 hS8
   have HF := here_facts (L := L) hc.here
   obtain ⟨d, p, -, hp, hhp⟩ := hc.prio
   have hp' : p = L.mem s (prioA dest) := by
@@ -902,6 +908,16 @@ theorem faultOK_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 →
     rw [mem_wr_ne' FR.hsA aS hne]; exact FR.hR13s
   exact ⟨T, rest, Z (L.mem s (scA dest)), FR, hU, fun s15 h15 =>
     finReads_of E HF hhi hSQ hB hS hX0 hO hr hF.1 K hst h15⟩
+
+/-- **m60's `FaultOK` from one state**: the P1 invariants where the fast path
+is entered (`BXI`, what `budget_ok` leaves) and `FaultEntAt` there give the
+general fault path's reads at every state it reaches (m58 `FaultReads`, m59
+`UsOff`, m60 `FinReads`). -/
+theorem faultOK_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s : S} {a : A}
+    {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultOK (L := L) ar s a t n :=
+  FaultOK.ofG ar (faultOK_ofG ar (ty := fl4_abi.consts.fault.UnknownSyscall) (w0 := n) (w1 := 0#u64) (w2 := 0#u64)
+    (Or.inl rfl) (set_fault_us (L := L) s t n) hI hF)
 
 /-- **The fault half of the entry's fast-path premise, at the states where
 `fastpath.fault` is entered** (m63 (d4)): after the `FAULT_IP` write and a

@@ -20,6 +20,7 @@ non-null cap into is no IRQ-node slot, a fact about addresses fixed at the start
   slot of the CNode a cap names: ut8's `UtOKN`).
 -/
 import Fl4Proofs.P3.SpecInvSgC
+import Fl4Proofs.P3.SpecFbP3
 open Classical
 
 namespace Fl4Proofs.P3.SInvG
@@ -156,7 +157,8 @@ theorem okv_fl4ArchDecodeSl {w : UView} (label : Data) (args : List Data) (xs : 
       (okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeSl label args xs cte _ ex hc)))
   case pml4Cap p m =>
     simp only [fl4ArchDecodeInvocation]
-    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeSl label args xs cte _ ex hc))
+    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_ite (okv_liftME (okv_triv fun _ => trivial))
+      (okv_liftME (okv_archDecodeSl label args xs cte _ ex hc)))
   case tdxControlCap =>
     simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_triv fun _ => trivial)
   all_goals (simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_archDecodeSl label args xs cte _ ex hc))
@@ -319,6 +321,31 @@ theorem sg_fl4ArchPerform (ai : Fl4ArchInvocation) (hm : ∀ a, ai ≠ .spec (.i
     refine notNode_of_cov hI.1.2 hs1 ?_
     rw [(hd d hdm).1]
     simp [covR, capRng, objRefs]
+  | frameBatch bi =>
+    simp only [fl4ArchPerformInvocation] at hy
+    obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
+    have nn : ∀ (a : ArchCap), ¬ NtfnOrNull (.archObjectCap a) := fun a => by rintro (e | ⟨_, _, _, e⟩) <;> cases e
+    refine (fbq_run (N := N) (RV := NOV N) bi ?_ ?_ ?_ ?_ σ ⟨hI.1, hok⟩ hI.2.2 x hx).2
+    · intro s c src dest c0 hs hrs hD _ _ _ _ x hx
+      exact nvk_capInsert (Or.inl (notNode_of_destRef hs.1.2 hD)) s hrs x hx
+    · intro s pi sl dev p R mt sz m hs hrs hok hpg hcap x hx
+      have hS : ∀ sl', ArchWr (.invokePage pi) sl' → NotNode N sl' := by
+        intro sl' hw
+        cases pi with
+        | pageMap c s0 en vs =>
+          simp only [ArchWr] at hw; simp only [PgSl] at hpg; subst hw; subst hpg
+          exact notNode_of_held hrs hcap (nn _)
+        | pageUnmap a s0 =>
+          simp only [ArchWr] at hw; subst hw
+          exact notNode_of_held hrs (hok : capAt s _ = some (.archObjectCap a)) (nn _)
+        | pageGetAddr _ => simp only [ArchWr] at hw
+      exact nvk_archPerform (.invokePage pi) (fun a e => by cases e) hS s hrs _ (fb_mem_archPage hx)
+    · intro s sl dev p R mt sz m hs hrs hc x hx irq a ha
+      rcases fb_emptySlot_nul hx (N irq, []) with e | ⟨-, e⟩
+      · rw [e] at ha; exact hrs irq a ha
+      · rw [e] at ha; exact Or.inl (Option.some.inj ha).symm
+    · intro s dev p R mt sz m sl hs hrs hc x hx
+      exact nvk_setCap (Or.inl (notNode_of_held hrs hc (nn _))) s hrs x hx
   | _ => exact (nvke_of_uk fun _ => by simp only [fl4ArchPerformInvocation]; uk_auto) σ hI.2.2 y hy
 
 /-! ## MakePool -/

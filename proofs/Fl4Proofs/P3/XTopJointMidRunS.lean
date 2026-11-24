@@ -25,6 +25,7 @@ import Fl4Proofs.P3.XTopJointMidRunP
 import Fl4Proofs.P3.XTopJointMidRun
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ScCharge7
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.MidRun
@@ -518,6 +519,17 @@ theorem perf_first (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw : 
     | tdx i =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       cases i <;> unfold performTdxInvocation tdxStatus <;> exact kfe_post (by kf_auto) hs
+    | frameBatch bi =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      refine kfe_post (Fl4Proofs.P3.Vs.dke_liftE ?_) hs
+      intro σ x hx
+      have k : ∀ {α : Type} {m : NonDet (State Unit) α}, KF ct m → Fl4Proofs.P3.SInv.IK (fun s => ctV ct s = ctV ct σ) m :=
+        fun h s hs y hy => (h s y hy).trans hs
+      refine Fl4Proofs.P3.SInv.ik_performFrameBatchW (P := fun s => ctV ct s = ctV ct σ) bi
+        (fun _ _ _ _ => k (kf_capInsert _ _ _)) (fun _ => k (kf_performPageInvocation _))
+        (fun _ _ _ _ _ _ _ => k (kf_archFinaliseCap' _ _)) (fun _ => k (kf_emptySlot' _ _))
+        (fun _ _ _ _ => k ?_) (fun _ _ _ => k (kf_setCap _ _)) (k (kf_flushAll _ _)) σ rfl x hx
+      unfold unmapPageUnflushed; kf_auto
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact kfe_post (by kf_auto) hs

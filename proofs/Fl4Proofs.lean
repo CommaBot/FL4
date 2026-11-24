@@ -22,6 +22,10 @@ import Fl4Proofs.P1.FastTailNvm
 import Fl4Proofs.P1.FastTailFault
 import Fl4Proofs.P1.FastFaultEntU
 import Fl4Proofs.P1.FastTailRR
+import Fl4Proofs.P1.FastVm
+import Fl4Proofs.P1.FastVmInv
+import Fl4Proofs.P1.FastVmDecline
+import Fl4Proofs.P1.FastVmLocal
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
@@ -291,6 +295,7 @@ import Fl4Proofs.P3.VsDomF
 import Fl4Proofs.P3.VsFin
 import Fl4Proofs.P3.VsTopX
 import Fl4Proofs.P3.VsReplyTop
+import Fl4Proofs.P3.VsFbReply
 import Fl4Proofs.P3.HandleTopX
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ReplyTopX
@@ -374,6 +379,7 @@ import Fl4Proofs.P3.TcbDom
 import Fl4Proofs.P3.SchedValidLinks
 import Fl4Proofs.P3.CnodeDom
 import Fl4Proofs.P3.AllDom
+import Fl4Proofs.P3.DomFb
 import Fl4Proofs.P3.ScInvE
 import Fl4Proofs.P3.DomFoot
 import Fl4Proofs.P3.EmptyFrame
@@ -1447,3 +1453,4 @@ import Fl4Proofs.P3.VsKeyDefs
 import Fl4Proofs.P3.UnrefDbg
 import Fl4Proofs.P3.XTopJointKEntryU28
 import Fl4Proofs.P3.VsNamedRet
+import Fl4Proofs.P3.XTopJointKEntryVm

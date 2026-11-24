@@ -111,6 +111,17 @@ theorem hd_archPerformInvocation {U : UtSetD} (ai : ArchInvocation) :
 
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact hd_archPerformInvocation _)
 
+/-- (int5) The frame batch (`SInv.ik_performFrameBatchW`): it inserts and writes frame caps only
+(as SpecInvUtZS's `hu_performFrameBatch`). -/
+theorem hd_performFrameBatch {U : UtSetD} (b : Fl4FrameBatchInvocation) :
+    IKH (HUD U) (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b
+    (fun c s d hc => hd_capInsert c s d (fun _ _ _ e => by subst e; exact False.elim hc))
+    (fun _ => hd_performPageInvocation _) (fun _ _ _ _ _ _ _ => hv_archFinaliseCap _ _)
+    (fun sl => by unfold emptySlot; hv_auto) (fun _ _ _ _ => by unfold unmapPageUnflushed; hv_auto)
+    (fun c sl hc => hd_setCap c sl (fun _ _ _ e => by subst e; exact False.elim hc)) (hv_flushAll _ _)
+macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact hd_performFrameBatch _)
+
 theorem hd_fl4ArchPerformInvocation {U : UtSetD} (fa : Fl4ArchInvocation) :
     IKHE (HUD U) (fl4ArchPerformInvocation (Z := Unit) fa) := by
   cases fa <;> simp only [fl4ArchPerformInvocation] <;> hv_auto
@@ -133,9 +144,18 @@ theorem ob_archPerformInvocation_nc {O : ObSet} (ai : ArchInvocation) (h : ∀ a
   | _ => unfold archPerformInvocation; ob_auto
 
 set_option maxHeartbeats 4000000 in
+/-- (int5) The frame batch keeps `OIn` (it writes caps, page-table entries and machine state only). -/
+theorem ob_performFrameBatch {O : ObSet} (b : Fl4FrameBatchInvocation) :
+    OBK O (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => by ob_auto) (fun _ => by ob_auto)
+    (fun _ _ _ _ _ _ _ => by ob_auto) (fun _ => by ob_auto) (fun _ _ _ _ => by unfold unmapPageUnflushed; ob_auto)
+    (fun _ _ _ => by ob_auto) (by ob_auto)
+
+set_option maxHeartbeats 4000000 in
 theorem ob_fl4ArchPerform_nc {O : ObSet} (fa : Fl4ArchInvocation) (h : NotMp fa) :
     OBKE O (fl4ArchPerformInvocation (Z := Unit) fa) := by
   cases fa with
+  | frameBatch b => simp only [fl4ArchPerformInvocation]; exact ike_liftE (ob_performFrameBatch b)
   | spec ai =>
     simp only [fl4ArchPerformInvocation]
     exact ob_archPerformInvocation_nc ai (fun a e => by subst e; exact h)

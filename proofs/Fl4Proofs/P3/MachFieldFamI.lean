@@ -18,6 +18,7 @@ SchedControl or arch cap decodes to (`QInv`), and by `freeMemory` (a
 -/
 import Fl4Proofs.P3.MachFieldFamS
 import Fl4Proofs.P3.SpecNoPre
+import Fl4Proofs.P3.SpecFbX
 
 open Classical
 
@@ -115,6 +116,17 @@ macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_archPerf
 /-- #68: the TDCALL keeps `msFT` (the frame write changes the memory only). -/
 theorem mtk_performTdxInvocation (i : Fl4TdxInvocation) : MTK (performTdxInvocation (Z := Unit) i) := by
   cases i <;> unfold performTdxInvocation tdxStatus <;> mtk_auto
+/-- fb3c/fb3e: the batch, from the leaves of its writes (`SInv.ik_performFrameBatchW`). -/
+theorem mtk_performFrameBatch (b : Fl4FrameBatchInvocation) : MTK (performFrameBatch (Z := Unit) b) := by
+  intro σ x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, MTK m → SInv.IK (fun s => msFT s = msFT σ) m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  refine SInv.ik_performFrameBatchW (P := fun s => msFT s = msFT σ) b (fun _ _ _ _ => k (mtk_capInsert _ _ _))
+    (fun _ => k (mtk_performPageInvocation _)) (fun _ _ _ _ _ _ _ => k (mtk_archFinaliseCap' _ _))
+    (fun _ => k (mtk_emptySlotNull _)) (fun _ _ _ _ => k ?_) (fun _ _ _ => k (mtk_setCap _ _))
+    (k (mtk_flushAll _ _)) σ rfl x hx
+  unfold unmapPageUnflushed; mtk_auto
+macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_performFrameBatch _)
 
 theorem mtk_fl4ArchPerformInvocationG (i : Fl4ArchInvocation) : MTKE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i <;> unfold fl4ArchPerformInvocation <;> mtk_auto

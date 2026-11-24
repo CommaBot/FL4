@@ -21,6 +21,7 @@ and 4).
   preservation is ut7's), `kcall_vfhAll_other` (non-syscall events, no `hU`).
 -/
 import Fl4Proofs.P3.SpecInvVfhR
+import Fl4Proofs.P3.SpecFbM
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -67,6 +68,50 @@ theorem utInv''_of_view {σ σ' : State Unit} (h : uV σ' = uV σ) (hU : UtInv''
   show UtInv''V _; rw [h]; exact hU
 
 /-! ## The performs -/
+
+/-- fb3e: a slot holding an arch cap is no fault-handler slot. -/
+theorem vfh_notBad_arch {s : State Unit} (hv : VfhV s) {sl : CslotPtr} {a : ArchCap}
+    (hc : SInvU.capAt s sl = some (.archObjectCap a)) : ¬ vfh_Bad s sl :=
+  vfh_notBad_old (c := .archObjectCap a) hv (by rw [← vfh_capAt]; exact hc) (vfh_not_arch a)
+
+theorem vfh_cnOk_refEq_frame {s : State Unit} {c : Cap} {dev : Bool} {p : ObjRef} {R : VMRights} {mt : VMMapType}
+    {sz : VMPageSize} {m : Option (Asid × VSpaceRef)} (h : RefEq (.archObjectCap (.pageCap dev p R mt sz m)) c) :
+    CnOk s c :=
+  cnOk_of_nc fun p' r g e => by
+    subst e
+    rcases h with h | ⟨-, -, hs, -⟩
+    · cases h
+    · simp [shp] at hs
+
+/-- fb3e: **the frame batch keeps `VS σ0`** (`ik_fbEntryX_of`), given the decode's `CnOk` of the destination
+CNode cap: a COPY_MAP destination is a slot of a full CNode (no fault-handler slot), every other written slot
+holds a frame cap at the write. -/
+theorem vs_performFrameBatch {σ0 : State Unit} (b : Fl4FrameBatchInvocation) (hcn : CnOk σ0 b.destCnode) :
+    IK (VS σ0) (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => ik_fbEntryX_of b w fbx_lookupTargetSlot fbx_lookupSourceSlot fbx_ensureEmpty
+    fbx_deriveCap
+    (fun s c src dest _ hs hc hdest _ _ _ _ => by
+      have hf := (vfh_lookupSlotForCnodeOp s hs.2.2 false b.destCnode _ _ (hcn.mono hs.2.1) s rfl dest s
+        (by unfold lookupTargetSlot at hdest; exact hdest)).2
+      exact vs_pin hs (vs_capInsert src dest (fun hb => (vfh_notBad_cnFull hf hb).elim)
+        (cnOk_of_nc fun p r g e => by subst e; exact hc)))
+    (fun sl v => ik_fbMapF2 b sl v (fun _ _ _ _ _ _ => fbx_decodePageInvocation _ _ _ _ _)
+      (fun s pi dev p R mt sz m hs hok hpg hcap x hx => vs_pin hs (vs_performPageInvocation pi
+        (fun c sl0 e v h => by
+          subst h
+          simp only [PgSl] at hpg; subst hpg
+          obtain ⟨c0, hc0, hre, -⟩ := hok
+          have hc0' : SInvU.capAt s sl0 = some c0 := hc0
+          rw [hcap] at hc0'; cases hc0'
+          exact ⟨vfh_notBad_arch hs.1 hcap, vfh_cnOk_refEq_frame hre⟩)
+        (fun c sl0 h => by
+          subst h
+          exact vfh_notBad_arch hs.1 hok)) x hx))
+    (fun sl => ik_fbDelXF sl (fun _ => fbx_isFinalCap _) (fun c x => by hv_auto)
+      (fun s _ _ _ _ _ _ hs _ x hx => vs_emptySlot sl .nullCap σ0 s hs x hx))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; hv_auto)
+    (fun s _ _ _ _ _ _ sl hs hc0 x hx => vs_pin hs (vs_setCap_nb (vfh_notBad_arch hs.1 hc0) (vfh_arch_ok _)) x hx))
+    (by hv_auto)
 
 set_option maxHeartbeats 8000000 in
 /-- **Every perform keeps `VfC`** from the decode's facts. -/
@@ -151,6 +196,10 @@ theorem vfh_fl4Perform (blk call don : Bool) (inv : Fl4Invocation) (σ0 σ : Sta
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
         refine ike_liftE (ik_bind (vs_performDeriveSubframe iv hi) fun _ => ?_)
         hv_auto) σ hS y hy).cur
+    | frameBatch bi =>
+      refine ((show IKE (VS σ0) _ by
+        simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        exact ike_liftE (vs_performFrameBatch bi hi)) σ hS y hy).cur
     | _ =>
       refine ((show IKE (VS σ0) _ by
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation]

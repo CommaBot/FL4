@@ -224,12 +224,15 @@ theorem topMQX_err {X : S → A → Fl4Spec.State Unit → Prop} {α β : Type} 
   obtain ⟨e, h1, h2, e', h3, h4⟩ := h
   exact ⟨Or.inl ⟨e, h1, h2, ⟨e', run_liftME_err (run_liftME_err h3), h4⟩, hX⟩, Or.inl h2⟩
 
-/-- **A PML4 cap** (see the module docstring). -/
+/-- **A PML4 cap** (see the module docstring), every label but FrameBatch
+(`hfb`; the batch replies in the decode: VsTopX / VsThX, the reply class).
+No user (VsDomF's `decode_invocation_pml4D` is unused). -/
 theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hinv : ∀ (a : A) (asid : U64), ∃ a', arI.invalidate_asid a asid = ok a')
@@ -250,12 +253,12 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   rw [hspec]
   by_cases hl : lbl = fl4_abi.label.X86PML4Flush
   swap
-  · rw [if_neg hl]
+  · rw [if_neg hl, if_neg hfb.2]
     have hd : Fl4Spec.fl4ArchDecodeInvocation (Z := Unit) slbl args ci sl
         (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps =
         Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args ci sl
           (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps) := by
-      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h))]
+      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h)), if_neg hfb.1]
     rw [hd]
     simp only [error.illegal, bind_ok, WP.spec_ok]
     exact topM_of_lift2 (Or.inl ⟨_, rfl, rfl, .illegalOperation, rfl, Or.inl trivial⟩)

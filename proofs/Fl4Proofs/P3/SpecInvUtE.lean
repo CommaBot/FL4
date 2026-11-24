@@ -20,6 +20,7 @@ kernel entries** (spec side only; imports only Fl4Spec via SpecInvUtG).
   (interrupts, faults, unknown syscalls: no premise).
 -/
 import Fl4Proofs.P3.SpecInvUtG
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvU
@@ -78,6 +79,100 @@ theorem uiP_invokeCnode (ci : CnodeInvocation) (σ : State Unit) (hI : UtInv' σ
         (NonDet.fail : NonDet (State Unit) Unit)).run σ).1 from hy)
       exact hx.elim
 
+/-! ## The frame batch (fb3) -/
+
+/-- An `.ok` outcome of `fbCode m` is one of `m`. -/
+theorem fbCode_ok {α : Type} {m : SEMonad Unit α} {σ s : State Unit} {a : α}
+    (h : ((.ok a, s) : Except Data α × State Unit) ∈ ((fbCode (Z := Unit) m).run σ).1) :
+    ((.ok a, s) : Except SyscallError α × State Unit) ∈ (m.run σ).1 := by
+  unfold fbCode NonDetE.handleE at h
+  rw [ExceptT.run_mk] at h
+  obtain ⟨⟨r, s'⟩, hr, hx⟩ := h
+  cases r with
+  | ok a' =>
+    have e := Set.mem_singleton_iff.1 hx
+    simp only [Prod.mk.injEq, Except.ok.injEq] at e
+    obtain ⟨rfl, rfl⟩ := e
+    exact hr
+  | error e =>
+    have e' := Set.mem_singleton_iff.1 hx
+    simp at e'
+
+theorem okv_fbCode {w : UView} {α : Type} {P : α → Prop} {m : SEMonad Unit α} (h : OkV w P m) :
+    OkV w P (fbCode (Z := Unit) m) :=
+  fun σ hσ a s hs => h σ hσ a s (fbCode_ok hs)
+
+theorem okv_liftE_getCap {ε : Type} {w : UView} (sl : CslotPtr) :
+    OkV w (fun c => w.2.1 sl = some c) (NonDetE.liftE (ε := ε) (getCap (Z := Unit) sl)) := by
+  intro σ hσ a s hs
+  obtain ⟨x, hx, e⟩ := mem_liftE' hs
+  simp only [Prod.mk.injEq, Except.ok.injEq] at e
+  obtain ⟨rfl, -⟩ := e
+  rw [← hσ]; exact (getCap_capAt hx).2
+
+/-- Every outcome from a state of view `w` keeps `UtInv'`. -/
+def VK {ε α : Type} (w : UView) (m : NonDetE (State Unit) ε α) : Prop :=
+  ∀ σ, uV σ = w → ∀ y ∈ (m.run σ).1, UtInv' y.2
+
+theorem ike_of_vk {ε α : Type} {m : NonDetE (State Unit) ε α} (h : ∀ w, UtInv'V w → VK w m) :
+    IKE UtInv' m :=
+  fun σ hI y hy => h (uV σ) hI σ rfl y hy
+
+theorem vk_of_ike {ε α : Type} {w : UView} {m : NonDetE (State Unit) ε α} (hw : UtInv'V w) (h : IKE UtInv' m) :
+    VK w m :=
+  fun σ hσ y hy => h σ (by show UtInv'V (uV σ); rw [hσ]; exact hw) y hy
+
+/-- A view-keeping step with a fact `Q` of its result. -/
+theorem vk_bind_uk {ε α β : Type} {w : UView} {m : NonDetE (State Unit) ε α} {g : α → NonDetE (State Unit) ε β}
+    {Q : α → Prop} (hw : UtInv'V w) (hm : ∀ v, UKE v m) (hq : OkV w Q m) (hg : ∀ a, Q a → VK w (g a)) :
+    VK w (m >>= g) := by
+  intro σ hσ y hy
+  obtain ⟨z, hz, ⟨a, ha, hy⟩ | ⟨e, -, rfl⟩⟩ := mem_bindE' hy
+  · obtain ⟨r, s'⟩ := z
+    simp only at ha; subst ha
+    have hv : uV s' = w := by rw [← hσ]; exact hm (uV σ) σ rfl _ hz
+    exact hg a (hq σ hσ a s' hz) s' hv y hy
+  · have hv : uV z.2 = w := by rw [← hσ]; exact hm (uV σ) σ rfl _ hz
+    show UtInv'V (uV z.2); rw [hv]; exact hw
+
+/-- The copy's insert (`CIOK` at the insert), then a rest keeping `UtInv'`. -/
+theorem vk_capInsert {ε β : Type} {w : UView} {c : Cap} {src dest : CslotPtr} {g : Unit → NonDetE (State Unit) ε β}
+    (hw : UtInv'V w) (hc : CIOK w c src) (hg : ∀ u, IKE UtInv' (g u)) :
+    VK w (NonDetE.liftE (capInsert (Z := Unit) c src dest) >>= g) := by
+  intro σ hσ y hy
+  obtain ⟨z, hz, ⟨a, ha, hy⟩ | ⟨e, he, rfl⟩⟩ := mem_bindE' hy
+  · obtain ⟨x, hx, rfl⟩ := mem_liftE' hz
+    have h1 : UtInv' x.2 := hv_capInsert c src dest σ ⟨by rw [hσ]; exact hw, by rw [hσ]; exact hc⟩ x hx
+    exact hg a x.2 h1 y hy
+  · obtain ⟨x, -, rfl⟩ := mem_liftE' hz
+    cases he
+
+/-- **One batch entry keeps `UtInv'`**: COPY_MAP's insert from the copy's facts (as
+`okv_decodeCnode`'s copy), the rest by the generated frames. -/
+theorem ui_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) :
+    IKE UtInv' (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry
+  split
+  · refine ike_of_vk fun v hw => ?_
+    refine vk_bind_uk (Q := fun _ => True) hw (fun _ => by uk_auto) (okv_triv fun _ => trivial) fun dest _ => ?_
+    refine vk_bind_uk hw (fun _ => by uk_auto) (okv_fbCode (okv_ensureEmpty dest)) fun _ _ => ?_
+    refine vk_bind_uk (Q := fun _ => True) hw (fun _ => by uk_auto) (okv_triv fun _ => trivial) fun src _ => ?_
+    refine vk_bind_uk hw (fun _ => ike_liftE (uk_getCap src)) (okv_liftE_getCap src) fun srcCap hsc => ?_
+    refine vk_bind_uk (Q := fun _ => True) hw (fun _ => by uk_auto) (okv_triv fun _ => trivial) fun _ _ => ?_
+    refine vk_bind_uk hw (fun _ => by uk_auto) (okv_fbCode (okv_deriveCap src _)) fun nc hnc => ?_
+    refine vk_capInsert hw ?_ fun _ => by ui_auto
+    intro d b' n f e
+    have hku := utKeep_trans (utKeep_mask _ srcCap) hnc.1
+    have e0 := (hku d b' n f).2 e
+    refine ⟨?_, hnc.2 d b' n f e⟩
+    rw [(hku d b' n f).1 e0]; exact hsc
+  · ui_auto
+  · ui_auto
+
+/-- **The batch keeps `UtInv'`.** -/
+theorem ui_performFrameBatch (b : Fl4FrameBatchInvocation) : IK UtInv' (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatch (fun w => ui_fbEntry b w) (by unfold flushAll; ui_auto)
+
 /-! ## The performs -/
 
 theorem uiP_fl4Perform (blk call don : Bool) (inv : Fl4Invocation) (σ : State Unit) (hI : UtInv' σ)
@@ -123,6 +218,9 @@ theorem uiP_fl4Perform (blk call don : Bool) (inv : Fl4Invocation) (σ : State U
         exact makePool_utInv' hI hD (mpOK_of_V hok) z hz
       | _ =>
         exact (show IKE UtInv' _ by simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]; ui_auto) σ hI y hy
+    | frameBatch fb =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation] at hy
+      exact ike_liftE (ui_performFrameBatch fb) σ hI y hy
     | _ => exact (show IKE UtInv' _ by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]; ui_auto) σ hI y hy
   | _ => exact (show IKE UtInv' _ by simp only [fl4PerformInvocation]; ui_auto) σ hI y hy
 

@@ -230,6 +230,7 @@ def VArchS (σ0 : State Unit) : ArchInvocation → Prop
 def VArch (σ0 : State Unit) : Fl4ArchInvocation → Prop
   | .spec i => VArchS σ0 i
   | .deriveSubframe iv => ∀ d ∈ iv.dests, ¬ vfh_Bad σ0 d
+  | .frameBatch b => CnOk σ0 b.destCnode
   | _ => True
 
 theorem vfh_dests {σ0 : State Unit} {p : ObjRef} {r : Nat} (h : CnFull σ0 p r) (ks : List Nat) :
@@ -254,6 +255,44 @@ theorem vfh_okv_deriveSubframe (σ0 : State Unit) (hd : CnDom σ0) (args : List 
     | (refine okv_bind (okv_frame fun v => by hv_auto) fun _ _ => ?_)
     | split
     | (apply okv_ite))
+
+theorem vfh_okv_unlessE_bind {ε β : Type} {σ0 : State Unit} {Pr : β → Prop} {c : Prop} [Decidable c] {e : ε}
+    {g : Unit → NonDetE (State Unit) ε β} (hg : c → OkV σ0 Pr (g ())) :
+    OkV σ0 Pr (NonDetE.unlessE c (NonDetE.throwError e) >>= g) := by
+  unfold NonDetE.unlessE
+  by_cases hc : c
+  · rw [if_pos hc]; exact okv_bind (Q := fun _ => True) (okv_pure trivial) fun ⟨⟩ _ => hg hc
+  · rw [if_neg hc]; exact okv_bind (Q := fun _ => False) (okv_throw _) fun _ h => h.elim
+
+theorem vfh_okv_throw_bind {ε α β : Type} {σ0 : State Unit} {Pr : β → Prop} (e : ε)
+    {g : α → NonDetE (State Unit) ε β} : OkV σ0 Pr (NonDetE.throwError e >>= g) :=
+  okv_bind (Q := fun _ => False) (okv_throw _) fun _ h => h.elim
+
+set_option maxHeartbeats 8000000 in
+/-- fb3e: the frame batch's destination CNode cap is one of the extra caps: `CnOk`. -/
+theorem vfh_okv_decodeFrameBatch (σ0 : State Unit) (args : List Data) (cap : ArchCap) (ex : List (Cap × CslotPtr))
+    (hex : ∀ p ∈ ex, CRoot σ0 p.1) :
+    OkV σ0 (fun b : Fl4FrameBatchInvocation => CnOk σ0 b.destCnode) (decodeFrameBatch (Z := Unit) args cap ex) := by
+  unfold decodeFrameBatch
+  split
+  · refine okv_bind (okv_frame fun v => by hv_auto) fun vs _ => ?_
+    refine vfh_okv_whenE_bind _ _ fun _ => vfh_okv_whenE_bind _ _ fun _ => ?_
+    try dsimp only
+    repeat' (first
+      | exact okv_throw _
+      | exact vfh_okv_throw_bind _
+      | exact vfh_okv_liftE_fail
+      | (refine okv_returnOk_bind ?_)
+      | (refine vfh_okv_whenE_bind _ _ fun _ => ?_)
+      | (dsimp only)
+      | split)
+    all_goals refine vfh_okv_unlessE_bind fun _ => vfh_okv_unlessE_bind fun _ => ?_
+    all_goals first
+      | exact okv_returnOk (hex _ (vfh_the_mem (by omega))).1
+      | (rw [if_pos ‹_ ∧ ex.length > 1›]; exact okv_returnOk (hex _ (vfh_the_mem (‹_ ∧ ex.length > 1›).2)).1)
+      | (rw [if_neg ‹¬ (_ ∧ ex.length > 1)›]; exact okv_returnOk (hex _ (vfh_the_mem (by omega))).1)
+  · exact okv_throw _
+  · exact vfh_okv_liftE_fail
 
 set_option maxHeartbeats 16000000 in
 theorem vfh_okv_archDecode (σ0 : State Unit) (hd : CnDom σ0) (label : Data) (args : List Data) (xs : CapRef)
@@ -291,6 +330,7 @@ theorem vfh_okv_fl4ArchDecode (σ0 : State Unit) (hd : CnDom σ0) (label : Data)
   all_goals repeat' (first
     | (exact vfh_okv_liftME (vfh_okv_archDecode σ0 hd label args xs cte _ ex hnb hex))
     | (exact vfh_okv_liftME (vfh_okv_deriveSubframe σ0 hd args cte _ ex hex))
+    | (exact vfh_okv_liftME (vfh_okv_decodeFrameBatch σ0 args _ ex hex))
     | (exact vfh_okv_liftME (okv_mono (okv_frame fun v => by hv_auto) fun _ _ => trivial))
     | (apply okv_ite))
 

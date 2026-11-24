@@ -275,10 +275,10 @@ structure RRReads5 (u : U64) (X15 : S) (a2 : A) : Prop where
     L.mem s' (stA (L.curW s')) ≠ sched.TS_RUNNING_VM
 
 /-- `RRPre3` with `RRReads5` (`nvm` only) in place of `RRReads4`. -/
-def RRPre5 (X0 : S) (a : A) : Prop :=
+def RRPre5G (ty : U64) (X0 : S) (a : A) : Prop :=
   ∀ (t rptr ep u usc : U64) (X1 X2 : S) (a1 : A) (b9 : Bool) (X3 : S),
     sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
-    RRChecks st ar X0 a t rptr ep u usc →
+    RRChecksG st ar ty X0 a t rptr ep u usc →
     obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1 →
     ipc.reply_remove st ar X1 a rptr u = ok (X2, a1) →
     sporadic.sc_sporadic st X2 usc = ok b9 →
@@ -302,24 +302,43 @@ def RRPre5 (X0 : S) (a : A) : Prop :=
       obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15 →
       RRReads5 (L := L) ar u X15 a2
 
+/-- `RRPre5G` at an UnknownSyscall fault (pf1). -/
+abbrev RRPre5 (X0 : S) (a : A) : Prop :=
+  RRPre5G (L := L) ar fl4_abi.consts.fault.UnknownSyscall X0 a
+
+
+theorem RRPre3.of5G {ty : U64} [HfrRestart st ar ty] {X0 : S} {a : A}
+    (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
+      RRChecksG st ar ty X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (hCn : ∀ t, sched.cur_thread st X0 = ok t → CnOff (L := L) T Cs Sg X0 t)
+    (h : RRPre5G (L := L) ar ty X0 a) : RRPre3G (L := L) ar ty X0 a := by
+  intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
+    e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
+  have P := hP t rptr ep u usc hct hrc hC
+  obtain ⟨-, -, -, w08, htw, -⟩ := rr_x8G ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
+  exact ⟨lk8_of P hrc w08 htw (hCn t hct),
+    (h t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
+      e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15).nvm⟩
+
+/-- `RRPre3.of5G` at an UnknownSyscall fault (pf1). -/
 theorem RRPre3.of5 {X0 : S} {a : A}
     (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
       RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
     (hS : RRSum (L := L) Scs X0) (hCn : ∀ t, sched.cur_thread st X0 = ok t → CnOff (L := L) T Cs Sg X0 t)
     (h : RRPre5 (L := L) ar X0 a) : RRPre3 (L := L) ar X0 a := by
-  intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
-    e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
-  have P := hP t rptr ep u usc hct hrc hC
-  obtain ⟨-, -, -, w08, htw, -⟩ := rr_x8 ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
-  exact ⟨lk8_of P hrc w08 htw (hCn t hct),
-    (h t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
-      e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15).nvm⟩
+  apply RRPre3.of5G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 /-- `RRPre5` at every dispatch state of the entry. -/
-def RRPreAt5 (s : S) (a : A) : Prop :=
+def RRPreAt5G (ty : U64) (s : S) (a : A) : Prop :=
   ∀ t nx s1 s2 a2, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
-    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre5 (L := L) ar s2 a2
+    syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre5G (L := L) ar ty s2 a2
+
+/-- `RRPreAt5G` at an UnknownSyscall fault (pf1). -/
+abbrev RRPreAt5 (s : S) (a : A) : Prop :=
+  RRPreAt5G (L := L) ar fl4_abi.consts.fault.UnknownSyscall s a
+
 
 /-- **`CnOffAt` [J]**: `CnOff` of the current thread at every dispatch state of
 the entry (see `CnOff`). -/
@@ -329,12 +348,12 @@ def CnOffAt (T Cs Sg : Set U64) (s : S) (a : A) : Prop :=
     syscall.budget_ok st ar s1 a = ok (true, s2, a2) →
     ∀ t', sched.cur_thread st s2 = ok t' → CnOff (L := L) T Cs Sg s2 t'
 
-theorem RRPreAt2.of5 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+theorem RRPreAt2.of5G {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
     (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hSum : RRSumAt (L := L) ar Scs s a) (hCn : CnOffAt (L := L) ar T Cs Sg s a)
-    (hR : RRPreAt5 (L := L) ar s a) : RRPreAt2 (L := L) ar s a := by
+    (hR : RRPreAt5G (L := L) ar ty s a) : RRPreAt2G (L := L) ar ty s a := by
   intro t nx s1 s2 a2 et enx es1 hb
   have h0 := h.1.choose_spec.choose_spec
   have et' : t = L.curW s := by
@@ -357,10 +376,20 @@ theorem RRPreAt2.of5 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
   have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
   rw [hb, WP.spec_ok] at hx
   have hPl := fun t' rptr ep u usc (et2 : sched.cur_thread st s2 = ok t') hrc
-    (hC : RRChecks st ar s2 a2 t' rptr ep u usc) => rrPl_of ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
-  exact RRPre2.of3 ar hPl (hSum t nx s1 s2 a2 et enx es1 hb)
-    (RRPre3.of5 ar hPl (hSum t nx s1 s2 a2 et enx es1 hb) (hCn t nx s1 s2 a2 et enx es1 hb)
+    (hC : RRChecksG st ar ty s2 a2 t' rptr ep u usc) => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
+  exact RRPre2.of3G ar hPl (hSum t nx s1 s2 a2 et enx es1 hb)
+    (RRPre3.of5G ar hPl (hSum t nx s1 s2 a2 et enx es1 hb) (hCn t nx s1 s2 a2 et enx es1 hb)
       (hR t nx s1 s2 a2 et enx es1 hb))
+
+/-- `RRPreAt2.of5G` at an UnknownSyscall fault (pf1). -/
+theorem RRPreAt2.of5 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hSum : RRSumAt (L := L) ar Scs s a) (hCn : CnOffAt (L := L) ar T Cs Sg s a)
+    (hR : RRPreAt5 (L := L) ar s a) : RRPreAt2 (L := L) ar s a := by
+  apply RRPreAt2.of5G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 end
 

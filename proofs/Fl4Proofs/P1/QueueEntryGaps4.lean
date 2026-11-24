@@ -71,7 +71,7 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
       FinGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0).kinds hA (Pd s0 hE))
   ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E DG C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
-    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl G.eptPl.pl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
+    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl G.eptPl.pl C.toCdtHyps E G.irqPl DG, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, DG⟩
 
 /-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s

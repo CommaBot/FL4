@@ -13,6 +13,7 @@ Domain cap's.
   kernel-global base and the five domain-schedule words).
 -/
 import Fl4Proofs.P3.CnodeDom
+import Fl4Proofs.P3.DomFb
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -35,35 +36,8 @@ macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible refine dke_withoutP
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_invokeTcb _)
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_invokeFl4Tcb _)
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_invokeCnode _)
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_fl4ArchPerformInvocation _)
 
 /-! ### The spec functions -/
-
-theorem dke_rab (p : Cap × CapRef) : DKE (resolveAddressBits' (Z := Unit) p) := by
-  rw [resolveAddressBits']
-  split
-  · split
-    · exact dke_liftE (dk_fail)
-    · refine dke_bind (dke_whenE _ (dke_throw _)) fun _ => dke_bind (dke_whenE _ (dke_throw _)) fun _ =>
-        dke_bind (dke_returnOk _) fun _ => ?_
-      dsimp only
-      split
-      · exact dke_returnOk _
-      · refine dke_bind (dke_liftE (dk_getCap _)) fun nc => ?_
-        split
-        · exact dke_rab _
-        · exact dke_returnOk _
-  · exact dke_throw _
-termination_by p.2.length
-decreasing_by
-  simp only [List.length_drop]
-  have h1 : p.2.length ≠ 0 := by
-    intro h; simp_all [List.drop_eq_nil_of_le]
-  omega
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_rab _)
-
-theorem dke_resolveAddressBits (p : Cap × CapRef) : DKE (resolveAddressBits (Z := Unit) p) := dke_rab p
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_resolveAddressBits _)
 
 theorem dk_lookupSlotForThread' (thread : ObjRef) (cref : CapRef) : DKE (lookupSlotForThread (Z := Unit) thread cref) := by
   unfold lookupSlotForThread; dk_auto
@@ -88,26 +62,6 @@ macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_loadCapTra
 theorem dk_setExtraBadge' (buffer : ObjRef) (badge : Word) (n : Nat) : DK (setExtraBadge (Z := Unit) buffer badge n) := by
   unfold setExtraBadge; dk_auto
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_setExtraBadge' _ _ _)
-
-theorem dke_lookupErrorOnFailure' {α : Type} (b : Bool) {m : LFMonad Unit α} (h : DKE m) :
-    DKE (lookupErrorOnFailure (Z := Unit) b m) := by
-  unfold lookupErrorOnFailure; exact dke_handleE h fun _ => dke_throw _
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible refine dke_lookupErrorOnFailure' _ ?_)
-
-theorem dk_lookupSlotForCnodeOp' (isSource : Bool) (croot : Cap) (ptr : CapRef) (depth : Nat) : DKE (lookupSlotForCnodeOp (Z := Unit) isSource croot ptr depth) := by
-  unfold lookupSlotForCnodeOp; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_lookupSlotForCnodeOp' _ _ _ _)
-
-theorem dk_lookupTargetSlot' (c : Cap) (r : CapRef) (n : Nat) : DKE (lookupTargetSlot (Z := Unit) c r n) := by
-  unfold lookupTargetSlot; exact dk_lookupSlotForCnodeOp' _ _ _ _
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_lookupTargetSlot' _ _ _)
-
-theorem dke_bind_returnOk' {ε α β : Type} {a : α} {f : α → NonDetE (State Unit) ε β} (h : DKE (f a)) :
-    DKE (NonDetE.returnOk a >>= f) := by
-  intro σ x hx
-  rw [run_bind_ok (run_returnOk a σ)] at hx
-  exact h σ x hx
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible refine dke_bind_returnOk' ?_)
 
 theorem dk_archPostResetUntyped' (_isDevice : Bool) (_sz : Nat) : DK (archPostResetUntyped (Z := Unit) _isDevice _sz) := by
   unfold archPostResetUntyped; dk_auto
@@ -134,10 +88,6 @@ theorem dk_createCap' (type : ApiObjectType) (bits : Nat) (untyped : CslotPtr) (
   obtain ⟨dest, oref⟩ := d
   unfold createCap; dk_auto
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_createCap' _ _ _ _ _)
-
-theorem dk_ensureNoChildren' (cslotPtr : CslotPtr) : DKE (ensureNoChildren (Z := Unit) cslotPtr) := by
-  unfold ensureNoChildren; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dk_ensureNoChildren' _)
 
 theorem dk_getRefillTail' (scPtr : ObjRef) : DK (getRefillTail (Z := Unit) scPtr) := by
   unfold getRefillTail; dk_auto
@@ -203,14 +153,6 @@ macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_fl4Invoke
 theorem dke_invokeFl4IrqControl' (i : Fl4IrqControlInvocation) : DKE (invokeFl4IrqControl (Z := Unit) i) := by
   cases i <;> unfold invokeFl4IrqControl <;> dk_auto
 macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_invokeFl4IrqControl' _)
-
-theorem dke_archDeriveCap' (c : ArchCap) : DKE (archDeriveCap (Z := Unit) c) := by
-  unfold archDeriveCap; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_archDeriveCap' _)
-
-theorem dke_deriveCap' (sl : CslotPtr) (c : Cap) : DKE (deriveCap (Z := Unit) sl c) := by
-  unfold deriveCap; dk_auto
-macro_rules | `(tactic| dk_leaf) => `(tactic| with_reducible exact dke_deriveCap' _ _)
 
 theorem dk_makeArchFaultMsg' (f : ArchFault) (t : ObjRef) : DK (makeArchFaultMsg (Z := Unit) f t) := by
   cases f <;> unfold makeArchFaultMsg <;> dk_auto

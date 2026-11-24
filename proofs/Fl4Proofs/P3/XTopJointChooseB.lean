@@ -965,6 +965,22 @@ theorem pce_post {ε α : Type} {m : NonDetE (State Unit) ε α} (h1 : KFE ct m)
     {σ : State Unit} (hs : CQ ct σ) (hb : BI ct σ) : ∀ y ∈ (m.run σ).1, CQ ct y.2 ∧ BI ct y.2 :=
   fun y hy => ⟨⟨CtRs.of_ctV (h1 σ y hy) hs.1, qk_of_qv h2 σ y hy hs.2⟩, BI.of_sV (h3 σ y hy) hb⟩
 
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 20000 in
+/-- fb3f: the frame batch keeps the SC view (`SInv.ik_performFrameBatchW`). -/
+theorem sck_performFrameBatch (bi : Fl4FrameBatchInvocation) : SV (performFrameBatch (Z := Unit) bi) := by
+  intro σ' x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, SV m →
+      Fl4Proofs.P3.SInv.IK (fun s => sV s = sV σ') m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  refine Fl4Proofs.P3.SInv.ik_performFrameBatchW (P := fun s => sV s = sV σ') bi
+    (fun _ _ _ _ => k (sck_capInsert _ _ _)) (fun _ => k (sck_performPageInvocation _))
+    (fun _ _ _ _ _ _ _ => k ?_) (fun _ => k ?_)
+    (fun _ _ _ _ => k ?_) (fun _ _ _ => k (sck_setCap _ _)) (k (sck_flushAll _ _)) σ' rfl x hx
+  · simp only [archFinaliseCap]; sck_auto2
+  · unfold emptySlot; sck_auto2
+  · unfold unmapPageUnflushed; sck_auto2
+
 set_option maxRecDepth 20000 in
 /-- **The perform of a first-phase invocation but `PerfW` keeps `CQ ∧ BI`**
 from `CQ ∧ NQ ∧ BI` (module docstring). -/
@@ -1014,6 +1030,10 @@ theorem perf_firstB (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw :
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       cases i <;> unfold performTdxInvocation tdxStatus <;>
         exact pce_post (by kf_auto) (by qv_auto2) (by sck_auto2) hs hb
+    | frameBatch bi =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      exact pce_post (Fl4Proofs.P3.Vs.dke_liftE (kf_performFrameBatchQ bi))
+        (Fl4Proofs.P3.Vs.dke_liftE (qv_performFrameBatch bi)) (Fl4Proofs.P3.Vs.dke_liftE (sck_performFrameBatch bi)) hs hb
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact pce_post (by kf_auto) (by qv_auto2) (by sck_auto2) hs hb

@@ -18205,3 +18205,709 @@ states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top st
   AArch64 (`lake build Fl4ProofsA64`): see the follow-up line below.
 - Scripts (untracked): tdx4-run.sh, tdx-build.sh (fake-sysroot leanq + disk/memory/swap/load guard), leanq,
   leanq-root.sh, axtdx4b.lean.
+
+## fb-spec (branch par/fbspec from 9d4d4615; FL4 #71 = main e35ed12b read with `git show`, not merged) — **FL4 extension of the spec: `X86PML4FrameBatch`** (no seL4 / l4v counterpart); spec module + dispatch hook; no P3 refinement yet; no FINDING
+
+### (1) FL4's semantics (fl4-core `arch/x86_64/vspace.rs`: `decode_frame_batch`, `frame_batch_entry`, `batch_map`, `unmap_page_unflushed`; `interfaces/object-api-extensions.xml`)
+- **Label** `X86PML4FrameBatch` = **90** in the spec's configuration (x86-64, hardware debug API: after `UntypedRetypeShared` = 89;
+  checked by re-running `fl4-abi/build.rs`'s numbering on main's XML: 86 without the debug API). Only on a PML4 cap
+  (`vspace::decode`, `Cap::Pml4`, after `X86PML4Flush`). x86_64 only. Not a local (beside-the-gate) path: `localinv` does
+  not take it, so it runs under the serial gate.
+- **Decode** (in order): unmapped PML4 cap → `InvalidCapability 0`; `check_vspace` (the ASID still names this PML4) with
+  *every* failure, lookup failures included, mapped to `InvalidCapability 0` (X86PML4Flush reports `FailedLookup` there);
+  `length < 1` → `TruncatedMessage`; header word 0: op bits 0-1 (1 COPY_MAP, 2 REMAP, 3 DELETE), count bits 8-15
+  (n ≤ 255), depth bits 16-22, map rights 24-27, copy rights 28-31, VM attributes 32-36 (seL4_X86_DeferFlush is bit 4 of
+  them), DEFER_DELETE_FLUSH bit 40; reserved bits, op 0, depth 0 or > 64 → `InvalidArgument 0`; `length < 1 + words·n`
+  (3/2/1 words per entry) → `TruncatedMessage`; no extra cap → `TruncatedMessage`; extra cap 0 not a CNode →
+  `InvalidCapability 1`; destination CNode = extra cap 1 for COPY_MAP if given, else extra cap 0; not a CNode →
+  `InvalidCapability 2`. These are ordinary syscall errors (error reply, nothing done).
+- **Loop**: entries in order, each read from the message when it runs; the loop **stops at the first failing entry**.
+  Earlier entries stay done (**partial progress**); a failing entry is no syscall error: the invocation succeeds and a
+  Call gets the reply `(label 0, MR0 = entries done, MR1 = the failing entry's seL4_Error code or 0)`, a Send nothing.
+  A non-`Sys` error of an entry would be code `IllegalOperation` (unreachable: see preemption).
+- **COPY_MAP** (src, dest, vaddr), all or nothing: `lookup_target_slot(dest CNode, dest, depth)`; `ensure_empty_slot`;
+  `lookup_source_slot(CNode, src, depth)`; the source must be a frame cap (`InvalidCapability 0`);
+  `mask_cap_rights(copy rights)` then `derive_cap` (a frame copy is unmapped) and `cdt::insert_with_cap` (CNode_Copy's
+  steps); then `batch_map(dest, vaddr)`; if the map fails, `cdt::delete(dest, true)` removes the copy (never final: the
+  source holds the same frame) and the map's error is the entry's.
+- **REMAP** (slot, vaddr): `lookup_source_slot`, `batch_map`.
+- **`batch_map`** = `decode_page_map` + its perform with the batch's PML4, map rights and attributes: a non-frame or
+  EPT-mapped cap → `InvalidCapability 0`; a mapped cap of another ASID → `InvalidCapability 1`, at another vaddr →
+  `InvalidArgument 0`; an unmapped cap's range above USER_TOP → `InvalidArgument 0`; VM rights =
+  `mask_vm_rights(frame rights, map rights)`; misaligned → `AlignmentError`; 1 GiB without CPU support →
+  `IllegalOperation`; `page_entry_slot` (lookup failure → `FailedLookup false`; a large/huge frame over a table →
+  `DeleteFirst`); then the cap is set mapped and `write_mapping` writes the entry (all checks before any write).
+- **DELETE** (slot): `lookup_target_slot`; an empty slot → Ok (as CNode_Delete); a non-frame cap → `IllegalOperation`;
+  with DEFER_DELETE_FLUSH and a frame cap mapped (not EPT, not device) in *this* ASID: `unmap_page_unflushed` (the entry
+  cleared, if it still maps the frame, without TLB invalidation; `deferred` set if cleared) and the cap rewritten
+  unmapped; then `cdt::delete(slot, true)` (= seL4 `cteDelete(slot, true)`; a still-mapped cap is unmapped with its
+  invalidation by `finalise_cap`, a final device frame is retired by `retire_dma_frame`).
+- **End**: if a deferred delete cleared an entry, `invalidate_asid(asid)` (every core) **before** the reply; then the
+  reply (Call only) and `TS_RUNNING`. The decode runs the whole batch itself (no `TS_RESTART` first, as `reply1`'s
+  invocations), so `handle_invocation` sees a running thread and adds nothing.
+- **Preemption**: none. Every `cdt::delete` here finalises a frame cap, whose remainder is null at once, so
+  `finalise_slot_immediate`'s preemption point is never reached; a batch is ≤ 255 entries (in practice ≤ 119 / 59 / 39
+  by the 120-word message), each O(1) table work plus one CDT insert / remove.
+
+### (2) Deviations from anything seL4 has
+- The invocation itself (one call doing many CNode_Copy + X86Page_Map / X86Page_Map / CNode_Delete steps, stopping at the
+  first failure and reporting progress in a success reply) has no seL4 counterpart: **FL4 extension of the spec**.
+- Per-entry errors are not syscall errors (a success reply carries the code; no lookup-failure details, no error label).
+- The deferred delete flush (unmap without invalidation, one `invalidate_asid` at the end) is new; seL4's `unmapPage`
+  always invalidates. The window is the batch itself, under the serial gate.
+- Inherited from FL4's X86Page_Map (already deviations of FL4's `decode_page_map`, not new here): the 1 GiB CPU check,
+  `write_mapping`'s TLB choices (`invalidate_page` / `invalidate_asid` / none with DeferFlush when rights only drop) vs
+  l4v's `invalidatePageStructureCacheAsid`, SEV address bits.
+
+### (3) The spec (new module `Fl4Spec/Ext/FrameBatch.lean`, FL4 extension; compositions of the ported operations)
+- `fl4FrameBatchLabel = 90`, `FbOp`, `Fl4FrameBatchInvocation` (PML4, ASID, op, depth, rights, attributes, defer flag,
+  CNode caps, entries' words).
+- `decodeFrameBatch args cap extraCaps`: FL4's decode checks, in its order (`findVspaceForAsid` with any failure →
+  `InvalidCapability 0`).
+- `fbMap b slot vaddr`: FL4's EPT rejection, then **l4v's `decodePageInvocation` at the `X64PageMap` label**
+  (`fbPageMapLabel = fromEnum (x64PageMap)`) with `[vaddr, map rights, attr]` and the batch's PML4 cap, then
+  `performPageInvocation`.
+- `fbEntry b w : NonDetE _ Data Bool` (error = the reply's code via `msgFromSyscallError`, result = a deferred delete
+  cleared an entry): COPY_MAP = `lookupTargetSlot`, `ensureEmpty`, `lookupSourceSlot`, `getCap`, `maskCap`, `deriveCap`,
+  `capInsert`, `fbMap`, on failure `capDelete dest` then the error; REMAP = `lookupSourceSlot`, `fbMap`; DELETE =
+  `lookupTargetSlot`, `getCap`, null → ok, deferred unmap (`unmapPageUnflushed` = l4v's `unmapPage` without
+  `invalidateTranslationSingleASID`, returning whether it cleared; `setCap` of the unmapped cap), `capDelete`
+  (a preemption → code `IllegalOperation`, FL4's `Err(_)`).
+- `fbRun` (stop at the first failure), `performFrameBatch` = `fbRun`, `flushAll vspace asid` if needed (l4v's
+  `flush_all` = `invalidateASID`, the op `performPml4Flush` uses), reply `[done, err]`. The shell's `setThreadState
+  restart` … `replyFromKernel thread (0, reply)` … `running` gives FL4's reply and state (nothing in a frame batch reads
+  or writes the caller's thread state).
+- **Dispatch hook** (the only change outside the new module; `Ext/Invocation.lean` is itself an FL4-extension file,
+  no l4v-derived file changed): `import Fl4Spec.Ext.FrameBatch`; constructor `Fl4ArchInvocation.frameBatch`;
+  in `fl4ArchDecodeInvocation`'s `pml4Cap` case `else if dataToNat label = fl4FrameBatchLabel then
+  liftME .frameBatch (decodeFrameBatch args cap extraCaps)` (after the Flush label, before l4v's decoder);
+  in `fl4ArchPerformInvocation` `| .frameBatch i => liftE (performFrameBatch i)`; the module docstring.
+
+### (4) Modelling notes (not FINDINGs)
+- FL4 reads each entry's words from the IPC buffer / registers when the entry runs, interleaved with its writes; the
+  spec reads the message once (`getMrs`). Equal when user memory does not change during the entry (no entry writes
+  user memory; the one-core model, `JDevPath.core0`-style [P]). On SMP another core's thread may rewrite the buffer
+  mid-batch: harmless for the kernel, but the refinement will need the stable-message assumption the other decodes use.
+- Rights-lowering REMAPs with seL4_X86_DeferFlush are not flushed at the batch's end (only deferred deletes are), as for
+  X86Page_Map with DeferFlush: the caller must flush. The XML says nothing about it: **underspecified, documentation**.
+- The decode maps `check_vspace`'s `FailedLookup` to `InvalidCapability 0` (X86PML4Flush does not): an ABI choice.
+
+### (5) Safety review (no FINDING)
+- All or nothing per COPY_MAP: every `batch_map` check precedes its writes; the rollback deletes a non-final copy.
+- No rights escalation: the copy's rights are masked, the mapping's are `mask_vm_rights` of the copy's.
+- Deferred deletes: only frames mapped in the invoked ASID, never device / shared-DMA frames (their final deletion
+  retires memory and needs a clean TLB first), and the ASID is invalidated before the reply, even when a later entry
+  fails. The frames' memory cannot be reused meanwhile: reuse needs an untyped reset / retype, which takes the serial
+  gate the batch holds, and the local paths (CNode Copy / Delete, X86Page_Map) never free memory. Until the end,
+  other cores' threads of that address space may still reach a just-deleted mapping, as they could before the call.
+- No preemption point is reachable; the batch's length is bounded by the message.
+
+### (6) Builds
+- sd7-fb1/fb2 (module build `Fl4Spec Fl4Spec.Ext.FrameBatch Fl4Spec.Ext.Invocation`): fb1 `decodePageInvocation`
+  returns an `ArchInvocation` (`.invokePage`, matched); **fb2 green (981 jobs)**.
+- **sd7-fbfull** (full build at 22851fdc): **FAILS as expected, not mass-edited** (rule: report). 19 errors in 14 modules,
+  in two classes, all from the new constructor / decode branch:
+  * exhaustive matches on `Fl4ArchInvocation` with no `frameBatch` alternative: VsDomOps.lean:219, SpecInvDomG.lean:231,
+    SpecInvUtE.lean:126 ("Missing cases", then `uiP_fl4Perform` unknown);
+  * the generated spec-invariant families (`*_auto` unfolding `fl4ArchDecodeInvocation` / `fl4ArchPerformInvocation`)
+    time out on the new branch (`whnf`, 1000000 heartbeats) where the perform now writes caps:
+    SpecInvFaultTcbsF5:224, SpecInvFaultTcbsG5:224, SpecInvNativeScopeF5:288, SpecInvGpK5:290, SpecInvSlI5:290,
+    SpecInvSgI5:290, SpecInvUtNK5:290, SpecInvAllO5:291, SpecInvQDomF5:73, SpecInvNtfnQC4:154;
+  * the VSpace front-end: VsDecTop.lean:257 (unsolved goals: the PML4 label case split gains the batch label).
+  Downstream modules were not reached. The fix is real proof work per family (a leaf for `performFrameBatch` /
+  `decodeFrameBatch` in each: frame `idk`/`nk`/`gpk` frames, the cap-writing families SpecGlob/SI/Ut via the
+  CNode-copy and delete leaves, the decode's `OkV` facts), to be done with the P3 refinement after m75's re-extraction.
+
+### (7) fb-spec-2 (spec-side families for the batch) — PARTIAL, handoff
+- **Generic combinators** (new modules): `SpecInvFbK` (`SInv.ik_fbRun`, `SInv.ik_performFrameBatch`: `IK P` of the batch
+  from `IK P` of one entry `fbEntry` (no recursion) and of the final `flushAll`); `SpecInvFbD` (`Vs.fk_fbRun`,
+  `Vs.fk_performFrameBatch`, the same for the projection frames `FK f`, i.e. `DK` / `DL`).
+- **Generated frame families patched** (each gets `X_fbEntry` by `unfold fbEntry; X_auto`, `X_performFrameBatch` from
+  the combinator, and an `X_leaf` macro, inserted before `X_fl4ArchPerformInvocation`; import `SpecInvFbK`):
+  SpecInvSgI5 (idk), SpecInvNativeScopeF5 (ns), SpecInvGpK5 (gpk), SpecInvSlI5 (isk), SpecInvUtNK5 (nk), SpecInvAllO5
+  (oi), SpecInvQDomF5 (q4), SpecInvNtfnQC4 (ct), SpecInvFaultTcbsF5 (ft), SpecInvFaultTcbsG5 (fg). Patch script:
+  proofs/scratch/fb2/patchfb.py (logic: regex on the `X_fl4ArchPerformInvocation` theorem). The generated bodies in
+  scratch were patched the same way: ft2/bodyFG, ft3/bodyFG, g1c/bodyOI, invA/bodyFT, invA/body; the generators
+  (`gen.py`) themselves are not changed: they need `fbRun` in their skip list and these two lemmas as manual leaves.
+- **Open, in order:**
+  1. **FT / FG** (SpecInvFaultTcbsF5/G5): `fbEntry`'s two `capDelete`s stay open (sd7-fb4: goal
+     `IKE (FTL L) (NonDet.lfp recDelF (cTEDeleteCall _ true))`): these families have no `capDelete` leaf (their
+     generators skip it, as for CNode delete). The batch deletes only frame caps (DELETE checks `pageCap` first; the
+     rollback deletes the derived frame copy), so the fix is a conditional lemma `capDelete` of a slot holding a page
+     cap keeps `FTL L` / `FG…` (rec_del's finalise of a frame: `unmapPage` + `emptySlot`), used through a hand proof of
+     `ft_fbEntry` with the slot fact.
+  2. **DK / DL** (VsDomOps:219 `dke_fl4ArchPerformInvocation`, SpecInvDomG:231 `dle_fl4ArchPerformInvocation`): the
+     leaves the entry needs (`capDelete`, the CNode lookups, `deriveCap`, `ensureEmpty`) live downstream: `dk_capDelete`
+     in DomRecDel, the CNode ones in CnodeDom/AllDom; DomG's own `dl_capDelete` (l. 662), `dl_lookupTargetSlot'`
+     (l. 836), `dle_deriveCap'` (l. 939). DomG: `dle_fl4ArchPerformInvocation` has no user: move it to the file's end
+     and add `| frameBatch i => … Vs.fk_performFrameBatch …`. Vs: `dke_fl4ArchPerformInvocation` is used by AllDom (leaf)
+     and VsDomF:137 (the PML4 decode frame): split it into a no-batch version (hypothesis `∀ b, i ≠ .frameBatch b`) in
+     VsDomOps and a full one in a module after DomRecDel + CnodeDom; AllDom and VsDomF switch to it (check cycles).
+  3. **SpecInvUtE** (`UtInv'`, `uiP_fl4Perform`) and every downstream cap family (not reached by the first full build:
+     the P3/`UtInv''` family SpecInvUtO*, sg1 SgD/SgE, sd7's SiD/SiE, the ZR family, DevFree/Gpm, Vi*, CnDom, …): the
+     batch writes caps, so each needs a real proof: COPY_MAP is a `capInsert` of a `deriveCap` of the source into a
+     lookup destination (the IPC cap transfer's shape: sg1's `sg_transferCapsLoop` / ut7's `hv_capInsert3` with
+     `okv_deriveCapR`, `DestRefV`, `PosOK`), the rollback and DELETE are `capDelete`s, the maps are
+     `performPageInvocation .pageMap` on a slot holding a frame cap (the arch map's existing leaves need `ArchSlN`-style
+     slot facts, here established at run time by `getCap`). Size: L per family group.
+  4. **VsDecTop:257** (P3 refinement, joint): at the current extraction FL4 answers label 90 on a PML4 cap with
+     `IllegalOperation`, the spec now runs the batch: the refinement there is false until m75's re-extraction and the
+     batch's P3 refinement. Closing it now needs a scope premise (label ≠ 90 at the PML4 decode) — a lead decision.
+- Builds: sd7-fb3 (imports missing in the patch, fixed), sd7-fb4 (FT5: only the `capDelete` goals left),
+  **sd7-fb5: SpecInvFbD and the eight families other than FT/FG green (1106 jobs).** No full build run (it cannot be
+  green before items 1-4).
+- **Lead decision (VsDecTop:257): no scope premise.** It is a sequencing issue: the spec hook lands only together with
+  m75's re-extraction at main e35ed12b (where FL4 runs the batch) and the batch's P3 refinement. par/fbspec stays a side
+  branch until then; on resume: rebase onto m75, items 1-3 above, then the refinement (VsDecTop's PML4 case gains the
+  batch label branch).
+## fb3 (branch par/fb3 in FL4-fb3, on d139d550 = m77 + merge of par/fbspec ce8df4a1) — FrameBatch: spec families, P1, P3 at the six m77 sites; PLAN + progress (resumed after the first fb3 agent hit a usage limit right after the merge)
+- **Merge (f8e4c299).** `git merge par/fbspec`: one textual conflict (KENTRY-PLAN, union of both sides). The merge also
+  brings g7e / g7a-3 / sd7 / s27 / sd7-2 (tops U8 … U15) from fbspec's base 9d4d4615, which were built against the
+  pre-#71 extraction: they are re-checked by the first full build.
+- **Semantics re-check (spec `Ext/FrameBatch` vs fl4-core `vspace.rs` 654-850, extracted `Funs.lean` 21744-22120): no
+  mismatch.** Checked: decode order and error codes (`check_vspace` → IC0; header; `length` = `args.length` by `hlen`;
+  extra caps; dest CNode only for COPY_MAP); entry words (w0/w1/w2 ↔ `w.1`/`w.2.1`/`w.2.2`); per-entry errors are all
+  `Exc::Sys` (`lookup_slot_for_cnode_op` returns `Sys(FailedLookup|RangeError)`), codes = `msgFromSyscallError`'s first
+  component (1..10 both sides); COPY_MAP order and rollback (`batch_map` writes only after all checks, so a failing map
+  leaves only the inserted copy, which `cdt::delete(dest,true)` / `capDelete` removes; never final); `batch_map` =
+  `decode_page_map` minus its vspace-cap checks, which the spec's `decodePageInvocation` re-does per entry and which
+  always pass mid-batch (no entry changes the ASID table or the PML4 cap); DELETE deferred condition
+  (`mapped ∧ ¬ept ∧ ¬device ∧ asid = b.asid` ↔ `some _, vmVSpaceMap, dev = false, asid' = b.asid`); `unmap_page_unflushed`
+  ↔ `unmapPageUnflushed` (lookup failure / wrong entry → false); final `invalidate_asid` ↔ `flushAll`; reply and
+  `TS_RUNNING` ↔ the shell's `replyFromKernel` + `setThreadState running`. Message re-reads mid-batch: FL4 reads each
+  entry via `syscall_arg(s, ct, buf, i)` at the current state; no entry writes user memory or `ct`'s registers
+  (`finalise_cap` of a frame: `unmap_page` + `retire_dma_frame`, the latter only `Arch` calls), so the words are
+  stable: a footprint lemma, not an assumption. One divergence on an unreachable path only: if an entry's final
+  `cdt::delete` failed after a deferred clear, FL4 would still flush (`deferred` set before the delete) and the spec
+  would not (`fbRun` drops the failing entry's `cleared`); `cdt::delete` of a frame cap never fails (no preemption
+  point is reached), which the P3 proof must show anyway.
+- **Plan, in order, with sizes** (S < 100 lines, M 100-400, L 400-1500, XL > 1500):
+  1. Spec-side families (fb-spec-2 open 1-3).
+     a. FT / FG [S]: `ft_/fg_fl4ArchPerformInvocation` restricted to non-batch invocations (they have no other user);
+        the batch in the bundle `B` (SpecInvFaultTcbsH7 `b_fbEntry` / `b_performFrameBatch`, where `b_capDelete` is a
+        leaf), H8 `b_fl4PerformInvocation` gains the `invokeArchObject` case.
+     b. DK / DL [S-M]: new module DomFb (after DomRecDel, before VsDomF): AllDom's lookup / derive leaves moved there
+        unchanged, batch leaves (`ensureEmpty`, `decodePageInvocation`, `fbMap`, `unmapPageUnflushed`, `fbCode`,
+        `fbDelete`), full `dke_fl4ArchPerformInvocation` (VsDomOps keeps `dke_fl4ArchPerformInvocation0` for
+        non-batch); SpecInvDomG `dle_fl4ArchPerformInvocation` moved to the file's end with the batch case.
+     c. SpecInvUtE `uiP_fl4Perform` [M]: COPY_MAP's `capInsert` needs `CIOK` at the insert: from `okv_deriveCap` +
+        `utKeep_mask` + the `getCap` of the source (as `okv_decodeCnode`'s copy), the steps before it view-preserving
+        (`uk_*`); the rest by `ui_auto` (`ui_capDelete` is a leaf).
+     d. Downstream cap families not reached by fb-spec's build (UtO*, sg1 SgD/SgE, SiD/SiE, ZR, DevFree/Gpm, Vi*,
+        CnDom, …) [L per group, count unknown until a full build reaches them].
+  2. P1 `QueueDecVs` Pml4 / batch [L]: a loop invariant for `decode_frame_batch_loop` (P1's `Cur0` relative to the
+     decode state but without the caller's restart), per entry: CNode lookups (reads), `ensure_empty_slot`,
+     `derive_cap`, `insert_with_cap` (`CdtHyps`), `batch_map` (`decode_page_map.dec`'s tail), `cdt.delete` (the CNode
+     delete's `DelPlace` lemma), `unmap_page_unflushed` (as `unmap_page.vs`); then `invalidate_asid`, the reply
+     (`set_mr` ×2, `set_msg_info`, as `reply1.bxi`) and `TS_RUNNING`.
+  3. P3 `MachKeepG4d.MKD.vspace_decode` [M-L]: an MKD lemma for the batch loop (reaches `cdt.delete` through
+     `frame_batch_entry`, outside the quiet walk).
+  4. P3 refinement at VsDecTop / VsTopX / VsThX / VsDomF [XL, several sessions]: decode vs `decodeFrameBatch` [M];
+     per entry vs `fbEntry` [L-XL: CNode lookup refinement, CNode copy (`insert_with_cap` vs `capInsert` with the
+     MDB ghost), `batch_map` vs `fbMap` (the frame-map refinement re-stated at an intermediate state: its
+     `VsFrameHyps*` / `SR` bundle must hold at every entry), `cdt.delete` vs `capDelete` (Delete / DelDelete, with
+     `FinInv`), `unmap_page_unflushed` vs `unmapPageUnflushed` (new)]; the loop with CRel / FinInv / MdbOKV / VsRel /
+     PtRel / TopSR re-established after each entry and the message words stable (footprint); the in-decode reply:
+     the PML4 cap's batch label moves from the `DecOKM` class to the reply class (`DecOKRM` / `TacHypX`-style, as
+     TestAndClearAccessed), which threads through VsTopCap / VsTopX / XTopJointVsReply; then VsThX / VsDomF.
+- **Progress (fb3 resume).**
+  * P0 (7c259728): the committed x86 / A64 `P0/Consts.lean` were stale at d139d550 (m77 built with a regenerated,
+    uncommitted one: Auto.lean uses `Consts.vspace.frame_batch.{DEFER_DELETE_FLUSH,DEFINED}.spec`); regenerated with
+    `gen_const_specs.py proofs [--arch aarch64]` on tokyo (additions only + reordering). P0 not otherwise touched.
+  * 1a / 1b / 1c DONE (d4f23e04), built on tokyo (fb3b-m4): SpecInvFaultTcbsF5 / G5 / H7 / H8, VsDomOps, DomFb (new),
+    SpecInvDomG, SpecInvUtE, SpecGlobFK. In the same commit, not yet checkable (downstream of the open sites):
+    AllDom (leaves moved to DomFb), VsDomF (imports DomFb), PerformNil (`frameBatch` is no `NilInv`), and three
+    unused arch-perform lemmas restricted to non-batch (SpecGlobFK `gke_`, XTopJointMidRunQ `qve_`,
+    XTopJointChooseF `scke_fl4ArchPerform_nA`).
+  * fb3b-m4's only errors: `P1/QueueDecVs.lean:801` (the batch branch) and `P3/VsDecTop.lean:257/261` (the PML4
+    label split: besides the batch branch, the non-Flush branch now needs `dataToNat slbl ≠ 90` to reduce the spec
+    to l4v's decoder; `decode_invocation_pml4` needs a batch-label relation like `hlbl`, a non-top statement change).
+- **HANDOFF (open, in plan order).**
+  1d. Downstream spec families with an exhaustive `Fl4ArchInvocation` / perform-arm split, found by grep (not yet
+      built, behind the sites): SpecInvRd14bD `Cov` / `perfA_cov` and SpecInvRd14gE `CovFF` (their wildcard
+      `.invokeArchObject _ => True` now covers the batch, the match lacks its arm). Two ways: (i) prove `PerfA` /
+      `PerfF` of the batch (needs sv / cfk / ne / tv families with a `capDelete` leaf, which those families do not
+      have: CNode delete is outside `Cov` too), or (ii) put the batch outside `Cov` as CNode delete — but then
+      `kcall_rdyOff5` / `kentry_rdyOff5`'s `InvRo` premise asks `PerfA` of the batch arm, i.e. an existing top's
+      meaning changes: lead decision; I reverted my (ii) edit. SpecInvRd8hP (`Rdy`, `rda_auto`), SpecInvRd13bA:
+      batch arm needed (`capDelete` leaf of `Rdy` exists? check). Then a scratch full build with sorries at the six
+      sites (as m77's) to list every other family (estimate from fb-spec: UtO*, SgD/SgE, SiD/SiE, ZR, DevFree/Gpm,
+      Vi*, CnDom). [L per group]
+  2. P1 QueueDecVs: blocked on a design point: P1 delegates CNode lookups' placement to P3 (`CdtHyps.tgt/src`,
+     stated only at `EntAt` states = the entry state up to the entry prefix's words); mid-batch states are not
+     `EntAt`, so per-entry lookups need a new gap field at `Fr0 s0 s` states (as `CdtHyps.ins` already is) and its
+     P3 discharge at mid-batch states (which needs step 4's relation). `cdt.delete.cur0` (QueueDecDel) and
+     `Cur0` serve as the loop invariant otherwise. [L, + the P3 discharge]
+  3. MachKeepG4d: the walk reaches `cdt.delete`; CNode Delete keeps `MR` through the P3 deletion loop's `EJLM`
+     (XTopJointKEntry38), not by MKD. The batch needs either a slot-conditional `MKD.cdt_delete` (the slot holds a
+     frame cap: finalise = `unmap_page` + `retire_dma_frame`, `MRKeepD` fields) threaded through
+     `frame_batch_entry` and the loop, or the joint route as CNode Delete. [M-L]
+  4. P3 refinement: as planned [XL]. Also: `decOut_nil_*` (PerformNil) and `dk_spec_arch` (VsDomF) assume the
+     PML4 decode gives a `[]`-returning, non-reply invocation; the batch's success reply moves its label to the
+     reply class (`DecOKRMX`, as GetAddress / TestAndClearAccessed).
+- Builds: fb3b-m2 (DomFb missing `dk_ensureNoChildren'`; DomG / H7 `*_auto` whnf timeouts on `fbEntry` → explicit
+  leaves), fb3b-m3 (stale Consts, H7 DELETE-branch shape), fb3b-m4 (above). No full build (cannot be green before 2-4).
+### fb3c (resume of fb3b's handoff, branch par/fb3 in FL4-fb3) — spec families via `fbEntryX`; `Cov` kept (no rdyOff change); downstream list partly enumerated; six sites and P1/P3 still open
+- **Lead decision used: `Cov` proved directly, nothing moved out of it.** `SpecInvRd14bD.Cov` / `SpecInvRd14gE.CovFF`
+  are unchanged (their `.invokeArchObject _ => True` arm now covers the batch); `perfA_cov` / `armF_covFF` gain the
+  arm `.frameBatch i` (`perfA_frameBatch` / `perfF_frameBatch`). No top, no `kcall_rdyOff*` / `kentry_rdyOff*`
+  statement changed.
+- **New module SpecFbX** (spec only, imports SpecInvFbK, SpecInvUtC, SpecInvUtF1): **`capDelete_subX`**: at a state
+  where `slot` holds a frame cap (`capAt σ slot = some (.archObjectCap (.pageCap ..))`), every outcome of
+  `capDelete slot` is an outcome of `fbDelX slot` (getCap; `isFinalCap`; `archFinaliseCap` of the frame;
+  `emptySlot slot .nullCap`; any other cap: `fail`) — via `ik_lfp_le` with the outcome predicate `QX` (finalise of a
+  frame: Null remainder, `capRemoveable`, no Zombie, no preemption point), so such a delete never throws. `fbEntryX` /
+  `fbRunX` / `performFrameBatchX` (= the spec's with `fbDelX` / `fbDeleteX` for `capDelete` / `fbDelete`);
+  **`fbEntry_subX`**, **`performFrameBatch_subX`**: outcome inclusion, the slot facts carried along (`getCap_capAt`,
+  the unlessE frame check, `deriveCap` of a masked frame is a frame, `fbx_capInsert_at` (cap_insert writes the
+  destination), `fbx_fbMap_err` (fbMap's errors keep `capAt`, via `uk_decodePageInvocation`), `setCap_at` for the
+  deferred unmap's rewrite). Combinators for families: `ike_fbEntry_ofX`, `ik_performFrameBatch_ofX`,
+  **`ik_performFrameBatchX`** (IK family: one `fbEntryX` + the final flush), **`rk_performFrameBatchX`** (any
+  reflexive transitive pre/post relation: `SVM`, `FK f`, …). So a family needs no `capDelete` / lfp leaf: its
+  `X_fbEntryX` is `unfold fbEntryX fbDeleteX fbDelX [fbCode fbMap unmapPageUnflushed]; X_auto` (unfold order matters:
+  `fbDeleteX` before `fbDelX`). Template: proofs/scratch/patchfbx.py.
+- **Readiness (G1)**: new module **SpecInvRdFb** (imported by SpecInvRd14bD): `svfb_*` / `cfkfb_*` (copies of rd14f E's
+  `empty_slot` leaves, that module being downstream), `svfb_fbEntryX`, `cfkfb_fbEntryX`, `svfb_performFrameBatch`,
+  `cfkfb_performFrameBatch`, **`perfA_frameBatch`** (rd13b's `perfA_sve`); SpecInvRd14gE: `tvfb_fbEntryX`,
+  **`perfF_frameBatch`** (`perfF_sve`, `QT` by `qt_of_tv`). SpecInvRd8hP `rd_archPerf`: the `frameBatch` arm
+  (`rda_auto` on `fbEntryX`).
+- **Other family fixes (built)**: SpecInvDomG (`dl_leaf` for `dl_performFrameBatch` and `dle_fl4ArchPerformInvocation`:
+  SpecInvDomE's `dle_fl4Perform` timed out on the batch); SpecInvNtfnQH2 (`nq_fbEntryX`, `nq_performFrameBatch`);
+  SpecInvViH (`vi_fbEntryX`, `vi_performFrameBatch`, the arm in `vi_fl4ArchPerform`); SpecInvValidMachineTimeGen
+  (`gk_decodeFrameBatch`, `gk_fbEntryX`, `gk_flushAllFb`, `gk_performFrameBatch`); the PML4 decode's new
+  `if` (batch label) in the OkV decode lemmas SpecInvUtP1 `okv_fl4ArchDecodeN`, SpecInvSgD `okv_fl4ArchDecodeSl`,
+  SpecInvSlA (`okv_ite` of two trivial arms). PerformNil: `okAll_specDec_arch` gains `hfb` (a PML4 cap's label is
+  not the batch's) and `okAll_specDec_pml4` the hypothesis `hfb : dataToNat slbl ≠ fl4FrameBatchLabel` (its one user,
+  VsThX:527 `XCap` of a PML4 cap, is a six-site user: it must split on the batch label like the frame caps'
+  GetAddress / TestAndClearAccessed, item 4 below).
+- **Merge breakage fixed (not batch)**: G7eRoot `JAtZR.rootFr` (g7e, built before #65) proved the old `KRootRel`
+  (= `KRootW` only); now also `HugeRel` at the scheduler's outcome: `sfootN_feat` (ks+72 is no `SFootN` word) and
+  `crF` (G7cCr3K) extended by `x64HugePages` (the scheduler cone never writes it; `crF`'s idle projection is now
+  `.2.2.2.1`).
+- **Downstream families (scratch full builds fb3c-full1..5 with the six sites stubbed by proofs/scratch/fb3scratch.py,
+  untracked, plus stubs at VsThX:527 and the three `ArchOKN`-carrying perform arms below):** errors, by build:
+  full1 (6481/7259 jobs reached): SpecInvDomE, SpecInvUtP1, PerformNil, SpecInvNtfnQH2 (fixed / stubbed above);
+  full3: SpecFbX (fixed), SpecInvSgD (stubbed), G7eRoot, MachFieldFamI, SpecInvNtfnQH2 (unfold order),
+  SpecInvValidMachineTimeGen, SpecInvViH, XTopJointMidRunS; full5 (latest; the build stops at these, ~700 jobs not
+  reached): **SpecInvNtfnQLA** (`il_` arm: `il_auto` on `fbEntryX` leaves goals / times out at 356), **MachFieldFamI**
+  (`mtk_fbEntryX`: `mtk_auto` times out (200000 heartbeats default at l. 116): needs `set_option maxHeartbeats` and
+  probably explicit leaves for the lookups / `fbMap`), **XTopJointMidRunS** (`kf_auto` on `fbEntryX`: unsolved goals at
+  524), **SpecInvCqP** (l. 33/101 timeouts: a generated perform family, same treatment), **SpecInvSbX4** (l. 292
+  timeout), **SpecInvEqG5**, **SpecInvValidIrqHandlersG** (failed, details not read). Sizes: each IK/FK family with an
+  `_auto` is S (an `X_fbEntryX` leaf, heartbeats, maybe a few explicit leaves); not yet reached: everything
+  downstream of these (the rest of the cap families of fb-spec-2 open 3: UtO*, SgE, SiE, ZR, DevFree/Gpm, Vi*, CnDom).
+- **L items (stubbed in scratch only, no proof yet): the cap-writing families' perform arm for the batch**:
+  SpecInvUtP1 `p3_fl4ArchPerform` (`P3 N` = `UtInv''` + IRQ-out: COPY_MAP's `capInsert` needs `CI3` (the copy
+  `RefRel` to the source frame cap read at run time) and `PosOK` / `DestRefV` of the destination (a lookup through
+  `b.destCnode`, whose cap stays in the extra slot: no batch step deletes or overwrites a non-frame cap), the DELETE /
+  rollback `capDelete`s by `capDelete_subX` + the family's `empty_slot` / unmap leaves, the maps as
+  `performPageInvocation .pageMap` on a slot holding a frame cap); SpecInvSgD `sg_fl4ArchPerform` (`NOV`: every slot
+  the batch writes a non-null cap into is no IRQ-node slot: the copy's destination is a CNode slot, the maps rewrite
+  frame slots), SpecInvSiD (`IV`, same shape). Each needs a run-time version of the decode facts the CNode copy gets
+  from `okv_decodeCnode` (L per family; a shared "lookup result is a CNode slot of a cap held in a slot" lemma first).
+- **Still open as in fb3b's handoff**: the six m77 sites (P1 QueueDecVs, MachKeepG4d, VsTopX, VsDecTop, VsThX, VsDomF),
+  P1 [L] (CdtHyps-style gap at mid-batch states), MachKeepG4d [M-L] (now easier: `MKD.objects_finalise_cap` is
+  general; what fails is `cdt.delete` of an arbitrary slot (a loud cleanup / the preemption point); a frame slot's
+  delete is one round of `finalise_slot_immediate_loop` with a Null remainder and Null cleanup: an FL4 slot fact at
+  `frame_batch_entry`'s two `cdt.delete` calls, as SpecFbX's on the spec side), P3 refinement [XL] (the batch label to
+  the reply-in-decode class; `okAll_specDec_pml4`'s new `hfb` is where VsThX's PML4 `XCap` splits).
+- Builds: fb3c-full1..5 (tokyo mirror, `MODE=build`, scratch stubs applied there only). No green full build.
+### fb3e (resume of fb3c / fb3d, branch par/fb3 in FL4-fb3) — spec families via step lemmas (no whole-entry unfolding); the three cap-writing perform arms PROVED (UtP1 / SgD / SiD: no scratch stub left there); six sites, P1, P3 refinement still open; no premise added; no FINDING
+- **Why the whnf timeouts**: `unfold fbEntryX …; X_auto` hands the family's auto the whole entry (lookups, the
+  page decode, finalise, …) at once. Replaced by **step lemmas** (SpecFbX, end of file):
+  * `fbx_*` (section RO): the entry's reads keep *any* predicate (`fbx_resolveAddressBits'` (= CqB3's
+    `pk_resolveAddressBits'`, which sits downstream), `fbx_lookupTargetSlot/SourceSlot`, `fbx_ensureEmpty`,
+    `fbx_deriveCap`, `fbx_decodePageInvocation`, `fbx_isFinalCap`); instantiated at `(· = s)` they give "state
+    unchanged". `uk_unmapPageUnflushed`.
+  * **`ik_fbEntryX_of`**: `IKE P (fbEntryX b w)` from `IKE`/`IK P` of the steps, the two writes that need slot
+    facts given them at run time: COPY_MAP's `cap_insert c src dest` at a state where the destination lookup of
+    `b.destCnode` returned `dest` *at this state*, `dest` holds Null, `src` holds the frame `c0`, `c` is
+    `derive_cap` of the masked `c0` (`fbx_ikp_bind`: a bind at one state with an outcome fact); the deferred
+    unmap's `set_cap` of the unmapped frame over the slot holding the mapped one.
+  * **`ik_fbEntryX_w` / `ik_performFrameBatchW`**: for a family whose writes need no slot fact: leaves for
+    `capInsert` of a frame cap, `performPageInvocation`, `archFinaliseCap` of a frame, `emptySlot _ Null`,
+    `unmapPageUnflushed`, `setCap` of a frame cap, `flushAll`. Relational families (`FK f`: MTK, KF) use it at
+    `P := (f · = f σ)`.
+  * SpecFbM (fb3d's module, kept, extended): `ik_fbMapF` / **`ik_fbMapF2`** (the map's perform at
+    `ArchSpecOKN` + `PgSl` (a decoded map writes the invoked slot) + the frame cap in the slot;
+    `okv_decodePageInvocationF2`), `ik_fbDelXF` (the frame delete: `emptySlot` at a slot holding the frame).
+- **Small families (fb3d's failing list) — all built**: MachFieldFamI (`mtk_performFrameBatch` via
+  `ik_performFrameBatchW` at `msFT · = msFT σ`), SpecInvCqP (`q1_performFrameBatch`), SpecInvEqG5
+  (`pz_performFrameBatch`), SpecInvSbX4 (`sb_performFrameBatch`), SpecInvValidIrqHandlersG (`vi_performFrameBatch`:
+  frame caps are no IRQ handler caps, `vi_emptySlot_p` with a Null cleanup), XTopJointMidRunS (the `kf` arm),
+  SpecInvNtfnQLA (`il_performFrameBatch`: `ik_fbEntryX_of` + `ik_fbMapF`/`il_pageInv` + `ik_fbDelXF`/
+  `il_emptySlot_p` + `il_setCap_nt`; `perfGapILA`'s arm uses it).
+- **Cap-writing families (fb3c's L items) — PROVED**:
+  * `ArchOKN` (SpecInvUtP1) gains `| .frameBatch b => FbOKN w b` (`isCnodeCap b.destCnode ∧` it sits in a
+    slot); `okv_decodeFrameBatchN` (the destination CNode cap is an extra cap; `okv_fl4ArchDecodeN`'s PML4
+    branch uses it). UtP1's arch perform is now `p3_fl4ArchPerform0` (`hnb : ∀ b, ai ≠ .frameBatch b`).
+  * New module **SpecFbP3** (imports SpecFbM; imported by UtP6, SgD, SiD): **`fbq_run`** — the batch keeps
+    `FbQ N b := P3 N ∧ FbOKN` and any view predicate `RV`, given `RV` across the four writes at their run-time
+    facts (COPY_MAP destination a `DestRefV` slot: `okv_lookupSlotForCnodeOpN` through the CNode cap in its
+    slot; the other writes hit slots holding frames). `FbOKN` is kept because no write hits the slot holding
+    the CNode cap (`fbk_setCap` / `fbk_emptySlot` / `fbk_pageMap` / `hv_capInsert_keep`, `fbk_slot_ne`). P3 at
+    the insert: `hv_capInsert3` (`CI3` by `fb_frame_refRel`, `PosOK` by `posOK_of_destRef`); delete:
+    `hv_emptySlotN` (`SafeDelV` of a frame: no `sRefs`) + `io_emptySlot`; deferred unmap: `hv_setCapRE`.
+    **`p3_performFrameBatch`**, full **`p3_fl4ArchPerform`** (same name and statement as before, now with the
+    batch). SgD `sg_fl4ArchPerform` / SiD `iw_fl4ArchPerform`: `| frameBatch` arms by `fbq_run` at
+    `RV := NOV N` / `IVV t` (`notNode_of_destRef`, `notIV_of_cov`, `notNode/IV_of_held`, `fb_emptySlot_nul`).
+  * proofs/scratch/fb3scratch.py no longer stubs UtP1 / SgD / SiD (only the six m77 sites and VsThX:527).
+- **More arms (commit 52b6a8e5)**: SpecInvFoP (`oiF_performFrameBatch` for the FoG `OI q` family, IL by
+  `il_performFrameBatch`), SpecInvSlA (`sl_performFrameBatch` via `ik_fbEntryX_of` + `sl_pageInv` (`ArchNCS`
+  from `PgSl` and the frame in the slot) + `sl_emptySlot_p` / `sl_setCap_nt`; `nb_performFrameBatch`).
+- **Scratch full build fb3e-full2** (tokyo, `MODE=build`, stubs only at the six m77 sites + VsThX:527, LEAN 1
+  thread, 36 min): reached 7267 jobs; failing modules, all the same class ("`X_auto` on the batch arm": add an
+  `X_performFrameBatch` leaf before the arch-perform lemma, as above):
+  * SpecInvUtZS: `yk_fl4ArchPerformInvocation` (263), `hu_fl4ArchPerformInvocation` (343) — patched in the
+    worktree (`yk_performFrameBatch` via `ik_performFrameBatchW`; `hu_performFrameBatch` with `utIn_frame`,
+    emptySlot by `unfold emptySlot; hv_auto`): **built (fb3e-m15), committed**;
+  * SpecInvIoPortsS:381 `ioi_fl4ArchPerform` (`ioi_setCap_noIo` (frame ≠ ioport cap), `ioi_emptySlot_p` (`ClOk
+    Null`), capInsert / performPageInvocation leaves to find; probably `ik_fbEntryX_of` with slot facts);
+  * SpecInvVfhE:157 (`VS σ0`: `vs_capInsert` / `vs_setCap` need `vfh_Bad σ0 sl → validFaultHandler c` / `CnOk`;
+    a frame cap is no valid fault handler, so the run-time fact "the slot is not `vfh_Bad`" is needed: use
+    `ik_fbEntryX_of`'s slot facts (frame / Null in the written slot) — check `vfh_Bad`'s definition);
+  * SpecInvCqGP:23/63 (`rt_fl4PerformInvocation`), SpecInvCqC1:57 (`eb_perfArchNoPool`, `EBKE k`),
+    XTopJointMidRunQ:1084 (`perf_firstQ`: the `kf_auto` / `qv_auto2` arm; `kf` already has the batch in
+    MidRunS, `qv` needs a leaf).
+  Every other module of the 7267 built, except those downstream of the six sites / these six modules.
+- **Still open as before**: the six m77 sites (P1 QueueDecVs [L], MachKeepG4d [M-L], VsTopX / VsDecTop / VsThX /
+  VsDomF = the P3 refinement [XL]) and VsThX:527 (`okAll_specDec_pml4`'s `hfb`).
+- Builds: fb3e-m1..m15 (module builds with the stubs), fb3e-full1 (stopped), fb3e-full2 (above). No green full
+  build (the six sites). Next, in order: the five modules above (S each, same pattern), a scratch full build
+  (should then stop only at the six sites), then the six sites as planned in fb3 / fb3c.
+### fb3f (resume of fb3e, branch par/fb3 in FL4-fb3) — the five remaining spec-family modules PROVED; scratch full build; six sites + VsThX:527 still open; no premise added; no FINDING
+- **Five modules (fb3e's list), all with a `*_performFrameBatch` leaf before the arch-perform lemma:**
+  * SpecInvIoPortsS `ioi_performFrameBatch` (`IOI`): `ik_fbEntryX_of`; capInsert / setCap of a frame (`hi_capInsert`,
+    `ioi_setCap_noIo`), emptySlot Null (`ioi_emptySlot_p`, `clOk_noIo`), the map via the new **SpecFbQ.`ik_fbMapQ`**
+    (= SpecFbM's `ik_fbMapF` with a family-chosen decode fact `Q`; here `ArchIo` from `okd_archDecode_io` at the
+    pageCap arm, `hV` kept by the decode). SpecFbM cannot be imported there: its UtD dependency's `macro "okv_step"`
+    collides with SpecInvValidIrqHandlersS's (ambiguous parse, Lean PANIC "loose bvar" in `okv_decodeCnode_io`).
+  * SpecInvVfhE `vs_performFrameBatch` (`VS σ0`): **`VArch` (SpecInvVfhX) gains `| .frameBatch b => CnOk σ0
+    b.destCnode`** (an intermediate decode-carry, proved by the new `vfh_okv_decodeFrameBatch`: the destination is an
+    extra cap, `CRoot`); at each mid-batch state `s` (`VS σ0 s`), `CnOk s` by `CnOk.mono`, so the COPY_MAP
+    destination is a slot of a full CNode (`vfh_lookupSlotForCnodeOp` at `s`, `vfh_notBad_cnFull`); the map / set_cap
+    slots hold a frame (`vfh_notBad_arch` from `VfhV s`); the map's cap is `CnOk` by `RefEq` with the frame
+    (`vfh_cnOk_refEq_frame`, `shp`).
+  * SpecInvCqGP `rt_performFrameBatch`, SpecInvCqC1 `eb_performFrameBatch` (`ik_performFrameBatchW` with the
+    generated leaves / `eb_auto` per leaf).
+  * XTopJointMidRunQ (shared with the TDX line, see below): `kf_performFrameBatchQ`, `qv_performFrameBatch` (new
+    lemmas before `perf_firstQ`, 4000000 heartbeats each; inlined in `perf_firstQ` they pushed the theorem over its
+    default heartbeats) and the `| frameBatch bi =>` arm of `perf_firstQ` (3 lines).
+- **MachKeepG4d plan, checked against the extraction (not started; M-L → L):** what `MKD.vspace_decode` needs at the
+  batch label is an MKD lemma for `vspace.decode_frame_batch` (mkd_call finds it by name), i.e. for
+  `decode_frame_batch_loop` (`loop.spec_decr_nat`, inv `AR`, as `cdt.finalise_slot_immediate.cur0`, QueueDecDel 276)
+  and `frame_batch_entry`. Facts read off Funs.lean: `objects.finalise_cap_object` of a `Frame` returns
+  `(Null, Null)` (unmap / EPT unmap / `retire_dma_frame`: MRKeepD fields); `cdt.cap_removable Null _ = ok true`, so
+  `finalise_slot_immediate` on a slot holding a Frame is one round, `done` with cleanup `Null`, no
+  `preemption_point`; then `MKD.cdt_empty_slot` (Null cleanup). So `MKD.cdt_delete_frame (hc : obj.Slot.cap st
+  slot s = ok (.Frame ..))` is S-M (a finalise lemma with post `AR ∧ r.1 = (Null, Null)`, the loop by
+  `spec_decr_nat` never continuing). The cost is the slot fact at the two deletes of `frame_batch_entry`:
+  (a) DELETE without deferral: the cap was read at the same state (`as_frame c = some f` ⇒ `c` is a Frame): free;
+  (b) DELETE after the deferred unmap: `obj.Slot.set_cap val s2 (Frame ..)` then read: needs read-after-write
+  (SetCap.`capAt_wr2_self`: `EncWf` of the new Frame (`decode_encWf` of the read cap + the zeroed asid / vaddr),
+  slot alignment) and that `unmap_page_unflushed` keeps the slot words; (c) COPY_MAP rollback: `insert_with_cap`
+  writes the derived masked frame to `val` (Insert.`InsWords.capAt'`, needs `Placed` / `IsSlot`), and
+  `vspace.batch_map` returns its input state on every `Err` (read off the code: all writes, `set_cap` +
+  `write_mapping`, are on the `Ok` path; a WP walk `⦃ r => r.1 is Err → r.2 = (s, a) ⦄`). (b)/(c) need store laws and
+  slot placement that MKD's context (`P0.StoreTotal` only) lacks: thread `[LawfulStore st]` plus a slot-placement
+  hypothesis through `MKD.vspace_decode` / `MKD.decode_quiet` (one user: XTopJointKEntry38:385, which has `L`), or
+  take the joint route (CNode Delete keeps `MR` through XTopJointKEntry38's `EJLM`), which needs the P3 refinement of
+  the batch first.
+- **Two more modules found by scratch full build fb3f-full1** (stubs only at the six sites + VsThX:527; reached
+  6950/7269 jobs; failing: SpecInvSlKE:355, XTopJointChooseB:969 — nothing else), both PROVED (fb3f-m4):
+  * SpecInvSlKE `ks_performFrameBatch` (`KS σd`): writes are frames with the range of a frame held in a slot
+    (`kok_frame_rng` ← `kok_arch_rng`, `KS.cap`); the map by `ik_fbMapQ` with `Q` = (the slot's cap is KOk ⇒
+    `KArchS σd`, from `kr_okd_archDecode` at the pageCap arm) ∧ `ArchSpecOKN` (`okv_decodePageInvocationF`), then
+    `ikp_of_kap (ksv_performPageInvocation _)`.
+  * XTopJointChooseB `sck_performFrameBatch` (SC view) and the `frameBatch` arm of `perf_firstB` (as `perf_firstQ`).
+- **Rd family (found by fb3f-full2 / module builds, fixed, fb3f-m7 green):** SpecInvRdFb (`svfb_` / `cfkfb_performFrameBatch`)
+  and SpecInvRd8hP (`rd_archPerf`'s batch arm) still used fb3c's whole-entry unfolding (`unfold fbEntryX ...; X_auto`)
+  and now fail (unsolved `ensureEmpty` / `doMachineOp invalidateASID` leaves, a 1000000-heartbeat timeout): rewritten
+  with `ik_performFrameBatchW` (relational ones at `SVS σ0 ·` / `cfS · = cfS σ0`, explicit leaves `SVK.sv_capInsert`,
+  `sv13_*`, `cfk_*`, `rd_*`); `svfb_fbEntryX` / `cfkfb_fbEntryX` removed (no other user). SpecInvRd14gE
+  `tvfb_fbEntryX` by `ik_fbEntryX_w`. Two modules never reached before, with a wildcard arch arm now covering the
+  batch: SpecInvRd8kD `ba_archPerf…` (BSA) and SpecInvRd8vB `ve_fl4ArchPerformInvocation` (VE; imports SpecFbX now):
+  batch arms by `ik_performFrameBatchW` with the family's `*_auto` per leaf. (Why full1 did not show the Rd errors is
+  unexplained: none of fb3f's edited modules is an ancestor of them; possibly stale oleans in the tokyo mirror's
+  seeded `.lake`. The next agent should not trust "built" for modules not rebuilt since the #71 merge.)
+- **Scratch full build fb3f-full3** (tokyo, `MODE=build`, LEAN 1 thread, stubs ONLY at the six m77 sites + VsThX:527
+  via proofs/scratch/fb3scratch.py): **"Build completed successfully (7269 jobs)"**. So every spec-family / downstream
+  module is done; what keeps the real build red is exactly the seven stubbed places.
+- **Shared with the TDX line:** XTopJointMidRunQ (two new lemmas before `perf_firstQ` + a 3-line `frameBatch` arm
+  in `perf_firstQ`, near the old l. 1084) and XTopJointChooseB (one new lemma before `perf_firstB` + a 4-line arm).
+  XTopJointMidRunS not touched in fb3f.
+- **HANDOFF (open, sizes as fb3 / fb3c):** (1) P1 `QueueDecVs` Pml4 batch [L; new `CdtHyps`-style gap field at mid-batch
+  `Fr0` states, discharged on the P3 side]; (2) `MachKeepG4d.MKD.vspace_decode` [L, plan above]; (3) P3 refinement
+  `VsTopX.decode_invocation_pml4_capX`, `VsDecTop.decode_invocation_pml4`, `VsThX.domFrame_pml4` + VsThX:527
+  (`okAll_specDec_pml4`'s `hfb`: split on the batch label), `VsDomF.decode_invocation_pml4D` [XL; the batch label into
+  the reply-in-decode class]. No `kernel_entry_reach*` statement changed; intermediate statement changed in fb3f:
+  `SInv.VArch` (frameBatch arm), `ioi_/vfh_` helpers added; no premise.
+- Commits: f420d8d6, 9133d92c, 61fa4e10, b94eea3d, 8a3aa288, this section. Builds: fb3f-m1..m7, fb3f-full1..3.
+### fb3g (resume of fb3f, branch par/fb3 in FL4-fb3) — P1 `QueueDecVs` batch arm PROVED (new `VsPlace` gap fields); VsDecTop / VsDomF sites closed by restricting their two unused lemmas to non-batch labels; live P3 chain (VsTopX / VsThX / XTopJointVsMap) still open; no premise on any top; no FINDING
+- **P1 (QueueDecVs, QueueEntryGaps4).** `vspace.decode_frame_batch.dec`: the decode's checks (no state change), the loop
+  under `Cur0` from the decode's start *without* the restart (`Cur0.ofPreV`: `Cur0 s s` from `DecPre`; `Cur0` only asks the
+  current thread not `BlockedR`, which the batch keeps), the deferred `invalidate_asid` (arch only), the reply
+  (`BXI.xs`, `E.buf`, `set_reg` BADGE, two `set_mr`, `set_msg_info`, as `reply1.bxi`), then `TS_RUNNING` from a
+  non-`BlockedR` state (`sched.set_thread_state.running_bxi_nbr`). Per entry `vspace.frame_batch_entry.cur0`: COPY_MAP's
+  `insert_with_cap` by `CdtHyps.ins` (already stated at `Fr0` states), the map by `vspace.batch_map.cur0` (cap slot write +
+  `write_mapping.cur0` of the `page_entry_slot.vs` word), the rollback / DELETE `cdt.delete` by `cdt.delete.cur0` with
+  `DelGapsAt` at the decode's start, the deferred unmap by the new `vspace.unmap_page_unflushed.vs` (VSpace word) and the
+  cap rewrite (`set_cap.capw`). Loop: `vspace.decode_frame_batch_loop.cur0` (`loop.spec_decr_nat`, measure `n - done`,
+  `words ≤ 3`, `n ≤ 255`).
+- **The gap (as asked, like `CdtHyps.ins`)**: two new `VsPlace` fields `fbTgt` / `fbSrc`: at a state `s` inside the batch
+  (`EntAt s0`, `Fr0 s0 s`, `BXI s`), a target / source lookup through a cap `c` read from a cap slot `x` at `s0`
+  (`CapSlotW x`, `obj.Slot.cap st x s0 = ok c`) returns a whole cap slot (`SlotW`). (`CdtHyps.tgt/src` are stated at entry
+  states only.) The extra slots' `CapSlotW` comes from `decode.dec`'s `hx` (IrqPlace.extra). Signature changes
+  (intermediate): `vspace.decode.dec` gains `G : DelGapsAt … s`, `decGap_vspace` gains `DG : DelGaps …` (QueueEntryGaps4
+  passes its local `DG`).
+- **"Discharged on the P3 side": nothing to discharge today.** No P3 module constructs `VsPlace`, `CdtHyps`,
+  `InvGaps4` or `Hyps4` (grep: the only P3 mention of `Hyps4` is `fastFaultOK_of_p1(N)`, which takes `GF` as a premise and
+  has no user); the P1 entry theorems are not instantiated by any `kernel_entry_reach*` top (the tops get P1's invariant
+  through `JAtZ` / `XTopAt` posts). So the new fields are premises of P1's own entry theorems only, exactly as
+  `CdtHyps.ins` is. When the P1↔P3 bridge is built, `fbTgt` / `fbSrc` are the mid-batch versions of what P3's
+  `Lookup` / `CnodeCopy` already prove at entry states (a lookup through a CNode cap held in a slot lands in that CNode's
+  slots: `JPlaced.slotCapW`).
+- **VsDecTop / VsDomF (two of the six m77 sites) closed by restriction**: `VsDecTop.decode_invocation_pml4` and
+  `VsDomF.decode_invocation_pml4D` gain `hfb : dataToNat slbl ≠ fl4FrameBatchLabel ∧ lbl ≠ X86PML4FrameBatch` (non-batch
+  branch: `rw [if_neg hl, if_neg hfb.2]`, spec side `if_neg hfb.1`). Neither has a user (grep -w: `decode_invocation_pml4`
+  is used only by `decode_invocation_pml4D`, which is used nowhere; the live PML4 chain is
+  XTopJointVsMap.`decode_invocation_pml4JV` → VsThX.`decode_invocation_pml4_thX` → VsTopX.`decode_invocation_pml4_capX`
+  + VsThX.`domFrame_pml4` + PerformNil.`okAll_specDec_pml4`). Same treatment as fb3b's three unused arch-perform lemmas.
+  If a user appears, re-derive them from the live chain's batch case.
+- **Scratch stubs now (proofs/scratch/fb3scratch.py)**: VsTopX:732 (`decode_invocation_pml4_capX` batch-or-illegal
+  branch), VsThX:468 (`domFrame_pml4`), VsThX:527 (`okAll_specDec_pml4 … sorry`), MachKeepG4d (other agent). Was: + P1
+  QueueDecVs, VsDecTop, VsDomF.
+- **Plan for the live P3 chain (open, XL; precise):**
+  1. [S] FrontEndLabel: `pml4fb_label (lbl) : dataToNat lbl.bv = fl4FrameBatchLabel ↔ lbl = X86PML4FrameBatch` (as
+     `pml4_label`, value 90). Thread `hlfb` through `decode_invocation_pml4JV` (callers XTopJointKEntry13P:452,
+     XTopJointKEntry23P:435, XTopJointEntry:1011 pass `pml4fb_label lbl`) and `decode_invocation_pml4_thX`.
+  2. [S] Restrict `decode_invocation_pml4_capX` and `domFrame_pml4` to non-batch labels (`hfb`, as VsDecTop); in
+     `decode_invocation_pml4_thX` split on `lbl = X86PML4FrameBatch`: non-batch → today's `Or.inl` (with
+     `okAll_specDec_pml4 … hfb.1`: closes VsThX:527), batch → `Or.inr (DecOKRMX.toXR …)` of a new
+     `decode_invocation_pml4_fbX` (no `DomFrame` / `OkAll NilInv` needed in the reply class, as the frame caps'
+     GetAddress / TestAndClearAccessed). `thX`'s post changes from `FinXR ∧ VsJFlush` to `FinXR ∧ (VsJFlush ∨ VsJBatch)`
+     (VsJBatch = what the J layer needs after a batch, see 4).
+  3. [XL] `decode_invocation_pml4_fbX : DecOKRMX (FinXT … ∧ VsJBatch …) … (.Pml4 p mp asid)` for the batch label:
+     a. decode errors vs `decodeFrameBatch` [M]: unmapped cap / `check_vspace` failure / `findVspaceForAsid` failure or
+        mismatch (FL4 maps every failure to IC0; spec `handleE … IC0`, `whenE (vs ≠ p)`: reuse `find_vspace_for_asid_rel`
+        / `_err` as in the Flush branch), `length < 1` ↔ `args.length < 1` (`hlen`), header checks (one `InvalidArgument 0`
+        for reserved bits / op 0 / depth ∉ 1..64: `fbDefined` = FL4's `DEFINED`, a `bv_decide`-free bit lemma), length
+        vs `1 + op.words * n`, extra caps (`vspace.extra` ↔ `excaps`, `ExtraRel`), CNode checks (`isCnodeCap` ↔ the
+        24-case match), destination CNode.
+     b. one entry vs `fbEntry` [L-XL]: CNode lookups (`Lookup`'s `lookup_*_slot` refinements at the *current* state),
+        `ensure_empty_slot` vs `ensureEmpty`, `as_frame`/`isPageCap`, `derive_cap` vs `deriveCap (maskCap …)`
+        (CnodeCopy's `copied_rel`), `insert_with_cap` vs `capInsert` (InsertRefine / MdbInsert with the MDB ghost),
+        `batch_map` vs `fbMap` (VsFrameMapRel's `decode_page_map` refinement minus the vspace-cap checks, which the spec
+        re-does and which pass mid-batch: the ASID table and the PML4 cap are unchanged by every entry), the rollback
+        `cdt.delete` vs `capDelete` and DELETE's (SpecFbX `capDelete_subX` gives only "every `capDelete` outcome is an
+        `fbDelX` outcome", so no throw and the unreachable "deferred set then delete fails" divergence never arises; a
+        refinement needs the converse direction too — FL4's one outcome *is* a `capDelete` outcome — i.e. a
+        characterisation of `capDelete` of a frame slot as `fbDelX`, or reuse of the CNode Delete refinement
+        (Delete / DelDelete / XTopJointCnDel) at the mid-batch state), `unmap_page_unflushed` vs
+        `unmapPageUnflushed` (new, as VsFrameUnmapRel without the invalidation), the per-entry error code
+        (`SysError.code` vs `(msgFromSyscallError e).1`, 1..10).
+     c. the loop [L]: the relation bundle (CRel / FinInv / MdbOKV / VsRel / PtRel / TopSR / PoolsIn / CurOK) re-established
+        after each entry (each existing refinement above ends in those), the message words stable across entries (no
+        entry writes user memory or `ct`'s registers: footprint), `fbRun`'s stop at the first error ↔ the loop's `done`.
+     d. tail [M]: `invalidate_asid` ↔ `flushAll` (as Flush: `flushAllH_top`), reply ↔ `specTail call ct (…)` with
+        `rr = [done, err]` (`replyFromKernel`, as `TacHypX`/`GetAddrHypX`), `TS_RUNNING`, and
+        `L.mem s' (stA ct) ≠ TS_RESTART`.
+     The reply class's post is `RelTopM` (Placed, CRel, FinInv, DomRel, MdbOKV) at the success tail's spec state
+     plus `X`; `DecOKRMX.toXR` then needs `DomRel` only through it.
+  4. [L] XTopJointVsMap: the J layer after a batch (`VsJBatch → JAt`), as `vsFlushJ` / `vsPostJ` plus the CNode copy /
+     delete J layers (XTopJointCnDel's `EJLM` for the deletes) per entry; or carry the joint invariant through 3c.
+- Builds: fb3g-m1 (baseline), m2..m4 (QueueDecVs iterations: `split` on the grown bodies → `ihead` = `P0.p0_if` /
+  `p0_if_bind` by refine; `p0_ite_head` answers "not a spec" in P1's goals), m5..m6, **fb3g-m7 green** (module build
+  `QueueEntryGaps4 VsDomF FrontEndLabel` with the scratch stubs, 5104 jobs, 0 errors; axioms of
+  `decode_frame_batch.dec`, `frame_batch_entry.cur0`, `batch_map.cur0`, `decGap_vspace`, `InvGaps4.gaps3`,
+  `kernel_entry.entry_of4`: [propext, Classical.choice, Quot.sound]).
+### fb3h (resume of fb3g, branch par/fb3 in FL4-fb3) — fb3g committed (a5a25843); the batch's reply tail PROVED (VsFbReply); a design point of the live P3 chain found (the spec's `Restart` that FL4 omits); VsTopX / VsThX sites still open; no premise added; no FINDING
+- **Commit a5a25843**: fb3g's P1 `QueueDecVs` batch arm (`VsPlace.fbTgt` / `fbSrc`), QueueEntryGaps4, VsDecTop / VsDomF
+  restrictions, FrontEndLabel `pml4fb_label`, all built in fb3g-m7 (above).
+- **New module VsFbReply** (imports VsReplyTop; root-imported after it): `Endp.replyTcb2`, `Endp.replyFromKernel_two`
+  (the spec's `reply_from_kernel (0, [d, e])`, one outcome), `Vs.fbTail` (FL4's batch tail after the loop and the
+  deferred `invalidate_asid`: the two-word reply when called, then `TS_RUNNING`; same text as `decode_frame_batch`'s,
+  so `change`/`show` reaches it), `fbTail_words`, `fbTail_core` (keeps `RInv`), `fbTail_ksb`, **`fbTail_inv`**: from
+  `RInv s a σ` with the current thread runnable in `σ`, FL4's tail ends not `Restart`, the kernel base kept, and has an
+  outcome of `specTail call ct [d, e]` *from the spec's `Restart` of `σ`* with `RInv` and `SzKeep σ` (the spec's
+  `Restart` absorbed by the final `Running`, `stsAct_twice`, as `tacHypX_top`). Built: fb3h-m2.
+- **Design point (not a FINDING; semantics agree): FL4's batch runs without `Restart`, the spec's perform runs after
+  it.** `TopPostRMX`'s success disjunct asks an outcome of `fl4PerformInvocation … (.frameBatch b)` from
+  `σ1 = setThreadState ct restart σ`, while FL4's loop starts from `s` related to `σ` (ct `Running`), not to `σ1`
+  (`σ1` is related to `set_thread_state s ct RESTART`, which FL4 never runs). No batch step reads or writes ct's
+  thread state or the scheduler action (fb-spec (1)), so the outcomes agree up to ct's `tcbState`, but every existing
+  per-step refinement (CNode lookup / copy / insert, `frame_map_rel`, delete) is stated between related states.
+  Recommended route (L): a spec-side simulation `SimCt σ σ'` := equal but for ct's `tcbState` (both runnable) and
+  `schedulerAction` as `stsAct` sets it; prove `fbEntryX` / `performFrameBatchX` (SpecFbX, `capDelete` already reduced
+  to `fbDelX`) preserve it outcome-wise (leaves: `getCap`, `setCap`, `capInsert`, the lookups / `resolveAddressBits'`,
+  `ensureEmpty`, `deriveCap`, `decodePageInvocation`, `performPageInvocation`, `isFinalCap`, `archFinaliseCap` of a
+  frame, `emptySlot`, `unmapPageUnflushed`, `flushAll`: each reads TCBs only through their caps); then refine FL4's
+  loop against the spec's batch from `σ` (ct `Running`, the states related as usual), transfer the outcome to `σ1` by
+  `SimCt` + `performFrameBatch_subX`, and close with `fbTail_inv`. (FL4-side alternative — the loop commutes with the
+  `stA ct` word — needs a read-footprint framework FL4's proofs do not have.)
+- **Other constraints found** (for the plan items 1-4 of fb3g):
+  * `JPath`'s PML4 arm is `True` (XTopJointEntry 680): a J-layer fact after the batch cannot be asked as a `JPath` field
+    (that would be a new premise of the tops); it must be proved (plan item 4).
+  * `decode_invocation_pml4JV` / `_thX` / `_capX` take no message or extra-cap relations; the batch needs `args` /
+    `hlen` / `hargs` and `JVsExtra` (`hex.hext`, `hex.hxs`) as the frame cap's `decode_invocation_frameJV`; the three
+    callers (XTopJointEntry 1011, XTopJointKEntry13P 452, XTopJointKEntry23P 435) have them in scope (their Pdpt case
+    passes `argsU hlen hargs … (ExtraOK.vsExtra hPl hXO)`).
+  * StepSem's `Steps` (restart / ks / slot insert / sched / cslot) has no map or delete step, so the batch cannot be a
+    `Steps` run; its X must be re-established per entry from the step refinements' own posts.
+- **Still open (sizes as fb3g's plan):** VsTopX:732 / VsThX:468 / VsThX:527 (the live PML4 chain, plan items 1-4 + the
+  `SimCt` route above: XL), MachKeepG4d (other agent). Scratch stubs unchanged (fb3scratch.py: VsTopX, VsThX ×2,
+  MachKeepG4d). Tokyo note: fb3g-m7's EXIT trap ran in `proofs/` and left the stubs applied in the mirror; every later
+  command's `saferevert` prefix reverts them (fb3h-m1/m2 did); use an absolute path in the trap.
+- Builds: fb3h-m1 (`lt_iff_val` unknown), fb3h-m2. Commits: a5a25843, this section + VsFbReply.
+
+## pf1 (branch par/pf1 in FL4-pf1, on cba1820b, an extraction with FL4 #71's `fastpath_vm.rs`) — the l4h guest page-fault fast paths: step 1 (P1 `vm_fault_same` / `rr_vm_same` / declines) WRITTEN in `P1/FastVm.lean`, NOT YET BUILT (no build slot yet); step 2 (a top over the `*_local` entries) DESIGNED and sized XL, so not started; no FINDING
+- **What the extraction shows.** `fastpath_vm.vm_fault s a t f` is, line for line, `fastpath.fault s a t n` with
+  `set_fault … (UnknownSyscall n)` read as `set_fault … f` and the message label `UnknownSyscall` read as `VMFault`;
+  `fastpath_vm.reply_recv_vm_found` is `fastpath.reply_recv_found` with the receiver's fault-type check
+  `UnknownSyscall` read as `VMFault` (a `diff` of the two extracted bodies: that one line). The general counterparts
+  are the same functions as for #56: `handle_fault f` (`send_fault_ipc` → `send_ipc` → `do_fault_transfer`, label =
+  the sender's fault word, which `set_fault (VmFault …)` writes `VMFault`) + `finish`; `dispatch_syscall SysReplyRecv`
+  whose `do_reply_transfer` calls `handle_fault_reply`, which for `VMFault` returns `(true, s, a)` without writing.
+  Traced against the general path: no divergence (no FINDING). The VM reply path is *simpler* than #56's (no register
+  copy), and its fast path asks `label = 0` although a VM fault restarts whatever the label (conservative).
+- **Step 1, written (P1/FastVm.lean, root-imported after FastTailRR):**
+  * fault half, generalised over the fault (`f`, the state `s2` that `set_fault f` writes, the label `ty ≠
+    NullFault`), existing statements untouched: `faultTailG`, `faultTail2G`, `vm_fault_acc`, `faultTailG_eq`,
+    `faultTail2G_eq`, `handle_fault_preG`, `FaultReadsG`, `FaultOKG`, **`fault_sameG`**, then **`vm_fault_same`**
+    (accepted `vm_fault` = `handle_fault f` + `finish`, given `FaultOKG … VMFault` and `VmFaultNvm`, the analogues of
+    m60's `FaultOK` / m62's `FaultNvm`); **`vm_local_same`**: an accepted `handle_vm_fault_local` = the general entry
+    `handle_vm_fault` (with one domain `budget_ok` after the same `update_timestamp` passes without writing when
+    `sufficient` held: `check_budget_restart_suf`), given `VmFaultOK` (the reads at every post-`budget_ok` state);
+  * declines: **`vm_fault_decline`**, **`reply_recv_vm_found_decline`** (as m57's, `false` = entry state);
+    **`vm_local_decline`**: a declined `handle_vm_fault_local` returns exactly `update_timestamp s a` (NOT the entry
+    state; see step 2);
+  * ReplyRecv half: `RRChecksV`, `reply_recv_vm_found_acc` (the write part is m64's `rrTail` verbatim), `hfr_vm`,
+    `do_reply_transfer_rrV`, `RRR3V`, `RRPreV`, **`rr_vm_same`**: from the dispatch state `X0`, with `(rptr, ep) =`
+    `reply_caps X0 t` (fl4-sync's `found`), an accepted `reply_recv_vm_found` ends where `dispatch_syscall …
+    SysReplyRecv` + `finish` end, given `RRPreV` (m66's `RRPre` with the VM fault type; `RRReads` unchanged).
+  * Not done in step 1 (sizes): deriving `FaultOKG … VMFault` / `VmFaultNvm` from entry-state facts (m61–m63, m70–m73's
+    `FaultEnt` / `finReads_of` / `faultOK_of` / `JAtZ.fastFaultOK` over `f`; the one fault-specific piece is the
+    footprint of `set_mrs_fault`, four `set_mr` for a VM fault instead of the `copy_mrs_fault` loop: L);
+    `RRPreV` from `EntryInv` (m67–m70's `RRReads.of_ent` / `rr_x8` / `lk8_of` / `rrPre5_of`: the only
+    fault-specific piece is `XferRegW` for `handle_fault_reply`, empty for a VM fault: M); re-deriving the
+    UnknownSyscall statements from the `G` forms (S, optional).
+- **Step 2 design: one theorem per `*_local` entry**, from a state with the joint relation (`JReachU15 s a σ`):
+  * accepted (`= ok (true, s', a')`): the result is one general step: `handle_vm_fault_local` → `handle_vm_fault`
+    (`vm_local_same`, needs `VmFaultOK` from `JAtZ`); `handle_reply_recv_vm_local` → `syscall … SysReplyRecv false`
+    (`syscall_rr_general` + `rr_vm_same`; obligations: the local entry reads `flags` before the `FAULT_IP` write and the
+    general one after it (`regA … FAULT_IP` ≠ the flags word), and `found = reply_caps` at the *dispatch* state while
+    fl4-sync computes it at the entry state (read-congruence of `reply_caps` across the `FAULT_IP` / timestamp writes:
+    `RabCongr` + m68's `CnOff`)); `handle_syscall_local` → `handle_syscall` (the trap arm is `fastpath.fault` with the
+    number `trapped_syscall_number!` after the FAULT_IP write: `usf_same`'s route; the ReplyRecv arm as above);
+    `handle_ioport_local` / `handle_invocation_local` run the general path's own `handle_invocation` / `after_invocation`
+    / `finish` after a prefix (`FAULT_IP`, `update_timestamp`) and read-only checks: the obligation is that `syscall`'s
+    dispatch reaches the same call (ioport: decode route by label, `invocation_ok`; invocation: `Plan.still_holds`
+    pins the slots the general lookups would find — a lookup-congruence lemma per plan field);
+  * declined (`= ok (false, s', a')`): **the brief's "leaving the state unchanged" is false as stated**: each local
+    entry has already run `update_timestamp` (and the syscall ones the `FAULT_IP` write), as its Rust doc says, and
+    fl4-sync then runs the general entry from that state. The statement that holds: `s'` is the entry state after
+    `update_timestamp` (plus the `FAULT_IP` write that the general entry repeats with the same value). Closing it at
+    the top needs either (a) `JReachU15` at `s'` (the relation after a lone timestamp update; P3 relates `CUR_TIME` /
+    `consumed` to the spec through `MR` / `TimeAgree`, so this is a spec-side "time passed" step, not in the current
+    spec step relation) or (b) a merge lemma: `update_timestamp` twice = once with the later clock reading (true:
+    `consumed + (n1 - p) + (n2 - n1) = consumed + (n2 - p)` mod 2^64, `CUR_TIME = n2`; one domain), plus an Arch law
+    that the general run from `(s, a)` can read `n2` (P3's `TimeAgree` / `MachPlat` would have to quantify the clock
+    reading; today the run from `(s', a1)` is not a run from `(s, a)`).
+  * Sizes: VM accepted (needs `VmFaultOK` from `JAtZ`, the m61–m73 route over `f`): L; RR-VM accepted (+ `RRPreV`
+    from `EntryInv`, the `found` congruence): L; `handle_syscall_local` accepted: M–L; ioport / invocation accepted:
+    L each; the decline route (a) or (b) with the P3 time relation: L–XL. Total **XL** (> L), so per the brief step 2
+    stops at this design.
+- Builds: none yet (waiting for the tokyo build slot). First build: `MODE=mod MODS="Fl4Proofs.P1.FastVm"`, then the
+  root target. Commits: none yet (nothing green).
+### pf1b (same branch; lead's decisions: decline route (b) with a clock law [P]; step 1's derivations, then step 2 VM + RR-VM accepted first) — WRITTEN, NOT BUILT (still no build slot)
+- **Step 1 derivations (P1/FastVmInv.lean, P1/FastVmRR.lean, P3/XTopJointKEntryVm.lean):**
+  * fault half: `sfG` (`set_fault`'s four words over the values; `set_fault_vm`), `set_mrs_fault_rgV` (a VM fault's
+    message is four `set_mr`: m61's `XferRegW` footprint), `xfer_foot_S8V`, `faultReads_ofV` (m61's `faultReads_of`
+    text over `sfG … VMFault`), `faultOK_ofV`, `faultNvm_ofRV`, `vmFault_of` (m73's `fastFault_of`), and at P3
+    `JAtZ.vmFaultOK`: FastVm's `VmFaultOK` (now asked for `VmFault addr fsr ins` only; `vm_local_same` reads the
+    fault off `vspace.vm_fault`) at every `JAtZ` entry state, from `JAtZ.budgetOkB` at the entry's own `σ` (no
+    `FAULT_IP` write) and `OffReady σ` (SInvX's `offReady`).
+  * ReplyRecv half: FastVmRR is generated (scratch script `vcopy.py`) from FastRREnt / FastRRFoot / FastRRLk /
+    FastTailRR: every declaration whose text names `RRChecks` / `RRR3` / `RRPre` / `RRPreAt` (closure) is repeated
+    with the VM forms and a `V` name (24 declarations); hand edits only in `rr_r3V` / `rr_x8V` (fault type
+    `VMFault`, `hfr_vm`; `handle_fault_reply.rg` is fault-agnostic, so the footprint text is unchanged).
+    `RRPreAtV.of_inv` (P1, from `EntryInv` + `RRSumAt` / `CnOffAt` [J], as `entry_of10`) and P3 `JAtZ.rrPreAtV`
+    (as `JAtZ.rrPreAt` / `rrPre5At`, no residue: `RV` from the carried `SInvW`).
+- **Step 2, accepted cases (P1/FastVmLocal.lean, P3/XTopJointKEntryVm.lean):** `vm_local_triple`,
+  `rr_found_decline_of_vm` (where `reply_recv_vm_found` accepts, #56's `reply_recv_found` declines at the same
+  state: same reply thread, fault type `VMFault`), `syscall_rr_true` (then `syscall … SysReplyRecv true` is its
+  general path), `rr_vm_local_same` / `rr_vm_local_triple` (an accepted `handle_reply_recv_vm_local` ends where
+  `handle_syscall … SysReplyRecv` ends). Top **`SInvR.G5.kernel_entry_reachU15Vm`**: `kernel_entry_reachU15`'s
+  premises and `JReachU15 s a σ` give the JAtZ witnesses and (i) an accepted `handle_vm_fault_local` has the
+  postcondition of U15's VM-fault clause (no added premise), (ii) an accepted `handle_reply_recv_vm_local` has the
+  postcondition of U15's syscall clause at `SysReplyRecv`, under the clause's own inputs plus **`RRVmFound` [W]**
+  (at the dispatch state the current thread is `t`, its flags word is the one read before the `FAULT_IP` write, and
+  fl4-sync's `found` is `reply_caps` there: open, M — `reply_caps` read-congruence across the prefix's three writes,
+  with `CnOff`).
+- **Decline route (b), P1 part (P1/FastVmDecline.lean):** `update_timestamp_ok` (closed form `utW`, one domain),
+  `wrap_twice`, `utW_twice` (two updates = the later one, under `StoreExt`), **`update_timestamp_twice`**: the
+  second update from the first's result is one update from the entry state with any `a'` such that
+  `ar.now a' = ar.now a1`. With `vm_local_decline` (a declined `handle_vm_fault_local` returns exactly
+  `update_timestamp s a`), the general entry fl4-sync then runs is the general entry from `(s, a')`.
+  **Clock law [P] (to state on the arch interface, used only by the decline top):** `ClockLater arI AR MR :=
+  ∀ a n a1, arI.now a = ok (n, a1) → ∃ a', arI.now a' = arI.now a1 ∧ ArchAgree a a'`, i.e. a later clock reading is
+  a reading the entry could have made (monotone `now`), where `ArchAgree a a'` = every Arch relation the joint state
+  reads agrees: `MR a ms → MR a' ms`, `AR a c → AR a' c` and the other `a`-indexed parts of `JReachU15`. Open (L):
+  enumerate the `a`-dependent conjuncts of `JReachU15` and prove `JReachU15 s a σ → ArchAgree a a' → JReachU15 s a'
+  σ`; the decline top then is `kernel_entry_reachU15`'s VM clause at `(s, a')`. (`MR` relates the clock to the spec
+  machine time via `MachPlat.nowAgree`; `ClockLater` must keep that agreement, which is the monotone-read content.)
+- **Left (sizes):** `RRVmFound` derivation (M); decline tops (L, needs the `JReachU15` Arch transfer); the
+  `handle_syscall_local` (M–L, `usf_same`'s route after the `FAULT_IP` write + `trapped_syscall_number!`),
+  `handle_ioport_local` / `handle_invocation_local` accepted cases (L each).
+- New modules (root-imported): P1/FastVmInv, FastVmRR, FastVmLocal, FastVmDecline, P3/XTopJointKEntryVm. Builds:
+  none yet. Commits: none (nothing green).
+### pf1c (lead review: no script copy of the #56 ReplyRecv derivation; derive `RRVmFound`) — WRITTEN, NOT BUILT; supersedes pf1b's FastVmRR and `RRVmFound` [W]
+- **FastVmRR deleted.** The #56 ReplyRecv derivation is now stated over the receiver's fault type `ty`, in place:
+  FastRR `RRChecksG ty` (structure; `RRChecks` := `abbrev … RRChecksG … UnknownSyscall`, same fields, no statement
+  changed) and `class HfrRestart ty` (reply with label 0 restarts and keeps the Arch value; instances
+  `hfrRestart_us` from `hfr_us`, FastVm `hfrRestart_vm` from `hfr_vm`); FastRRSame `RRR3G` / `RRPreG` / `RRPreAtG`
+  (`RRR3` / `RRPre` / `RRPreAt` abbrevs at `UnknownSyscall`) and `rr_found_sameG` (rr_same's body; `rr_same` and
+  FastVm's `rr_vm_same` are its instances); FastRRSync `do_reply_transfer_rrG` (`hty0 : ty ≠ NullFault`). The 24
+  declarations of FastRREnt / FastRRFoot / FastRRLk / FastTailRR that name the checks / bundles are renamed `…G`
+  with `{ty} [HfrRestart st ar ty]` (bodies unchanged but `ty` in `rr_r3G` / `rr_x8G`'s fault-type line and
+  `HfrRestart.restart` for `hfr_us`); each original name keeps its statement and is proved by
+  `apply …G (ty := UnknownSyscall) <;> assumption`; the six bundle defs (`RRPre2/3/5`, `RRPreAt2/3/5`) are
+  abbrevs of their `…G` at `UnknownSyscall`. (Generator: scratch `vgen.py`; the bodies moved, nothing duplicated.)
+- **`RRVmFound` [W] derived (FastVmLocal):** `check_budget_restart_true` / `budget_ok_true` (a passing `budget_ok` is
+  its `update_timestamp`), `reply_caps_keep` (`reply_caps` past writes missing `t`'s root slot words 0/8, its
+  `REPLY` / `CAP` registers and every cap-slot word its walks reach, `CnOff`), `rr_prefix_keep` (the local entry's
+  `FAULT_IP` write + `CUR_TIME` / `CONSUMED` miss all of those and the `CUR_THREAD` word). `rr_vm_local_same` now
+  takes `BXI` and `CnOff` at the entry state (P3: `J.bxi`, `J.cnOff`), the top's own flag fact (`hflag`, which
+  the syscall clause already has), and `found = reply_caps s t` at the entry state (fl4-sync `local_syscall`'s
+  contract, an input of the clause, not a premise on the state). P3 `JAtZ.rrPreAtG`, top
+  `kernel_entry_reachU15Vm`: no premise added in either clause.
+- `RRPreAtG.of_inv` (P1, any `ty`): the bundle from `EntryInv` + `RRSumAt` / `CnOffAt` [J], as `entry_of10`.
+- **Fault half, same treatment (no copy left in FastVm / FastVmInv):** FastFault `fastFaultG` (the extraction's
+  `fastpath.fault` text over `f` / `ty`; `fastpath.fault … n` and `fastpath_vm.vm_fault … f` are it by definition),
+  `fault_accG` (`fault_acc` and FastVm's `vm_fault_acc` its instances), `faultTailG` / `faultTail2G` (`faultTail` /
+  `faultTail2` now defined as them at `UnknownSyscall`), `faultTailG_eq`, `faultTail2G_eq`, `handle_fault_preG`
+  (`faultTail_eq`, `faultTail2_eq`, `handle_fault_pre` instances), `FaultReadsG` (`FaultReads` an abbrev), `sfG`
+  (`sfW_eq_sfG : sfW s t n = sfG … UnknownSyscall n 0 0 := rfl`), `set_fault_vm`; FastFin `FaultOKG`, `fault_sameG`,
+  `FaultOK.toG` / `FaultOK.ofG` (`fault_same` an instance); FastFaultInv `set_mrs_fault_rgV` / `set_mrs_fault_rgG`
+  (`ty` an UnknownSyscall or a VM fault), `xfer_foot_S8G`, `faultReads_ofG` (`faultReads_of` an instance); FastFinInv
+  `faultOK_ofG` (`faultOK_of` an instance); FastTailFault `faultNvm_tailG` (`faultNvm_ofR` an instance). FastVmInv is
+  now three short VM instances (`faultOK_ofV`, `faultNvm_ofRV`, `vmFault_of`). Still per-function (short tactic
+  automation, not generalised): `vm_fault_decline` / `reply_recv_vm_found_decline` (as FastDecline's, which is
+  upstream of `fastFaultG`) and `reply_recv_vm_found_acc` (as `reply_recv_found_acc`).
+- No existing theorem statement changed; proofs of the originals replaced by their `…G` instances; existing defs /
+  structures `RRChecks`, `RRR3`, `RRPre`, `RRPreAt`, `RRPre2/3/5`, `RRPreAt2/3/5`, `FaultReads` became abbrevs (same
+  fields / unfolding), `faultTail` / `faultTail2` defs re-pointed (one `unfold faultTail2` in `fault_sync` now
+  `unfold faultTail2 faultTail2G`). Generators: scratch `vgen.py` (ReplyRecv files) + inline python edits.
+### pf1d (builds) — GREEN
+- tokyo (LEANQ_N=1): FastFault, then the whole P1 group green after three fixes (FastFaultInv: a blanket VMFault→ty
+  rename hit `hty'` itself, `xfer_foot_S8G` argument order, `faultReads_ofG`'s value variables renamed `fw0..fw2`
+  since its proof names hypotheses `w1`/`w2`; FastVmLocal: `lift` binds reduced before the obtains). Commit d730c03e.
+- afkprover (SEED=B, scratch = untracked `proofs/scratch/pf1scratch.py`: the four FrameBatch stubs of cba1820b —
+  VsTopX:732, VsThX:468/527, MachKeepG4d — idempotent apply/revert): pf1-a3 FastVmLocal + XTopJointKEntryVm green
+  (commit 4495346f); pf1-a4 FULL BUILD green: 7281 jobs, ERRORS 0, SORRY 4 (exactly the four scratch stubs),
+  mirror clean before/after (FB3SCRATCH 0). Axioms (pfax.lean): every new P1 lemma and `JAtZ.vmFaultOK` /
+  `JAtZ.rrPreAtG`, and the re-derived `fault_same` / `rr_same` / `faultReads_of` / `faultNvm_ofR`:
+  [propext, Classical.choice, Quot.sound]; `kernel_entry_reachU15Vm`: + sorryAx, exactly as `kernel_entry_reachU15`
+  itself under the FrameBatch scratch (the stubs sit below U15's chain; nothing of pf1 adds one).
+- Open as in pf1b/pf1c: the decline tops (P3 `JReachU15` Arch transfer under `ClockLater` [P]),
+  `handle_syscall_local` / `handle_ioport_local` / `handle_invocation_local` accepted cases.

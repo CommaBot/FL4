@@ -1,5 +1,6 @@
 /- sg1: idle-thread frame lemmas `IdK t` (ut7's SpecInvUtNK5 renamed; see SpecInvSgI1). -/
 import Fl4Proofs.P3.SpecInvSgI4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvG
@@ -286,6 +287,15 @@ macro_rules | `(tactic| idk_leaf) => `(tactic| with_reducible exact idk_performP
 theorem idk_performTestAndClearAccessed (_slot : ObjRef) : IdK N (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; idk_auto
 macro_rules | `(tactic| idk_leaf) => `(tactic| with_reducible exact idk_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem idk_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : IdKE N (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; idk_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem idk_performFrameBatch (b : Fl4FrameBatchInvocation) : IdK N (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => idk_fbEntry b w) (by unfold flushAll; idk_auto)
+macro_rules | `(tactic| idk_leaf) => `(tactic| with_reducible exact idk_performFrameBatch _)
 
 theorem idk_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : IdKE N (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; idk_auto

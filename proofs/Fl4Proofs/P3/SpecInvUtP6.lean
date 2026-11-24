@@ -16,6 +16,7 @@ imports SpecInvUtP5).
 * **`perfGap : PerfGap`**, **`kentry_utInv2`**, **`kcall_utInv2`** (no premise).
 -/
 import Fl4Proofs.P3.SpecInvUtP5
+import Fl4Proofs.P3.SpecFbP3
 open Classical
 
 namespace Fl4Proofs.P3.SInvU

@@ -102,35 +102,37 @@ theorem faultRecv_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 �
     · have := k3 e; rw [hst2] at this; exact absurd this (by decide)
 
 set_option maxHeartbeats 1600000 in
-/-- **m62's `FaultNvm` from the P1 invariants where `fastpath.fault` is
-entered** (module docstring), with the handler's receive state as an
-argument (m73: `faultNvm_of` reads it off `EntryHyps0.tmoOK` by
-`faultRecv_of`; P3 reads it off the joint relation). -/
-theorem faultNvm_ofR {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+/-- **m70's `faultNvm_ofR` over the fault** (pf1): a run of `faultTailG … f ty`
+from checks that held (an UnknownSyscall or a VM fault, `set_fault f` writing
+`sfG … ty w0 w1 w2`) ends with the handler current and not `TS_RUNNING_VM`. -/
+theorem faultNvm_tailG {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
     (hA : P0.ArchTotal ar)
-    {s : S} {a : A} {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    {s : S} {a : A} {t : obj.Tcb} {f : error.Fault} {ty w0 w1 w2 : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hrecv0 : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r →
       L.mem s (stA dest) = sched.TS_BLOCKED_ON_RECV)
-    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultNvm (L := L) ar s a t n := by
-  intro sF aF h
-  obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t)
+    (hty' : ty = fl4_abi.consts.fault.UnknownSyscall ∨ ty = fl4_abi.consts.fault.VMFault)
+    (hsf : faults.set_fault st s t f = ok (sfG (L := L) s t ty w0 w1 w2))
+    {ptr badge dest r : U64} {sF : S} {aF : A} (hc : FaultChecks st s t ptr badge dest r)
+    (hfast : faultTailG st ar s a t f ty ptr badge dest r = ok (true, sF, aF)) :
+    L.mem sF (stA (L.curW sF)) ≠ sched.TS_RUNNING_VM := by
   have hrecv := hrecv0 hc
   obtain ⟨⟨Q, R, hSQ⟩, hB, hX, hSg, hS⟩ := hI
   have hX0 : ScExtra0 st T Cs Scs Nt s := hX.2.2.toScExtra0
   have hO := hX.1
-  rw [faultTail_eq] at hfast
+  rw [faultTailG_eq st ar a t f ty ptr badge dest r hsf] at hfast
   have hf0 := hfast
-  unfold faultTail2 at hfast
+  unfold faultTail2G at hfast
   obtain ⟨rb, hbuf, h1⟩ := bind_eq_ok hfast
   obtain ⟨⟨sent, S6⟩, hmrs, h2⟩ := bind_eq_ok h1
   try simp only [uncurry_apply_pair] at h2
   obtain ⟨mi, hmi, h3⟩ := bind_eq_ok h2
   obtain ⟨S7, hS7, h4⟩ := bind_eq_ok h3
   obtain ⟨S8, hS8, -⟩ := bind_eq_ok h4
-  rw [faultTail2_eq ar _ a t dest r badge hbuf hmrs hmi hS7 hS8, faultTail3_eq] at hf0
+  rw [faultTail2G_eq ar _ a t ty dest r badge hbuf hmrs hmi hS7 hS8, faultTail3_eq] at hf0
   obtain ⟨s15, h15, hfin⟩ := bind_eq_ok hf0
   obtain ⟨hr, rest, E⟩ := hF.2 ptr badge dest r hc
-  obtain ⟨-, -, K⟩ := faultReads_of ar E hbuf hmrs hS7 hS8
+  obtain ⟨-, -, K⟩ := faultReads_ofG ar hty' E hbuf hmrs hS7 hS8
   have HF := here_facts (L := L) hc.here
   have hT := E.hT
   have hdT : dest ∈ T := E.hq.mem dest (by simp)
@@ -268,6 +270,21 @@ theorem faultNvm_ofR {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 �
   obtain ⟨h1, h2⟩ := hend
   rw [h1, h2]
   simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
+
+/-- **m62's `FaultNvm` from the P1 invariants where `fastpath.fault` is
+entered** (module docstring), with the handler's receive state as an
+argument (m73: `faultNvm_of` reads it off `EntryHyps0.tmoOK` by
+`faultRecv_of`; P3 reads it off the joint relation). -/
+theorem faultNvm_ofR {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    (hA : P0.ArchTotal ar)
+    {s : S} {a : A} {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hrecv0 : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r →
+      L.mem s (stA dest) = sched.TS_BLOCKED_ON_RECV)
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultNvm (L := L) ar s a t n := by
+  intro sF aF h
+  obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
+  exact faultNvm_tailG ar hA hI hrecv0 hF (ty := fl4_abi.consts.fault.UnknownSyscall) (w0 := n) (w1 := 0#u64)
+    (w2 := 0#u64) (f := error.Fault.UnknownSyscall n) (Or.inl rfl) (set_fault_us (L := L) s t n) hc hfast
 
 /-- **m62's `FaultNvm` from the P1 invariants where `fastpath.fault` is
 entered** (module docstring): `faultNvm_ofR` with the handler's receive
