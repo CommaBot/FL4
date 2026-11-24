@@ -33,6 +33,18 @@ VMEnter, the VCPU check and the notification and scheduler interaction**
 * Every caller of `send_signal` in the extended kernel uses `sendSignalV`:
   `handleInterruptV`, the notification invocation (`Ext/VirtDispatch`), the
   TCB timers (`fl4AwakenV`).
+* FL4 #80 / #81 / #85 (main 279c8261), not yet modelled here (the module
+  is not refined by any P3 proof; KENTRY-PLAN int6): a *full-state* VMEnter
+  caller (message info `NUM_MRS` = 30 at entry, `vcpu::full_reply`) gets a
+  30-MR report on a notification too (`vcpu::report`'s full branch and
+  `finish_notification`: MR3 the notification reason, MR4/6/25/26 cleared,
+  MR5 kept while an event was being delivered, MR2 the 32-bit entry
+  descriptor), also from `vmEnter`'s already-active case; `sendSignalV`'s
+  completion also runs for such a caller on another core once it is not
+  that core's current thread (`vcpu::signal_completes`), and its other-core
+  case only interrupts the guest (`kick_guest`, no stall); every completed
+  VMEnter sets the fault IP to the next IP (#81). On SVM the full-state
+  entry keeps EVENTINJ's upper (error-code) half (`vcpu::enter`).
 * `activateThreadV`: l4v's `activate_thread` with seL4's `RunningVM`
   case (nothing to do; the ported function fails on it).
 * The scheduler: `runningVM` is `runnable` (ported); the ported

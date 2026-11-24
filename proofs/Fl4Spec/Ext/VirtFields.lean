@@ -539,6 +539,20 @@ XSA-156 / CVE-2015-5307, CVE-2015-8104: a guest that loops on #AC or #DB
 delivery hangs the host core; #MC belongs to the host). -/
 def vcpuExceptions : Word := (1 <<< 1) ||| (1 <<< 17) ||| (1 <<< 18)
 
+/-- FL4 `vcpu::CR4_ALLOWED`: the guest CR4 bits FL4 lets a guest own (VME
+.. UMIP (bits 0..11), FSGSBASE, PCIDE, OSXSAVE, SMEP, SMAP, and since #85
+PKE (22)). Excluded: LA57 (12; FL4 uses 4-level paging), VMXE (13; nested
+VMX), SMXE (14), CET (23) and the rest (SDM Vol. 3A §2.5). -/
+def cr4Allowed : Word :=
+  0x0fff ||| (1 <<< 16) ||| (1 <<< 17) ||| (1 <<< 18) ||| (1 <<< 20) ||| (1 <<< 21) ||| (1 <<< 22)
+
+/-- FL4 `vcpu::cr4_allowed` (#85): `cr4Allowed` without PKE (bit 22) unless
+the host's XCR0 (`hostXcr0`, VCPU capability 0) holds PKRU (bit 9): neither
+VMX nor SVM switches PKRU, the host's XSAVE of the guest's FPU state does,
+and only with PKRU in XCR0. -/
+def cr4AllowedHost : Word :=
+  if hostXcr0 &&& (1 <<< 9) ≠ 0 then cr4Allowed else cr4Allowed &&& ~~~((1 : Word) <<< 22)
+
 namespace Svm
 
 /-- FL4's `sanitize_vmcb` table (50 writable words): `none` for a word
@@ -556,8 +570,7 @@ def writeRule (f : Word) : Option WriteRule :=
   else if f = nextRip then some ⟨~~~0, 0, false⟩
   else if f = cpl then some ⟨0xff00_0000, 0, false⟩
   else if f = efer then some ⟨~~~0, 1 <<< 12, false⟩
-  else if f = cr4 then some ⟨(0x0fff : Word) ||| (1 <<< 16) ||| (1 <<< 17) ||| (1 <<< 18)
-      ||| (1 <<< 20) ||| (1 <<< 21), 0, false⟩
+  else if f = cr4 then some ⟨cr4AllowedHost, 0, false⟩
   else if f ∈ segAttrOffsets ++ [cr3, cr0, dr7, dr6, rflags, rip, rsp, rax, star, sfmask,
       sysenterCs, cr2, gPat] then some ⟨~~~0, 0, false⟩
   else if f ∈ segBaseOffsets ++ [lstar, cstar, kernelGsBase, sysenterEsp, sysenterEip] then
@@ -587,12 +600,17 @@ def msrFmask : Word := 0xc000_0084
 def msrKernelGsBase : Word := 0xc000_0102
 def msrCr2 : Word := 0xffff_ffff
 def msrXcr0 : Word := 0xffff_fffe
+/-- FL4's `vcpu::MSR_VM_IBPB_DEFER` (#85): whether this VCPU's exits may
+leave their IBPB to the next switch to another address space (0 or 1,
+the holder's choice; 0 after retype). A VCPU word on both backends. -/
+def msrVmIbpbDefer : Word := 0xffff_fffd
 /-- `IA32_VMX_MISC`: ReadMSR answers `vcpu_capability(0x485)` on VMX and 0
 on SVM; it is not VCPU state. -/
 def msrVmxMisc : Word := 0x485
 
 /-- The MSR fields of a VCPU (FL4 `vcpu::msr_addr`; both backends). -/
-def vcpuMsrs : List Word := [msrStar, msrLstar, msrCstar, msrFmask, msrKernelGsBase, msrCr2, msrXcr0]
+def vcpuMsrs : List Word :=
+  [msrStar, msrLstar, msrCstar, msrFmask, msrKernelGsBase, msrCr2, msrXcr0, msrVmIbpbDefer]
 
 /-- The single place of a field's value (module docstring): on SVM the
 MSRs but XCR0 are VMCB words and the VMCB's RAX is GPR 0. -/
@@ -635,13 +653,13 @@ def VField.writable (k : VirtKind) : VField → Bool
 
 /-- Changed by a guest step. XCR0 is not: XSETBV always exits on VMX
 (SDM Vol. 3C §26.1.2) and FL4 forces its intercept on SVM (`SVM_I2_FORCED`
-bit 13). On VMX the syscall MSRs come back through the VM-exit MSR-store
+bit 13); nor is FL4's `msrVmIbpbDefer` (kernel state). On VMX the syscall MSRs come back through the VM-exit MSR-store
 list and CR2 from the processor (`vm::run`). -/
 def VField.guestChanged (k : VirtKind) : VField → Bool
   | .vmcs f => k = .vmx && Vmx.guestChanged f
   | .vmcb f => k = .svm && Svm.guestChanged f
   | .gpr _ => k = .vmx || k = .svm
-  | .msr m => k = .vmx && decide (m ∈ vcpuMsrs) && m ≠ msrXcr0
+  | .msr m => k = .vmx && decide (m ∈ vcpuMsrs) && m ≠ msrXcr0 && m ≠ msrVmIbpbDefer
 
 end
 

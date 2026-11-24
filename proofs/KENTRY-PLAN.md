@@ -19246,3 +19246,70 @@ None (no Lean change).
 - **Findings**: none of a false invariant. Note: tdx's re-extraction adds `axiom` declarations only in the unimported
   `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
 - Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).
+
+## int6 (branch int/j6 in FL4-int6, from int/j5 cbded6b6 + origin/main 279c8261 = #93) — merged; x86 re-extracted, P0 green (1134/1134); **full build NOT green**: the #80/#85 cross-core full-state VMEnter completion inside `send_signal` breaks P1 `QueueSignal` (and everything downstream, ~670 modules) and needs a route decision (below); AArch64 extraction FAILS (FINDING 1); no top statement changed, no premise added
+- **Merge** d56d1aeb (`git merge --no-ff origin/main`, no conflicts; main touched no `proofs/` file). 20 commits #73..#93.
+- **Extraction** (tokyo, key `int6-ex1`, `fl4-deps` Aeneas 0d21a9e, script `ex6.sh` untracked): x86 OK (commit b3581a19);
+  `--arch aarch64` FAILS, see FINDING 1; `proofs/Fl4CoreA64` left at int/j5's extraction (the partial A64 output, with a
+  `sorry` body, is kept outside the repo in `../FL4-int6-a64partial/`). FunsExternal unchanged on both arches.
+- **P0** (afkprover, `p06.sh` untracked: gen_const_specs + gen_p0, keys `int6-p0a..p0e`): x86 1134/1134, 0 sorry, 27 by hand.
+  New hand proofs (Manual.lean.in): `vcpu.report` (#80: the full-state reply copies the rest of the body into each branch;
+  `p0_split` times out in `whnf`; proved bind by bind, each first action total on its own, `p0_ite_head` for the
+  top-level ifs), `boot.create_untypeds_for_region_loop` (#92 added `zeroed`/`n_zeroed`; the generator's first measure guess
+  did not decrease; the fuel measure as before), `boot.find_rootserver_mem_loop` (`MAX_REGIONS` 32 → 128; countdown measure).
+- **x86 fl4-core changes and where they land** (A64-only changes not listed; Fl4CoreA64 not re-extracted):
+  #92 boot `zeroed` regions / `is_prezeroed` / `MAX_REGIONS` 128 (P0 only); #85 `CR4_ALLOWED` + PKE, `cr4_allowed`,
+  `MSR_VM_IBPB_DEFER` (P1 `QueueDecVcpu`, spec below); #85 `send_signal`: the RunningVM completion no longer needs the
+  same core (`vcpu.signal_completes` now: same core, or a full-state caller that is not its core's current thread) and the
+  other-core case `kick_guest` (a reschedule IPI) replaces `remote_tcb_stall`; #80 `vcpu.full_reply`, `report`'s full
+  branch (`report_loop2/3`, `finish_notification`: 30 MRs, i.e. IPC-buffer words), `enter`'s full branch (an active bound
+  notification completes through `report`), SVM EVENTINJ upper half; #81 every completion sets `FAULT_IP := NEXT_IP`;
+  faults.rs `trap_syscall_message/reply` (identity on x86).
+- **Spec (Fl4Spec/Ext, FL4 extension modules, unrefined by any P3 proof):** `VirtFields`: `cr4Allowed` moved here and
+  gains PKE (bit 22); new `cr4AllowedHost` (= FL4 `vcpu::cr4_allowed`: PKE only if `hostXcr0` has PKRU, bit 9) used by
+  the SVM CR4 write rule and by `VirtSanitize.sanitizeVmcs` (CR4 mask, guest CR4); new `msrVmIbpbDefer` (0xffff_fffd) in
+  `vcpuMsrs`, not `guestChanged`; `VirtSanitize.checkMsrWrite`: `msrVmIbpbDefer` > 1 is `InvalidArgument 1`.
+  `VirtEntry` docstring: the #80/#81/#85 VMEnter differences listed as not yet modelled (that module already models
+  seL4's VTX behaviour with "FL4 code differs" notes; no refinement uses it). **Not done:** a model of the full-state
+  report / cross-core completion in `VirtEntry`/`VirtState` (`vmenterReport` with a `full` flag, `sendSignalV`'s new
+  condition, `vmEnter`'s full branch) — sizeable, no proof consumes it.
+- **Proof adaptations done:** `QueueDecVcpu.vcpu.msr_addr.off` (#85 MSR branch); `ArchKeep.AK.notification_kick_guest`
+  (new; `send_signal`'s walk needs it; module builds, key `int6-m1`); new `P1/VcpuReport.lean`: `RepSteps` (the four write
+  kinds of `vcpu.report`) and `vcpu.report.gen` / `report_loop0..3.gen` / `finish_notification.gen` (report for any
+  predicate kept by those steps) — the loop lemmas elaborate, **`finish_notification.gen` and `report.gen` do NOT yet**
+  (key `int6-m3`: a write step is swallowed by the generic read alternative of the `rep_step` macro, so `hfin` cannot
+  close the tail; next: replace the generic read block by the explicit P0 read lemmas `vcpu.get/read_vmcs/obj.Tcb.reg/
+  msg.syscall_arg/vcpu.full_reply`.p0 and `hA.virtualization`, so no write is ever proved by `step`);
+  `QueueVcpu.vcpu.report.cur0` re-proved on `report.gen` (same statement; unbuilt, downstream of QueueSignal).
+- **Build** (afkprover, mirror FL4-int6, cold from SEED=A, key `int6-p0e`): "[6803/7475]", errors only in
+  `P1/QueueSignal` (`vcpu.report.blk` l.424, `vcpu.signal_completes.blk` l.506, `send_signal.tinv` l.605), `P3/ArchKeep`
+  (fixed since, `int6-m1`) and `VcpuReport` (above). Everything downstream of QueueSignal is unbuilt, so further breakage
+  is not yet known; expected (same pattern): `QueueFootS` (`vcpu.report.blkF`, `send_signal.tinvF`), `TimerRBSig`
+  (`vcpu.report.tm`, `send_signal.tm`), `QueueInvAll`, then any P3 file whose proof unfolds `send_signal`. No axiom check
+  (no green build).
+- **The open item (route decision needed): `send_signal`'s new full-state completion writes user memory.** Since #80/#85,
+  `notification::send_signal` on an idle notification bound to a `TS_RUNNING_VM` thread calls `vcpu::report` whenever
+  `signal_completes` holds, and for a full-state caller (MSG_INFO = 30 at entry) `report` writes MR3..29, i.e. up to 26
+  words of the thread's IPC buffer (`msg.set_mr`, i ≥ 4), from any core. `send_signal` runs inside `timer.fire_loop`
+  (so inside `sched.schedule`), the IRQ path and the notification invocation. P1's `send_signal.tinv/tinvF/tm/tagree`
+  are stated from `TInv` alone, with footprints in `KW` (kernel words): neither says where a thread's IPC buffer is, so the
+  full branch cannot be proved without a placement fact for the buffer (P1 has it only as `XferHyps.buf` at `XG ∧ XI`
+  states, plus `UserOK`), and its writes leave `KW`. Routes: (A) thread `(E : XferHyps …) (hG : XG … s) (hU : UserOK …)`
+  (or a closure-form `G`) into `send_signal.*`, `timer.fire_loop/fire.*`, `sched.schedule.*`, `handle_interrupt.bxi`
+  and widen their footprints to `KW ∪ XferFoot T U` (the `IpcFoot` precedent), then every P3 caller (ScSignal*J,
+  XTopJointJAtZRB, DomFoot, DomAll, XTopJointSched*, ScFireJ, ScSchTailP1, SchedIdx) must supply them (no new premise on a
+  top if P3 derives them from `JAtZ.xferH`; XL); (B) an EntryHyps-style [P] premise like #57's `P3Place.vmchk`,
+  discharged by P3 under `NativeScope` — this adds a premise to P1's entry theorem, which the owner's rule forbids, so not
+  taken; (C) model the cross-core full completion as a separate FL4 step outside `send_signal`'s P1 statement — impossible
+  without a kernel change (it is inside `send_signal`). `vcpu.report.gen` (above) is the common lemma for (A): with `P` the
+  `XS` stretch (`msg.set_mr.xs`/`buf_set.xs` give the buffer writes under `BufOK U`) it covers all four report users.
+- **FINDINGs.** (1) **AArch64 extractability (#90).** `cargo xtask extract --arch aarch64` fails: Aeneas 0d21a9e reports
+  "Joining region abstractions containing shared loans whose shared value contains borrows is not supported yet" at
+  `crates/fl4-core/src/arch/aarch64/tcb.rs:36-40` (the `while i < 10` loop of `decode_set_pac_keys`, which calls
+  `arg(s, c, i + 1)` with `c: &Ctx` while writing `s`), and emits `tcb.decode_set_pac_keys := sorry`. The gate only covers
+  x86, so CI does not see it. Not a kernel bug; a Rust-side rewrite (read the ten key words into locals before the loop, or
+  pass `c.buf` by value) would restore the A64 extraction (separate PR via the executor chat, per the owner's rule).
+  (2) No kernel behaviour that looks like a bug found in the x86 changes read (#80, #81, #85, #92).
+- **Commits:** d56d1aeb (merge), b3581a19 (extraction + P0), this section's WIP commit (spec, QueueDecVcpu, ArchKeep,
+  VcpuReport, QueueVcpu). Untracked helpers in the worktree root: `ex6.sh` (tokyo extraction), `p06.sh` (afkprover
+  gen_const_specs + gen_p0).

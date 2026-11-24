@@ -9,6 +9,7 @@ structure, `VcpuPlace`.
 -/
 import Fl4Proofs.P1.QueueVcpuLink
 import Fl4Proofs.P1.QueueDecTcbRR
+import Fl4Proofs.P1.VcpuReport
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -478,111 +479,22 @@ theorem vcpu.report.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
       H (L.mem s (core.num.U64.wrapping_add t 3664#u64)) = some (.other 15)) :
     vcpu.report st ar s a t badge ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
       L.ksb s' = L.ksb s ⦄ := by
-  have hS : P0.StoreTotal st := L.total
   obtain ⟨Ac1, hX⟩ := h.bxi
   obtain ⟨Q, R, x0⟩ := BXI.xs hX hU
-  unfold vcpu.report vcpu.bound
-  step as ⟨o, ho⟩
-  simp only [lift, bind_ok]
-  refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
-  subst ho
-  have HV : v ≠ 0#u64 → H v = some (.other 15) := fun hv => by
-    rw [ev]; exact hbd (by rw [← ev]; exact hv)
-  refine WP.spec_bind (Pₘ := fun p => p = true → v ≠ 0#u64) ?_ fun pending hpv => ?_
-  · split
-    · rename_i hv
-      exact WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => (WP.spec_ok _).2 fun _ => by simpa using hv
-    · exact (WP.spec_ok _).2 fun e => absurd e (by simp)
-  refine WP.spec_bind (E.buf _ _ _ _ s t ⟨s0, he, h.fr⟩ x0.1 ht) fun b hb => ?_
   have x00 := XSV.start x0
+  -- #80 / #81: `vcpu.report.gen` with `P` the `XSV` stretch from `s`
   have NB : ∀ s', XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s' →
       ¬ BlockedR (L.mem s' (stA t)) := fun s' x => by
     rw [stA_eq, x.1.fr.2.2.2.2.1 _ ht _ (by simp) (by simp) (by simp), ← stA_eq]; exact hst
-  have FIN : ∀ (sX : S) (m i : U64), XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s sX → (do
-      let s5 ← obj.Tcb.set_reg st t sX layout.reg.MSG_INFO m
-      let s6 ← obj.Tcb.set_reg st t s5 layout.reg.BADGE i
-      sched.set_thread_state st s6 t sched.TS_RUNNING) ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
-        L.ksb s' = L.ksb s ⦄ := fun sX m i x4 =>
-    WP.spec_bind (obj.Tcb.set_reg.xsv x4 ht (by simp [layout.reg.MSG_INFO, layout.reg.RSI])) fun s5 x5 =>
-      WP.spec_bind (obj.Tcb.set_reg.xsv x5 ht (by simp [layout.reg.BADGE, layout.reg.RDI])) fun s6 x6 =>
-        report_final h x6 ht (NB _ x6)
-  have FINP : v ≠ 0#u64 → ∀ (sX : S), XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s sX → (do
-      let s7 ← vcpu.set st sX v vcpu.PENDING 0#u64
-      let s8 ← obj.Tcb.set_reg st t s7 layout.reg.MSG_INFO 1#u64
-      let s9 ← obj.Tcb.set_reg st t s8 layout.reg.BADGE 0#u64
-      sched.set_thread_state st s9 t sched.TS_RUNNING) ⦃ s' => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s' ∧
-        L.ksb s' = L.ksb s ⦄ := fun hv0 sX xX =>
-    WP.spec_bind (vcpu.set.xs hH (HV hv0) (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING]) xX) fun s7 x7 =>
-      FIN s7 _ _ x7
-  split
-  · -- a saved exit to report
-    rename_i hp
-    have hv0 : v ≠ 0#u64 := hpv hp
-    refine WP.spec_bind (vcpu.report_loop0.xs x00 ht hb) fun s1 x1 => ?_
-    refine WP.spec_bind (vcpu.get.any _ _ _) fun i _ => ?_
-    split
-    · refine WP.spec_bind (hA.virtualization a) fun i1 _ => ?_
-      refine WP.spec_bind (Pₘ := fun _ => True) (by
-        split
-        · exact WP.spec_bind (vcpu.svm.RIP.spec) fun _ _ => vcpu.get.any _ _ _
-        · exact vcpu.read_vmcs.any _ _ _) fun ip _ => ?_
-      refine WP.spec_bind (Pₘ := fun _ => True) (by
-        split
-        · exact WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => by step as ⟨_, _⟩
-        · exact vcpu.read_vmcs.any _ _ _) fun ctl _ => ?_
-      refine WP.spec_bind (Pₘ := fun _ => True) (by
-        split
-        · exact vcpu.get.any _ _ _
-        · exact vcpu.read_vmcs.any _ _ _) fun intr _ => ?_
-      refine WP.spec_bind (msg.set_mr.xsv x1 ht hb (by simp)) ?_
-      rintro ⟨_, s2⟩ ⟨x2, -⟩
-      try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (msg.set_mr.xsv x2 ht hb (by simp)) ?_
-      rintro ⟨_, s3⟩ ⟨x3, -⟩
-      try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (msg.set_mr.xsv x3 ht hb (by simp)) ?_
-      rintro ⟨_, s4⟩ ⟨x4, -⟩
-      try simp only [uncurry_apply_pair]
-      refine WP.spec_bind (vcpu.report_loop1.xs x4 ht hb) fun s5 x5 => ?_
-      refine WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => ?_
-      refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
-        fun s6 x6 => FINP hv0 s6 x6
-      first
-        | exact (WP.spec_ok _).2 x5
-        | exact rFour.xs hA x5 ht hb
-        | (split
-           · exact rFour.xs hA x5 ht hb
-           · exact (WP.spec_ok _).2 x5)
-    · refine WP.spec_bind (Pₘ := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') ?_
-        fun s2 x2 => FINP hv0 s2 x2
-      first
-        | exact (WP.spec_ok _).2 x1
-        | (split
-           · exact rFour.xs hA x1 ht hb
-           · exact (WP.spec_ok _).2 x1)
-  · -- no saved exit: MR0..2 get the entry state, the badge
-    refine WP.spec_bind (hA.virtualization a) fun i _ => ?_
-    refine WP.spec_bind (Pₘ := fun _ => True) ?_ ?_
-    · repeat' (first
-        | exact (WP.spec_ok _).2 trivial
-        | exact vcpu.get.any _ _ _
-        | exact vcpu.read_vmcs.any _ _ _
-        | split
-        | (step as ⟨_, _⟩)
-        | refine WP.spec_bind (vcpu.get.any _ _ _) fun _ _ => ?_
-        | refine WP.spec_bind (vcpu.read_vmcs.any _ _ _) fun _ _ => ?_)
-    rintro ⟨ip, ctl, intr⟩ -
-    try dsimp only
-    refine WP.spec_bind (msg.set_mr.xsv x00 ht hb (by simp)) ?_
-    rintro ⟨_, s1⟩ ⟨x1, -⟩
-    try simp only [uncurry_apply_pair]
-    refine WP.spec_bind (msg.set_mr.xsv x1 ht hb (by simp)) ?_
-    rintro ⟨_, s2⟩ ⟨x2, -⟩
-    try simp only [uncurry_apply_pair]
-    refine WP.spec_bind (msg.set_mr.xsv x2 ht hb (by simp)) ?_
-    rintro ⟨_, s3⟩ ⟨x3, -⟩
-    try simp only [uncurry_apply_pair]
-    exact FIN s3 _ _ x3
+  refine vcpu.report.gen (Bok := BufOK U) (vOk := fun v => H v = some (.other 15))
+    (P := fun s' => XSV st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z U Ac1 ∅ Q R s s') hA
+    ⟨fun s1 b i v hb h1 hi => WP.spec_mono (msg.set_mr.xsv h1 ht hb (by omega)) fun r hr => hr.1,
+     fun s1 r v h1 hr => obj.Tcb.set_reg.xsv h1 ht (by
+       rcases hr with rfl | rfl | rfl <;>
+         simp [layout.reg.MSG_INFO, layout.reg.BADGE, layout.reg.FAULT_IP, layout.reg.RSI, layout.reg.RDI]),
+     fun s1 v h1 hv => vcpu.set.xs hH hv (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING]) h1⟩
+    (fun s1 x1 => report_final h x1 ht (NB _ x1)) x00
+    (E.buf _ _ _ _ s t ⟨s0, he, h.fr⟩ x0.1 ht) hbd
 end
 
 
