@@ -243,3 +243,80 @@
   -- of the body into each of their 24 cases.
   unfold localinv.plan_with
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+-- #97 (localtimer, with losfair/FL4#98's loop form): the search counts its
+-- visits up to `TREE_VISITS` (64); the stack index stays at most `TREE_STACK`
+-- (32), the stack's length, which the pops and guarded pushes keep.
+@[step] theorem localtimer.in_core_timer_tree_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize) (visits : Std.U64) (found : Bool) (overflow : Bool) (hS : StoreTotal machineStoreInst)
+    (hsp : sp.val ≤ 32) :
+    localtimer.in_core_timer_tree_loop machineStoreInst s i d stack sp visits found overflow ⦃ _ => True ⦄ := by
+  -- P0 precondition: `sp ≤ 32` (the stack's length). Its one caller,
+  -- `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.
+  unfold localtimer.in_core_timer_tree_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, v, _, _) => 64 - v.val)
+    (inv := fun x => match x with | (_, p, _, _, _) => p.val ≤ 32)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hx
+    dsimp only at hx
+    unfold localtimer.in_core_timer_tree_loop.body
+    simp only [localtimer.TREE_VISITS, localtimer.TREE_STACK]
+    p0_body
+  · exact hsp
+
+-- Discharges the loop's precondition: `sp` is 0 or 1.
+@[step] theorem localtimer.in_core_timer_tree.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (d : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.in_core_timer_tree machineStoreInst s cpu target d ⦃ _ => True ⦄ := by
+  unfold localtimer.in_core_timer_tree
+  repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close
+
+-- #86 (LPIs): `id` adds `LPI_ID_BASE` to `irq - LPI_BASE` with Rust's `+`
+-- (checked in the extraction), so it is total only for interrupt numbers in
+-- range. Its callers pass `irq ≤ irq::MAX`: `init_irq_states` (its loop
+-- bound) and `handle_ipi` (from `handle_interrupt`, after its `irq > MAX` check).
+@[step] theorem layout.irq.id.p0 (irq : Std.U64) (hirq : irq.val ≤ 3327) :
+    layout.irq.id irq ⦃ _ => True ⦄ := by
+  -- P0 precondition: `irq ≤ irq::MAX` (3327). Callers: `boot.init_irq_states_loop`
+  -- (its loop condition) and `smp.handle_ipi` (its own precondition, from
+  -- `interrupt.handle_interrupt`'s `irq > MAX` check).
+  unfold layout.irq.id
+  simp only [layout.irq.LPI_ID_BASE]
+  p0_body
+
+@[step] theorem boot.init_irq_states_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.init_irq_states_loop machineStoreInst s i ⦃ _ => True ⦄ := by
+  unfold boot.init_irq_states_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 3327 + 1 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold boot.init_irq_states_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem smp.handle_ipi.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst)
+    (hirq : irq.val ≤ 3327) :
+    smp.handle_ipi machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
+  -- P0 precondition: `irq ≤ irq::MAX` (`layout.irq.id`'s). Its one caller,
+  -- `interrupt.handle_interrupt`, checks `irq > MAX` first.
+  unfold smp.handle_ipi
+  p0_body
+
+-- The trapped-syscall extra registers: a walk over `TRAP_EXTRA_MESSAGE` (24 entries),
+-- upwards; the generator's measures count the wrong way.
+@[step] theorem faults.trap_extra_mrs_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb) (buf : Std.U64) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
+    faults.trap_extra_mrs_loop machineStoreInst s sender buf i ⦃ _ => True ⦄ := by
+  unfold faults.trap_extra_mrs_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => 24 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold faults.trap_extra_mrs_loop.body
+    have hl : (Slice.len (Array.to_slice faults.TRAP_EXTRA_MESSAGE)).val = 24 := by simp [Slice.len_val]
+    p0_body
+  · trivial
+
+@[step] theorem faults.trap_extra_reply_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (receiver : obj.Tcb) (buf : Std.U64) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
+    faults.trap_extra_reply_loop machineStoreInst s receiver buf i ⦃ _ => True ⦄ := by
+  unfold faults.trap_extra_reply_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => 24 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold faults.trap_extra_reply_loop.body
+    have hl : (Slice.len (Array.to_slice faults.TRAP_EXTRA_MESSAGE)).val = 24 := by simp [Slice.len_val]
+    p0_body
+  · trivial

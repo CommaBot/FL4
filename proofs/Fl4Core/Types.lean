@@ -443,6 +443,18 @@ structure localinv.Plan where
   nseen : Std.Usize
   ok_words : Bool
 
+/-- [fl4_core::localtimer::TimerIrqPlan]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 314:0-331:1
+    Visibility: public -/
+structure localtimer.TimerIrqPlan where
+  tm : Std.U64
+  ntfn : Std.U64
+  waiter : Std.U64
+  ep : Std.U64
+  reply : Std.U64
+  objects : Array (Std.U64 × Std.U64) 3#usize
+  n : Std.Usize
+
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
     Source: 'crates/fl4-core/src/vcpu.rs', lines 805:20-805:76 -/
 @[reducible]

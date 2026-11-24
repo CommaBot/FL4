@@ -1,6 +1,6 @@
 {
- "functions": 1134,
- "proved": 1134,
+ "functions": 1157,
+ "proved": 1157,
  "manual": [
   "boot.create_untypeds",
   "boot.create_untypeds_for_region_loop",
@@ -8,6 +8,8 @@
   "ept.map_frame",
   "interrupt.map_ioapic",
   "localinv.plan_with",
+  "localtimer.in_core_timer_tree",
+  "localtimer.in_core_timer_tree_loop",
   "notification.send_signal",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
@@ -31,7 +33,8 @@
   "vspace.frame_batch_entry"
  ],
  "preconditions": {
-  "vspace.decode_frame_batch_loop": "`words \u2264 3` and `n \u2264 255` (the entry index `1 + words * done` is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes `words = entry_words op \u2264 3` and `n = (hdr >> 8) & 0xff`."
+  "vspace.decode_frame_batch_loop": "`words \u2264 3` and `n \u2264 255` (the entry index `1 + words * done` is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes `words = entry_words op \u2264 3` and `n = (hdr >> 8) & 0xff`.",
+  "localtimer.in_core_timer_tree_loop": "`sp \u2264 32` (the stack's length). Its one caller, `localtimer.in_core_timer_tree`, passes `sp` 0 or 1."
  },
  "loops_automatic": [
   "boot.all_zero_loop",
@@ -67,6 +70,7 @@
   "ipc.lookup_extra_caps_loop",
   "ipc.transfer_caps_loop",
   "localinv.Plan.still_holds_loop",
+  "localtimer.fire_ok_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
   "notification.cancel_all_signals_loop",

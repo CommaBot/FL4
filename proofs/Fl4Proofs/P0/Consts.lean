@@ -1869,6 +1869,18 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem localinv.MAX_LOCKS.val_eq : localinv.MAX_LOCKS.val = 4 := by
   unfold localinv.MAX_LOCKS; rfl
 
+@[simp, scalar_tac_simps] theorem localtimer.SYSCALL_INSN_LEN.val_eq : localtimer.SYSCALL_INSN_LEN.val = 2 := by
+  unfold localtimer.SYSCALL_INSN_LEN; rfl
+
+@[simp, scalar_tac_simps] theorem localtimer.TREE_STACK.val_eq : localtimer.TREE_STACK.val = 32 := by
+  unfold localtimer.TREE_STACK; rfl
+
+@[simp, scalar_tac_simps] theorem localtimer.TREE_VISITS.val_eq : localtimer.TREE_VISITS.val = 64 := by
+  unfold localtimer.TREE_VISITS; rfl
+
+@[simp, scalar_tac_simps] theorem localtimer.MAX_TIMER_LOCKS.val_eq : localtimer.MAX_TIMER_LOCKS.val = 3 := by
+  unfold localtimer.MAX_TIMER_LOCKS; rfl
+
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl
 

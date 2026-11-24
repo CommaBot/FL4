@@ -290,3 +290,28 @@
      | p0_ite_head
      | split)
    all_goals p0_close)
+
+-- #97 (localtimer, with losfair/FL4#98's loop form): the search counts its
+-- visits up to `TREE_VISITS` (64); the stack index stays at most `TREE_STACK`
+-- (32), the stack's length, which the pops and guarded pushes keep.
+@[step] theorem localtimer.in_core_timer_tree_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize) (visits : Std.U64) (found : Bool) (overflow : Bool) (hS : StoreTotal machineStoreInst)
+    (hsp : sp.val ≤ 32) :
+    localtimer.in_core_timer_tree_loop machineStoreInst s i d stack sp visits found overflow ⦃ _ => True ⦄ := by
+  -- P0 precondition: `sp ≤ 32` (the stack's length). Its one caller,
+  -- `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.
+  unfold localtimer.in_core_timer_tree_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, v, _, _) => 64 - v.val)
+    (inv := fun x => match x with | (_, p, _, _, _) => p.val ≤ 32)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hx
+    dsimp only at hx
+    unfold localtimer.in_core_timer_tree_loop.body
+    simp only [localtimer.TREE_VISITS, localtimer.TREE_STACK]
+    p0_body
+  · exact hsp
+
+-- Discharges the loop's precondition: `sp` is 0 or 1.
+@[step] theorem localtimer.in_core_timer_tree.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (d : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.in_core_timer_tree machineStoreInst s cpu target d ⦃ _ => True ⦄ := by
+  unfold localtimer.in_core_timer_tree
+  repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close

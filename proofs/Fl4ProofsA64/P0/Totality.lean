@@ -78,6 +78,13 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   vcpu_vgic_vtr : ∀ a, ar.vcpu_vgic_vtr a ⦃ _ => True ⦄
   vcpu_gic_version : ∀ a, ar.vcpu_gic_version a ⦃ _ => True ⦄
   vcpu_midr : ∀ a, ar.vcpu_midr a ⦃ _ => True ⦄
+  msi_map : ∀ a x0 x1 x2 x3, ar.msi_map a x0 x1 x2 x3 ⦃ _ => True ⦄
+  has_pauth : ∀ a, ar.has_pauth a ⦃ _ => True ⦄
+  next_pac_epoch : ∀ a, ar.next_pac_epoch a ⦃ _ => True ⦄
+  kernel_ttbr1_entry : ∀ a x0 x1, ar.kernel_ttbr1_entry a x0 x1 ⦃ _ => True ⦄
+  set_high_vspace : ∀ a x0 x1, ar.set_high_vspace a x0 x1 ⦃ _ => True ⦄
+  invalidate_high_page : ∀ a x0, ar.invalidate_high_page a x0 ⦃ _ => True ⦄
+  invalidate_high_vspace : ∀ a x0, ar.invalidate_high_vspace a x0 ⦃ _ => True ⦄
   putc : ∀ a c, ar.putc a c ⦃ _ => True ⦄
   get_char : ∀ a, ar.get_char a ⦃ _ => True ⦄
   halt : ∀ a, ar.halt a ⦃ _ => True ⦄
@@ -149,6 +156,13 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.vcpu_vgic_vtr_spec (h : ArchTotal ar) a : ar.vcpu_vgic_vtr a ⦃ _ => True ⦄ := h.vcpu_vgic_vtr a
 @[step] theorem ArchTotal.vcpu_gic_version_spec (h : ArchTotal ar) a : ar.vcpu_gic_version a ⦃ _ => True ⦄ := h.vcpu_gic_version a
 @[step] theorem ArchTotal.vcpu_midr_spec (h : ArchTotal ar) a : ar.vcpu_midr a ⦃ _ => True ⦄ := h.vcpu_midr a
+@[step] theorem ArchTotal.msi_map_spec (h : ArchTotal ar) a x0 x1 x2 x3 : ar.msi_map a x0 x1 x2 x3 ⦃ _ => True ⦄ := h.msi_map a x0 x1 x2 x3
+@[step] theorem ArchTotal.has_pauth_spec (h : ArchTotal ar) a : ar.has_pauth a ⦃ _ => True ⦄ := h.has_pauth a
+@[step] theorem ArchTotal.next_pac_epoch_spec (h : ArchTotal ar) a : ar.next_pac_epoch a ⦃ _ => True ⦄ := h.next_pac_epoch a
+@[step] theorem ArchTotal.kernel_ttbr1_entry_spec (h : ArchTotal ar) a x0 x1 : ar.kernel_ttbr1_entry a x0 x1 ⦃ _ => True ⦄ := h.kernel_ttbr1_entry a x0 x1
+@[step] theorem ArchTotal.set_high_vspace_spec (h : ArchTotal ar) a x0 x1 : ar.set_high_vspace a x0 x1 ⦃ _ => True ⦄ := h.set_high_vspace a x0 x1
+@[step] theorem ArchTotal.invalidate_high_page_spec (h : ArchTotal ar) a x0 : ar.invalidate_high_page a x0 ⦃ _ => True ⦄ := h.invalidate_high_page a x0
+@[step] theorem ArchTotal.invalidate_high_vspace_spec (h : ArchTotal ar) a x0 : ar.invalidate_high_vspace a x0 ⦃ _ => True ⦄ := h.invalidate_high_vspace a x0
 @[step] theorem ArchTotal.putc_spec (h : ArchTotal ar) a c : ar.putc a c ⦃ _ => True ⦄ := h.putc a c
 @[step] theorem ArchTotal.get_char_spec (h : ArchTotal ar) a : ar.get_char a ⦃ _ => True ⦄ := h.get_char a
 @[step] theorem ArchTotal.halt_spec (h : ArchTotal ar) a : ar.halt a ⦃ _ => True ⦄ := h.halt a
