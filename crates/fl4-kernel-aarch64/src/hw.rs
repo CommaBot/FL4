@@ -12,11 +12,26 @@ pub const MAX_CPUS: usize = 64;
 /// them (and the kernel reserves every one of them, started or not).
 pub const MAX_GICR: usize = MAX_CPUS;
 pub const RSDP_LEN: usize = 36;
+/// GICv3 ITS blocks the kernel records (and keeps from user space).
+pub const MAX_ITS: usize = 16;
+
+/// A GICv3 ITS the tables give.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItsBlock {
+    pub base: u64,
+    /// The size the tables gave (0: none, as a MADT).
+    pub raw_len: u64,
+    /// How far from `base` its range may reach (a device tree's bus
+    /// windows bound it; `u64::MAX`: unbounded).
+    pub max_len: u64,
+}
 
 pub struct Hw {
     pub source: &'static str,
     pub gic_version: u64,
     pub gicd: u64,
+    /// Its size where the tables give one (0: they do not).
+    pub gicd_len: u64,
     /// GICv2 CPU interface.
     pub gicc: u64,
     /// Its size where the tables give one (0: they do not).
@@ -28,11 +43,16 @@ pub struct Hw {
     /// The tables gave more redistributor ranges than `gicr` holds: the
     /// rest would be user space's device memory, so the boot fails.
     pub gicr_lost: bool,
+    /// Bytes between redistributors (a device tree's
+    /// `redistributor-stride`; 0: each right after the previous one).
+    pub gicr_stride: u64,
     /// Enabled cores' MPIDR affinities, the boot core first.
     pub cpus: [u64; MAX_CPUS],
     pub n_cpus: usize,
     pub uart_kind: u64,
     pub uart_base: u64,
+    /// Its size where the tables give one (0: they do not).
+    pub uart_len: u64,
     pub uart_shift: u64,
     pub uart_wide: bool,
     pub psci: u64,
@@ -47,6 +67,15 @@ pub struct Hw {
     /// GICv2 hypervisor control interface (GICH).
     pub gich: u64,
     pub gich_len: u64,
+    /// GICv3 ITS blocks (base, length the tables gave; 0: none given).
+    /// The kernel drives the first for MSIs and keeps every one from user
+    /// space.
+    pub its: [ItsBlock; MAX_ITS],
+    pub n_its: usize,
+    /// The tables gave more ITS blocks than `its` holds, or one the kernel
+    /// could not read: it would be user space's device memory, so the boot
+    /// fails.
+    pub its_lost: bool,
     /// GICv2 virtual CPU interface (GICV).
     pub gicv: u64,
     pub gicv_len: u64,
@@ -60,15 +89,18 @@ impl Hw {
             source: "nothing",
             gic_version: 0,
             gicd: 0,
+            gicd_len: 0,
             gicc: 0,
             gicc_len: 0,
             gicr: [(0, 0); MAX_GICR],
             n_gicr: 0,
             gicr_lost: false,
+            gicr_stride: 0,
             cpus: [0; MAX_CPUS],
             n_cpus: 0,
             uart_kind: serial::KIND_NONE,
             uart_base: 0,
+            uart_len: 0,
             uart_shift: 0,
             uart_wide: false,
             psci: smp::PSCI_NONE,
@@ -78,6 +110,9 @@ impl Hw {
             vgic_maint: 0,
             gich: 0,
             gich_len: 0,
+            its: [ItsBlock { base: 0, raw_len: 0, max_len: 0 }; MAX_ITS],
+            n_its: 0,
+            its_lost: false,
             gicv: 0,
             gicv_len: 0,
             rsdp: [0; RSDP_LEN],
@@ -91,6 +126,35 @@ impl Hw {
         if !fl4_arch_aarch64::gic_layout::add_redistributors(&mut self.gicr, &mut self.n_gicr, base, len) {
             self.gicr_lost = true;
         }
+    }
+
+    /// Note an ITS at `base` (`len`: its size where the tables give one,
+    /// else 0; `max_len`: how far its range may extend, `u64::MAX` when
+    /// the tables do not bound it). A base already noted keeps the larger
+    /// of each; two different sizes for it fail the boot. One at 0, off 64 KiB (its frames are 64 KiB aligned, IHI
+    /// 0069 12.18) or ending past the address space cannot be placed: the
+    /// boot fails (`its_lost`), as for redistributors.
+    pub fn add_its(&mut self, base: u64, len: u64, max_len: u64) {
+        if base == 0 || base & 0xffff != 0 || base.checked_add(len).is_none() {
+            self.its_lost = true;
+            return;
+        }
+        if let Some(e) = self.its[..self.n_its].iter_mut().find(|e| e.base == base) {
+            // Two sizes for one ITS: which is right is unknown.
+            if e.raw_len != 0 && len != 0 && e.raw_len != len {
+                self.its_lost = true;
+                return;
+            }
+            e.raw_len = e.raw_len.max(len);
+            e.max_len = e.max_len.max(max_len);
+            return;
+        }
+        if self.n_its == MAX_ITS {
+            self.its_lost = true;
+            return;
+        }
+        self.its[self.n_its] = ItsBlock { base, raw_len: len, max_len };
+        self.n_its += 1;
     }
 
     /// Add a core; the boot core always ends up first.
@@ -165,7 +229,10 @@ fn rsdp(p: u64) -> Option<bool> {
     Some((RSDP_LEN as u64..=4096).contains(&len) && mapped(p, len) && checksum(p, len))
 }
 
-fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
+/// Visit every table the XSDT (or RSDT) at `rsdp_p` lists: its signature,
+/// address, length and whether its checksum holds. False when the root
+/// table is not there whole with a good checksum.
+fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64, bool)) -> bool {
     let Some(v2) = rsdp(rsdp_p) else { return false };
     let (root, entry, sig) = if v2 && rd64(rsdp_p + 24) != 0 {
         (rd64(rsdp_p + 24), 8, *b"XSDT")
@@ -173,7 +240,7 @@ fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
         (rd32(rsdp_p + 16) as u64, 4, *b"RSDT")
     };
     let len = match table_len(root) {
-        Some(l) if rd32(root).to_le_bytes() == sig => l,
+        Some(l) if rd32(root).to_le_bytes() == sig && checksum(root, l) => l,
         _ => return false,
     };
     let mut off = 36;
@@ -181,7 +248,7 @@ fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
         let t = if entry == 8 { rd64(root + off) } else { rd32(root + off) as u64 };
         if let Some(tl) = table_len(t) {
             let sig = rd32(t).to_le_bytes();
-            f(&sig, t, tl);
+            f(&sig, t, tl, checksum(t, tl));
         }
         off += entry;
     }
@@ -190,9 +257,20 @@ fn acpi_tables(rsdp_p: u64, mut f: impl FnMut(&[u8; 4], u64, u64)) -> bool {
 
 fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
     let mut madt = false;
-    let ok = acpi_tables(rsdp_p, |sig, t, len| match sig {
+    let mut madt_bad = false;
+    let ok = acpi_tables(rsdp_p, |sig, t, len, sum_ok| match sig {
+        // Other tables with a bad checksum are ignored.
+        _ if !sum_ok && sig != b"APIC" => {}
         b"APIC" => {
             madt = true;
+            // A MADT with a bad checksum, cut short, whose entries do not
+            // end exactly at its end, or with a GIC entry too short for
+            // what it must hold, is not used: what it misses could be a
+            // device the kernel must keep.
+            if !sum_ok || len < 44 {
+                madt_bad = true;
+                return;
+            }
             // GICR discovery ranges first: the GICC entries' redistributors
             // inside one then merge into it whatever the tables' order,
             // rather than fill `gicr` one core at a time before it comes.
@@ -202,6 +280,7 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
                     let ty = rd8(t + off);
                     let l = rd8(t + off + 1) as u64;
                     if l < 2 || off + l > len {
+                        madt_bad = true;
                         break;
                     }
                     let e = t + off;
@@ -240,9 +319,16 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
                             hw.gic_version = rd8(e + 20) as u64;
                         }
                         0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
+                        // GIC ITS (20 bytes, ACPI 6.6 5.2.12.18): its base
+                        // (the MADT gives no size).
+                        0x0f if l >= 20 => hw.add_its(rd64(e + 8), 0, u64::MAX),
+                        0x0b | 0x0c | 0x0e | 0x0f => madt_bad = true,
                         _ => {}
                     }
                     off += l;
+                }
+                if off != len {
+                    madt_bad = true;
                 }
             }
         }
@@ -286,7 +372,7 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
         }
         _ => {}
     });
-    if !ok || !madt {
+    if !ok || !madt || madt_bad {
         return false;
     }
     if hw.gic_version == 0 {
@@ -318,7 +404,7 @@ const MAX_DEPTH: usize = 16;
 /// A property: its node's path depth and name, the property's name and
 /// value (physical address and length), and the `#address-cells` and
 /// `#size-cells` of the node's parent, in which its `reg` is written.
-struct Prop {
+struct Prop<'a> {
     depth: usize,
     node: &'static [u8],
     parent: &'static [u8],
@@ -327,6 +413,66 @@ struct Prop {
     len: u64,
     ac: u64,
     sc: u64,
+    /// Per open node, its children's cells and its `ranges` (`translate`).
+    bus_cells: &'a [(u64, u64)],
+    ranges: &'a [(u64, u64, bool)],
+}
+
+impl Prop<'_> {
+    /// `(addr, len)` of this property's `reg` (in its parent's address
+    /// space) as a physical address (`translate`).
+    fn translate(&self, addr: u64, len: u64) -> Option<u64> {
+        if self.depth < 2 {
+            return None;
+        }
+        translate(addr, len, self.depth - 2, self.bus_cells, self.ranges)
+    }
+}
+
+/// Translate `(addr, len)`, in the address space of the node at stack
+/// index `bus` (its children's), up through `ranges` of that node and each
+/// ancestor below the root (Devicetree Specification 2.3.8): an empty
+/// `ranges` is the identity, a missing one means the addresses do not
+/// translate (None), and otherwise the one entry that holds the whole
+/// range maps it. An empty range translates nowhere (it would match a
+/// window's end). `bus_cells` and `ranges` are per open node as `fdt_walk`
+/// keeps them.
+fn translate(mut addr: u64, len: u64, mut bus: usize, bus_cells: &[(u64, u64)], ranges: &[(u64, u64, bool)]) -> Option<u64> {
+    if len == 0 {
+        return None;
+    }
+    while bus > 0 {
+        let (rv, rl, present) = ranges[bus];
+        if !present {
+            return None;
+        }
+        if rl != 0 {
+            let (cac, csc) = bus_cells[bus];
+            let pac = bus_cells[bus - 1].0;
+            if !(1..=2).contains(&cac) || !(1..=2).contains(&csc) || !(1..=2).contains(&pac) {
+                return None;
+            }
+            let step = (cac + pac + csc) * 4;
+            if rl % step != 0 {
+                return None;
+            }
+            let end = addr.checked_add(len)?;
+            let mut i = 0;
+            let mut found = None;
+            while i < rl / step {
+                let e = rv + i * step;
+                let (cb, pb, sz) = (self::cells(e, cac), self::cells(e + cac * 4, pac), self::cells(e + (cac + pac) * 4, csc));
+                if addr >= cb && cb.checked_add(sz).is_some_and(|ce| end <= ce) {
+                    found = Some((addr - cb).checked_add(pb)?);
+                    break;
+                }
+                i += 1;
+            }
+            addr = found?;
+        }
+        bus -= 1;
+    }
+    Some(addr)
 }
 
 /// What a node's children have when it says nothing (Devicetree
@@ -362,8 +508,12 @@ fn fdt(dtb: u64) -> Option<fl4_bootinfo::Fdt> {
     mapped(dtb, f.total).then_some(f)
 }
 
-/// Walk every property of the blob at `dtb`.
-fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
+/// Walk every property of the blob at `dtb`. False when the blob is not
+/// whole and well formed: a name or property past the structure block,
+/// nodes deeper than `MAX_DEPTH` or not closed, an unknown token, or no
+/// FDT_END (a property already visited is then not to be trusted either:
+/// the caller discards everything).
+fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop<'_>)) -> bool {
     let h = match fdt(dtb) {
         Some(h) => h,
         None => return false,
@@ -375,22 +525,43 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
     // Per open node: the cells its children's reg uses. A node's
     // properties all come before its children.
     let mut cells: [(u64, u64); MAX_DEPTH] = [DEFAULT_CELLS; MAX_DEPTH];
+    // Per open node: its `ranges` (value, length, present).
+    let mut ranges: [(u64, u64, bool); MAX_DEPTH] = [(0, 0, false); MAX_DEPTH];
     let mut depth = 0usize;
+    // Root nodes seen (exactly one, named ""), and per open node whether a
+    // child has begun (its properties must all come first).
+    let mut roots = 0usize;
+    let mut has_child = [false; MAX_DEPTH];
     while p + 4 <= end {
         let tok = be32(p);
         p += 4;
         match tok {
             FDT_BEGIN_NODE => {
                 let name = cstr(p, end);
-                p = (p + name.len() as u64 + 1 + 3) & !3;
-                if depth < MAX_DEPTH {
-                    stack[depth] = name;
-                    cells[depth] = DEFAULT_CELLS;
+                // Its NUL must be inside the block (`cstr` stops at 256).
+                if p + name.len() as u64 >= end || rd8(p + name.len() as u64) != 0 || depth >= MAX_DEPTH {
+                    return false;
                 }
+                if depth == 0 {
+                    roots += 1;
+                    if roots > 1 || !name.is_empty() {
+                        return false;
+                    }
+                } else {
+                    has_child[depth - 1] = true;
+                }
+                has_child[depth] = false;
+                p = (p + name.len() as u64 + 1 + 3) & !3;
+                stack[depth] = name;
+                cells[depth] = DEFAULT_CELLS;
+                ranges[depth] = (0, 0, false);
                 depth += 1;
             }
             FDT_END_NODE => {
-                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return false;
+                }
+                depth -= 1;
             }
             FDT_PROP => {
                 if p + 8 > end {
@@ -403,7 +574,14 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
                     return false;
                 }
                 p = (val + len + 3) & !3;
-                if depth > 0 && depth <= MAX_DEPTH {
+                // Inside a node, before its children; the name whole in
+                // the strings block.
+                let name_at = strings + nameoff;
+                let name_len = cstr(name_at, strings_end).len() as u64;
+                if depth == 0 || has_child[depth - 1] || name_at + name_len >= strings_end || rd8(name_at + name_len) != 0 {
+                    return false;
+                }
+                {
                     let node = stack[depth - 1];
                     let parent = if depth >= 2 { stack[depth - 2] } else { &[] };
                     let name = cstr(strings + nameoff, strings_end);
@@ -413,16 +591,20 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
                     if len >= 4 && name == b"#size-cells" {
                         cells[depth - 1].1 = be32(val) as u64;
                     }
+                    if name == b"ranges" {
+                        ranges[depth - 1] = (val, len, true);
+                    }
                     let (ac, sc) = if depth >= 2 { cells[depth - 2] } else { DEFAULT_CELLS };
-                    f(&Prop { depth, node, parent, name, val, len, ac, sc });
+                    f(&Prop { depth, node, parent, name, val, len, ac, sc, bus_cells: &cells[..depth], ranges: &ranges[..depth] });
                 }
             }
             FDT_NOP => {}
-            FDT_END => return true,
+            // Last in the block, after the one root node closed.
+            FDT_END => return depth == 0 && roots == 1 && p == end,
             _ => return false,
         }
     }
-    true
+    false
 }
 
 fn has_compat(p: &Prop, want: &[u8]) -> bool {
@@ -461,8 +643,14 @@ struct Node {
     /// The reg property could not be read whole: cells the kernel does
     /// not handle, or a length that is not a whole number of entries.
     reg_bad: bool,
+    /// How far the first reg entry's physical range may grow to cover a
+    /// GICv4.1 ITS's third frame and still translate (its own size if
+    /// not).
+    reg0_max: u64,
     /// GICv3 `#redistributor-regions` (the binding's default is 1).
     redist_regions: u64,
+    /// GICv3 `redistributor-stride` (0: none given).
+    redist_stride: u64,
     /// VGIC maintenance interrupt PPI from the GIC node's `interrupts`.
     vgic_maint: u64,
 }
@@ -473,7 +661,9 @@ impl Node {
         reg: [(0, 0); NODE_REGS],
         n_reg: 0,
         reg_bad: false,
+        reg0_max: 0,
         redist_regions: 1,
+        redist_stride: 0,
         vgic_maint: 0,
     };
 }
@@ -482,6 +672,7 @@ const N_GICV3: u8 = 1;
 const N_GICV2: u8 = 2;
 const N_PL011: u8 = 3;
 const N_16550: u8 = 4;
+const N_ITS: u8 = 5;
 
 fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
     // The console and PSCI, then a pass per node: compatible strings come
@@ -512,9 +703,20 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
     };
     let mut cur = Node::EMPTY;
     let mut cur_name: &'static [u8] = &[];
-    let mut uart_any: Option<(u8, u64)> = None;
-    let mut uart_stdout: Option<(u8, u64)> = None;
-    let flush = |hw: &mut Hw, name: &[u8], n: &Node, uart_any: &mut Option<(u8, u64)>, uart_stdout: &mut Option<(u8, u64)>| {
+    let mut uart_any: Option<(u8, u64, u64)> = None;
+    let mut uart_stdout: Option<(u8, u64, u64)> = None;
+    let flush = |hw: &mut Hw, name: &[u8], n: &Node, uart_any: &mut Option<(u8, u64, u64)>, uart_stdout: &mut Option<(u8, u64, u64)>| {
+        // An ITS whose reg cannot be read, or translated to a physical
+        // address, is somewhere user space would get as device memory.
+        // So is one smaller than an ITS's two frames.
+        if n.kind == N_ITS {
+            if n.reg_bad || n.n_reg == 0 || n.reg[0].1 < fl4_arch_aarch64::gic_layout::ITS_SIZE {
+                hw.its_lost = true;
+            } else {
+                hw.add_its(n.reg[0].0, n.reg[0].1, n.reg0_max);
+            }
+            return;
+        }
         if n.n_reg == 0 {
             return;
         }
@@ -522,6 +724,8 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             N_GICV3 => {
                 hw.gic_version = 3;
                 hw.gicd = n.reg[0].0;
+                hw.gicd_len = n.reg[0].1;
+                hw.gicr_stride = n.redist_stride;
                 // Then `#redistributor-regions` redistributor regions;
                 // GICC, GICH and GICV may follow, which are not regions.
                 // A count that `gicr` cannot hold, that the reg property
@@ -543,7 +747,14 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             }
             N_GICV2 => {
                 hw.gic_version = 2;
+                // A distributor or interface whose address did not
+                // translate is unknown: without the distributor the boot
+                // fails.
+                if n.reg_bad {
+                    return;
+                }
                 hw.gicd = n.reg[0].0;
+                hw.gicd_len = n.reg[0].1;
                 if n.n_reg > 1 {
                     hw.gicc = n.reg[1].0;
                     hw.gicc_len = n.reg[1].1;
@@ -560,8 +771,8 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
                     hw.vgic_maint = n.vgic_maint;
                 }
             }
-            N_PL011 | N_16550 => {
-                let u = (n.kind, n.reg[0].0);
+            N_PL011 | N_16550 if !n.reg_bad => {
+                let u = (n.kind, n.reg[0].0, n.reg[0].1);
                 if uart_any.is_none() {
                     *uart_any = Some(u);
                 }
@@ -572,13 +783,15 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             _ => {}
         }
     };
-    fdt_walk(dtb, |p| {
+    let ok = fdt_walk(dtb, |p| {
         if p.node.as_ptr() != cur_name.as_ptr() {
             flush(hw, cur_name, &cur, &mut uart_any, &mut uart_stdout);
             cur = Node::EMPTY;
             cur_name = p.node;
         }
-        if has_compat(p, b"arm,gic-v3") {
+        if has_compat(p, b"arm,gic-v3-its") {
+            cur.kind = N_ITS;
+        } else if has_compat(p, b"arm,gic-v3") {
             cur.kind = N_GICV3;
         } else if has_compat(p, b"arm,cortex-a15-gic") || has_compat(p, b"arm,gic-400") || has_compat(p, b"arm,cortex-a9-gic") {
             cur.kind = N_GICV2;
@@ -591,24 +804,48 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             if p.parent == b"cpus" {
                 // A core's reg is its MPIDR affinity (#address-cells of
                 // /cpus, 1 or 2).
-                if p.node.starts_with(b"cpu@") && (1..=2).contains(&p.ac) && p.len >= p.ac * 4 {
+                if (p.node == b"cpu" || p.node.starts_with(b"cpu@")) && (1..=2).contains(&p.ac) && p.len >= p.ac * 4 {
                     hw.add_cpu(cells(p.val, p.ac) & 0xff_00ff_ffff);
                 }
             } else if !(1..=2).contains(&p.ac) || !(1..=2).contains(&p.sc) || p.len % ((p.ac + p.sc) * 4) != 0 {
                 cur.reg_bad = true;
             } else {
+                // Each entry as a physical address, through the buses'
+                // `ranges`; one that does not translate makes the whole
+                // property unusable.
                 let step = (p.ac + p.sc) * 4;
                 let mut i = 0;
                 while (i + 1) * step <= p.len && cur.n_reg < NODE_REGS {
                     let a = p.val + i * step;
-                    cur.reg[cur.n_reg] = (cells(a, p.ac), cells(a + p.ac * 4, p.sc));
-                    cur.n_reg += 1;
+                    let (addr, len) = (cells(a, p.ac), cells(a + p.ac * 4, p.sc));
+                    match p.translate(addr, len) {
+                        Some(pa) => {
+                            if cur.n_reg == 0 {
+                                let grown = len.max(fl4_arch_aarch64::gic_layout::ITS_SIZE_V4_1);
+                                cur.reg0_max = if p.translate(addr, grown) == Some(pa) { grown } else { len };
+                            }
+                            cur.reg[cur.n_reg] = (pa, len);
+                            cur.n_reg += 1;
+                        }
+                        None => cur.reg_bad = true,
+                    }
                     i += 1;
                 }
             }
         }
         if p.name == b"#redistributor-regions" && p.len >= 4 {
             cur.redist_regions = be32(p.val) as u64;
+        }
+        // GICv3 binding: one 64-bit stride, at least a redistributor's RD
+        // and SGI frames and a multiple of 64 KiB. Anything else leaves
+        // the redistributors' layout unknown.
+        if p.name == b"redistributor-stride" {
+            let stride = if p.len == 8 { cells(p.val, 2) } else { 0 };
+            if stride < fl4_arch_aarch64::gic_layout::GICR_FRAME || stride & 0xffff != 0 {
+                cur.reg_bad = true;
+            } else {
+                cur.redist_stride = stride;
+            }
         }
         if p.name == b"interrupts" && p.len >= 12 * 3 && p.node == b"timer" {
             // (type, number, flags) for the secure, non-secure, virtual
@@ -622,10 +859,14 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             cur.vgic_maint = be32(p.val + 4) as u64 + 16;
         }
     });
+    if !ok {
+        return false;
+    }
     flush(hw, cur_name, &cur, &mut uart_any, &mut uart_stdout);
-    if let Some((k, a)) = uart_stdout.or(uart_any) {
+    if let Some((k, a, l)) = uart_stdout.or(uart_any) {
         hw.uart_kind = if k == N_PL011 { serial::KIND_PL011 } else { serial::KIND_16550 };
         hw.uart_base = a;
+        hw.uart_len = l;
         if k == N_16550 {
             hw.uart_shift = 2;
             hw.uart_wide = true;

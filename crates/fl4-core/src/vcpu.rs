@@ -9,7 +9,7 @@ use crate::layout::{self, ks, reg, tcb as tl};
 use crate::machine::{Arch, Store};
 use crate::msg;
 use crate::msginfo::MessageInfo;
-use crate::obj::{ks_get, ks_set, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
+use crate::obj::{ks_get, ks_set, node_get, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
 use crate::{sched, smp};
 use fl4_abi::label;
 
@@ -25,12 +25,28 @@ pub const VALID: u64 = 0x5030;
 /// Hardware backend's last SVM core (index + 1); zero forces a TLB flush.
 /// Retype clears it, and software paging changes revoke the cached ASID.
 pub const SVM_CPU: u64 = 0x5038;
+/// Whether this VCPU's exits may leave their IBPB to the next switch to
+/// another address space (`fl4_arch_x86_64::spec::vm_ibpb_deferred`):
+/// its holder's own choice, as only the holder's address space is then
+/// left without it.  WriteMSR of `MSR_VM_IBPB_DEFER`, 0 or 1; 0 (the IBPB
+/// at every exit) after retype.
+pub const VM_IBPB_DEFER: u64 = 0x5040;
+/// The VCPU MSR number of `VM_IBPB_DEFER` (with 0xffff_fffe for XCR0 and
+/// 0xffff_ffff for CR2).
+pub const MSR_VM_IBPB_DEFER: u64 = 0xffff_fffd;
 pub const REGS: u64 = 0x5100;
 pub const MSRS: u64 = 0x5180;
 pub const EXIT: u64 = 0x5200;
 pub const IO: u64 = 0x6000;
 pub const NUM_MRS: u64 = 30;
-pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21);
+pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21) | (1 << 22);
+/// CR4 bits a guest may have here: CR4_ALLOWED, without PKE (bit 22)
+/// unless the host's XCR0 (VCPU capability 0) holds PKRU. Neither VMX nor
+/// SVM switches PKRU; the host's XSAVE of the guest's FPU state does, and
+/// only with PKRU in XCR0.
+pub fn cr4_allowed<A: Arch>(a: &A) -> u64 {
+    if a.vcpu_capability(0) & (1 << 9) != 0 { CR4_ALLOWED } else { CR4_ALLOWED & !(1 << 22) }
+}
 pub const CR0_OWNED: u64 = (3 << 29) | (0x3ff << 19) | (1 << 17) | (0x3ff << 6);
 pub const EXCEPTIONS: u64 = (1 << 1) | (1 << 17) | (1 << 18);
 /// Guest IA32_DEBUGCTL bits a VMM may set: BTF (single-step on branches)
@@ -501,7 +517,7 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         }
         CONTROL_EXCEPTION_BITMAP => value | EXCEPTIONS,
         CONTROL_CR0_MASK => value | CR0_OWNED,
-        CONTROL_CR4_MASK => value | !CR4_ALLOWED,
+        CONTROL_CR4_MASK => value | !cr4_allowed(a),
         CONTROL_PIN_EXECUTION_CONTROLS => controls(a, 0x481, value, PIN_ALLOWED, PIN_ALLOWED),
         CONTROL_PRIMARY_PROCESSOR_CONTROLS => {
             controls(a, 0x482, value, PRIMARY_FORCED, PRIMARY_ALLOWED)
@@ -546,7 +562,7 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         }
         GUEST_CR4 => {
             let fixed = a.vcpu_capability(0x488);
-            (value | fixed) & a.vcpu_capability(0x489) & (fixed | CR4_ALLOWED)
+            (value | fixed) & a.vcpu_capability(0x489) & (fixed | cr4_allowed(a))
         }
         GUEST_DEBUGCTRL => value & DEBUGCTL_ALLOWED,
         _ => value,
@@ -584,7 +600,7 @@ pub fn sanitize_vmcb<A: Arch>(a: &A, f: u64, old: u64, value: u64) -> KResult<u6
         0x0c8 => (u64::MAX, 0, false),
         0x4c8 => (0xff00_0000, 0, false),
         0x4d0 => (u64::MAX, 1 << 12, false),
-        0x548 => (CR4_ALLOWED, 0, false),
+        0x548 => (cr4_allowed(a), 0, false),
         0x400 | 0x410 | 0x420 | 0x430 | 0x440 | 0x450 | 0x460 | 0x470 | 0x480 | 0x490 | 0x550
         | 0x558 | 0x560 | 0x568 | 0x570 | 0x578 | 0x5d8 | 0x5f8 | 0x600 | 0x618 | 0x628 | 0x640
         | 0x668 => (u64::MAX, 0, false),
@@ -777,6 +793,9 @@ fn msr_addr(v: u64, f: u64, amd: bool) -> Option<u64> {
     if f == 0xffff_fffe {
         return Some(v.wrapping_add(XCR0));
     }
+    if f == MSR_VM_IBPB_DEFER {
+        return Some(v.wrapping_add(VM_IBPB_DEFER));
+    }
     if amd {
         return svm_msr(f).map(|off| v.wrapping_add(off));
     }
@@ -945,6 +964,9 @@ pub fn decode<S: Store, A: Arch>(
             if f == 0xffff_fffe && !valid_xcr0(value, a.vcpu_capability(0)) {
                 return invalid_arg(1);
             }
+            if f == MSR_VM_IBPB_DEFER && value > 1 {
+                return invalid_arg(1);
+            }
             s.write(addr, value);
         }
         reply(s, call, s.read(addr));
@@ -1008,6 +1030,12 @@ pub fn decode<S: Store, A: Arch>(
     Ok(())
 }
 
+// The stock wrapper passes zero. The full-state wrapper supplies its reply
+// length in msgInfo, which stays in the TCB until this VMEnter completes.
+fn full_reply<S: Store>(s: &S, t: Tcb) -> bool {
+    t.reg(s, reg::MSG_INFO) == NUM_MRS
+}
+
 /// Enter request: MR0..2 are in registers even without an IPC buffer.
 pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     a.vcpu_barrier();
@@ -1025,6 +1053,13 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
         let old = get(s, v, svm::INTERCEPT_EXC);
         let val = (ctl & SVM_I1_WRITABLE) | SVM_I1_FORCED;
         set(s, v, svm::INTERCEPT_EXC, (old & 0xffff_ffff) | (val << 32));
+        // l4h passes the descriptor in MR2 after staging the error code
+        // in the upper half of EVENTINJ with WriteVMCB (seL4 patch 0040).
+        let intr = if full_reply(s, t) {
+            (get(s, v, svm::EVENT_INJ) & !0xffff_ffff) | (intr & 0xffff_ffff)
+        } else {
+            intr
+        };
         set(s, v, svm::EVENT_INJ, intr & SVM_EVENT);
     } else {
         write_vmcs(s, v, GUEST_RIP, ip);
@@ -1037,12 +1072,15 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     set(s, v, PENDING, 0);
     // seL4 `c_handle_syscall` (c_traps.c): a signal already pending on the
     // bound notification completes the VMEnter at once with
-    // `completeSignal`. The message registers stay as the caller sent
-    // them; only the badge and the result change.
+    // `completeSignal`. The standard ABI preserves the caller's MRs.
     let n = Ntfn(t.bound_ntfn(s));
     if n.0 != 0 && n.state(s) == NTFN_ACTIVE {
         crate::notification::complete_signal(s, a, n, t);
-        t.set_reg(s, reg::MSG_INFO, 0);
+        if full_reply(s, t) {
+            report(s, a, t, t.reg(s, reg::BADGE));
+        } else {
+            t.set_reg(s, reg::MSG_INFO, 0);
+        }
         return;
     }
     sched::set_thread_state(s, t, sched::TS_RUNNING_VM);
@@ -1069,14 +1107,40 @@ pub fn check<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
         report(s, a, t, 0);
     }
 }
-/// For seL4 `sendSignal`'s same-core `RunningVM` case: whether a signal to
-/// `t` (in `TS_RUNNING_VM` on this core) completes its VMEnter now, through
-/// `report`, as the next `check` would. Not while a saved exit is pending,
-/// which is reported first, nor without a bound VCPU: the signal then
-/// stays active for `check`.
+/// A saved hardware exit takes precedence. A full-state caller can also
+/// be completed on another core once it has stopped running there.
 pub fn signal_completes<S: Store>(s: &S, t: Tcb) -> bool {
     let v = bound(s, t);
-    v != 0 && get(s, v, PENDING) == 0
+    let cpu = t.affinity(s);
+    v != 0
+        && get(s, v, PENDING) == 0
+        && (cpu == s.cur_cpu() || (full_reply(s, t) && node_get(s, cpu, layout::node::CUR_THREAD) != t.0))
+}
+
+/// Finish l4h's notification reply after writing the guest registers. A
+/// host interrupt may have interrupted delivery of an event. Its vector,
+/// error code and instruction length survive in MR27, MR28 and MR5.
+fn finish_notification<S: Store, A: Arch>(
+    s: &mut S,
+    a: &A,
+    t: Tcb,
+    b: u64,
+    badge: u64,
+    vectoring: bool,
+) {
+    msg::set_mr(s, t, b, 3, if a.virtualization() == 2 { 0x60 } else { 1 });
+    msg::set_mr(s, t, b, 4, 0);
+    if !vectoring {
+        msg::set_mr(s, t, b, 5, 0);
+    }
+    msg::set_mr(s, t, b, 6, 0);
+    msg::set_mr(s, t, b, 25, 0);
+    msg::set_mr(s, t, b, 26, 0);
+    t.set_reg(s, reg::MSG_INFO, 0);
+    t.set_reg(s, reg::BADGE, badge);
+    let next = t.reg(s, reg::NEXT_IP);
+    t.set_reg(s, reg::FAULT_IP, next);
+    sched::set_thread_state(s, t, sched::TS_RUNNING);
 }
 
 /// Complete a VMEnter, preferring a saved exit to a later notification.
@@ -1084,7 +1148,8 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
     let v = bound(s, t);
     let pending = v != 0 && get(s, v, PENDING) != 0;
     let b = msg::lookup_ipc_buffer(s, true, t);
-    if !pending {
+    let full = full_reply(s, t);
+    if !pending && !full {
         // seL4 `vcpu_sysvmenter_reply_to_user`: MR0..2 get the guest state
         // the next VMEnter resumes from (RIP, controls, event to inject);
         // every other message register is left as it was.
@@ -1109,15 +1174,31 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         msg::set_mr(s, t, b, 2, intr);
         t.set_reg(s, reg::MSG_INFO, 0);
         t.set_reg(s, reg::BADGE, badge);
+        // The VMEnter has finished: a timeout fault raised by the budget
+        // check that follows must not restart it.
+        let next_ip = t.reg(s, reg::NEXT_IP);
+        t.set_reg(s, reg::FAULT_IP, next_ip);
         sched::set_thread_state(s, t, sched::TS_RUNNING);
         return;
     }
+    let saved = v != 0 && get(s, v, VALID) != 0;
     let mut i = 0;
     while i < NUM_MRS {
+        // A notification before entry has no exit frame. Clear stale exit
+        // metadata before reporting the staged state and the current GPRs.
+        if !pending && !saved {
+            msg::set_mr(s, t, b, i, 0);
+            i += 1;
+            continue;
+        }
         msg::set_mr(s, t, b, i, get(s, v, EXIT + i * 8));
         i += 1;
     }
-    // A failed entry: report the supplied entry state and current GPRs.
+    if v == 0 {
+        finish_notification(s, a, t, b, badge, false);
+        return;
+    }
+    // An entry without a hardware frame: report the staged state and GPRs.
     if get(s, v, VALID) == 0 {
         let amd = a.virtualization() == 2;
         let ip = if amd {
@@ -1167,8 +1248,21 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         msg::set_mr(s, t, b, 9, cr3);
         msg::set_mr(s, t, b, 29, cr2);
     }
+    if full {
+        // Both l4h backends return the 32-bit entry descriptor in MR2.
+        // The AMD exit frame can also hold the VMCB's upper error word.
+        let descriptor = msg::syscall_arg(s, t, b, 2) & 0xffff_ffff;
+        msg::set_mr(s, t, b, 2, descriptor);
+        if !pending {
+            let vectoring = saved && get(s, v, EXIT + 27 * 8) & (1 << 31) != 0;
+            finish_notification(s, a, t, b, badge, vectoring);
+            return;
+        }
+    }
     set(s, v, PENDING, 0);
     t.set_reg(s, reg::MSG_INFO, 1);
     t.set_reg(s, reg::BADGE, 0);
+    let ip = t.reg(s, reg::NEXT_IP);
+    t.set_reg(s, reg::FAULT_IP, ip);
     sched::set_thread_state(s, t, sched::TS_RUNNING);
 }

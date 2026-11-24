@@ -105,4 +105,73 @@
             <error name="seL4_TruncatedMessage" description="A required argument or the frame capability is missing."/>
         </method>
     </interface>
+    <interface name="seL4_IRQControl" manual_name="IRQ Control" cap_description="An IRQControl capability. This gives you the authority to make this call.">
+        <method id="ARMIRQIssueIRQHandlerMSI" name="GetMSI" manual_name="Get MSI Handler">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Create an IRQ handler capability for MSIs of a PCI function through the GICv3 ITS.</brief>
+            <description>
+                Maps event `event` of device `device` to the kernel's LPI number `irq` and routes it to
+                core `target`. `device` is the ITS DeviceID of the device's MSIs at the ITS that
+                SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO advertises (its `doorbell` is that ITS's
+                GITS_TRANSLATER, 0x10040 past its base): user space finds it in the firmware's MSI
+                routing (ACPI IORT, or a device tree's `msi-map`); where that routing is the identity it
+                is the PCI requester ID (bus &lt;&lt; 8 | devfn). The device raises the interrupt by
+                writing `event` to the doorbell, whose record's numbers bound the arguments. Deleting the handler unmaps the event. LPIs are edge triggered and are not
+                masked between their signal and IRQHandler_Ack.
+            </description>
+            <param dir="in" name="irq" type="seL4_Word" description="The LPI number, below num_lpis."/>
+            <param dir="in" name="device" type="seL4_Word" description="The ITS DeviceID from the firmware's MSI routing (the PCI requester ID where it is the identity), below num_devices."/>
+            <param dir="in" name="event" type="seL4_Word" description="The event ID the device writes, below num_events."/>
+            <param dir="in" name="root" type="seL4_CNode" description="CPtr to the CNode that forms the root of the destination CSpace. Must be at a depth equivalent to the wordsize."/>
+            <param dir="in" name="index" type="seL4_Word" description="CPtr to the destination slot. Resolved from the root of the destination CSpace."/>
+            <param dir="in" name="depth" type="seL4_Uint8" description="Number of bits of index to resolve to find the destination slot."/>
+            <param dir="in" name="target" type="seL4_Word" description="The core the interrupt goes to."/>
+            <error name="seL4_IllegalOperation" description="The kernel drives no ITS, or the device has no ITS table left."/>
+            <error name="seL4_RangeError" description="The irq is not below num_lpis."/>
+            <error name="seL4_InvalidArgument" description="The device, the event (or the event is mapped already) or the target is invalid."/>
+            <error name="seL4_RevokeFirst" description="An IRQ handler for irq exists."/>
+            <error name="seL4_TruncatedMessage" description="A required argument or the destination root is missing."/>
+            <error name="seL4_DeleteFirst" description="The destination slot contains a capability."/>
+            <error name="seL4_FailedLookup" description="The destination slot could not be resolved."/>
+        </method>
+    </interface>
+    <interface name="seL4_TCB" manual_name="TCB" cap_description="Capability to the TCB which is being operated on.">
+        <method id="TCBSetPACKeys" name="SetPACKeys" manual_name="Set PAC Keys">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Give a thread its own pointer authentication keys and enables.</brief>
+            <description>
+                The thread runs at EL0 with these five 128-bit keys (APIA, APIB, APDA, APDB, APGA) loaded
+                and with the SCTLR_EL1 enables in flags (seL4_ARM_PAC_EnIA, _EnIB, _EnDA, _EnDB). Flags 0
+                turns pointer authentication off for the thread; PACGA then runs with an all-zero key.
+                The kernel switches keys lazily, only between threads whose keys differ.
+            </description>
+            <param dir="in" name="flags" type="seL4_Word" description="seL4_ARM_PAC_En* bits"/>
+            <param dir="in" name="apia_lo" type="seL4_Word" description="APIAKeyLo_EL1"/>
+            <param dir="in" name="apia_hi" type="seL4_Word" description="APIAKeyHi_EL1"/>
+            <param dir="in" name="apib_lo" type="seL4_Word" description="APIBKeyLo_EL1"/>
+            <param dir="in" name="apib_hi" type="seL4_Word" description="APIBKeyHi_EL1"/>
+            <param dir="in" name="apda_lo" type="seL4_Word" description="APDAKeyLo_EL1"/>
+            <param dir="in" name="apda_hi" type="seL4_Word" description="APDAKeyHi_EL1"/>
+            <param dir="in" name="apdb_lo" type="seL4_Word" description="APDBKeyLo_EL1"/>
+            <param dir="in" name="apdb_hi" type="seL4_Word" description="APDBKeyHi_EL1"/>
+            <param dir="in" name="apga_lo" type="seL4_Word" description="APGAKeyLo_EL1"/>
+            <param dir="in" name="apga_hi" type="seL4_Word" description="APGAKeyHi_EL1"/>
+            <error name="seL4_IllegalOperation" description="flags is nonzero and the processor has no FEAT_PAuth."/>
+            <error name="seL4_InvalidArgument" description="flags has a bit other than the four enables."/>
+            <error name="seL4_TruncatedMessage" description="Fewer than 11 message words."/>
+        </method>
+        <method id="TCBSetHighVSpace" name="SetHighVSpace" manual_name="Set High VSpace">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Bind an ArmHighVSpace to a thread, or unbind it with a null capability.</brief>
+            <description>
+                While the thread runs on a VSpace assigned to an ASID pool, the bound ArmHighVSpace
+                (itself assigned to an ASID pool) is its TTBR1 address space: what it maps between
+                seL4_ARM_HighVSpaceBase and seL4_ARM_HighVSpaceTop is reachable from EL0. Other
+                threads, including ones on the same VSpace, never see those mappings.
+            </description>
+            <param dir="in" name="high_vspace" type="seL4_CPtr" description="An ArmHighVSpace capability assigned to an ASID pool, or seL4_CapNull"/>
+            <error name="seL4_InvalidCapability" description="high_vspace is neither null nor an ArmHighVSpace whose ASID still names it; the thread keeps its binding."/>
+            <error name="seL4_TruncatedMessage" description="The capability is missing."/>
+        </method>
+    </interface>
 </api>

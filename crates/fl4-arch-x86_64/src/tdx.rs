@@ -57,6 +57,10 @@ const TDCS_CONFIG_FLAGS: u64 = 0x1110_0003_0000_0016;
 const TDCS_TD_CTLS: u64 = 0x1110_0003_0000_0017;
 const CONFIG_FLEXIBLE_PENDING_VE: u64 = 1 << 1;
 const TD_CTLS_PENDING_VE_DISABLE: u64 = 1 << 0;
+/// TD_CTLS.ENUM_TOPOLOGY: the TDX module answers the topology leaves
+/// (CPUID 0BH and 1FH) itself, from what the VMM configured, instead of
+/// raising #VE for them.
+const TD_CTLS_ENUM_TOPOLOGY: u64 = 1 << 1;
 
 const PAGE: u64 = 4096;
 const HUGE: u64 = 2 << 20;
@@ -79,6 +83,12 @@ static GPAW: AtomicU64 = AtomicU64::new(0);
 static ATTRIBUTES: AtomicU64 = AtomicU64::new(0);
 static TD_CTLS: AtomicU64 = AtomicU64::new(0);
 static VCPUS: AtomicU64 = AtomicU64::new(0);
+
+/// The most vCPUs `register_vcpu` tells apart.
+pub const MAX_VCPU_INDEX: usize = 1024;
+/// The VCPU_INDEX (TDG.VP.INFO) of each vCPU that runs the kernel: each
+/// may do so once.
+static VCPU_SEEN: [AtomicU64; MAX_VCPU_INDEX / 64] = [const { AtomicU64::new(0) }; MAX_VCPU_INDEX / 64];
 
 #[inline]
 pub fn active() -> bool {
@@ -265,6 +275,9 @@ pub struct Info {
     pub attributes: u64,
     pub num_vcpus: u64,
     pub max_vcpus: u64,
+    /// This vCPU's VCPU_INDEX, which the TDX module assigns: unique in the
+    /// TD and below `num_vcpus`.
+    pub vcpu_index: u32,
 }
 
 /// CPUID.21H,0 says "IntelTDX    " in EBX, EDX, ECX.
@@ -303,7 +316,45 @@ pub fn probe() -> Option<Info> {
         attributes: r.rdx,
         num_vcpus: r.r8 & 0xffff_ffff,
         max_vcpus: r.r8 >> 32,
+        vcpu_index: (r.r9 & 0xffff_ffff) as u32,
     })
+}
+
+/// Mark `vcpu_index` as running the kernel in `seen`. False if it is not a
+/// vCPU of this TD (at or past `num_vcpus`, or past what `seen` holds) or
+/// was marked before: two cores of the kernel on one vCPU, or one the TD
+/// does not have, is the VMM's doing.
+pub fn claim_vcpu(seen: &[AtomicU64], vcpu_index: u32, num_vcpus: u64) -> bool {
+    let i = vcpu_index as usize;
+    if vcpu_index as u64 >= num_vcpus || i >= seen.len() * 64 {
+        return false;
+    }
+    let bit = 1u64 << (i % 64);
+    seen[i / 64].fetch_or(bit, Ordering::AcqRel) & bit == 0
+}
+
+/// `claim_vcpu` on the kernel's record of the TD's vCPUs.
+pub fn register_vcpu(vcpu_index: u32, num_vcpus: u64) -> bool {
+    claim_vcpu(&VCPU_SEEN, vcpu_index, num_vcpus)
+}
+
+/// The number of vCPUs the TD has (TDG.VP.INFO NUM_VCPUS, at `init`).
+pub fn num_vcpus() -> u64 {
+    VCPUS.load(Ordering::Relaxed) & 0xffff_ffff
+}
+
+/// An AP's first act as a core of the kernel, before anything that can
+/// take #VE: its VCPU_INDEX must be new and one of the TD's, or the TD ends.
+pub fn register_ap() {
+    let mut r = Regs::default();
+    let status = tdcall(TDG_VP_INFO, &mut r);
+    if status != 0 {
+        terminate_with(11, format_args!("ap vp_info tdcall={:#x}", status));
+    }
+    let index = (r.r9 & 0xffff_ffff) as u32;
+    if !register_vcpu(index, num_vcpus()) {
+        terminate_with(11, format_args!("ap vcpu_index={} num_vcpus={}", index, num_vcpus()));
+    }
 }
 
 fn vm_rd(field: u64) -> Option<u64> {
@@ -371,6 +422,13 @@ pub fn init(info: Info) {
     if refused {
         terminate_with(2, format_args!("sept_ve action={:?} attrs={:#x} cfg={:x?} ctls={:x?}", action, info.attributes, config, ctls));
     }
+    if !register_vcpu(info.vcpu_index, info.num_vcpus) {
+        terminate_with(11, format_args!("bsp vcpu_index={} num_vcpus={}", info.vcpu_index, info.num_vcpus));
+    }
+    // Best effort: the topology leaves from the TDX module rather than by
+    // #VE from the VMM. A module or VMM without a configured topology
+    // refuses, and `virtual_cpuid` lets those leaves through #VE.
+    let _ = vm_wr(TDCS_TD_CTLS, TD_CTLS_ENUM_TOPOLOGY, TD_CTLS_ENUM_TOPOLOGY);
     TD_CTLS.store(vm_rd(TDCS_TD_CTLS).unwrap_or(0), Ordering::Relaxed);
 }
 
@@ -393,15 +451,35 @@ pub fn user_pmc_allowed(attributes: u64) -> bool {
     attributes & ATTR_PERFMON != 0
 }
 
-/// MSRs a kernel #VE forwards to the VMM: the architectural x2APIC registers
-/// and its TSC-deadline timer, which the VMM emulates, and (read only) the
-/// APIC base, which a TD may not write.
+/// MSRs a kernel #VE forwards to the VMM, each only in the direction the
+/// kernel uses it: the x2APIC registers the VMM emulates (TDX Module 1.5
+/// virtual APIC) and its TSC-deadline timer, and (read only) the APIC base,
+/// which a TD may not write. The kernel only writes SVR, ICR, the LVTs and
+/// the timer's initial count and divider in x2APIC mode, so a read of one
+/// is no answer it should take from the VMM either. The CPU virtualizes the interrupt state itself
+/// from the virtual-APIC page (TPR, PPR, EOI, ISR, TMR, IRR, SELF IPI): a
+/// #VE on one of those is no answer the kernel should take from the VMM,
+/// least of all an ISR read (`apic::ack_stray`) or an EOI.
 pub fn virtual_msr(msr: u32, write: bool) -> bool {
     match msr {
-        cpu::msr::TSC_DEADLINE | 0x800..=0x83f => true,
-        cpu::msr::APIC_BASE => !write,
+        cpu::msr::TSC_DEADLINE => true,
+        // ID; Timer Current Count.
+        cpu::msr::APIC_BASE | 0x802 | 0x839 => !write,
+        // SVR; ICR; LVT Timer, LINT0, LINT1, Error; Timer Initial Count,
+        // Divide Configuration: written only.
+        0x80f | 0x830 | 0x832 | 0x835 | 0x836 | 0x837 | 0x838 | 0x83e => write,
         _ => false,
     }
+}
+
+/// CPUID leaves a kernel #VE forwards to the VMM: the topology leaves 0BH
+/// and 1FH (`spec::smt_shift`), which take #VE unless TD_CTLS.ENUM_TOPOLOGY
+/// is set. Every other leaf the kernel uses below the hypervisor range the
+/// TDX module answers itself (TDX Module 1.5 CPUID virtualization), and
+/// the hypervisor range goes to the VMM directly (`cpuid_is_vmm_leaf`): a
+/// #VE on any other leaf is no answer the kernel should take from the VMM.
+pub fn virtual_cpuid(leaf: u32) -> bool {
+    matches!(leaf, 0x0b | 0x1f)
 }
 
 /// The one operand an unsupported kernel #VE may name on the console, which
@@ -470,6 +548,9 @@ pub fn accept_pages(pa: u64, bytes: u64) {
     let mut small = false;
     let mut busy = 0;
     while cur < end {
+        // Another core poisoned the guest: accept nothing more (also
+        // between busy retries).
+        cvm::halt_if_poisoned();
         let level = if !small && cur % HUGE == 0 && end - cur >= HUGE { LEVEL_2M } else { LEVEL_4K };
         let mut r = Regs { rcx: cur | level, ..Regs::default() };
         let status = tdcall(TDG_MEM_PAGE_ACCEPT, &mut r);
@@ -832,18 +913,96 @@ mod tests {
         assert!(!user_pmc_allowed(!ATTR_PERFMON));
     }
 
+    /// Audit (TDX r5, fix 2): only the x2APIC registers the VMM emulates,
+    /// each in the direction the kernel uses it (ID and current count read,
+    /// SVR, ICR, LVTs, initial count and divider written), go to the VMM on
+    /// a kernel #VE. The interrupt state the virtual-APIC page holds (TPR, PPR, EOI,
+    /// ISR, TMR, IRR, SELF IPI) never does, nor a write to a read-only
+    /// register or anything reserved.
     #[test]
     fn the_ve_msr_whitelist_is_the_x2apic_and_its_timer() {
+        let write_only = [0x80f, 0x830, 0x832, 0x835, 0x836, 0x837, 0x838, 0x83e];
+        let read_only = [0x802, 0x839];
+        for msr in 0x800..=0x83f {
+            assert_eq!(virtual_msr(msr, false), read_only.contains(&msr), "read {msr:#x}");
+            assert_eq!(virtual_msr(msr, true), write_only.contains(&msr), "write {msr:#x}");
+        }
+        for msr in write_only {
+            assert!(!virtual_msr(msr, false) && virtual_msr(msr, true), "{msr:#x}");
+        }
+        let virtual_apic = [0x808, 0x80a, 0x80b, 0x83f].into_iter().chain(0x810..=0x817).chain(0x818..=0x81f).chain(0x820..=0x827);
+        for msr in virtual_apic.chain([0x800, 0x803, 0x80d, 0x828, 0x831]) {
+            assert!(!virtual_msr(msr, false) && !virtual_msr(msr, true), "{msr:#x}");
+        }
         for write in [false, true] {
-            for msr in [0x800, 0x80b, 0x830, 0x83e, 0x83f, cpu::msr::TSC_DEADLINE] {
-                assert!(virtual_msr(msr, write), "{msr:#x}");
-            }
+            assert!(virtual_msr(cpu::msr::TSC_DEADLINE, write));
             for msr in [0x7ff, 0x840, 0x8ff, 0x10, 0x48, 0x10a, cpu::msr::EFER, cpu::msr::LSTAR] {
                 assert!(!virtual_msr(msr, write), "{msr:#x}");
             }
         }
         assert!(virtual_msr(cpu::msr::APIC_BASE, false));
         assert!(!virtual_msr(cpu::msr::APIC_BASE, true));
+    }
+
+    /// Every x2APIC register the kernel touches through `apic::read` or
+    /// `apic::write` in a TD either the CPU virtualizes (EOI, ISR, IRR) or
+    /// `virtual_msr` forwards in that direction.
+    #[test]
+    fn the_kernels_x2apic_accesses_are_virtualized_or_forwarded() {
+        use crate::apic::*;
+        let msr = |reg: u32| 0x800 + (reg >> 4);
+        for reg in [REG_ID, REG_TIMER_CUR] {
+            assert!(virtual_msr(msr(reg), false) && !virtual_msr(msr(reg), true), "{reg:#x}");
+        }
+        for reg in [REG_SVR, REG_LVT_TIMER, REG_LVT_LINT0, REG_LVT_LINT1, REG_LVT_ERROR, REG_TIMER_INIT, REG_TIMER_DIV] {
+            assert!(virtual_msr(msr(reg), true) && !virtual_msr(msr(reg), false), "{reg:#x}");
+        }
+        // send_ipi writes the ICR as one MSR; it reads it only in xAPIC mode.
+        assert!(virtual_msr(0x830, true) && !virtual_msr(0x830, false), "ICR");
+        assert_eq!(msr(REG_ICR_LO), 0x830);
+        for reg in [REG_EOI, REG_ISR, REG_IRR] {
+            assert!(!virtual_msr(msr(reg), false) && !virtual_msr(msr(reg), true), "{reg:#x}");
+        }
+    }
+
+    /// Audit (TDX r1, fix 3): only the topology leaves go to the VMM on a
+    /// kernel #VE; a #VE on a leaf the TDX module should answer, or any
+    /// other, ends the TD.
+    #[test]
+    fn the_ve_cpuid_whitelist_is_the_topology_leaves() {
+        assert!(virtual_cpuid(0x0b));
+        assert!(virtual_cpuid(0x1f));
+        for leaf in [0, 1, 2, 4, 6, 7, 0xa, 0xd, 0x15, 0x16, 0x1e, 0x20, 0x21, 0x4000_0000, 0x8000_0000, 0x8000_0001, 0x8000_0008, 0x0b00, 0x1f_0000_0b] {
+            assert!(!virtual_cpuid(leaf), "{leaf:#x}");
+        }
+    }
+
+    #[test]
+    fn enum_topology_is_its_own_td_ctls_bit() {
+        assert_eq!(TD_CTLS_ENUM_TOPOLOGY, 2);
+        assert_eq!(TD_CTLS_ENUM_TOPOLOGY & TD_CTLS_PENDING_VE_DISABLE, 0);
+    }
+
+    /// Audit (TDX r1, fix 1): each vCPU runs the kernel once, and only a
+    /// vCPU of the TD (VCPU_INDEX below NUM_VCPUS) may.
+    #[test]
+    fn each_vcpu_index_is_claimed_once_and_only_below_num_vcpus() {
+        let seen: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+        assert!(claim_vcpu(&seen, 0, 4));
+        assert!(claim_vcpu(&seen, 3, 4));
+        assert!(!claim_vcpu(&seen, 0, 4), "a second core on vCPU 0");
+        assert!(!claim_vcpu(&seen, 3, 4));
+        assert!(!claim_vcpu(&seen, 4, 4), "not a vCPU of this TD");
+        assert!(!claim_vcpu(&seen, u32::MAX, u64::MAX));
+        assert!(claim_vcpu(&seen, 1, 4));
+        assert!(claim_vcpu(&seen, 2, 4));
+        // Past what the record holds, whatever NUM_VCPUS says.
+        assert!(claim_vcpu(&seen, 127, 1 << 20));
+        assert!(!claim_vcpu(&seen, 128, 1 << 20));
+        assert!(!claim_vcpu(&seen, 0, 0));
+        assert_eq!(seen[0].load(Ordering::Relaxed), 0xf);
+        assert_eq!(seen[1].load(Ordering::Relaxed), 1 << 63);
+        assert_eq!(VCPU_SEEN.len() * 64, MAX_VCPU_INDEX);
     }
 
     #[test]

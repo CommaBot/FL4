@@ -49,6 +49,23 @@ pub const MAX_MODULES: usize = 8;
 pub const CMDLINE_LEN: usize = 256;
 pub const NAME_LEN: usize = 64;
 
+/// Where a word of `word_len` bytes goes on a kernel command line now
+/// `len` bytes long (after a space separating it from the words before),
+/// leaving room for the closing NUL; None when it does not fit. The loader
+/// fails rather than drop a word (`warm_its`, `novirt` would silently not
+/// apply).
+pub fn cmdline_room(len: usize, word_len: usize) -> Option<usize> {
+    let at = len + usize::from(len > 0);
+    (word_len < CMDLINE_LEN && at.checked_add(word_len)? < CMDLINE_LEN).then_some(at)
+}
+
+/// Whether the kernel command line `cmdline` (NUL-terminated, or full) has
+/// the word `opt`.
+pub fn has_option(cmdline: &[u8; CMDLINE_LEN], opt: &[u8]) -> bool {
+    let n = cmdline.iter().position(|&c| c == 0).unwrap_or(CMDLINE_LEN);
+    cmdline[..n].split(|&c| c == b' ').any(|w| w == opt)
+}
+
 /// Memory map entry kinds (from the UEFI memory types).
 pub mod mem {
     /// Free after ExitBootServices: conventional, loader and boot
@@ -59,6 +76,12 @@ pub mod mem {
     pub const FIRMWARE: u32 = 2;
     /// Anything else: reserved, unusable, MMIO.
     pub const OTHER: u32 = 3;
+    /// Bit in `MemRegion::cacheable` (alongside bit 0 = write-back RAM):
+    /// every byte of this `FREE` region outside the kernel region, root
+    /// task, boot modules, device tree and TPM event log is already zero
+    /// (for example, freshly mapped anonymous VMM memory the loader never
+    /// wrote to), so boot need not read every page before creating untypeds.
+    pub const ZEROED: u32 = 1 << 1;
 }
 
 #[repr(C)]
@@ -67,7 +90,9 @@ pub struct MemRegion {
     pub base: u64,
     pub len: u64,
     pub kind: u32,
-    /// The region is ordinary write-back cacheable RAM (EFI_MEMORY_WB).
+    /// Bit 0 (`1`): ordinary write-back cacheable RAM (`EFI_MEMORY_WB`).
+    /// Bit 1 (`mem::ZEROED`): untouched bytes of this `FREE` region are
+    /// already zero.
     pub cacheable: u32,
 }
 

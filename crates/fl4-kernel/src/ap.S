@@ -78,7 +78,14 @@ fl4_ap_trampoline_end:
  * page of loader code (executable in firmware's tables) that its boot table
  * also identity maps, and fills in the data. It is position independent,
  * and writes nothing to its own page, which firmware may map read-only.
- * Nothing here may take #VE: no IDT is loaded yet. */
+ * Nothing here may take #VE: no IDT is loaded yet.
+ *
+ * The VMM decides which vCPU runs this, and how often. On the boot table,
+ * before it touches a kernel stack, each vCPU takes its core index once
+ * (FL4_TDX_AP_CLAIMED), and none may once the boot core is done
+ * (FL4_TDX_AP_CLOSED): any other ends the guest (.Ltdx_ap_reject). The
+ * kernel's statics are named by absolute address, as this code runs from
+ * the copy in the wakeup page. */
     .align 16
     .global fl4_tdx_ap_trampoline
 fl4_tdx_ap_trampoline:
@@ -135,6 +142,20 @@ fl4_tdx_ap_compat:
     .global fl4_tdx_ap_long
 fl4_tdx_ap_long:
 .Ltdx_ap_tables:
+    /* The kernel image is mapped (writable .bss) from here on, the wakeup
+     * page perhaps still read-only. No more vCPUs once the cores are up. */
+    movabsq $FL4_TDX_AP_CLOSED, %rax
+    cmpb $0, (%rax)
+    jne .Ltdx_ap_reject
+    /* The core index: an AP's (1..63), and not yet taken. */
+    movq tdx_ap_cpu(%rip), %r12
+    testq %r12, %r12
+    jz .Ltdx_ap_reject
+    cmpq $64, %r12
+    jae .Ltdx_ap_reject
+    movabsq $FL4_TDX_AP_CLAIMED, %rax
+    lock btsq %r12, (%rax)
+    jc .Ltdx_ap_reject
     movq tdx_ap_stack(%rip), %rsp
     /* The kernel image's GDT, as on the boot core and SNP APs: this page
      * leaves the address space when fl4_ap_main loads the kernel's tables,
@@ -158,9 +179,28 @@ fl4_tdx_ap_long:
     movl %eax, %fs
     movl %eax, %gs
     subq $8, %rsp                         /* SysV call alignment */
-    movq tdx_ap_cpu(%rip), %rdi
+    movq %r12, %rdi                       /* the index this vCPU took */
     movq tdx_ap_entry(%rip), %rax
     jmp *%rax
+
+    /* A vCPU the kernel did not ask for, or a second one for an index: no
+     * stack and no IDT, so poison the guest for the boot core (which stops
+     * at the sight of it), report a fatal error to the VMM with
+     * TDG.VP.VMCALL<ReportFatalError> (no #VE), and spin. */
+.Ltdx_ap_reject:
+    cli
+    movabsq $FL4_CVM_POISONED, %rax
+    movb $1, (%rax)
+    xorl %eax, %eax                       /* TDG.VP.VMCALL */
+    movl $((1 << 10) | (1 << 11) | (1 << 12) | (1 << 13)), %ecx
+    xorl %r10d, %r10d
+    movl $0x10003, %r11d                  /* ReportFatalError */
+    movl $11, %r12d                       /* the kernel's AP reason */
+    xorl %r13d, %r13d
+    .byte 0x66, 0x0f, 0x01, 0xcc          /* TDCALL */
+1:
+    pause
+    jmp 1b
 
     .align 8
     .global fl4_tdx_ap_gdt

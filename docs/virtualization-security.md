@@ -19,10 +19,37 @@ below. FL4 does not install firmware/microcode updates.
 ## Predictor boundaries
 
 * Native syscall, interrupt, exception and NMI entry run the selected assembly
-  barriers before calling Rust. There is no GS/per-CPU lookup before protection.
+  barriers before calling Rust. Interrupts, exceptions and NMIs arrive on a
+  stack the hardware switched to (TSS RSP0 or an IST) and reach the barriers
+  with no GS/per-CPU lookup. SYSCALL switches no stack: `fl4_syscall_entry`
+  runs `SWAPGS; LFENCE` (the fence keeps a mispredicted path from using the
+  wrong GS base), saves the user RSP in a GS scratch word and loads the
+  core's entry stack (`SkimCpu.entry_stack`, `gs_block[0]`), pushes SS and
+  the user RSP, clears the scratch word and runs the paired `SWAPGS`; it
+  then pushes the rest of the frame and falls into `fl4_common_entry`,
+  which runs the barriers, moves to the kernel stack and enters Rust.
 * Every VM exit, including failed entry, issues IBPB before the first host return
   or interrupt enable. This also protects the userspace VMM without requiring
   a context switch. The guest cannot write the host's speculation-control MSRs.
+  A VCPU's holder may defer it (VCPU MSR `0xffff_fffd`, `MSR_VM_IBPB_DEFER`,
+  0 or 1; 0 after retype) where the kernel's own branches are already out of
+  the guest's reach, as Linux relies on to skip the IBPB at VM exits
+  (`policy::vm_ibpb_deferrable`): indirect branches by AutoIBRS or eIBRS, not
+  legacy IBRS; returns by hardware where a native entry needs no IBPB either
+  (AutoIBRS with SRSO_NO or SRSO_USER_KERNEL_NO, eIBRS without ITS), or on AMD
+  by Safe RET. With Safe RET the SVM exit calls `fl4_untrain_ret` before its
+  first return and returns through the return thunk, as Linux's
+  `UNTRAIN_RET_VM` (`check_vm_asm.py` checks both). ITS-affected Intel parts
+  and SRSO-affected AMD parts without Safe RET keep the IBPB. The core then
+  owes the IBPB to its next switch to
+  an address space other than the one that entered the guest (`tlb::switch`).
+  Only the holder's address space is left without it, which suits a monitor
+  whose address space is its guest's alone (l4h's HVM monitor holds guest RAM,
+  the guest's I/O buffers and rings, and its own state). Linux's vmscape IBPB
+  before a return to the user VMM protects a host address space (QEMU's); here
+  every other address space gets the IBPB first. A VMM sharing its address
+  space with other data (a guest kernel's KVM) does not opt in. SMT siblings
+  are isolated by STIBP or parked.
 * Intel eIBRS stays enabled. Without eIBRS, legacy IBRS is reasserted with a
   fresh WRMSR at each boundary, even if already set, and VM exit fills the RSB.
   Affected eIBRS CPUs use the PBRSB CALL/stack-adjust/LFENCE sequence.
@@ -105,6 +132,15 @@ them grows the image more than it saves.
   guest/host isolation is unaffected. Nested Intel relies on L0 implementing
   the advertised IBPB contract: a guest BIOS-signature MSR is not a physical
   host firmware revision.
+* An Intel TDX L1 guest (TD) does not trust its VMM either: MapGPA answers
+  must make progress, emulated MMIO takes its address from the thread's page
+  tables and never from the VMM, and a kernel #VE other than CPUID, the idle
+  HLT and the x2APIC/timer MSRs terminates the TD (README, "Intel TDX
+  guests"). The TDX module, not the TD, owns TSX, `MCU_OPT_CTRL` and microcode
+  state: in a TD FL4 reads no microcode revision (`IA32_BIOS_SIGN_ID`) and
+  writes neither `TSX_CTRL` nor `MCU_OPT_CTRL`. The VM backend is not started
+  in a TD (`vm::init` skips it in any confidential guest, as under SEV):
+  nested virtualization is outside the supported configuration.
 * Outside SEV/SEV-SNP the hypervisor is trusted: on Intel, MMIO stale data
   and RFDS are judged by the reported model, as on bare metal, when the
   immunity bits are missing (GCE N4 reports no RFDS_NO although RFDS affects

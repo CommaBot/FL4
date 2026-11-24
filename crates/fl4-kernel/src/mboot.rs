@@ -25,6 +25,9 @@ pub const MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402;
 /// FL4's Multiboot 2 tag for a TDX guest's AP wakeup page (fl4-efi x86.rs):
 /// the physical address of a page of loader code.
 pub const MB2_TAG_TDX_AP_PAGE: u32 = 0x464c_3403;
+/// FL4's Multiboot 2 tag for a TDX guest's AP wakeup mailbox (fl4-efi
+/// x86.rs): its page, which the loader found in `EfiACPIMemoryNVS`.
+pub const MB2_TAG_TDX_MAILBOX: u32 = 0x464c_3404;
 /// The longest event log taken, TPM or CC (fl4-efi tcg2.rs `MAX_EVENT_LOG`).
 pub const MAX_TPM_LOG: u64 = 1 << 20;
 /// Where an event log may start: past the first MiB.
@@ -64,8 +67,9 @@ pub struct BootInfo {
     pub mmap_lost: bool,
     pub modules: [Module; MAX_MODULES],
     pub n_modules: usize,
-    /// RSDP copied from Multiboot 2 tags, if any.
-    pub rsdp: Option<u64>,
+    /// RSDP copied from Multiboot 2 tags, if any, and the bytes its tag
+    /// holds.
+    pub rsdp: Option<(u64, u64)>,
     /// The command line (a C string's physical address), or 0, and how
     /// many bytes of it may be read (it may end earlier, at a NUL).
     pub cmdline: u64,
@@ -78,6 +82,8 @@ pub struct BootInfo {
     pub cc_log: Option<EventLog>,
     /// A TDX guest's AP wakeup page, if the loader made one.
     pub tdx_ap_page: Option<u64>,
+    /// The wakeup mailbox the loader checked, if it found one.
+    pub tdx_mailbox: Option<u64>,
 }
 
 /// An event log in boot loader memory (seL4_TpmEventLog's and
@@ -205,7 +211,7 @@ fn event_log(t: u64) -> Option<EventLog> {
 }
 
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None, tpm_log: None, cc_log: None, tdx_ap_page: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None, tpm_log: None, cc_log: None, tdx_ap_page: None, tdx_mailbox: None };
     if magic == MB1_MAGIC {
         if !inside(info, MB1_INFO_LEN) {
             return None;
@@ -269,10 +275,11 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
                     e += esz;
                 }
             }
-            // RSDP 1.0 is 20 bytes, 2.0 36.
+            // RSDP 1.0 is 20 bytes, 2.0 36: with the bytes of its tag, which
+            // the RSDP's own length must not pass (acpi::init).
             14 | 15 if size >= 8 + if ty == 14 { 20 } else { 36 } => {
                 if b.rsdp.is_none() || ty == 15 {
-                    b.rsdp = Some(t + 8);
+                    b.rsdp = Some((t + 8, if ty == 14 { 20 } else { size - 8 }));
                 }
             }
             MB2_TAG_TPM_EVENT_LOG if size >= 32 => {
@@ -291,6 +298,13 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
                 let page = rd64(t + 8);
                 if page != 0 && page & 0xfff == 0 && inside(page, 4096) {
                     b.tdx_ap_page = Some(page);
+                }
+            }
+            // Checked again against the MADT and the memory map (fl4_boot).
+            MB2_TAG_TDX_MAILBOX if size >= 16 => {
+                let page = rd64(t + 8);
+                if page != 0 && page & 0xfff == 0 {
+                    b.tdx_mailbox = Some(page);
                 }
             }
             _ => {}

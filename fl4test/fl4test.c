@@ -98,6 +98,115 @@ static int test_trap_syscalls(env_t env)
 }
 DEFINE_TEST(FL4TRAP0001, "trapSyscalls sends syscalls to the fault handler (l4h 0001)", test_trap_syscalls, true)
 
+#ifdef CONFIG_ARCH_AARCH64
+/* FL4: a trapped AArch64 syscall's message has x8-x30 and TPIDR_EL0 after
+ * the standard 13 words, and a reply that long sets them; a reply of the
+ * standard 13 words leaves them as they were. */
+#define TRAP_TLS_FULL_SENT  0x7171
+#define TRAP_TLS_FULL_SET   0x7272
+#define TRAP_TLS_SHORT_SENT 0x7373
+
+/* One trapped svc with x19 = 0x1919, x20 = `x20_in` and TPIDR_EL0 = `tls`;
+ * returns x19, x20 and TPIDR_EL0 as the svc left them. TPIDR_EL0 (this
+ * thread's TLS) is restored before anything else runs. */
+static void trap_svc(seL4_Word x20_in, seL4_Word tls, seL4_Word out[3])
+{
+    seL4_Word saved;
+    register seL4_Word x7 __asm__("x7") = (seL4_Word) seL4_SysYield;
+    register seL4_Word x8 __asm__("x8") = TRAP_X8;
+    register seL4_Word x19 __asm__("x19") = 0x1919;
+    register seL4_Word x20 __asm__("x20") = x20_in;
+    register seL4_Word x21 __asm__("x21") = tls;
+    __asm__ volatile("mrs %[saved], tpidr_el0\n"
+                     "msr tpidr_el0, %[tls]\n"
+                     "svc #0\n"
+                     "mrs %[tls], tpidr_el0\n"
+                     "msr tpidr_el0, %[saved]"
+                     : [saved] "=&r"(saved), "+r"(x7), "+r"(x8), "+r"(x19), "+r"(x20), [tls] "+r"(x21)
+                     : : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "memory");
+    out[0] = x19;
+    out[1] = x20;
+    out[2] = x21;
+}
+
+static int trap_regs_twice(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_Word r[3];
+    int ok = 1;
+    /* A full-length reply: x20 and TPIDR_EL0 changed, x19 as sent. */
+    trap_svc(0, TRAP_TLS_FULL_SENT, r);
+    ok = ok && r[0] == 0x1919 && r[1] == 0x2020 && r[2] == TRAP_TLS_FULL_SET;
+    /* A standard-length reply: x19, x20 and TPIDR_EL0 as sent. */
+    trap_svc(0x2121, TRAP_TLS_SHORT_SENT, r);
+    ok = ok && r[0] == 0x1919 && r[1] == 0x2121 && r[2] == TRAP_TLS_SHORT_SENT;
+    return ok ? 7 : 1;
+}
+
+static int test_trap_full_registers(env_t env)
+{
+    helper_thread_t t;
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    vka_object_t ep = {0};
+    int error = vka_alloc_endpoint(&env->vka, &ep);
+    test_error_eq(error, 0);
+    seL4_CPtr fault_ep = ep.cptr;
+    create_helper_thread(env, &t);
+    error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                              api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                              env->page_directory, seL4_NilData);
+    test_error_eq(error, seL4_NoError);
+    seL4_TCB_SetFlags_t f = seL4_TCB_SetFlags(get_helper_tcb(&t), 0, seL4_TCBFlag_trapSyscalls);
+    test_error_eq(f.error, seL4_NoError);
+    start_helper(env, &t, trap_regs_twice, 0, 0, 0, 0);
+    seL4_Word badge;
+
+    /* The first svc: the whole message, then a full-length reply back to
+     * after the svc with x20 and TPIDR_EL0 changed, every other register as
+     * sent. */
+    seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+    test_eq(seL4_MessageInfo_get_length(tag), (seL4_Word) seL4_UnknownSyscall_TrapLength);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX8), (seL4_Word) TRAP_X8);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX19), (seL4_Word) 0x1919);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX20), (seL4_Word) 0);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapTPIDR_EL0), (seL4_Word) TRAP_TLS_FULL_SENT);
+    seL4_SetMR(seL4_UnknownSyscall_FaultIP, seL4_GetMR(seL4_UnknownSyscall_FaultIP) + 4);
+    seL4_SetMR(seL4_UnknownSyscall_LR, seL4_GetMR(seL4_UnknownSyscall_FaultIP));
+    seL4_SetMR(seL4_UnknownSyscall_TrapX20, 0x2020);
+    seL4_SetMR(seL4_UnknownSyscall_TrapTPIDR_EL0, TRAP_TLS_FULL_SET);
+    seL4_Send(reply.cptr, seL4_MessageInfo_new(0, 0, 0, seL4_UnknownSyscall_TrapLength));
+
+    /* The second: a reply of the standard length, with other values in
+     * the message registers past it, which the kernel leaves alone. */
+    tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+    test_eq(seL4_MessageInfo_get_length(tag), (seL4_Word) seL4_UnknownSyscall_TrapLength);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX20), (seL4_Word) 0x2121);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapTPIDR_EL0), (seL4_Word) TRAP_TLS_SHORT_SENT);
+    seL4_SetMR(seL4_UnknownSyscall_FaultIP, seL4_GetMR(seL4_UnknownSyscall_FaultIP) + 4);
+    seL4_SetMR(seL4_UnknownSyscall_LR, seL4_GetMR(seL4_UnknownSyscall_FaultIP));
+    seL4_SetMR(seL4_UnknownSyscall_TrapX19, 0xdead);
+    seL4_SetMR(seL4_UnknownSyscall_TrapX20, 0xbeef);
+    seL4_SetMR(seL4_UnknownSyscall_TrapTPIDR_EL0, 0xcafe);
+    seL4_Send(reply.cptr, seL4_MessageInfo_new(0, 0, 0, seL4_UnknownSyscall_Length));
+
+    /* Its return value reaches the fault handler too: the helper's
+     * seL4_Call to report it (helpers.c signal_helper_finished, MR 0 in x2)
+     * is trapped like any syscall, so wait_for_helper would never return.
+     * Left unanswered. */
+    tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X7), (seL4_Word) seL4_SysCall);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X2), (seL4_Word) 7);
+    cleanup_helper(env, &t);
+    vka_free_object(&env->vka, &reply);
+    vka_free_object(&env->vka, &ep);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4TRAP0002, "a trapped AArch64 syscall carries and takes every register", test_trap_full_registers, true)
+#endif
+
 #ifdef CONFIG_ARCH_X86_64
 /* int $0xa0, the first gate open to user space, with RAX = 39 (Linux's
  * getpid). */
@@ -1254,4 +1363,911 @@ static int test_fs_base_after_selector_load(env_t env)
 }
 DEFINE_TEST(FL4TLS0001, "A selector load in one thread does not change the FS base of the next",
             test_fs_base_after_selector_load, true)
+#endif
+
+#ifdef CONFIG_ARCH_AARCH64
+/* ---- TCR_EL1.TBI0: tagged EL0 pointers ------------------------------ */
+
+/* EL0 data addresses ignore their top byte: a store through a tagged
+ * pointer and a load through the plain one (and the other way round)
+ * reach the same word. */
+static int test_tbi0(env_t env)
+{
+    seL4_CPtr fcap;
+    volatile seL4_Word *page = map_frame(env, &fcap);
+    test_assert(page != NULL);
+    volatile seL4_Word *tagged = (volatile seL4_Word *)((uintptr_t) page | (0xabull << 56));
+    *tagged = 0x5eed;
+    test_eq(page[0], (seL4_Word) 0x5eed);
+    page[1] = 0xbeef;
+    test_eq(tagged[1], (seL4_Word) 0xbeef);
+    volatile seL4_Word *tagged2 = (volatile seL4_Word *)((uintptr_t) page | (0x01ull << 56));
+    test_eq(tagged2[0], (seL4_Word) 0x5eed);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4TBI0001, "EL0 loads and stores ignore the top byte of the address (TCR_EL1.TBI0)", test_tbi0, true)
+
+/* ---- seL4_TCB_SetPACKeys ---------------------------------------------- */
+
+/* PACIA, PACDA, AUTIA, AUTDA x0, x1 as encodings (any assembler). */
+#define PAC_OP(name, enc)                                                   \
+    static seL4_Word name(seL4_Word p, seL4_Word m)                         \
+    {                                                                       \
+        register seL4_Word x0 __asm__("x0") = p;                            \
+        register seL4_Word x1 __asm__("x1") = m;                            \
+        __asm__ volatile(".inst " #enc : "+r"(x0) : "r"(x1) : "memory");   \
+        return x0;                                                          \
+    }
+PAC_OP(pacia, 0xdac10020)
+PAC_OP(pacda, 0xdac10820)
+PAC_OP(autia, 0xdac11020)
+PAC_OP(autda, 0xdac11820)
+
+#define PAC_LABEL 0x9ac
+/* A probe's load through a pointer that should not have authenticated did
+ * not fault. */
+#define PAC_NO_FAULT 0x9ad
+/* Fixed modifiers, for checking that a thread signs the same before and
+ * after others ran on its core. */
+#define PAC_NMODS 4
+static const seL4_Word pac_mods[PAC_NMODS] = {0x5a5a, 0x1234, 0xbeef, 0x7777};
+/* A data pointer's code is only 7 bits (TBID0): a signature can be the
+ * unsigned pointer, or two keys' signatures can agree, by chance (1 in 128).
+ * Where the checks need a modifier for which they differ, they search
+ * PAC_SEARCH modifiers from PAC_SEARCH_BASE, in order. */
+#define PAC_SEARCH 64
+#define PAC_SEARCH_BASE 0x10000
+
+/* What the reply to a probe's report asks for next (MR 0). */
+#define PAC_CMD_REPORT 0  /* report the fixed modifiers again */
+#define PAC_CMD_SEARCH 1  /* data-sign with the search modifiers */
+#define PAC_CMD_FINAL 2   /* authenticate MR 1 with modifier MR 2, load */
+#define PAC_CMD_SEARCH_IA 3 /* instruction-sign with the search modifiers */
+
+static seL4_Word pac_target;
+
+/* The report: for every fixed modifier, &pac_target signed with the
+ * instruction and data A keys; whether all of them authenticate (and the
+ * data ones load pac_target); PACGA. */
+static void pac_report_fixed(seL4_Word ep, seL4_Word ptr)
+{
+    seL4_Word ok = 1;
+    for (int k = 0; k < PAC_NMODS; k++) {
+        seL4_Word m = pac_mods[k];
+        seL4_Word ia = pacia(ptr, m);
+        seL4_Word da = pacda(ptr, m);
+        seL4_SetMR(k, ia);
+        seL4_SetMR(PAC_NMODS + k, da);
+        if (autia(ia, m) != ptr || autda(da, m) != ptr || *(volatile seL4_Word *) autda(da, m) != pac_target) {
+            ok = 0;
+        }
+    }
+    seL4_SetMR(2 * PAC_NMODS, ok);
+    seL4_SetMR(2 * PAC_NMODS + 1, pacga(ptr, pac_mods[0]));
+    seL4_Call(ep, seL4_MessageInfo_new(PAC_LABEL, 0, 0, 2 * PAC_NMODS + 2));
+}
+
+/* Report, then do what each reply asks. The last step authenticates a
+ * pointer (MR 1; 0: this thread's own data pointer with its code changed)
+ * and loads through it: a fault, at the AUT itself with FEAT_FPAC. A load
+ * that does not fault sends PAC_NO_FAULT on `ep`, where the test waits. */
+static int pac_probe(seL4_Word ep, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_Word ptr = (seL4_Word) &pac_target;
+    pac_report_fixed(ep, ptr);
+    for (;;) {
+        seL4_Word cmd = seL4_GetMR(0);
+        if (cmd == PAC_CMD_REPORT) {
+            pac_report_fixed(ep, ptr);
+        } else if (cmd == PAC_CMD_SEARCH || cmd == PAC_CMD_SEARCH_IA) {
+            for (int i = 0; i < PAC_SEARCH; i++) {
+                seL4_Word m = PAC_SEARCH_BASE + i;
+                seL4_SetMR(i, cmd == PAC_CMD_SEARCH ? pacda(ptr, m) : pacia(ptr, m));
+            }
+            seL4_Call(ep, seL4_MessageInfo_new(PAC_LABEL, 0, 0, PAC_SEARCH));
+        } else {
+            seL4_Word other = seL4_GetMR(1);
+            seL4_Word m = seL4_GetMR(2);
+            seL4_Word bad = other ? autda(other, m) : autda(pacda(ptr, m) ^ (1ull << 50), m);
+            seL4_Word v = *(volatile seL4_Word *) bad;
+            seL4_SetMR(0, v);
+            seL4_Send(ep, seL4_MessageInfo_new(PAC_NO_FAULT, 0, 0, 1));
+            return 0;
+        }
+    }
+    return 0;
+}
+
+struct pac_report {
+    seL4_Word ia[PAC_NMODS], da[PAC_NMODS], ok, ga;
+};
+
+static void pac_read(struct pac_report *r)
+{
+    for (int k = 0; k < PAC_NMODS; k++) {
+        r->ia[k] = seL4_GetMR(k);
+        r->da[k] = seL4_GetMR(PAC_NMODS + k);
+    }
+    r->ok = seL4_GetMR(2 * PAC_NMODS);
+    r->ga = seL4_GetMR(2 * PAC_NMODS + 1);
+}
+
+/* Receive a message on `ep`; anything but a report (a fault) is printed. */
+static seL4_Word pac_recv(seL4_CPtr ep, seL4_CPtr reply)
+{
+    seL4_Word badge;
+    seL4_Word label = seL4_MessageInfo_get_label(api_recv(ep, &badge, reply));
+    if (label != PAC_LABEL) {
+        printf("FL4PAC0001: message %lu: %#lx %#lx %#lx %#lx %#lx\n", (unsigned long) label, (unsigned long) seL4_GetMR(0),
+               (unsigned long) seL4_GetMR(1), (unsigned long) seL4_GetMR(2), (unsigned long) seL4_GetMR(3),
+               (unsigned long) seL4_GetMR(4));
+    }
+    return label;
+}
+
+/* Reply to a probe's report with the next command. */
+static void pac_reply(seL4_CPtr reply, seL4_Word cmd, seL4_Word x, seL4_Word y)
+{
+    seL4_SetMR(0, cmd);
+    seL4_SetMR(1, x);
+    seL4_SetMR(2, y);
+    api_reply(reply, seL4_MessageInfo_new(0, 0, 0, 3));
+}
+
+/* A probe's data (or with `ia`, instruction) signatures with the search
+ * modifiers (it waits in its Call after a report). */
+static seL4_Word pac_search_cmd(seL4_CPtr ep, seL4_CPtr reply, seL4_Word *out, int ia)
+{
+    pac_reply(reply, ia ? PAC_CMD_SEARCH_IA : PAC_CMD_SEARCH, 0, 0);
+    seL4_Word label = pac_recv(ep, reply);
+    for (int i = 0; i < PAC_SEARCH; i++) {
+        out[i] = seL4_GetMR(i);
+    }
+    return label;
+}
+
+static seL4_Word pac_search(seL4_CPtr ep, seL4_CPtr reply, seL4_Word *out)
+{
+    return pac_search_cmd(ep, reply, out, 0);
+}
+
+static seL4_Word pac_search_ia(seL4_CPtr ep, seL4_CPtr reply, seL4_Word *out)
+{
+    return pac_search_cmd(ep, reply, out, 1);
+}
+
+/* The first search modifier whose signatures in `x` and `y` differ, or -1. */
+static int pac_first_differing(const seL4_Word *x, const seL4_Word *y, int n)
+{
+    for (int i = 0; i < n; i++) {
+        if (x[i] != y[i]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static int pac_thread(env_t env, helper_thread_t *t, seL4_CPtr ep, seL4_Word flags, seL4_Word k)
+{
+    create_helper_thread(env, t);
+    int error = api_tcb_set_space(get_helper_tcb(t), ep, env->cspace_root,
+                                  api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                  env->page_directory, seL4_NilData);
+    if (error) {
+        return error;
+    }
+    set_helper_affinity(env, t, 0);
+    return seL4_TCB_SetPACKeys(get_helper_tcb(t), flags, k + 1, k + 2, k + 3, k + 4, k + 5, k + 6, k + 7, k + 8,
+                               k + 9, k + 10);
+}
+
+#define PAC_ALL (seL4_ARM_PAC_EnIA | seL4_ARM_PAC_EnIB | seL4_ARM_PAC_EnDA | seL4_ARM_PAC_EnDB)
+
+/* The last step of a probe waiting after a report: a fault expected. */
+static void pac_expect_fault(seL4_CPtr ep, seL4_CPtr reply, seL4_Word other, seL4_Word m, const char *what)
+{
+    pac_reply(reply, PAC_CMD_FINAL, other, m);
+    seL4_Word label = pac_recv(ep, reply);
+    printf("FL4PAC0001: %s: message %lu\n", what, (unsigned long) label);
+    test_check(label == seL4_Fault_VMFault || label == seL4_Fault_UserException);
+}
+
+/* Threads with their own keys sign differently, cannot authenticate each
+ * other's pointers, and get their own keys back after others ran on the
+ * core; a thread with pointer authentication off signs nothing and runs
+ * PACGA with the zero key, as one that never had keys. */
+static int test_pac_keys(env_t env)
+{
+    pac_target = 0x7a76e7;
+    seL4_Word ptr = (seL4_Word) &pac_target;
+    seL4_Word unsigned_ptrs[PAC_SEARCH];
+    for (int i = 0; i < PAC_SEARCH; i++) {
+        unsigned_ptrs[i] = ptr;
+    }
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    /* Argument checks. */
+    test_error_eq(seL4_TCB_SetPACKeys(env->tcb, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), seL4_InvalidArgument);
+    int err = seL4_TCB_SetPACKeys(env->tcb, seL4_ARM_PAC_EnIA, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    test_error_eq(seL4_TCB_SetPACKeys(env->tcb, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), seL4_NoError);
+    if (err == seL4_IllegalOperation) {
+        printf("FL4PAC0001: no FEAT_PAuth\n");
+        return sel4test_get_result();
+    }
+    test_error_eq(err, seL4_NoError);
+
+    helper_thread_t d, a, b, c;
+    struct pac_report rd, ra, rb, rb2, rc, ra2;
+    seL4_Word sa[PAC_SEARCH], sb[PAC_SEARCH], sd[PAC_SEARCH];
+    seL4_Word ia_a[PAC_SEARCH], ia_b[PAC_SEARCH], ia_a2[PAC_SEARCH], ia_d[PAC_SEARCH];
+    vka_object_t reply_d, reply_b, reply_c;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply_d), 0);
+    test_error_eq(vka_alloc_reply(&env->vka, &reply_b), 0);
+    test_error_eq(vka_alloc_reply(&env->vka, &reply_c), 0);
+
+    /* D: never had keys (the zero APGA key): signs nothing. */
+    test_error_eq(pac_thread(env, &d, ep, 0, 0), seL4_NoError);
+    start_helper(env, &d, pac_probe, ep, 0, 0, 0);
+    test_eq(pac_recv(ep, reply_d.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&rd);
+    test_eq(rd.ok, (seL4_Word) 1);
+    test_eq(pac_first_differing(rd.ia, unsigned_ptrs, PAC_NMODS), -1);
+    test_eq(pac_first_differing(rd.da, unsigned_ptrs, PAC_NMODS), -1);
+    test_eq(pac_search(ep, reply_d.cptr, sd), (seL4_Word) PAC_LABEL);
+    test_eq(pac_first_differing(sd, unsigned_ptrs, PAC_SEARCH), -1);
+    test_eq(pac_search_ia(ep, reply_d.cptr, ia_d), (seL4_Word) PAC_LABEL);
+    test_eq(pac_first_differing(ia_d, unsigned_ptrs, PAC_SEARCH), -1);
+    cleanup_helper(env, &d);
+
+    /* A: its own keys, all four enables. */
+    test_error_eq(pac_thread(env, &a, ep, PAC_ALL, 0x1000), seL4_NoError);
+    start_helper(env, &a, pac_probe, ep, 0, 0, 0);
+    test_eq(pac_recv(ep, reply.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&ra);
+    printf("FL4PAC0001: A signs %#lx as %#lx (I) %#lx (D)\n", (unsigned long) ptr, (unsigned long) ra.ia[0],
+           (unsigned long) ra.da[0]);
+    test_eq(ra.ok, (seL4_Word) 1);
+    if (pac_first_differing(ra.ia, unsigned_ptrs, PAC_NMODS) < 0) {
+        printf("FL4PAC0001: A's instruction signatures with the fixed modifiers all came out unsigned\n");
+    }
+    test_check(ra.ga != rd.ga);
+    test_eq(pac_search(ep, reply.cptr, sa), (seL4_Word) PAC_LABEL);
+    int ka = pac_first_differing(sa, unsigned_ptrs, PAC_SEARCH);
+    if (ka < 0) {
+        printf("FL4PAC0001: A's data signatures all came out unsigned: not checked\n");
+    }
+    /* A's instruction (APIA) signatures: signed. */
+    test_eq(pac_search_ia(ep, reply.cptr, ia_a), (seL4_Word) PAC_LABEL);
+    if (pac_first_differing(ia_a, unsigned_ptrs, PAC_SEARCH) < 0) {
+        printf("FL4PAC0001: A's APIA signatures all came out unsigned: not checked\n");
+    }
+
+    /* A waits in its Call. B: other keys. */
+    test_error_eq(pac_thread(env, &b, ep, PAC_ALL, 0x2000), seL4_NoError);
+    start_helper(env, &b, pac_probe, ep, 0, 0, 0);
+    test_eq(pac_recv(ep, reply_b.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&rb);
+    test_eq(rb.ok, (seL4_Word) 1);
+    test_check(rb.ga != ra.ga);
+    test_eq(pac_search(ep, reply_b.cptr, sb), (seL4_Word) PAC_LABEL);
+    int kb = pac_first_differing(sb, sa, PAC_SEARCH);
+    if (kb < 0) {
+        printf("FL4PAC0001: B's data signatures all equal A's: the cross-key check is not covered\n");
+    }
+    /* B's instruction (APIA) signatures differ from A's: their APIA keys
+     * are their own. */
+    test_eq(pac_search_ia(ep, reply_b.cptr, ia_b), (seL4_Word) PAC_LABEL);
+    if (pac_first_differing(ia_b, ia_a, PAC_SEARCH) < 0) {
+        printf("FL4PAC0001: APIA cross-thread isolation uncovered\n");
+    }
+    /* B again: its own signatures. */
+    pac_reply(reply_b.cptr, PAC_CMD_REPORT, 0, 0);
+    test_eq(pac_recv(ep, reply_b.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&rb2);
+    test_eq(pac_first_differing(rb2.ia, rb.ia, PAC_NMODS), -1);
+    test_eq(pac_first_differing(rb2.da, rb.da, PAC_NMODS), -1);
+    /* A's data pointer, where B's signature differs from it, authenticated
+     * with B's keys: a fault. */
+    if (kb >= 0) {
+        pac_expect_fault(ep, reply_b.cptr, sa[kb], PAC_SEARCH_BASE + kb, "A's pointer with B's keys");
+    }
+    cleanup_helper(env, &b);
+
+    /* C: keys set, then pointer authentication off. */
+    test_error_eq(pac_thread(env, &c, ep, PAC_ALL, 0x3000), seL4_NoError);
+    test_error_eq(seL4_TCB_SetPACKeys(get_helper_tcb(&c), 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), seL4_NoError);
+    start_helper(env, &c, pac_probe, ep, 0, 0, 0);
+    test_eq(pac_recv(ep, reply_c.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&rc);
+    test_eq(rc.ok, (seL4_Word) 1);
+    test_eq(pac_first_differing(rc.ia, unsigned_ptrs, PAC_NMODS), -1);
+    test_eq(pac_first_differing(rc.da, unsigned_ptrs, PAC_NMODS), -1);
+    test_eq(rc.ga, rd.ga);
+    /* AUTDA does nothing there: A's signed pointer stays signed, and the
+     * load through it faults. */
+    if (ka >= 0) {
+        pac_reply(reply_c.cptr, PAC_CMD_FINAL, sa[ka], PAC_SEARCH_BASE + ka);
+        test_eq(pac_recv(ep, reply_c.cptr), (seL4_Word) seL4_Fault_VMFault);
+    }
+    cleanup_helper(env, &c);
+
+    /* A again, after B and C ran on its core: its own keys. */
+    pac_reply(reply.cptr, PAC_CMD_REPORT, 0, 0);
+    test_eq(pac_recv(ep, reply.cptr), (seL4_Word) PAC_LABEL);
+    pac_read(&ra2);
+    test_eq(ra2.ok, (seL4_Word) 1);
+    test_eq(pac_first_differing(ra2.ia, ra.ia, PAC_NMODS), -1);
+    test_eq(pac_first_differing(ra2.da, ra.da, PAC_NMODS), -1);
+    test_eq(ra2.ga, ra.ga);
+    /* And all of A's APIA signatures, after B's key ran on its core. */
+    test_eq(pac_search_ia(ep, reply.cptr, ia_a2), (seL4_Word) PAC_LABEL);
+    test_eq(pac_first_differing(ia_a2, ia_a, PAC_SEARCH), -1);
+    /* A tampered pointer: a fault (at the load, or at AUTDA with FPAC). */
+    pac_expect_fault(ep, reply.cptr, 0, pac_mods[0], "A's tampered pointer");
+    cleanup_helper(env, &a);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4PAC0001, "TCB_SetPACKeys: per-thread keys and enables, switched with the thread", test_pac_keys, true)
+
+/* ---- ArmHighVSpace: EL0 mappings in the TTBR1 half -------------------- */
+
+static int read_word(seL4_Word addr, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    return (int) *(volatile seL4_Word *) addr;
+}
+
+#define HIGH_LABEL 0x41
+
+/* In the window: store and load word 1, run the code at +0x800, read word
+ * 0 (the test's), report; after the reply load word 1 again. */
+static int high_probe(seL4_Word ep, seL4_Word base, seL4_Word c, seL4_Word d)
+{
+    volatile seL4_Word *p = (volatile seL4_Word *) base;
+    p[1] = 0x1234;
+    seL4_Word r = p[1];
+    seL4_Word code = ((seL4_Word(*)(void))(base + 0x800))();
+    seL4_SetMR(0, r);
+    seL4_SetMR(1, code);
+    seL4_SetMR(2, p[0]);
+    seL4_Call(ep, seL4_MessageInfo_new(HIGH_LABEL, 0, 0, 3));
+    return (int) p[1];
+}
+
+/* An ArmHighVSpace, retyped from an untyped of its size (vka does not
+ * know the type). */
+static int alloc_high_vspace(env_t env, vka_object_t *o)
+{
+    seL4_CPtr ut = vka_alloc_untyped_leaky(&env->vka, seL4_ARM_HighVSpaceBits);
+    if (!ut) {
+        return -1;
+    }
+    cspacepath_t path;
+    if (vka_cspace_alloc_path(&env->vka, &path)) {
+        return -1;
+    }
+    o->cptr = path.capPtr;
+    return seL4_Untyped_Retype(ut, seL4_ARM_HighVSpaceObject, seL4_ARM_HighVSpaceBits, path.root, path.dest,
+                               path.destDepth, path.offset, 1);
+}
+
+static int fault_thread(env_t env, helper_thread_t *t, seL4_CPtr ep)
+{
+    create_helper_thread(env, t);
+    set_helper_affinity(env, t, 0);
+    return api_tcb_set_space(get_helper_tcb(t), ep, env->cspace_root,
+                             api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                             env->page_directory, seL4_NilData);
+}
+
+/* A thread with an ArmHighVSpace reads, writes and runs its pages in the
+ * TTBR1 half at EL0. No other thread sees them: not one on another
+ * VSpace, not one on the same VSpace without the window (same TTBR0 ASID,
+ * right after it on its core), not the thread itself once a page is
+ * unmapped. */
+static int test_high_vspace(env_t env)
+{
+    const seL4_Word base = seL4_ARM_HighVSpaceBase;
+    vka_object_t hv, l2, l3;
+    test_error_eq(alloc_high_vspace(env, &hv), 0);
+    test_error_eq(seL4_ARM_ASIDPool_Assign(env->asid_pool, hv.cptr), seL4_NoError);
+    test_error_eq(vka_alloc_page_table(&env->vka, &l2), 0);
+    test_error_eq(vka_alloc_page_table(&env->vka, &l3), 0);
+    /* Only inside the window. */
+    test_error_eq(seL4_ARM_PageTable_Map(l2.cptr, hv.cptr, base - (1ull << 30), seL4_ARM_Default_VMAttributes),
+                  seL4_InvalidArgument);
+    test_error_eq(seL4_ARM_PageTable_Map(l2.cptr, hv.cptr, seL4_ARM_HighVSpaceTop, seL4_ARM_Default_VMAttributes),
+                  seL4_InvalidArgument);
+    test_error_eq(seL4_ARM_PageTable_Map(l2.cptr, hv.cptr, base, seL4_ARM_Default_VMAttributes), seL4_NoError);
+    test_error_eq(seL4_ARM_PageTable_Map(l3.cptr, hv.cptr, base, seL4_ARM_Default_VMAttributes), seL4_NoError);
+
+    /* One frame, also mapped here: word 0 for the thread to read, code at +0x800. */
+    seL4_CPtr fcap;
+    volatile seL4_Word *low = map_frame(env, &fcap);
+    test_assert(low != NULL);
+    low[0] = 0xfeed;
+    low[1] = 0;
+    const uint32_t code[] = {0xd2800ee0, 0xd65f03c0}; /* mov x0, #0x77; ret */
+    memcpy((void *)((uintptr_t) low + 0x800), code, sizeof(code));
+    cspacepath_t copy, src;
+    test_eq(vka_cspace_alloc_path(&env->vka, &copy), 0);
+    vka_cspace_make_path(&env->vka, fcap, &src);
+    test_eq(vka_cnode_copy(&copy, &src, seL4_AllRights), seL4_NoError);
+    test_error_eq(seL4_ARM_Page_Map(copy.capPtr, hv.cptr, base - 0x1000, seL4_AllRights, seL4_ARM_Default_VMAttributes),
+                  seL4_InvalidArgument);
+    test_error_eq(seL4_ARM_Page_Map(copy.capPtr, hv.cptr, seL4_ARM_HighVSpaceTop, seL4_AllRights,
+                                    seL4_ARM_Default_VMAttributes), seL4_InvalidArgument);
+    test_error_eq(seL4_ARM_Page_Map(copy.capPtr, hv.cptr, base, seL4_AllRights, seL4_ARM_Default_VMAttributes),
+                  seL4_NoError);
+    test_error_eq(seL4_ARM_Page_Unify_Instruction(copy.capPtr, 0x800, 0x808), seL4_NoError);
+    /* Not a window, or not assigned: refused. */
+    vka_object_t hv2;
+    test_error_eq(alloc_high_vspace(env, &hv2), 0);
+    test_error_eq(seL4_TCB_SetHighVSpace(env->tcb, fcap), seL4_InvalidCapability);
+    test_error_eq(seL4_TCB_SetHighVSpace(env->tcb, hv2.cptr), seL4_InvalidCapability);
+
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    seL4_Word badge;
+    /* K: the window. */
+    helper_thread_t k;
+    test_error_eq(fault_thread(env, &k, ep), seL4_NoError);
+    test_error_eq(seL4_TCB_SetHighVSpace(get_helper_tcb(&k), hv.cptr), seL4_NoError);
+    start_helper(env, &k, high_probe, ep, base, 0, 0);
+    seL4_MessageInfo_t tag = api_recv(ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) HIGH_LABEL);
+    test_eq(seL4_GetMR(0), (seL4_Word) 0x1234);
+    test_eq(seL4_GetMR(1), (seL4_Word) 0x77);
+    test_eq(seL4_GetMR(2), (seL4_Word) 0xfeed);
+    test_eq(low[1], (seL4_Word) 0x1234);
+
+    /* K2: the same VSpace (and ASID), no window, on K's core after it. */
+    helper_thread_t k2;
+    vka_object_t reply2;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply2), 0);
+    test_error_eq(fault_thread(env, &k2, ep), seL4_NoError);
+    start_helper(env, &k2, read_word, base, 0, 0, 0);
+    tag = api_recv(ep, &badge, reply2.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_VMFault);
+    test_eq(seL4_GetMR(seL4_VMFault_Addr), base);
+    cleanup_helper(env, &k2);
+
+    /* U: another VSpace, no window. */
+    helper_thread_t u;
+    create_helper_process(env, &u);
+    set_helper_affinity(env, &u, 0);
+    test_error_eq(api_tcb_set_space(get_helper_tcb(&u), ep, u.process.cspace.cptr,
+                                    api_make_guard_skip_word(seL4_WordBits - u.process.cspace_size),
+                                    u.process.pd.cptr, seL4_NilData), seL4_NoError);
+    vka_object_t reply3;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply3), 0);
+    start_helper(env, &u, read_word, base, 0, 0, 0);
+    tag = api_recv(ep, &badge, reply3.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_VMFault);
+    test_eq(seL4_GetMR(seL4_VMFault_Addr), base);
+    cleanup_helper(env, &u);
+
+    /* The page unmapped: K faults on it at once. */
+    test_error_eq(seL4_ARM_Page_Unmap(copy.capPtr), seL4_NoError);
+    api_reply(reply.cptr, seL4_MessageInfo_new(0, 0, 0, 0));
+    tag = api_recv(ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_VMFault);
+    test_eq(seL4_GetMR(seL4_VMFault_Addr), base + 8);
+    cleanup_helper(env, &k);
+    /* The window deleted with its last cap. */
+    test_error_eq(seL4_CNode_Delete(env->cspace_root, hv.cptr, seL4_WordBits), seL4_NoError);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4HVS0001, "ArmHighVSpace: EL0 pages in the TTBR1 half, seen only by its thread", test_high_vspace, true)
+
+/* Read the window's first word forever, counting the reads at `counter`
+ * (atomically: the test reads it from another core). */
+static int high_spin(seL4_Word base, seL4_Word counter, seL4_Word c, seL4_Word d)
+{
+    volatile seL4_Word *p = (volatile seL4_Word *) base;
+    seL4_Word *n = (seL4_Word *) counter;
+    for (;;) {
+        (void) p[0];
+        __atomic_fetch_add(n, 1, __ATOMIC_SEQ_CST);
+    }
+    return 0;
+}
+
+/* The count at `n` once it is past `from`, or after `ticks`. */
+static seL4_Word atomic_count_after(seL4_Word *n, seL4_Word from, uint64_t ticks)
+{
+    uint64_t end = rdtsc() + ticks;
+    seL4_Word v = __atomic_load_n(n, __ATOMIC_SEQ_CST);
+    while (v == from && rdtsc() < end) {
+        v = __atomic_load_n(n, __ATOMIC_SEQ_CST);
+    }
+    return v;
+}
+
+/* One run of FL4HVS0002: a thread on core 1 reads its window in a loop
+ * while this core (0) takes the window from it, by unmapping its last page
+ * table (`retire_pool` 0) or by deleting the window's ASID pool. Core 1
+ * leaves the window before the invocation returns: its thread faults on its
+ * next read of the window, having counted at most the one read it had
+ * already made. */
+static int high_retire_once(env_t env, int retire_pool)
+{
+    const seL4_Word base = seL4_ARM_HighVSpaceBase;
+    seL4_CPtr pool = env->asid_pool;
+    if (retire_pool) {
+        seL4_CPtr ut = vka_alloc_untyped_leaky(&env->vka, seL4_ASIDPoolBits);
+        test_assert(ut);
+        cspacepath_t path;
+        test_eq(vka_cspace_alloc_path(&env->vka, &path), 0);
+        int e = ASID_MAKE_POOL(env->asid_ctrl, ut, env->cspace_root, path.capPtr, path.capDepth);
+        if (e == seL4_DeleteFirst) {
+            printf("FL4HVS0002: no ASID pool left, pool deletion not run\n");
+            return sel4test_get_result();
+        }
+        test_error_eq(e, seL4_NoError);
+        pool = path.capPtr;
+    }
+    vka_object_t hv, l2, l3;
+    test_error_eq(alloc_high_vspace(env, &hv), 0);
+    test_error_eq(seL4_ARM_ASIDPool_Assign(pool, hv.cptr), seL4_NoError);
+    test_error_eq(vka_alloc_page_table(&env->vka, &l2), 0);
+    test_error_eq(vka_alloc_page_table(&env->vka, &l3), 0);
+    test_error_eq(seL4_ARM_PageTable_Map(l2.cptr, hv.cptr, base, seL4_ARM_Default_VMAttributes), seL4_NoError);
+    test_error_eq(seL4_ARM_PageTable_Map(l3.cptr, hv.cptr, base, seL4_ARM_Default_VMAttributes), seL4_NoError);
+    seL4_CPtr hcap = vka_alloc_frame_leaky(&env->vka, seL4_PageBits);
+    test_assert(hcap);
+    test_error_eq(seL4_ARM_Page_Map(hcap, hv.cptr, base, seL4_AllRights, seL4_ARM_Default_VMAttributes), seL4_NoError);
+    seL4_CPtr ccap;
+    seL4_Word *counter = map_frame(env, &ccap);
+    test_assert(counter != NULL);
+    __atomic_store_n(counter, 0, __ATOMIC_SEQ_CST);
+
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+    helper_thread_t k;
+    create_helper_thread(env, &k);
+    test_error_eq(api_tcb_set_space(get_helper_tcb(&k), ep, env->cspace_root,
+                                    api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                    env->page_directory, seL4_NilData), seL4_NoError);
+    test_error_eq(seL4_TCB_SetHighVSpace(get_helper_tcb(&k), hv.cptr), seL4_NoError);
+    set_helper_affinity(env, &k, 1);
+    start_helper(env, &k, high_spin, base, (seL4_Word) counter, 0, 0);
+    /* Core 1 reads the window. */
+    test_assert(atomic_count_after(counter, 0, 50 * SETTLE_TICKS) != 0);
+
+    if (retire_pool) {
+        test_error_eq(seL4_CNode_Delete(env->cspace_root, pool, seL4_WordBits), seL4_NoError);
+    } else {
+        test_error_eq(seL4_ARM_PageTable_Unmap(l3.cptr), seL4_NoError);
+    }
+    seL4_Word at_retire = __atomic_load_n(counter, __ATOMIC_SEQ_CST);
+    /* Its next read of the window faults (were it to run on, no fault
+     * would come and the test would time out). */
+    seL4_Word badge;
+    seL4_MessageInfo_t tag = api_recv(ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_VMFault);
+    test_eq(seL4_GetMR(seL4_VMFault_Addr), base);
+    /* At most the one read already made when the window went is counted
+     * after it; then nothing. */
+    seL4_Word at_fault = __atomic_load_n(counter, __ATOMIC_SEQ_CST);
+    test_leq(at_fault, at_retire + 1);
+    test_eq(atomic_count_after(counter, at_fault, 5 * SETTLE_TICKS), at_fault);
+    printf("FL4HVS0002: %s retired the window on core 1 after %lu reads (%lu at the fault)\n",
+           retire_pool ? "pool deletion" : "page table unmap", (unsigned long) at_retire, (unsigned long) at_fault);
+    cleanup_helper(env, &k);
+    return sel4test_get_result();
+}
+
+static int test_high_vspace_retired_on_another_core(env_t env)
+{
+    if (env->cores < 2) {
+        return sel4test_get_result();
+    }
+    high_retire_once(env, 0);
+    high_retire_once(env, 1);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4HVS0002, "ArmHighVSpace: a window taken away on one core is left at once by another core running it",
+            test_high_vspace_retired_on_another_core, true)
+
+/* ---- FL4HVS0003: TLB isolation as windows and ASIDs alternate ---------- */
+
+#define HVS_PING 0x77
+#define HVS_MAGIC 0x600df00dull
+#define HVS_ROUNDS 200
+
+/* `rounds` times: read the window's first word and send it in a Call, so
+ * the test's own thread (its own ASID, the kernel's TTBR1) runs in the
+ * kernel between two reads. */
+static int high_ping(seL4_Word ep, seL4_Word base, seL4_Word rounds, seL4_Word d)
+{
+    volatile seL4_Word *p = (volatile seL4_Word *) base;
+    for (seL4_Word i = 0; i < rounds; i++) {
+        seL4_SetMR(0, p[0]);
+        seL4_Call(ep, seL4_MessageInfo_new(HVS_PING, 0, 0, 1));
+    }
+    return 0;
+}
+
+#define HVS_BAD_VALUE 0x78
+#define HVS_NO_FAULT 0x79
+
+/* One link of FL4HVS0003's chain: wait for the previous link on `in` (0:
+ * none, the first), read the window unless `read` is 0 (a link without the
+ * window), hand over to the next link on `out` with a Send, then park on
+ * `park` for good. A link that reads a wrong value sends HVS_BAD_VALUE on
+ * `report`; the last link (no `out`) sends HVS_NO_FAULT there if its read
+ * does not fault. No other thread runs between two links on the core: the
+ * test's own thread waits on `report`. */
+/* The CPtrs come in pairs, 32 bits each: `io` in and out, `pr` park and
+ * report, all in the link's own CSpace. */
+static int hvs_chain_link(seL4_Word io, seL4_Word pr, seL4_Word base, seL4_Word read)
+{
+    seL4_CPtr in = io & 0xffffffff, out = io >> 32;
+    seL4_CPtr park = pr & 0xffffffff, report = pr >> 32;
+    seL4_Word badge;
+    if (in) {
+        seL4_Wait(in, &badge);
+    }
+    if (read) {
+        seL4_Word v = *(volatile seL4_Word *) base;
+        if (!out) {
+            seL4_SetMR(0, v);
+            seL4_Send(report, seL4_MessageInfo_new(HVS_NO_FAULT, 0, 0, 1));
+        } else if (v != HVS_MAGIC) {
+            seL4_SetMR(0, v);
+            seL4_Send(report, seL4_MessageInfo_new(HVS_BAD_VALUE, 0, 0, 1));
+        }
+    }
+    if (out) {
+        seL4_Send(out, seL4_MessageInfo_new(0, 0, 0, 0));
+    }
+    seL4_Wait(park, &badge);
+    return 0;
+}
+
+/* A window assigned from the test's pool with HVS_MAGIC in its first word
+ * at seL4_ARM_HighVSpaceBase. */
+static int make_window(env_t env, vka_object_t *hv)
+{
+    const seL4_Word base = seL4_ARM_HighVSpaceBase;
+    vka_object_t l2, l3;
+    int e = alloc_high_vspace(env, hv);
+    e = e ? e : seL4_ARM_ASIDPool_Assign(env->asid_pool, hv->cptr);
+    e = e ? e : vka_alloc_page_table(&env->vka, &l2);
+    e = e ? e : vka_alloc_page_table(&env->vka, &l3);
+    e = e ? e : seL4_ARM_PageTable_Map(l2.cptr, hv->cptr, base, seL4_ARM_Default_VMAttributes);
+    e = e ? e : seL4_ARM_PageTable_Map(l3.cptr, hv->cptr, base, seL4_ARM_Default_VMAttributes);
+    if (e) {
+        return e;
+    }
+    seL4_CPtr fcap;
+    volatile seL4_Word *low = map_frame(env, &fcap);
+    if (low == NULL) {
+        return -1;
+    }
+    low[0] = HVS_MAGIC;
+    cspacepath_t copy, src;
+    if (vka_cspace_alloc_path(&env->vka, &copy)) {
+        return -1;
+    }
+    vka_cspace_make_path(&env->vka, fcap, &src);
+    e = vka_cnode_copy(&copy, &src, seL4_AllRights);
+    return e ? e : seL4_ARM_Page_Map(copy.capPtr, hv->cptr, base, seL4_AllRights, seL4_ARM_Default_VMAttributes);
+}
+
+/* Answer `rounds` pings on `ep`, each carrying HVS_MAGIC; false at the
+ * first other message (a VM fault: the window was not there). */
+static int answer_pings(seL4_CPtr ep, seL4_CPtr reply, int rounds, const char *what)
+{
+    for (int i = 0; i < rounds; i++) {
+        seL4_Word badge;
+        seL4_MessageInfo_t tag = api_recv(ep, &badge, reply);
+        seL4_Word label = seL4_MessageInfo_get_label(tag);
+        if (label != HVS_PING || seL4_GetMR(0) != HVS_MAGIC) {
+            printf("FL4HVS0003: %s, round %d: message %lu, %#lx %#lx\n", what, i, (unsigned long) label,
+                   (unsigned long) seL4_GetMR(0), (unsigned long) seL4_GetMR(1));
+            return 0;
+        }
+        api_reply(reply, seL4_MessageInfo_new(0, 0, 0, 0));
+    }
+    return 1;
+}
+
+/* A thread of a new process (its own VSpace and ASID) on core 0, faults
+ * to `ep`, with window `hv` (0: none), running `fn`(ep, base, rounds). */
+static int window_process(env_t env, helper_thread_t *t, seL4_CPtr ep, seL4_CPtr hv, helper_fn_t fn, seL4_Word rounds)
+{
+    create_helper_process(env, t);
+    set_helper_affinity(env, t, 0);
+    int e = api_tcb_set_space(get_helper_tcb(t), ep, t->process.cspace.cptr,
+                              api_make_guard_skip_word(seL4_WordBits - t->process.cspace_size),
+                              t->process.pd.cptr, seL4_NilData);
+    if (!e && hv) {
+        e = seL4_TCB_SetHighVSpace(get_helper_tcb(t), hv);
+    }
+    if (e) {
+        return e;
+    }
+    seL4_CPtr ep_p = sel4utils_copy_cap_to_process(&t->process, &env->vka, ep);
+    start_helper(env, t, fn, ep_p, seL4_ARM_HighVSpaceBase, rounds, 0);
+    return 0;
+}
+
+/* The same in the test's own VSpace (and ASID). */
+static int window_thread(env_t env, helper_thread_t *t, seL4_CPtr ep, seL4_CPtr hv, helper_fn_t fn, seL4_Word rounds)
+{
+    int e = fault_thread(env, t, ep);
+    if (!e && hv) {
+        e = seL4_TCB_SetHighVSpace(get_helper_tcb(t), hv);
+    }
+    if (e) {
+        return e;
+    }
+    start_helper(env, t, fn, ep, seL4_ARM_HighVSpaceBase, rounds, 0);
+    return 0;
+}
+
+/* `ep` minted with `badge`. */
+static seL4_CPtr mint_badged(env_t env, seL4_CPtr ep, seL4_Word badge)
+{
+    cspacepath_t src, dest;
+    vka_cspace_make_path(&env->vka, ep, &src);
+    if (vka_cspace_alloc_path(&env->vka, &dest)) {
+        return 0;
+    }
+    return vka_cnode_mint(&dest, &src, seL4_AllRights, badge) ? 0 : dest.capPtr;
+}
+
+/* One run of C: four threads on core 0, chained so that each hands the
+ * core straight to the next with no other thread between them:
+ * (a1, W) -> (a2, W) -> (a3, kernel) -> (a1, kernel). The last, of the
+ * first's ASID but without the window, must fault on the window. Returns
+ * SUCCESS or FAILURE (and records why). */
+static int hvs_chain(env_t env, seL4_CPtr hv)
+{
+    const seL4_Word base = seL4_ARM_HighVSpaceBase;
+    /* a1: the test's VSpace; a2, a3: two new processes. */
+    const int in_process[4] = {0, 1, 1, 0};
+    const int window[4] = {1, 1, 0, 0};
+    helper_thread_t t[4];
+    int made = 0;
+    int result = FAILURE;
+    seL4_CPtr report = vka_alloc_endpoint_leaky(&env->vka);
+    seL4_CPtr park = vka_alloc_notification_leaky(&env->vka);
+    seL4_CPtr link_ep[3];
+    seL4_CPtr badged[4];
+    seL4_Word io[4], pr[4];
+    vka_object_t reply;
+    int ok = report != 0 && park != 0 && vka_alloc_reply(&env->vka, &reply) == 0;
+    for (int i = 0; ok && i < 3; i++) {
+        link_ep[i] = vka_alloc_endpoint_leaky(&env->vka);
+        ok = link_ep[i] != 0;
+    }
+    /* Faults and reports of link i arrive on `report` with badge i + 1. */
+    for (int i = 0; ok && i < 4; i++) {
+        badged[i] = mint_badged(env, report, i + 1);
+        ok = badged[i] != 0;
+    }
+    if (!ok) {
+        printf("FL4HVS0003: C: could not allocate the chain's objects\n");
+        goto out;
+    }
+    for (int i = 0; i < 4; i++) {
+        int e;
+        if (in_process[i]) {
+            create_helper_process(env, &t[i]);
+            made = i + 1;
+            e = api_tcb_set_space(get_helper_tcb(&t[i]), badged[i], t[i].process.cspace.cptr,
+                                  api_make_guard_skip_word(seL4_WordBits - t[i].process.cspace_size),
+                                  t[i].process.pd.cptr, seL4_NilData);
+        } else {
+            create_helper_thread(env, &t[i]);
+            made = i + 1;
+            e = api_tcb_set_space(get_helper_tcb(&t[i]), badged[i], env->cspace_root,
+                                  api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                  env->page_directory, seL4_NilData);
+        }
+        set_helper_affinity(env, &t[i], 0);
+        if (!e && window[i]) {
+            e = seL4_TCB_SetHighVSpace(get_helper_tcb(&t[i]), hv);
+        }
+        if (e) {
+            printf("FL4HVS0003: C: link %d: setup error %d\n", i, e);
+            goto out;
+        }
+    }
+    /* The links' caps, in each one's own CSpace: every one there and in
+     * 32 bits, but the first link's `in` and the last's `out` (none). */
+    for (int i = 0; i < 4; i++) {
+        seL4_CPtr in = i > 0 ? link_ep[i - 1] : 0;
+        seL4_CPtr out = i < 3 ? link_ep[i] : 0;
+        seL4_CPtr pk = park, rp = badged[i];
+        if (in_process[i]) {
+            in = in ? sel4utils_copy_cap_to_process(&t[i].process, &env->vka, in) : 0;
+            out = out ? sel4utils_copy_cap_to_process(&t[i].process, &env->vka, out) : 0;
+            pk = sel4utils_copy_cap_to_process(&t[i].process, &env->vka, park);
+            rp = sel4utils_copy_cap_to_process(&t[i].process, &env->vka, badged[i]);
+        }
+        int present = (i == 0 || in != 0) && (i == 3 || out != 0) && pk != 0 && rp != 0;
+        int fits = in < (1ull << 32) && out < (1ull << 32) && pk < (1ull << 32) && rp < (1ull << 32);
+        if (!present || !fits) {
+            printf("FL4HVS0003: C: link %d: CPtrs in %#lx out %#lx park %#lx report %#lx\n", i, (unsigned long) in,
+                   (unsigned long) out, (unsigned long) pk, (unsigned long) rp);
+            goto out;
+        }
+        io[i] = in | ((seL4_Word) out << 32);
+        pr[i] = pk | ((seL4_Word) rp << 32);
+    }
+    /* Last link first: each waits for the one before it. Links 0, 1 (the
+     * window's) and 3 (the probe) read the window; 2 does not. */
+    for (int i = 3; i >= 0; i--) {
+        start_helper(env, &t[i], hvs_chain_link, io[i], pr[i], base, i != 2);
+    }
+    seL4_Word badge;
+    seL4_MessageInfo_t tag = api_recv(report, &badge, reply.cptr);
+    seL4_Word label = seL4_MessageInfo_get_label(tag);
+    if (badge == 4 && label == seL4_Fault_VMFault && seL4_GetMR(seL4_VMFault_Addr) == base) {
+        result = SUCCESS;
+    } else {
+        printf("FL4HVS0003: C: link %lu, message %lu, %#lx\n", (unsigned long) badge - 1, (unsigned long) label,
+               (unsigned long) seL4_GetMR(0));
+    }
+out:
+    for (int i = 0; i < made; i++) {
+        cleanup_helper(env, &t[i]);
+    }
+    test_eq(result, SUCCESS);
+    return result;
+}
+
+/* On one core, a window's translations never reach a thread without it,
+ * and the window always works for its threads:
+ * A: a thread of another ASID with the window alternates with the test's
+ *    thread (its own ASID, the kernel's TTBR1, kernel entries in between);
+ * B: the same with a window thread of the test's own ASID;
+ * C: (a1, W) -> (a2, W) -> (a3, kernel) -> (a1, kernel) with nothing else
+ *    between them (`hvs_chain`): the last faults on the window. */
+static int test_high_vspace_tlb_isolation(env_t env)
+{
+    vka_object_t hv;
+    test_error_eq(make_window(env, &hv), 0);
+    seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t reply;
+    test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+
+    /* A: another ASID with the window <-> this thread. */
+    helper_thread_t a;
+    test_error_eq(window_process(env, &a, ep, hv.cptr, high_ping, HVS_ROUNDS), 0);
+    if (!answer_pings(ep, reply.cptr, HVS_ROUNDS, "A (other ASID, window)")) {
+        test_check(0);
+        cleanup_helper(env, &a);
+        return sel4test_get_result();
+    }
+    test_eq(wait_for_helper(&a), 0);
+    cleanup_helper(env, &a);
+
+    /* B: this thread's ASID with the window <-> this thread. */
+    helper_thread_t b;
+    test_error_eq(window_thread(env, &b, ep, hv.cptr, high_ping, HVS_ROUNDS), 0);
+    if (!answer_pings(ep, reply.cptr, HVS_ROUNDS, "B (same ASID, window)")) {
+        test_check(0);
+        cleanup_helper(env, &b);
+        return sel4test_get_result();
+    }
+    test_eq(wait_for_helper(&b), 0);
+    cleanup_helper(env, &b);
+
+    /* C, three times. */
+    for (int round = 0; round < 3; round++) {
+        if (hvs_chain(env, hv.cptr) != SUCCESS) {
+            return sel4test_get_result();
+        }
+    }
+    printf("FL4HVS0003: A and B %d rounds each, C 3 times: isolated\n", HVS_ROUNDS);
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4HVS0003, "ArmHighVSpace: TLB isolation as windows and ASIDs alternate on a core", test_high_vspace_tlb_isolation, true)
 #endif

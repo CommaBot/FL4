@@ -113,7 +113,8 @@ struct LoadedImage {
     file_path: *mut c_void,
     reserved: *mut c_void,
     options_size: u32,
-    options: *const u16,
+    // VOID *: bytes, with no alignment promised.
+    options: *const u8,
 }
 
 #[repr(C)]
@@ -186,6 +187,10 @@ macro_rules! say {
 #[cfg(target_arch = "aarch64")]
 mod efi_mmap;
 #[cfg(target_arch = "x86_64")]
+mod acpi;
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+mod boot_files;
+#[cfg(target_arch = "x86_64")]
 mod ccel;
 #[cfg(target_arch = "x86_64")]
 mod gop;
@@ -199,11 +204,21 @@ mod x86_mmap;
 
 fn fail(msg: &str) -> ! {
     say!("fl4-efi: {}", msg);
+    halt()
+}
+
+/// Stop for good: interrupts off, spinning, and in a TD after telling the
+/// VMM (x86.rs `halt_forever`). For the loader's panic handler too.
+#[cfg(target_arch = "x86_64")]
+pub fn halt() -> ! {
+    x86::halt_forever()
+}
+
+/// Stop for good.
+#[cfg(target_arch = "aarch64")]
+pub fn halt() -> ! {
     loop {
-        #[cfg(target_arch = "aarch64")]
         unsafe { asm!("wfi") };
-        #[cfg(target_arch = "x86_64")]
-        unsafe { asm!("hlt") };
     }
 }
 
@@ -282,42 +297,35 @@ fn clean(start: u64, len: u64) {
     unsafe { asm!("dsb sy") };
 }
 
-/// The load options as ASCII words (UCS-2 truncated).
-struct Words {
-    buf: [u8; 1024],
-    n: usize,
-}
+use boot_files::Words;
 
-impl Words {
-    fn iter(&self) -> impl Iterator<Item = &[u8]> {
-        self.buf[..self.n].split(|&c| c == b' ' || c == b'\t').filter(|w| !w.is_empty())
-    }
-}
-
+/// The load options, whole (`boot_files::load_options`, from their bytes:
+/// UEFI promises them no alignment): options that cannot be taken whole end
+/// the boot before any file is opened or measured, and so do options of a
+/// nonzero size at no address.
 fn options(li: &LoadedImage) -> Words {
-    let mut w = Words { buf: [0; 1024], n: 0 };
+    if li.options_size == 0 {
+        return Words::new();
+    }
     if li.options.is_null() {
-        return w;
+        fail("invalid load options");
     }
-    let units = (li.options_size / 2) as usize;
-    for i in 0..units.min(1024) {
-        let c = unsafe { *li.options.add(i) };
-        if c == 0 {
-            break;
-        }
-        w.buf[w.n] = if c < 0x80 { c as u8 } else { b'?' };
-        w.n += 1;
-    }
-    w
+    let bytes = unsafe { core::slice::from_raw_parts(li.options, li.options_size as usize) };
+    boot_files::load_options(bytes).unwrap_or_else(|e| fail(e))
 }
 
 /// Read the file `path` (ASCII, `\` or `/` separated) from the volume
 /// this loader came from, into fresh pages; returns (address, size).
+#[cfg(target_arch = "aarch64")]
 fn read_file(li: &LoadedImage, path: &[u8]) -> (u64, u64) {
     try_read_file(li, path).unwrap_or_else(|msg| fail(msg))
 }
 
 fn try_read_file(li: &LoadedImage, path: &[u8]) -> Result<(u64, u64), &'static str> {
+    // The whole path or none: the name below holds `MAX_BOOT_PATH` units.
+    if !boot_files::valid_boot_path(path) {
+        return Err("invalid file path");
+    }
     let mut fs: *mut c_void = core::ptr::null_mut();
     if (bs().handle_protocol)(li.device, &SIMPLE_FS, &mut fs) != SUCCESS {
         return Err("no file system on the boot device");
@@ -327,8 +335,8 @@ fn try_read_file(li: &LoadedImage, path: &[u8]) -> Result<(u64, u64), &'static s
     if unsafe { ((*fs).open_volume)(fs, &mut root) } != SUCCESS {
         return Err("cannot open the boot volume");
     }
-    let mut name = [0u16; 256];
-    for (i, &c) in path.iter().take(255).enumerate() {
+    let mut name = [0u16; boot_files::MAX_BOOT_PATH + 1];
+    for (i, &c) in path.iter().enumerate() {
         name[i] = if c == b'/' { b'\\' as u16 } else { c as u16 };
     }
     let mut f: *mut File = core::ptr::null_mut();
@@ -518,6 +526,7 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
                 fail("too many boot modules");
             }
             let (pa, size) = read_file(li, p);
+            tcg2::measure_file(b"module", p, pa, size).unwrap_or_else(|e| fail(e));
             let mut name = [0u8; fl4_bootinfo::NAME_LEN];
             let base = p.rsplit(|&c| c == b'\\' || c == b'/').next().unwrap_or(p);
             for (i, &c) in base.iter().take(fl4_bootinfo::NAME_LEN - 1).enumerate() {
@@ -525,18 +534,27 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
             }
             bi.modules[n] = Module { paddr: pa, size, name };
             bi.n_modules += 1;
-        } else if cl + w.len() + 1 < fl4_bootinfo::CMDLINE_LEN {
+        } else {
+            // A word that does not fit fails the boot: dropped, an option
+            // such as `warm_its` would silently not apply.
+            let Some(at) = fl4_bootinfo::cmdline_room(cl, w.len()) else { fail("kernel command line too long") };
             if cl > 0 {
                 bi.cmdline[cl] = b' ';
-                cl += 1;
             }
+            cl = at;
             bi.cmdline[cl..cl + w.len()].copy_from_slice(w);
             cl += w.len();
         }
     }
+    // What the options added to the kernel command line extends TPM PCR 9
+    // (as the files from the options do) when there is a TPM.
+    if cl > 0 {
+        tcg2::measure_file(b"cmdline", b"", bi.cmdline.as_ptr() as u64, cl as u64).unwrap_or_else(|e| fail(e));
+    }
     let root_file: &[u8] = match root_path {
         Some(p) => {
             let (pa, size) = read_file(li, p);
+            tcg2::measure_file(b"rootserver", p, pa, size).unwrap_or_else(|e| fail(e));
             unsafe { core::slice::from_raw_parts(pa as *const u8, size as usize) }
         }
         None => embedded::ROOTSERVER,

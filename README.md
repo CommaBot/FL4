@@ -151,9 +151,16 @@ configuration.
 
 ## AArch64
 
-FL4 runs on AArch64 machines with UEFI firmware, at EL1 (it leaves EL2
-when firmware starts it there) and without virtualization support. One
-image serves every platform: `fl4.efi` is a UEFI application with the
+FL4 runs on AArch64 machines with UEFI firmware. Where it runs is decided
+at boot (`fl4-arch-aarch64` `cpu::ElMode`): started at EL1, or at EL2 on a
+processor with a physical address size below 40 bits, it runs at EL1
+without virtualization support; started at EL2 with `FEAT_VHE` it stays at
+EL2 (VHE); started at EL2 without VHE it runs at EL1 and keeps an
+identity-mapped EL2 switch stub (nVHE) for guest entry and exit, Stage-2
+TLB maintenance and the GICv3 `ICH_*` registers. In the two EL2 modes user
+space can retype `ArmVcpu` and `ArmStage2VSpace` objects and run guests;
+at EL1 retyping them returns `seL4_InvalidArgument`. One image serves
+every platform: `fl4.efi` is a UEFI application with the
 kernel built in. Its load options name the root task and further boot
 modules, and the remaining words are the kernel command line:
 
@@ -211,6 +218,17 @@ as 0 and cannot be written: the kernel sets the last two from per-core
 state on every entry.
 The other backend's field operations return `seL4_IllegalOperation`.
 VCPU objects occupy 32 KiB (`seL4_VCPUBits = 15`).
+
+Use `seL4_VMEnterFull` when the VMM needs all 30 guest-state words on a
+notification, including one already pending at entry. This wrapper puts
+the requested length (30) in the syscall's message-info register. The
+ordinary `seL4_VMEnter` wrapper passes zero and keeps the upstream
+three-word notification reply. Both calls work on the same kernel.
+In the full reply MR2 holds an unconsumed entry event. MR27 and MR28
+report interrupted delivery and its error code. On AMD, stage an entry
+exception's error code with `WriteVMCB` before passing its 32-bit
+descriptor in MR2. A signal completes a descheduled full-state caller
+immediately if there is no hardware exit pending.
 
 Each core retains a VMCS and uses `VMRESUME` after its first successful
 launch. A field cache follows both software writes and guest changes read

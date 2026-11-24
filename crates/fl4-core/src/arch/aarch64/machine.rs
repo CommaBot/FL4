@@ -1,3 +1,13 @@
+/// `Arch::msi_map`'s answers.
+pub mod msi {
+    pub const OK: u64 = 0;
+    /// No ITS, or no table left for another device.
+    pub const NO_ITS: u64 = 1;
+    pub const BAD_DEVICE: u64 = 2;
+    /// Out of range, or mapped already.
+    pub const BAD_EVENT: u64 = 3;
+}
+
 macro_rules! arch_machine_methods {
     () => {
         /// AArch64 cache maintenance (seL4 `doFlush`): operation `op`
@@ -12,6 +22,10 @@ macro_rules! arch_machine_methods {
         /// AArch64: configure interrupt `irq` as edge (true) or level triggered
         /// and, for an SPI, route it to `core`.
         fn configure_irq(&mut self, irq: u64, edge: bool, core: u64);
+        /// AArch64: map event `event` of device `device` to LPI `irq` on
+        /// `core` through the ITS (`msi::OK`), or refuse and change nothing
+        /// (another `msi` code). `irq_free` unmaps it.
+        fn msi_map(&mut self, _irq: u64, _device: u64, _event: u64, _core: u64) -> u64 { msi::NO_ITS }
         /// AArch64 Stage-2 IPA width (40, 44, or 48).
         fn s2_ipa_bits(&self) -> u64 { 40 }
         /// AArch64: install Stage-2 root (kernel VA, 0 = empty root) & ASID into VTTBR_EL2.
@@ -32,5 +46,26 @@ macro_rules! arch_machine_methods {
         fn vcpu_gic_version(&self) -> u64 { 3 }
         /// AArch64: boot core `MIDR_EL1` for `VPIDR_EL2` default.
         fn vcpu_midr(&self) -> u64 { 0 }
+        /// AArch64: the processor has FEAT_PAuth (`TCBSetPACKeys`).
+        fn has_pauth(&self) -> bool { false }
+        /// AArch64: a PAC key generation no thread's keys had before
+        /// (never 0), so the backend reloads keys whose generation changed.
+        fn next_pac_epoch(&mut self) -> u64 { 1 }
+        /// AArch64: entry `index` of the kernel's own TTBR1 tables, level 0
+        /// (`level` 0) or the level-1 table level-0 entry 511 points to
+        /// (`level` 1); 0 where there are none (host tests). A new
+        /// `ArmHighVSpace` starts as a copy of them.
+        fn kernel_ttbr1_entry(&self, _level: u64, _index: u64) -> u64 { 0 }
+        /// AArch64: run with TTBR1 on the `ArmHighVSpace` at `root` (kernel
+        /// virtual; 0 = the kernel's own TTBR1) beside the TTBR0 VSpace of
+        /// ASID `ttbr0_asid`.
+        fn set_high_vspace(&mut self, _root: u64, _ttbr0_asid: u64) {}
+        /// AArch64: drop every core's translations of `vaddr` in the high
+        /// window, for every ASID.
+        fn invalidate_high_page(&mut self, _vaddr: u64) {}
+        /// AArch64: no core may go on using the `ArmHighVSpace` at `root`
+        /// (deleted, or a table of it unmapped): those running it leave it,
+        /// and every translation it gave is dropped.
+        fn invalidate_high_vspace(&mut self, _root: u64) {}
     };
 }

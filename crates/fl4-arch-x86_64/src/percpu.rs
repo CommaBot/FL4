@@ -34,11 +34,18 @@ pub struct PerCpu {
     pub dr_loaded: Cell<bool>,
     /// A deferred user #DB turned breakpoints off (DR7) during this entry.
     pub dr_disarmed: Cell<bool>,
+    /// The current thread may hold an undelivered user trap that `exit`
+    /// would otherwise not look for (fl4-kernel user_trap.rs).
+    pub check_user_trap: Cell<bool>,
     /// The user address space this core runs (CR3 value). With
     /// the skim window the kernel runs on its own tables (entry.S loads
     /// them on every entry) and `exit_cr3` is what the exit to user code
     /// loads.
     pub cr3: Cell<u64>,
+    /// The address space (CR3 and PCID tag, as `cr3`) whose VCPU last
+    /// ran a guest here without the IBPB of its exit, which waits for
+    /// the switch to another one (`spec::vm_ibpb_deferred`); 0 for none.
+    pub guest_bp: Cell<u64>,
     pub exit_cr3: Cell<u64>,
     /// The ASIDs this core's PCIDs hold (tlb.rs).
     pub pcids: [Cell<crate::tlb::Slot>; crate::tlb::SLOTS],
@@ -64,7 +71,9 @@ impl PerCpu {
             gs_base: Cell::new(0),
             dr_loaded: Cell::new(false),
             dr_disarmed: Cell::new(false),
+            check_user_trap: Cell::new(false),
             cr3: Cell::new(0),
+            guest_bp: Cell::new(0),
             exit_cr3: Cell::new(0),
             pcids: [const { Cell::new(crate::tlb::Slot::EMPTY) }; crate::tlb::SLOTS],
             gate_held: Cell::new(false),

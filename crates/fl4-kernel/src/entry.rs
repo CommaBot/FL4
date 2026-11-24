@@ -1,6 +1,7 @@
 //! Kernel entry and exit: save the user registers into the current TCB,
 //! dispatch to fl4-core, and restore whichever thread is current after.
 use crate::kprintln;
+use crate::user_trap;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
 use fl4_arch_x86_64::{apic, cpu, cvm, fpu, percpu, tdx, timer, tlb};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
@@ -30,11 +31,18 @@ extern "C" {
     fn __x86_indirect_thunk_r11();
     fn fl4_retpoline_r11();
     fn fl4_restore_user(regs: u64, stack_top: u64, cr3: u64) -> !;
-    fn fl4_idle(stack_top: u64) -> !;
+    fn fl4_idle(stack_top: u64, poll_end: u64) -> !;
     static fl4_idle_loop: u8;
     static fl4_idle_end: u8;
     static fl4_vectors: u8;
     static fl4_common_entry: u8;
+    // The kernel runs on the user's RSP in [fl4_syscall_entry,
+    // fl4_syscall_on_stack) and [fl4_sysret_user_rsp, fl4_sysret_end)
+    // (entry.S, cvm_entry.rs).
+    fn fl4_syscall_entry();
+    static fl4_syscall_on_stack: u8;
+    static fl4_sysret_user_rsp: u8;
+    static fl4_sysret_end: u8;
 }
 
 /// On the boot core, while the APs are parked and native entries still
@@ -173,13 +181,17 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
 /// An IST always lands at a fixed stack top. If it overwrote a live
 /// frame, the fresh frame is usable for termination only. An IRQ taken
 /// with IF clear is also invalid, including after a switch to another IST.
+/// RSP is no kernel frame where the kernel runs on the user's RSP: a #DB
+/// at the SYSCALL entry's first instruction, or an NMI or #MC there or on
+/// the SYSRET path, may find it in an IST (cvm_entry.rs).
 #[no_mangle]
 extern "C" fn fl4_cvm_kernel_entry_stack(f: &Frame) -> u64 {
     let Some(stack) = crate::gdt::cvm_ist(f as *const Frame as u64, f.vector as usize) else {
         return 0;
     };
-    let ist_overlap = stack.contains(&f.rsp);
-    let if_clear = f.vector >= 32 && f.rflags & RFLAGS_IF == 0;
+    let syscall = fl4_syscall_entry as *const () as u64..core::ptr::addr_of!(fl4_syscall_on_stack) as u64;
+    let sysret = core::ptr::addr_of!(fl4_sysret_user_rsp) as u64..core::ptr::addr_of!(fl4_sysret_end) as u64;
+    let (ist_overlap, if_clear) = crate::cvm_entry::invalid_entry(f.vector, f.rip, f.rsp, f.rflags, stack, syscall, sysret);
     if ist_overlap || if_clear {
         cvm::terminate_with(0, format_args!("invalid kernel entry vec={:#x} ist_overlap={} if_clear={}", f.vector, ist_overlap, if_clear));
     }
@@ -261,6 +273,25 @@ pub fn lock() -> bool {
         percpu::get().gate_held.set(true);
     }
     !stalled.get()
+}
+
+/// Before `exit` takes the serial gate after an entry that ran without it
+/// (a local path): the current thread's entry is over, so a remote stall
+/// serviced while waiting must resume it where it now continues. The stall
+/// (`fl4_core::smp::stall`) makes a running thread restart at `FAULT_IP`,
+/// which is right for an entry it cancels before it ran; here `FAULT_IP`
+/// is still that of the thread's last kernel entry. For a thread a local
+/// path has just woken from `ReplyRecv` or `Recv`, that is the syscall
+/// instruction, which would run again with the received badge in the
+/// capability register (l4h issue 227: a cap fault in its receive phase
+/// on the badge). Only this core changes the thread's context until the
+/// stall is acknowledged.
+#[inline(always)]
+fn settle_resume_point(s: &mut PhysStore, ct: Tcb) {
+    if ct.state(s) == sched::TS_RUNNING && ct.0 != node_get(s, s.cur_cpu(), node::IDLE_THREAD) {
+        let ip = ct.reg(s, reg::NEXT_IP);
+        ct.set_reg(s, reg::FAULT_IP, ip);
+    }
 }
 
 #[inline(always)]
@@ -541,6 +572,17 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     } else {
         0
     };
+    // #BP (`int3`, a trap: RIP is past it) and #DB (single-step and data
+    // breakpoints are traps too) cannot be taken again by restarting the
+    // thread, and DR6 has just been cleared. A remote stall that cancelled
+    // the entry would lose them. So the thread keeps the trap until it is
+    // delivered, by `exit`, which takes the gate for it.
+    if v == 1 || v == 3 {
+        let s = &mut store();
+        sched::cur_thread(s).set_debug_reg(s, user_trap::SLOT, user_trap::encode(v, dr6, f.rip));
+        percpu::get().check_user_trap.set(true);
+        exit();
+    }
     // An interrupt is handled even if a stall cancelled the entry: it has
     // been accepted and needs its EOI.
     let body = |s: &mut PhysStore, a: &mut PhysArch| {
@@ -630,6 +672,9 @@ fn dispatch_handler<S: fl4_core::machine::Store>(
 /// Leave the kernel to the current thread (or the idle loop), giving up
 /// the serial gate. What follows touches only this core's thread, whose
 /// context no other core changes without stalling this one first.
+/// How long an idle core polls before it halts (fl4_idle).
+const IDLE_POLL_US: u64 = 100;
+
 pub fn exit() -> ! {
     loop {
         cvm::halt_if_poisoned();
@@ -664,6 +709,8 @@ pub fn exit() -> ! {
                     percpu::get().polled_irq.get()
                 } else if (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&vector) {
                     vector - VEC_IRQ_MIN
+                } else if vector == fl4_arch_x86_64::vm::NO_INTERRUPT {
+                    syscall::NO_IRQ
                 } else {
                     // Acknowledged on exit, so in service until its EOI.
                     apic::ack_stray(vector);
@@ -675,7 +722,50 @@ pub fn exit() -> ! {
                 // accepted host IRQ still needs handling under the gate.
                 let resumed = lock();
                 syscall::handle_vcpu_exit(s, &mut a, irq, stalled || !resumed);
+                // That ran the scheduler, and the next round has no gate.
+                percpu::get().check_user_trap.set(true);
                 unlock();
+                continue;
+            }
+        }
+        // A user #BP or #DB that `fl4_entry` left with the thread
+        // (`user_trap`): delivered under the gate. A stall while taking it
+        // moves the thread off this core with the trap still pending, and
+        // the thread resumes after the `int3` or trapping instruction
+        // (`settle_resume_point`); the trap is delivered when it next runs,
+        // on whichever core. Reading the current thread without the gate is
+        // safe: only this core changes its context until a stall is
+        // acknowledged. On one core `lock` does nothing.
+        //
+        // The slot is read only when a trap can be there: this entry left
+        // one (`check_user_trap`); a serial entry's scheduler made the
+        // thread current, and the gate is still held (a stalled thread is
+        // TS_RESTART, which no local path switches to); or the VM block
+        // above did so and gave the gate up (`check_user_trap` again). The
+        // flag is consumed first, whatever follows: after a stall the trap
+        // is the stalled thread's, found under the gate where it next runs.
+        //
+        // The invocation that stalled the thread may have changed it
+        // (written its registers, removed the breakpoint, redirected it
+        // from a timeout fault). A trap is delivered only if the thread is
+        // still where it trapped, and dropped otherwise, as a fault already
+        // sent is when such an invocation cancels the thread's IPC.
+        let pc = percpu::get();
+        if (pc.check_user_trap.replace(false) || pc.gate_held.get())
+            && ct.state(s) == sched::TS_RUNNING
+            && ct.0 != node_get(s, s.cur_cpu(), node::IDLE_THREAD)
+        {
+            if let Some(trap) = user_trap::decode(ct.debug_reg(s, user_trap::SLOT)) {
+                if !pc.gate_held.get() {
+                    settle_resume_point(s, ct);
+                    if !lock() {
+                        continue;
+                    }
+                }
+                ct.set_debug_reg(s, user_trap::SLOT, user_trap::NONE);
+                if trap.current(ct.reg(s, reg::FAULT_IP), ct.debug_reg(s, user_trap::DR7_SLOT)) {
+                    dispatch_entry(s, &mut PhysArch, trap.vector, false, 0, 0, trap.dr6);
+                }
                 continue;
             }
         }
@@ -687,6 +777,7 @@ pub fn exit() -> ! {
         // reused) unless this core holds the gate: after a local path, or
         // from the idle loop, it does not.
         if percpu::get().vspace_stale.get() && smp::multi() && !percpu::get().gate_held.get() {
+            settle_resume_point(s, ct);
             lock();
             continue;
         }
@@ -703,8 +794,11 @@ pub fn exit() -> ! {
         unlock();
         let stack_top = percpu::stack_top(percpu::cpu_index());
         if idle {
+            // Poll for a while before halting (fl4_idle): under a
+            // hypervisor, with other cores to wake this one (idle_polls).
+            let end = if smp::idle_polls() { timer::now().wrapping_add(timer::us_to_ticks(IDLE_POLL_US)).max(1) } else { 0 };
             percpu::get().idle.set(true);
-            unsafe { fl4_idle(stack_top) }
+            unsafe { fl4_idle(stack_top, end) }
         }
         fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0);
         let pc = percpu::get();

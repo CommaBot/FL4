@@ -30,10 +30,13 @@ fn remote_gic(kind: u64, id: u64, core: u64, v: bool) {
     smp::remote_call(kind, id, v as u64, 1u64 << (core & 63));
 }
 
-/// The raw acknowledge value to end `irq` with.
+/// The raw acknowledge value to end `irq` with: the one acknowledged, also
+/// for an LPI past the kernel's (`irq::of` clamps it to `MAX + 1`, whose
+/// ID would end another interrupt).
 fn eoi_value(irq: u64) -> u64 {
     let raw = percpu::get().iar.get();
-    if raw & 0x3ff == irq::id(irq) {
+    let id = gic::raw_id(raw);
+    if id == irq::id(irq) || (irq > irq::MAX && id >= irq::LPI_ID_BASE + irq::NUM_LPIS) {
         raw
     } else {
         irq::id(irq)
@@ -45,12 +48,17 @@ fn eoi_value(irq: u64) -> u64 {
 /// preemption point. Returns the interrupt's IRQ, or `NO_IRQ`.
 pub fn poll_irq() -> u64 {
     let hp = gic::highest_pending();
-    if hp >= 1020 || hp == irq::REMOTE_CALL_ID {
+    if gic::is_spurious(hp) || hp == irq::REMOTE_CALL_ID {
         return fl4_core::syscall::NO_IRQ;
     }
     let raw = gic::ack();
-    let id = raw & 0x3ff;
-    if raw == gic::SPURIOUS || id >= 1020 {
+    let id = gic::raw_id(raw);
+    if gic::is_spurious(raw) {
+        return fl4_core::syscall::NO_IRQ;
+    }
+    if gic::is_unsupported(raw) {
+        gic::disable_unsupported(raw);
+        gic::eoi(raw);
         return fl4_core::syscall::NO_IRQ;
     }
     if id == irq::REMOTE_CALL_ID {
@@ -169,6 +177,12 @@ impl Arch for PhysArch {
     fn max_spi(&self) -> u64 {
         gic::max_spi()
     }
+    fn msi_map(&mut self, irq: u64, device: u64, event: u64, core: u64) -> u64 {
+        crate::its::map(irq, device, event, core)
+    }
+    fn irq_free(&mut self, irq: u64) {
+        crate::its::unmap(irq)
+    }
     fn configure_irq(&mut self, irq: u64, edge: bool, core: u64) {
         if gic::remote(irq::id(irq), core) {
             return remote_gic(smp::CALL_GIC_CONFIG, irq::id(irq), core, edge);
@@ -210,6 +224,24 @@ impl Arch for PhysArch {
     }
     fn vcpu_midr(&self) -> u64 {
         crate::mrs!("midr_el1")
+    }
+    fn has_pauth(&self) -> bool {
+        crate::cpu::has_pauth()
+    }
+    fn next_pac_epoch(&mut self) -> u64 {
+        crate::pac::next_epoch()
+    }
+    fn kernel_ttbr1_entry(&self, level: u64, index: u64) -> u64 {
+        crate::mmu::kernel_ttbr1_entry(level, index)
+    }
+    fn set_high_vspace(&mut self, root: u64, ttbr0_asid: u64) {
+        crate::mmu::switch_high(root, ttbr0_asid)
+    }
+    fn invalidate_high_page(&mut self, vaddr: u64) {
+        crate::mmu::invalidate_high_page(vaddr)
+    }
+    fn invalidate_high_vspace(&mut self, root: u64) {
+        crate::mmu::invalidate_high_vspace(root)
     }
 
     fn putc(&mut self, c: u64) {

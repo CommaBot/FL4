@@ -4,9 +4,11 @@
 //! pool in the image. Also the identity map application processors start
 //! on, and the empty user table of threads without an address space.
 use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, Ordering};
 use fl4_arch_aarch64::{cpu, mmu};
 use fl4_bootinfo::KERNEL_VBASE;
 use fl4_core::layout::{PPTR_BASE, PPTR_TOP};
+use fl4_abi::consts::HIGH_VSPACE_BASE;
 use fl4_core::vspace::{ATTR_DEVICE_NGNRNE, ATTR_NORMAL};
 
 const PAGE: u64 = 4096;
@@ -23,9 +25,12 @@ const D_PXN: u64 = 1 << 53;
 const D_UXN: u64 = 1 << 54;
 const ADDR_MASK: u64 = 0x0000_ffff_ffff_f000;
 
-/// Device mappings start here.
+/// Device mappings start here, and end below the high window that user
+/// `ArmHighVSpace`s map (fl4-core aarch64 `vspace`), which is below the
+/// kernel image.
 const DEVICE_BASE: u64 = PPTR_TOP;
-const DEVICE_TOP: u64 = KERNEL_VBASE;
+const DEVICE_TOP: u64 = HIGH_VSPACE_BASE;
+const _: () = assert!(fl4_abi::consts::HIGH_VSPACE_TOP <= KERNEL_VBASE);
 
 #[repr(C, align(8192))]
 struct Pool(UnsafeCell<[[u64; 512]; POOL_PAGES]>);
@@ -51,6 +56,30 @@ struct State {
 struct Cell(UnsafeCell<State>);
 unsafe impl Sync for Cell {}
 static ST: Cell = Cell(UnsafeCell::new(State { used: 0, region_pa: 0, region_len: 0, root: 0, ident: 0, hyp_ident: 0, empty: 0, empty_s2: 0, next_device: DEVICE_BASE, pa_top: 0 }));
+
+/// The kernel's level-0 table and its top level-1 table (level-0 entry 511)
+/// take no new entries once user code can run: an `ArmHighVSpace` is made
+/// as a copy of them (fl4-core aarch64 `vspace::init_high_vspace`), which a
+/// later entry would be missing from.
+static FROZEN: AtomicBool = AtomicBool::new(false);
+
+/// After boot's last kernel mapping, before the root task runs.
+pub fn freeze_kernel_tables() {
+    FROZEN.store(true, Ordering::Release);
+}
+
+/// A new entry at level 0 (`shift` 39) of the kernel's tables, or in the
+/// level-1 table below level-0 entry 511: never once frozen.
+fn check_not_frozen(table: u64, shift: u64) {
+    if !FROZEN.load(Ordering::Acquire) {
+        return;
+    }
+    let s = st();
+    let top = unsafe { (entry(s.root, KERNEL_VBASE, 39) as *const u64).read_volatile() };
+    let l1_top = if top & D_VALID != 0 { image_va(top & ADDR_MASK) } else { 0 };
+    assert!(!(table == s.root && shift == 39), "new kernel level-0 entry after the tables were frozen");
+    assert!(!(table == l1_top && shift == 30), "new kernel top level-1 entry after the tables were frozen");
+}
 
 fn st() -> &'static mut State {
     unsafe { &mut *ST.0.get() }
@@ -92,6 +121,9 @@ fn next(table: u64, va: u64, shift: u64) -> u64 {
         }
         return image_va(v & ADDR_MASK);
     }
+    if table == st().root || shift == 30 {
+        check_not_frozen(table, shift);
+    }
     let t = alloc_table();
     unsafe { e.write_volatile(image_pa(t) | D_VALID | D_TABLE) };
     t
@@ -113,6 +145,9 @@ fn map(root: u64, va: u64, pa: u64, len: u64, attr: u64) {
         let left = len - off;
         let l1 = next(root, v, 39);
         if v & ((1 << 30) - 1) == 0 && p & ((1 << 30) - 1) == 0 && left >= 1 << 30 {
+            if root == st().root {
+                check_not_frozen(l1, 30);
+            }
             unsafe { entry(l1, v, 30).write_volatile(p | attr | D_VALID) };
             off += 1 << 30;
             continue;
@@ -165,15 +200,24 @@ pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)], pa_top: u64) ->
     let ident = alloc_table();
     map(ident, region_pa, region_pa, region_len, normal());
     s.ident = ident;
-    // In EL2 nVHE mode, build an identity map for EL2 (TTBR0_EL2, E2H=0):
-    // kernel region executable (XN=0), all other RAM non-executable (XN=1),
-    // all Normal WB Inner-Shareable matching TTBR1_EL1 for cache coherency.
+    // In EL2 nVHE mode, build an identity map for EL2 (TTBR0_EL2, E2H=0),
+    // with the same W^X split as TTBR1_EL1: text read-only and executable,
+    // read-only data read-only and never executable, the rest of the region
+    // (data with `HypCpu`, bss, the loader's tables) and all other RAM
+    // (`Vcpu`/`Regs` objects) read-write and never executable. EL2 code
+    // (boot.S, hyp_nvhe.S) writes only `HypCpu` and those objects. All
+    // Normal WB Inner-Shareable, matching TTBR1_EL1 for cache coherency.
+    // The EL2 regime has one privilege level: AP[2:1] = 0b01 is RW, 0b11
+    // RO; bit 54 is XN.
     if cpu::is_el2_nvhe() {
         const D_AP_RW_EL2: u64 = 1 << 6;
+        const D_AP_RO_EL2: u64 = 3 << 6;
         let hyp = alloc_table();
         let r_start = region_pa;
         let r_end = region_pa + region_len;
-        map(hyp, r_start, r_start, region_len, normal() | D_AP_RW_EL2);
+        map(hyp, r_start, r_start, text_end, normal() | D_AP_RO_EL2);
+        map(hyp, r_start + text_end, r_start + text_end, ro_end - text_end, normal() | D_AP_RO_EL2 | D_UXN);
+        map(hyp, r_start + ro_end, r_start + ro_end, region_len - ro_end, normal() | D_AP_RW_EL2 | D_UXN);
         let ram_attr = normal() | D_AP_RW_EL2 | D_UXN;
         for &(start, end) in ram {
             if end <= start || end > PPTR_TOP - PPTR_BASE {
@@ -208,6 +252,18 @@ pub fn activate(ttbr1: u64) {
     fl4_arch_aarch64::msr!("ttbr0_el1", image_pa(st().empty));
     cpu::isb();
     mmu::invalidate_all();
+}
+
+/// The kernel's TTBR1 level-0 table and the level-1 table its entry 511
+/// points to (the kernel image, devices, the high window), as the kernel
+/// reaches them; what a new `ArmHighVSpace` copies.
+pub fn kernel_tables() -> (u64, u64) {
+    let root = st().root;
+    let e = unsafe { (entry(root, KERNEL_VBASE, 39) as *const u64).read_volatile() };
+    if e & D_VALID == 0 || e & D_TABLE == 0 {
+        crate::fail("no kernel level-1 table");
+    }
+    (root, image_va(e & ADDR_MASK))
 }
 
 /// TTBR0 for application processors starting up.

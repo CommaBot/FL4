@@ -37,6 +37,12 @@ pub struct Firmware<'a> {
 }
 
 impl Firmware<'_> {
+    /// Whether this is an Intel TDX guest. A TD's loader measures into
+    /// RTMR[2] and ignores any TPM, as `boot` does.
+    pub fn is_tdx(&self) -> bool {
+        x86::is_tdx()
+    }
+
     pub fn has_load_options(&self) -> bool {
         self.loaded.options_size != 0
     }
@@ -66,15 +72,61 @@ impl Firmware<'_> {
         NonNull::new(protocol).ok_or(EFI_LOAD_ERROR)
     }
 
+    /// Measure caller-selected external bytes when running in a trust domain.
+    /// The caller may return to EFI if the firmware cannot extend RTMR[2].
+    ///
+    /// RTMR[2] is extended once, with the SHA-384 of `bytes` alone. `name`
+    /// only goes into the `EFI_CC_EVENT` log entry's data (cut to 256
+    /// bytes), which firmware does not hash: nothing authenticates it, not
+    /// even replaying the CC event log, whose digests check out whatever
+    /// name an entry carries, and a full log (`EFI_VOLUME_FULL`) still
+    /// extends RTMR[2] with no entry. A verifier that depends on which
+    /// bytes were which must get it from the bytes (measure a descriptor
+    /// with the role or name, or put domain separation into `bytes`) or
+    /// from a measurement order agreed with the prover
+    /// (`ccel::measure_bytes`).
+    pub fn measure_cc_file(&self, name: &[u8], bytes: &[u8]) -> Result<(), Status> {
+        if x86::is_tdx() {
+            ccel::measure_bytes(name, bytes.as_ptr() as u64, bytes.len() as u64)?;
+        }
+        Ok(())
+    }
+
     /// Enter an x86_64 FL4 ELF kernel. The first module is the root task.
     /// Subsequent modules are passed in the order given.
+    ///
+    /// Unlike `start_default`, this measures nothing. `start_default`
+    /// measures each file it loads from the load options: into RTMR[2] in
+    /// an Intel TDX guest, and outside one into TPM PCR 9 when firmware
+    /// provides `EFI_TCG2_PROTOCOL`. The modules given here are the
+    /// caller's, loaded however it chose: a caller that wants a TD quote or
+    /// the TPM's PCRs to cover them must measure them itself before this
+    /// call, into RTMR[2] in a TD (`measure_cc_file`), or into PCR 9
+    /// through `EFI_TCG2_PROTOCOL` when firmware provides it.
     ///
     /// # Safety
     ///
     /// The kernel and root task must be trusted FL4 boot payloads for this
     /// handoff ABI. The loader writes the kernel's ELF segments to physical
     /// memory and transfers control to it after exiting boot services.
+    /// Nothing here measures them: in a TDX or TPM trusted boot, the
+    /// attestation covers them only if the caller measured them into
+    /// RTMR[2] or PCR 9 before calling.
     pub unsafe fn boot(&self, kernel: &[u8], modules: &[(&[u8], &[u8])]) -> ! {
+        unsafe { self.boot_with_cmdline(kernel, modules, c"") }
+    }
+
+    /// As `boot`, with a Multiboot 2 kernel command line.
+    ///
+    /// # Safety
+    ///
+    /// The same payload and handoff requirements as `boot` apply.
+    pub unsafe fn boot_with_cmdline(
+        &self,
+        kernel: &[u8],
+        modules: &[(&[u8], &[u8])],
+        cmdline: &core::ffi::CStr,
+    ) -> ! {
         let mut files = [(0, 0, &[][..]); 9];
         if modules.is_empty() || modules.len() > files.len() {
             fail("invalid number of boot modules");
@@ -84,7 +136,7 @@ impl Firmware<'_> {
             *len = bytes.len() as u64;
             *name = module_name;
         }
-        x86::boot(self.image, kernel, &files[..modules.len()])
+        x86::boot(self.image, kernel, &files[..modules.len()], cmdline)
     }
 }
 

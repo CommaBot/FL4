@@ -118,6 +118,7 @@ typedef enum {
     SEL4_BOOTINFO_HEADER_TPM_EVENT_LOG      = 12, /* seL4_TpmEventLog */
     SEL4_BOOTINFO_HEADER_CC_EVENT_LOG       = 13, /* seL4_CcEventLog */
     SEL4_BOOTINFO_HEADER_TDX_INFO           = 14, /* seL4_X86_TdxInfo */
+    SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO   = 15, /* seL4_AArch64MsiInfo */
     /* Add more IDs here, the two elements below must always be at the end. */
     SEL4_BOOTINFO_HEADER_NUM,
     SEL4_FORCE_LONG_ENUM(seL4_BootInfoID)
@@ -192,6 +193,20 @@ typedef struct seL4_X86_TdxInfo {
     seL4_Word num_vcpus;
     seL4_Word max_vcpus;
 } seL4_X86_TdxInfo;
+
+/* SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO: the kernel drives a GICv3 ITS, so
+ * seL4_IRQControl_GetMSI issues handlers for MSIs.  A device signals event
+ * `event` by writing it (32 bits) to `doorbell`, the GITS_TRANSLATER of that
+ * ITS (its base + 0x10040).  GetMSI's device is the device's ITS DeviceID
+ * there, from the firmware's MSI routing (ACPI IORT, device tree msi-map);
+ * where that routing is the identity it is the PCI requester ID
+ * (bus << 8 | devfn). */
+typedef struct seL4_AArch64MsiInfo {
+    seL4_Word doorbell;    /* physical address of GITS_TRANSLATER */
+    seL4_Word num_lpis;    /* GetMSI's irq is below this */
+    seL4_Word num_events;  /* its event is below this */
+    seL4_Word num_devices; /* its device ID is below this */
+} seL4_AArch64MsiInfo;
 
 SEL4_COMPILE_ASSERT(
     invalid_seL4_BootInfoHeader,

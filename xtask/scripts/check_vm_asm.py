@@ -14,13 +14,15 @@ text = subprocess.check_output(
      "-d", "--no-show-raw-insn", sys.argv[1]], text=True
 )
 functions = {}
+addresses = {}
 near_returns = Counter()
 current = None
 for line in text.splitlines():
-    symbol = re.match(r"^[0-9a-f]+ <([^>]+)>:$", line)
+    symbol = re.match(r"^([0-9a-f]+) <([^>]+)>:$", line)
     if symbol:
-        current = symbol[1]
+        current = symbol[2]
         functions[current] = []
+        addresses[current] = int(symbol[1], 16)
     insn = re.match(r"^\s*([0-9a-f]+):\s+(\S+)\s*(.*)$", line)
     if insn and current:
         op, arg = insn[2], insn[3]
@@ -92,26 +94,58 @@ require(svm_ops.index("clgi") < vmrun < svm_ops.index("stgi"),
         "SVM must keep GIF clear across the entry/exit boundary")
 require(max(i for i, op in enumerate(svm_ops) if op == "wrmsr") < svm_ops.index("stgi"),
         "SVM enables interrupts before host protection")
+# Safe RET: the exit's IBPB may be deferred (spec::vm_ibpb_deferred), so
+# returns are trained before the first one after the barrier, and the host
+# return goes through the return thunk.
+stgi = svm_ops.index("stgi")
+untrain_at = [i for i, (_, op, arg) in enumerate(svm)
+              if op == "call" and arg.endswith("<fl4_untrain_ret>")]
+require(len(untrain_at) == 1 and vmrun < untrain_at[0] < stgi
+        and svm_ops[untrain_at[0] - 1] == "lfence" and svm_ops[stgi - 1] == "lfence"
+        and "ret" not in svm_ops[untrain_at[0]:],
+        "SVM exit: Safe RET untraining before the first host return")
+svm_last = [i for i in svm if not i[1].startswith("nop") and i[1] not in ("cs", "data16", "xchg")][-1]
+require(svm_last[1] == "jmp" and svm_last[2].endswith("<__x86_return_thunk>"),
+        "SVM exit: host return not through the return thunk")
 
+def between(start, end):
+    """The instructions from symbol `start` up to symbol `end`, whichever
+    symbols objdump splits them under (fl4_idle_loop's STI/HLT are not
+    under fl4_idle)."""
+    require(start in addresses and end in addresses, "missing " + start + "/" + end)
+    lo, hi = addresses[start], addresses[end]
+    require(lo < hi, start + " must precede " + end)
+    return sorted(i for f in functions.values() for i in f if lo <= i[0] < hi)
+
+
+idle = between("fl4_idle_loop", "fl4_idle_end")
+require(any(op == "hlt" for _, op, _ in idle), "idle: no HLT in fl4_idle_loop")
+# fl4_sysret_user_rsp splits fl4_restore_user: take it whole, through SYSRETQ.
+user = between("fl4_restore_user", "fl4_sysret_end")
 for name, instructions in [
     ("VMX entry", functions["fl4_vmx_run"]), ("SVM entry", svm),
-    ("native return", native), ("user return", functions["fl4_restore_user"]),
-    ("idle", functions["fl4_idle"]),
+    ("native return", native), ("user return", user),
+    ("idle", idle),
 ]:
+    matched = 0
     for i, (_, op, _) in enumerate(instructions):
         if op in ("vmlaunch", "vmresume", "vmrun", "iretq", "sysretq", "sti"):
             # SVM's STI precedes VMRUN with GIF clear, not an idle entry.
             if op == "sti" and name != "idle":
                 continue
+            matched += 1
             require(i >= 2 and instructions[i - 1][1] == "lfence"
                     and instructions[i - 2][1] == "verw",
                     name + ": missing final memory-form VERW/fence before " + op)
             require("(%rip)" in instructions[i - 2][2], name + ": VERW must use memory")
+    # An empty match would pass every check above.
+    require(matched > 0, name + ": no entry/return instruction found")
 # The user return takes SYSRET only for an untouched SYSCALL context
 # (sysret.S): RCX = NextIP, R11 = FLAGS, no TF/RF, and leaves no CR3 on the
 # entry stack.
-user = functions["fl4_restore_user"]
 user_ops = [op for _, op, _ in user]
+require(user_ops.count("sysretq") == 1 and user_ops[-1] == "sysretq",
+        "user return: fl4_sysret_end must follow its one SYSRETQ")
 sysret = user_ops.index("sysretq")
 def before_sysret(pred):
     return any(pred(op, arg) for _, op, arg in user[:sysret])
@@ -122,6 +156,52 @@ require(before_sysret(lambda op, arg: op.startswith("test") and arg.startswith("
         "user return: SYSRET without the TF/RF check")
 require(sum(1 for _, op, arg in user if op.startswith("mov") and arg == "$0x0,(%rsp)") == 2,
         "user return: CR3 left on the entry stack")
+# The kernel runs on the user's RSP exactly in the two windows a CVM's IST
+# check exempts (entry.rs fl4_cvm_kernel_entry_stack, cvm_entry.rs): from
+# the SYSCALL entry through the load of the entry stack, and from the load
+# of the user's RSP through SYSRETQ.
+def writes_rsp(op, arg):
+    return op in ("push", "pop", "call", "ret", "enter", "leave") or arg.endswith(",%rsp")
+syscall_win = between("fl4_syscall_entry", "fl4_syscall_on_stack")
+require([(op, arg) for _, op, arg in syscall_win]
+        == [("swapgs", ""), ("lfence", ""), ("mov", "%rsp,%gs:0x8"), ("mov", "%gs:0x0,%rsp")],
+        "SYSCALL user-RSP window must end at the entry stack load")
+require(syscall_win[0][0] == addresses["fl4_syscall_entry"],
+        "SYSCALL user-RSP window must start at fl4_syscall_entry")
+sysret_win = between("fl4_sysret_user_rsp", "fl4_sysret_end")
+user_rsp = next((i for i, (a, _, _) in enumerate(user) if a == addresses["fl4_sysret_user_rsp"]), 0)
+require(user_rsp > 0 and user[user_rsp - 1][1:] == ("pop", "%rsp"),
+        "SYSRET user-RSP window must start right after POP %rsp")
+require(sysret_win == user[user_rsp:] and sysret_win[-1][1] == "sysretq"
+        and not any(writes_rsp(op, arg) for _, op, arg in sysret_win),
+        "SYSRET user-RSP window must end at SYSRETQ with RSP unchanged")
+# Exactly the poison check, then fl4_clear_buffers, then SYSRETQ: the poison
+# branch goes to the CLI of the poisoned loop, the buffer guard's skip to the
+# LFENCE before SYSRETQ.
+every = {a: (op, arg) for f in functions.values() for a, op, arg in f}
+def target(arg):
+    return int(arg.split()[0], 16)
+require([op for _, op, _ in sysret_win] == ["cmpb", "jne", "cmpl", "je", "verw", "lfence", "sysretq"],
+        "SYSRET user-RSP window: unexpected instructions")
+(_, _, poisoned), (_, _, to_poison), (_, _, buffers), (_, _, skip), (_, _, verw_arg), (lfence_at, _, _), _ = sysret_win
+require(poisoned.startswith("$0x0,") and poisoned.endswith("<FL4_CVM_POISONED>")
+        and target(to_poison) == addresses["fl4_cvm_poisoned"],
+        "SYSRET user-RSP window: poison check must branch to the poisoned loop")
+# The poisoned loop never leaves: CLI, then HLT forever, or PAUSE forever in
+# a TD (HLT would take #VE there). Only alignment padding may follow it.
+poison = functions["fl4_cvm_poisoned"]
+loop = poison[:7]
+padding = poison[7:]
+require([op for _, op, _ in loop] == ["cli", "cmpb", "jne", "hlt", "jmp", "pause", "jmp"]
+        and loop[1][2].startswith("$0x0,") and loop[1][2].endswith("<FL4_TDX_ACTIVE>")
+        and target(loop[2][2]) == loop[5][0]
+        and target(loop[4][2]) == loop[0][0]
+        and target(loop[6][2]) == loop[5][0]
+        and all(op in ("nop", "nopw", "nopl", "xchg", "int3", "data16", "cs") for _, op, _ in padding),
+        "fl4_cvm_poisoned must be the CLI; HLT or PAUSE loop and nothing else")
+require(buffers.startswith("$0x0,") and buffers.endswith("<FL4_SPEC_BUFFERS>")
+        and target(skip) == lfence_at and "(%rip)" in verw_arg,
+        "SYSRET user-RSP window: buffer clearing must skip only VERW, to the final LFENCE")
 # Every IDT stub goes through fl4_vector_entry, which clears RFLAGS (AC:
 # SMAP) before the common entry: gates keep the interrupted AC.
 stubs = functions["fl4_vectors"]
@@ -135,14 +215,15 @@ require([op for _, op, _ in vector_entry[:3]] == ["push", "popf", "jmp"]
         "fl4_vector_entry must load RFLAGS = 2 before fl4_common_entry")
 require(not any(n.startswith("fl4_test_") for n in functions), "test trampoline in kernel")
 # All compiler-generated near returns, including core and compiler-builtins,
-# must go through the thunk. The VM-entry code's returns are after its IBPB
+# must go through the thunk. The VM-entry code's returns are its barrier's
+# (after its IBPB) and, on VMX, the host return
 # and the native entry's two raw returns are in the Intel-only BHB routine.
 require(near_returns == {
     "fl4_safe_ret_insn": 1,
     "__x86_return_thunk": 1,
     "fl4_common_entry": 2,
     "fl4_vmx_exit": 3,
-    "fl4_svm_run": 3,
+    "fl4_svm_run": 2,
 }, f"unexpected near returns: {near_returns}")
 untrain = functions["fl4_untrain_ret"]
 safe = functions["fl4_safe_ret"]
@@ -195,4 +276,4 @@ untrain_call = next(i for i, (_, op, arg) in enumerate(native)
 require(native[untrain_call - 1][1] == "lfence",
         "untraining call must be behind a fenced policy guard")
 
-print("VM assembly: RFLAGS cleared on IDT entries, entry/exit barriers, fenced guards, RAP/PBRSB, BHB, Safe RET, retpoline, VERW and GIF ordering verified")
+print("VM assembly: RFLAGS cleared on IDT entries, entry/exit barriers, fenced guards, RAP/PBRSB, BHB, Safe RET, retpoline, VERW and GIF ordering, user-RSP windows verified")

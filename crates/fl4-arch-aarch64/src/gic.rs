@@ -1,6 +1,12 @@
 //! The GIC, version 2 or 3 as found at boot (ACPI MADT or the device
-//! tree). All interrupts are group 1 at one priority; the kernel takes
-//! them one at a time with interrupts masked except in the idle loop.
+//! tree). All interrupts share one priority; the kernel takes them one at
+//! a time with interrupts masked except in the idle loop. GICv3: every
+//! interrupt is group 1. GICv2: group 0 where GICD_IGROUPR is writable (a
+//! GIC with one security state, or its Secure view), with
+//! GICC_CTLR.AckCtl set so GICC_IAR acknowledges any group 1 interrupt
+//! too rather than reading 1022; in the Non-Secure view GICD_IGROUPR is
+//! RAZ/WI and every interrupt is group 1 (`gic_layout::spi_groups`,
+//! `gic_layout::V2_GICC_CTLR`).
 use crate::{cpu, gic_layout, percpu};
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -27,6 +33,26 @@ const GICD_ISENABLER: u64 = 0x100;
 const GICD_ICENABLER: u64 = 0x180;
 const GICD_ICPENDR: u64 = 0x280;
 const GICD_ICACTIVER: u64 = 0x380;
+/// Extended SPI registers (GICv3.1; 4096 + 32 n per word).
+const GICD_ICENABLERE: u64 = 0x1400;
+const GICD_ICPENDRE: u64 = 0x1800;
+const GICD_ICACTIVERE: u64 = 0x1c00;
+/// Extended SPIs the distributor implements (`gic_layout::espi_count`).
+static ESPI_COUNT: AtomicU64 = AtomicU64::new(0);
+/// Bytes between redistributors (a device tree's `redistributor-stride`;
+/// 0: each right after the previous one's frames).
+static GICR_STRIDE: AtomicU64 = AtomicU64::new(0);
+
+/// Set the redistributor stride (`GICR_STRIDE`), before any redistributor
+/// is looked for.
+pub fn set_gicr_stride(stride: u64) {
+    GICR_STRIDE.store(stride, Ordering::Relaxed);
+}
+
+/// The redistributor stride (`GICR_STRIDE`).
+pub fn gicr_stride() -> u64 {
+    GICR_STRIDE.load(Ordering::Relaxed)
+}
 const GICD_IPRIORITYR: u64 = 0x400;
 const GICD_ITARGETSR: u64 = 0x800;
 const GICD_ICFGR: u64 = 0xc00;
@@ -64,6 +90,11 @@ pub fn version() -> u64 {
 
 fn gicd() -> u64 {
     GICD.load(Ordering::Relaxed)
+}
+
+/// GICD_TYPER.
+pub fn dist_typer() -> u32 {
+    rd(gicd() + GICD_TYPER)
 }
 
 /// Interrupt lines the distributor implements (SPIs end below this).
@@ -148,25 +179,69 @@ pub fn vgic_num_lrs() -> u8 {
     vgic_hw_num_lrs().min(16)
 }
 
-fn v3_wait_rwp(base: u64) {
+/// Wait (bounded) for GICD_CTLR.RWP (bit 31) to clear. Returns whether
+/// it did.
+fn v3_wait_gicd_rwp(ctlr: u64) -> bool {
     let mut n = 0u64;
-    while rd(base) & (1 << 31) != 0 && n < 10_000_000 {
+    while rd(ctlr) & (1 << 31) != 0 {
+        if n >= 10_000_000 {
+            return false;
+        }
         core::hint::spin_loop();
         n += 1;
     }
+    true
+}
+
+/// Wait (bounded) for the redistributor at `gicr`'s GICR_CTLR.RWP (bit 3,
+/// IHI 0069 12.11.2) to clear. Returns whether it did.
+pub fn wait_gicr_rwp(gicr: u64) -> bool {
+    let mut n = 0u64;
+    while rd(gicr) & (1 << 3) != 0 {
+        if n >= 10_000_000 {
+            return false;
+        }
+        core::hint::spin_loop();
+        n += 1;
+    }
+    true
 }
 
 /// The distributor, once, on the boot core. `gicd` and `gicc` are kernel
-/// virtual addresses (`gicc` 0 on GICv3).
-pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
+/// virtual addresses (`gicc` 0 on GICv3). False when a GICv3 register
+/// write does not complete (GICD_CTLR.RWP stays set): what follows it
+/// would not be ordered after it.
+#[must_use]
+pub fn init_dist(version: u64, gicd: u64, gicc: u64) -> bool {
     VERSION.store(version, Ordering::Relaxed);
     GICD.store(gicd, Ordering::Relaxed);
     GICC.store(gicc, Ordering::Relaxed);
     let lines = gic_layout::dist_lines(rd(gicd + GICD_TYPER));
     LINES.store(lines, Ordering::Relaxed);
-    wr(gicd + GICD_CTLR, 0);
+    // GICv3: interrupt groups off, keeping ARE (clearing it once set is
+    // UNPREDICTABLE), then affinity routing on before the extended SPI
+    // registers, which are RES0 without it. GICv2: everything off.
+    let are = rd(gicd + GICD_CTLR) & (1 << 4 | 1 << 5);
     if version == 3 {
-        v3_wait_rwp(gicd + GICD_CTLR);
+        wr(gicd + GICD_CTLR, are);
+        if !v3_wait_gicd_rwp(gicd + GICD_CTLR) {
+            return false;
+        }
+        wr(gicd + GICD_CTLR, are | 1 << 4);
+        if !v3_wait_gicd_rwp(gicd + GICD_CTLR) {
+            return false;
+        }
+        // Extended SPIs the kernel has no IRQ for: disabled, not pending,
+        // not active.
+        let espi = gic_layout::espi_count(rd(gicd + GICD_TYPER));
+        ESPI_COUNT.store(espi, Ordering::Relaxed);
+        for w in 0..espi / 32 {
+            wr(gicd + GICD_ICENABLERE + w * 4, u32::MAX);
+            wr(gicd + GICD_ICPENDRE + w * 4, u32::MAX);
+            wr(gicd + GICD_ICACTIVERE + w * 4, u32::MAX);
+        }
+    } else {
+        wr(gicd + GICD_CTLR, 0);
     }
     // Only the registers of implemented interrupts below 1020: the last
     // word of a 1024-line distributor also has bits for the special
@@ -177,7 +252,7 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
         wr(gicd + GICD_ICENABLER + i / 8, bits);
         wr(gicd + GICD_ICPENDR + i / 8, bits);
         wr(gicd + GICD_ICACTIVER + i / 8, bits);
-        wr(gicd + GICD_IGROUPR + i / 8, bits);
+        wr(gicd + GICD_IGROUPR + i / 8, gic_layout::spi_groups(version == 3, bits));
         i += 32;
     }
     let mut i = 32;
@@ -192,16 +267,19 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
         i += 16;
     }
     if version == 3 {
-        // Affinity routing; group 1 for both security views.
-        wr(gicd + GICD_CTLR, 1 << 4);
-        v3_wait_rwp(gicd + GICD_CTLR);
-        wr(gicd + GICD_CTLR, (1 << 4) | (1 << 1) | 1);
-        v3_wait_rwp(gicd + GICD_CTLR);
+        // Every SPI routed here, then group 1 for both security views.
         let me = cpu::mpidr();
         let mut i = 32;
         while i < lines {
             wr64(gicd + GICD_IROUTER + i * 8, me);
             i += 1;
+        }
+        if !v3_wait_gicd_rwp(gicd + GICD_CTLR) {
+            return false;
+        }
+        wr(gicd + GICD_CTLR, are | (1 << 4) | (1 << 1) | 1);
+        if !v3_wait_gicd_rwp(gicd + GICD_CTLR) {
+            return false;
         }
     } else {
         // To the boot core's interface, which need not be interface 0.
@@ -213,26 +291,20 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
         }
         wr(gicd + GICD_CTLR, 3);
     }
+    true
 }
 
 /// GICv3: find this core's redistributor in the `len` mapped bytes from
 /// `base`: only a frame wholly inside them, up to the frame marked last.
 pub fn find_redistributor(base: u64, len: u64) -> Option<u64> {
-    gic_layout::find_frame(base, len, affinity(), typer)
-}
-
-/// How many bytes from `base` the redistributors in its `len` mapped bytes
-/// take, VLPI frames included (`gic_layout::span`): none of it is for user
-/// space.
-pub fn redistributor_span(base: u64, len: u64) -> u64 {
-    gic_layout::span(base, len, typer)
+    gic_layout::find_frame_strided(base, len, gicr_stride(), affinity(), typer)
 }
 
 /// What boot keeps from user space of the redistributor range mapped at
 /// `base` for `len` bytes, which the tables gave `raw_len` bytes
 /// (`gic_layout::reserve`): None if it cannot tell.
 pub fn redistributor_reserve(base: u64, raw_len: u64, len: u64) -> Option<u64> {
-    gic_layout::reserve(base, raw_len, len, typer)
+    gic_layout::reserve_strided(base, raw_len, len, gicr_stride(), typer)
 }
 
 /// The calling core's affinity as GICR_TYPER[63:32] gives it.
@@ -242,7 +314,7 @@ fn affinity() -> u64 {
 }
 
 /// GICR_TYPER of the redistributor at `frame`.
-fn typer(frame: u64) -> u64 {
+pub fn typer(frame: u64) -> u64 {
     unsafe { core::ptr::read_volatile((frame + 8) as *const u64) }
 }
 
@@ -263,12 +335,19 @@ pub fn init_cpu(gicr: u64) {
         wr(sgi + GICD_ICPENDR, u32::MAX);
         wr(sgi + GICD_ICACTIVER, u32::MAX);
         wr(sgi + GICD_IGROUPR, u32::MAX);
+        // Extended PPIs (GICR_ICENABLER<n>E, n = 1, 2): the kernel has no
+        // IRQ for them.
+        for k in 1..=gic_layout::eppi_words(typer(gicr)) {
+            wr(sgi + GICD_ICENABLER + k * 4, u32::MAX);
+            wr(sgi + GICD_ICPENDR + k * 4, u32::MAX);
+            wr(sgi + GICD_ICACTIVER + k * 4, u32::MAX);
+        }
         let mut i = 0;
         while i < 32 {
             wr(sgi + GICD_IPRIORITYR + i, PRIO * 0x0101_0101);
             i += 4;
         }
-        v3_wait_rwp(gicr);
+        wait_gicr_rwp(gicr);
         // System registers: SRE, priority mask, group 1 enable.
         msr_s("s3_0_c12_c12_5", 0x7);
         cpu::isb();
@@ -287,6 +366,9 @@ pub fn init_cpu(gicr: u64) {
         wr(d + GICD_ICENABLER, u32::MAX);
         wr(d + GICD_ICPENDR, u32::MAX);
         wr(d + GICD_ICACTIVER, u32::MAX);
+        // Banked SGIs and PPIs: group 0, as the SPIs (RAZ/WI if
+        // Non-Secure).
+        wr(d + GICD_IGROUPR, gic_layout::spi_groups(false, u32::MAX));
         let mut i = 0;
         while i < 32 {
             wr(d + GICD_IPRIORITYR + i, PRIO * 0x0101_0101);
@@ -297,7 +379,7 @@ pub fn init_cpu(gicr: u64) {
         let c = GICC.load(Ordering::Relaxed);
         wr(c + GICC_PMR, 0xff);
         wr(c + GICC_BPR, 0);
-        wr(c + GICC_CTLR, 3);
+        wr(c + GICC_CTLR, gic_layout::V2_GICC_CTLR);
         if cpu::has_el2() {
             let h = GICH.load(Ordering::Relaxed);
             if h != 0 {
@@ -395,6 +477,47 @@ pub fn highest_pending() -> u64 {
     }
 }
 
+/// The interrupt ID in an acknowledge value (`gic_layout::raw_id`): GICv3's
+/// whole, so an extended INTID such as 4096 is not taken for SGI 0.
+pub fn raw_id(raw: u64) -> u64 {
+    crate::gic_layout::raw_id(version() == 3, raw)
+}
+
+/// Whether an acknowledge value is a special INTID (1020..=1023): no
+/// interrupt, nothing to end.
+pub fn is_spurious(raw: u64) -> bool {
+    const _: () = assert!(SPURIOUS == 1023);
+    crate::gic_layout::is_spurious(version() == 3, raw)
+}
+
+/// Disable the interrupt of acknowledge value `raw`, one the kernel has
+/// no IRQ for (`is_unsupported`), if it is an implemented extended SPI or
+/// PPI (of this core): a level-triggered one would otherwise be taken
+/// again as soon as it is ended. Reserved INTIDs touch no register.
+pub fn disable_unsupported(raw: u64) {
+    if version() != 3 {
+        return;
+    }
+    let id = raw_id(raw);
+    if (4096..4096 + ESPI_COUNT.load(Ordering::Relaxed)).contains(&id) {
+        let off = id - 4096;
+        wr(gicd() + GICD_ICENABLERE + (off / 32) * 4, 1 << (off % 32));
+    } else if id >= 1056 {
+        let r = percpu::gicr(percpu::cpu_index());
+        if r != 0 && id < 1056 + gic_layout::eppi_words(typer(r)) * 32 {
+            let off = id - 1056;
+            wr(r + GICR_SGI + GICD_ICENABLER + 4 + (off / 32) * 4, 1 << (off % 32));
+        }
+    }
+}
+
+/// Whether an acknowledge value is a real interrupt the kernel has no IRQ
+/// for (GICv3 1024 up to the first LPI): it must be disabled
+/// (`disable_unsupported`), ended (`eoi`) and dropped.
+pub fn is_unsupported(raw: u64) -> bool {
+    crate::gic_layout::is_unsupported(version() == 3, raw, fl4_core::layout::irq::LPI_ID_BASE)
+}
+
 /// End interrupt `id` (as `ack` returned it).
 pub fn eoi(id: u64) {
     if version() == 3 {
@@ -437,6 +560,10 @@ fn banked_base(core: u64) -> Option<u64> {
 
 /// Mask or unmask `id` (banked interrupts: on `core`).
 pub fn mask(id: u64, core: u64, masked: bool) {
+    // LPIs are never masked (its.rs).
+    if id >= 1020 {
+        return;
+    }
     let base = if id < 32 {
         match banked_base(core) {
             Some(b) => b,
@@ -451,6 +578,9 @@ pub fn mask(id: u64, core: u64, masked: bool) {
 
 /// Edge (true) or level triggering for `id`; for an SPI also the target.
 pub fn configure(id: u64, core: u64, edge: bool) {
+    if id >= 1020 {
+        return;
+    }
     let base = if id < 32 {
         match banked_base(core) {
             Some(b) => b,
@@ -472,7 +602,7 @@ pub fn configure(id: u64, core: u64, edge: bool) {
 
 /// Deliver SPI `id` to `core`.
 pub fn route(id: u64, core: u64) {
-    if id < 32 {
+    if !(32..1020).contains(&id) {
         return;
     }
     if version() == 3 {

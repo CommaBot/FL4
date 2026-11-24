@@ -18,7 +18,7 @@ use crate::msg;
 use crate::msginfo::MessageInfo;
 use crate::obj::{ks_get, ks_set, Slot, Tcb};
 use crate::sched;
-use fl4_abi::consts::{arm_vm_attr, bits, USER_TOP};
+use fl4_abi::consts::{arm_vm_attr, bits, HIGH_VSPACE_BASE, HIGH_VSPACE_TOP, USER_TOP};
 use fl4_abi::label;
 
 // Descriptor bits (Arm ARM D8.3).
@@ -63,6 +63,24 @@ pub const ASID_BITS: u64 = 16;
 
 const PAGE_BITS: u64 = 12;
 const TOP_LEVEL_SHIFT: u64 = 39;
+
+/// What an ASID pool entry names, in the low bits of its (4 KiB-aligned)
+/// root: a VSpace (`Cap::Pml4`), a Stage-2 VSpace (`Cap::Ept`) or an
+/// `ArmHighVSpace` (`Cap::HighVSpace`).
+pub const ROOT_S1: u64 = 0;
+pub const ROOT_S2: u64 = 1;
+pub const ROOT_HIGH: u64 = 2;
+pub const ROOT_TAG: u64 = 3;
+
+/// The level-0 entry of the TTBR1 half that the high window lies in, and
+/// its level-1 entries the window covers (`HIGH_VSPACE_BASE` to
+/// `HIGH_VSPACE_TOP`).
+const HIGH_L0_INDEX: u64 = 511;
+const HIGH_L1_FIRST: u64 = (HIGH_VSPACE_BASE >> 30) & 511;
+const HIGH_L1_END: u64 = HIGH_L1_FIRST + ((HIGH_VSPACE_TOP - HIGH_VSPACE_BASE) >> 30);
+const _: () = assert!(HIGH_L1_FIRST == 384 && HIGH_L1_END == 496);
+const _: () = assert!((HIGH_VSPACE_BASE >> TOP_LEVEL_SHIFT) & 511 == HIGH_L0_INDEX);
+const _: () = assert!(HIGH_VSPACE_BASE >= layout::PPTR_TOP);
 
 fn entry_addr(table: u64, vaddr: u64, shift: u64) -> u64 {
     table.wrapping_add(((vaddr >> (shift & 63)) & 511).wrapping_mul(8))
@@ -207,7 +225,7 @@ fn set_asid_table<S: Store>(s: &mut S, high: u64, pool: u64) {
     ks_set(s, ks::ASID_TABLE.wrapping_add((high & (N_ASID_POOLS - 1)).wrapping_mul(8)), pool)
 }
 
-/// Raw ASID pool entry (bit 0 = 1 for Stage-2 VSpace, bit 0 = 0 for Stage-1).
+/// Raw ASID pool entry: the root with its `ROOT_*` tag.
 pub fn find_asid_raw<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     if asid >> ASID_BITS != 0 {
         return Err(LookupFault::InvalidRoot);
@@ -223,13 +241,75 @@ pub fn find_asid_raw<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     Ok(root)
 }
 
-/// seL4 `findVSpaceForASID` (Stage-1 only: rejects Stage-2 roots with bit 0 = 1).
+/// seL4 `findVSpaceForASID` (Stage-1 VSpaces only).
 pub fn find_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     let root = find_asid_raw(s, asid)?;
-    if root & 1 != 0 {
+    if root & ROOT_TAG != ROOT_S1 {
         return Err(LookupFault::InvalidRoot);
     }
     Ok(root)
+}
+
+/// The `ArmHighVSpace` ASID `asid` names.
+pub fn find_high_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
+    let root = find_asid_raw(s, asid)?;
+    if root & ROOT_TAG != ROOT_HIGH {
+        return Err(LookupFault::InvalidRoot);
+    }
+    Ok(root & !ROOT_TAG)
+}
+
+/// The tables a frame mapped with ASID `asid` is reached through, and the
+/// root `Arch::cache_op` may switch to (0 for the high window, which only
+/// RAM frames reach through the kernel window).
+fn frame_root<S: Store>(s: &S, asid: u64) -> Result<(u64, u64), LookupFault> {
+    let raw = find_asid_raw(s, asid)?;
+    let tag = raw & ROOT_TAG;
+    if tag == ROOT_S1 {
+        Ok((raw, raw))
+    } else if tag == ROOT_HIGH {
+        Ok((raw & !ROOT_TAG, 0))
+    } else {
+        Err(LookupFault::InvalidRoot)
+    }
+}
+
+/// A new `ArmHighVSpace` at `base` (8 KiB, zeroed): its level-0 table is
+/// the kernel's TTBR1 level-0 table, but for entry 511, which points to its
+/// own level-1 table (at `base + 4096`); that holds the kernel's level-1
+/// entries but for those of the high window (384-495), which stay empty for
+/// the owner's page tables and frames. The kernel's tables are built at
+/// boot and never change after, so the copy stays the kernel's. Entry 511
+/// has no PXNTable: the kernel image is below it.
+pub fn init_high_vspace<S: Store, A: Arch>(s: &mut S, a: &mut A, base: u64) {
+    let l1 = base.wrapping_add(4096);
+    if a.kernel_ttbr1_entry(0, HIGH_L0_INDEX) != 0 {
+        let mut i = 0;
+        while i < HIGH_L0_INDEX {
+            s.write(base.wrapping_add(i * 8), a.kernel_ttbr1_entry(0, i));
+            i += 1;
+        }
+        let mut j = 0;
+        while j < 512 {
+            if j < HIGH_L1_FIRST || j >= HIGH_L1_END {
+                s.write(l1.wrapping_add(j * 8), a.kernel_ttbr1_entry(1, j));
+            }
+            j += 1;
+        }
+    }
+    s.write(base.wrapping_add(HIGH_L0_INDEX * 8), (layout::paddr(l1) & ADDR_MASK) | D_VALID | D_TABLE_OR_PAGE);
+}
+
+/// The `ArmHighVSpace` bound to `t` (`TCBSetHighVSpace`), if its ASID
+/// still names it; 0 otherwise.
+fn high_root_of<S: Store>(s: &S, t: Tcb) -> u64 {
+    match t.slot(tl::SLOT_HIGH_VSPACE).cap(s) {
+        Cap::HighVSpace { ptr, mapped: true, asid } => match find_high_asid(s, asid) {
+            Ok(r) if r == ptr => ptr,
+            _ => 0,
+        },
+        _ => 0,
+    }
 }
 
 pub fn find_vspace_for_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
@@ -280,6 +360,11 @@ pub fn set_stage2_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
 /// while keeping TTBR0_EL2 on the empty kernel root; native threads install
 /// Stage-1 (`Cap::Pml4`) in TTBR0_EL2, plus the guest's Stage-2 root while
 /// running a VCPU via `ARMVCPURun`.
+///
+/// A native thread on a VSpace also gets its `ArmHighVSpace` as TTBR1, if
+/// it has one; a thread with no VSpace (ASID 0, shared by all of them) or
+/// running a VCPU never does: the high window's translations are tagged
+/// with the TTBR0 ASID, which the backend tracks (`Arch::set_high_vspace`).
 #[inline(always)]
 pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     if crate::vcpu::bound(s, t) != 0 {
@@ -289,7 +374,11 @@ pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     }
     match t.slot(tl::SLOT_VTABLE).cap(s) {
         Cap::Pml4 { ptr, mapped: true, asid } => match find_vspace_for_asid(s, asid) {
-            Ok(r) if r == ptr => a.set_vspace(ptr, asid),
+            Ok(r) if r == ptr => {
+                a.set_vspace(ptr, asid);
+                let high = if t.state(s) == sched::TS_RUNNING_VM { 0 } else { high_root_of(s, t) };
+                a.set_high_vspace(high, asid);
+            }
             _ => set_kernel_vm_root(s, a),
         },
         _ => set_kernel_vm_root(s, a),
@@ -308,6 +397,7 @@ pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
 pub fn set_kernel_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let k = kernel_root(s);
     a.set_vspace(k, 0);
+    a.set_high_vspace(0, 0);
 }
 
 /// The kernel is in the TTBR1 half: a VSpace holds no kernel mappings.
@@ -317,10 +407,18 @@ pub fn copy_global_mappings<S: Store>(s: &mut S, new_root: u64) {
 
 // ---- unmapping -----------------------------------------------------------------
 
-/// seL4 `unmapPage`.
+/// seL4 `unmapPage`, in a VSpace or an `ArmHighVSpace`.
 pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid: u64, vaddr: u64, pptr: u64) {
-    let root = match find_vspace_for_asid(s, asid) {
-        Ok(r) => r,
+    let (root, high) = match find_asid_raw(s, asid) {
+        Ok(r) => {
+            if r & ROOT_TAG == ROOT_S1 {
+                (r, false)
+            } else if r & ROOT_TAG == ROOT_HIGH {
+                (r & !ROOT_TAG, true)
+            } else {
+                return;
+            }
+        }
         Err(_) => return,
     };
     let lu = lookup_pt_slot(s, root, vaddr);
@@ -332,24 +430,34 @@ pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid
         return;
     }
     s.write(lu.slot, 0);
-    a.invalidate_page(asid, vaddr);
+    if high {
+        a.invalidate_high_page(vaddr);
+    } else {
+        a.invalidate_page(asid, vaddr);
+    }
 }
 
 /// seL4 `unmapPageTable`: find the slot that points to `pt` on the walk to
-/// `vaddr` (dispatches to Stage-2 when the ASID pool entry has bit 0 = 1).
+/// `vaddr` (dispatches to Stage-2 for a Stage-2 VSpace's ASID). In an
+/// `ArmHighVSpace` the walk starts at its own level-1 table: level-0 entry
+/// 511 is never a page table's to take.
 pub fn unmap_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, vaddr: u64, pt: u64) {
     let raw = match find_asid_raw(s, asid) {
         Ok(r) => r,
         Err(_) => return,
     };
-    if raw & 1 != 0 {
+    let tag = raw & ROOT_TAG;
+    if tag == ROOT_S2 {
         crate::ept::unmap_table(s, a, asid, vaddr, pt);
         return;
     }
-    let root = raw;
-    let mut table = root;
-    let mut shift = TOP_LEVEL_SHIFT;
-    let mut level: u64 = 0;
+    let high = tag == ROOT_HIGH;
+    let root = raw & !ROOT_TAG;
+    let (mut table, mut shift, mut level) = if high {
+        (table_of(s.read(root.wrapping_add(HIGH_L0_INDEX * 8))), 30u64, 1u64)
+    } else {
+        (root, TOP_LEVEL_SHIFT, 0u64)
+    };
     // The slot that points to `pt`, if the walk reaches it before an entry
     // that is not a table descriptor. (The loop ends with `break` rather
     // than `return`: Aeneas cannot extract an early return from a loop.)
@@ -370,7 +478,11 @@ pub fn unmap_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, vadd
     }
     if let Some(slot) = found {
         s.write(slot, 0);
-        a.invalidate_asid(asid);
+        if high {
+            a.invalidate_high_vspace(root);
+        } else {
+            a.invalidate_asid(asid);
+        }
     }
 }
 
@@ -391,8 +503,11 @@ pub fn delete_asid<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, root: u64
     }
     let e = pool.wrapping_add((asid & 511).wrapping_mul(8));
     if s.read(e) == root {
-        if root & 1 != 0 {
+        let tag = root & ROOT_TAG;
+        if tag == ROOT_S2 {
             a.invalidate_stage2_vmid(asid);
+        } else if tag == ROOT_HIGH {
+            a.invalidate_high_vspace(root & !ROOT_TAG);
         } else {
             a.invalidate_asid(asid);
         }
@@ -410,8 +525,10 @@ pub fn delete_asid_pool<S: Store, A: Arch>(s: &mut S, a: &mut A, base: u64, pool
     let mut i = 0;
     while i < 512 {
         let r = s.read(pool.wrapping_add(i * 8));
-        if r & 1 != 0 {
+        if r & ROOT_TAG == ROOT_S2 {
             a.invalidate_stage2_vmid(base.wrapping_add(i));
+        } else if r & ROOT_TAG == ROOT_HIGH {
+            a.invalidate_high_vspace(r & !ROOT_TAG);
         } else if r != 0 {
             a.invalidate_asid(base.wrapping_add(i));
         }
@@ -447,6 +564,25 @@ fn check_vspace<S: Store>(s: &S, vcap: Cap, cap_arg: u64) -> KResult<(u64, u64)>
         _ => return invalid_cap(cap_arg),
     };
     match find_vspace_for_asid(s, asid) {
+        Err(lf) => Err(Exc::Sys(SysError::FailedLookup { source: false, lf })),
+        Ok(r) => {
+            if r != root {
+                invalid_cap(cap_arg)
+            } else {
+                Ok((root, asid))
+            }
+        }
+    }
+}
+
+/// The level-0 table and ASID of a mapped `ArmHighVSpace` cap that its
+/// ASID still names.
+fn check_high_vspace<S: Store>(s: &S, vcap: Cap, cap_arg: u64) -> KResult<(u64, u64)> {
+    let (root, asid) = match vcap {
+        Cap::HighVSpace { ptr, mapped: true, asid } => (ptr, asid),
+        _ => return invalid_cap(cap_arg),
+    };
+    match find_high_asid(s, asid) {
         Err(lf) => Err(Exc::Sys(SysError::FailedLookup { source: false, lf })),
         Ok(r) => {
             if r != root {
@@ -585,6 +721,9 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     if f.asid != 0 && f.is_ept {
         return invalid_cap(1);
     }
+    if matches!(vcap, Cap::HighVSpace { .. }) {
+        return decode_high_page_map(s, a, slot, f, vcap, vaddr, vm, attr);
+    }
     let (root, asid) = check_vspace(s, vcap, 1)?;
     let shift = page_shift(f.size);
     if vaddr & (1u64 << (shift & 63)).wrapping_sub(1) != 0 {
@@ -611,8 +750,52 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     let e = make_user_page(layout::paddr(f.ptr), vm, cap_read, attr, shift);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: true, is_ept: false, asid, vaddr });
-    install_page(s, a, lu, e, root, asid, vaddr, f, attr);
+    install_page(s, a, lu, e, root, asid, vaddr, f, attr, false);
     Ok(())
+}
+
+/// ARMPageMap into an `ArmHighVSpace`: 4 KiB pages, 2 MiB and 1 GiB blocks
+/// within the high window, made as in a VSpace (EL0 rights, nG, PXN).
+#[allow(clippy::too_many_arguments)]
+fn decode_high_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot, f: FrameCap, vcap: Cap, vaddr: u64, vm: u64, attr: u64) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let (root, asid) = check_high_vspace(s, vcap, 1)?;
+    let shift = page_shift(f.size);
+    if vaddr & (1u64 << (shift & 63)).wrapping_sub(1) != 0 {
+        return Err(Exc::Sys(SysError::AlignmentError));
+    }
+    if f.asid != 0 {
+        if f.asid != asid {
+            return invalid_cap(1);
+        }
+        if f.vaddr != vaddr {
+            return invalid_arg(0);
+        }
+    }
+    let last = vaddr.wrapping_add((1u64 << (shift & 63)).wrapping_sub(1));
+    if vaddr < HIGH_VSPACE_BASE || last >= HIGH_VSPACE_TOP || last < vaddr {
+        return invalid_arg(0);
+    }
+    let lu = lookup_pt_slot(s, root, vaddr);
+    if lu.shift != shift {
+        return Err(Exc::Sys(SysError::FailedLookup { source: false, lf: LookupFault::MissingCapability { bits_left: lu.shift } }));
+    }
+    let cap_read = rights_readable(f.rights);
+    let e = make_user_page(layout::paddr(f.ptr), vm, cap_read, attr, shift);
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: true, is_ept: false, asid, vaddr });
+    install_page(s, a, lu, e, 0, asid, vaddr, f, attr, true);
+    Ok(())
+}
+
+/// Drop the translations of one page: in a VSpace by its ASID, in the
+/// high window for every ASID (`Arch::invalidate_high_page`).
+fn invalidate_mapping<A: Arch>(a: &mut A, high: bool, asid: u64, vaddr: u64) {
+    if high {
+        a.invalidate_high_page(vaddr);
+    } else {
+        a.invalidate_page(asid, vaddr);
+    }
 }
 
 /// seL4 `performPageInvocationMap`, with break-before-make (Arm ARM DDI
@@ -635,16 +818,19 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
 /// kernel window, so this never walks the user mapping. Device frames are
 /// never cache-maintained.
 #[allow(clippy::too_many_arguments)]
-fn install_page<S: Store, A: Arch>(s: &mut S, a: &mut A, lu: PtSlot, e: u64, root: u64, asid: u64, vaddr: u64, f: FrameCap, attr: u64) {
+///
+/// In the high window (`high`) the invalidations are for every ASID and
+/// `root` is 0: the cache maintenance never switches to a user mapping.
+fn install_page<S: Store, A: Arch>(s: &mut S, a: &mut A, lu: PtSlot, e: u64, root: u64, asid: u64, vaddr: u64, f: FrameCap, attr: u64, high: bool) {
     let old = s.read(lu.slot);
     if is_page(old, lu.shift) {
         if (old ^ e) & BBM_MASK == 0 {
             s.write(lu.slot, e);
-            a.invalidate_page(asid, vaddr);
+            invalidate_mapping(a, high, asid, vaddr);
             return;
         }
         s.write(lu.slot, 0);
-        a.invalidate_page(asid, vaddr);
+        invalidate_mapping(a, high, asid, vaddr);
     }
     if !f.is_device && attr & arm_vm_attr::PAGE_CACHEABLE == 0 {
         a.cache_op(CACHE_CLEAN_INVALIDATE, root, asid, vaddr, 1u64 << (lu.shift & 63), layout::paddr(f.ptr));
@@ -685,7 +871,7 @@ fn decode_page_flush<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     if f.is_ept {
         return crate::ept::flush_frame(s, a, page_cache_op(lbl), is_invalidate(lbl), f.asid, f.vaddr, f.ptr, f.size, f.is_device, start, end);
     }
-    let root = match find_vspace_for_asid(s, f.asid) {
+    let (root, cache_root) = match frame_root(s, f.asid) {
         Ok(r) => r,
         Err(lf) => return Err(Exc::Sys(SysError::FailedLookup { source: false, lf })),
     };
@@ -698,7 +884,7 @@ fn decode_page_flush<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     }
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     let pstart = layout::paddr(f.ptr).wrapping_add(start);
-    a.cache_op(page_cache_op(lbl), root, f.asid, f.vaddr.wrapping_add(start), end - start, pstart);
+    a.cache_op(page_cache_op(lbl), cache_root, f.asid, f.vaddr.wrapping_add(start), end - start, pstart);
     Ok(())
 }
 
@@ -755,8 +941,8 @@ fn decode_test_and_clear_accessed<S: Store, A: Arch>(s: &mut S, a: &mut A, f: Fr
     if f.is_ept || matches!(f.size, FrameSize::Huge) || !f.mapped || f.asid == 0 || !a.hw_access_flag() {
         return illegal();
     }
-    let root = match find_vspace_for_asid(s, f.asid) {
-        Ok(r) => r,
+    let root = match frame_root(s, f.asid) {
+        Ok((r, _)) => r,
         Err(_) => return invalid_cap(0),
     };
     let lu = match mapped_entry(s, f, root) {
@@ -900,6 +1086,9 @@ fn decode_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     }
     let vaddr = msg::syscall_arg(s, ct, buf, 0);
     let vcap = vslot.cap(s);
+    if matches!(vcap, Cap::HighVSpace { .. }) {
+        return map_high_page_table(s, slot, ptr, vcap, vaddr);
+    }
     if !is_valid_vtable_root(vcap) {
         return invalid_cap(1);
     }
@@ -913,6 +1102,26 @@ fn decode_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     let (root, asid) = check_vspace(s, vcap, 1)?;
     let lu = lookup_pt_slot(s, root, vaddr);
     if lu.shift == PAGE_BITS || s.read(lu.slot) & D_VALID != 0 {
+        return Err(Exc::Sys(SysError::DeleteFirst));
+    }
+    let base = vaddr & !((1u64 << (lu.shift & 63)).wrapping_sub(1));
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
+    slot.set_cap(s, Cap::PageTable { ptr, mapped: true, asid, vaddr: base });
+    s.write(lu.slot, make_user_table(layout::paddr(ptr)));
+    Ok(())
+}
+
+/// ARMPageTableMap into an `ArmHighVSpace`: a level-2 or level-3 table
+/// within the high window (level-0 entry 511 always holds its own level-1
+/// table), never executable by the kernel (PXNTable).
+fn map_high_page_table<S: Store>(s: &mut S, slot: Slot, ptr: u64, vcap: Cap, vaddr: u64) -> KResult<()> {
+    let ct = sched::cur_thread(s);
+    let (root, asid) = check_high_vspace(s, vcap, 1)?;
+    if vaddr < HIGH_VSPACE_BASE || vaddr >= HIGH_VSPACE_TOP {
+        return invalid_arg(0);
+    }
+    let lu = lookup_pt_slot(s, root, vaddr);
+    if lu.shift == PAGE_BITS || lu.shift == TOP_LEVEL_SHIFT || s.read(lu.slot) & D_VALID != 0 {
         return Err(Exc::Sys(SysError::DeleteFirst));
     }
     let base = vaddr & !((1u64 << (lu.shift & 63)).wrapping_sub(1));
@@ -994,9 +1203,10 @@ pub fn decode<S: Store, A: Arch>(
                 Some(x) => x,
                 None => return truncated(),
             };
-            let (vroot, is_s2) = match vslot.cap(s) {
-                Cap::Pml4 { ptr, mapped: false, .. } => (ptr, false),
-                Cap::Ept { ptr, level: 0, mapped: false, .. } => (ptr, true),
+            let (vroot, tag) = match vslot.cap(s) {
+                Cap::Pml4 { ptr, mapped: false, .. } => (ptr, ROOT_S1),
+                Cap::Ept { ptr, level: 0, mapped: false, .. } => (ptr, ROOT_S2),
+                Cap::HighVSpace { ptr, mapped: false, .. } => (ptr, ROOT_HIGH),
                 _ => return invalid_cap(1),
             };
             let pool = asid_table(s, asid_base >> ASID_LOW_BITS);
@@ -1015,15 +1225,17 @@ pub fn decode<S: Store, A: Arch>(
             }
             let asid = asid_base.wrapping_add(i);
             sched::set_thread_state(s, ct, sched::TS_RESTART);
-            if is_s2 {
+            if tag == ROOT_S2 {
                 vslot.set_cap(s, Cap::Ept { ptr: vroot, level: 0, mapped: true, asid, vaddr: 0 });
-                s.write(pool.wrapping_add((asid & 511) * 8), vroot | 1);
+            } else if tag == ROOT_HIGH {
+                vslot.set_cap(s, Cap::HighVSpace { ptr: vroot, mapped: true, asid });
             } else {
                 vslot.set_cap(s, Cap::Pml4 { ptr: vroot, mapped: true, asid });
-                s.write(pool.wrapping_add((asid & 511) * 8), vroot);
             }
+            s.write(pool.wrapping_add((asid & 511) * 8), vroot | tag);
             Ok(())
         }
+        Cap::HighVSpace { .. } => illegal(),
         _ => invalid_cap(0),
     }
 }
@@ -1407,5 +1619,554 @@ mod tests {
         // And through the descriptors: no read right means execute-never.
         assert_ne!(make_user_page(FRAME, VM_READ_WRITE, false, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
         assert_eq!(make_user_page(FRAME, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
+    }
+}
+
+#[cfg(test)]
+mod high_window_tests {
+    //! `ArmHighVSpace` (the TTBR1 EL0 window), `TCBSetHighVSpace` and
+    //! `TCBSetPACKeys`, through the invocations themselves.
+    extern crate std;
+    use super::*;
+    use crate::capability::FrameSize;
+    use crate::obj::Tcb;
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+    use std::rc::Rc;
+    use std::vec;
+    use std::vec::Vec;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Ev {
+        SetVspace(u64, u64),
+        SetHigh(u64, u64),
+        InvalidatePage(u64, u64),
+        InvalidateAsid(u64),
+        HighPage(u64),
+        HighVspace(u64),
+        CacheOp { root: u64, vaddr: u64 },
+    }
+    type Log = Rc<RefCell<Vec<Ev>>>;
+
+    struct Mem {
+        words: BTreeMap<u64, u64>,
+    }
+    impl Store for Mem {
+        fn read(&self, a: u64) -> u64 {
+            *self.words.get(&a).unwrap_or(&0)
+        }
+        fn write(&mut self, a: u64, v: u64) {
+            self.words.insert(a, v);
+        }
+        fn zero(&mut self, a: u64, len: u64) {
+            for i in (0..len).step_by(8) {
+                self.words.remove(&(a + i));
+            }
+        }
+        fn clear_free(&mut self, a: u64, len: u64) {
+            self.zero(a, len)
+        }
+        fn ks_base(&self) -> u64 {
+            0x10_0000
+        }
+        fn cur_cpu(&self) -> u64 {
+            0
+        }
+    }
+
+    struct Mach {
+        log: Log,
+        pauth: bool,
+        epoch: u64,
+        /// The kernel's TTBR1 tables (`kernel_ttbr1_entry`), or none.
+        kernel: Option<(Vec<u64>, Vec<u64>)>,
+    }
+    impl Mach {
+        fn ev(&self, e: Ev) {
+            self.log.borrow_mut().push(e);
+        }
+    }
+    impl Arch for Mach {
+        fn now(&mut self) -> u64 { 0 }
+        fn set_deadline(&mut self, _: u64) {}
+        fn us_to_ticks(&self, x: u64) -> u64 { x }
+        fn ticks_to_us(&self, x: u64) -> u64 { x }
+        fn max_us(&self) -> u64 { u64::MAX }
+        fn kernel_wcet_ticks(&self) -> u64 { 1 }
+        fn irq_pending(&mut self) -> bool { false }
+        fn take_pending_irq(&mut self) -> u64 { u64::MAX }
+        fn mask_irq(&mut self, _: u64, _: bool) {}
+        fn ack_irq(&mut self, _: u64) {}
+        fn set_vspace(&mut self, root: u64, asid: u64) { self.ev(Ev::SetVspace(root, asid)) }
+        fn invalidate_page(&mut self, asid: u64, vaddr: u64) { self.ev(Ev::InvalidatePage(asid, vaddr)) }
+        fn invalidate_asid(&mut self, asid: u64) { self.ev(Ev::InvalidateAsid(asid)) }
+        fn invalidate_page_structures(&mut self, _: u64) { panic!("unexpected") }
+        fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn num_ioapics(&self) -> u64 { 0 }
+        fn ioapic_pins(&self, _: u64) -> u64 { 0 }
+        fn port_in(&mut self, _: u64, _: u64) -> u64 { 0 }
+        fn port_out(&mut self, _: u64, _: u64, _: u64) {}
+        fn fpu_flush(&mut self, _: u64) {}
+        fn fpu_sanitise(&mut self, _: u64) {}
+        fn fpu_reload(&mut self, _: u64) {}
+        fn fpu_release(&mut self, _: u64) {}
+        fn remote_stall(&mut self, _: u64) {}
+        fn send_reschedule(&mut self, _: u64) {}
+        fn cache_op(&mut self, _op: u64, root: u64, _asid: u64, vaddr: u64, _len: u64, _paddr: u64) {
+            self.ev(Ev::CacheOp { root, vaddr })
+        }
+        fn hw_access_flag(&self) -> bool { true }
+        fn max_spi(&self) -> u64 { 0 }
+        fn configure_irq(&mut self, _: u64, _: bool, _: u64) {}
+        fn putc(&mut self, _: u64) {}
+        fn get_char(&mut self) -> u64 { 0 }
+        fn halt(&mut self) {}
+        fn has_pauth(&self) -> bool { self.pauth }
+        fn next_pac_epoch(&mut self) -> u64 {
+            self.epoch += 1;
+            self.epoch
+        }
+        fn kernel_ttbr1_entry(&self, level: u64, index: u64) -> u64 {
+            match &self.kernel {
+                Some((l0, l1)) => if level == 0 { l0[index as usize] } else { l1[index as usize] },
+                None => 0,
+            }
+        }
+        fn set_high_vspace(&mut self, root: u64, asid: u64) { self.ev(Ev::SetHigh(root, asid)) }
+        fn invalidate_high_page(&mut self, vaddr: u64) { self.ev(Ev::HighPage(vaddr)) }
+        fn invalidate_high_vspace(&mut self, root: u64) { self.ev(Ev::HighVspace(root)) }
+    }
+
+    const BASE: u64 = HIGH_VSPACE_BASE;
+    const POOL_BASE: u64 = 0x200;
+    // Physical addresses.
+    const HIGH: u64 = 0x20_0000; // 8 KiB
+    const VS: u64 = 0x20_4000;
+    const L2: u64 = 0x21_0000;
+    const L3: u64 = 0x21_1000;
+    const POOL: u64 = 0x30_0000;
+    const FRAME4K: u64 = 0x40_0000;
+    const FRAME2M: u64 = 0x60_0000;
+    const FRAME1G: u64 = 0x4000_0000;
+    const BUF: u64 = 0x50_0000;
+
+    fn p(pa: u64) -> u64 {
+        layout::pptr(pa)
+    }
+
+    fn slot(i: u64) -> Slot {
+        Slot(p(0x70_0000) + i * 32)
+    }
+
+    struct W {
+        s: Mem,
+        a: Mach,
+        log: Log,
+        ct: Tcb,
+    }
+
+    impl W {
+        fn new(kernel: bool) -> W {
+            let log: Log = Rc::new(RefCell::new(Vec::new()));
+            let mut s = Mem { words: BTreeMap::new() };
+            let kernel = if kernel {
+                let l0: Vec<u64> = (0..512).map(|i| if i >= 256 { 0x9000_0003 + i * 0x1000 } else { 0 }).collect();
+                let l1: Vec<u64> = (0..512).map(|i| 0xa000_0003 + i * 0x1000).collect();
+                Some((l0, l1))
+            } else {
+                None
+            };
+            let a = Mach { log: log.clone(), pauth: true, epoch: 0, kernel };
+            let ct = Tcb(p(0x60_0000));
+            sched::set_cur_thread(&mut s, ct);
+            ct.set_state(&mut s, sched::TS_RUNNING);
+            set_asid_table(&mut s, POOL_BASE >> ASID_LOW_BITS, p(POOL));
+            W { s, a, log, ct }
+        }
+        fn args(&mut self, args: &[u64]) -> u64 {
+            for (i, &v) in args.iter().enumerate() {
+                if (i as u64) < crate::msg::N_MSG_REGISTERS {
+                    self.ct.set_reg(&mut self.s, msg::msg_register(i as u64), v);
+                } else {
+                    self.s.write(p(BUF) + (i as u64 + 1) * 8, v);
+                }
+            }
+            p(BUF)
+        }
+        fn invoke(&mut self, lbl: u64, length: u64, sl: Slot, args: &[u64], ex: [Slot; 3]) -> KResult<()> {
+            let buf = self.args(args);
+            self.log.borrow_mut().clear();
+            let cap = sl.cap(&self.s);
+            decode(&mut self.s, &mut self.a, lbl, length, sl, cap, false, buf, &ex)
+        }
+        fn events(&self) -> Vec<Ev> {
+            self.log.borrow().clone()
+        }
+        /// A new ArmHighVSpace in slot 0, assigned an ASID (returned).
+        fn high(&mut self) -> u64 {
+            let c = crate::objects::create_object(&mut self.s, &mut self.a, fl4_abi::consts::object::ArmHighVSpace, p(HIGH), 0, false);
+            slot(0).set_cap(&mut self.s, c);
+            slot(1).set_cap(&mut self.s, Cap::AsidPool { ptr: p(POOL), asid_base: POOL_BASE });
+            assert!(self.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(0), Slot(0), Slot(0)]).is_ok());
+            match slot(0).cap(&self.s) {
+                Cap::HighVSpace { ptr, mapped: true, asid } => {
+                    assert_eq!(ptr, p(HIGH));
+                    asid
+                }
+                _ => panic!("not assigned"),
+            }
+        }
+        fn map_table(&mut self, pt: u64, sl: Slot, vaddr: u64) -> KResult<()> {
+            sl.set_cap(&mut self.s, Cap::PageTable { ptr: p(pt), mapped: false, asid: 0, vaddr: 0 });
+            self.invoke(label::ARMPageTableMap, 2, sl, &[vaddr], [slot(0), Slot(0), Slot(0)])
+        }
+        fn map_frame(&mut self, frame: u64, size: FrameSize, sl: Slot, vaddr: u64, attr: u64) -> KResult<()> {
+            if !matches!(sl.cap(&self.s), Cap::Frame { .. }) {
+                sl.set_cap(&mut self.s, Cap::Frame { ptr: p(frame), size, rights: VM_READ_WRITE, is_device: false, mapped: false, is_ept: false, asid: 0, vaddr: 0 });
+            }
+            self.invoke(label::ARMPageMap, 3, sl, &[vaddr, u64::MAX, attr], [slot(0), Slot(0), Slot(0)])
+        }
+    }
+
+    fn l1_slot(i: u64) -> u64 {
+        p(HIGH) + 4096 + i * 8
+    }
+
+    #[test]
+    fn a_high_vspace_copies_the_kernel_tables_but_the_window() {
+        let mut w = W::new(true);
+        let c = crate::objects::create_object(&mut w.s, &mut w.a, fl4_abi::consts::object::ArmHighVSpace, p(HIGH), 0, false);
+        assert!(c == Cap::HighVSpace { ptr: p(HIGH), mapped: false, asid: 0 });
+        let (kl0, kl1) = w.a.kernel.clone().unwrap();
+        for i in 0..511 {
+            assert_eq!(w.s.read(p(HIGH) + i * 8), kl0[i as usize], "L0[{i}]");
+        }
+        // L0[511]: its own level-1 table, no PXNTable (the kernel image is below it).
+        assert_eq!(w.s.read(p(HIGH) + 511 * 8), (HIGH + 4096) | D_VALID | D_TABLE_OR_PAGE);
+        for i in 0..512 {
+            let want = if (384..496).contains(&i) { 0 } else { kl1[i as usize] };
+            assert_eq!(w.s.read(l1_slot(i)), want, "L1[{i}]");
+        }
+        // Without kernel tables (host tests): only the window's path.
+        let mut w = W::new(false);
+        let _ = crate::objects::create_object(&mut w.s, &mut w.a, fl4_abi::consts::object::ArmHighVSpace, p(HIGH), 0, false);
+        let set: Vec<_> = w.s.words.iter().filter(|(&k, &v)| v != 0 && (p(HIGH)..p(HIGH) + 8192).contains(&k)).map(|(&k, &v)| (k, v)).collect();
+        assert_eq!(set, vec![(p(HIGH) + 511 * 8, (HIGH + 4096) | D_VALID | D_TABLE_OR_PAGE)]);
+    }
+
+    #[test]
+    fn asid_pool_assign_tags_a_high_vspace() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        assert_eq!(asid, POOL_BASE);
+        assert!(find_asid_raw(&w.s, asid) == Ok(p(HIGH) | ROOT_HIGH));
+        assert!(find_high_asid(&w.s, asid) == Ok(p(HIGH)));
+        assert!(find_asid(&w.s, asid).is_err());
+        assert!(crate::ept::find(&w.s, asid).is_err());
+        // Assigned once only.
+        assert!(w.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(0), Slot(0), Slot(0)]).is_err());
+    }
+
+    #[test]
+    fn page_tables_and_frames_map_only_inside_the_window() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        let l0_511 = w.s.read(p(HIGH) + 511 * 8);
+        // Outside the window: below it (the device area), at its top, and
+        // a user address.
+        for va in [BASE - (1 << 30), HIGH_VSPACE_TOP, HIGH_VSPACE_TOP + (1 << 30), 0x4000_0000, layout::PPTR_BASE] {
+            assert!(matches!(w.map_table(L2, slot(2), va), Err(Exc::Sys(SysError::InvalidArgument { arg: 0 }))), "{va:#x}");
+        }
+        // Level 2 at L1[384], then level 3 below it.
+        assert!(w.map_table(L2, slot(2), BASE + 0x1234).is_ok());
+        assert!(slot(2).cap(&w.s) == Cap::PageTable { ptr: p(L2), mapped: true, asid, vaddr: BASE });
+        let e = w.s.read(l1_slot(384));
+        assert_eq!(e, L2 | D_PXN_TABLE | D_VALID | D_TABLE_OR_PAGE);
+        assert!(w.map_table(L3, slot(3), BASE).is_ok());
+        assert_eq!(w.s.read(p(L2)), L3 | D_PXN_TABLE | D_VALID | D_TABLE_OR_PAGE);
+        // A table where one is already: delete first.
+        assert!(matches!(w.map_table(0x21_2000, slot(9), BASE), Err(Exc::Sys(SysError::DeleteFirst))));
+        assert_eq!(w.s.read(p(HIGH) + 511 * 8), l0_511);
+
+        // 4 KiB, 2 MiB and 1 GiB.
+        assert!(w.map_frame(FRAME4K, FrameSize::Small, slot(4), BASE + 0x1000, arm_vm_attr::PAGE_CACHEABLE).is_ok());
+        assert!(w.map_frame(FRAME2M, FrameSize::Large, slot(5), BASE + 0x20_0000, arm_vm_attr::PAGE_CACHEABLE).is_ok());
+        assert!(w.map_frame(FRAME1G, FrameSize::Huge, slot(6), HIGH_VSPACE_TOP - (1 << 30), arm_vm_attr::PAGE_CACHEABLE).is_ok());
+        let pte = w.s.read(p(L3) + 8);
+        let blk = w.s.read(p(L2) + 8);
+        let huge = w.s.read(l1_slot(495));
+        for (e, pa, page) in [(pte, FRAME4K, true), (blk, FRAME2M, false), (huge, FRAME1G, false)] {
+            assert_eq!(e & ADDR_MASK, pa);
+            assert_eq!(e & (D_VALID | D_TABLE_OR_PAGE), if page { 3 } else { 1 });
+            assert_ne!(e & D_PXN, 0, "PXN");
+            assert_ne!(e & D_NG, 0, "nG");
+            assert_eq!((e >> D_AP_SHIFT) & 3, 1, "EL0 read-write");
+            assert_eq!(e & D_UXN, 0, "EL0 executable");
+        }
+        // The frame caps record the window's addresses (sign-extended).
+        assert!(slot(4).cap(&w.s) == Cap::Frame { ptr: p(FRAME4K), size: FrameSize::Small, rights: VM_READ_WRITE, is_device: false, mapped: true, is_ept: false, asid, vaddr: BASE + 0x1000 });
+        assert!(matches!(slot(6).cap(&w.s), Cap::Frame { vaddr, .. } if vaddr == HIGH_VSPACE_TOP - (1 << 30)));
+        // Outside, or ending outside: refused, nothing written.
+        let before = w.s.words.clone();
+        for (size, va) in [(FrameSize::Huge, HIGH_VSPACE_TOP), (FrameSize::Small, BASE - 0x1000), (FrameSize::Large, HIGH_VSPACE_TOP), (FrameSize::Small, 0x1000)] {
+            let r = w.map_frame(FRAME4K, size, slot(7), va, 0);
+            assert!(matches!(r, Err(Exc::Sys(SysError::InvalidArgument { arg: 0 }))), "{va:#x}");
+            slot(7).set_cap(&mut w.s, Cap::Null);
+        }
+        let tables = |m: &BTreeMap<u64, u64>| -> Vec<(u64, u64)> {
+            m.iter().filter(|(&k, _)| (p(HIGH)..p(HIGH) + 8192).contains(&k) || (p(L2)..p(L3) + 4096).contains(&k)).map(|(&k, &v)| (k, v)).collect()
+        };
+        assert_eq!(tables(&w.s.words), tables(&before));
+        // Remapping in place (new rights) flushes the page in every ASID.
+        assert!(w.map_frame(FRAME4K, FrameSize::Small, slot(4), BASE + 0x1000, arm_vm_attr::PAGE_CACHEABLE | arm_vm_attr::EXECUTE_NEVER).is_ok());
+        assert_eq!(w.events(), vec![Ev::HighPage(BASE + 0x1000)]);
+        assert_ne!(w.s.read(p(L3) + 8) & D_UXN, 0);
+        // An uncached RAM frame is cleaned through the kernel window only (root 0).
+        assert!(w.map_frame(FRAME4K, FrameSize::Small, slot(8), BASE + 0x2000, 0).is_ok());
+        assert_eq!(w.events(), vec![Ev::CacheOp { root: 0, vaddr: BASE + 0x2000 }]);
+        // A frame mapped in the window cannot be mapped into a VSpace.
+        slot(9).set_cap(&mut w.s, Cap::Pml4 { ptr: p(VS), mapped: false, asid: 0 });
+        assert!(w.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(9), Slot(0), Slot(0)]).is_ok());
+        let r = w.invoke(label::ARMPageMap, 3, slot(4), &[BASE + 0x1000, u64::MAX, 0], [slot(9), Slot(0), Slot(0)]);
+        assert!(matches!(r, Err(Exc::Sys(SysError::InvalidCapability { arg: 1 }))));
+        // Cache maintenance of a window frame: through the kernel window.
+        let r = w.invoke(label::ARMPageClean_Data, 2, slot(4), &[0, 0x1000], [Slot(0); 3]);
+        assert!(r.is_ok());
+        assert_eq!(w.events(), vec![Ev::CacheOp { root: 0, vaddr: BASE + 0x1000 }]);
+    }
+
+    #[test]
+    fn unmapping_in_the_window_flushes_it_and_keeps_level_0() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        assert!(w.map_table(L2, slot(2), BASE).is_ok());
+        assert!(w.map_table(L3, slot(3), BASE).is_ok());
+        assert!(w.map_frame(FRAME4K, FrameSize::Small, slot(4), BASE, arm_vm_attr::PAGE_CACHEABLE).is_ok());
+        let l0 = w.s.read(p(HIGH) + 511 * 8);
+        assert!(w.invoke(label::ARMPageUnmap, 0, slot(4), &[], [Slot(0); 3]).is_ok());
+        assert_eq!(w.events(), vec![Ev::HighPage(BASE)]);
+        assert_eq!(w.s.read(p(L3)), 0);
+        assert!(matches!(slot(4).cap(&w.s), Cap::Frame { mapped: false, asid: 0, .. }));
+        // Level 3, then level 2: the slot pointing at each, the whole
+        // window flushed (its tables are about to be freed), L0[511] kept.
+        assert!(w.invoke(label::ARMPageTableUnmap, 0, slot(3), &[], [Slot(0); 3]).is_ok());
+        assert_eq!(w.events(), vec![Ev::HighVspace(p(HIGH))]);
+        assert_eq!(w.s.read(p(L2)), 0);
+        assert!(w.invoke(label::ARMPageTableUnmap, 0, slot(2), &[], [Slot(0); 3]).is_ok());
+        assert_eq!(w.events(), vec![Ev::HighVspace(p(HIGH))]);
+        assert_eq!(w.s.read(l1_slot(384)), 0);
+        assert_eq!(w.s.read(p(HIGH) + 511 * 8), l0);
+        assert_ne!(l0, 0);
+        let _ = asid;
+    }
+
+    #[test]
+    fn deleting_a_high_vspace_frees_its_asid_and_leaves_it_everywhere() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        let c = slot(0).cap(&w.s);
+        w.log.borrow_mut().clear();
+        let _ = crate::objects::finalise_cap_object(&mut w.s, &mut w.a, c, true);
+        let ev = w.events();
+        assert_eq!(ev[0], Ev::HighVspace(p(HIGH)));
+        assert!(find_asid_raw(&w.s, asid).is_err());
+        // A copy (not final) changes nothing.
+        let mut w = W::new(true);
+        let _ = w.high();
+        let c = slot(0).cap(&w.s);
+        w.log.borrow_mut().clear();
+        let _ = crate::objects::finalise_cap_object(&mut w.s, &mut w.a, c, false);
+        assert_eq!(w.events(), vec![]);
+        // Deleting the pool flushes it too.
+        let mut w = W::new(true);
+        let asid = w.high();
+        w.log.borrow_mut().clear();
+        delete_asid_pool(&mut w.s, &mut w.a, POOL_BASE, p(POOL));
+        assert_eq!(w.events()[0], Ev::HighVspace(p(HIGH)));
+        assert!(find_high_asid(&w.s, asid).is_err());
+    }
+
+    fn tcb_ctx<'a>(sl: Slot, length: u64, buf: u64, ex: &'a [Slot; 3]) -> crate::tcb::Ctx<'a> {
+        crate::tcb::Ctx { length, buf, call: false, slot: sl, extra: ex }
+    }
+
+    #[test]
+    fn set_high_vspace_binds_a_copy_and_set_vm_root_runs_on_it() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        // The thread's VSpace.
+        slot(9).set_cap(&mut w.s, Cap::Pml4 { ptr: p(VS), mapped: false, asid: 0 });
+        assert!(w.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(9), Slot(0), Slot(0)]).is_ok());
+        let vs_asid = match slot(9).cap(&w.s) { Cap::Pml4 { asid, .. } => asid, _ => panic!() };
+        assert_ne!(vs_asid, asid);
+        let target = Tcb(p(0x61_0000));
+        let vc = slot(9).cap(&w.s);
+        crate::cdt::insert(&mut w.s, vc, slot(9), target.slot(tl::SLOT_VTABLE));
+        slot(10).set_cap(&mut w.s, Cap::Thread { ptr: target.0 });
+        let ex = [slot(0), Slot(0), Slot(0)];
+        assert!(crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex)).is_ok());
+        assert!(target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s) == Cap::HighVSpace { ptr: p(HIGH), mapped: true, asid });
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, target);
+        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(p(HIGH), vs_asid)]);
+        // Running a VCPU (ARMVCPURun): never the window.
+        target.set_state(&mut w.s, sched::TS_RUNNING_VM);
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, target);
+        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+        target.set_state(&mut w.s, sched::TS_RUNNING);
+        // A thread without a VSpace never runs the window (ASID 0 is everyone's).
+        let bare = Tcb(p(0x62_0000));
+        let hc = slot(0).cap(&w.s);
+        crate::cdt::insert(&mut w.s, hc, slot(0), bare.slot(tl::SLOT_HIGH_VSPACE));
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, bare);
+        assert_eq!(w.events(), vec![Ev::SetVspace(0, 0), Ev::SetHigh(0, 0)]);
+        // Unassigned or the wrong kind of cap: refused.
+        slot(11).set_cap(&mut w.s, Cap::HighVSpace { ptr: p(0x22_0000), mapped: false, asid: 0 });
+        slot(12).set_cap(&mut w.s, Cap::Pml4 { ptr: p(VS), mapped: true, asid: vs_asid });
+        for sl in [slot(11), slot(12)] {
+            let ex = [sl, Slot(0), Slot(0)];
+            let r = crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex));
+            assert!(matches!(r, Err(Exc::Sys(SysError::InvalidCapability { arg: 1 }))));
+        }
+        let r = crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &[Slot(0); 3]));
+        assert!(matches!(r, Err(Exc::Sys(SysError::TruncatedMessage))));
+        // Unbinding with a null cap.
+        let ex = [slot(13), Slot(0), Slot(0)];
+        assert!(crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex)).is_ok());
+        assert!(target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s).is_null());
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, target);
+        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+        // Bound again, then the window deleted: its ASID no longer names
+        // it, so the thread runs without it.
+        let ex = [slot(0), Slot(0), Slot(0)];
+        assert!(crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex)).is_ok());
+        delete_asid(&mut w.s, &mut w.a, asid, p(HIGH) | ROOT_HIGH);
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, target);
+        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+    }
+
+    /// A VSpace assigned from the pool (slot 9) for thread `t`, and its ASID.
+    fn give_vspace(w: &mut W, t: Tcb) -> u64 {
+        slot(9).set_cap(&mut w.s, Cap::Pml4 { ptr: p(VS), mapped: false, asid: 0 });
+        assert!(w.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(9), Slot(0), Slot(0)]).is_ok());
+        let vc = slot(9).cap(&w.s);
+        crate::cdt::insert(&mut w.s, vc, slot(9), t.slot(tl::SLOT_VTABLE));
+        match vc {
+            Cap::Pml4 { asid, .. } => asid,
+            _ => panic!(),
+        }
+    }
+
+    /// Astra R1 P2: a copy of a window cap whose ASID was deleted is refused
+    /// before the thread's binding is touched.
+    #[test]
+    fn set_high_vspace_refuses_a_stale_cap_and_keeps_the_binding() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        let target = Tcb(p(0x61_0000));
+        slot(10).set_cap(&mut w.s, Cap::Thread { ptr: target.0 });
+        let ex = [slot(0), Slot(0), Slot(0)];
+        assert!(crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex)).is_ok());
+        let bound = target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s);
+        assert!(bound == Cap::HighVSpace { ptr: p(HIGH), mapped: true, asid });
+        // A second window, assigned, then its ASID deleted: its cap stays
+        // `mapped: true` but names nothing.
+        let h2 = p(0x22_0000);
+        let c2 = crate::objects::create_object(&mut w.s, &mut w.a, fl4_abi::consts::object::ArmHighVSpace, h2, 0, false);
+        slot(11).set_cap(&mut w.s, c2);
+        assert!(w.invoke(label::ARMASIDPoolAssign, 0, slot(1), &[], [slot(11), Slot(0), Slot(0)]).is_ok());
+        let asid2 = match slot(11).cap(&w.s) { Cap::HighVSpace { asid, .. } => asid, _ => panic!() };
+        delete_asid(&mut w.s, &mut w.a, asid2, h2 | ROOT_HIGH);
+        assert!(matches!(slot(11).cap(&w.s), Cap::HighVSpace { mapped: true, .. }));
+        let ex = [slot(11), Slot(0), Slot(0)];
+        let r = crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex));
+        assert!(matches!(r, Err(Exc::Sys(SysError::InvalidCapability { arg: 1 }))));
+        assert!(target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s) == bound);
+        // A window whose ASID now names another root (reused): refused too.
+        let raw = find_asid_raw(&w.s, asid).ok().unwrap();
+        let pool = asid_table(&w.s, asid >> ASID_LOW_BITS);
+        s_write_entry(&mut w.s, pool, asid, p(0x23_0000) | ROOT_HIGH);
+        let ex = [slot(0), Slot(0), Slot(0)];
+        let r = crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetHighVSpace, target, &tcb_ctx(slot(10), 0, 0, &ex));
+        assert!(matches!(r, Err(Exc::Sys(SysError::InvalidCapability { arg: 1 }))));
+        assert!(target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s) == bound);
+        s_write_entry(&mut w.s, pool, asid, raw);
+    }
+
+    fn s_write_entry(s: &mut Mem, pool: u64, asid: u64, v: u64) {
+        s.write(pool + (asid & 511) * 8, v);
+    }
+
+    /// Astra R1 P1: an `ARMVCPURun` that ends on the caller's own core, with
+    /// no thread switch after it, gives the caller its window back.
+    #[test]
+    fn a_vcpu_run_returning_to_its_caller_reinstalls_the_window() {
+        let mut w = W::new(true);
+        let asid = w.high();
+        let ct = w.ct;
+        let vs_asid = give_vspace(&mut w, ct);
+        let hc = slot(0).cap(&w.s);
+        crate::cdt::insert(&mut w.s, hc, slot(0), ct.slot(tl::SLOT_HIGH_VSPACE));
+        // Running the VCPU: no window.
+        let vc = p(0x80_0000);
+        ct.set_state(&mut w.s, sched::TS_RUNNING_VM);
+        w.s.write(ct.0 + tl::RUN_VCPU, vc);
+        w.s.write(vc + crate::vcpu::RUN_CALLER, ct.0);
+        w.log.borrow_mut().clear();
+        set_vm_root(&mut w.s, &mut w.a, ct);
+        assert!(w.events().contains(&Ev::SetHigh(0, vs_asid)));
+        // The run ends (a VCPU fault): back with the window, at once.
+        w.log.borrow_mut().clear();
+        crate::vcpu::complete_run(&mut w.s, &mut w.a, ct, fl4_abi::consts::vcpu_run_stop::VCPUFAULT, 0, 0, 0);
+        assert_eq!(ct.state(&w.s), sched::TS_RUNNING);
+        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(p(HIGH), vs_asid)]);
+        // A caller that is not this core's current thread is left alone:
+        // it is switched to anew wherever it runs next.
+        let other = Tcb(p(0x63_0000));
+        other.set_state(&mut w.s, sched::TS_RUNNING_VM);
+        w.s.write(other.0 + tl::RUN_VCPU, vc);
+        w.log.borrow_mut().clear();
+        crate::vcpu::complete_run(&mut w.s, &mut w.a, other, fl4_abi::consts::vcpu_run_stop::VCPUFAULT, 0, 0, 0);
+        assert_eq!(other.state(&w.s), sched::TS_RUNNING);
+        assert!(w.events().iter().all(|e| !matches!(e, Ev::SetVspace(..) | Ev::SetHigh(..))));
+        let _ = asid;
+    }
+
+    #[test]
+    fn set_pac_keys_checks_its_arguments_and_takes_a_new_generation() {
+        let mut w = W::new(false);
+        let target = Tcb(p(0x61_0000));
+        slot(10).set_cap(&mut w.s, Cap::Thread { ptr: target.0 });
+        let keys: Vec<u64> = (1..=10).map(|i| 0x1111_0000_0000_0000 * i + i).collect();
+        let call = |w: &mut W, flags: u64, length: u64| {
+            let mut args = vec![flags];
+            args.extend(&keys);
+            let buf = w.args(&args);
+            crate::tcb::decode(&mut w.s, &mut w.a, label::TCBSetPACKeys, target, &tcb_ctx(slot(10), length, buf, &[Slot(0); 3]))
+        };
+        assert!(matches!(call(&mut w, 1, 10), Err(Exc::Sys(SysError::TruncatedMessage))));
+        assert!(matches!(call(&mut w, 0x10, 11), Err(Exc::Sys(SysError::InvalidArgument { arg: 0 }))));
+        assert_eq!(w.s.read(target.0 + tl::PAC_EPOCH), 0);
+        assert!(call(&mut w, 0xf, 11).is_ok());
+        assert_eq!(w.s.read(target.0 + tl::PAC_FLAGS), 0xf);
+        for i in 0..10 {
+            assert_eq!(w.s.read(target.0 + tl::PAC_KEYS + i * 8), keys[i as usize]);
+        }
+        assert_eq!(w.s.read(target.0 + tl::PAC_EPOCH), 1);
+        assert!(call(&mut w, fl4_abi::consts::pac_flag::EN_IA, 11).is_ok());
+        assert_eq!(w.s.read(target.0 + tl::PAC_EPOCH), 2);
+        assert_eq!(w.ct.state(&w.s), sched::TS_RESTART);
+        // Without FEAT_PAuth only "off" is accepted.
+        w.a.pauth = false;
+        assert!(matches!(call(&mut w, 1, 11), Err(Exc::Sys(SysError::IllegalOperation))));
+        assert_eq!(w.s.read(target.0 + tl::PAC_FLAGS), 1);
+        assert!(call(&mut w, 0, 11).is_ok());
+        assert_eq!(w.s.read(target.0 + tl::PAC_FLAGS), 0);
+        assert_eq!(w.s.read(target.0 + tl::PAC_EPOCH), 3);
     }
 }

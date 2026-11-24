@@ -8,6 +8,8 @@ const PAGE: u64 = 4096;
 const EHDR_SIZE: u64 = 64;
 const PHDR_SIZE: u64 = 56;
 const PT_LOAD: u32 = 1;
+/// `p_flags`: the segment is executable.
+const PF_X: u32 = 1;
 
 fn rd8(p: u64) -> u8 {
     unsafe { core::ptr::read_volatile(pptr(p) as *const u8) }
@@ -50,7 +52,8 @@ fn phdr(elf: u64, i: u64) -> u64 {
 /// loadable segment's file bytes lie inside the module, no segment has
 /// more file than memory bytes or wraps, the segments end at or below
 /// `v_limit` (user space, less what the boot frames after the image need)
-/// and the entry point lies inside them.
+/// and the entry point lies inside an executable one (not in a gap
+/// between segments, nor in data).
 pub fn check(elf: u64, len: u64, v_limit: u64) -> Option<Layout> {
     if len < EHDR_SIZE || rd32(elf) != 0x464c_457f || rd8(elf + 4) != 2 || rd8(elf + 5) != 1 || rd16(elf + 18) != 0x3e {
         return None;
@@ -61,6 +64,8 @@ pub fn check(elf: u64, len: u64, v_limit: u64) -> Option<Layout> {
     if phentsize < PHDR_SIZE || phnum == 0 || phoff > len || phnum * phentsize > len - phoff {
         return None;
     }
+    let entry = rd64(elf + 24);
+    let mut entry_ok = false;
     let mut lo = u64::MAX;
     let mut hi = 0;
     for i in 0..phnum {
@@ -68,6 +73,7 @@ pub fn check(elf: u64, len: u64, v_limit: u64) -> Option<Layout> {
         if rd32(ph) != PT_LOAD {
             continue;
         }
+        let flags = rd32(ph + 4);
         let offset = rd64(ph + 8);
         let vaddr = rd64(ph + 16);
         let filesz = rd64(ph + 32);
@@ -79,18 +85,15 @@ pub fn check(elf: u64, len: u64, v_limit: u64) -> Option<Layout> {
         if memsz > 0 {
             lo = lo.min(vaddr);
             hi = hi.max(end);
+            entry_ok |= flags & PF_X != 0 && entry >= vaddr && entry < end;
         }
     }
-    if lo >= hi || hi > v_limit {
+    if lo >= hi || hi > v_limit || !entry_ok {
         return None;
     }
     let v_start = lo & !(PAGE - 1);
     let v_end = hi.checked_add(PAGE - 1)? & !(PAGE - 1);
     if v_end > v_limit {
-        return None;
-    }
-    let entry = rd64(elf + 24);
-    if entry < v_start || entry >= v_end {
         return None;
     }
     Some(Layout { v_start, v_end, entry })

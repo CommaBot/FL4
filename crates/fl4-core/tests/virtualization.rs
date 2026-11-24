@@ -43,6 +43,8 @@ impl Store for Memory {
 #[derive(Default)]
 struct Machine {
     backend: u64,
+    /// The host's XCR0 (VCPU capability 0); None: 7.
+    xcr0: Option<u64>,
     invalidations: Vec<(u64, u64)>,
     dma_transitions: Vec<(u64, u64, bool)>,
 }
@@ -56,7 +58,7 @@ impl Arch for Machine {
     }
     fn vcpu_capability(&self, f: u64) -> u64 {
         match f {
-            0 => 7,
+            0 => self.xcr0.unwrap_or(7),
             1 => 48,
             0x486 => 0x20,
             0x488 => 1 << 13,
@@ -324,9 +326,9 @@ fn vmx_users_cannot_enable_host_address_controls_or_unswitched_state() {
         write(CONTROL_CR0_MASK, 0) & vcpu::CR0_OWNED,
         vcpu::CR0_OWNED
     );
-    assert_eq!(write(CONTROL_CR4_MASK, 0), !vcpu::CR4_ALLOWED);
+    assert_eq!(write(CONTROL_CR4_MASK, 0), !vcpu::cr4_allowed(&a));
     assert_eq!(
-        write(GUEST_CR4, u64::MAX) & !((1 << 13) | vcpu::CR4_ALLOWED),
+        write(GUEST_CR4, u64::MAX) & !((1 << 13) | vcpu::cr4_allowed(&a)),
         0
     );
     assert!(vcpu::sanitize_vmcs(&a, CONTROL_EPT_POINTER, 0).is_err());
@@ -366,7 +368,7 @@ fn svm_restricts_addresses_intercepts_and_pat() {
             vcpu::EXCEPTIONS | (vcpu::SVM_I1_FORCED << 32)
         );
         assert_eq!(
-            vcpu::sanitize_vmcb(&a, 0x548, 0, val).ok().unwrap() & !vcpu::CR4_ALLOWED,
+            vcpu::sanitize_vmcb(&a, 0x548, 0, val).ok().unwrap() & !vcpu::cr4_allowed(&a),
             0
         );
     }
@@ -384,6 +386,34 @@ fn svm_guests_cannot_enable_broadcast_tlb_invalidation() {
     let a = Machine { backend: 2, ..Default::default() };
     for val in [1 << 7, 0x81, u64::MAX] {
         assert!(vcpu::sanitize_vmcb(&a, vcpu::svm::NESTED_CTL, 1, val).is_err());
+    }
+}
+
+/// The deferred exit IBPB is the VCPU holder's choice (WriteMSR of
+/// MSR_VM_IBPB_DEFER, 0 or 1), off after retype, on both backends; and a
+/// guest may have CR4.PKE.
+#[test]
+fn vm_ibpb_defer_is_the_holders_choice() {
+    for backend in [1, 2] {
+        let (mut s, mut a, t, v) = fixture(backend);
+        assert_eq!(vcpu::get(&s, v, vcpu::VM_IBPB_DEFER), 0, "off after retype");
+        for (val, ok) in [(1, true), (0, true), (2, false), (u64::MAX, false), (1, true)] {
+            t.set_reg(&mut s, reg::R10, vcpu::MSR_VM_IBPB_DEFER);
+            t.set_reg(&mut s, reg::R8, val);
+            let r = vcpu::decode(&mut s, &mut a, label::X86VCPUWriteMSR, 2, v, true, 0, &[Slot(0); 3]);
+            assert_eq!(r.is_ok(), ok, "backend {backend}, {val:#x}");
+        }
+        assert_eq!(vcpu::get(&s, v, vcpu::VM_IBPB_DEFER), 1, "a refused value leaves it");
+        t.set_reg(&mut s, reg::R10, vcpu::MSR_VM_IBPB_DEFER);
+        vcpu::decode(&mut s, &mut a, label::X86VCPUReadMSR, 1, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+        assert_eq!(t.reg(&s, reg::R10), 1, "ReadMSR");
+    }
+    assert_ne!(vcpu::CR4_ALLOWED & (1 << 22), 0, "CR4.PKE");
+    // Only with PKRU in the host's XCR0, which switches it with the FPU.
+    for (xcr0, pke) in [(7, false), (0x207, true)] {
+        let a = Machine { backend: 2, xcr0: Some(xcr0), ..Default::default() };
+        assert_eq!(vcpu::sanitize_vmcb(&a, 0x548, 0, 1 << 22).ok().unwrap() & (1 << 22) != 0, pke, "SVM, XCR0 {xcr0:#x}");
+        assert_eq!(vcpu::sanitize_vmcs(&a, fl4_core::vcpu::vmx::CONTROL_CR4_MASK, 0).ok().unwrap() & (1 << 22) == 0, pke, "VMX mask, XCR0 {xcr0:#x}");
     }
 }
 
@@ -558,14 +588,35 @@ fn bind_ntfn(s: &mut Memory, t: Tcb) -> Ntfn {
     n
 }
 
-/// seL4 c_traps.c: a VMEnter that finds its bound notification active
-/// returns at once with the badge and SEL4_VMENTER_RESULT_NOTIF, the
-/// message registers as the caller sent them, and the thread not in
-/// RunningVM. The staged entry state still reaches the VCPU.
 #[test]
-fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
-    for backend in [1, 2] {
+fn svm_vmenter_preserves_the_exception_error_code_for_each_caller() {
+    for (request, input, error) in [(0, (0x30 << 32) | 0x8000_0b0d, 0x30),
+                                    (vcpu::NUM_MRS, 0x8000_0b0d, 0x28)] {
+        let (mut s, mut a, t, v) = fixture(2);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        let n = bind_ntfn(&mut s, t);
+        let event = 0x8000_0b0d; // #GP with an error code
+        t.set_reg(&mut s, reg::R10, vcpu::svm::EVENT_INJ);
+        t.set_reg(&mut s, reg::R8, (0x28 << 32) | event);
+        assert!(vcpu::decode(&mut s, &mut a, label::X86VCPUWriteVMCB, 2, v, true, 0, &[Slot(0); 3]).is_ok());
+        n.set_state(&mut s, NTFN_ACTIVE);
+        t.set_reg(&mut s, reg::MSG_INFO, request);
+        t.set_reg(&mut s, reg::R9, input);
+        vcpu::enter(&mut s, &mut a, t);
+        assert_eq!(vcpu::get(&s, v, vcpu::svm::EVENT_INJ), (error << 32) | event);
+        assert_eq!(t.reg(&s, reg::R9), input);
+    }
+}
+
+/// A pending signal returns the caller's MRs in the standard ABI and
+/// the staged VCPU registers in the l4h ABI. Poison the old exit frame
+/// and the IPC buffer so neither can pass for the current registers.
+#[test]
+fn vmenter_with_a_pending_signal() {
+    for (backend, request) in [(1, 0), (2, 0), (1, vcpu::NUM_MRS), (2, vcpu::NUM_MRS)] {
         let (mut s, mut a, t, v) = fixture(backend);
+        t.set_reg(&mut s, reg::MSG_INFO, request);
         s.write(t.0 + tcb::VCPU, v);
         vcpu::set(&mut s, v, vcpu::TCB, t.0);
         let n = bind_ntfn(&mut s, t);
@@ -574,6 +625,9 @@ fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
         t.set_state(&mut s, sched::TS_RUNNING);
         for i in 0..30 {
             vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
+        }
+        for i in 0..15 {
+            vcpu::set(&mut s, v, vcpu::REGS + i * 8, 0x1230 + i);
         }
         // MR0..3 are R10, R8, R9 and R15; MR4.. are in the IPC buffer.
         t.set_reg(&mut s, reg::R10, 0x1234);
@@ -589,11 +643,29 @@ fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
         assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
         assert_eq!(t.reg(&s, reg::BADGE), 0x42);
         assert_eq!(t.reg(&s, reg::R10), 0x1234);
-        assert_eq!(t.reg(&s, reg::R8), 0xffff_ffff);
         assert_eq!(t.reg(&s, reg::R9), 0x8000_0030);
-        assert_eq!(t.reg(&s, reg::R15), 0x5555);
-        for i in 4..30 {
-            assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+        if request == vcpu::NUM_MRS {
+            let ctl = if backend == 2 {
+                vcpu::get(&s, v, vcpu::svm::INTERCEPT_EXC) >> 32
+            } else {
+                vcpu::read_vmcs(&s, v, vcpu::vmx::CONTROL_PRIMARY_PROCESSOR_CONTROLS)
+            };
+            assert_eq!(t.reg(&s, reg::R8), ctl);
+            assert_eq!(t.reg(&s, reg::R15), if backend == 2 { 0x60 } else { 1 });
+            for i in 4..30 {
+                let expected = match i {
+                    7 => 2, // initial RFLAGS
+                    10..=24 => 0x1230 + i - 10,
+                    _ => 0,
+                };
+                assert_eq!(s.read(0x40000 + 8 + i * 8), expected, "MR{i}");
+            }
+        } else {
+            assert_eq!(t.reg(&s, reg::R8), 0xffff_ffff);
+            assert_eq!(t.reg(&s, reg::R15), 0x5555);
+            for i in 4..30 {
+                assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+            }
         }
         let rip = if backend == 2 {
             vcpu::get(&s, v, vcpu::svm::RIP)
@@ -607,20 +679,19 @@ fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
     }
 }
 
-/// seL4 `vcpu_sysvmenter_reply_to_user`: a notification that ends a
-/// running VMEnter reports the guest's RIP, controls and pending event in
-/// MR0..2 and leaves every other message register alone, even after a
-/// host exit that saved a full exit record. An event FL4 reinjects after
-/// such an exit is in MR2, so passing MR2 back to VMEnter keeps it.
+/// After a host exit the standard ABI returns the event staged for
+/// re-entry. The l4h ABI reports interrupted delivery in MR27/28 so the
+/// VMM can requeue the event with its error code.
 #[test]
-fn a_notification_reports_only_the_resume_state() {
-    for backend in [1, 2] {
+fn a_notification_after_a_host_exit() {
+    for (backend, request) in [(1, 0), (2, 0), (1, vcpu::NUM_MRS), (2, vcpu::NUM_MRS)] {
         let (mut s, a, t, v) = fixture(backend);
+        t.set_reg(&mut s, reg::MSG_INFO, request);
         s.write(t.0 + tcb::VCPU, v);
         vcpu::set(&mut s, v, vcpu::TCB, t.0);
         t.set_state(&mut s, sched::TS_RUNNING_VM);
         for i in 0..30 {
-            vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
+            vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0x2000 + i);
         }
         vcpu::set(&mut s, v, vcpu::VALID, 1);
         let ctl = if backend == 2 {
@@ -634,6 +705,10 @@ fn a_notification_reports_only_the_resume_state() {
             vcpu::read_vmcs(&s, v, CONTROL_PRIMARY_PROCESSOR_CONTROLS)
         };
         assert_ne!(ctl, 0);
+        vcpu::set(&mut s, v, vcpu::EXIT, 0x25);
+        vcpu::set(&mut s, v, vcpu::EXIT + 8, ctl);
+        vcpu::set(&mut s, v, vcpu::EXIT + 2 * 8, if backend == 2 { 0x28 << 32 } else { 0 });
+        vcpu::set(&mut s, v, vcpu::EXIT + 27 * 8, 0x8000_0b0e);
         t.set_reg(&mut s, reg::R15, 0x5555);
         for i in 4..30 {
             s.write(0x40000 + 8 + i * 8, 0x1000 + i);
@@ -644,10 +719,23 @@ fn a_notification_reports_only_the_resume_state() {
         assert_eq!(t.reg(&s, reg::BADGE), 0x42);
         assert_eq!(t.reg(&s, reg::R10), 0x25);
         assert_eq!(t.reg(&s, reg::R8), ctl);
-        assert_eq!(t.reg(&s, reg::R9), 0x8000_0b0e);
-        assert_eq!(t.reg(&s, reg::R15), 0x5555);
-        for i in 4..30 {
-            assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+        if request == vcpu::NUM_MRS {
+            assert_eq!(t.reg(&s, reg::R9), 0);
+            assert_eq!(t.reg(&s, reg::R15), if backend == 2 { 0x60 } else { 1 });
+            for i in 4..30 {
+                let expected = match i {
+                    4 | 6 | 25 | 26 => 0,
+                    27 => 0x8000_0b0e,
+                    _ => 0x2000 + i,
+                };
+                assert_eq!(s.read(0x40000 + 8 + i * 8), expected, "MR{i}");
+            }
+        } else {
+            assert_eq!(t.reg(&s, reg::R9), 0x8000_0b0e);
+            assert_eq!(t.reg(&s, reg::R15), 0x5555);
+            for i in 4..30 {
+                assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+            }
         }
     }
 }
@@ -655,11 +743,12 @@ fn a_notification_reports_only_the_resume_state() {
 /// seL4 `sendSignal` (CONFIG_VTX): a signal to a RunningVM thread on the
 /// current core completes its VMEnter at once, so two signals give two
 /// results (badge 1 now, badge 2 left active for the next VMEnter), not
-/// one with the OR of both. On another core, or with a saved exit still to
-/// report, the signal stays active for the owner's check.
+/// one with the OR of both. The l4h ABI also completes a descheduled
+/// remote thread immediately. A running remote thread or a pending
+/// hardware exit leaves the badge for the owner's check.
 #[test]
-fn signal_to_a_running_vm_on_this_core_completes_it_at_once() {
-    let setup = |cpu: u64, affinity: u64, pending: bool| {
+fn vm_signals_respect_the_running_core_and_pending_exit() {
+    let setup = |cpu: u64, affinity: u64, current: bool, pending: bool| {
         let (mut s, a, t, v) = fixture(2);
         s.cpu = cpu;
         s.write(t.0 + tcb::VCPU, v);
@@ -668,37 +757,49 @@ fn signal_to_a_running_vm_on_this_core_completes_it_at_once() {
         vcpu::set(&mut s, v, vcpu::PENDING, pending as u64);
         vcpu::set(&mut s, v, vcpu::VALID, pending as u64);
         t.set_affinity(&mut s, affinity);
+        node_set(&mut s, affinity, node::CUR_THREAD, if current { t.0 } else { 0x30000 });
         t.set_state(&mut s, sched::TS_RUNNING_VM);
         t.set_reg(&mut s, reg::R15, 0x5555);
         let n = bind_ntfn(&mut s, t);
         (s, a, t, n)
     };
-    let (mut s, mut a, t, n) = setup(0, 0, false);
-    notification::send_signal(&mut s, &mut a, n.0, 1);
-    assert_eq!(t.state(&s), sched::TS_RUNNING);
-    assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
-    assert_eq!(t.reg(&s, reg::BADGE), 1);
-    assert_eq!(t.reg(&s, reg::R10), 0x25);
-    assert_eq!(t.reg(&s, reg::R15), 0x5555);
-    assert_eq!(n.state(&s), NTFN_IDLE);
-    notification::send_signal(&mut s, &mut a, n.0, 2);
-    assert_eq!(t.reg(&s, reg::BADGE), 1);
-    assert_eq!(n.state(&s), NTFN_ACTIVE);
-    assert_eq!(n.badge(&s), 2);
-
-    for (cpu, affinity, pending) in [(0, 1, false), (1, 0, false), (0, 0, true)] {
-        let (mut s, mut a, t, n) = setup(cpu, affinity, pending);
-        notification::send_signal(&mut s, &mut a, n.0, 1);
-        notification::send_signal(&mut s, &mut a, n.0, 2);
-        assert_eq!(t.state(&s), sched::TS_RUNNING_VM);
-        assert_eq!(n.state(&s), NTFN_ACTIVE);
-        assert_eq!(n.badge(&s), 3);
-        if pending {
-            // The saved exit is reported first; the signal waits.
-            s.cpu = affinity;
-            vcpu::check(&mut s, &mut a, t);
-            assert_eq!(t.reg(&s, reg::MSG_INFO), 1);
+    for request in [0, vcpu::NUM_MRS] {
+        let full = request == vcpu::NUM_MRS;
+        for (cpu, affinity, current, pending) in [
+            (0, 0, true, false), (0, 1, false, false), (1, 0, true, false),
+            (0, 0, true, true), (0, 1, false, true),
+        ] {
+            let (mut s, mut a, t, n) = setup(cpu, affinity, current, pending);
+            t.set_reg(&mut s, reg::MSG_INFO, request);
+            notification::send_signal(&mut s, &mut a, n.0, 1);
+            if !pending && (cpu == affinity || (full && !current)) {
+                assert_eq!(t.state(&s), sched::TS_RUNNING);
+                assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+                assert_eq!(t.reg(&s, reg::BADGE), 1);
+                assert_eq!(t.reg(&s, reg::R10), 0x25);
+                assert_eq!(t.reg(&s, reg::R15), if full { 0x60 } else { 0x5555 });
+                assert_eq!(n.state(&s), NTFN_IDLE);
+                notification::send_signal(&mut s, &mut a, n.0, 2);
+                assert_eq!(t.reg(&s, reg::BADGE), 1);
+                assert_eq!(n.state(&s), NTFN_ACTIVE);
+                assert_eq!(n.badge(&s), 2);
+                s.cpu = affinity;
+                t.set_reg(&mut s, reg::MSG_INFO, request);
+                vcpu::enter(&mut s, &mut a, t);
+                assert_eq!(t.reg(&s, reg::BADGE), 2);
+                continue;
+            }
+            notification::send_signal(&mut s, &mut a, n.0, 2);
+            assert_eq!(t.state(&s), sched::TS_RUNNING_VM);
             assert_eq!(n.state(&s), NTFN_ACTIVE);
+            assert_eq!(n.badge(&s), 3);
+            if pending {
+                // The saved exit is reported first; the signal waits.
+                s.cpu = affinity;
+                vcpu::check(&mut s, &mut a, t);
+                assert_eq!(t.reg(&s, reg::MSG_INFO), 1);
+                assert_eq!(n.state(&s), NTFN_ACTIVE);
+            }
         }
     }
 }
@@ -955,6 +1056,87 @@ fn suspending_a_vm_preserves_the_syscall_restart_context() {
     assert_eq!(t.reg(&s, reg::FAULT_IP), 0x1000);
     assert_eq!(t.reg(&s, reg::R10), 0x200);
     assert_eq!(vcpu::bound(&s, t), v);
+}
+
+/// A VMEnter that completes (a saved exit or a bound notification) has
+/// finished its syscall: `report` settles `FAULT_IP` at `NEXT_IP` before
+/// the thread leaves `TS_RUNNING_VM`. Otherwise the budget check that
+/// follows can raise a timeout fault on the stale `FAULT_IP` (still the
+/// VMEnter instruction), and a restarting reply (label 0) runs VMEnter
+/// again and loses the exit just reported.
+#[test]
+fn vcpu_report_settles_fault_ip_before_timeout_fault() {
+    use fl4_core::obj::Reply;
+    use fl4_core::{endpoint, ipc, syscall};
+    for (pending, request) in [(true, 0), (false, 0), (true, vcpu::NUM_MRS), (false, vcpu::NUM_MRS)] {
+        let (mut s, mut a, t, v) = fixture(2);
+        t.set_reg(&mut s, reg::MSG_INFO, request);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+        let n = bind_ntfn(&mut s, t);
+        if pending {
+            vcpu::set(&mut s, v, vcpu::PENDING, 1);
+            vcpu::set(&mut s, v, vcpu::VALID, 1);
+            vcpu::set(&mut s, v, vcpu::EXIT, 0x1234);
+        } else {
+            n.set_state(&mut s, NTFN_ACTIVE);
+            n.set_badge(&mut s, 0x42);
+        }
+        t.set_state(&mut s, sched::TS_RUNNING_VM);
+        t.set_reg(&mut s, reg::FAULT_IP, 0x1000);
+        t.set_reg(&mut s, reg::NEXT_IP, 0x1002);
+
+        // An idle thread to switch to, and a periodic (not round-robin) SC
+        // whose budget is used up.
+        let idle = Tcb(0xc0000);
+        let idle_sc = Sc(0xa0000);
+        idle.set_state(&mut s, sched::TS_IDLE);
+        idle.set_sc(&mut s, idle_sc.0);
+        sporadic::refill_new(&mut s, idle_sc, 2, 100000, 0);
+        node_set(&mut s, 0, node::IDLE_THREAD, idle.0);
+        node_set(&mut s, 0, node::IDLE_SC, idle_sc.0);
+        let sc = Sc(0x90000);
+        sporadic::refill_new(&mut s, sc, 2, 1000, 10000);
+        sc.set_tcb(&mut s, t.0);
+        t.set_sc(&mut s, sc.0);
+        node_set(&mut s, 0, node::CUR_SC, sc.0);
+        node_set(&mut s, 0, node::CONSUMED, 1000);
+
+        // A timeout handler waiting on its endpoint with a reply object.
+        let ep = 0xd0000;
+        let r = Reply(0xe0000);
+        let handler = Tcb(0xb0000);
+        handler.set_state(&mut s, sched::TS_RUNNING);
+        let recv = Cap::Endpoint { ptr: ep, badge: 0, send: false, recv: true, grant: false, grant_reply: false };
+        endpoint::receive_ipc(&mut s, &mut a, handler, recv, true, Cap::Reply { ptr: r.0, grant: true });
+        assert_eq!(handler.state(&s), sched::TS_BLOCKED_ON_RECV);
+        let th = Cap::Endpoint { ptr: ep, badge: 0x77, send: true, recv: false, grant: true, grant_reply: true };
+        t.slot(tcb::SLOT_TIMEOUT_HANDLER).set_cap(&mut s, th);
+
+        syscall::handle_vcpu_exit(&mut s, &mut a, syscall::NO_IRQ, false);
+        assert_eq!(t.state(&s), sched::TS_BLOCKED_ON_REPLY, "pending={pending}: timeout fault");
+        assert_eq!(t.fault_type(&s), fl4_abi::consts::fault::Timeout);
+        assert_eq!(t.reg(&s, reg::FAULT_IP), 0x1002, "pending={pending}: FAULT_IP settled");
+
+        // The handler restarts the thread: label 0, no registers.
+        handler.set_reg(&mut s, reg::MSG_INFO, 0);
+        ipc::do_reply_transfer(&mut s, &mut a, handler, r, false);
+        assert_eq!(t.state(&s), sched::TS_RESTART);
+        node_set(&mut s, 0, node::CUR_THREAD, t.0);
+        sched::activate_thread(&mut s, &mut a);
+        assert_eq!(t.state(&s), sched::TS_RUNNING);
+        assert_eq!(t.reg(&s, reg::NEXT_IP), 0x1002, "pending={pending}: resumes after VMEnter");
+        if pending {
+            assert_eq!(t.reg(&s, reg::MSG_INFO), 1);
+            assert_eq!(t.reg(&s, reg::BADGE), 0);
+            assert_eq!(t.reg(&s, reg::R10), 0x1234);
+        } else {
+            assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+            assert_eq!(t.reg(&s, reg::BADGE), 0x42);
+            assert_eq!(t.reg(&s, reg::R10), 0x25);
+        }
+    }
 }
 
 /// A VMM may give its guest BTF (bit 1) of IA32_DEBUGCTL and nothing else:

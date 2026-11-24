@@ -369,15 +369,21 @@ fl4_el2_vhe_setup:
     msr     s3_0_c2_c3_0, xzr       /* APGAKeyLo_EL1 */
     msr     s3_0_c2_c3_1, xzr       /* APGAKeyHi_EL1 */
     isb
-    /* Clear APK and API back to 0 (keep E2H | RW | TGE). */
+    /* Keep APK and API (E2H | RW | TGE | APK | API), as the kernel's
+     * host HCR_EL2 does (vcpu.rs `host_hcr_vhe`): with TGE set they trap
+     * nothing of EL0's or EL2's, and so never will. */
     ldr     x9, =((1 << 34) | (1 << 31) | (1 << 27))
+    orr     x9, x9, #(3 << 40)
     msr     hcr_el2, x9
     isb
 7:  mov     x22, #1
     ret
 
 /* Turn the EL1 MMU on with TTBR0 = x0 (an identity map of the kernel
- * region) and TTBR1 = x1. */
+ * region) and TTBR1 = x1. TCR_EL1.TBI0: EL0's TTBR0 addresses ignore their
+ * top byte (tagged pointers, as Linux arm64 gives EL0); with FEAT_PAuth
+ * (APA, API or APA3, as above) also TBID0, so that instruction addresses
+ * keep it for their pointer authentication codes. Keeps x0, x1, x19-x22. */
 fl4_mmu_on:
     tlbi    vmalle1
     dsb     nsh
@@ -395,7 +401,15 @@ fl4_mmu_on:
     mov     x10, #1
     lsl     x10, x10, #36
     orr     x9, x9, x10
-    msr     tcr_el1, x9
+    orr     x9, x9, #(1 << 37)      /* TBI0 */
+    mrs     x10, id_aa64isar1_el1
+    mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 (RAZ before v8.6) */
+    and     x10, x10, #0xff0        /* APA, API */
+    and     x11, x11, #0xf000       /* APA3 */
+    orr     x10, x10, x11
+    cbz     x10, 1f
+    orr     x9, x9, #(1 << 51)      /* TBID0 */
+1:  msr     tcr_el1, x9
     msr     ttbr0_el1, x0
     msr     ttbr1_el1, x1
     isb

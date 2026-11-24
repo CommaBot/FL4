@@ -16,9 +16,19 @@ const LIMIT: u64 = 0x0000_8000_0000_0000 - 3 * 4096;
 /// A loadable segment: (offset, vaddr, filesz, memsz).
 type Seg = (u64, u64, u64, u64);
 
-/// An x86_64 ELF image: header, program headers right after it, then
-/// `body`.
+/// `p_flags`: executable, and readable and executable (ordinary code).
+const PF_X: u32 = 1;
+const PF_RX: u32 = 4 | PF_X;
+
+/// An x86_64 ELF image: header, program headers (each segment executable)
+/// right after it, then `body`.
 fn image(entry: u64, segs: &[Seg], body: &[u8]) -> Vec<u8> {
+    let segs: Vec<_> = segs.iter().map(|&s| (s, PF_RX)).collect();
+    image_flags(entry, &segs, body)
+}
+
+/// `image` with each segment's `p_flags`.
+fn image_flags(entry: u64, segs: &[(Seg, u32)], body: &[u8]) -> Vec<u8> {
     let mut e = vec![0u8; 64];
     e[..4].copy_from_slice(b"\x7fELF");
     e[4] = 2;
@@ -28,9 +38,10 @@ fn image(entry: u64, segs: &[Seg], body: &[u8]) -> Vec<u8> {
     e[32..40].copy_from_slice(&64u64.to_le_bytes());
     e[54..56].copy_from_slice(&56u16.to_le_bytes());
     e[56..58].copy_from_slice(&(segs.len() as u16).to_le_bytes());
-    for &(off, vaddr, filesz, memsz) in segs {
+    for &((off, vaddr, filesz, memsz), flags) in segs {
         let mut p = [0u8; 56];
         p[..4].copy_from_slice(&1u32.to_le_bytes());
+        p[4..8].copy_from_slice(&flags.to_le_bytes());
         p[8..16].copy_from_slice(&off.to_le_bytes());
         p[16..24].copy_from_slice(&vaddr.to_le_bytes());
         p[32..40].copy_from_slice(&filesz.to_le_bytes());
@@ -112,4 +123,27 @@ fn no_loadable_bytes_no_image() {
     let mut not64 = image(0x40_1000, &[(BODY, 0x40_1000, 0, 4096)], &[]);
     not64[4] = 1;
     assert!(check(&not64).is_none());
+}
+
+/// Audit r13 T2-03: the entry point lies inside an executable segment.
+/// Before, any address between the lowest and the highest segment (page
+/// rounded) was taken: a gap between segments, or a data segment.
+#[test]
+fn the_entry_point_lies_in_an_executable_segment() {
+    let text = (BODY, 0x40_1000, 0, 0x1000);
+    let data = (BODY, 0x40_4000, 0, 0x1000);
+    let both = |entry| check(&image_flags(entry, &[(text, PF_RX), (data, 4 | 2)], &[]));
+    assert_eq!(both(0x40_1000).map(|l| l.entry), Some(0x40_1000));
+    assert_eq!(both(0x40_1fff).map(|l| l.entry), Some(0x40_1fff));
+    // In the gap between the segments.
+    assert!(both(0x40_2000).is_none());
+    assert!(both(0x40_3fff).is_none());
+    // In the data segment, which has no PF_X.
+    assert!(both(0x40_4000).is_none());
+    assert!(both(0x40_4fff).is_none());
+    // A lone segment without PF_X.
+    assert!(check(&image_flags(0x40_1000, &[(text, 4 | 2)], &[])).is_none());
+    assert!(check(&image_flags(0x40_1000, &[(text, PF_X)], &[])).is_some());
+    // Past a segment's memory bytes, inside its last page.
+    assert!(check(&image(0x40_1800, &[(BODY, 0x40_1000, 0, 0x800)], &[])).is_none());
 }

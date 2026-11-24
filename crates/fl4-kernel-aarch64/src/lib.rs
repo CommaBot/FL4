@@ -80,7 +80,7 @@ pub fn fail(msg: &str) -> ! {
 /// The extra BootInfo records (`extra_bi::build`): the ACPI RSDP, the
 /// boot core's ID registers, virtualization info, the boot modules, the
 /// TPM event log and the device tree.
-fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module], tpm: Option<&extra_bi::TpmEventLog>) -> usize {
+fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module], tpm: Option<&extra_bi::TpmEventLog>, msi: Option<&fl4_arch_aarch64::its::Info>) -> usize {
     let regs = [
         fl4_arch_aarch64::mrs!("id_aa64isar0_el1"),
         fl4_arch_aarch64::mrs!("id_aa64isar1_el1"),
@@ -123,7 +123,8 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl
     };
     let src: &[u8] = if dtb_len != 0 { unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) } } else { &[] };
     let rsdp = if h.has_rsdp { Some(&h.rsdp[..]) } else { None };
-    match extra_bi::build(buf, rsdp, &regs, Some(&virt_info), mods, tpm, src) {
+    let msi = msi.map(|m| [m.doorbell, m.num_lpis, m.num_events, m.num_devices]);
+    match extra_bi::build(buf, rsdp, &regs, Some(&virt_info), mods, tpm, msi.as_ref(), src) {
         Some(len) => len,
         None => fail("extra BootInfo too large"),
     }
@@ -161,9 +162,13 @@ fn tpm_log(bi: &BootInfo, usable: &Ranges, n_mods: usize) -> Option<extra_bi::Tp
     Some(extra_bi::TpmEventLog { paddr: start, size, flags: bi.tpm_log_flags })
 }
 
+/// Whether `[start, end)` meets any range of `r`.
+fn overlaps(r: &Ranges, start: u64, end: u64) -> bool {
+    r.r[..r.n].iter().any(|x| x.start < end && start < x.end)
+}
+
 fn has_option(bi: &BootInfo, opt: &[u8]) -> bool {
-    let n = bi.cmdline.iter().position(|&c| c == 0).unwrap_or(bi.cmdline.len());
-    bi.cmdline[..n].split(|&c| c == b' ').any(|w| w == opt)
+    fl4_bootinfo::has_option(&bi.cmdline, opt)
 }
 
 extern "C" {
@@ -182,14 +187,22 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     // RAM in the window: everything the memory map calls write-back memory.
     let mut ram = Ranges::new();
     let mut usable = Ranges::new();
+    let mut zeroed = Ranges::new();
     for e in &bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)] {
         let Some((start, end)) = bootmem::entry_pages(e.base, e.len, PADDR_TOP.min(pa_top)) else { continue };
-        if e.cacheable != 0 && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
+        let wb = e.cacheable & 1 != 0;
+        if wb && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
             ram.add(start, end);
         }
-        if e.cacheable != 0 && e.kind == mem::FREE {
+        if wb && e.kind == mem::FREE {
             usable.add(start, end);
+            if e.cacheable & mem::ZEROED != 0 {
+                zeroed.add(start, end);
+            }
         }
+    }
+    if zeroed.lost {
+        zeroed = Ranges::new();
     }
     // RAM a full list left out would go to user space as device memory,
     // or be handed out as free memory the window does not map.
@@ -202,6 +215,11 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     let ttbr1 = paging::init(bi.region_paddr, bi.region_len, &window[..ram.n], pa_top);
     paging::activate(ttbr1);
+    // What a new ArmHighVSpace copies: the tables themselves, read when it
+    // is made, so the device mappings made below are in them too.
+    let (kl0, kl1) = paging::kernel_tables();
+    fl4_arch_aarch64::mmu::set_kernel_ttbr1(ttbr1, kl0, kl1);
+    cpu::init_pauth();
     if cpu::is_el2_nvhe() {
         fl4_arch_aarch64::hyp_nvhe::init_core(
             0,
@@ -220,11 +238,21 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         None => cpu::halt_forever(),
     };
     // A UART the tables put where the kernel cannot map it as a device
-    // (past the physical address size, or in RAM) is no console.
-    let uart = match h.uart_kind {
-        serial::KIND_NONE => None,
-        _ => paging::map_device(h.uart_base, UART_MAP),
+    // (past the physical address size, or in RAM), misaligned for its
+    // registers, or in a range too small for them, is no console.
+    let pa_limit = 1u64 << cpu::pa_bits();
+    let uart_ok = match h.uart_kind {
+        serial::KIND_NONE => false,
+        k => {
+            let pl011 = k == serial::KIND_PL011;
+            let min_len = if pl011 { 0x40 } else { 8 << h.uart_shift };
+            let aligned = !(pl011 || h.uart_wide) || h.uart_base & 3 == 0;
+            aligned
+                && (h.uart_len == 0 || h.uart_len >= min_len)
+                && h.uart_base.checked_add(h.uart_len.max(0x1000)).is_some_and(|e| e <= pa_limit)
+        }
     };
+    let uart = if uart_ok { paging::map_device(h.uart_base, UART_MAP) } else { None };
     if let Some(base) = uart {
         serial::init(h.uart_kind, base, h.uart_shift, h.uart_wide);
     }
@@ -254,10 +282,18 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     if h.gicd == 0 {
         fail("no GIC distributor");
     }
+    let (gicd_map, gicd_len) = match fl4_arch_aarch64::gic_layout::gicd_extent(h.gic_version, h.gicd, h.gicd_len, pa_limit) {
+        Some(e) => e,
+        None => fail("bad GIC distributor range"),
+    };
     // A redistributor left out of the tables' count would go to user
     // space as device memory.
     if h.gicr_lost {
         fail("more GIC redistributors than the kernel records");
+    }
+    // As would an ITS left out.
+    if h.its_lost {
+        fail("more GIC ITS blocks than the kernel records");
     }
 
     // Interrupt controller, timer, FP/SIMD.
@@ -265,7 +301,7 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         Some(va) => va,
         None => fail(what),
     };
-    let gicd = device(h.gicd, 0x1_0000, "GIC distributor not mappable");
+    let gicd = device(h.gicd, gicd_map, "GIC distributor not mappable");
     let mut gicr_va = [(0u64, 0u64); hw::MAX_GICR];
     let mut dev_used = Ranges::new();
     // Device memory goes to user space in pages: every page a kernel
@@ -274,15 +310,29 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         let (s, e) = bootmem::pages_covering(start, end);
         r.add(s, e);
     };
-    keep(&mut dev_used, h.gicd, h.gicd.saturating_add(0x1_0000));
+    keep(&mut dev_used, h.gicd, h.gicd + gicd_len);
     // Every page of the console's mapping: two when the tables give a
     // base inside a page (SPCR and device trees may).
     if fl4_abi::config::PRINTING && uart.is_some() {
         keep(&mut dev_used, h.uart_base, h.uart_base.saturating_add(UART_MAP));
     }
+    // Ranges apart from each other, from the kernel's devices so far and
+    // from RAM.
+    let apart = |used: &Ranges, r: &[(u64, u64)]| {
+        r.iter().enumerate().all(|(i, a)| {
+            !overlaps(used, a.0, a.1) && !overlaps(&ram, a.0, a.1) && r[..i].iter().all(|b| a.1 <= b.0 || b.1 <= a.0)
+        })
+    };
     let gicc = if h.gic_version == 3 {
+        gic::set_gicr_stride(h.gicr_stride);
+        // Every range checked and read (no register written) before any is
+        // kept, and before anything is written to a redistributor or ITS.
+        let mut gicr_ranges = [(0u64, 0u64); hw::MAX_GICR];
         for i in 0..h.n_gicr {
             let (base, raw_len) = h.gicr[i];
+            if base & 0xffff != 0 || (raw_len != 0 && raw_len < fl4_arch_aarch64::gic_layout::GICR_FRAME) {
+                fail("bad GIC redistributor range");
+            }
             // An unsized range: up to one GICv4 redistributor per core.
             let len = if raw_len == 0 { fl4_arch_aarch64::gic_layout::GICR_FRAME_VLPI * h.n_cpus.max(1) as u64 } else { raw_len };
             let va = device(base, len, "GIC redistributors not mappable");
@@ -297,13 +347,29 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
                 Some(s) => s,
                 None => fail("GIC redistributor range ends past what the kernel maps"),
             };
-            keep(&mut dev_used, base, base.saturating_add(span));
+            match base.checked_add(span).and_then(|e| e.checked_next_multiple_of(PAGE)) {
+                Some(e) if e <= pa_limit => gicr_ranges[i] = (base, e),
+                _ => fail("GIC redistributor range past physical address space"),
+            }
+        }
+        if !apart(&dev_used, &gicr_ranges[..h.n_gicr]) {
+            fail("overlapping GIC redistributor MMIO");
+        }
+        for &(s, e) in &gicr_ranges[..h.n_gicr] {
+            keep(&mut dev_used, s, e);
         }
         smp::set_gicr(&gicr_va[..h.n_gicr]);
         0
     } else {
         if h.gicc == 0 {
             fail("no GICv2 CPU interface");
+        }
+        let fits = |b: u64, l: u64| b.checked_add(l.max(0x2000)).is_some_and(|e| e <= pa_limit);
+        if h.gicc & 0xfff != 0 || (h.gicc_len != 0 && h.gicc_len < 0x2000) || !fits(h.gicc, h.gicc_len) {
+            fail("bad GICv2 CPU interface range");
+        }
+        if h.gich != 0 && (h.gich & 0xfff != 0 || (h.gich_len != 0 && h.gich_len < 0x2000) || !fits(h.gich, h.gich_len)) {
+            fail("bad GICv2 hypervisor interface range");
         }
         // The tables may give more than the two pages the kernel maps
         // (64 KiB-spaced aliases of the CPU interface).
@@ -316,7 +382,82 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         }
         device(h.gicc, 0x2000, "GIC CPU interface not mappable")
     };
-    gic::init_dist(h.gic_version, gicd, gicc);
+    // Every ITS is the kernel's, whether or not it can drive it (its.rs
+    // drives the first): all of its frames, GICv4.1's vSGI frame too
+    // (`its::span`). Before any is read, the range the tables give each
+    // (at least its two frames) must be apart from the others', the
+    // kernel's devices (the redistributors included) and RAM; then each is
+    // read (not written) for its whole range, checked the same way.
+    let mut its_va = None;
+    let mut its_pa = 0;
+    let mut its_was_enabled = false;
+    let mut its_ranges = [(0u64, 0u64); hw::MAX_ITS];
+    let mut its_vas = [0u64; hw::MAX_ITS];
+    if h.n_its != 0 {
+        use fl4_arch_aarch64::its;
+        if h.gic_version != 3 {
+            fail("GICv2 firmware tables describe a GICv3 ITS");
+        }
+        let its = &h.its[..h.n_its];
+        for (i, b) in its.iter().enumerate() {
+            if b.raw_len != 0 && b.raw_len < its::ITS_SIZE {
+                fail("GIC ITS size contradicts hardware");
+            }
+            match b.base.checked_add(b.raw_len.max(its::ITS_SIZE)).and_then(|e| e.checked_next_multiple_of(PAGE)) {
+                Some(e) if e <= pa_limit => its_ranges[i] = (b.base, e),
+                _ => fail("GIC ITS past physical address space"),
+            }
+        }
+        if !apart(&dev_used, &its_ranges[..its.len()]) {
+            fail("overlapping GIC ITS MMIO");
+        }
+        for (i, b) in its.iter().enumerate() {
+            let va = device(b.base, its::ITS_SIZE, "GIC ITS not mappable");
+            its_vas[i] = va;
+            let span = match its::span(va, b.raw_len) {
+                Some(s) => s,
+                None => fail("GIC ITS size contradicts hardware"),
+            };
+            // A device tree's buses do not reach its last frame: what is
+            // there is unknown.
+            if span > b.max_len {
+                fail("GIC ITS exceeds bus range");
+            }
+            match b.base.checked_add(span).and_then(|e| e.checked_next_multiple_of(PAGE)) {
+                Some(e) if e <= pa_limit => its_ranges[i] = (b.base, e),
+                Some(_) => fail("GIC ITS past physical address space"),
+                None => fail("GIC ITS address overflows"),
+            }
+        }
+        if !apart(&dev_used, &its_ranges[..its.len()]) {
+            fail("overlapping GIC ITS MMIO");
+        }
+    }
+    // Every GIC range is known good and apart: now take the redistributors
+    // and the ITSs over. LPIs the firmware left on read and write its
+    // tables, in memory the kernel hands out: off on every redistributor,
+    // whether or not the kernel drives an ITS; and every ITS quiescent
+    // (the firmware may have left one translating).
+    if h.gic_version == 3 {
+        if let Err(e) = fl4_arch_aarch64::its::quiesce_redistributors(&gicr_va[..h.n_gicr], h.gicr_stride) {
+            fail(e);
+        }
+    }
+    for i in 0..h.n_its {
+        match fl4_arch_aarch64::its::quiesce(its_vas[i]) {
+            Some(was) if i == 0 => its_was_enabled = was,
+            Some(_) => {}
+            None => fail("GIC ITS did not quiesce"),
+        }
+        keep(&mut dev_used, its_ranges[i].0, its_ranges[i].1);
+    }
+    if h.n_its != 0 {
+        its_va = Some(its_vas[0]);
+        its_pa = h.its[0].base;
+    }
+    if !gic::init_dist(h.gic_version, gicd, gicc) {
+        fail("GIC distributor RWP stuck");
+    }
     gic::init_cpu(smp::find_gicr());
     if cpu::is_el2_nvhe() {
         fl4_arch_aarch64::hyp_nvhe::init_gic_core(
@@ -382,17 +523,30 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     let mut free = usable;
     free.remove(bi.region_paddr, bi.region_paddr + bi.region_len);
     free.remove(root.p_start, root.p_end);
+    zeroed.remove(bi.region_paddr, bi.region_paddr + bi.region_len);
+    zeroed.remove(root.p_start, root.p_end);
     let mut mods = [fl4_bootinfo::Module::default(); fl4_bootinfo::MAX_MODULES];
     let n_mods = (bi.n_modules as usize).min(fl4_bootinfo::MAX_MODULES);
     for i in 0..n_mods {
         let m = bi.modules[i];
-        free.remove(m.paddr & !(PAGE - 1), (m.paddr + m.size + PAGE - 1) & !(PAGE - 1));
+        let m_start = m.paddr & !(PAGE - 1);
+        let m_end = (m.paddr + m.size + PAGE - 1) & !(PAGE - 1);
+        free.remove(m_start, m_end);
+        zeroed.remove(m_start, m_end);
     }
     // The TPM event log the loader copied: whole pages of free RAM clear
     // of the kernel region, the root task and the modules, or none.
-    let tpm = tpm_log(bi, &usable, n_mods);
+    let mut tpm = tpm_log(bi, &usable, n_mods);
+    if let Some(t) = tpm {
+        if overlaps(&dev_used, t.paddr, t.paddr + t.size.div_ceil(PAGE) * PAGE) {
+            kprintln!("FL4: TPM event log at {:#x} overlaps a kernel device: ignored", t.paddr);
+            tpm = None;
+        }
+    }
     if let Some(t) = &tpm {
-        free.remove(t.paddr, t.paddr + t.size.div_ceil(PAGE) * PAGE);
+        let t_end = t.paddr + t.size.div_ceil(PAGE) * PAGE;
+        free.remove(t.paddr, t_end);
+        zeroed.remove(t.paddr, t_end);
     }
     let mut dev = Ranges::new();
     dev.add(0, pa_top);
@@ -417,6 +571,10 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         let m = bi.modules[i];
         let start = m.paddr & !(PAGE - 1);
         let end = (m.paddr + m.size + PAGE - 1) & !(PAGE - 1);
+        // It would hand user space the kernel's device.
+        if overlaps(&dev_used, start, end) {
+            fail("boot module overlaps kernel device");
+        }
         dev.add(start, end);
         mods[extra_mods] = m;
         extra_mods += 1;
@@ -428,21 +586,67 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         kprintln!("FL4: TPM event log: {:#x} bytes at {:#x}", t.size, t.paddr);
     }
 
+    // The ITS's tables, from the free RAM, 64 KiB aligned.
+    let mut msi = None;
+    if let Some(va) = its_va {
+        use fl4_arch_aarch64::its;
+        let size = its::memory_size(ncpus);
+        let mut pool = free;
+        if bi.dtb != 0 {
+            let dl = hw::dtb_size(bi.dtb);
+            pool.remove(bi.dtb & !(PAGE - 1), (bi.dtb + dl + PAGE - 1) & !(PAGE - 1));
+        }
+        match pool.take(size + 0x1_0000) {
+            Some(p) => {
+                free.remove(p, p + size + 0x1_0000);
+                zeroed.remove(p, p + size + 0x1_0000);
+                let mem = (p + 0xffff) & !0xffff;
+                let gicr_pa = |c: usize| {
+                    let va = percpu::gicr(c);
+                    (0..h.n_gicr).find(|&i| va >= gicr_va[i].0 && va < gicr_va[i].0 + gicr_va[i].1)
+                        .map(|i| h.gicr[i].0 + (va - gicr_va[i].0))
+                };
+                // fl4-efi boots from UEFI, after ExitBootServices: an ITS comes
+                // to the kernel from reset, unused. A loader that cannot
+                // promise that (a warm reboot, kexec) passes `warm_its`, and
+                // an ITS without GITS_TYPER.INV then stays off.
+                let trusted_cold_handoff = !has_option(bi, b"warm_its");
+                match its::init(va, its_pa, mem, ncpus, gicr_pa, &gicr_va[..h.n_gicr], its_was_enabled, trusted_cold_handoff) {
+                    Ok(info) => {
+                        kprintln!("FL4: ITS at {:#x}: {} LPIs, {} device IDs, MSI doorbell {:#x}", its_pa, info.num_lpis, info.num_devices, info.doorbell);
+                        msi = Some(info);
+                    }
+                    Err(its::InitError::Unsupported(e)) => kprintln!("FL4: ITS at {:#x} unused: {}", its_pa, e),
+                    Err(its::InitError::Unsafe(e)) => fail(e),
+                }
+            }
+            // Quiesced at discovery, it stays off.
+            None => kprintln!("FL4: no memory for the ITS tables"),
+        }
+    }
+
     // The extra BootInfo, in memory taken from the free RAM.
     let dtb_len = if bi.dtb != 0 { hw::dtb_size(bi.dtb) } else { 0 };
     let extra_size = EXTRA_FIXED + ((dtb_len + 16 + PAGE) & !(PAGE - 1));
     // Not over the device tree it copies (which may be in free memory).
     let mut pool = free;
     if dtb_len != 0 {
-        pool.remove(bi.dtb & !(PAGE - 1), (bi.dtb + dtb_len + PAGE - 1) & !(PAGE - 1));
+        let dtb_start = bi.dtb & !(PAGE - 1);
+        let dtb_end = (bi.dtb + dtb_len + PAGE - 1) & !(PAGE - 1);
+        pool.remove(dtb_start, dtb_end);
+        zeroed.remove(dtb_start, dtb_end);
     }
     let extra_pa = match pool.take(extra_size) {
         Some(p) => p,
         None => fail("no memory for the extra BootInfo"),
     };
     free.remove(extra_pa, extra_pa + extra_size);
+    zeroed.remove(extra_pa, extra_pa + extra_size);
+    if zeroed.lost {
+        zeroed = Ranges::new();
+    }
     let extra = unsafe { core::slice::from_raw_parts_mut(pptr(extra_pa) as *mut u8, extra_size as usize) };
-    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, &mods[..extra_mods], tpm.as_ref());
+    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, &mods[..extra_mods], tpm.as_ref(), msi.as_ref());
     // The boot frames go after the image in user space (fl4-core
     // `root_layout`): all of them below its end.
     let root_v_end = root.v_start.checked_add(root.p_end - root.p_start);
@@ -457,6 +661,8 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     let mut p = BootParams {
         free: [Region::EMPTY; MAX_REGIONS],
         n_free: 0,
+        zeroed: [Region::EMPTY; MAX_REGIONS],
+        n_zeroed: 0,
         device: [Region::EMPTY; MAX_REGIONS],
         n_device: 0,
         ui_p_start: root.p_start,
@@ -473,6 +679,7 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         kernel_image: Region { start: KERNEL_VBASE, end: unsafe { &__kernel_end as *const u8 as u64 } },
     };
     // The largest free ranges, if there are more than BootParams holds.
+    let (mut omitted_free, mut omitted_bytes) = (0usize, 0u64);
     while free.n > MAX_REGIONS {
         let (mut k, mut best) = (0, u64::MAX);
         for j in 0..free.n {
@@ -484,14 +691,41 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         }
         let r = free.r[k];
         free.remove(r.start, r.end);
+        omitted_free += 1;
+        omitted_bytes += r.end - r.start;
+    }
+    if omitted_free != 0 {
+        kprintln!("FL4: {} free RAM region(s) ({:#x} bytes) exceed the boot range limit", omitted_free, omitted_bytes);
     }
     for i in 0..free.n {
         p.free[i] = Region { start: pptr(free.r[i].start), end: pptr(free.r[i].end) };
         p.n_free += 1;
     }
+    if zeroed.n <= MAX_REGIONS {
+        for i in 0..zeroed.n {
+            p.zeroed[i] = Region { start: pptr(zeroed.r[i].start), end: pptr(zeroed.r[i].end) };
+            p.n_zeroed += 1;
+        }
+    }
     for i in 0..dev.n.min(MAX_REGIONS) {
         p.device[i] = dev.r[i];
         p.n_device += 1;
+    }
+    if dev.n > MAX_REGIONS {
+        kprintln!("FL4: {} device memory regions exceed the boot range limit", dev.n - MAX_REGIONS);
+        // The boot modules and the TPM log reach the root task only as
+        // these device untypeds.
+        let boot_data = mods[..extra_mods]
+            .iter()
+            .map(|m| (m.paddr, m.paddr + m.size))
+            .chain(tpm.as_ref().map(|t| (t.paddr, t.paddr + t.size)));
+        let lost = &dev.r[MAX_REGIONS..dev.n];
+        for (start, end) in boot_data {
+            let (start, end) = (start & !(PAGE - 1), (end + PAGE - 1) & !(PAGE - 1));
+            if lost.iter().any(|r| r.start < end && start < r.end) {
+                fail("boot modules or event logs exceed the boot device range limit");
+            }
+        }
     }
 
     // The root task's image came from the loader through the data cache;
@@ -533,6 +767,8 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     if !fl4_abi::config::PRINTING {
         serial::release();
     }
+    // Every kernel mapping is made: ArmHighVSpaces copy the tables from now.
+    paging::freeze_kernel_tables();
     entry::lock();
     smp::release_aps();
     sched::schedule(&mut s, &mut a);

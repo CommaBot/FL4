@@ -77,6 +77,12 @@ pub fn poison() -> bool {
     FL4_CVM_POISONED.swap(true, Ordering::AcqRel)
 }
 
+/// Whether a core has stopped every core (`poison`).
+#[inline]
+pub fn poisoned() -> bool {
+    FL4_CVM_POISONED.load(Ordering::Acquire)
+}
+
 #[inline]
 pub fn halt_if_poisoned() {
     if FL4_CVM_POISONED.load(Ordering::Acquire) {

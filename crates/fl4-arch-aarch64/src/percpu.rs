@@ -11,7 +11,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 /// Cores the backend has room for (and that have banked interrupt state,
 /// `fl4_core::layout::irq::BANKED_CORES`).
-pub const MAX_CPUS: usize = 16;
+pub const MAX_CPUS: usize = 64;
 const _: () = assert!(MAX_CPUS as u64 == fl4_core::layout::irq::BANKED_CORES);
 pub const KSTACK_SIZE: usize = 64 * 1024;
 pub const NO_IRQ: u64 = u64::MAX;
@@ -50,6 +50,19 @@ pub struct PerCpu {
     /// The raw acknowledge value of the interrupt last taken (GICv2 SGIs
     /// carry their source in it, which the EOI needs).
     pub iar: Cell<u64>,
+    /// Pointer authentication (pac.rs): the TCB and key generation whose
+    /// keys this core's key registers hold (0: none, the APGA key all
+    /// zero), and the SCTLR_EL1 enables it runs with.
+    pub pac_owner: Cell<u64>,
+    pub pac_epoch: Cell<u64>,
+    pub pac_flags: Cell<u64>,
+    /// The high window (mmu.rs `switch_high`): the one `ArmHighVSpace`
+    /// (TTBR1 value) whose translations this core's TLB may hold, and the
+    /// TTBR0 ASID they are tagged with (both 0: none).
+    pub high_ttbr1: Cell<u64>,
+    pub high_asid: Cell<u64>,
+    /// `mmu::HIGH_GEN` as this core's `switch_high` last saw it.
+    pub high_gen: Cell<u64>,
 }
 
 const _: () = assert!(core::mem::offset_of!(PerCpu, stack_top) == 0 && core::mem::offset_of!(PerCpu, index) == 8);
@@ -71,6 +84,12 @@ impl PerCpu {
             gate_held: Cell::new(false),
             armed: Cell::new(0),
             iar: Cell::new(0),
+            pac_owner: Cell::new(0),
+            pac_epoch: Cell::new(0),
+            pac_flags: Cell::new(0),
+            high_ttbr1: Cell::new(0),
+            high_asid: Cell::new(0),
+            high_gen: Cell::new(0),
         }
     }
 }
@@ -89,6 +108,9 @@ struct Shared {
     vcpu_owner: AtomicU64,
     /// The user address space this core runs (TTBR0_EL1 value).
     ttbr0: AtomicU64,
+    /// The TTBR1_EL1 value this core runs (0 before its first switch: the
+    /// kernel's, from boot).
+    ttbr1: AtomicU64,
     /// The Stage-2 root+VMID this core runs (VTTBR_EL2 value).
     vttbr: AtomicU64,
     /// The logical Stage-2 ASID currently loaded on this core (0 = empty).
@@ -106,6 +128,7 @@ static SHARED: [Shared; MAX_CPUS] = [const {
         fpu_owner: AtomicU64::new(0),
         vcpu_owner: AtomicU64::new(0),
         ttbr0: AtomicU64::new(0),
+        ttbr1: AtomicU64::new(0),
         vttbr: AtomicU64::new(0),
         s2_asid: AtomicU64::new(0),
         mpidr: AtomicU64::new(0),
@@ -209,6 +232,16 @@ pub fn ttbr0(c: usize) -> u64 {
 
 pub fn set_ttbr0(v: u64) {
     SHARED[cpu_index()].ttbr0.store(v, Ordering::SeqCst);
+}
+
+/// The TTBR1_EL1 value core `c` runs (mmu.rs `invalidate_high_vspace`:
+/// sequentially consistent, as `ttbr0`).
+pub fn ttbr1(c: usize) -> u64 {
+    SHARED[c].ttbr1.load(Ordering::SeqCst)
+}
+
+pub fn set_ttbr1(v: u64) {
+    SHARED[cpu_index()].ttbr1.store(v, Ordering::SeqCst);
 }
 
 /// The VTTBR_EL2 value core `c` runs (mmu.rs: sequentially consistent).

@@ -30,6 +30,39 @@ typedef enum {
     SEL4_FORCE_LONG_ENUM(seL4_UnknownSyscall_Msg),
 } seL4_UnknownSyscall_Msg;
 
+/* FL4 (l4h): the UnknownSyscall message of a thread with
+ * seL4_TCBFlag_trapSyscalls goes on after the standard
+ * seL4_UnknownSyscall_Length words with x8-x30 and TPIDR_EL0, and a reply
+ * of seL4_UnknownSyscall_TrapLength words sets them too (a shorter reply
+ * leaves them as they were). */
+#define seL4_UnknownSyscall_TrapExtraFirst 13
+#define seL4_UnknownSyscall_TrapX8         13
+#define seL4_UnknownSyscall_TrapX9         14
+#define seL4_UnknownSyscall_TrapX10        15
+#define seL4_UnknownSyscall_TrapX11        16
+#define seL4_UnknownSyscall_TrapX12        17
+#define seL4_UnknownSyscall_TrapX13        18
+#define seL4_UnknownSyscall_TrapX14        19
+#define seL4_UnknownSyscall_TrapX15        20
+#define seL4_UnknownSyscall_TrapX16        21
+#define seL4_UnknownSyscall_TrapX17        22
+#define seL4_UnknownSyscall_TrapX18        23
+#define seL4_UnknownSyscall_TrapX19        24
+#define seL4_UnknownSyscall_TrapX20        25
+#define seL4_UnknownSyscall_TrapX21        26
+#define seL4_UnknownSyscall_TrapX22        27
+#define seL4_UnknownSyscall_TrapX23        28
+#define seL4_UnknownSyscall_TrapX24        29
+#define seL4_UnknownSyscall_TrapX25        30
+#define seL4_UnknownSyscall_TrapX26        31
+#define seL4_UnknownSyscall_TrapX27        32
+#define seL4_UnknownSyscall_TrapX28        33
+#define seL4_UnknownSyscall_TrapX29        34
+#define seL4_UnknownSyscall_TrapX30        35
+#define seL4_UnknownSyscall_TrapTPIDR_EL0  36
+#define seL4_UnknownSyscall_TrapLength     37
+SEL4_COMPILE_ASSERT(trap_extra_after_unknown_syscall, seL4_UnknownSyscall_TrapExtraFirst == seL4_UnknownSyscall_Length);
+
 /* format of a user exception message */
 typedef enum {
     seL4_UserException_FaultIP,
@@ -267,6 +300,18 @@ typedef enum {
 #define seL4_ARM_VCPUBits          12
 #define seL4_VCPUBits              12
 #define seL4_ARM_Stage2VSpaceBits  13
+/* FL4: ArmHighVSpace, the TTBR1 level-0 table and its last level-1 table
+ * (8 KiB), and the addresses it may map (level-0 entry 511, level-1
+ * entries 384-495). */
+#define seL4_ARM_HighVSpaceBits    13
+#define seL4_ARM_HighVSpaceBase    0xffffffe000000000ul
+#define seL4_ARM_HighVSpaceTop     0xfffffffc00000000ul
+
+/* FL4: seL4_TCB_SetPACKeys flags (SCTLR_EL1.EnIA, EnIB, EnDA, EnDB). */
+#define seL4_ARM_PAC_EnIA (1ul << 0)
+#define seL4_ARM_PAC_EnIB (1ul << 1)
+#define seL4_ARM_PAC_EnDA (1ul << 2)
+#define seL4_ARM_PAC_EnDB (1ul << 3)
 
 /* word size */
 #define seL4_WordBits (sizeof(seL4_Word) * 8)

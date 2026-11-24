@@ -28,6 +28,16 @@ core::arch::global_asm!(
     spec_ibhf = const spec::policy::IBHF,
     options(att_syntax)
 );
+
+// The kernel's Safe RET routines (fl4-kernel's safe_ret.S), which vm.S's
+// SVM exit calls; host test builds of this crate alone link without them,
+// and never run a guest.
+#[cfg(not(target_os = "none"))]
+core::arch::global_asm!(
+    ".weak fl4_untrain_ret", "fl4_untrain_ret: ret",
+    ".weak __x86_return_thunk", "__x86_return_thunk: ret",
+    options(att_syntax)
+);
 // Exercise the real exit assembly in host tests without executing VMX:
 // reproduce HOST_RSP, load the guest GPRs, and enter the real exit label.
 #[cfg(test)]
@@ -685,6 +695,11 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
         host_rsp: local().vmx.get(HOST_RSP).unwrap_or(0),
         speculation: spec::vmexit().expect("VM backend without speculation protection") as u64,
     };
+    // The exit's IBPB at the next switch to another address space.
+    if vcpu::get(s, v, vcpu::VM_IBPB_DEFER) != 0 && spec::vm_ibpb_deferred() {
+        run.speculation &= !(spec::policy::IBPB as u64);
+        percpu::get().guest_bp.set(percpu::get().cr3.get());
+    }
     for i in 0..15 {
         run.regs[i] = vcpu::get(s, v, vcpu::REGS + i as u64 * 8);
     }
@@ -1016,7 +1031,8 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
         cpu::iret_to_self();
     }
     vcpu::set(s, v, vcpu::PENDING, if host_exit { 0 } else { 1 });
-    // 0x100 means poll the local APIC; 0xff is spurious/no IRQ.
+    // 0x100 means poll the local APIC; NO_INTERRUPT, that no host
+    // interrupt caused the exit.
     if host_exit {
         if (amd && reason == 0x60) || (!amd && reason == 1) {
             if interrupt == u64::MAX {
@@ -1025,12 +1041,17 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
                 interrupt
             }
         } else {
-            0xff
+            NO_INTERRUPT
         }
     } else {
-        0xff
+        NO_INTERRUPT
     }
 }
+
+/// `run`'s result for an exit no host interrupt caused: told apart from a
+/// delivered vector, so that the exit path asks the local APIC nothing
+/// (an ISR read is itself an exit under a hypervisor, on every guest exit).
+pub const NO_INTERRUPT: u64 = 0x1ff;
 pub fn empty_root() -> u64 {
     maps().empty.0.as_ptr() as u64
 }

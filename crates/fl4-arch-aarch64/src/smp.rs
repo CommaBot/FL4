@@ -20,6 +20,8 @@ pub const CALL_GIC_CONFIG: u64 = 9;
 pub const CALL_VCPU_FLUSH: u64 = 10;
 /// Broadcast Stage-2 VMID generation retirement (8-bit VMID wrap).
 pub const CALL_VMID_RETIRE: u64 = 11;
+/// Leave the `ArmHighVSpace` whose TTBR1 value is arg0 (`mmu::high_retired`).
+pub const CALL_HIGH_VSPACE: u64 = 12;
 
 static ONLINE: AtomicU64 = AtomicU64::new(1);
 static NUM_ONLINE: AtomicU64 = AtomicU64::new(1);
@@ -93,6 +95,7 @@ pub fn service(stall: impl FnOnce()) -> bool {
         CALL_GIC_CONFIG => gic::configure(a0, here, a1 != 0),
         CALL_VCPU_FLUSH => crate::vcpu::flush_local(a0),
         CALL_VMID_RETIRE => crate::mmu::vmid_retired(a0),
+        CALL_HIGH_VSPACE => crate::mmu::high_retired(a0),
         _ => {}
     }
     CALL.pending.fetch_and(!me, Ordering::AcqRel);
