@@ -26,7 +26,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 theorem usize_cast_val (j : Usize) : (UScalar.cast .U64 j).val = j.val := by
   have : 2 ^ System.Platform.numBits ≤ 2 ^ 64 := by
@@ -37,7 +37,7 @@ theorem usize_cast_val (j : Usize) : (UScalar.cast .U64 j).val = j.val := by
 
 theorem faults.copy_mrs_fault_reply_loop0.guard (s : S) (snd rcv : U64) (regs : Slice U64) (n i : Usize)
     (hreg : ∀ r ∈ regs.val, r.val < 384) (hsr : Regs R snd) (hrw : Regs W rcv) :
-    faults.copy_mrs_fault_reply_loop0 (PathObl.guard st R W) s snd rcv regs n i =
+    faults.copy_mrs_fault_reply_loop0 gS s snd rcv regs n i =
       faults.copy_mrs_fault_reply_loop0 st s snd rcv regs n i := by
   unfold faults.copy_mrs_fault_reply_loop0
   refine loop_guard_congr (fun _ => True) (fun y => (Slice.len regs).val - y.2.val) ?_ (s, i) trivial
@@ -89,7 +89,7 @@ theorem faults.copy_mrs_fault_reply_loop0.guard (s : S) (snd rcv : U64) (regs : 
 theorem faults.copy_mrs_fault_reply_loop1.guard (s : S) (rcv : U64) (regs : Slice U64) (n i : Usize)
     (buf : U64) (hreg : ∀ r ∈ regs.val, r.val < 384) (hl : (Slice.len regs).val < 127) (h0 : buf ≠ 0#u64)
     (hbr : BufW R buf) (hrw : Regs W rcv) :
-    faults.copy_mrs_fault_reply_loop1 (PathObl.guard st R W) s rcv regs n i buf =
+    faults.copy_mrs_fault_reply_loop1 gS s rcv regs n i buf =
       faults.copy_mrs_fault_reply_loop1 st s rcv regs n i buf := by
   unfold faults.copy_mrs_fault_reply_loop1
   refine loop_guard_congr (fun _ => True) (fun y => (Slice.len regs).val - y.2.val) ?_ (s, i) trivial
@@ -147,7 +147,7 @@ theorem faults.copy_mrs_fault_reply.guard (s : S) (snd rcv : U64) (regs : Slice 
     (hrc : TcbAddr rcv)
     (hbw : ∀ X : S, WritesIn st s X (XferRegW ({rcv} : Set U64) ∅) →
       ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
-    faults.copy_mrs_fault_reply (PathObl.guard st R W) s snd rcv regs len =
+    faults.copy_mrs_fault_reply gS s snd rcv regs len =
       faults.copy_mrs_fault_reply st s snd rcv regs len := by
   obtain ⟨sl, hsl, h1, h2, h3⟩ := hb
   unfold faults.copy_mrs_fault_reply
@@ -181,7 +181,7 @@ theorem faults.handle_fault_reply.guardU {A : Type} (ar : machine.Arch A) (s : S
     (hrc : TcbAddr rcv)
     (hbw : ∀ X : S, WritesIn st s X (XferRegW ({rcv} : Set U64) ∅) →
       ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
-    faults.handle_fault_reply (PathObl.guard st R W) ar s a rcv snd =
+    faults.handle_fault_reply gS ar s a rcv snd =
       faults.handle_fault_reply st ar s a rcv snd := by
   unfold faults.handle_fault_reply
   rw [msg.msg_info.guard s snd hmi]
@@ -193,23 +193,23 @@ theorem faults.handle_fault_reply.guardU {A : Type} (ar : machine.Arch A) (s : S
 /-! ## Reply objects -/
 
 theorem obj.Reply.next.guard (s : S) (r : U64) (h : R (rNextA r)) :
-    obj.Reply.next (PathObl.guard st R W) r s = obj.Reply.next st r s := by
+    obj.Reply.next gS r s = obj.Reply.next st r s := by
   unfold obj.Reply.next; rw [obj.Reply.next_raw.guard r s h]
 
 theorem obj.Reply.prev.guard (s : S) (r : U64) (h : R (rPrevA r)) :
-    obj.Reply.prev (PathObl.guard st R W) r s = obj.Reply.prev st r s := by
+    obj.Reply.prev gS r s = obj.Reply.prev st r s := by
   unfold obj.Reply.prev; rw [obj.Reply.prev_raw.guard r s h]
 
 theorem obj.Reply.next_is_head.guard (s : S) (r : U64) (h : R (rNextA r)) :
-    obj.Reply.next_is_head (PathObl.guard st R W) r s = obj.Reply.next_is_head st r s := by
+    obj.Reply.next_is_head gS r s = obj.Reply.next_is_head st r s := by
   unfold obj.Reply.next_is_head; rw [obj.Reply.next_raw.guard r s h]
 
 theorem obj.Reply.set_prev.guard (s : S) (r v : U64) (h : W (rPrevA r)) :
-    obj.Reply.set_prev (PathObl.guard st R W) r s v = obj.Reply.set_prev st r s v := by
+    obj.Reply.set_prev gS r s v = obj.Reply.set_prev st r s v := by
   unfold obj.Reply.set_prev; simp only [lift, bind_ok]; rw [obj.Reply.set_prev_raw.guard r s _ h]
 
 theorem obj.Reply.set_next.guard (s : S) (r v : U64) (b : Bool) (h : W (rNextA r)) :
-    obj.Reply.set_next (PathObl.guard st R W) r s v b = obj.Reply.set_next st r s v b := by
+    obj.Reply.set_next gS r s v b = obj.Reply.set_next st r s v b := by
   unfold obj.Reply.set_next; simp only [lift, bind_ok]
   split <;> rw [obj.Reply.set_next_raw.guard r s _ h]
 
@@ -224,7 +224,7 @@ theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) 
     (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
     (h3 : ∀ X : S, WritesIn st s X (fun b => b = rTcbA r ∨ b = stA t) → R (maxA (L.mem X (scA t))))
     (h4 : R (inqA t)) :
-    ipc.reply_unlink (PathObl.guard st R W) s r t = ipc.reply_unlink st s r t := by
+    ipc.reply_unlink gS s r t = ipc.reply_unlink st s r t := by
   unfold ipc.reply_unlink
   rw [obj.Reply.set_tcb.guard r s _ hrt]
   refine bind_guard_congr rfl fun s1 hs1 => ?_
@@ -246,7 +246,7 @@ theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (h3 : ∀ X : S, WritesIn st s X (fun b => b = rPrevA r ∨ b = rNextA r ∨ b = rTcbA r ∨ b = stA t) →
       R (maxA (L.mem X (scA t))))
     (h4 : R (inqA t)) :
-    ipc.reply_remove (PathObl.guard st R W) ar s a r t = ipc.reply_remove st ar s a r t := by
+    ipc.reply_remove gS ar s a r t = ipc.reply_remove st ar s a r t := by
   unfold ipc.reply_remove
   rw [obj.Reply.next.guard s r hrn, obj.Reply.prev.guard s r hrp, reply_next_ok, reply_prev_ok, hz.1, hz.2]
   simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
@@ -278,7 +278,7 @@ theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     · exact Or.inr (Or.inr (Or.inr h)))) h4]
 
 theorem faults.clear_fault.guard (s : S) (t : U64) (h : W (core.num.U64.wrapping_add t 3376#u64)) :
-    faults.clear_fault (PathObl.guard st R W) s t = faults.clear_fault st s t := by
+    faults.clear_fault gS s t = faults.clear_fault st s t := by
   unfold faults.clear_fault
   exact obj.Tcb.set_fault_type.guard t s _ h
 

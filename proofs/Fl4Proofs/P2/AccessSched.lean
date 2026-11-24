@@ -38,7 +38,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop}
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
 
 /-- Composing along a bind: equal first steps, and equal continuations at the
 values the (real) first step produces. -/
@@ -76,35 +76,35 @@ theorem loop_guard_congr {α β : Type} {body body' : α → Result (ControlFlow
 /-! ## Registers -/
 
 theorem obj.Tcb.reg.guard (t : obj.Tcb) (s : S) (r : U64) (h : R (regA t r)) :
-    obj.Tcb.reg (guard st R W) t s r = obj.Tcb.reg st t s r := by
+    obj.Tcb.reg gS t s r = obj.Tcb.reg st t s r := by
   unfold obj.Tcb.reg
   simp only [lift, bind_ok]
-  exact guard_read_of h rfl
+  exact gst_read_of h rfl
 
 theorem obj.Tcb.set_reg.guard (t : obj.Tcb) (s : S) (r v : U64) (h : W (regA t r)) :
-    obj.Tcb.set_reg (guard st R W) t s r v = obj.Tcb.set_reg st t s r v := by
+    obj.Tcb.set_reg gS t s r v = obj.Tcb.set_reg st t s r v := by
   unfold obj.Tcb.set_reg
   simp only [lift, bind_ok]
-  exact guard_write_of h rfl
+  exact gst_write_of h rfl
 
 /-! ## Refills -/
 
 theorem obj.Sc.r_time.guard (sc : obj.Sc) (s : S) (i : U64) (h : R (rtA sc i)) :
-    obj.Sc.r_time (guard st R W) sc s i = obj.Sc.r_time st sc s i := by
+    obj.Sc.r_time gS sc s i = obj.Sc.r_time st sc s i := by
   unfold obj.Sc.r_time
   rw [eq_ok_of_spec (obj.Sc.refill_addr.spec sc i)]
   simp only [bind_ok]
-  exact guard_read h
+  exact gst_read h
 
 theorem obj.Sc.r_amount.guard (sc : obj.Sc) (s : S) (i : U64) (h : R (raA sc i)) :
-    obj.Sc.r_amount (guard st R W) sc s i = obj.Sc.r_amount st sc s i := by
+    obj.Sc.r_amount gS sc s i = obj.Sc.r_amount st sc s i := by
   unfold obj.Sc.r_amount
   rw [eq_ok_of_spec (obj.Sc.refill_addr.spec sc i)]
   simp only [lift, bind_ok]
-  exact guard_read_of h rfl
+  exact gst_read_of h rfl
 
 theorem sporadic.get.guard (s : S) (sc : obj.Sc) (i : U64) (ht : R (rtA sc i)) (ha : R (raA sc i)) :
-    sporadic.get (guard st R W) s sc i = sporadic.get st s sc i := by
+    sporadic.get gS s sc i = sporadic.get st s sc i := by
   unfold sporadic.get
   rw [obj.Sc.r_time.guard sc s i ht, obj.Sc.r_amount.guard sc s i ha]
 
@@ -116,7 +116,7 @@ def RdHead (R : U64 → Prop) (s : S) (sc : obj.Sc) : Prop :=
   R (headA sc) ∧ R (rtA sc (L.rhead s sc)) ∧ R (raA sc (L.rhead s sc))
 
 theorem sporadic.head.guard (s : S) (sc : obj.Sc) (h : RdHead (L := L) R s sc) :
-    sporadic.head (guard st R W) s sc = sporadic.head st s sc := by
+    sporadic.head gS s sc = sporadic.head st s sc := by
   obtain ⟨h1, h2, h3⟩ := h
   unfold sporadic.head
   rw [obj.Sc.refill_head.guard sc s h1, eq_ok_of_spec (obj.Sc.refill_head.spec (L := L) s sc)]
@@ -124,13 +124,13 @@ theorem sporadic.head.guard (s : S) (sc : obj.Sc) (h : RdHead (L := L) R s sc) :
   exact sporadic.get.guard s sc _ h2 h3
 
 theorem sporadic.capacity.guard (s : S) (sc : obj.Sc) (u : U64) (h : RdHead (L := L) R s sc) :
-    sporadic.capacity (guard st R W) s sc u = sporadic.capacity st s sc u := by
+    sporadic.capacity gS s sc u = sporadic.capacity st s sc u := by
   unfold sporadic.capacity
   rw [sporadic.head.guard s sc h]
 
 theorem sporadic.sufficient.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (u : U64)
     (h : RdHead (L := L) R s sc) :
-    sporadic.sufficient (guard st R W) ar s a sc u = sporadic.sufficient st ar s a sc u := by
+    sporadic.sufficient gS ar s a sc u = sporadic.sufficient st ar s a sc u := by
   unfold sporadic.sufficient
   rw [sporadic.capacity.guard s sc u h]
 
@@ -141,14 +141,14 @@ and `CONSUMED`. -/
 theorem sched.update_timestamp.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hr1 : R (ctA (L := L) s)) (hw1 : W (ctA (L := L) s)) (hr2 : R (cnA (L := L) s))
     (hw2 : W (cnA (L := L) s)) :
-    sched.update_timestamp (guard st R W) ar s a = sched.update_timestamp st ar s a := by
+    sched.update_timestamp gS ar s a = sched.update_timestamp st ar s a := by
   unfold sched.update_timestamp
   rw [sched.cur_time.guard s hr1]
   refine bind_guard_congr rfl fun prev _ => ?_
   refine bind_guard_congr rfl fun na _ => ?_
   obtain ⟨n, a1⟩ := na
   try simp only [Aeneas.Std.uncurry_apply_pair]
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_set.guard s _ _ _ hw1, eq_ok_of_spec (obj.node_set.spec (L := L) s _ _ _)]
   simp only [bind_ok, lift]
   have e : ∀ v, L.nodeAt (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) v)
@@ -162,28 +162,28 @@ theorem sched.update_timestamp.guard {A : Type} (ar : machine.Arch A) (s : S) (a
 /-! ## Checks -/
 
 theorem sched.in_release_queue.guard (s : S) (t : obj.Tcb) (h : R (inqA t)) :
-    sched.in_release_queue (guard st R W) s t = sched.in_release_queue st s t := by
+    sched.in_release_queue gS s t = sched.in_release_queue st s t := by
   unfold sched.in_release_queue
   rw [obj.Tcb.in_queues.guard t s h]
 
 theorem sched.queued.guard (s : S) (t : obj.Tcb) (h : R (inqA t)) :
-    sched.queued (guard st R W) s t = sched.queued st s t := by
+    sched.queued gS s t = sched.queued st s t := by
   unfold sched.queued
   rw [obj.Tcb.in_queues.guard t s h]
 
 theorem sched.is_cur_domain_expired.guard (s : S) :
-    sched.is_cur_domain_expired (guard st R W) s = sched.is_cur_domain_expired st s := by
+    sched.is_cur_domain_expired gS s = sched.is_cur_domain_expired st s := by
   unfold sched.is_cur_domain_expired
   rw [if_neg num_domains_one, if_neg num_domains_one]
 
 theorem sporadic.cur_time.guard (s : S) (h : R (ctA (L := L) s)) :
-    sporadic.cur_time (guard st R W) s = sporadic.cur_time st s := by
+    sporadic.cur_time gS s = sporadic.cur_time st s := by
   unfold sporadic.cur_time
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   exact obj.node_get.guard s _ _ h
 
 theorem sporadic.ready.guard (s : S) (sc : obj.Sc) (h : RdHead (L := L) R s sc) (hct : R (ctA (L := L) s)) :
-    sporadic.ready (guard st R W) s sc = sporadic.ready st s sc := by
+    sporadic.ready gS s sc = sporadic.ready st s sc := by
   unfold sporadic.ready
   rw [sporadic.head.guard s sc h, sporadic.cur_time.guard s hct]
 
@@ -206,11 +206,11 @@ theorem fastpath.schedulable_here.guard (s : S) (t : obj.Tcb)
     (hcd : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (haf : R (affA t)) (hdo : R (core.num.U64.wrapping_add t 3432#u64)) (hsc : R (scA t))
     (hiq : R (inqA t)) :
-    fastpath.schedulable_here (guard st R W) s t = fastpath.schedulable_here st s t := by
+    fastpath.schedulable_here gS s t = fastpath.schedulable_here st s t := by
   unfold fastpath.schedulable_here
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [sched.cur_time.guard s hct, obj.node_get.guard s _ _ htm, obj.node_get.guard s _ _ hrh,
-    sched.is_cur_domain_expired.guard s, sched.domain_time.guard s hdt, obj.Tcb.affinity.guard t s haf,
+    sched.is_cur_domain_expired.guard (st := st) s, sched.domain_time.guard s hdt, obj.Tcb.affinity.guard t s haf,
     obj.Tcb.domain.guard t s hdo, sched.cur_domain.guard s hcd, obj.Tcb.sc.guard t s hsc,
     sched.in_release_queue.guard s t hiq, sched.queued.guard s t hiq]
   rw [node_get_ok s _ layout.node.TIMER_MIN, node_get_ok s _ layout.node.RELEASE_HEAD]
@@ -236,10 +236,10 @@ def RdBitmap (R : U64 → Prop) (s : S) : Prop :=
   R (L.nodeAt s (L.cpu s) l1Off) ∧ ∀ inv : U64, inv.val < 4 → R (L.nodeAt s (L.cpu s) (w64 (136 + 8 * inv.val)))
 
 theorem sched.highest_prio.guard (s : S) (dom : U64) (h : RdBitmap (L := L) R s) :
-    sched.highest_prio (guard st R W) s dom = sched.highest_prio st s dom := by
+    sched.highest_prio gS s dom = sched.highest_prio st s dom := by
   obtain ⟨h1, h2⟩ := h
   unfold sched.highest_prio
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bitmap_dom_one]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok, bitmap_dom_one]
   rw [eq_ok_of_spec l1_off_zero]
   simp only [bind_ok]
   rw [obj.node_get.guard s _ _ h1]
@@ -261,9 +261,9 @@ theorem sched.highest_prio.guard (s : S) (dom : U64) (h : RdBitmap (L := L) R s)
   rw [obj.node_get.guard s _ _ (h2 inv hlt)]
 
 theorem sched.is_highest_prio.guard (s : S) (dom p : U64) (h : RdBitmap (L := L) R s) :
-    sched.is_highest_prio (guard st R W) s dom p = sched.is_highest_prio st s dom p := by
+    sched.is_highest_prio gS s dom p = sched.is_highest_prio st s dom p := by
   unfold sched.is_highest_prio
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bitmap_dom_one]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok, bitmap_dom_one]
   rw [eq_ok_of_spec l1_off_zero]
   simp only [bind_ok]
   rw [obj.node_get.guard s _ _ h.1]
@@ -276,26 +276,26 @@ theorem sched.is_highest_prio.guard (s : S) (dom p : U64) (h : RdBitmap (L := L)
 
 theorem sched.set_cur_thread.guard (s : S) (t : obj.Tcb)
     (h : W (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)) :
-    sched.set_cur_thread (guard st R W) s t = sched.set_cur_thread st s t := by
+    sched.set_cur_thread gS s t = sched.set_cur_thread st s t := by
   unfold sched.set_cur_thread
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   exact obj.node_set.guard s _ _ _ h
 
 theorem sched.set_reprogram.guard (s : S) (h : W (L.nodeAt s (L.cpu s) layout.node.REPROGRAM)) :
-    sched.set_reprogram (guard st R W) s = sched.set_reprogram st s := by
+    sched.set_reprogram gS s = sched.set_reprogram st s := by
   unfold sched.set_reprogram
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   exact obj.node_set.guard s _ _ _ h
 
 theorem sporadic.sc_constant_bandwidth.guard (s : S) (sc : obj.Sc)
     (h : R (core.num.U64.wrapping_add sc layout.sc.SPORADIC)) :
-    sporadic.sc_constant_bandwidth (guard st R W) s sc = sporadic.sc_constant_bandwidth st s sc := by
+    sporadic.sc_constant_bandwidth gS s sc = sporadic.sc_constant_bandwidth st s sc := by
   unfold sporadic.sc_constant_bandwidth
   rw [obj.Sc.sporadic.guard sc s h]
 
 theorem sporadic.is_round_robin.guard (s : S) (sc : obj.Sc)
     (h : R (core.num.U64.wrapping_add sc layout.sc.PERIOD)) :
-    sporadic.is_round_robin (guard st R W) s sc = sporadic.is_round_robin st s sc := by
+    sporadic.is_round_robin gS s sc = sporadic.is_round_robin st s sc := by
   unfold sporadic.is_round_robin
   rw [obj.Sc.period.guard sc s h]
 
@@ -303,20 +303,20 @@ theorem sporadic.is_round_robin.guard (s : S) (sc : obj.Sc)
 theorem smp.send_pending.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hr : R (L.nodeAt s (L.cpu s) layout.node.IPI_PENDING))
     (hw : W (L.nodeAt s (L.cpu s) layout.node.IPI_PENDING)) :
-    smp.send_pending (guard st R W) ar s a = smp.send_pending st ar s a := by
+    smp.send_pending gS ar s a = smp.send_pending st ar s a := by
   unfold smp.send_pending
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_get.guard s _ _ hr, obj.node_set.guard s _ _ _ hw]
 
 theorem vspace.kernel_root.guard (s : S)
     (h : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT)) :
-    vspace.kernel_root (guard st R W) s = vspace.kernel_root st s := by
+    vspace.kernel_root gS s = vspace.kernel_root st s := by
   unfold vspace.kernel_root
   exact obj.ks_get.guard s _ h
 
 theorem vspace.set_kernel_vm_root.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (h : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT)) :
-    vspace.set_kernel_vm_root (guard st R W) ar s a = vspace.set_kernel_vm_root st ar s a := by
+    vspace.set_kernel_vm_root gS ar s a = vspace.set_kernel_vm_root st ar s a := by
   unfold vspace.set_kernel_vm_root
   rw [vspace.kernel_root.guard s h]
 

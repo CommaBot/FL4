@@ -33,7 +33,7 @@ theorem post_of_ok {α : Type _} {m : Result α} {P : α → Prop} (h : m ⦃ P 
   rw [ok_inj_ff hv]; exact hp
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 /-- The guarded sets hold the SC `sc` of size `2 ^ sb`: every word readable,
 the ring part and `CONSUMED` writable. -/
@@ -77,21 +77,21 @@ theorem ScAcc.head (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) : RdHead (L
 /-! ## Ring operations -/
 
 theorem obj.Sc.set_r_time.guard (s : S) (i v : U64) (h : W (rtA sc i)) :
-    obj.Sc.set_r_time (PathObl.guard st R W) sc s i v = obj.Sc.set_r_time st sc s i v := by
+    obj.Sc.set_r_time gS sc s i v = obj.Sc.set_r_time st sc s i v := by
   unfold obj.Sc.set_r_time
   rw [eq_ok_of_spec (obj.Sc.refill_addr.spec sc i)]
   simp only [bind_ok]
-  exact guard_write h
+  exact gst_write h
 
 theorem obj.Sc.set_r_amount.guard (s : S) (i v : U64) (h : W (raA sc i)) :
-    obj.Sc.set_r_amount (PathObl.guard st R W) sc s i v = obj.Sc.set_r_amount st sc s i v := by
+    obj.Sc.set_r_amount gS sc s i v = obj.Sc.set_r_amount st sc s i v := by
   unfold obj.Sc.set_r_amount
   rw [eq_ok_of_spec (obj.Sc.refill_addr.spec sc i)]
   simp only [lift, bind_ok]
-  exact guard_write_of h rfl
+  exact gst_write_of h rfl
 
 theorem sporadic.put.guard (s : S) (i : U64) (r : sporadic.Refill) (ht : W (rtA sc i)) (ha : W (raA sc i)) :
-    sporadic.put (PathObl.guard st R W) s sc i r = sporadic.put st s sc i r := by
+    sporadic.put gS s sc i r = sporadic.put st s sc i r := by
   unfold sporadic.put
   rw [obj.Sc.set_r_time.guard s i _ ht]
   refine bind_guard_congr rfl fun s1 _ => ?_
@@ -101,11 +101,11 @@ variable (hS : ScAcc R W sc sb)
 include hS
 
 theorem sporadic.head.guardS (h : RefillsWF st s sc sb) :
-    sporadic.head (PathObl.guard st R W) s sc = sporadic.head st s sc :=
+    sporadic.head gS s sc = sporadic.head st s sc :=
   sporadic.head.guard s sc (hS.head h)
 
 theorem sporadic.tail.guardS (h : RefillsWF st s sc sb) :
-    sporadic.tail (PathObl.guard st R W) s sc = sporadic.tail st s sc := by
+    sporadic.tail gS s sc = sporadic.tail st s sc := by
   unfold sporadic.tail
   rw [obj.Sc.refill_tail.guard sc s (hS.off h _ (by simp) (by simp)), eq_ok_of_spec (obj.Sc.refill_tail.spec s sc)]
   simp only [bind_ok]
@@ -113,7 +113,7 @@ theorem sporadic.tail.guardS (h : RefillsWF st s sc sb) :
   exact sporadic.get.guard s sc _ a b
 
 theorem sporadic.set_head.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill) :
-    sporadic.set_head (PathObl.guard st R W) s sc r = sporadic.set_head st s sc r := by
+    sporadic.set_head gS s sc r = sporadic.set_head st s sc r := by
   unfold sporadic.set_head
   rw [obj.Sc.refill_head.guard sc s (hS.off h _ (by simp) (by simp)), eq_ok_of_spec (obj.Sc.refill_head.spec s sc)]
   simp only [bind_ok]
@@ -121,7 +121,7 @@ theorem sporadic.set_head.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill
   exact sporadic.put.guard s _ r a b
 
 theorem sporadic.set_tail.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill) :
-    sporadic.set_tail (PathObl.guard st R W) s sc r = sporadic.set_tail st s sc r := by
+    sporadic.set_tail gS s sc r = sporadic.set_tail st s sc r := by
   unfold sporadic.set_tail
   rw [obj.Sc.refill_tail.guard sc s (hS.off h _ (by simp) (by simp)), eq_ok_of_spec (obj.Sc.refill_tail.spec s sc)]
   simp only [bind_ok]
@@ -129,28 +129,28 @@ theorem sporadic.set_tail.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill
   exact sporadic.put.guard s _ r a b
 
 theorem sporadic.next_index.guardS (h : RefillsWF st s sc sb) (i : U64) :
-    sporadic.next_index (PathObl.guard st R W) s sc i = sporadic.next_index st s sc i := by
+    sporadic.next_index gS s sc i = sporadic.next_index st s sc i := by
   unfold sporadic.next_index
   rw [obj.Sc.refill_max.guard sc s (hS.off h _ (by simp) (by simp))]
 
 theorem sporadic.single.guardS (h : RefillsWF st s sc sb) :
-    sporadic.single (PathObl.guard st R W) s sc = sporadic.single st s sc := by
+    sporadic.single gS s sc = sporadic.single st s sc := by
   unfold sporadic.single
   rw [obj.Sc.refill_head.guard sc s (hS.off h _ (by simp) (by simp)), obj.Sc.refill_tail.guard sc s (hS.off h _ (by simp) (by simp))]
 
 theorem sporadic.size.guardS (h : RefillsWF st s sc sb) :
-    sporadic.size (PathObl.guard st R W) s sc = sporadic.size st s sc := by
+    sporadic.size gS s sc = sporadic.size st s sc := by
   unfold sporadic.size
   rw [obj.Sc.refill_head.guard sc s (hS.off h _ (by simp) (by simp)), obj.Sc.refill_tail.guard sc s (hS.off h _ (by simp) (by simp)),
     obj.Sc.refill_max.guard sc s (hS.off h _ (by simp) (by simp))]
 
 theorem sporadic.full.guardS (h : RefillsWF st s sc sb) :
-    sporadic.full (PathObl.guard st R W) s sc = sporadic.full st s sc := by
+    sporadic.full gS s sc = sporadic.full st s sc := by
   unfold sporadic.full
   rw [sporadic.size.guardS hS h, obj.Sc.refill_max.guard sc s (hS.off h _ (by simp) (by simp))]
 
 theorem sporadic.head_overlapping.guardS (h : RefillsWF st s sc sb) :
-    sporadic.head_overlapping (PathObl.guard st R W) s sc = sporadic.head_overlapping st s sc := by
+    sporadic.head_overlapping gS s sc = sporadic.head_overlapping st s sc := by
   unfold sporadic.head_overlapping
   rw [sporadic.single.guardS hS h, sporadic.head.guardS hS h,
     obj.Sc.refill_head.guard sc s (hS.off h _ (by simp) (by simp)), eq_ok_of_spec (obj.Sc.refill_head.spec s sc)]
@@ -161,7 +161,7 @@ theorem sporadic.head_overlapping.guardS (h : RefillsWF st s sc sb) :
   rw [sporadic.get.guard s sc _ a b]
 
 theorem sporadic.pop_head.guardS (h : RefillsWF st s sc sb) :
-    sporadic.pop_head (PathObl.guard st R W) s sc = sporadic.pop_head st s sc := by
+    sporadic.pop_head gS s sc = sporadic.pop_head st s sc := by
   unfold sporadic.pop_head
   rw [sporadic.head.guardS hS h, obj.Sc.refill_head.guard sc s (hS.off h _ (by simp) (by simp)),
     eq_ok_of_spec (obj.Sc.refill_head.spec s sc)]
@@ -169,7 +169,7 @@ theorem sporadic.pop_head.guardS (h : RefillsWF st s sc sb) :
     obj.Sc.set_refill_head.guard sc s _ (hS.offW h _ (by simp) (by simp) (by simp))]
 
 theorem sporadic.add_tail.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill) :
-    sporadic.add_tail (PathObl.guard st R W) s sc r = sporadic.add_tail st s sc r := by
+    sporadic.add_tail gS s sc r = sporadic.add_tail st s sc r := by
   unfold sporadic.add_tail
   rw [obj.Sc.refill_tail.guard sc s (hS.off h _ (by simp) (by simp)), eq_ok_of_spec (obj.Sc.refill_tail.spec s sc)]
   simp only [bind_ok]
@@ -181,7 +181,7 @@ theorem sporadic.add_tail.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill
   exact sporadic.put.guard s1 _ r a b
 
 theorem sporadic.schedule_used.guardS (h : RefillsWF st s sc sb) (r : sporadic.Refill) :
-    sporadic.schedule_used (PathObl.guard st R W) s sc r = sporadic.schedule_used st s sc r := by
+    sporadic.schedule_used gS s sc r = sporadic.schedule_used st s sc r := by
   unfold sporadic.schedule_used
   simp only [sporadic.tail.guardS hS h, sporadic.set_tail.guardS hS h, sporadic.full.guardS hS h,
     sporadic.add_tail.guardS hS h]
@@ -189,7 +189,7 @@ theorem sporadic.schedule_used.guardS (h : RefillsWF st s sc sb) (r : sporadic.R
 /-! ## Loops -/
 
 theorem sporadic.unblock_check_loop.guardS (h : RefillsWF st s sc sb) (fuel : U64) :
-    sporadic.unblock_check_loop (PathObl.guard st R W) s sc fuel = sporadic.unblock_check_loop st s sc fuel := by
+    sporadic.unblock_check_loop gS s sc fuel = sporadic.unblock_check_loop st s sc fuel := by
   unfold sporadic.unblock_check_loop
   refine loop_guard_congr (fun x => RefillsWF st x.1 sc sb) (fun x => x.2.val) ?_ (s, fuel) h
   rintro ⟨x0, x1⟩ hx
@@ -234,7 +234,7 @@ theorem sporadic.unblock_check_loop.guardS (h : RefillsWF st s sc sb) (fuel : U6
     · simp at hy
 
 theorem sporadic.budget_check_loop1.guardS (h : RefillsWF st s sc sb) (mb fuel2 : U64) :
-    sporadic.budget_check_loop1 (PathObl.guard st R W) s sc mb fuel2 = sporadic.budget_check_loop1 st s sc mb fuel2 := by
+    sporadic.budget_check_loop1 gS s sc mb fuel2 = sporadic.budget_check_loop1 st s sc mb fuel2 := by
   unfold sporadic.budget_check_loop1
   refine loop_guard_congr (fun x => RefillsWF st x.1 sc sb) (fun x => x.2.val) ?_ (s, fuel2) h
   rintro ⟨x0, x1⟩ hx
@@ -286,7 +286,7 @@ theorem sporadic.budget_check_loop1.guardS (h : RefillsWF st s sc sb) (mb fuel2 
     · simp at hy
 
 theorem sporadic.budget_check_loop0.guardS (h : RefillsWF st s sc sb) (mrt period usage fuel : U64) :
-    sporadic.budget_check_loop0 (PathObl.guard st R W) s sc mrt period usage fuel =
+    sporadic.budget_check_loop0 gS s sc mrt period usage fuel =
       sporadic.budget_check_loop0 st s sc mrt period usage fuel := by
   unfold sporadic.budget_check_loop0
   refine loop_guard_congr (fun x => RefillsWF st x.1 sc sb) (fun x => x.2.2.val) ?_ (s, usage, fuel) h

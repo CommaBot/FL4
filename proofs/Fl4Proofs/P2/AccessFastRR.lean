@@ -52,7 +52,7 @@ def rrEnd (st : machine.Store S) (ar : machine.Arch A) (v : U64) (s5 : S) (a2 : 
   let (s16, a3) ← fastpath.switch_to st ar s15 a2 i1
   ok (true, s16, a3)
 
-variable {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st] (ar : machine.Arch A)
+variable {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st] (ar : machine.Arch A)
 
 /-- The words `rrEnd` writes before the switch. -/
 def RrN5 (X5 : S) (t u rptr ep : U64) (b : U64) : Prop :=
@@ -69,8 +69,8 @@ theorem rrEnd.guard (v : U64) (X5 : S) (a2 : A) (t : obj.Tcb) (rptr ep u : U64)
     (wBl : W (blockA t)) (wRp : W (replyA t)) (wRt : W (rTcbA rptr)) (wEn : W (nextA .Ep t))
     (wEp : W (prevA .Ep t)) (wEh : W (epHeadA ep)) (wEt : W (epTSA ep))
     (hsw : ∀ X15, WritesIn st X5 X15 (RrN5 (L := L) X5 t u rptr ep) →
-      fastpath.switch_to (guard st R W) ar X15 a2 u = fastpath.switch_to st ar X15 a2 u) :
-    rrEnd (guard st R W) ar v X5 a2 t rptr ep u = rrEnd st ar v X5 a2 t rptr ep u := by
+      fastpath.switch_to gS ar X15 a2 u = fastpath.switch_to st ar X15 a2 u) :
+    rrEnd gS ar v X5 a2 t rptr ep u = rrEnd st ar v X5 a2 t rptr ep u := by
   have eN : ∀ (X : S) (b w : U64), L.nodeAt (L.wr X b w) (L.cpu (L.wr X b w)) layout.node.SCHED_ACTION =
       L.nodeAt X (L.cpu X) layout.node.SCHED_ACTION := fun X b w => by
     rw [LawfulStore.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
@@ -113,7 +113,7 @@ theorem rrEnd.guard (v : U64) (X5 : S) (a2 : A) (t : obj.Tcb) (rptr ep u : U64)
 
 theorem obj.Ntfn.state.guard (n : obj.Ntfn) (s : S)
     (h : R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE)) :
-    obj.Ntfn.state (guard st R W) n s = obj.Ntfn.state st n s := by
+    obj.Ntfn.state gS n s = obj.Ntfn.state st n s := by
   unfold obj.Ntfn.state; rw [obj.Ntfn.tail_state.guard n s h]
 
 /-- **What an accepted ReplyRecv fast path accesses** (at its entry state
@@ -197,7 +197,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
     (hAs : AsidOff (L := L) Ω Sg X0)
     (hRW : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → RrAcc (L := L) Z R W X0 t rptr ep u usc)
     {sF : S} {aF : A} (h : fastpath.reply_recv_found st ar X0 a t rptr ep = ok (true, sF, aF)) :
-    fastpath.reply_recv_found (PathObl.guard st R W) ar X0 a t rptr ep =
+    fastpath.reply_recv_found gS ar X0 a t rptr ep =
       fastpath.reply_recv_found st ar X0 a t rptr ep := by
   rw [h]
   obtain ⟨u, usc, C, hrt⟩ := reply_recv_found_acc st ar h
@@ -473,7 +473,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
       exact ⟨hyT, (hX0.bound y hyT hs0).1, hB.sact y hyT (Or.inr (Or.inl hfl)) hs0⟩
   -- the switch, from any state `rrEnd`'s writes reach
   have hswG : ∀ X15, WritesIn st X5 X15 (RrN5 (L := L) X5 t u rptr ep) →
-      fastpath.switch_to (PathObl.guard st R W) ar X15 a2 u = fastpath.switch_to st ar X15 a2 u := by
+      fastpath.switch_to gS ar X15 a2 u = fastpath.switch_to st ar X15 a2 u := by
     intro X15 w515'
     have w515 : WritesIn st X5 X15 N := w515'.mono fun b hb => by
       rcases hb with e | e | e | e | e | e | e | e | e | e
@@ -685,7 +685,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
     refine lookup_buf_agreeB false (kt 3512#u64 (by simp) (by simp) (by simp) (by simp)) ?_ ?_
     · rw [sbA_field ht']; exact kt 64#u64 (by simp) (by simp) (by simp) (by simp)
     · rw [e72]; exact kt 72#u64 (by simp) (by simp) (by simp) (by simp)
-  have tailEq : rrTail (PathObl.guard st R W) ar X0 a t rptr ep u usc = rrTail st ar X0 a t rptr ep u usc := by
+  have tailEq : rrTail gS ar X0 a t rptr ep u usc = rrTail st ar X0 a t rptr ep u usc := by
     unfold rrTail
     rw [obj.Tcb.set_state.guard t X0 _ K.wSt, e1]; simp only [bind_ok]
     have hn1 : NodeSt (L := L) R W X1 := by

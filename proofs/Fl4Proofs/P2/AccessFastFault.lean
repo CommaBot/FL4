@@ -36,20 +36,20 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 theorem obj.Ep.state.guard (ep : obj.Ep) (s : S) (h : R (core.num.U64.wrapping_add ep layout.ep.TAIL_STATE)) :
-    obj.Ep.state (guard st R W) ep s = obj.Ep.state st ep s := by
+    obj.Ep.state gS ep s = obj.Ep.state st ep s := by
   unfold obj.Ep.state; rw [obj.Ep.tail_state.guard ep s h]
 
 theorem obj.Ep.tail.guard (ep : obj.Ep) (s : S) (h : R (core.num.U64.wrapping_add ep layout.ep.TAIL_STATE)) :
-    obj.Ep.tail (guard st R W) ep s = obj.Ep.tail st ep s := by
+    obj.Ep.tail gS ep s = obj.Ep.tail st ep s := by
   unfold obj.Ep.tail; rw [obj.Ep.tail_state.guard ep s h]
 
 theorem obj.Ep.set_queue.guard (ep : obj.Ep) (s : S) (hd tl stt : U64)
     (hH : W (core.num.U64.wrapping_add ep layout.ep.HEAD))
     (hT : W (core.num.U64.wrapping_add ep layout.ep.TAIL_STATE)) :
-    obj.Ep.set_queue (guard st R W) ep s hd tl stt = obj.Ep.set_queue st ep s hd tl stt := by
+    obj.Ep.set_queue gS ep s hd tl stt = obj.Ep.set_queue st ep s hd tl stt := by
   unfold obj.Ep.set_queue
   rw [obj.Ep.set_head.guard ep s hd hH]
   refine bind_guard_congr rfl fun s1 _ => ?_
@@ -57,7 +57,7 @@ theorem obj.Ep.set_queue.guard (ep : obj.Ep) (s : S) (hd tl stt : U64)
   rw [obj.Ep.set_tail_state.guard ep s1 _ hT]
 
 theorem sporadic.sc_sporadic.guard (s : S) (sc : obj.Sc) (h : sc ≠ 0#u64 → R (sporA sc)) :
-    sporadic.sc_sporadic (guard st R W) s sc = sporadic.sc_sporadic st s sc := by
+    sporadic.sc_sporadic gS s sc = sporadic.sc_sporadic st s sc := by
   unfold sporadic.sc_sporadic
   rw [eq_of_spec_fd (obj.Sc.is_null.spec sc)]; simp only [bind_ok]
   by_cases h0 : sc = 0#u64
@@ -80,8 +80,8 @@ theorem faultTailG.guard_eq (s : S) (a : A) (t : obj.Tcb) (n ty ptr badge dest r
     (hen : (L.epQ (sfW (L := L) s t n) ptr).end ≠ dest → R (core.num.U64.wrapping_add dest 3496#u64) ∧
       W (core.num.U64.wrapping_add (L.mem (sfW (L := L) s t n) (nextA .Ep dest)) 3504#u64))
     (hdn : W (core.num.U64.wrapping_add dest 3496#u64)) (hdp : W (core.num.U64.wrapping_add dest 3504#u64)) :
-    faultTailG (guard st R W) ar s a t (error.Fault.UnknownSyscall n) ty ptr badge dest r =
-      faultTail2G (guard st R W) ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t ty dest r badge := by
+    faultTailG gS ar s a t (error.Fault.UnknownSyscall n) ty ptr badge dest r =
+      faultTail2G gS ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t ty dest r badge := by
   unfold faultTailG
   rw [faults.set_fault.guardU s t n h0 h1 h2 h3, set_fault_us]; simp only [bind_ok]
   rw [obj.Ep.tail.guard ptr _ hts, obj.Ep.tail.ok]; simp only [bind_ok]
@@ -121,8 +121,8 @@ theorem faultTail2G.guard_eq (X : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
     (hsd : W (core.num.U64.wrapping_add dest layout.tcb.STATE))
     (hst : W (core.num.U64.wrapping_add t layout.tcb.STATE))
     (hrp : W (core.num.U64.wrapping_add t 3360#u64)) :
-    faultTail2G (guard st R W) ar X a t fl4_abi.consts.fault.UnknownSyscall dest r badge =
-      faultTail3 (guard st R W) ar (fS14 (L := L) S8 t dest r) a dest := by
+    faultTail2G gS ar X a t fl4_abi.consts.fault.UnknownSyscall dest r badge =
+      faultTail3 gS ar (fS14 (L := L) S8 t dest r) a dest := by
   unfold faultTail2G
   rw [msg.lookup_ipc_buffer.guard X true dest hsl hI hR0 hR8, hbuf]; simp only [bind_ok]
   rw [faults.set_mrs_fault.guardU ar X a t dest rb hty hf0 hf1 hf2 hf3 hsr hrw hbw, hmrs]
@@ -167,7 +167,7 @@ theorem endpoint.unblock_sporadic.guard (X : S) (d : obj.Tcb) {sb : Nat}
     (hrep : Aligned (L.nodeA X layout.node.REPROGRAM) ∧
       Outside (L.nodeA X layout.node.REPROGRAM) (L.mem X (scA d)) sb)
     (hct : R (ctA (L := L) X)) (hrp : W (L.nodeA X layout.node.REPROGRAM)) :
-    endpoint.unblock_sporadic (guard st R W) X d = endpoint.unblock_sporadic st X d := by
+    endpoint.unblock_sporadic gS X d = endpoint.unblock_sporadic st X d := by
   unfold endpoint.unblock_sporadic
   rw [obj.Tcb.sc.guard d X hsc, eq_of_spec_fd (obj.Tcb.sc.spec (L := L) X d)]; simp only [bind_ok]
   rw [sporadic.sc_sporadic.guard X _ (fun _ => hsp)]
@@ -249,7 +249,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     (hTm : TimerOK st T Cs s) (hAs : AsidOff (L := L) Ω Sg s)
     (hRW : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r → FltAcc (L := L) Z R W s t ptr dest r)
     {sF : S} {aF : A} (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) :
-    fastpath.fault (guard st R W) ar s a t n = fastpath.fault st ar s a t n := by
+    fastpath.fault gS ar s a t n = fastpath.fault st ar s a t n := by
   rw [h]
   obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
   have hrecv := hrecv0 hc
@@ -565,7 +565,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
   have hNdY : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA Y o) ∧ W (L.nodeA Y o) := fun o ho h8 => by
     show R (L.nodeAt Y (L.cpu Y) o) ∧ W (L.nodeAt Y (L.cpu Y) o)
     rw [eNY]; exact K.nd o ho h8
-  have hSw := fastpath.switch_to.guard hA Y a P hcY htY hactY (by rw [eyY]; exact hy0 hc) hrhG htmG hRV hNdY
+  have hSw := fastpath.switch_to.guard (gS := gS) hA Y a P hcY htY hactY (by rw [eyY]; exact hy0 hc) hrhG htmG hRV hNdY
     (by rw [kY]; exact K.dt) (by rw [ecY]; exact K.csc) (fun _ => by rw [escY]; exact K.dsc)
     K.dsc0 K.dyt K.dst K.dfi (K.dreg _ (by simp [layout.reg.NEXT_IP])) K.dw.2.2.2.2 K.diq
   /- The checks. -/
@@ -575,7 +575,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     unfold obj.Tcb.slot; simp only [lift, bind_ok]; exact ⟨_, rfl⟩
   have hBm : RdBitmap (L := L) R s :=
     ⟨(K.nd _ (by simp [l1Off]) (by simp [l1Off])).1, fun inv hinv => (K.nd _ (by simp; omega) (by simp <;> omega)).1⟩
-  have tailEq : faultTailG (PathObl.guard st R W) ar s a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall
+  have tailEq : faultTailG gS ar s a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall
       ptr badge dest r = ok (true, x1, x2) := by
     have tf := fun (K' : U64) (hK : K'.val = 3376 ∨ K'.val = 3384 ∨ K'.val = 3392 ∨ K'.val = 3400) => K.tf K' hK
     rw [faultTailG.guard_eq ar s a t n _ ptr badge dest r (tf 3376#u64 (by simp)).2 (tf 3384#u64 (by simp)).2
@@ -585,7 +585,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
       (K.dbs slb hslb).2 RR.hR5 (tf 3376#u64 (by simp)).1 (tf 3384#u64 (by simp)).1 (tf 3392#u64 (by simp)).1
       (tf 3400#u64 (by simp)).1 K.treg K.dreg (K.buf rb hbs) (K.dreg _ (by simp [layout.reg.MSG_INFO]))
       (K.dreg _ (by simp [layout.reg.BADGE])) K.rt K.dw.2.2.2.2 K.tst K.trp]
-    rw [faultTail3_split ar (PathObl.guard st R W)]
+    rw [faultTail3_split ar gS]
     have h15f : endpoint.unblock_sporadic st (fS14 (L := L) S8 t dest r) dest = ok s15 := h15
     rw [endpoint.unblock_sporadic.guard _ dest K.dsc0 (by rw [esc14]; exact K.spo)
       (by rw [KF.cpu, nodeAt_of_ksb KF.ksb]; exact (K.nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1)

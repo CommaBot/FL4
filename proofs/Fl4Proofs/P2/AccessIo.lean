@@ -26,7 +26,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 theorem state_ok' (s : S) (t : U64) : obj.Tcb.state st t s = ok (L.mem s (stA t)) := by
   unfold obj.Tcb.state stA; simp only [lift, bind_ok, L.read_eq]
@@ -66,16 +66,16 @@ theorem st_wr_sc {s : S} {t v : U64} (hT : TcbAddr t) : L.mem (L.wr s (stA t) v)
     (by simp [layout.tcb.STATE])
 
 theorem sched.is_runnable.guard (s : S) (t : obj.Tcb) (h : R (stA t)) :
-    sched.is_runnable (PathObl.guard st R W) s t = sched.is_runnable st s t := by
+    sched.is_runnable gS s t = sched.is_runnable st s t := by
   unfold sched.is_runnable; rw [obj.Tcb.state.guard t s h]
 
 theorem sporadic.sc_active.guard (s : S) (sc : obj.Sc) (h : R (maxA sc)) :
-    sporadic.sc_active (PathObl.guard st R W) s sc = sporadic.sc_active st s sc := by
+    sporadic.sc_active gS s sc = sporadic.sc_active st s sc := by
   unfold sporadic.sc_active; rw [obj.Sc.refill_max.guard sc s h]
 
 theorem sched.is_schedulable.guard (s : S) (t : obj.Tcb) (h1 : R (stA t)) (h2 : R (scA t))
     (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
-    sched.is_schedulable (PathObl.guard st R W) s t = sched.is_schedulable st s t := by
+    sched.is_schedulable gS s t = sched.is_schedulable st s t := by
   unfold sched.is_schedulable
   rw [sched.is_runnable.guard s t h1, obj.Tcb.sc.guard t s h2, tcb_sc_ok s t]
   simp only [bind_ok]
@@ -91,7 +91,7 @@ theorem NodeSt.wr {s : S} {a v : U64} (h : NodeSt (L := L) R W s) : NodeSt (L :=
 
 theorem sched.schedule_tcb.guard (s : S) (t : obj.Tcb) (hn : NodeSt (L := L) R W s)
     (h1 : R (stA t)) (h2 : R (scA t)) (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
-    sched.schedule_tcb (PathObl.guard st R W) s t = sched.schedule_tcb st s t := by
+    sched.schedule_tcb gS s t = sched.schedule_tcb st s t := by
   obtain ⟨hc, ha, hwa⟩ := hn
   unfold sched.schedule_tcb
   rw [sched.cur_thread.guard s hc, sched.action.guard s ha, sched.is_schedulable.guard s t h1 h2 h3 h4,
@@ -100,7 +100,7 @@ theorem sched.schedule_tcb.guard (s : S) (t : obj.Tcb) (hn : NodeSt (L := L) R W
 theorem sched.set_thread_state.guard (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
     (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
     (h3 : R (maxA (L.mem (L.wr s (stA t) v) (scA t)))) (h4 : R (inqA t)) :
-    sched.set_thread_state (PathObl.guard st R W) s t v = sched.set_thread_state st s t v := by
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v := by
   unfold sched.set_thread_state
   rw [obj.Tcb.set_state.guard t s v hw, set_state_ok' s t v]
   simp only [bind_ok]
@@ -110,9 +110,9 @@ theorem sched.set_thread_state.guard (s : S) (t : obj.Tcb) (v : U64) (hn : NodeS
 
 theorem msg.set_msg_info.guard (s : S) (t : obj.Tcb) (m : msginfo.MessageInfo)
     (h : W (regA t layout.reg.MSG_INFO)) :
-    msg.set_msg_info (PathObl.guard st R W) s t m = msg.set_msg_info st s t m := by
+    msg.set_msg_info gS s t m = msg.set_msg_info st s t m := by
   unfold msg.set_msg_info
-  have e : ∀ v, obj.Tcb.set_reg (PathObl.guard st R W) t s layout.reg.MSG_INFO v =
+  have e : ∀ v, obj.Tcb.set_reg gS t s layout.reg.MSG_INFO v =
       obj.Tcb.set_reg st t s layout.reg.MSG_INFO v := fun v => obj.Tcb.set_reg.guard t s _ v h
   simp only [e]
 
@@ -125,7 +125,7 @@ theorem msg_register_one : msg.msg_register 1#u64 = ok layout.reg.R8 := by
   unfold msg.msg_register; simp
 
 theorem msg.set_mr.guard0 (s : S) (t : obj.Tcb) (buf v : U64) (h : W (regA t layout.reg.R10)) :
-    msg.set_mr (PathObl.guard st R W) s t buf 0#u64 v = msg.set_mr st s t buf 0#u64 v := by
+    msg.set_mr gS s t buf 0#u64 v = msg.set_mr st s t buf 0#u64 v := by
   have h0 : (0#u64 : U64) < msg.N_MSG_REGISTERS := by rw [n_msg_regs]; decide
   unfold msg.set_mr
   simp only [if_pos h0, msg_register_zero, bind_ok]
@@ -133,18 +133,18 @@ theorem msg.set_mr.guard0 (s : S) (t : obj.Tcb) (buf v : U64) (h : W (regA t lay
 
 theorem msg.reply_success_empty.guard (s : S) (t : obj.Tcb) (h1 : W (regA t layout.reg.BADGE))
     (h2 : W (regA t layout.reg.MSG_INFO)) :
-    msg.reply_success_empty (PathObl.guard st R W) s t = msg.reply_success_empty st s t := by
+    msg.reply_success_empty gS s t = msg.reply_success_empty st s t := by
   unfold msg.reply_success_empty
   rw [obj.Tcb.set_reg.guard t s _ _ h1, set_reg_ok' s t]
   simp only [bind_ok]
-  have e : ∀ m, msg.set_msg_info (PathObl.guard st R W) (L.wr s (regA t layout.reg.BADGE) 0#u64) t m =
+  have e : ∀ m, msg.set_msg_info gS (L.wr s (regA t layout.reg.BADGE) 0#u64) t m =
       msg.set_msg_info st (L.wr s (regA t layout.reg.BADGE) 0#u64) t m :=
     fun m => msg.set_msg_info.guard _ t m h2
   simp only [e]
 
 theorem msg.syscall_arg.guard_lt (s : S) (t : obj.Tcb) (buf i : U64) (hi : i < msg.N_MSG_REGISTERS)
     (hreg : ∀ r, msg.msg_register i = ok r → R (regA t r)) :
-    msg.syscall_arg (PathObl.guard st R W) s t buf i = msg.syscall_arg st s t buf i := by
+    msg.syscall_arg gS s t buf i = msg.syscall_arg st s t buf i := by
   unfold msg.syscall_arg
   simp only [if_pos hi]
   obtain ⟨r, hr⟩ := msg_register_ok i
@@ -180,7 +180,7 @@ theorem lt384 {r : U64} (h : r = layout.reg.R10 ∨ r = layout.reg.R8 ∨ r = la
 
 /-- `set_thread_state` at a state the `IoRd`/`NodeSt` facts hold. -/
 theorem sts_io {s : S} {t v : U64} (hn : NodeSt (L := L) R W s) (hi : IoRd (L := L) R W s t) :
-    sched.set_thread_state (PathObl.guard st R W) s t v = sched.set_thread_state st s t v :=
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v :=
   sched.set_thread_state.guard s t v hn hi.stW hi.stR hi.sc (hi.wr_st (v := v)).max hi.inq
 
 /-- `set_thread_state`'s writes keep `IoRd` / `NodeSt`. -/
@@ -211,7 +211,7 @@ theorem sts_keep {s s1 : S} {t v : U64} (hi : IoRd (L := L) R W s t) (hn : NodeS
       split at h
       · rw [← ok_inj_ff h]; exact ⟨h1, h2, h3⟩
       · unfold sched.set_action at h
-        simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok] at h
+        simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok] at h
         rw [eq_ok_of_spec (obj.node_set.spec (L := L) s0 _ _ _)] at h
         rw [← ok_inj_ff h]
         refine ⟨{ h1 with max := ?_ }, h2.wr, by rw [nd_wr]; exact h3⟩

@@ -6,7 +6,7 @@ ends as on `st`, given that the words the run reads are in `R` and the words
 it writes are in `W`. The callees here branch on what they read, so the
 lemmas are stated **run-relative**: from `h : f st … = ok y` and hypotheses
 naming only the words that run reads (conditioned on the values `st` returns),
-`f (PathObl.guard st R W) … = ok y`. Leaves come from `P2/AccessLeaf.lean`.
+`f gS … = ok y`. Leaves come from `P2/AccessLeaf.lean`.
 
 * tools: `tr_bind` / `tr_ite` (transfer an `= ok y` equation along a bind or an
   `if` whose condition and continuation agree), `msg.buf_get.guard`
@@ -56,17 +56,17 @@ theorem tr_ite {β : Type _} {c : Prop} [Decidable c] {x z x' z' : Result β} {y
 end tools
 
 section leaf
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop}
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
 
 theorem msg.buf_get.guard (s : S) (buf i : U64)
     (h : R (core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64))) :
-    msg.buf_get (PathObl.guard st R W) s buf i = msg.buf_get st s buf i := by
+    msg.buf_get gS s buf i = msg.buf_get st s buf i := by
   unfold msg.buf_get
   simp only [lift, bind_ok]
-  exact guard_read_of h rfl
+  exact gst_read_of h rfl
 
 theorem msg.msg_info.guard (s : S) (t : obj.Tcb) (h : R (regA t layout.reg.MSG_INFO)) :
-    msg.msg_info (PathObl.guard st R W) s t = msg.msg_info st s t := by
+    msg.msg_info gS s t = msg.msg_info st s t := by
   unfold msg.msg_info
   rw [obj.Tcb.reg.guard t s _ h]
 
@@ -79,7 +79,7 @@ theorem msg.syscall_arg.guard (s : S) (t : obj.Tcb) (buf i : U64)
     (hreg : ∀ r, msg.msg_register i = ok r → R (regA t r))
     (hbuf : R (core.num.U64.wrapping_add buf
       (core.num.U64.wrapping_mul (core.num.U64.wrapping_add i 1#u64) 8#u64))) :
-    msg.syscall_arg (PathObl.guard st R W) s t buf i = msg.syscall_arg st s t buf i := by
+    msg.syscall_arg gS s t buf i = msg.syscall_arg st s t buf i := by
   unfold msg.syscall_arg
   split_ifs with h1 h2
   · obtain ⟨r, hr⟩ := msg_register_ok i
@@ -99,7 +99,7 @@ theorem rab_body.guard {s : S} {cptr n fuel p r gs g : U64}
         ∃ bl, y = ControlFlow.done (core.result.Result.Ok { slot := cnSlot p off, bits_left := bl })) →
       R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
     (h : cspace.resolve_address_bits_loop.body st s cptr (.CNode p r gs g) n fuel = ok y) :
-    cspace.resolve_address_bits_loop.body (PathObl.guard st R W) s cptr (.CNode p r gs g) n fuel = ok y := by
+    cspace.resolve_address_bits_loop.body gS s cptr (.CNode p r gs g) n fuel = ok y := by
   unfold cspace.resolve_address_bits_loop.body at h ⊢
   simp only [obj.Slot.index, lift, bind_ok] at h ⊢
   revert h
@@ -134,7 +134,7 @@ theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
       fuel.val < N → (∀ p r gs g, cap = .CNode p r gs g → C p) →
       (∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64)) →
       cspace.resolve_address_bits_loop st cap s cptr n fuel = ok res →
-      cspace.resolve_address_bits_loop (PathObl.guard st R W) cap s cptr n fuel = ok res := by
+      cspace.resolve_address_bits_loop gS cap s cptr n fuel = ok res := by
   intro N
   induction N with
   | zero => intro _ _ _ _ hf; omega
@@ -144,7 +144,7 @@ theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
     obtain ⟨y, hy, hk⟩ := bind_eq_ok h
     by_cases hcn : ∃ p r gs g, cap = .CNode p r gs g
     · obtain ⟨p, r, gs, g, rfl⟩ := hcn
-      have hy' : cspace.resolve_address_bits_loop.body (PathObl.guard st R W) s cptr (.CNode p r gs g) n fuel = ok y := by
+      have hy' : cspace.resolve_address_bits_loop.body gS s cptr (.CNode p r gs g) n fuel = ok y := by
         refine rab_body.guard (fun off c hc' hb => ?_) hy
         rcases hb with ⟨p', r', gs', g', rfl⟩ | ⟨bl, rfl⟩
         · exact hRc p off p' r' gs' g' (hc _ _ _ _ rfl) hc'
@@ -156,7 +156,7 @@ theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
         obtain ⟨off, hoff, hlt⟩ := rab_body_cont st hy
         exact ih x.1 x.2.1 x.2.2 res (by omega)
           (fun p' r' gs' g' e => hcl p off p' r' gs' g' (hc _ _ _ _ rfl) (e ▸ hoff)) hRf hk
-    · rw [rab_body_nonCN st (PathObl.guard st R W) s cptr cap n fuel (fun p r gs g e => hcn ⟨p, r, gs, g, e⟩), hy]
+    · rw [rab_body_nonCN st gS s cptr cap n fuel (fun p r gs g e => hcn ⟨p, r, gs, g, e⟩), hy]
       simp only [bind_ok]
       cases y with
       | done z => exact hk
@@ -174,7 +174,7 @@ theorem rab.guard {s : S} {root : capability.Cap} {cptr n : U64}
     (hroot : ∀ p r gs g, root = .CNode p r gs g → C p)
     (hRf : ∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
     (h : cspace.resolve_address_bits st s root cptr n = ok res) :
-    cspace.resolve_address_bits (PathObl.guard st R W) s root cptr n = ok res :=
+    cspace.resolve_address_bits gS s root cptr n = ok res :=
   rab_loop.guard C hRc hcl 66 root n 65#u64 res (by simp) hroot hRf h
 
 /-- The CTable root slot of `t`. -/
@@ -192,7 +192,7 @@ theorem cspace.lookup_slot.guard {s : S} {t cptr sl : U64}
     (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p)
     (hRf : ∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
     (h : cspace.lookup_slot st s t cptr = ok res) :
-    cspace.lookup_slot (PathObl.guard st R W) s t cptr = ok res := by
+    cspace.lookup_slot gS s t cptr = ok res := by
   unfold cspace.lookup_slot at h ⊢
   rw [hsl] at h ⊢; simp only [bind_ok] at h ⊢
   rw [obj.Slot.cap.guard sl s hR0 hR8]
@@ -211,7 +211,7 @@ buffer slot. -/
 theorem msg.lookup_ipc_buffer.guard (s : S) (rcv : Bool) (t : obj.Tcb) {sl : U64}
     (hsl : obj.Tcb.slot t layout.tcb.SLOT_BUFFER = ok sl)
     (hI : R (core.num.U64.wrapping_add t 3512#u64)) (hR0 : R sl) (hR8 : R (core.num.U64.wrapping_add sl 8#u64)) :
-    msg.lookup_ipc_buffer (PathObl.guard st R W) s rcv t = msg.lookup_ipc_buffer st s rcv t := by
+    msg.lookup_ipc_buffer gS s rcv t = msg.lookup_ipc_buffer st s rcv t := by
   unfold msg.lookup_ipc_buffer
   rw [obj.Tcb.ipc_buffer.guard t s hI, hsl]
   simp only [bind_ok]
@@ -220,7 +220,7 @@ theorem msg.lookup_ipc_buffer.guard (s : S) (rcv : Bool) (t : obj.Tcb) {sl : U64
 /-- **`lookup_extra_caps` with no extra caps** reads nothing. -/
 theorem ipc.lookup_extra_caps.guard_zero (s : S) (t : obj.Tcb) (buf : U64) (info : msginfo.MessageInfo)
     (h0 : info.extra_caps = 0#u64) :
-    ipc.lookup_extra_caps (PathObl.guard st R W) s t buf info = ipc.lookup_extra_caps st s t buf info := by
+    ipc.lookup_extra_caps gS s t buf info = ipc.lookup_extra_caps st s t buf info := by
   unfold ipc.lookup_extra_caps
   split_ifs
   · rfl

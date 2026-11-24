@@ -23,7 +23,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 /-- Every register of `t` is in `P`. -/
 def Regs (P : U64 → Prop) (t : U64) : Prop := ∀ r : U64, r.val < 384 → P (regA t r)
@@ -41,7 +41,7 @@ theorem regs_of {P : U64 → Prop} {t : U64} (hT : TcbAddr t)
 theorem faults.set_fault.guardU (s : S) (t n : U64)
     (h0 : W (core.num.U64.wrapping_add t 3376#u64)) (h1 : W (core.num.U64.wrapping_add t 3384#u64))
     (h2 : W (core.num.U64.wrapping_add t 3392#u64)) (h3 : W (core.num.U64.wrapping_add t 3400#u64)) :
-    faults.set_fault (PathObl.guard st R W) s t (error.Fault.UnknownSyscall n) =
+    faults.set_fault gS s t (error.Fault.UnknownSyscall n) =
       faults.set_fault st s t (error.Fault.UnknownSyscall n) := by
   unfold faults.set_fault
   simp only [bind_ok, Aeneas.Std.uncurry_apply_pair, obj.Tcb.set_fault_type.guard t _ _ h0,
@@ -49,13 +49,13 @@ theorem faults.set_fault.guardU (s : S) (t n : U64)
 
 theorem msg.buf_set.guard (s : S) (buf i v : U64)
     (h : W (core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64))) :
-    msg.buf_set (PathObl.guard st R W) s buf i v = msg.buf_set st s buf i v := by
+    msg.buf_set gS s buf i v = msg.buf_set st s buf i v := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
-  exact guard_write h
+  exact gst_write h
 
 theorem msg.set_mr.guard (s : S) (t buf i v : U64) (hi : i.val < 127) (hrw : Regs W t) (hbw : BufW W buf) :
-    msg.set_mr (PathObl.guard st R W) s t buf i v = msg.set_mr st s t buf i v := by
+    msg.set_mr gS s t buf i v = msg.set_mr st s t buf i v := by
   unfold msg.set_mr
   split
   · refine bind_guard_congr rfl fun rg hrg => ?_
@@ -70,7 +70,7 @@ theorem msg.set_mr.guard (s : S) (t buf i v : U64) (hi : i.val < 127) (hrw : Reg
 
 theorem faults.copy_mrs_fault_loop0.guard (s : S) (snd rcv : U64) (regs : Slice U64) (i : Usize)
     (hreg : ∀ r ∈ regs.val, r.val < 384) (hsr : Regs R snd) (hrw : Regs W rcv) :
-    faults.copy_mrs_fault_loop0 (PathObl.guard st R W) s snd rcv regs i =
+    faults.copy_mrs_fault_loop0 gS s snd rcv regs i =
       faults.copy_mrs_fault_loop0 st s snd rcv regs i := by
   unfold faults.copy_mrs_fault_loop0
   refine loop_guard_congr (fun _ => True) (fun y => (Slice.len regs).val - y.2.val) ?_ (s, i) trivial
@@ -116,7 +116,7 @@ theorem faults.copy_mrs_fault_loop0.guard (s : S) (snd rcv : U64) (regs : Slice 
 theorem faults.copy_mrs_fault_loop1.guard (s : S) (snd : U64) (regs : Slice U64) (buf : U64) (i : Usize)
     (hreg : ∀ r ∈ regs.val, r.val < 384) (hl : (Slice.len regs).val < 127) (h0 : buf ≠ 0#u64)
     (hsr : Regs R snd) (hbw : BufW W buf) :
-    faults.copy_mrs_fault_loop1 (PathObl.guard st R W) s snd regs buf i =
+    faults.copy_mrs_fault_loop1 gS s snd regs buf i =
       faults.copy_mrs_fault_loop1 st s snd regs buf i := by
   unfold faults.copy_mrs_fault_loop1
   refine loop_guard_congr (fun _ => True) (fun y => (Slice.len regs).val - y.2.val) ?_ (s, i) trivial
@@ -165,7 +165,7 @@ theorem faults.copy_mrs_fault_loop1.guard (s : S) (snd : U64) (regs : Slice U64)
 theorem faults.copy_mrs_fault.guard (s : S) (snd rcv : U64) (regs : Slice U64) (buf : U64)
     (hreg : ∀ r ∈ regs.val, r.val < 384) (hl : (Slice.len regs).val < 127)
     (hsr : Regs R snd) (hrw : Regs W rcv) (hbw : BufW W buf) :
-    faults.copy_mrs_fault (PathObl.guard st R W) s snd rcv regs buf =
+    faults.copy_mrs_fault gS s snd rcv regs buf =
       faults.copy_mrs_fault st s snd rcv regs buf := by
   unfold faults.copy_mrs_fault
   rw [faults.copy_mrs_fault_loop0.guard s snd rcv regs _ hreg hsr hrw]
@@ -193,7 +193,7 @@ theorem faults.set_mrs_fault.guardU {A : Type} (ar : machine.Arch A) (s : S) (a 
     (hf0 : R (core.num.U64.wrapping_add snd 3376#u64)) (hf1 : R (core.num.U64.wrapping_add snd 3384#u64))
     (hf2 : R (core.num.U64.wrapping_add snd 3392#u64)) (hf3 : R (core.num.U64.wrapping_add snd 3400#u64))
     (hsr : Regs R snd) (hrw : Regs W rcv) (hbw : BufW W buf) :
-    faults.set_mrs_fault (PathObl.guard st R W) ar s a snd rcv buf = faults.set_mrs_fault st ar s a snd rcv buf := by
+    faults.set_mrs_fault gS ar s a snd rcv buf = faults.set_mrs_fault st ar s a snd rcv buf := by
   unfold faults.set_mrs_fault
   rw [obj.Tcb.fault_type.guard snd s hf0, fault_type_ok, hty]
   simp only [bind_ok]
@@ -201,7 +201,7 @@ theorem faults.set_mrs_fault.guardU {A : Type} (ar : machine.Arch A) (s : S) (a 
     obj.Tcb.reg.guard snd s _ (hsr _ (by simp [layout.reg.FAULT_IP]))]
   simp only [us_ne_cap, ↓reduceIte, lift, bind_ok]
   rw [faults.copy_mrs_fault.guard s snd rcv _ buf syscall_message_lt syscall_message_len hsr hrw hbw]
-  simp only [msg.set_mr.guard _ rcv buf 18#u64 _ (by simp) hrw hbw]
+  simp only [msg.set_mr.guard (gS := gS) (st := st) _ rcv buf 18#u64 _ (by simp) hrw hbw]
 
 end
 

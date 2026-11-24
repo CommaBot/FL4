@@ -32,7 +32,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 variable {A : Type} (ar : machine.Arch A)
 
 /-- The prefix's words at the entry state `s`. -/
@@ -56,12 +56,12 @@ theorem sl_pre.guard {T : Set U64} (hA : P0.ArchTotal ar) {s s1 s2 : S} {a a1 : 
     (es1 : obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1)
     (eu : sched.update_timestamp st ar s1 a = ok (s2, a1))
     (hhd : RdHead (L := L) R s2 csc) :
-    obj.Tcb.reg (guard st R W) (L.curW s) s layout.reg.NEXT_IP = ok nx ∧
-    obj.Tcb.set_reg (guard st R W) (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 ∧
-    sched.update_timestamp (guard st R W) ar s1 a = ok (s2, a1) ∧
-    sched.cur_sc (guard st R W) s2 = sched.cur_sc st s2 ∧
-    sched.consumed (guard st R W) s2 = sched.consumed st s2 ∧
-    ∀ c, sporadic.sufficient (guard st R W) ar s2 a1 csc c = sporadic.sufficient st ar s2 a1 csc c := by
+    obj.Tcb.reg gS (L.curW s) s layout.reg.NEXT_IP = ok nx ∧
+    obj.Tcb.set_reg gS (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 ∧
+    sched.update_timestamp gS ar s1 a = ok (s2, a1) ∧
+    sched.cur_sc gS s2 = sched.cur_sc st s2 ∧
+    sched.consumed gS s2 = sched.consumed st s2 ∧
+    ∀ c, sporadic.sufficient gS ar s2 a1 csc c = sporadic.sufficient st ar s2 a1 csc c := by
   have hP : LocalPre (st := st) ar s a (s2, a1) := ⟨_, nx, s1, cur_thread_ok s, enx, es1, eu⟩
   obtain ⟨hk2, hc2, -⟩ := sl_pre_agree (Cs := ∅) ar hA hT hN hcT hP
   have e1 := set_fip_wr (hT _ hcT) es1
@@ -114,7 +114,7 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
       RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
       RrAcc (L := L) Z R W X (L.curW s) found.1 found.2 u usc)
     (h : syscall.handle_syscall_local st ar s a n found = ok (true, s', a')) :
-    syscall.handle_syscall_local (guard st R W) ar s a n found = ok (true, s', a') := by
+    syscall.handle_syscall_local gS ar s a n found = ok (true, s', a') := by
   have ht' := hT _ hcT
   obtain ⟨rp, ep⟩ := found
   unfold syscall.handle_syscall_local at h ⊢
@@ -142,7 +142,7 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     obtain ⟨c, ec, h⟩ := bind_eq_ok h
     obtain ⟨b, eb, h⟩ := bind_eq_ok h
     have hP : LocalPre (st := st) ar s a (s2, a1) := ⟨_, nx, s1, cur_thread_ok s, enx, es1, eu⟩
-    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := sl_pre.guard ar hA hT hN hcT hpre enx es1 eu (hhd _ _ _ hP ecsc)
+    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := sl_pre.guard (gS := gS) ar hA hT hN hcT hpre enx es1 eu (hhd _ _ _ hP ecsc)
     rw [g1]; simp only [bind_ok, bind_tc_ok]
     rw [g2]; simp only [bind_ok, bind_tc_ok]
     rw [g3]; simp only [bind_ok, bind_tc_ok, uncurry_apply_pair]
@@ -169,7 +169,7 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     obtain ⟨c, ec, h⟩ := bind_eq_ok h
     obtain ⟨b, eb, h⟩ := bind_eq_ok h
     have hP : LocalPre (st := st) ar s a (s2, a1) := ⟨_, nx, s1, cur_thread_ok s, enx, es1, eu⟩
-    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := sl_pre.guard ar hA hT hN hcT hpre enx es1 eu (hhd _ _ _ hP ecsc)
+    obtain ⟨g1, g2, g3, g4, g5, g6⟩ := sl_pre.guard (gS := gS) ar hA hT hN hcT hpre enx es1 eu (hhd _ _ _ hP ecsc)
     rw [g1]; simp only [bind_ok, bind_tc_ok]
     rw [g2]; simp only [bind_ok, bind_tc_ok]
     rw [g3]; simp only [bind_ok, bind_tc_ok, uncurry_apply_pair]

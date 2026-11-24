@@ -42,7 +42,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 variable {T Cs Ω : Set U64}
 
 /-- Words of the node at offsets `O`, the rings of `c` and (when distinct)
@@ -138,7 +138,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     (hSc : ScAcc R W (L.cscW Y) zc) (hSi : L.mem Y (scA d) ≠ L.cscW Y → ScAcc R W (L.mem Y (scA d)) zt)
     (hsc : R (scA d)) (hyt : R (yieldA d)) (hst : R (stA d)) (hrg : R (regA d layout.reg.FAULT_IP))
     (hwr : W (regA d layout.reg.NEXT_IP)) (hw : W (stA d)) (hinq : R (inqA d)) :
-    fastpath.switch_to (PathObl.guard st R W) ar Y a d = fastpath.switch_to st ar Y a d := by
+    fastpath.switch_to gS ar Y a d = fastpath.switch_to st ar Y a d := by
   have hd' := P.hT d P.hd
   have hcΩ : ∀ x, Aligned x → InSC (L.cscW Y) zc x → x ∈ Ω := hc.2.1
   have hcC : InSC (L.cscW Y) zc (core.num.U64.wrapping_add (L.cscW Y) layout.sc.CONSUMED) := hc.2.2.1.1
@@ -320,7 +320,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
       R (core.num.U64.wrapping_add (L.mem s4 (tmA (L := L) s4)) 3528#u64) := by
     rw [tm4]; exact fun h0 => (htm h0).2
   -- `REPROGRAM`, `set_next_interrupt`
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   have rpR : R (L.nodeAt s4 (L.cpu s4) layout.node.REPROGRAM) := by
     change R (L.nodeA s4 _); rw [n4]; exact (hNd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).1
   rw [obj.node_get.guard s4 _ _ rpR, node_get_ok]
