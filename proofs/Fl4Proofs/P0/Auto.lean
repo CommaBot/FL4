@@ -1200,6 +1200,10 @@ theorem capability.FrameSize.bits.p0 (self : capability.FrameSize) :
      | split)
    all_goals p0_close)
 
+-- #97 (localtimer, with losfair/FL4#98's loop form): the search counts its
+-- visits up to `TREE_VISITS` (64); the stack index stays at most `TREE_STACK`
+-- (32), the stack's length, which the pops and guarded pushes keep.
+
 @[step] theorem obj.Ntfn.tail_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Ntfn.tail_state machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Ntfn.tail_state; p0_auto
@@ -1760,13 +1764,13 @@ theorem layout.ks.ASID_TABLE.p0  :
     sched.possible_switch_to machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold sched.possible_switch_to; p0_auto
 
-@[step] theorem obj.Ntfn.bound_tcb.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.bound_tcb machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.bound_tcb; p0_auto
-
 @[step] theorem obj.Ntfn.set_badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     obj.Ntfn.set_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Ntfn.set_badge; p0_auto
+
+@[step] theorem obj.Ntfn.bound_tcb.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.bound_tcb machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.bound_tcb; p0_auto
 
 @[step] theorem obj.Ntfn.sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Ntfn.sc machineStoreInst self s ⦃ _ => True ⦄ := by
@@ -4130,6 +4134,152 @@ theorem layout.ks.SIZE.p0  :
     localinv.plan machineStoreInst s number ⦃ _ => True ⦄ := by
   unfold localinv.plan; p0_auto
 
+@[step] theorem localtimer._.p0  :
+    localtimer._ ⦃ _ => True ⦄ := by
+  unfold localtimer._; p0_auto
+
+@[step] theorem localtimer.core_of.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    localtimer.core_of machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold localtimer.core_of; p0_auto
+
+@[step] theorem localtimer.in_core_timer_tree_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize) (visits : Std.U64) (found : Bool) (overflow : Bool) (hS : StoreTotal machineStoreInst)
+    (hsp : sp.val ≤ 32) :
+    localtimer.in_core_timer_tree_loop machineStoreInst s i d stack sp visits found overflow ⦃ _ => True ⦄ := by
+  -- P0 precondition: `sp ≤ 32` (the stack's length). Its one caller,
+  -- `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.
+  unfold localtimer.in_core_timer_tree_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, v, _, _) => 64 - v.val)
+    (inv := fun x => match x with | (_, p, _, _, _) => p.val ≤ 32)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hx
+    dsimp only at hx
+    unfold localtimer.in_core_timer_tree_loop.body
+    simp only [localtimer.TREE_VISITS, localtimer.TREE_STACK]
+    p0_body
+  · exact hsp
+
+-- Discharges the loop's precondition: `sp` is 0 or 1.
+
+@[step] theorem localtimer.in_core_timer_tree.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (d : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.in_core_timer_tree machineStoreInst s cpu target d ⦃ _ => True ⦄ := by
+  unfold localtimer.in_core_timer_tree
+  repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close
+
+@[step] theorem localtimer.release_due.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.release_due machineStoreInst s cpu ⦃ _ => True ⦄ := by
+  unfold localtimer.release_due; p0_auto
+
+@[step] theorem localtimer.timer_due.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (now : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.timer_due machineStoreInst s cpu now ⦃ _ => True ⦄ := by
+  unfold localtimer.timer_due; p0_auto
+
+@[step] theorem localtimer.sched_quiet.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.sched_quiet machineStoreInst s cpu ⦃ _ => True ⦄ := by
+  unfold localtimer.sched_quiet; p0_auto
+
+@[step] theorem localtimer.may_run_here.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    localtimer.may_run_here machineStoreInst s cpu t ⦃ _ => True ⦄ := by
+  unfold localtimer.may_run_here; p0_auto
+
+@[step] theorem localtimer.current_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (ct : obj.Tcb) (csc : obj.Sc) (hS : StoreTotal machineStoreInst) :
+    localtimer.current_ok machineStoreInst s cpu ct csc ⦃ _ => True ⦄ := by
+  unfold localtimer.current_ok; p0_auto
+
+@[step] theorem localtimer.cnode_mask.p0 (bits : Std.U64) :
+    localtimer.cnode_mask bits ⦃ _ => True ⦄ := by
+  unfold localtimer.cnode_mask; p0_auto
+
+@[step] theorem localtimer.cspace_step.p0 (node_cap : capability.Cap) (cptr : Std.U64) (bits_left : Std.U64) :
+    localtimer.cspace_step node_cap cptr bits_left ⦃ _ => True ⦄ := by
+  unfold localtimer.cspace_step; p0_auto
+
+@[step] theorem localtimer.set_timer_target_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    localtimer.set_timer_target_ok machineStoreInst s cpu target ⦃ _ => True ⦄ := by
+  unfold localtimer.set_timer_target_ok; p0_auto
+
+@[step] theorem timer.insert_fixup_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.insert_fixup_loop machineStoreInst s cpu z fuel ⦃ _ => True ⦄ := by
+  unfold timer.insert_fixup_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold timer.insert_fixup_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem timer.insert_fixup.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z0 : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    timer.insert_fixup machineStoreInst s cpu z0 ⦃ _ => True ⦄ := by
+  unfold timer.insert_fixup; p0_auto
+
+@[step] theorem obj.Tcb.set_timer_badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.set_timer_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.set_timer_badge; p0_auto
+
+@[step] theorem timer.insert_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool) (first : Bool) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.insert_loop machineStoreInst s deadline p cur go_left first fuel ⦃ _ => True ⦄ := by
+  unfold timer.insert_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2, x3, x4) => x4.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ -
+    unfold timer.insert_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem timer.insert.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (deadline : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) :
+    timer.insert machineStoreInst s t deadline badge ⦃ _ => True ⦄ := by
+  unfold timer.insert; p0_split
+
+@[step] theorem msg.reply_success_empty.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    msg.reply_success_empty machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold msg.reply_success_empty; p0_auto
+
+@[step] theorem localtimer.handle_set_timer_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (target : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localtimer.handle_set_timer_local machineStoreInst machineArchInst s a number target ⦃ _ => True ⦄ := by
+  unfold localtimer.handle_set_timer_local; p0_auto
+
+@[step] theorem localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone.p0 (self : localtimer.TimerIrqPlan) :
+    localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem localtimer.plan_objects.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
+    localtimer.plan_objects machineStoreInst s ⦃ _ => True ⦄ := by
+  unfold localtimer.plan_objects; p0_auto
+
+@[step] theorem localtimer.same_plan.p0 (x : localtimer.TimerIrqPlan) (y : localtimer.TimerIrqPlan) :
+    localtimer.same_plan x y ⦃ _ => True ⦄ := by
+  unfold localtimer.same_plan; p0_auto
+
+@[step] theorem localtimer.plan_timer_irq.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (irq : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.plan_timer_irq machineStoreInst s irq ⦃ _ => True ⦄ := by
+  unfold localtimer.plan_timer_irq; p0_auto
+
+@[step] theorem localtimer.top_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.top_ok machineStoreInst s cpu ⦃ _ => True ⦄ := by
+  unfold localtimer.top_ok; p0_auto
+
+@[step] theorem localtimer.round_robin_ok.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (ct : obj.Tcb) (csc : obj.Sc) (now : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localtimer.round_robin_ok machineStoreInst machineArchInst s a cpu ct csc now ⦃ _ => True ⦄ := by
+  unfold localtimer.round_robin_ok; p0_auto
+
+@[step] theorem localtimer.wake_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (ct : obj.Tcb) (w : obj.Tcb) (n : obj.Ntfn) (hS : StoreTotal machineStoreInst) :
+    localtimer.wake_ok machineStoreInst s cpu ct w n ⦃ _ => True ⦄ := by
+  unfold localtimer.wake_ok; p0_split
+
+@[step] theorem localtimer.fire_ok_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.fire_ok_loop machineStoreInst s i fuel ⦃ _ => True ⦄ := by
+  unfold localtimer.fire_ok_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold localtimer.fire_ok_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem localtimer.fire_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (ct : obj.Tcb) (p : localtimer.TimerIrqPlan) (now : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.fire_ok machineStoreInst s cpu ct p now ⦃ _ => True ⦄ := by
+  unfold localtimer.fire_ok; p0_auto
+
+@[step] theorem localtimer.handle_timer_irq_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (p : localtimer.TimerIrqPlan) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localtimer.handle_timer_irq_local machineStoreInst machineArchInst s a irq p ⦃ _ => True ⦄ := by
+  unfold localtimer.handle_timer_irq_local; p0_split
+
 @[step] theorem machine.Store.frame_masks.default.p0 {Self : Type _} (self : Self) :
     machine.Store.frame_masks.default self ⦃ _ => True ⦄ := by
   unfold machine.Store.frame_masks.default; p0_auto
@@ -4189,10 +4339,6 @@ theorem layout.ks.SIZE.p0  :
 @[step] theorem msg.get_mr.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     msg.get_mr machineStoreInst s t buf i ⦃ _ => True ⦄ := by
   unfold msg.get_mr; p0_auto
-
-@[step] theorem msg.reply_success_empty.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    msg.reply_success_empty machineStoreInst s t ⦃ _ => True ⦄ := by
-  unfold msg.reply_success_empty; p0_auto
 
 @[step] theorem msginfo.MessageInfo.Insts.CoreCloneClone.clone.p0 (self : msginfo.MessageInfo) :
     msginfo.MessageInfo.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
@@ -4287,10 +4433,6 @@ theorem obj.Reply.Insts.CoreCmpPartialEqReply.eq.p0 (self : obj.Reply) (other : 
 @[step] theorem obj.Tcb.mcp.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Tcb.mcp machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.mcp; p0_auto
-
-@[step] theorem obj.Tcb.set_timer_badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.set_timer_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.set_timer_badge; p0_auto
 
 @[step] theorem obj.Sc.set_badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Sc) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     obj.Sc.set_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
@@ -4692,32 +4834,6 @@ theorem vcpu.svm.RAX.p0  :
 @[step] theorem tdx.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (call : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     tdx.decode machineStoreInst machineArchInst s a lbl length call buf extra ⦃ _ => True ⦄ := by
   unfold tdx.decode; p0_auto
-
-@[step] theorem timer.insert_fixup_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
-    timer.insert_fixup_loop machineStoreInst s cpu z fuel ⦃ _ => True ⦄ := by
-  unfold timer.insert_fixup_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2) => x2.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1, x2⟩ -
-    unfold timer.insert_fixup_loop.body
-    p0_body
-  · trivial
-
-@[step] theorem timer.insert_fixup.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z0 : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    timer.insert_fixup machineStoreInst s cpu z0 ⦃ _ => True ⦄ := by
-  unfold timer.insert_fixup; p0_auto
-
-@[step] theorem timer.insert_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool) (first : Bool) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
-    timer.insert_loop machineStoreInst s deadline p cur go_left first fuel ⦃ _ => True ⦄ := by
-  unfold timer.insert_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2, x3, x4) => x4.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1, x2, x3, x4⟩ -
-    unfold timer.insert_loop.body
-    p0_body
-  · trivial
-
-@[step] theorem timer.insert.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (deadline : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) :
-    timer.insert machineStoreInst s t deadline badge ⦃ _ => True ⦄ := by
-  unfold timer.insert; p0_split
 
 @[step] theorem tcb.reply_words.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
     tcb.reply_words machineStoreInst s t n ⦃ _ => True ⦄ := by

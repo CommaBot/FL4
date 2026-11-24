@@ -10866,6 +10866,17 @@ def sched.possible_switch_to
     Visibility: public -/
 @[global_simps, irreducible] def obj.NTFN_WAITING : Std.U64 := 1#u64
 
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_badge]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
+    Visibility: public -/
+def obj.Ntfn.set_badge
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
+  (s : S) (v : Std.U64) :
+  Result S
+  := do
+  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BADGE)
+  machineStoreInst.write s i v
+
 /-- [fl4_core::layout::ntfn::BOUND_TCB]
     Source: 'crates/fl4-core/src/layout.rs', lines 48:4-48:34
     Visibility: public -/
@@ -10880,17 +10891,6 @@ def obj.Ntfn.bound_tcb
   := do
   let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BOUND_TCB)
   machineStoreInst.read s i
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_badge]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
-    Visibility: public -/
-def obj.Ntfn.set_badge
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
-  (s : S) (v : Std.U64) :
-  Result S
-  := do
-  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BADGE)
-  machineStoreInst.write s i v
 
 /-- [fl4_core::layout::ntfn::SC]
     Source: 'crates/fl4-core/src/layout.rs', lines 49:4-49:27
@@ -33379,6 +33379,1358 @@ def localinv.plan
       | core.result.Result.Err _ => ok none
     else ok none
 
+/-- [fl4_core::localtimer::SYSCALL_INSN_LEN]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 71:0-71:80
+    Visibility: public -/
+@[global_simps, irreducible] def localtimer.SYSCALL_INSN_LEN : Std.U64 := 2#u64
+
+/-- [fl4_core::localtimer::_]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 73:0-73:49 -/
+@[global_simps, irreducible]
+def localtimer._ : Result Unit := massert (msg.N_MSG_REGISTERS >= 2#u64)
+
+/-- [fl4_core::localtimer::core_of]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 76:0-78:1
+    Visibility: public -/
+def localtimer.core_of
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result Std.U64
+  := do
+  let i ← obj.Tcb.timer_height machineStoreInst t s
+  i >>> 8#i32
+
+/-- [fl4_core::localtimer::TREE_STACK]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 82:0-82:33
+    Visibility: public -/
+@[global_simps, irreducible] def localtimer.TREE_STACK : Std.Usize := 32#usize
+
+/-- [fl4_core::localtimer::TREE_VISITS]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 83:0-83:32
+    Visibility: public -/
+@[global_simps, irreducible] def localtimer.TREE_VISITS : Std.U64 := 64#u64
+
+/-- [fl4_core::localtimer::in_core_timer_tree]: loop body 0:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 109:4-140:5
+    Visibility: public -/
+@[rust_loop_body]
+def localtimer.in_core_timer_tree_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
+  (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize)
+  (visits : Std.U64) (found : Bool) (overflow : Bool) :
+  Result (ControlFlow ((Array Std.U64 32#usize) × Std.Usize × Std.U64 × Bool
+    × Bool) Bool)
+  := do
+  if sp > 0#usize
+  then
+    if visits < localtimer.TREE_VISITS
+    then
+      if found
+      then ok (done found)
+      else
+        if overflow
+        then ok (done found)
+        else
+          let visits1 ← visits + 1#u64
+          let sp1 ← sp - 1#usize
+          let i1 ← Array.index_usize stack sp1
+          let b ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq i1 i
+          if b
+          then ok (cont (stack, sp1, visits1, true, overflow))
+          else
+            let cd ← obj.Tcb.timer_deadline machineStoreInst i1 s
+            if d <= cd
+            then
+              let l ← obj.Tcb.timer_left machineStoreInst i1 s
+              if l != 0#u64
+              then
+                if sp1 = localtimer.TREE_STACK
+                then ok (cont (stack, sp1, visits1, found, true))
+                else
+                  let (_, index_mut_back) ← Array.index_mut_usize stack sp1
+                  let sp2 ← sp1 + 1#usize
+                  if overflow
+                  then
+                    let a := index_mut_back l
+                    ok (cont (a, sp2, visits1, found, overflow))
+                  else
+                    if d >= cd
+                    then
+                      let r ← obj.Tcb.timer_right machineStoreInst i1 s
+                      if r != 0#u64
+                      then
+                        if sp2 = localtimer.TREE_STACK
+                        then
+                          let a := index_mut_back l
+                          ok (cont (a, sp2, visits1, found, true))
+                        else
+                          let stack1 := index_mut_back l
+                          let a ← Array.update stack1 sp2 r
+                          let sp3 ← sp2 + 1#usize
+                          ok (cont (a, sp3, visits1, found, overflow))
+                      else
+                        let a := index_mut_back l
+                        ok (cont (a, sp2, visits1, found, overflow))
+                    else
+                      let a := index_mut_back l
+                      ok (cont (a, sp2, visits1, found, overflow))
+              else
+                if overflow
+                then ok (cont (stack, sp1, visits1, found, overflow))
+                else
+                  if d >= cd
+                  then
+                    let r ← obj.Tcb.timer_right machineStoreInst i1 s
+                    if r != 0#u64
+                    then
+                      if sp1 = localtimer.TREE_STACK
+                      then ok (cont (stack, sp1, visits1, found, true))
+                      else
+                        let a ← Array.update stack sp1 r
+                        let sp2 ← sp1 + 1#usize
+                        ok (cont (a, sp2, visits1, found, overflow))
+                    else ok (cont (stack, sp1, visits1, found, overflow))
+                  else ok (cont (stack, sp1, visits1, found, overflow))
+            else
+              if overflow
+              then ok (cont (stack, sp1, visits1, found, overflow))
+              else
+                if d >= cd
+                then
+                  let r ← obj.Tcb.timer_right machineStoreInst i1 s
+                  if r != 0#u64
+                  then
+                    if sp1 = localtimer.TREE_STACK
+                    then ok (cont (stack, sp1, visits1, found, true))
+                    else
+                      let a ← Array.update stack sp1 r
+                      let sp2 ← sp1 + 1#usize
+                      ok (cont (a, sp2, visits1, found, overflow))
+                  else ok (cont (stack, sp1, visits1, found, overflow))
+                else ok (cont (stack, sp1, visits1, found, overflow))
+    else ok (done found)
+  else ok (done found)
+
+/-- [fl4_core::localtimer::in_core_timer_tree]: loop 0:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 109:4-140:5
+    Visibility: public -/
+@[rust_loop]
+def localtimer.in_core_timer_tree_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
+  (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize)
+  (visits : Std.U64) (found : Bool) (overflow : Bool) :
+  Result Bool
+  := do
+  loop
+    (fun (stack1, sp1, visits1, found1, overflow1) =>
+      localtimer.in_core_timer_tree_loop.body machineStoreInst s i d stack1 sp1
+      visits1 found1 overflow1)
+    (stack, sp, visits, found, overflow)
+
+/-- [fl4_core::localtimer::in_core_timer_tree]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 92:0-142:1
+    Visibility: public -/
+def localtimer.in_core_timer_tree
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (target : obj.Tcb) (d : Std.U64) :
+  Result Bool
+  := do
+  let b ← obj.Tcb.is_null target
+  if b
+  then ok false
+  else
+    let root ← obj.node_get machineStoreInst s cpu layout.node.TIMER_ROOT
+    let i ← obj.node_get machineStoreInst s cpu layout.node.TIMER_MIN
+    if i = target
+    then ok true
+    else
+      if root = target
+      then ok true
+      else
+        let stack := Array.repeat 32#usize 0#u64
+        let (stack1, sp) ←
+          if root != 0#u64
+          then do
+               let a ← Array.update stack 0#usize root
+               ok (a, 1#usize)
+          else ok (stack, 0#usize)
+        localtimer.in_core_timer_tree_loop machineStoreInst s target d stack1
+          sp 0#u64 false false
+
+/-- [fl4_core::localtimer::release_due]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 146:0-149:1 -/
+def localtimer.release_due
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
+  Result Bool
+  := do
+  let i ← obj.node_get machineStoreInst s cpu layout.node.RELEASE_HEAD
+  let b ← obj.Tcb.is_null i
+  if b
+  then ok false
+  else
+    let i1 ← obj.Tcb.sc machineStoreInst i s
+    sporadic.ready machineStoreInst s i1
+
+/-- [fl4_core::localtimer::timer_due]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 153:0-156:1 -/
+def localtimer.timer_due
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (now : Std.U64) :
+  Result Bool
+  := do
+  let i ← obj.node_get machineStoreInst s cpu layout.node.TIMER_MIN
+  let b ← obj.Tcb.is_null i
+  if b
+  then ok false
+  else let i1 ← obj.Tcb.timer_deadline machineStoreInst i s
+       ok (i1 <= now)
+
+/-- [fl4_core::localtimer::sched_quiet]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 162:0-166:1 -/
+def localtimer.sched_quiet
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
+  Result Bool
+  := do
+  let i ← sched.action machineStoreInst s
+  if i = sched.ACTION_RESUME_CURRENT
+  then
+    let i1 ← sched.domain_time machineStoreInst s
+    if i1 != 0#u64
+    then
+      let i2 ← obj.node_get machineStoreInst s cpu layout.node.IPI_PENDING
+      ok (i2 = 0#u64)
+    else ok false
+  else ok false
+
+/-- [fl4_core::localtimer::may_run_here]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 173:0-180:1 -/
+def localtimer.may_run_here
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (t : obj.Tcb) :
+  Result Bool
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok false
+  else
+    let i ← obj.Tcb.affinity machineStoreInst t s
+    if i = cpu
+    then
+      let i1 ← obj.Tcb.state machineStoreInst t s
+      if i1 != sched.TS_RUNNING_VM
+      then
+        let i2 ← obj.Tcb.yield_to machineStoreInst t s
+        if i2 = 0#u64
+        then
+          let i3 ← vcpu.bound machineStoreInst s t
+          if i3 = 0#u64
+          then
+            let i4 ← obj.Tcb.sc machineStoreInst t s
+            if i4 = 0#u64
+            then ok true
+            else let i5 ← obj.Sc.cpu machineStoreInst i4 s
+                 ok (i5 = cpu)
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [fl4_core::localtimer::current_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 184:0-189:1 -/
+def localtimer.current_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (ct : obj.Tcb) (csc : obj.Sc) :
+  Result Bool
+  := do
+  let b ← localtimer.may_run_here machineStoreInst s cpu ct
+  if b
+  then
+    let i ← obj.Tcb.sc machineStoreInst ct s
+    if i = csc
+    then
+      let i1 ← obj.Sc.cpu machineStoreInst csc s
+      if i1 = cpu
+      then
+        let t ← sched.idle_thread machineStoreInst s
+        let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq ct t
+        if b1
+        then ok true
+        else
+          let i2 ← obj.Tcb.domain machineStoreInst ct s
+          let i3 ← sched.cur_domain machineStoreInst s
+          ok (i2 = i3)
+      else ok false
+    else ok false
+  else ok false
+
+/-- [fl4_core::localtimer::cnode_mask]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 193:0-199:1 -/
+def localtimer.cnode_mask (bits : Std.U64) : Result Std.U64 := do
+  if bits >= 64#u64
+  then ok core.num.U64.MAX
+  else
+    let i ← lift (bits &&& 63#u64)
+    let i1 ← 1#u64 <<< i
+    ok (core.num.U64.wrapping_sub i1 1#u64)
+
+/-- [fl4_core::localtimer::cspace_step]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 207:0-223:1
+    Visibility: public -/
+def localtimer.cspace_step
+  (node_cap : capability.Cap) (cptr : Std.U64) (bits_left : Std.U64) :
+  Result (Option (obj.Slot × Std.U64))
+  := do
+  match node_cap with
+  | capability.Cap.Null => ok none
+  | capability.Cap.Untyped _ _ _ _ => ok none
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+  | capability.Cap.Notification _ _ _ _ => ok none
+  | capability.Cap.Reply _ _ => ok none
+  | capability.Cap.CNode ptr radix guard_size guard =>
+    let level ← lift (core.num.U64.wrapping_add radix guard_size)
+    if level = 0#u64
+    then ok none
+    else
+      let i ← lift (core.num.U64.wrapping_sub bits_left guard_size)
+      let shift ← lift (i &&& 63#u64)
+      let i1 ← cptr >>> shift
+      let i2 ← localtimer.cnode_mask guard_size
+      let g ← lift (i1 &&& i2)
+      if guard_size > bits_left
+      then ok none
+      else
+        if g != guard
+        then ok none
+        else
+          if level > bits_left
+          then ok none
+          else
+            let i3 ← bits_left - level
+            let i4 ← lift (i3 &&& 63#u64)
+            let i5 ← cptr >>> i4
+            let i6 ← localtimer.cnode_mask radix
+            let offset ← lift (i5 &&& i6)
+            let s ← obj.Slot.index ptr offset
+            ok (some (s, i3))
+  | capability.Cap.Thread _ => ok none
+  | capability.Cap.IrqControl => ok none
+  | capability.Cap.IrqHandler _ => ok none
+  | capability.Cap.Zombie _ _ _ => ok none
+  | capability.Cap.Domain => ok none
+  | capability.Cap.SchedContext _ _ => ok none
+  | capability.Cap.SchedControl _ => ok none
+  | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok none
+  | capability.Cap.PageTable _ _ _ _ => ok none
+  | capability.Cap.PageDirectory _ _ _ _ => ok none
+  | capability.Cap.Pdpt _ _ _ _ => ok none
+  | capability.Cap.Pml4 _ _ _ => ok none
+  | capability.Cap.Vcpu _ => ok none
+  | capability.Cap.Ept _ _ _ _ _ => ok none
+  | capability.Cap.AsidControl => ok none
+  | capability.Cap.AsidPool _ _ => ok none
+  | capability.Cap.IoPortControl => ok none
+  | capability.Cap.IoPort _ _ _ => ok none
+  | capability.Cap.TdxControl => ok none
+
+/-- [fl4_core::localtimer::set_timer_target_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 229:0-235:1 -/
+def localtimer.set_timer_target_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (target : obj.Tcb) :
+  Result Bool
+  := do
+  let i ← obj.Tcb.affinity machineStoreInst target s
+  if i != cpu
+  then ok false
+  else
+    let d ← obj.Tcb.timer_deadline machineStoreInst target s
+    if d = 0#u64
+    then ok true
+    else
+      let b ← localtimer.in_core_timer_tree machineStoreInst s cpu target d
+      if b
+      then
+        let i1 ← localtimer.core_of machineStoreInst s target
+        ok (i1 = cpu)
+      else ok false
+
+/-- [fl4_core::timer::insert_fixup]: loop body 0:
+    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
+@[rust_loop_body]
+def timer.insert_fixup_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (cpu : Std.U64) (s : S)
+  (z : obj.Tcb) (fuel : Std.U64) :
+  Result (ControlFlow (S × obj.Tcb × Std.U64) S)
+  := do
+  let p ← timer.parent machineStoreInst s z
+  let b ← obj.Tcb.is_null p
+  if b
+  then ok (done s)
+  else
+    let b1 ← timer.is_red machineStoreInst s p
+    if b1
+    then
+      if fuel = 0#u64
+      then ok (done s)
+      else
+        let fuel1 ← fuel - 1#u64
+        let g ← timer.parent machineStoreInst s p
+        let t ← timer.left machineStoreInst s g
+        let b2 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq p t
+        if b2
+        then
+          let u ← timer.right machineStoreInst s g
+          let b3 ← timer.is_red machineStoreInst s u
+          if b3
+          then
+            let s1 ← timer.set_red machineStoreInst s p false
+            let s2 ← timer.set_red machineStoreInst s1 u false
+            let s3 ← timer.set_red machineStoreInst s2 g true
+            ok (cont (s3, g, fuel1))
+          else
+            let t1 ← timer.right machineStoreInst s p
+            let b4 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq z t1
+            let (s1, z1, pp) ←
+              if b4
+              then
+                do
+                let s2 ← timer.rotate_left machineStoreInst s cpu p
+                let pp1 ← timer.parent machineStoreInst s2 p
+                ok (s2, p, pp1)
+              else ok (s, z, p)
+            let s2 ← timer.set_red machineStoreInst s1 pp false
+            let s3 ← timer.set_red machineStoreInst s2 g true
+            let s4 ← timer.rotate_right machineStoreInst s3 cpu g
+            ok (cont (s4, z1, fuel1))
+        else
+          let b3 ← timer.is_red machineStoreInst s t
+          if b3
+          then
+            let s1 ← timer.set_red machineStoreInst s p false
+            let s2 ← timer.set_red machineStoreInst s1 t false
+            let s3 ← timer.set_red machineStoreInst s2 g true
+            ok (cont (s3, g, fuel1))
+          else
+            let t1 ← timer.left machineStoreInst s p
+            let b4 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq z t1
+            let (s1, z1, pp) ←
+              if b4
+              then
+                do
+                let s2 ← timer.rotate_right machineStoreInst s cpu p
+                let pp1 ← timer.parent machineStoreInst s2 p
+                ok (s2, p, pp1)
+              else ok (s, z, p)
+            let s2 ← timer.set_red machineStoreInst s1 pp false
+            let s3 ← timer.set_red machineStoreInst s2 g true
+            let s4 ← timer.rotate_left machineStoreInst s3 cpu g
+            ok (cont (s4, z1, fuel1))
+    else ok (done s)
+
+/-- [fl4_core::timer::insert_fixup]: loop 0:
+    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
+@[rust_loop]
+def timer.insert_fixup_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (z : obj.Tcb) (fuel : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, z1, fuel1) => timer.insert_fixup_loop.body machineStoreInst cpu
+      s1 z1 fuel1)
+    (s, z, fuel)
+
+/-- [fl4_core::timer::insert_fixup]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 124:0-175:1 -/
+def timer.insert_fixup
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (z0 : obj.Tcb) :
+  Result S
+  := do
+  let s1 ← timer.insert_fixup_loop machineStoreInst s cpu z0 128#u64
+  let r ← timer.root machineStoreInst s1 cpu
+  timer.set_red machineStoreInst s1 r false
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_timer_badge]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.set_timer_badge
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
+  (s : S) (v : Std.U64) :
+  Result S
+  := do
+  let i ← layout.tcb.TIMER_BADGE
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.write s i1 v
+
+/-- [fl4_core::timer::insert]: loop body 0:
+    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
+    Visibility: public -/
+@[rust_loop_body]
+def timer.insert_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool)
+  (first : Bool) (fuel : Std.U64) :
+  Result (ControlFlow (obj.Tcb × obj.Tcb × Bool × Bool × Std.U64) (obj.Tcb
+    × Bool × Bool))
+  := do
+  let b ← obj.Tcb.is_null cur
+  if b
+  then ok (done (p, go_left, first))
+  else
+    if fuel > 0#u64
+    then
+      let fuel1 ← fuel - 1#u64
+      let i ← obj.Tcb.timer_deadline machineStoreInst cur s
+      if deadline < i
+      then
+        let cur1 ← timer.left machineStoreInst s cur
+        ok (cont (cur, cur1, true, first, fuel1))
+      else
+        let cur1 ← timer.right machineStoreInst s cur
+        ok (cont (cur, cur1, false, false, fuel1))
+    else ok (done (p, go_left, first))
+
+/-- [fl4_core::timer::insert]: loop 0:
+    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
+    Visibility: public -/
+@[rust_loop]
+def timer.insert_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool)
+  (first : Bool) (fuel : Std.U64) :
+  Result (obj.Tcb × Bool × Bool)
+  := do
+  loop
+    (fun (p1, cur1, go_left1, first1, fuel1) => timer.insert_loop.body
+      machineStoreInst s deadline p1 cur1 go_left1 first1 fuel1)
+    (p, cur, go_left, first, fuel)
+
+/-- [fl4_core::timer::insert]:
+    Source: 'crates/fl4-core/src/timer.rs', lines 319:0-360:1
+    Visibility: public -/
+def timer.insert
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (deadline : Std.U64) (badge : Std.U64) :
+  Result S
+  := do
+  let s1 ← timer.remove machineStoreInst s t
+  if deadline = 0#u64
+  then ok s1
+  else
+    let cpu ← machineStoreInst.cur_cpu s1
+    let cur ← timer.root machineStoreInst s1 cpu
+    let (p, go_left, first) ←
+      timer.insert_loop machineStoreInst s1 deadline 0#u64 cur false true
+        layout.TREE_FUEL
+    let b ← obj.Tcb.is_null p
+    let (s2, t1) ←
+      if b
+      then do
+           let s3 ← timer.set_root machineStoreInst s1 cpu t
+           ok (s3, t)
+      else
+        do
+        let t2 ←
+          if go_left
+          then timer.set_left machineStoreInst s1 p t
+          else timer.set_right machineStoreInst s1 p t
+        ok (t2, t)
+    let s3 ← obj.Tcb.set_timer_deadline machineStoreInst t1 s2 deadline
+    let s4 ← obj.Tcb.set_timer_badge machineStoreInst t1 s3 badge
+    let s5 ← timer.set_parent machineStoreInst s4 t1 p
+    let s6 ← timer.set_left machineStoreInst s5 t1 0#u64
+    let s7 ← timer.set_right machineStoreInst s6 t1 0#u64
+    let i ← cpu <<< 8#i32
+    let i1 ← lift (i ||| timer.RED)
+    let s8 ← obj.Tcb.set_timer_height machineStoreInst t1 s7 i1
+    let s9 ← timer.insert_fixup machineStoreInst s8 cpu t1
+    if first
+    then
+      let s10 ← obj.node_set machineStoreInst s9 cpu layout.node.TIMER_MIN t1
+      obj.node_set machineStoreInst s10 cpu layout.node.REPROGRAM 1#u64
+    else ok s9
+
+/-- [fl4_core::msg::reply_success_empty]:
+    Source: 'crates/fl4-core/src/msg.rs', lines 112:0-115:1
+    Visibility: public -/
+def msg.reply_success_empty
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result S
+  := do
+  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
+  let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 0#u64
+  msg.set_msg_info machineStoreInst s1 t mi
+
+/-- [fl4_core::localtimer::handle_set_timer_local]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 246:0-301:1
+    Visibility: public -/
+def localtimer.handle_set_timer_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (target : obj.Tcb) :
+  Result (Bool × S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let cpu ← machineStoreInst.cur_cpu s
+  let info ← msg.msg_info machineStoreInst s t
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    if number != fl4_abi.syscall.SysCall
+    then ok (false, s, a)
+    else
+      let i ← obj.Tcb.flags machineStoreInst t s
+      let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+      if i1 != 0#u64
+      then ok (false, s, a)
+      else
+        if info.label != fl4_abi.label.TCBSetTimer
+        then ok (false, s, a)
+        else
+          if info.extra_caps != 0#u64
+          then ok (false, s, a)
+          else
+            if info.length < 2#u64
+            then ok (false, s, a)
+            else
+              let csc ← sched.cur_sc machineStoreInst s
+              let b ←
+                localtimer.set_timer_target_ok machineStoreInst s cpu target
+              if b
+              then
+                let b1 ← localtimer.current_ok machineStoreInst s cpu t csc
+                if b1
+                then
+                  let i2 ← obj.Tcb.state machineStoreInst t s
+                  if i2 != sched.TS_RUNNING
+                  then ok (false, s, a)
+                  else
+                    let b2 ← sched.is_schedulable machineStoreInst s t
+                    if b2
+                    then
+                      let b3 ← localtimer.sched_quiet machineStoreInst s cpu
+                      if b3
+                      then
+                        let next ←
+                          obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+                        let i3 ←
+                          lift (core.num.U64.wrapping_sub next
+                            localtimer.SYSCALL_INSN_LEN)
+                        let s1 ←
+                          obj.Tcb.set_reg machineStoreInst t s
+                            layout.reg.FAULT_IP i3
+                        let (s2, a1) ←
+                          sched.update_timestamp machineStoreInst
+                            machineArchInst s1 a
+                        let now ← sched.cur_time machineStoreInst s2
+                        let deadline ←
+                          msg.syscall_arg machineStoreInst s2 t 0#u64 0#u64
+                        let badge ←
+                          msg.syscall_arg machineStoreInst s2 t 0#u64 1#u64
+                        let i4 ← sched.consumed machineStoreInst s2
+                        let b4 ←
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s2 a1 csc i4
+                        if b4
+                        then
+                          let b5 ←
+                            localtimer.timer_due machineStoreInst s2 cpu now
+                          if b5
+                          then ok (false, s2, a1)
+                          else
+                            let b6 ←
+                              localtimer.release_due machineStoreInst s2 cpu
+                            if b6
+                            then ok (false, s2, a1)
+                            else
+                              if deadline != 0#u64
+                              then
+                                if deadline <= now
+                                then ok (false, s2, a1)
+                                else
+                                  let s3 ←
+                                    sched.set_thread_state machineStoreInst s2
+                                      t sched.TS_RESTART
+                                  let s4 ←
+                                    timer.insert machineStoreInst s3 target
+                                      deadline badge
+                                  let s5 ←
+                                    msg.reply_success_empty machineStoreInst s4
+                                      t
+                                  let s6 ←
+                                    sched.set_thread_state machineStoreInst s5
+                                      t sched.TS_RUNNING
+                                  let (s7, a2) ←
+                                    sched.schedule machineStoreInst
+                                      machineArchInst s6 a1
+                                  let (s8, a3) ←
+                                    sched.activate_thread machineStoreInst
+                                      machineArchInst s7 a2
+                                  let t1 ←
+                                    sched.cur_thread machineStoreInst s8
+                                  let (s9, a4) ←
+                                    vcpu.check machineStoreInst machineArchInst
+                                      s8 a3 t1
+                                  ok (true, s9, a4)
+                              else
+                                let s3 ←
+                                  sched.set_thread_state machineStoreInst s2 t
+                                    sched.TS_RESTART
+                                let s4 ←
+                                  timer.insert machineStoreInst s3 target
+                                    deadline badge
+                                let s5 ←
+                                  msg.reply_success_empty machineStoreInst s4 t
+                                let s6 ←
+                                  sched.set_thread_state machineStoreInst s5 t
+                                    sched.TS_RUNNING
+                                let (s7, a2) ←
+                                  sched.schedule machineStoreInst
+                                    machineArchInst s6 a1
+                                let (s8, a3) ←
+                                  sched.activate_thread machineStoreInst
+                                    machineArchInst s7 a2
+                                let t1 ← sched.cur_thread machineStoreInst s8
+                                let (s9, a4) ←
+                                  vcpu.check machineStoreInst machineArchInst
+                                    s8 a3 t1
+                                ok (true, s9, a4)
+                        else ok (false, s2, a1)
+                      else ok (false, s, a)
+                    else ok (false, s, a)
+                else ok (false, s, a)
+              else ok (false, s, a)
+
+/-- [fl4_core::localtimer::MAX_TIMER_LOCKS]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 308:0-308:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def localtimer.MAX_TIMER_LOCKS : Std.Usize := 3#usize
+
+/-- [fl4_core::localtimer::{impl core::clone::Clone for fl4_core::localtimer::TimerIrqPlan}::clone]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:9-313:14
+    Visibility: public -/
+def localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone
+  (self : localtimer.TimerIrqPlan) : Result localtimer.TimerIrqPlan := do
+  ok self
+
+/-- Trait implementation: [fl4_core::localtimer::{impl core::clone::Clone for fl4_core::localtimer::TimerIrqPlan}]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:9-313:14 -/
+@[reducible]
+def localtimer.TimerIrqPlan.Insts.CoreCloneClone : core.clone.Clone
+  localtimer.TimerIrqPlan := {
+  clone := localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [fl4_core::localtimer::{impl core::marker::Copy for fl4_core::localtimer::TimerIrqPlan}]
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:16-313:20 -/
+@[reducible]
+def localtimer.TimerIrqPlan.Insts.CoreMarkerCopy : core.marker.Copy
+  localtimer.TimerIrqPlan := {
+  cloneInst := localtimer.TimerIrqPlan.Insts.CoreCloneClone
+}
+
+/-- [fl4_core::localtimer::plan_objects]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 333:0-367:1 -/
+def localtimer.plan_objects
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
+  Result localtimer.TimerIrqPlan
+  := do
+  let cpu ← machineStoreInst.cur_cpu s
+  let a := Array.repeat 3#usize (0#u64, 0#u64)
+  let i ← obj.node_get machineStoreInst s cpu layout.node.TIMER_MIN
+  let b ← obj.Tcb.is_null i
+  if b
+  then
+    ok
+      {
+        tm := 0#u64,
+        ntfn := 0#u64,
+        waiter := 0#u64,
+        ep := 0#u64,
+        reply := 0#u64,
+        objects := a,
+        n := 0#usize
+      }
+  else
+    let i1 ← obj.Tcb.affinity machineStoreInst i s
+    if i1 != cpu
+    then
+      ok
+        {
+          tm := 0#u64,
+          ntfn := 0#u64,
+          waiter := 0#u64,
+          ep := 0#u64,
+          reply := 0#u64,
+          objects := a,
+          n := 0#usize
+        }
+    else
+      let i2 ← localtimer.core_of machineStoreInst s i
+      if i2 != cpu
+      then
+        ok
+          {
+            tm := 0#u64,
+            ntfn := 0#u64,
+            waiter := 0#u64,
+            ep := 0#u64,
+            reply := 0#u64,
+            objects := a,
+            n := 0#usize
+          }
+      else
+        let n ← obj.Tcb.bound_ntfn machineStoreInst i s
+        if n = 0#u64
+        then
+          ok
+            {
+              tm := i,
+              ntfn := 0#u64,
+              waiter := 0#u64,
+              ep := 0#u64,
+              reply := 0#u64,
+              objects := a,
+              n := 0#usize
+            }
+        else
+          let (_, index_mut_back) ← Array.index_mut_usize a 0#usize
+          let i3 ← obj.Ntfn.state machineStoreInst n s
+          if i3 != obj.NTFN_IDLE
+          then
+            let a1 := index_mut_back (n, 64#u64)
+            ok
+              {
+                tm := i,
+                ntfn := n,
+                waiter := 0#u64,
+                ep := 0#u64,
+                reply := 0#u64,
+                objects := a1,
+                n := 1#usize
+              }
+          else
+            let i4 ← obj.Ntfn.bound_tcb machineStoreInst n s
+            if i4 != i
+            then
+              let a1 := index_mut_back (n, 64#u64)
+              ok
+                {
+                  tm := i,
+                  ntfn := n,
+                  waiter := 0#u64,
+                  ep := 0#u64,
+                  reply := 0#u64,
+                  objects := a1,
+                  n := 1#usize
+                }
+            else
+              let i5 ← obj.Tcb.state machineStoreInst i s
+              if i5 != sched.TS_BLOCKED_ON_RECV
+              then
+                let a1 := index_mut_back (n, 64#u64)
+                ok
+                  {
+                    tm := i,
+                    ntfn := n,
+                    waiter := 0#u64,
+                    ep := 0#u64,
+                    reply := 0#u64,
+                    objects := a1,
+                    n := 1#usize
+                  }
+              else
+                let ep ← obj.Tcb.block_obj machineStoreInst i s
+                if ep = 0#u64
+                then
+                  let a1 := index_mut_back (n, 64#u64)
+                  ok
+                    {
+                      tm := i,
+                      ntfn := n,
+                      waiter := 0#u64,
+                      ep := 0#u64,
+                      reply := 0#u64,
+                      objects := a1,
+                      n := 1#usize
+                    }
+                else
+                  let a1 := index_mut_back (n, 64#u64)
+                  let (_, index_mut_back1) ← Array.index_mut_usize a1 1#usize
+                  let r ← obj.Tcb.reply_obj machineStoreInst i s
+                  if r != 0#u64
+                  then
+                    let a2 := index_mut_back1 (ep, 16#u64)
+                    let a3 ← Array.update a2 2#usize (r, 32#u64)
+                    ok
+                      {
+                        tm := i,
+                        ntfn := n,
+                        waiter := i,
+                        ep,
+                        reply := r,
+                        objects := a3,
+                        n := 3#usize
+                      }
+                  else
+                    let a2 := index_mut_back1 (ep, 16#u64)
+                    ok
+                      {
+                        tm := i,
+                        ntfn := n,
+                        waiter := i,
+                        ep,
+                        reply := 0#u64,
+                        objects := a2,
+                        n := 2#usize
+                      }
+
+/-- [fl4_core::localtimer::same_plan]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 369:0-371:1 -/
+def localtimer.same_plan
+  (x : localtimer.TimerIrqPlan) (y : localtimer.TimerIrqPlan) :
+  Result Bool
+  := do
+  if x.tm = y.tm
+  then
+    if x.ntfn = y.ntfn
+    then
+      if x.waiter = y.waiter
+      then
+        if x.ep = y.ep
+        then if x.reply = y.reply
+             then ok (x.n = y.n)
+             else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [fl4_core::localtimer::plan_timer_irq]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 375:0-380:1
+    Visibility: public -/
+def localtimer.plan_timer_irq
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (irq : Std.U64) :
+  Result (Option localtimer.TimerIrqPlan)
+  := do
+  if layout.NUM_DOMAINS != 1#u64
+  then ok none
+  else
+    let i ← layout.irq.MAX
+    if irq > i
+    then ok none
+    else
+      let i1 ← interrupt.irq_state machineStoreInst s irq
+      if i1 != interrupt.IRQ_TIMER
+      then ok none
+      else let tip ← localtimer.plan_objects machineStoreInst s
+           ok (some tip)
+
+/-- [fl4_core::localtimer::top_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 384:0-391:1 -/
+def localtimer.top_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
+  Result Bool
+  := do
+  let i ← obj.node_get machineStoreInst s cpu layout.node.L1_BITMAP
+  if i = 0#u64
+  then ok true
+  else
+    let i1 ← sched.cur_domain machineStoreInst s
+    let prio ← sched.highest_prio machineStoreInst s i1
+    let i2 ← lift (core.num.U64.wrapping_mul prio 16#u64)
+    let i3 ← layout.node.READY_QUEUES
+    let i4 ← lift (core.num.U64.wrapping_add i3 i2)
+    let i5 ← obj.node_get machineStoreInst s cpu i4
+    localtimer.may_run_here machineStoreInst s cpu i5
+
+/-- [fl4_core::localtimer::round_robin_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 398:0-413:1 -/
+def localtimer.round_robin_ok
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64)
+  (ct : obj.Tcb) (csc : obj.Sc) (now : Std.U64) :
+  Result Bool
+  := do
+  let s1 ← sched.idle_sc machineStoreInst s
+  let b ← obj.Sc.Insts.CoreCmpPartialEqSc.eq csc s1
+  if b
+  then ok false
+  else
+    let b1 ← sporadic.is_round_robin machineStoreInst s csc
+    if b1
+    then
+      let b2 ← sched.is_schedulable machineStoreInst s ct
+      if b2
+      then
+        let b3 ← sched.queued machineStoreInst s ct
+        if b3
+        then ok false
+        else
+          let hi ← obj.Sc.refill_head machineStoreInst csc s
+          let ti ← obj.Sc.refill_tail machineStoreInst csc s
+          if hi = ti
+          then ok false
+          else
+            let h ← sporadic.get machineStoreInst s csc hi
+            let t ← sporadic.get machineStoreInst s csc ti
+            if h.time > now
+            then ok false
+            else
+              let i ← lift (core.num.U64.wrapping_add h.amount t.amount)
+              let i1 ← sporadic.min_budget machineArchInst a
+              if i < i1
+              then ok false
+              else
+                let i2 ←
+                  obj.node_get machineStoreInst s cpu layout.node.L1_BITMAP
+                if i2 = 0#u64
+                then ok true
+                else
+                  let i3 ← sched.cur_domain machineStoreInst s
+                  let i4 ← sched.highest_prio machineStoreInst s i3
+                  let i5 ← obj.Tcb.prio machineStoreInst ct s
+                  ok (i4 < i5)
+      else ok false
+    else ok false
+
+/-- [fl4_core::localtimer::wake_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 419:0-426:1 -/
+def localtimer.wake_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (ct : obj.Tcb) (w : obj.Tcb) (n : obj.Ntfn) :
+  Result Bool
+  := do
+  let b ←
+    core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb w ct
+  if b
+  then
+    let b1 ← localtimer.may_run_here machineStoreInst s cpu w
+    if b1
+    then
+      let i ← obj.Tcb.domain machineStoreInst w s
+      let i1 ← sched.cur_domain machineStoreInst s
+      if i = i1
+      then
+        let b2 ← sched.queued machineStoreInst s w
+        if b2
+        then ok false
+        else
+          let i2 ← obj.Tcb.sc machineStoreInst w s
+          if i2 = 0#u64
+          then
+            let i3 ← obj.Ntfn.sc machineStoreInst n s
+            if i3 != 0#u64
+            then ok false
+            else localtimer.top_ok machineStoreInst s cpu
+          else localtimer.top_ok machineStoreInst s cpu
+      else ok false
+    else ok false
+  else ok false
+
+/-- [fl4_core::localtimer::fire_ok]: loop body 0:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 444:8-447:9 -/
+@[rust_loop_body]
+def localtimer.fire_ok_loop.body
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
+  (fuel : Std.U64) :
+  Result (ControlFlow (Std.U64 × Std.U64) Std.U64)
+  := do
+  let i1 ← obj.Tcb.timer_left machineStoreInst i s
+  if i1 != 0#u64
+  then
+    if fuel > 0#u64
+    then let fuel1 ← fuel - 1#u64
+         ok (cont (i1, fuel1))
+    else ok (done i)
+  else ok (done i)
+
+/-- [fl4_core::localtimer::fire_ok]: loop 0:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 444:8-447:9 -/
+@[rust_loop]
+def localtimer.fire_ok_loop
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
+  (fuel : Std.U64) :
+  Result Std.U64
+  := do
+  loop
+    (fun (i1, fuel1) => localtimer.fire_ok_loop.body machineStoreInst s i1
+      fuel1)
+    (i, fuel)
+
+/-- [fl4_core::localtimer::fire_ok]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 433:0-481:1 -/
+def localtimer.fire_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (ct : obj.Tcb) (p : localtimer.TimerIrqPlan) (now : Std.U64) :
+  Result Bool
+  := do
+  if p.tm = 0#u64
+  then ok false
+  else
+    let i ← obj.Tcb.timer_right machineStoreInst p.tm s
+    let i1 ← obj.Tcb.timer_parent machineStoreInst p.tm s
+    let b ← obj.Tcb.is_null i
+    if b
+    then
+      let b1 ← obj.Tcb.is_null i1
+      if b1
+      then
+        if p.ntfn = 0#u64
+        then ok true
+        else
+          let st ← obj.Ntfn.state machineStoreInst p.ntfn s
+          if st = obj.NTFN_ACTIVE
+          then ok true
+          else
+            if st = obj.NTFN_IDLE
+            then
+              let b2 ← obj.Ntfn.bound_tcb machineStoreInst p.ntfn s
+              if b2 = 0#u64
+              then ok true
+              else
+                if b2 != p.tm
+                then ok false
+                else
+                  let bs ← obj.Tcb.state machineStoreInst p.tm s
+                  if bs = sched.TS_RUNNING_VM
+                  then ok false
+                  else
+                    if bs = sched.TS_BLOCKED_ON_RECV
+                    then
+                      if p.waiter = p.tm
+                      then
+                        if p.ep != 0#u64
+                        then
+                          localtimer.wake_ok machineStoreInst s cpu ct
+                            p.tm p.ntfn
+                        else ok false
+                      else ok false
+                    else ok true
+            else
+              if st = obj.NTFN_WAITING
+              then
+                let i2 ← obj.Ntfn.head machineStoreInst p.ntfn s
+                localtimer.wake_ok machineStoreInst s cpu ct i2 p.ntfn
+              else ok false
+      else
+        let i2 ← obj.Tcb.timer_deadline machineStoreInst i1 s
+        if i2 <= now
+        then ok false
+        else
+          if p.ntfn = 0#u64
+          then ok true
+          else
+            let st ← obj.Ntfn.state machineStoreInst p.ntfn s
+            if st = obj.NTFN_ACTIVE
+            then ok true
+            else
+              if st = obj.NTFN_IDLE
+              then
+                let b2 ← obj.Ntfn.bound_tcb machineStoreInst p.ntfn s
+                if b2 = 0#u64
+                then ok true
+                else
+                  if b2 != p.tm
+                  then ok false
+                  else
+                    let bs ← obj.Tcb.state machineStoreInst p.tm s
+                    if bs = sched.TS_RUNNING_VM
+                    then ok false
+                    else
+                      if bs = sched.TS_BLOCKED_ON_RECV
+                      then
+                        if p.waiter = p.tm
+                        then
+                          if p.ep != 0#u64
+                          then
+                            localtimer.wake_ok machineStoreInst s cpu ct
+                              p.tm p.ntfn
+                          else ok false
+                        else ok false
+                      else ok true
+              else
+                if st = obj.NTFN_WAITING
+                then
+                  let i3 ← obj.Ntfn.head machineStoreInst p.ntfn s
+                  localtimer.wake_ok machineStoreInst s cpu ct i3 p.ntfn
+                else ok false
+    else
+      let i2 ← localtimer.fire_ok_loop machineStoreInst s i layout.TREE_FUEL
+      let b1 ← obj.Tcb.is_null i2
+      if b1
+      then
+        if p.ntfn = 0#u64
+        then ok true
+        else
+          let st ← obj.Ntfn.state machineStoreInst p.ntfn s
+          if st = obj.NTFN_ACTIVE
+          then ok true
+          else
+            if st = obj.NTFN_IDLE
+            then
+              let b2 ← obj.Ntfn.bound_tcb machineStoreInst p.ntfn s
+              if b2 = 0#u64
+              then ok true
+              else
+                if b2 != p.tm
+                then ok false
+                else
+                  let bs ← obj.Tcb.state machineStoreInst p.tm s
+                  if bs = sched.TS_RUNNING_VM
+                  then ok false
+                  else
+                    if bs = sched.TS_BLOCKED_ON_RECV
+                    then
+                      if p.waiter = p.tm
+                      then
+                        if p.ep != 0#u64
+                        then
+                          localtimer.wake_ok machineStoreInst s cpu ct
+                            p.tm p.ntfn
+                        else ok false
+                      else ok false
+                    else ok true
+            else
+              if st = obj.NTFN_WAITING
+              then
+                let i3 ← obj.Ntfn.head machineStoreInst p.ntfn s
+                localtimer.wake_ok machineStoreInst s cpu ct i3 p.ntfn
+              else ok false
+      else
+        let i3 ← obj.Tcb.timer_deadline machineStoreInst i2 s
+        if i3 <= now
+        then ok false
+        else
+          if p.ntfn = 0#u64
+          then ok true
+          else
+            let st ← obj.Ntfn.state machineStoreInst p.ntfn s
+            if st = obj.NTFN_ACTIVE
+            then ok true
+            else
+              if st = obj.NTFN_IDLE
+              then
+                let b2 ← obj.Ntfn.bound_tcb machineStoreInst p.ntfn s
+                if b2 = 0#u64
+                then ok true
+                else
+                  if b2 != p.tm
+                  then ok false
+                  else
+                    let bs ← obj.Tcb.state machineStoreInst p.tm s
+                    if bs = sched.TS_RUNNING_VM
+                    then ok false
+                    else
+                      if bs = sched.TS_BLOCKED_ON_RECV
+                      then
+                        if p.waiter = p.tm
+                        then
+                          if p.ep != 0#u64
+                          then
+                            localtimer.wake_ok machineStoreInst s cpu ct
+                              p.tm p.ntfn
+                          else ok false
+                        else ok false
+                      else ok true
+              else
+                if st = obj.NTFN_WAITING
+                then
+                  let i4 ← obj.Ntfn.head machineStoreInst p.ntfn s
+                  localtimer.wake_ok machineStoreInst s cpu ct i4 p.ntfn
+                else ok false
+
+/-- [fl4_core::localtimer::handle_timer_irq_local]:
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 491:0-532:1
+    Visibility: public -/
+def localtimer.handle_timer_irq_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64)
+  (p : localtimer.TimerIrqPlan) :
+  Result (Bool × S × A)
+  := do
+  let cpu ← machineStoreInst.cur_cpu s
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    let i ← layout.irq.MAX
+    if irq > i
+    then ok (false, s, a)
+    else
+      let i1 ← interrupt.irq_state machineStoreInst s irq
+      if i1 != interrupt.IRQ_TIMER
+      then ok (false, s, a)
+      else
+        let tip ← localtimer.plan_objects machineStoreInst s
+        let b ← localtimer.same_plan tip p
+        if b
+        then
+          let ct ← sched.cur_thread machineStoreInst s
+          let csc ← sched.cur_sc machineStoreInst s
+          let b1 ← localtimer.current_ok machineStoreInst s cpu ct csc
+          if b1
+          then
+            let b2 ← localtimer.sched_quiet machineStoreInst s cpu
+            if b2
+            then
+              let (s1, a1) ←
+                sched.update_timestamp machineStoreInst machineArchInst s a
+              let now ← sched.cur_time machineStoreInst s1
+              let b3 ← localtimer.release_due machineStoreInst s1 cpu
+              if b3
+              then ok (false, s1, a1)
+              else
+                let i2 ← sched.consumed machineStoreInst s1
+                let b4 ←
+                  sporadic.sufficient machineStoreInst machineArchInst s1 a1
+                    csc i2
+                let due ← localtimer.timer_due machineStoreInst s1 cpu now
+                let ok1 ←
+                  if ¬ b4
+                  then
+                    if due
+                    then ok false
+                    else
+                      if ¬ b4
+                      then
+                        localtimer.round_robin_ok machineStoreInst
+                          machineArchInst s1 a1 cpu ct csc now
+                      else
+                        if due
+                        then
+                          localtimer.fire_ok machineStoreInst s1 cpu ct p now
+                        else ok true
+                  else
+                    if ¬ b4
+                    then
+                      localtimer.round_robin_ok machineStoreInst
+                        machineArchInst s1 a1 cpu ct csc now
+                    else
+                      if due
+                      then localtimer.fire_ok machineStoreInst s1 cpu ct p now
+                      else ok true
+                if ok1
+                then
+                  let (_, s2, a2) ←
+                    sched.check_budget machineStoreInst machineArchInst s1 a1
+                  let (s3, a3) ←
+                    interrupt.handle_interrupt machineStoreInst machineArchInst
+                      s2 a2 irq
+                  let (s4, a4) ←
+                    sched.schedule machineStoreInst machineArchInst s3 a3
+                  let (s5, a5) ←
+                    sched.activate_thread machineStoreInst machineArchInst s4
+                      a4
+                  let t ← sched.cur_thread machineStoreInst s5
+                  let (s6, a6) ←
+                    vcpu.check machineStoreInst machineArchInst s5 a5 t
+                  ok (true, s6, a6)
+                else ok (false, s1, a1)
+            else ok (false, s, a)
+          else ok (false, s, a)
+        else ok (false, s, a)
+
 /-- [fl4_core::machine::Store::frame_masks]:
     Source: 'crates/fl4-core/src/machine.rs', lines 14:4-14:50
     Visibility: public -/
@@ -33528,17 +34880,6 @@ def msg.get_mr
   Result Std.U64
   := do
   msg.syscall_arg machineStoreInst s t buf i
-
-/-- [fl4_core::msg::reply_success_empty]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 112:0-115:1
-    Visibility: public -/
-def msg.reply_success_empty
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result S
-  := do
-  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
-  let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 0#u64
-  msg.set_msg_info machineStoreInst s1 t mi
 
 /-- [fl4_core::msginfo::{impl core::clone::Clone for fl4_core::msginfo::MessageInfo}::clone]:
     Source: 'crates/fl4-core/src/msginfo.rs', lines 4:9-4:14
@@ -34028,18 +35369,6 @@ def obj.Tcb.mcp
   let i ← layout.tcb.MCP
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.read s i1
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_timer_badge]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.set_timer_badge
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
-  (s : S) (v : Std.U64) :
-  Result S
-  := do
-  let i ← layout.tcb.TIMER_BADGE
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.write s i1 v
 
 /-- [fl4_core::obj::{fl4_core::obj::Sc}::set_badge]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 186:0-199:2
@@ -41154,191 +42483,6 @@ def tdx.decode
              ok (r, s, a)
   else let r ← error.illegal Unit
        ok (r, s, a)
-
-/-- [fl4_core::timer::insert_fixup]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
-@[rust_loop_body]
-def timer.insert_fixup_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (cpu : Std.U64) (s : S)
-  (z : obj.Tcb) (fuel : Std.U64) :
-  Result (ControlFlow (S × obj.Tcb × Std.U64) S)
-  := do
-  let p ← timer.parent machineStoreInst s z
-  let b ← obj.Tcb.is_null p
-  if b
-  then ok (done s)
-  else
-    let b1 ← timer.is_red machineStoreInst s p
-    if b1
-    then
-      if fuel = 0#u64
-      then ok (done s)
-      else
-        let fuel1 ← fuel - 1#u64
-        let g ← timer.parent machineStoreInst s p
-        let t ← timer.left machineStoreInst s g
-        let b2 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq p t
-        if b2
-        then
-          let u ← timer.right machineStoreInst s g
-          let b3 ← timer.is_red machineStoreInst s u
-          if b3
-          then
-            let s1 ← timer.set_red machineStoreInst s p false
-            let s2 ← timer.set_red machineStoreInst s1 u false
-            let s3 ← timer.set_red machineStoreInst s2 g true
-            ok (cont (s3, g, fuel1))
-          else
-            let t1 ← timer.right machineStoreInst s p
-            let b4 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq z t1
-            let (s1, z1, pp) ←
-              if b4
-              then
-                do
-                let s2 ← timer.rotate_left machineStoreInst s cpu p
-                let pp1 ← timer.parent machineStoreInst s2 p
-                ok (s2, p, pp1)
-              else ok (s, z, p)
-            let s2 ← timer.set_red machineStoreInst s1 pp false
-            let s3 ← timer.set_red machineStoreInst s2 g true
-            let s4 ← timer.rotate_right machineStoreInst s3 cpu g
-            ok (cont (s4, z1, fuel1))
-        else
-          let b3 ← timer.is_red machineStoreInst s t
-          if b3
-          then
-            let s1 ← timer.set_red machineStoreInst s p false
-            let s2 ← timer.set_red machineStoreInst s1 t false
-            let s3 ← timer.set_red machineStoreInst s2 g true
-            ok (cont (s3, g, fuel1))
-          else
-            let t1 ← timer.left machineStoreInst s p
-            let b4 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq z t1
-            let (s1, z1, pp) ←
-              if b4
-              then
-                do
-                let s2 ← timer.rotate_right machineStoreInst s cpu p
-                let pp1 ← timer.parent machineStoreInst s2 p
-                ok (s2, p, pp1)
-              else ok (s, z, p)
-            let s2 ← timer.set_red machineStoreInst s1 pp false
-            let s3 ← timer.set_red machineStoreInst s2 g true
-            let s4 ← timer.rotate_left machineStoreInst s3 cpu g
-            ok (cont (s4, z1, fuel1))
-    else ok (done s)
-
-/-- [fl4_core::timer::insert_fixup]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 128:4-172:5 -/
-@[rust_loop]
-def timer.insert_fixup_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
-  (z : obj.Tcb) (fuel : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, z1, fuel1) => timer.insert_fixup_loop.body machineStoreInst cpu
-      s1 z1 fuel1)
-    (s, z, fuel)
-
-/-- [fl4_core::timer::insert_fixup]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 124:0-175:1 -/
-def timer.insert_fixup
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
-  (z0 : obj.Tcb) :
-  Result S
-  := do
-  let s1 ← timer.insert_fixup_loop machineStoreInst s cpu z0 128#u64
-  let r ← timer.root machineStoreInst s1 cpu
-  timer.set_red machineStoreInst s1 r false
-
-/-- [fl4_core::timer::insert]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
-    Visibility: public -/
-@[rust_loop_body]
-def timer.insert_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool)
-  (first : Bool) (fuel : Std.U64) :
-  Result (ControlFlow (obj.Tcb × obj.Tcb × Bool × Bool × Std.U64) (obj.Tcb
-    × Bool × Bool))
-  := do
-  let b ← obj.Tcb.is_null cur
-  if b
-  then ok (done (p, go_left, first))
-  else
-    if fuel > 0#u64
-    then
-      let fuel1 ← fuel - 1#u64
-      let i ← obj.Tcb.timer_deadline machineStoreInst cur s
-      if deadline < i
-      then
-        let cur1 ← timer.left machineStoreInst s cur
-        ok (cont (cur, cur1, true, first, fuel1))
-      else
-        let cur1 ← timer.right machineStoreInst s cur
-        ok (cont (cur, cur1, false, false, fuel1))
-    else ok (done (p, go_left, first))
-
-/-- [fl4_core::timer::insert]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
-    Visibility: public -/
-@[rust_loop]
-def timer.insert_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (deadline : Std.U64) (p : obj.Tcb) (cur : obj.Tcb) (go_left : Bool)
-  (first : Bool) (fuel : Std.U64) :
-  Result (obj.Tcb × Bool × Bool)
-  := do
-  loop
-    (fun (p1, cur1, go_left1, first1, fuel1) => timer.insert_loop.body
-      machineStoreInst s deadline p1 cur1 go_left1 first1 fuel1)
-    (p, cur, go_left, first, fuel)
-
-/-- [fl4_core::timer::insert]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 319:0-360:1
-    Visibility: public -/
-def timer.insert
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (deadline : Std.U64) (badge : Std.U64) :
-  Result S
-  := do
-  let s1 ← timer.remove machineStoreInst s t
-  if deadline = 0#u64
-  then ok s1
-  else
-    let cpu ← machineStoreInst.cur_cpu s1
-    let cur ← timer.root machineStoreInst s1 cpu
-    let (p, go_left, first) ←
-      timer.insert_loop machineStoreInst s1 deadline 0#u64 cur false true
-        layout.TREE_FUEL
-    let b ← obj.Tcb.is_null p
-    let (s2, t1) ←
-      if b
-      then do
-           let s3 ← timer.set_root machineStoreInst s1 cpu t
-           ok (s3, t)
-      else
-        do
-        let t2 ←
-          if go_left
-          then timer.set_left machineStoreInst s1 p t
-          else timer.set_right machineStoreInst s1 p t
-        ok (t2, t)
-    let s3 ← obj.Tcb.set_timer_deadline machineStoreInst t1 s2 deadline
-    let s4 ← obj.Tcb.set_timer_badge machineStoreInst t1 s3 badge
-    let s5 ← timer.set_parent machineStoreInst s4 t1 p
-    let s6 ← timer.set_left machineStoreInst s5 t1 0#u64
-    let s7 ← timer.set_right machineStoreInst s6 t1 0#u64
-    let i ← cpu <<< 8#i32
-    let i1 ← lift (i ||| timer.RED)
-    let s8 ← obj.Tcb.set_timer_height machineStoreInst t1 s7 i1
-    let s9 ← timer.insert_fixup machineStoreInst s8 cpu t1
-    if first
-    then
-      let s10 ← obj.node_set machineStoreInst s9 cpu layout.node.TIMER_MIN t1
-      obj.node_set machineStoreInst s10 cpu layout.node.REPROGRAM 1#u64
-    else ok s9
 
 /-- [fl4_core::tcb::reply_words]:
     Source: 'crates/fl4-core/src/tcb.rs', lines 62:0-65:1 -/
