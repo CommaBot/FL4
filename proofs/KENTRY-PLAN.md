@@ -19246,3 +19246,28 @@ None (no Lean change).
 - **Findings**: none of a false invariant. Note: tdx's re-extraction adds `axiom` declarations only in the unimported
   `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
 - Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).
+
+## lci (branch par/lci in FL4-lci, from int/j5 cbded6b6, top of record `kernel_entry_reachU29`) — `handle_ioport_local` ACCEPTED: new top **`kernel_entry_reachU29I`**; no premise added; no FINDING
+- **Trace (Rust / extraction).** An accepted `handle_ioport_local s a n` has: `n ∈ {SysCall, SysSend}`, trap flag clear
+  (read at `s`), `FAULT_IP := NEXT_IP − 2` (same value as `syscall`), `update_timestamp` → `(s2, a1)`, `cptr :=` `CAP` of
+  `t` at `s2`, read-only checks at `s2` (`action`, `yield_to`, `extra_caps`, `ioport.invocation_ok`, `consumed` +
+  `sporadic.sufficient`, `schedulable_here`), then `handle_invocation s2 a1 (n = SysCall) true (n = SysCall) false
+  cptr`, `after_invocation`, `finish`. The general `syscall … n true`: same `FAULT_IP` write; flags read *after* it (the
+  top's flag fact gives trap clear there); `n` in range; `budget_ok` = the same `update_timestamp` then
+  `check_budget_restart`, which with `sufficient` at `s2` returns `(true, s2, a1)` (pf1's `check_budget_restart_suf`,
+  one domain); `fast ∧ n = SysReplyRecv` false; `dispatch_syscall s2 a1 n` reads `cur_thread s2` (= `t`: the prefix
+  misses the current-thread word), `CAP` (same read), `REPLY` (total), then the `SysSend` arm `(false, true, false,
+  false)` / `SysCall` arm `(true, true, true, false)` = the local entry's arguments; same `after_invocation`; then
+  `finish`. Identical result; no divergence (no FINDING). The local checks other than `sufficient` only narrow when
+  the local entry runs.
+- **P1 (new module `P1/FastIoLocal.lean`, root-imported after FastVmLocal):** `prefix_cur_keep` (the `FAULT_IP` write +
+  a passing `budget_ok` keep `cur_thread`; the first half of `rr_prefix_keep` without its `reply_caps` part, stated on
+  its own so FastVmLocal is untouched — other lines edit near it; `rr_prefix_keep`'s first conjunct can be re-pointed
+  at it at merge), `syscall_inv_same` (`syscall … true` for SysCall / SysSend = dispatch's invocation arm + `finish`),
+  **`ioport_local_same`** (accepted `handle_ioport_local` = `handle_syscall`, from `BXI` at the entry state and the
+  top's flag fact), **`ioport_local_triple`** (every postcondition of `handle_syscall … n` on the `true` results).
+- **P3 (new module `P3/XTopJointKEntryU29I.lean`):** **`SInvR.G5.kernel_entry_reachU29I`**: `kernel_entry_reachU29`'s
+  premises verbatim and `JReachU17 s a σ` give the `JAtZ` witnesses and, for every `n c`, under U29's syscall clause's
+  own inputs (`curThread ≠ idle`, `NativeSys n c`, the flag fact, the `KDispHypsKVU29` / `JDecMRLK` / `KFinAtR13`
+  families), `handle_ioport_local s a n ⦃ r => r.1 = true → ⟨U29's syscall postcondition at (r.2.1, r.2.2)⟩ ⦄`.
+  Premises added vs U29: none; inputs added: none (`BXI` is `J.bxi`).

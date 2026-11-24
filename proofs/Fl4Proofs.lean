@@ -26,6 +26,7 @@ import Fl4Proofs.P1.FastVm
 import Fl4Proofs.P1.FastVmInv
 import Fl4Proofs.P1.FastVmDecline
 import Fl4Proofs.P1.FastVmLocal
+import Fl4Proofs.P1.FastIoLocal
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
@@ -1476,3 +1477,4 @@ import Fl4Proofs.P3.XTopJointKEntryU28
 import Fl4Proofs.P3.XTopJointKEntryU29
 import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.XTopJointKEntryVm
+import Fl4Proofs.P3.XTopJointKEntryU29I
