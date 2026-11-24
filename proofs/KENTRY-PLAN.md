@@ -19246,3 +19246,44 @@ None (no Lean change).
 - **Findings**: none of a false invariant. Note: tdx's re-extraction adds `axiom` declarations only in the unimported
   `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
 - Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).
+
+## lcs (branch par/lcs in FL4-lcs, from int/j5 cbded6b6, top of record `kernel_entry_reachU29`) — `handle_syscall_local` ACCEPTED and pf1's VM entries at U29: `kernel_entry_reachU29S`, `kernel_entry_reachU29Vm`; no premise added; no FINDING
+- **What the extraction shows.** `syscall.handle_syscall_local s a n found` reads the current thread `t` and its flags
+  word at the entry state, writes `FAULT_IP` (`NEXT_IP - 2`), runs `update_timestamp`, and on a passing `sufficient`
+  calls `fastpath.fault … t (IScalar.hcast .U64 n)` (trap arm; `trapped_syscall_number!` extracts to the cast) or
+  `fastpath.reply_recv_found … t found.0 found.1` (trap clear, `n = SysReplyRecv`). Both are **the general entry's own
+  fast paths**: `syscall … true` takes the same `FAULT_IP` write, reads the flags word after it (the same word: FLAGS
+  at offset 3456, the register at 392), and then `unknown_syscall_fault … true` (trap) runs `budget_ok` (a passing
+  `sufficient` makes `check_budget_restart` write nothing), re-reads the current thread and calls the same
+  `fastpath.fault`; or (ReplyRecv) the range checks pass, `budget_ok` passes, and `fastpath.reply_recv` reads
+  `reply_caps` at the dispatch state, which is fl4-sync's `found`. So an accepted local run *is*
+  `handle_syscall` (no general-path reads needed, unlike the VM entries whose fast paths `handle_syscall` does not
+  run). Traced: no divergence, no FINDING.
+- **P1 (new module P1/FastSysLocal.lean):** `flags_spec_mem` / `flags_mem` (the flags word), `flags_fip` (flags past
+  the `FAULT_IP` write), `set_fip_wr`, `syscall_rr_fast` (`syscall … SysReplyRecv true` where `fastpath.reply_recv`
+  runs; `syscall_rr_true`'s accepted twin), `syscall_trap_fast` (`syscall … true` of a trapped thread where
+  `fastpath.fault` runs), **`syscall_local_same`** (accepted `handle_syscall_local` = `handle_syscall`, from `BXI` and
+  `CnOff` at the entry state and fl4-sync's `found` contract), `syscall_local_triple`, `found_vacuous` (under
+  `UnkSys`'s disjunction the `found` contract holds vacuously: `SysReplyRecv` is in range, and a set trap bit after
+  the `FAULT_IP` write is a set trap bit at entry).
+- **P1 FastVmLocal, generalised in place:** `local_prefix_keep` = pf1c's `rr_prefix_keep` body with the `reply_caps`
+  part as an implication (`∀ rptr ep, reply_caps s t = some … → reply_caps s2 t = some …`), so the trap arm (no
+  `found`) uses its current-thread half; `rr_prefix_keep` keeps its statement, proved as its instance.
+- **P3 (new module P3/XTopJointKEntryU29S.lean, root-imported last):**
+  * **`SInvR.G5.kernel_entry_reachU29S`**: U29's premises verbatim, `JReachU17 s a σ`; gives the `JAtZ` witnesses
+    and (i) under the inputs of U29's native syscall clause (`NativeSys n c`, `hflag`, `KDispHypsKVU29`, `JDecMRLK`,
+    `KFinAtR13`) plus fl4-sync's contract `∀ t f, cur_thread s = ok t → flags t s = ok f → f &&& TRAP_SYSCALLS = 0 →
+    n = SysReplyRecv → reply_caps s t = ok (some found)` (`local_syscall` computes `found` exactly so, at the entry
+    state; an input of the entry, not a state premise), an accepted `handle_syscall_local s a n found` has that
+    clause's postcondition; (ii) under the inputs of U29's unknown-syscall clause (`UnkSys`, `NoDbgSys`, `KFinEv13`),
+    with no `found` input, the unknown-syscall clause's postcondition. Proof: `kernel_entry_reachU29`'s two clauses
+    through `syscall_local_triple` (`J.bxi`, `J.cnOff`; (ii) `found_vacuous`).
+    Note: (ii) inherits the clause's [S] `NoDbgSys`: a trapped thread issuing a debug / TLS number is covered by the
+    general top only under that scope premise too (the local and general runs are the same function there).
+  * **`SInvR.G5.kernel_entry_reachU29Vm`**: pf1's `kernel_entry_reachU15Vm` at U29 (`JReachU17`,
+    `KDispHypsKVU29`, U29's postconditions incl. `JReachU17`): same proof through `kernel_entry_reachU28V` (which
+    exposes `VxE Z`, asked by `JAtZ.vmFaultOK` / `JAtZ.rrPreAtG`), the syscall clause's `KDispHypsKVU29` converted
+    by `.toU28` as `kernel_entry_reachU29` does. Inputs as U15Vm (the VM clause adds none; the ReplyRecv clause has
+    fl4-sync's `found = reply_caps` at the entry state).
+- **Premises vs U29:** none added to either top (only the entry inputs `found` and its contract, as U15Vm).
+  No existing top statement changed.

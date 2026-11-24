@@ -225,13 +225,13 @@ and a passing `budget_ok` (`update_timestamp`: the core's `CUR_TIME` and
 `CONSUMED`) write neither the current-thread word, nor `t`'s root slot or
 `REPLY` / `CAP` registers, nor a cap-slot word; so at the dispatch state the
 current thread is `t` and `reply_caps` returns what it returned at entry. -/
-theorem rr_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v rptr ep : U64}
+theorem local_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v : U64}
     (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hcC : L.cpu s ∈ Cs)
     (et : sched.cur_thread st s = ok t) (htT : t ∈ T) (hCn : CnOff (L := L) T Cs Sg s t)
     (es1 : obj.Tcb.set_reg st t s layout.reg.FAULT_IP v = ok s1)
-    (hb : syscall.budget_ok st ar s1 a = ok (true, s2, a2))
-    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (hA : P0.ArchTotal ar) :
-    sched.cur_thread st s2 = ok t ∧ fastpath.reply_caps st s2 t = ok (some (rptr, ep)) := by
+    (hb : syscall.budget_ok st ar s1 a = ok (true, s2, a2)) (hA : P0.ArchTotal ar) :
+    sched.cur_thread st s2 = ok t ∧ ∀ rptr ep, fastpath.reply_caps st s t = ok (some (rptr, ep)) →
+      fastpath.reply_caps st s2 t = ok (some (rptr, ep)) := by
   have ht' := hT t htT
   obtain ⟨hct, hcn, hne⟩ := ct_cn hN
   have hW1 := obj.Tcb.set_reg.wrK (L := L) s t layout.reg.FAULT_IP v ht' (by simp [layout.reg.FAULT_IP])
@@ -279,7 +279,8 @@ theorem rr_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v rptr ep
     rw [cur_thread_ok] at et ⊢
     rw [← ok_inj_ff et]
     unfold LawfulStore.curW; rw [eC, hm]
-  · refine reply_caps_keep (T := T) (Cs := Cs) (Sg := Sg) ht' hrc hW ?_ ?_ hCn
+  · intro rptr ep hrc
+    refine reply_caps_keep (T := T) (Cs := Cs) (Sg := Sg) ht' hrc hW ?_ ?_ hCn
     · intro K hK e
       have hK2 : K.val < 4096 ∧ K.val ≠ 392 := by
         simp [layout.reg.REPLY, layout.reg.CAP, layout.reg.R12, layout.reg.RDI] at hK; omega
@@ -295,6 +296,17 @@ theorem rr_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v rptr ep
       · rw [tvF] at e'; omega
       · unfold ctA at e'; rw [vb] at e'; simp [layout.node.CUR_TIME] at e'; omega
       · unfold cnA at e'; rw [vn] at e'; simp [layout.node.CONSUMED] at e'; omega
+
+/-- `local_prefix_keep` with `found` (the ReplyRecv entries' form). -/
+theorem rr_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v rptr ep : U64}
+    (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hcC : L.cpu s ∈ Cs)
+    (et : sched.cur_thread st s = ok t) (htT : t ∈ T) (hCn : CnOff (L := L) T Cs Sg s t)
+    (es1 : obj.Tcb.set_reg st t s layout.reg.FAULT_IP v = ok s1)
+    (hb : syscall.budget_ok st ar s1 a = ok (true, s2, a2))
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (hA : P0.ArchTotal ar) :
+    sched.cur_thread st s2 = ok t ∧ fastpath.reply_caps st s2 t = ok (some (rptr, ep)) :=
+  let h := local_prefix_keep ar hT hN hcC et htT hCn es1 hb hA
+  ⟨h.1, h.2 _ _ hrc⟩
 
 /-- **`rr_vm_local_same`: the VM-fault ReplyRecv entry beside the serial
 gate, where its fast path ran, is the general entry**
