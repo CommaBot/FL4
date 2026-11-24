@@ -46,7 +46,8 @@ theorem JAtZ.fbDelDeferJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap} 
       (.ok (), τ1) ∈ ((Fl4Spec.capDelete (Z := Unit) sl).run τs).1 ∧
       JAtZ (L := L) arI AR (Z.mv G' V') H Cs Ac' Lst' D' r.2.1 r.2.2 τ1 ∧
       LiveDN (L := L) Z.th H Cs G' r.2.1 τ1 ∧ Vs.NoSwitch τ1 ∧ SpecGlob τ1 ∧ PPR0 τ1 ∧ L.ksb r.2.1 = L.ksb s ∧
-      FbKeep τ τ1 ∧ τ1.machineState.underlyingMemory = τ.machineState.underlyingMemory ⦄ := by
+      FbKeep τ τ1 ∧ τ1.machineState.underlyingMemory = τ.machineState.underlyingMemory ∧
+      CnSlotsKept (L := L) Z.th s r.2.1 ⦄ := by
   fail "FB3 OPEN: the deferred unmap at J (KENTRY-PLAN fb3l)"
 
 end
