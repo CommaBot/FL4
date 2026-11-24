@@ -125,7 +125,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     (hrh : L.mem Y (rhA (L := L) Y) ≠ 0#u64 → L.mem Y (rhA (L := L) Y) ∈ T ∧
       R (scA (L.mem Y (rhA (L := L) Y))) ∧
       ∃ zq, SCin st Y Ω (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq ∧
-        (∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → R b) ∧
+        (∀ b, Aligned b → InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → R b) ∧
         (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) ≠ L.cscW Y →
           ∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → Outside b (L.cscW Y) zc) ∧
         (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) ≠ L.mem Y (scA d) → L.mem Y (scA d) ≠ L.cscW Y →
@@ -133,7 +133,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     (htm : L.mem Y (tmA (L := L) Y) ≠ 0#u64 → L.mem Y (tmA (L := L) Y) ∈ T ∧
       R (core.num.U64.wrapping_add (L.mem Y (tmA (L := L) Y)) 3528#u64))
     (hRV : RdVm (L := L) R Y d)
-    (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeA Y o) ∧ W (L.nodeA Y o))
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA Y o) ∧ W (L.nodeA Y o))
     (hdt : R (core.num.U64.wrapping_add (L.ksb Y) layout.ks.DOMAIN_TIME))
     (hSc : ScAcc R W (L.cscW Y) zc) (hSi : L.mem Y (scA d) ≠ L.cscW Y → ScAcc R W (L.mem Y (scA d)) zt)
     (hsc : R (scA d)) (hyt : R (yieldA d)) (hst : R (stA d)) (hrg : R (regA d layout.reg.FAULT_IP))
@@ -167,11 +167,11 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
   have e1 := post_of_ok (vspace.set_vm_root.same hA Y a d) h1
   simp only at e1; subst Yv
   simp only [Aeneas.Std.uncurry_apply_pair]
-  rw [sched.set_cur_thread.guard Y d (hNd _ (by simp [layout.node.CUR_THREAD])).2]
+  rw [sched.set_cur_thread.guard Y d (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).2]
   refine bind_guard_congr rfl fun s2 h2 => ?_
   have e2 := post_of_ok (sched.set_cur_thread.spec Y d) h2
   subst e2
-  rw [sched.set_action.guard (L.wr Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_THREAD) d) _ (by rw [nd_wr]; exact (hNd _ (by simp [layout.node.SCHED_ACTION])).2)]
+  rw [sched.set_action.guard (L.wr Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_THREAD) d) _ (by rw [nd_wr]; exact (hNd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).2)]
   refine bind_guard_congr rfl fun s3 h3 => ?_
   have e3 := post_of_ok (sched.set_action.spec _ sched.ACTION_RESUME_CURRENT) h3
   subst e3
@@ -236,7 +236,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
   refine bind_guard_congr ?_ fun p4 h4 => ?_
   · refine sched.switch_sched_context.guard hA X a1 (T := T) (zc := zc) (zt := zt) PX.hN
       (show L.mem X (scA (L.mem X (L.nodeA X layout.node.CUR_THREAD))) = L.mem Y (scA d) by rw [hcur, esc])
-      ecs (fun o ho h8 => ?_) hcX.1 hc.2.2.2 htX hSc hSi (fun o ho => by rw [nX]; exact hNd o ho)
+      ecs (fun o ho h8 => ?_) hcX.1 hc.2.2.2 htX hSc hSi (fun o ho h8 => by rw [nX]; exact hNd o ho h8)
       (show R (scA (L.mem X (L.nodeA X layout.node.CUR_THREAD))) by rw [hcur]; exact hsc)
     refine ⟨nodeAt_aligned PX.hN ho h8, node_out_place hc.2.1 PX.hΩ PX.hcC PX.hN ho h8, fun hne => ?_⟩
     exact node_out_place (ht hne).1.2 PX.hΩ PX.hcC PX.hN ho h8
@@ -315,14 +315,14 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
       rw [hqi']; exact (hSi hne).head (wfi hne)
     · have hwf : RefillsWF st s4 (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq :=
         hqin.1.writesIn w4 (sc_out_TWo P hOall hqin.2 hcC (hqc hqc') (hqi hqi'))
-      exact (⟨hqR, fun _ _ => trivial, trivial⟩ : ScAcc R (fun _ => True) _ zq).head hwf
+      exact (⟨hqR, fun _ _ _ => trivial, trivial⟩ : ScAcc R (fun _ => True) _ zq).head hwf
   have htd4 : L.mem s4 (tmA (L := L) s4) ≠ 0#u64 →
       R (core.num.U64.wrapping_add (L.mem s4 (tmA (L := L) s4)) 3528#u64) := by
     rw [tm4]; exact fun h0 => (htm h0).2
   -- `REPROGRAM`, `set_next_interrupt`
   simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
   have rpR : R (L.nodeAt s4 (L.cpu s4) layout.node.REPROGRAM) := by
-    change R (L.nodeA s4 _); rw [n4]; exact (hNd _ (by simp [layout.node.REPROGRAM])).1
+    change R (L.nodeA s4 _); rw [n4]; exact (hNd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).1
   rw [obj.node_get.guard s4 _ _ rpR, node_get_ok]
   simp only [bind_ok]
   -- the words after the switch: `ARMED`, `REPROGRAM`, `IPI_PENDING`
@@ -336,7 +336,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
   let N2 : U64 → Prop := TWo (L := L) Y O2 (L.cscW Y) (L.mem Y (scA d)) zc zt
   refine bind_guard_congr ?_ fun p5 h5 => ?_
   · split
-    · rw [sched.set_next_interrupt.guard ar s4 a2 (fun o ho => by rw [n4]; exact hNd o ho)
+    · rw [sched.set_next_interrupt.guard ar s4 a2 (fun o ho h8 => by rw [n4]; exact hNd o ho h8)
         (by rw [k4]; exact hdt) (by rw [cur4]; exact hsc) (by rw [cur4, sc4]; exact hd4) hrs4 htd4]
       refine bind_guard_congr rfl fun p6 h6 => ?_
       obtain ⟨s6, a4⟩ := p6
@@ -344,7 +344,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
       have w6 := post_of_ok (sched.set_next_interrupt.fp hA s4 a2 (B := fun _ => True) P4.hN trivial) h6
       have e : L.nodeAt s6 (L.cpu s4) layout.node.REPROGRAM = L.nodeA Y layout.node.REPROGRAM := by
         rw [nodeAt_of_ksb w6.1]; exact n4 _
-      rw [obj.node_set.guard s6 _ _ _ (by rw [e]; exact (hNd _ (by simp [layout.node.REPROGRAM])).2)]
+      rw [obj.node_set.guard s6 _ _ _ (by rw [e]; exact (hNd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).2)]
     · rfl
   obtain ⟨s5, a3⟩ := p5
   simp only [Aeneas.Std.uncurry_apply_pair]
@@ -373,8 +373,8 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
   have P5 := P4.ksb w5.1 w5.2.1
   have n5 : ∀ o, L.nodeAt s5 (L.cpu s5) o = L.nodeA Y o := fun o => by
     rw [w5.2.1, nodeAt_of_ksb w5.1]; exact n4 o
-  rw [smp.send_pending.guard ar s5 a3 (by rw [n5]; exact (hNd _ (by simp [layout.node.IPI_PENDING])).1)
-    (by rw [n5]; exact (hNd _ (by simp [layout.node.IPI_PENDING])).2)]
+  rw [smp.send_pending.guard ar s5 a3 (by rw [n5]; exact (hNd _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])).1)
+    (by rw [n5]; exact (hNd _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING])).2)]
   refine bind_guard_congr rfl fun p6 h6 => ?_
   obtain ⟨s6, a4⟩ := p6
   simp only [Aeneas.Std.uncurry_apply_pair]
@@ -402,12 +402,12 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
   have hmx : R (maxA (L.mem s6 (scA d))) := by
     rw [sc6]
     by_cases hic : L.mem Y (scA d) = L.cscW Y
-    · rw [hic]; exact hSc.rd _ hc.2.2.2.1
-    · exact (hSi hic).off (ht hic).1.1 layout.sc.REFILL_MAX (by simp [layout.sc.REFILL_MAX])
+    · rw [hic]; exact hSc.rd _ hc.2.2.2.2 hc.2.2.2.1
+    · exact (hSi hic).off (ht hic).1.1 layout.sc.REFILL_MAX (by simp [layout.sc.REFILL_MAX]) (by simp [layout.sc.REFILL_MAX])
   have hn6 : NodeSt (L := L) R W s6 := by
     unfold NodeSt; rw [n6, n6]
-    exact ⟨(hNd _ (by simp [layout.node.CUR_THREAD])).1, (hNd _ (by simp [layout.node.SCHED_ACTION])).1,
-      (hNd _ (by simp [layout.node.SCHED_ACTION])).2⟩
+    exact ⟨(hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, (hNd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1,
+      (hNd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).2⟩
   exact sched.activate_thread.guard ar s6 a4 cur6 hd' y6 hn6 hyt hst hrg hwr hw hsc hmx hinq
 
 end

@@ -186,6 +186,7 @@ import Fl4Proofs.P2.AccessFault
 import Fl4Proofs.P2.AccessReply
 import Fl4Proofs.P2.AccessSwitchTo
 import Fl4Proofs.P2.AccessFastFault
+import Fl4Proofs.P2.AccessFastRR
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine

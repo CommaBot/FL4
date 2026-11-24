@@ -187,7 +187,7 @@ sizes): the words the guarded sets `R` / `W` must hold for
 `fastpath.fault.guard`. -/
 structure FltAcc (Z : U64 → Nat) (R W : U64 → Prop) (s : S) (t ptr dest r : U64) : Prop where
   /-- The current core's node, read and written (`switch_to`'s tail). -/
-  nd : ∀ o : U64, o.val < 4288 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o)
+  nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o)
   dt : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME)
   cd : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN)
   kr : R (krA (L := L) s)
@@ -231,7 +231,7 @@ structure FltAcc (Z : U64 → Nat) (R W : U64 → Prop) (s : S) (t ptr dest r : 
   /-- The timer-min thread's deadline, the release head's SC. -/
   tm : L.mem s (tmA (L := L) s) ≠ 0#u64 → R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)
   rh : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
-    (∀ b, InSC (L.mem s (scA (L.mem s (rhA (L := L) s)))) (Z (L.mem s (scA (L.mem s (rhA (L := L) s))))) b → R b) ∧
+    (∀ b, Aligned b → InSC (L.mem s (scA (L.mem s (rhA (L := L) s)))) (Z (L.mem s (scA (L.mem s (rhA (L := L) s))))) b → R b) ∧
     RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s))))
 
 set_option maxHeartbeats 8000000 in
@@ -515,7 +515,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
   have hrhG : L.mem Y (rhA (L := L) Y) ≠ 0#u64 → L.mem Y (rhA (L := L) Y) ∈ T ∧
       R (scA (L.mem Y (rhA (L := L) Y))) ∧
       ∃ zq, SCin st Y Ω (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq ∧
-        (∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → R b) ∧
+        (∀ b, Aligned b → InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → R b) ∧
         (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) ≠ L.cscW Y →
           ∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zq b → Outside b (L.cscW Y) (Z (L.cscW Y))) ∧
         (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) ≠ L.mem Y (scA dest) → L.mem Y (scA dest) ≠ L.cscW Y →
@@ -562,9 +562,9 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     have hm := hWY.min_le
     rw [h0] at hm
     simp [sporadic.MIN_REFILLS] at hm
-  have hNdY : ∀ o : U64, o.val < 4288 → R (L.nodeA Y o) ∧ W (L.nodeA Y o) := fun o ho => by
+  have hNdY : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA Y o) ∧ W (L.nodeA Y o) := fun o ho h8 => by
     show R (L.nodeAt Y (L.cpu Y) o) ∧ W (L.nodeAt Y (L.cpu Y) o)
-    rw [eNY]; exact K.nd o ho
+    rw [eNY]; exact K.nd o ho h8
   have hSw := fastpath.switch_to.guard hA Y a P hcY htY hactY (by rw [eyY]; exact hy0 hc) hrhG htmG hRV hNdY
     (by rw [kY]; exact K.dt) (by rw [ecY]; exact K.csc) (fun _ => by rw [escY]; exact K.dsc)
     K.dsc0 K.dyt K.dst K.dfi (K.dreg _ (by simp [layout.reg.NEXT_IP])) K.dw.2.2.2.2 K.diq
@@ -574,7 +574,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
   obtain ⟨slb, hslb⟩ : ∃ sl, obj.Tcb.slot dest layout.tcb.SLOT_BUFFER = ok sl := by
     unfold obj.Tcb.slot; simp only [lift, bind_ok]; exact ⟨_, rfl⟩
   have hBm : RdBitmap (L := L) R s :=
-    ⟨(K.nd _ (by simp [l1Off])).1, fun inv hinv => (K.nd _ (by simp; omega)).1⟩
+    ⟨(K.nd _ (by simp [l1Off]) (by simp [l1Off])).1, fun inv hinv => (K.nd _ (by simp; omega) (by simp <;> omega)).1⟩
   have tailEq : faultTailG (PathObl.guard st R W) ar s a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall
       ptr badge dest r = ok (true, x1, x2) := by
     have tf := fun (K' : U64) (hK : K'.val = 3376 ∨ K'.val = 3384 ∨ K'.val = 3392 ∨ K'.val = 3400) => K.tf K' hK
@@ -588,12 +588,12 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [faultTail3_split ar (PathObl.guard st R W)]
     have h15f : endpoint.unblock_sporadic st (fS14 (L := L) S8 t dest r) dest = ok s15 := h15
     rw [endpoint.unblock_sporadic.guard _ dest K.dsc0 (by rw [esc14]; exact K.spo)
-      (by rw [KF.cpu, nodeAt_of_ksb KF.ksb]; exact (K.nd _ (by simp [layout.node.CUR_SC])).1)
+      (by rw [KF.cpu, nodeAt_of_ksb KF.ksb]; exact (K.nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1)
       (by rw [esc14]; exact K.dsc) (by rw [esc14]; exact hW14) hUo.rp
       (by show R (L.nodeAt _ (L.cpu _) _); rw [KF.cpu, nodeAt_of_ksb KF.ksb];
-          exact (K.nd _ (by simp [layout.node.CUR_TIME])).1)
+          exact (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1)
       (by show W (L.nodeAt _ (L.cpu _) _); rw [KF.cpu, nodeAt_of_ksb KF.ksb];
-          exact (K.nd _ (by simp [layout.node.REPROGRAM])).2), h15f]
+          exact (K.nd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).2), h15f]
     simp only [bind_ok]
     rw [obj.Tcb.set_sched_next.guard dest s15 _ K.dw.2.2.1, obj.Tcb.set_sched_next.ok]; simp only [bind_ok]
     rw [obj.Tcb.set_sched_prev.guard dest _ _ K.dw.2.2.2.1, obj.Tcb.set_sched_prev.ok]; simp only [bind_ok]
@@ -601,7 +601,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     simp only [bind_ok]
     rfl
   unfold fastpath.fault
-  rw [sched.action.guard s (K.nd _ (by simp [layout.node.SCHED_ACTION])).1, hc.act]
+  rw [sched.action.guard s (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1, hc.act]
   simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
   rw [hsl]; simp only [bind_ok]
   rw [obj.Slot.cap.guard sl s (K.fh sl hsl).1 (K.fh sl hsl).2, hcap]; simp only [bind_ok]
@@ -617,8 +617,8 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [obj.Ep.head.guard ptr s K.eph.1, hc.head]; simp only [bind_ok]
     rw [obj.Tcb.reply_obj.guard dest s K.drp, hc.reply]; simp only [bind_ok]
     rw [if_neg hc.r0]
-    rw [fastpath.schedulable_here.guard s dest (K.nd _ (by simp [layout.node.CUR_TIME])).1
-      (K.nd _ (by simp [layout.node.TIMER_MIN])).1 (K.nd _ (by simp [layout.node.RELEASE_HEAD])).1
+    rw [fastpath.schedulable_here.guard s dest (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
+      (K.nd _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 (K.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
       K.tm hrs K.dt K.cd K.daf K.ddo K.dsc0 K.diq, hc.here]
     simp only [bind_ok, ↓reduceIte]
     rw [sched.cur_domain.guard s K.cd, hdm]; simp only [bind_ok]
