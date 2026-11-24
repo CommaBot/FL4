@@ -255,19 +255,31 @@ theorem KWOut.dbg {th : TypedHeap} {T Cs Sg Scs Es : Set U64} {Z : U64 → Nat} 
     · exact hK a ha _ (P1.kw_node (o := 80#u64) hc (by simp) (by simp)) ⟨by omega, by omega⟩
     · exact hK a ha _ (P1.kw_node (o := 96#u64) hc (by simp) (by simp)) ⟨by omega, by omega⟩
 
+/-- **A P1 `FootDU` step keeps every slot word** (int6: `slotsSame_of_footD` with the user words `U`, given they
+lie in no slot). -/
+theorem slotsSame_of_footDU {th : TypedHeap} (hP : Placed th) {T Cs Sg Scs Es U : Set U64} {Z : U64 → Nat}
+    {s s' : S}
+    (hK : KWOut (st := st) th T Cs Sg Scs Z Es s) (hT : P1.TcbPlaced T) (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
+    (hw : P1.FootDU st T Cs Sg Scs Z Es U s s')
+    (hU : ∀ a, IsSlot th a → ∀ b ∈ U, ¬ (a.val ≤ b.val ∧ b.val < a.val + 32)) :
+    SlotsSame th (L.mem s) (L.mem s') := by
+  intro a ha
+  have w : ∀ k, Off k → L.mem s' (wordOf a k) = L.mem s (wordOf a k) := fun k hk =>
+    hw.mem_eq (slot_word_aligned hP ha hk) fun hb => hb.elim (fun hb => hb.elim
+      (fun hb => hK a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega))
+      (fun hb => KWOut.dbg hK hT hN a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega)))
+      (fun hu => hU a ha _ hu ⟨by rw [slot_word_val hP ha hk]; omega,
+        by rw [slot_word_val hP ha hk]; have := hk.lt; omega⟩)
+  refine ⟨?_, w _ (Or.inr (Or.inl rfl)), w _ (Or.inr (Or.inr (Or.inl rfl))), w _ (Or.inr (Or.inr (Or.inr rfl)))⟩
+  have := w _ (Or.inl rfl)
+  rwa [wordOf_zero] at this
+
 /-- **A P1 `FootD` step keeps every slot word.** -/
 theorem slotsSame_of_footD {th : TypedHeap} (hP : Placed th) {T Cs Sg Scs Es : Set U64} {Z : U64 → Nat} {s s' : S}
     (hK : KWOut (st := st) th T Cs Sg Scs Z Es s) (hT : P1.TcbPlaced T) (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
     (hw : P1.FootD st T Cs Sg Scs Z Es s s') :
-    SlotsSame th (L.mem s) (L.mem s') := by
-  intro a ha
-  have w : ∀ k, Off k → L.mem s' (wordOf a k) = L.mem s (wordOf a k) := fun k hk =>
-    hw.mem_eq (slot_word_aligned hP ha hk) fun hb => hb.elim
-      (fun hb => hK a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega))
-      (fun hb => KWOut.dbg hK hT hN a ha _ hb (by rw [slot_word_val hP ha hk]; have := hk.lt; omega))
-  refine ⟨?_, w _ (Or.inr (Or.inl rfl)), w _ (Or.inr (Or.inr (Or.inl rfl))), w _ (Or.inr (Or.inr (Or.inr rfl)))⟩
-  have := w _ (Or.inl rfl)
-  rwa [wordOf_zero] at this
+    SlotsSame th (L.mem s) (L.mem s') :=
+  slotsSame_of_footDU hP hK hT hN (U := ∅) (P1.FootD.u hw) fun _ _ _ hb => absurd hb (Set.notMem_empty _)
 
 /-- **`SetPrioHyp` discharged** from P1's `sched.set_priority.blk`: after the
 caller's restart, P1's `BlkOK` with `set_priority`'s current-thread

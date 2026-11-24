@@ -20,6 +20,7 @@ theorem** (INV-PLAN §1.U3L D6).
 -/
 import Fl4Proofs.P3.G7eChain
 import Fl4Proofs.P3.XTopJointKEntryU5
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5
@@ -60,12 +61,13 @@ theorem kfin_tail_of {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
     · exact h
     · exact ⟨V1, Ac1, Lst1, D2, J1.toR⟩
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
-  have hfk := spec_ok_post (P1.timer.fire.kw hAT hNt s a J.blk) hfr
+  have hfk := spec_ok_post (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a J.blk J.bufAtJ) hfr
   simp only [WP.uncurry'_pair] at hfk
-  have hm := J.fire_ks hfk
+  have hUk := fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8
+  have hm := J.fire_ks hfk hUk
   have hdt1 : σ1.domainTime ≠ 0 ∨ NdOK (L := L) s1 σ1 :=
     hd.imp (fun h => by rw [fire_dt J.xtop.fin.1.1.1 J1.xtop.fin.1.1.1 hfk.1 hm]; exact h)
-      (fun h => J.ndOK_fire h hfk hF)
+      (fun h => J.ndOK_fire h hfk hUk hF)
   have hfire : timer.fire st arI s a ⦃ r => ∃ σ1', Fires σ σ1' ∧ SchedRel st Z.N Z.T Z.C Z.c r.1 σ1' ∧
       NtfnStateRel Z.N Z.T (L.mem r.1) σ1' ∧ NSC Z.N Z.C σ1' ∧ SchedPreW0R Z.T Z.C σ1' ∧
       ((σ1'.domainTime ≠ 0 ∨ NdOK (L := L) r.1 σ1') ∧

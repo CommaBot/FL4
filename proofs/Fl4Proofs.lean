@@ -228,6 +228,7 @@ import Fl4Proofs.P3.ScUtRetypeDev
 import Fl4Proofs.P3.ScRemoveTcb
 import Fl4Proofs.P3.JCarryDefs
 import Fl4Proofs.P3.JointAt
+import Fl4Proofs.P3.BufAtJ
 import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.ScJointKeep
 import Fl4Proofs.P3.ScBsaOps
@@ -503,6 +504,7 @@ import Fl4Proofs.P3.IpcCancelFr
 import Fl4Proofs.P3.IpcCancelF
 import Fl4Proofs.P3.XTopJointCancel
 import Fl4Proofs.P3.IpcSignalBound
+import Fl4Proofs.P3.SigNoVm
 import Fl4Proofs.P3.ScSignalBoundJ
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -727,6 +729,7 @@ import Fl4Proofs.P3.XTopJointRecvMid
 import Fl4Proofs.P3.XTopJointJAtZS
 import Fl4Proofs.P3.XTopJointKEntry3
 import Fl4Proofs.P3.XTopJointJAtZR
+import Fl4Proofs.P3.BufAtJR
 import Fl4Proofs.P3.XTopJointJAtZRS
 import Fl4Proofs.P3.ScNextDomCFR
 import Fl4Proofs.P3.XTopJointJAtZRA

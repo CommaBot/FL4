@@ -183,17 +183,17 @@ theorem cand_choose.sfi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     ((hS.fr f5).fr f6).sg hf ha hK) fun r hr => by
       obtain ⟨s', a'⟩ := r; exact ((Foot.trans F5 F6).sfi hf ha hK).trans (by simpa using hr)
 
-theorem sched.schedule.sfi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
+theorem sched.schedule.sfi {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.ksb s).val % 8 = 0)
-    (hK : KWApart (L := L) T Cs Sg Scs Z (EH H) s) :
+    (hK : KWApart (L := L) T Cs Sg Scs Z (EH H) s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     sched.schedule st ar s a ⦃ s' _ => ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
-      FootD st T Cs Sg Scs Z (EH H) s rf.1 ∧ SFI (st := st) T Cs Sg Scs Z H (L.ksb s) rf.1 s' ⦄ := by
+      FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ SFI (st := st) T Cs Sg Scs Z H (L.ksb s) rf.1 s' ⦄ := by
   unfold sched.schedule sched.awaken
   -- `awaken`
   refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ ∃ rf : S × A,
-      timer.fire st ar s a = ok rf ∧ FootD st T Cs Sg Scs Z (EH H) s rf.1 ∧ SFI (st := st) T Cs Sg Scs Z H (L.ksb s) rf.1 r.1) ?_ ?_
-  · refine WP.spec_bind (spec_eq' (timer.fire.tinvF hA hNt s a h.tinv)) ?_
+      timer.fire st ar s a = ok rf ∧ FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ SFI (st := st) T Cs Sg Scs Z H (L.ksb s) rf.1 r.1) ?_ ?_
+  · refine WP.spec_bind (spec_eq' (timer.fire.tinvF hA IK hNt s a h.tinv hBA)) ?_
     rintro ⟨s1, a1⟩ ⟨hf1, ⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, F1⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (WP.spec_and (sched.awaken_loop.sch s1 _ Q1 R1 h1 hB1 hS1.sg)
@@ -384,15 +384,15 @@ theorem sched.schedule.sfi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
 
 
 /-- **FL4's `schedule` keeps the `DOM_SCHED_IDX` word 0** (module docstring). -/
-theorem sched.schedule.idx {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
+theorem sched.schedule.idx {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.ksb s).val % 8 = 0)
-    (hK : KWApart (L := L) T Cs Sg Scs Z (EH H) s)
-    (hfd : ∀ s1, FootD st T Cs Sg Scs Z (EH H) s s1 → ∀ o : U64, o.val < 256 → o.val % 8 = 0 →
+    (hK : KWApart (L := L) T Cs Sg Scs Z (EH H) s) (hBA : BufAt st T Cs H Sg Scs Z U s)
+    (hfd : ∀ s1, FootDU st T Cs Sg Scs Z (EH H) U s s1 → ∀ o : U64, o.val < 256 → o.val % 8 = 0 →
       L.mem s1 (ksW (L.ksb s) o) = L.mem s (ksW (L.ksb s) o))
     (hI : IdxI (L.ksb s) (L.mem s)) :
     sched.schedule st ar s a ⦃ s' _ => L.mem s' (ksW (L.ksb s) 24#u64) = 0#u64 ⦄ := by
-  refine WP.spec_mono (sched.schedule.sfi hA hNt s a h hf ha hK) fun r hr => ?_
+  refine WP.spec_mono (sched.schedule.sfi hA IK hNt s a h hf ha hK hBA) fun r hr => ?_
   obtain ⟨s', a'⟩ := r
   simp only [WP.uncurry'_pair] at hr ⊢
   obtain ⟨rf, -, Fd, F⟩ := hr
@@ -418,10 +418,14 @@ theorem fire_ks_of {H : P1.Heap} {Cs : Set U64} {s s1 : S}
     (hH : P1.HeapOK H)
     (hKW : KWApart (L := L) (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s)
     (hnpl : ∀ c ∈ Cs, P1.NodePlaced st (P1.Heap.tcbs H) s c)
-    (hf : P1.FootD st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s1) :
+    {U : Set U64} (hf : P1.FootDU st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) U s s1)
+    (hU : ∀ b ∈ U, ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b) :
     ∀ o : U64, o.val < 256 → o.val % 8 = 0 → L.mem s1 (ksW (L.ksb s) o) = L.mem s (ksW (L.ksb s) o) := by
   intro o ho h8
   refine hf.mem_eq (ksW_al hkf hka ho h8) fun hb => ?_
+  rcases hb with hb | hu
+  swap
+  · exact hU _ hu o (by omega) h8 rfl
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   rcases hb with hb | hb
   · rcases hKW _ (ksW_al hkf hka ho h8) hb with e | e <;> rw [hv] at e <;> omega

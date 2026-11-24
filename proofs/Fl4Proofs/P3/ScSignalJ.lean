@@ -41,6 +41,8 @@ import Fl4Proofs.P3.IpcSignalWake
 import Fl4Proofs.P3.ScSignalDonJ
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -217,7 +219,7 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
-  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH)
+  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2
   -- the badge-only branches
   have post : ∀ (y : Fl4Spec.Notification), (∀ l, x.ntfnObj ≠ .waitingNtfn l) → (∀ l, y.ntfnObj ≠ .waitingNtfn l) →
       y.ntfnBoundTcb = x.ntfnBoundTcb → y.ntfnSc = x.ntfnSc →

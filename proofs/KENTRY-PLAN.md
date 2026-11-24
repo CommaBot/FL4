@@ -19580,14 +19580,17 @@ None (no Lean change).
   under **`NoVmSig st n s`** (`epState ≠ NTFN_IDLE ∨` the bound thread is not `TS_RUNNING_VM`) the old `FootD` /
   `DonCore → Foot` footprints (P3's wake proofs, which need `KW`, use it).
 
-- **P3 call sites (core, in progress)**: the signal sites use `J.bufAt.1 J.bufAt.2` and, for `tinvF`'s narrow
+- **P3 call sites (core)**: the signal sites use `J.bufAtJ.1 J.bufAtJ.2` and, for `tinvF`'s narrow
   footprint, `Ipc.noVm_of_recv` / `Ipc.noVm_of_ntfn` (new `P3/SigNoVm`); the whole-loop sites pass
-  `(P1.ibKeep_holds hAT)` and `J.bufAt`; `fire_ks` / `ndOK_fire` / `fire_ks_of` take `FootDU … U` with
-  `hU` (`(J.bufAt.1 b hb).ks`). **Needed from a6f besides `JAtZ.bufAt`: `JAtZR.bufAt`** (same statement for
-  `JAtZR`; it has `bok`, `fcov`, `buf`, `jpl`, `thT`, `ks`, `blk`), used in XTopJointJAtZRB, G7eRoot/G7eTail,
-  XTopJointSchedRF3 / SchedIdx callers; and **`JAtZR.bufU_noSlot` / `JAtZ.bufU_noSlot`: `∀ a, IsSlot Z.th a →
-  ∀ b ∈ BufU Z σ, ¬ (a.val ≤ b.val ∧ b.val < a.val + 32)`** (from `J.xtop.rel.2.2.2.2.2.1 : IpcApart` and
-  `bufU_B`) for `slotsSame_of_footDU` in G7eRoot.
+  `(P1.ibKeep_holds hAT)` and `J.bufAtJ`; `fire_ks` / `ndOK_fire` / `fire_ks_of` take `FootDU … U` with
+  `hU` (`(J.bufAtJ.1 b hb).ks`). The signal and scheduler cones (ScSignal*J, ScFireJ, ScSchTailP1) lie
+  **upstream** of XTopJointData / XTopJointXferB / XTopJointKEntryFF, where the buffer lemmas were, so the core
+  moved them (unchanged names and statements) to the new early module **`P3/BufAtJ`** (after JointAt): `RBufW`,
+  `RcvBufW`, `BufU`, `buf_frame_rng`, `fl4BufA_bv`, `bufCover_of_frameCover`, `JAtZ.thTcb`, `JAtZ.bufWordG`,
+  `JAtZ.rbufU`, `JAtZ.bufU_B`, `JAtZ.bufU_rbuf`, `JAtZ.bufOK`; new there `JAtZ.usrWJ` / **`JAtZ.bufAtJ`** (a6f's
+  `bufUsrW` / `bufAt` proof, under names that do not clash with BufKeepJ's) and **`JAtZ.bufU_noSlot`**
+  (`BufPlaced.slot`). **`P3/BufAtJR`** (after XTopJointJAtZR) has the `JAtZR` copies (`JAtZR.bufAtJ`,
+  `JAtZR.bufU_noSlot`, …), so a6f need not provide them.
 
 ## a6x (branch par/a6x from int/j6 f76327d6) — gap 2 of int6 (cont.): `XG` reaches `finish` on every native path; two new P1 modules, no statement changed, no premise added
 - **Modules** `P1/EntryXG` (IPC paths) and `P1/EntryXGTop` (budget check, yield, IRQ, composites), root-imported. `XG`

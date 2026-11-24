@@ -36,6 +36,7 @@ import Fl4Proofs.P3.XTopJointKEntryRRF
 import Fl4Proofs.P3.XTopJointXferB
 import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P1.FastFaultEntU
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -61,10 +62,6 @@ theorem nb_of_code {ts : Fl4Spec.ThreadState} (h : NotIpcBlk ts) {w : U64} (hv :
     cases ts <;> simp [tsCode] at hv
     exact n1 _ rfl
 
-/-- The IPC-buffer words of the TCBs of `Z.T`. -/
-def BufU (Z : XSets) (σ : Fl4Spec.State Unit) : Set U64 :=
-  {b | ∃ y ∈ Z.T, ∃ xd, σ.kheap y.bv = some (.tcb xd) ∧ RcvBufW xd b}
-
 /-- The ASID-table and pool words. -/
 def VsU (Z : XSets) (kb : U64) : Set U64 := {b | VsWrite Z.P kb b}
 
@@ -77,19 +74,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {MR : A → Fl4Spec.MachineState → Prop}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
-
-theorem JAtZ.bufU_B {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {b : U64} (hb : b ∈ BufU Z σ) : ∃ wp ∈ Z.B, wp.1 = b := by
-  obtain ⟨y, hy, xd, hk, rp, hrp, i, hi, rfl⟩ := hb
-  obtain ⟨-, hBC, -⟩ := J.xferH
-  exact ⟨_, hBC y hy xd true rp hk hrp ⟨rp⟩ rfl i hi, rfl⟩
-
-theorem JAtZ.bufU_rbuf {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {b : U64} (hb : b ∈ BufU Z σ) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
-      (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧
-      b ∉ P1.Heap.frame H := by
-  obtain ⟨y, hy, xd, hk, hb'⟩ := hb
-  exact J.rbufU hy (J.thTcb hy) hk b hb'
 
 theorem JAtZ.vsU_place {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : b ∈ VsU Z (L.ksb s)) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
@@ -161,23 +145,6 @@ theorem JAtZ.bufU_out {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     have hO : OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b :=
       Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hwp, by rw [e], by rw [e]; omega⟩))))))
     exact J.xtop.fin.1.2.disj b hO (vsWrite_vobj J.xtop.fin.1.2.vs hv)
-
-/-- **Every TCB's receive buffer in `BufU`** (module docstring). -/
-theorem JAtZ.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {y : U64} (hy : y ∈ P1.Heap.tcbs H) :
-    msg.lookup_ipc_buffer st s true y ⦃ w => P1.BufOK (BufU Z σ) w ⦄ := by
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have hth : Z.th y = some .tcb := (hJ.tcb y).2 hy
-  have hyT := J.thT y hth
-  obtain ⟨xd, hk, hws⟩ := J.buf y hyT
-  refine WP.spec_mono (lookup_buf_full s σ J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.1 hth hk J.xferH.1 true) ?_
-  rintro w ⟨h0, hp⟩ hw0 i hi
-  cases hb : Endp.ipcBufOf true xd with
-  | none => exact absurd (h0.2 hb) hw0
-  | some p' =>
-    have e := hp hws p' hb
-    subst e
-    exact ⟨y, hyT, xd, hk, _, hb, i, hi, rfl⟩
 
 /-- **The current thread not blocked** where `CurInv` holds (module
 docstring). -/

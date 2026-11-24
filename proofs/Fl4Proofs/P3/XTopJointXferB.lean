@@ -28,6 +28,7 @@ blocked but in no queue, so no `JAtZ` state), and the way back to `JAtZ`.
 -/
 import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.BufJ
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -331,9 +332,6 @@ theorem do_ipc_transfer_regsJ {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : S
 
 
 /-! ## The receiver's buffer words and the transfer's footprint with them -/
-
-/-- The 128 IPC-buffer words at FL4 address `rw`. -/
-def RBufW (rw b : U64) : Prop := ∃ i : U64, i.val < 128 ∧ b = Endp.fl4BufA rw i
 
 /-- `RBufW` as a list. -/
 def rbList (rw : U64) : List U64 := (List.range 128).map fun k => Endp.fl4BufA rw ⟨BitVec.ofNat 64 k⟩
@@ -761,9 +759,6 @@ theorem JAtZ.bufRebase (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U6
 
 /-! ## The uniform transfer step -/
 
-/-- The receiver's buffer words (none without a receive buffer). -/
-def RcvBufW (xd : Fl4Spec.Tcb) (b : U64) : Prop := ∃ rp, Endp.ipcBufOf true xd = some rp ∧ RBufW ⟨rp⟩ b
-
 /-- **No cap transferred**: no grant, no sender buffer, no extra caps, or
 no receive buffer. -/
 def XferNoCap (g : Bool) (xs xd : Fl4Spec.Tcb) : Prop :=
@@ -772,38 +767,6 @@ def XferNoCap (g : Bool) (xs xd : Fl4Spec.Tcb) : Prop :=
     Endp.ipcBufOf true xd = none
 
 theorem setUm_self (σ0 : Fl4Spec.State Unit) : Endp.setUm σ0 σ0.machineState.underlyingMemory = σ0 := rfl
-
-set_option maxHeartbeats 8000000 in
-/-- The receiver's buffer words at `J` are untracked for P1 (`JAtZ.bufWord`,
-`JAtZ`'s `nodeB`). -/
-theorem JAtZ.rbufU (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U64}
-    (hdT : d ∈ Z.T) (hdth : Z.th d = some .tcb) {xd : Fl4Spec.Tcb} (hkd : σ.kheap d.bv = some (.tcb xd)) :
-    ∀ b, RcvBufW xd b → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
-      (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧ b ∉ P1.Heap.frame H := by
-  rintro b ⟨rp, hrp, i, hi, rfl⟩
-  obtain ⟨hOK, hBC, -⟩ := J.xferH
-  have hwB := hBC d hdT xd true rp hkd hrp ⟨rp⟩ rfl i hi
-  have hal := (J.xtop.fin.1.2.ep.balign _ hwB).1
-  obtain ⟨hAp, -⟩ := J.bufWord hOK hdth hkd hrp i.val hi (b := Endp.fl4BufA ⟨rp⟩ i) (by rw [fl4BufA_bv])
-  refine ⟨⟨hal, fun t ht => ?_, fun c hc => ?_⟩, fun e he => ?_, fun hf => ?_⟩
-  · rcases hAp t .tcb ht (fun _ e => by cases e) with e | e
-    · left; omega
-    · right; simpa [P1.HKind.bits] using e
-  · have e := J.nodeB _ hwB c (J.kern.csLt c hc)
-    dsimp only at e
-    rcases e with e | e <;> omega
-  · rcases he with he | he
-    · rcases hAp e _ he (fun _ e => by cases e) with e | e
-      · left; omega
-      · right; simp only [P1.HKind.bits] at e; omega
-    · rcases hAp e _ he (fun _ e => by cases e) with e | e
-      · left; omega
-      · right; simp only [P1.HKind.bits] at e; omega
-  · obtain ⟨-, p, k, hp, hk, hin⟩ := hf
-    have hko : ∀ z, k ≠ .other z := by
-      rcases hk with rfl | ⟨z, rfl⟩ | ⟨rfl, -⟩ <;> intro z e <;> cases e
-    obtain ⟨g1, g2⟩ := hin
-    rcases hAp p k hp hko with e | e <;> omega
 
 set_option maxHeartbeats 8000000 in
 /-- `JAtZ.bufRebase` for the receiver's buffer words, none or some. -/
