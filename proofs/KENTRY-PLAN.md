@@ -19537,3 +19537,47 @@ None (no Lean change).
 - **FINDINGs.** (1) closed upstream by #96 (A64 extracts, 0 sorry). (2) `xtask extract --arch aarch64` exits 1 on
   `a64_funs_external`'s template equality (x86 has `Result.is_err`, A64 does not); tooling only, no kernel bug.
   No kernel behaviour bug found.
+
+## a6f (branch par/a6f, from int/j6 f76327d6) — gap 1: the buffer words inside `schedule` (statement first, proofs follow)
+- **Why a footprint refinement.** `lookup_ipc_buffer st s true y` reads three words of TCB `y` (`lookup_buf_agreeB`):
+  `ibA y` (TCB+3512, `IPC_BUFFER`), `sbA y` and `sbA y + 8` (the buffer cap slot, TCB+64/72). The slot words are outside
+  `KW` already (offset < 192, and `KW`'s other words are nodes / `Sg` / SC / endpoint words, all outside the TCBs), but
+  `ibA y` is a `KW` word (TCB clause, 192 ≤ K < 4096). No operation under `schedule` writes offset 3512, so the
+  refinement is `KW` with offset 3512 left out of the TCB clause, exactly as the debug links 3576/3584 already are.
+  `KW`/`Foot`/`FootD` are unchanged; each refined lemma is a new `…B` lemma, the original kept as its instance
+  (`(….kwB …).foot`).
+- **P1 interface (QueueFoot, QueueFinal), names fixed:**
+  - `KWB st T Cs Sg Scs Z Es s0 b` (= `KW` with `K.val ≠ 3512` in the TCB clause), `KWB.kw`, `KWB.ksb`, `KWB.mono`;
+    `FootB` (`WritesIn … (KWB … s)`), `FootB.foot : FootB → Foot`, `FootB.refl/trans/mono/of/of'/of0`,
+    `kwB_field` (`hKd : K.val ≠ 3576 ∧ K.val ≠ 3584 ∧ K.val ≠ 3512`), `kwB_node`, `kwB_sg`, `kwB_sc`, `kwB_ep`,
+    `footB_wr`, `footB_field`, `footB_node`, `LinkOf.kwB`, `LawfulStore.NodeOf.kwB`, `LawfulStore.QFoot.kwB`,
+    `EpFoot.kwB`, `InRing.kwB`; in QueueFinal `FootDB` (`WritesIn (KWB ∨ DbgW)`), `FootB.d`, `FootDB.footD`,
+    `FootDB.trans`, `FootDB.mono`.
+  - `ibA`, `sbA`, `ipc_buffer_ok`, `sbA_val`, `lookup_buf_agreeB`, `lookup_buf_agree` move from FastFaultInv to
+    QueueFoot (same names and statements, so the core line can use them under QueueSignal).
+  - `BufW st T b` (`∃ y ∈ T, b = ibA y ∨ b = sbA y ∨ b = sbA y +w 8`);
+    `BufKeep st T s s'` (the three words of every `y ∈ T` equal), `BufKeep.refl/trans`;
+    `BufFact st T Bok s := ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ Bok ⦄` (`Bok` generic: the core uses
+    `BufOK U`), **`BufFact.keep : BufFact T Bok s → BufKeep T s s' → BufFact T Bok s'`**.
+  - `BufKeep.of_writes (hT : TcbPlaced T) (w : WritesIn st s s' B) (hB : ∀ b, Aligned b → B b → ¬ BufW st T b)`;
+    `notBufW_out` (an `OutsideObjs` word), `notBufW_dbg` (a `DbgW` word), `kwB_notBufW` (a `KWB` word, from
+    `SchedQueuesInvX`/`ObjsOK`/`Sg ⊆ Ω`/`Es` typed, as `kw_not_dbg`);
+    **`BufKeep.of_footB`, `BufKeep.of_footDB`** (from the invariants at the start state) and
+    **`BufKeep.of_footDBU (hU : ∀ b ∈ U, OutsideObjs st T Cs s b)`** for a footprint `KWB ∨ DbgW ∨ U` (the full-state
+    report's IPC-buffer words `U`).
+  - `…B` footprints (originals kept as instances): `sched.enqueue/dequeue/release_remove/set_action/schedule_tcb/
+    set_thread_state/reschedule_required/possible_switch_to.kwB`, `endpoint/notification.unblock_sporadic.kwB`,
+    `sched.release_enqueue.kwB`, `schedcontext.donate.kwCB/.kwB`, `sched.postpone.kwB`, `schedcontext.resume.kwB`,
+    `notification.maybe_donate_sched_context.tinvFB'` (FootDB / FootB in place of FootD / Foot), `signal_tail.FB`,
+    `reg_allFB`, `obj.Tcb.set_reg.blkFB`, `msg.set_mr.blkFB`, `ipc.cancel_ipc.kwB`, `dequeue_blocked_kwB`,
+    `timer.remove` (TF footprint B), and the post-fire half of `schedule` (`SchedWB`/`SFootB`, `….sfootB`).
+- **How the core line uses it** (`send_signal` family, being rewritten on int/j6 for the new extraction): state the
+  new `send_signal.tinvF` / `timer.fire_loop.tinvF` / `timer.fire.tinvF` footprints with `FootDB` (∪ the report's
+  `U`) built from the `…B` sublemmas above (same proof, `B` names); the fire loop's invariant then carries
+  `FootDB … s0 s_i` and at the `i`-th signal `BufFact.keep hbuf0 (BufKeep.of_footDBU … w)` gives the buffer fact
+  at `s_i` from the one at `s0` (= the `schedule` / `fire` entry). No new premise anywhere: `hbuf0` is a premise of the
+  core's new `send_signal`/`fire`/`schedule` lemmas at their entry state, which P3 discharges at `J`.
+- **P3 helpers** (new module `P3/BufKeepJ`): `JAtZ.bufFact : P1.BufFact st (P1.Heap.tcbs H) (P1.BufOK (BufU Z σ)) s`
+  (from `JAtZ.bufOK`), `JAtZ.bufU_outside : b ∈ BufU Z σ → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b`
+  (from `JAtZ.bufU_out`), and `JAtZ.bufFact_of_footDBU` (the buffer fact at any state `s'` with
+  `WritesIn s s' (KWB ∨ DbgW ∨ BufU Z σ)` from `J` at `s`: every state inside the fire loop / `schedule`).
