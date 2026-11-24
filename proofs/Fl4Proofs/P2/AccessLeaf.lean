@@ -989,4 +989,683 @@ theorem obj.Slot.clear.guard (self : obj.Slot) (s : S) (h : W self)
 
 end leaf
 
+
+/-! ## The owner-move store (`mguard`): one-word accessors
+
+Getters read through `mguard` unchanged; a setter's write passes when the
+move check `Q` holds between the states before and after it. Generated as the
+`guard` leaves above. -/
+
+section mleaf
+variable {S : Type} {st : machine.Store S} {Q : S → S → Prop}
+
+theorem obj.Slot.next_word.mguard (self : obj.Slot) (s : S) :
+    obj.Slot.next_word (mguard st Q) self s = obj.Slot.next_word st self s := by
+  unfold obj.Slot.next_word; rfl
+
+theorem obj.Slot.set_prev.mguard (self : obj.Slot)
+  (s : S) (p : obj.Slot) {s' : S} (h : obj.Slot.set_prev st self s p = ok s') (hq : Q s s') :
+    obj.Slot.set_prev (mguard st Q) self s p = ok s' := by
+  unfold obj.Slot.set_prev at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.refill_max.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.refill_max (mguard st Q) self s = obj.Sc.refill_max st self s := by
+  unfold obj.Sc.refill_max; rfl
+
+theorem obj.Tcb.in_queues.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.in_queues (mguard st Q) self s = obj.Tcb.in_queues st self s := by
+  unfold obj.Tcb.in_queues; rfl
+
+theorem obj.Tcb.state.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.state (mguard st Q) self s = obj.Tcb.state st self s := by
+  unfold obj.Tcb.state; rfl
+
+theorem obj.Tcb.sc.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.sc (mguard st Q) self s = obj.Tcb.sc st self s := by
+  unfold obj.Tcb.sc; rfl
+
+theorem obj.Tcb.set_state.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_state st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_state (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_state at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_sched_prev.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_sched_prev st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_sched_prev (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_sched_prev at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.SCHED_PREV.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_ep_prev.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_ep_prev st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_ep_prev (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_ep_prev at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.EP_PREV.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_sched_next.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_sched_next st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_sched_next (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_sched_next at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.SCHED_NEXT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_ep_next.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_ep_next st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_ep_next (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_ep_next at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.EP_NEXT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.prio.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.prio (mguard st Q) self s = obj.Tcb.prio st self s := by
+  unfold obj.Tcb.prio; rfl
+
+theorem obj.Tcb.domain.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.domain (mguard st Q) self s = obj.Tcb.domain st self s := by
+  unfold obj.Tcb.domain; rfl
+
+theorem obj.Tcb.affinity.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.affinity (mguard st Q) self s = obj.Tcb.affinity st self s := by
+  unfold obj.Tcb.affinity; rfl
+
+theorem obj.Tcb.set_in_queues.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_in_queues st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_in_queues (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_in_queues at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.IN_QUEUES.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.ipc_buffer.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.ipc_buffer (mguard st Q) self s = obj.Tcb.ipc_buffer st self s := by
+  unfold obj.Tcb.ipc_buffer; rfl
+
+theorem obj.Ntfn.tail_state.mguard (self : obj.Ntfn) (s : S) :
+    obj.Ntfn.tail_state (mguard st Q) self s = obj.Ntfn.tail_state st self s := by
+  unfold obj.Ntfn.tail_state; rfl
+
+theorem obj.Ntfn.set_tail_state.mguard (self : obj.Ntfn)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Ntfn.set_tail_state st self s v = ok s') (hq : Q s s') :
+    obj.Ntfn.set_tail_state (mguard st Q) self s v = ok s' := by
+  unfold obj.Ntfn.set_tail_state at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ntfn.badge.mguard (self : obj.Ntfn) (s : S) :
+    obj.Ntfn.badge (mguard st Q) self s = obj.Ntfn.badge st self s := by
+  unfold obj.Ntfn.badge; rfl
+
+theorem obj.Tcb.bound_ntfn.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.bound_ntfn (mguard st Q) self s = obj.Tcb.bound_ntfn st self s := by
+  unfold obj.Tcb.bound_ntfn; rfl
+
+theorem obj.Sc.set_yield_from.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_yield_from st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_yield_from (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_yield_from at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_yield_to.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_yield_to st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_yield_to (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_yield_to at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.YIELD_TO.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.yield_to.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.yield_to (mguard st Q) self s = obj.Tcb.yield_to st self s := by
+  unfold obj.Tcb.yield_to; rfl
+
+theorem obj.Sc.set_consumed.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_consumed st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_consumed (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_consumed at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.consumed.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.consumed (mguard st Q) self s = obj.Sc.consumed st self s := by
+  unfold obj.Sc.consumed; rfl
+
+theorem obj.Sc.refill_tail.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.refill_tail (mguard st Q) self s = obj.Sc.refill_tail st self s := by
+  unfold obj.Sc.refill_tail; rfl
+
+theorem obj.Sc.refill_head.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.refill_head (mguard st Q) self s = obj.Sc.refill_head st self s := by
+  unfold obj.Sc.refill_head; rfl
+
+theorem obj.Sc.set_refill_head.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_refill_head st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_refill_head (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_refill_head at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.period.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.period (mguard st Q) self s = obj.Sc.period st self s := by
+  unfold obj.Sc.period; rfl
+
+theorem obj.Sc.sporadic.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.sporadic (mguard st Q) self s = obj.Sc.sporadic st self s := by
+  unfold obj.Sc.sporadic; rfl
+
+theorem obj.Sc.set_refill_tail.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_refill_tail st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_refill_tail (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_refill_tail at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.ep_prev.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.ep_prev (mguard st Q) self s = obj.Tcb.ep_prev st self s := by
+  unfold obj.Tcb.ep_prev; rfl
+
+theorem obj.Tcb.sched_prev.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.sched_prev (mguard st Q) self s = obj.Tcb.sched_prev st self s := by
+  unfold obj.Tcb.sched_prev; rfl
+
+theorem obj.Tcb.sched_next.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.sched_next (mguard st Q) self s = obj.Tcb.sched_next st self s := by
+  unfold obj.Tcb.sched_next; rfl
+
+theorem obj.Tcb.ep_next.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.ep_next (mguard st Q) self s = obj.Tcb.ep_next st self s := by
+  unfold obj.Tcb.ep_next; rfl
+
+theorem obj.Tcb.set_timer_right.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_right st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_right (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_right at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_RIGHT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_timer_left.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_left st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_left (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_left at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_LEFT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.timer_left.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_left (mguard st Q) self s = obj.Tcb.timer_left st self s := by
+  unfold obj.Tcb.timer_left; rfl
+
+theorem obj.Tcb.set_timer_parent.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_parent st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_parent (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_parent at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_PARENT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.timer_parent.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_parent (mguard st Q) self s = obj.Tcb.timer_parent st self s := by
+  unfold obj.Tcb.timer_parent; rfl
+
+theorem obj.Tcb.timer_right.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_right (mguard st Q) self s = obj.Tcb.timer_right st self s := by
+  unfold obj.Tcb.timer_right; rfl
+
+theorem obj.Tcb.set_timer_height.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_height st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_height (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_height at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_HEIGHT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.timer_height.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_height (mguard st Q) self s = obj.Tcb.timer_height st self s := by
+  unfold obj.Tcb.timer_height; rfl
+
+theorem obj.Tcb.set_timer_deadline.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_deadline st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_deadline (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_deadline at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_DEADLINE.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.timer_deadline.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_deadline (mguard st Q) self s = obj.Tcb.timer_deadline st self s := by
+  unfold obj.Tcb.timer_deadline; rfl
+
+theorem obj.Tcb.timer_badge.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.timer_badge (mguard st Q) self s = obj.Tcb.timer_badge st self s := by
+  unfold obj.Tcb.timer_badge; rfl
+
+theorem obj.Ntfn.set_badge.mguard (self : obj.Ntfn)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Ntfn.set_badge st self s v = ok s') (hq : Q s s') :
+    obj.Ntfn.set_badge (mguard st Q) self s v = ok s' := by
+  unfold obj.Ntfn.set_badge at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ntfn.bound_tcb.mguard (self : obj.Ntfn) (s : S) :
+    obj.Ntfn.bound_tcb (mguard st Q) self s = obj.Ntfn.bound_tcb st self s := by
+  unfold obj.Ntfn.bound_tcb; rfl
+
+theorem obj.Ntfn.sc.mguard (self : obj.Ntfn) (s : S) :
+    obj.Ntfn.sc (mguard st Q) self s = obj.Ntfn.sc st self s := by
+  unfold obj.Ntfn.sc; rfl
+
+theorem obj.Tcb.set_debug_prev.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_debug_prev st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_debug_prev (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_debug_prev at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.DEBUG_PREV.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.debug_prev.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.debug_prev (mguard st Q) self s = obj.Tcb.debug_prev st self s := by
+  unfold obj.Tcb.debug_prev; rfl
+
+theorem obj.Tcb.set_debug_next.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_debug_next st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_debug_next (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_debug_next at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.DEBUG_NEXT.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.debug_next.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.debug_next (mguard st Q) self s = obj.Tcb.debug_next st self s := by
+  unfold obj.Tcb.debug_next; rfl
+
+theorem obj.Tcb.set_affinity.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_affinity st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_affinity (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_affinity at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.AFFINITY.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.tcb.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.tcb (mguard st Q) self s = obj.Sc.tcb st self s := by
+  unfold obj.Sc.tcb; rfl
+
+theorem obj.Sc.cpu.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.cpu (mguard st Q) self s = obj.Sc.cpu st self s := by
+  unfold obj.Sc.cpu; rfl
+
+theorem obj.Sc.set_tcb.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_tcb st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_tcb (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_tcb at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_sc.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_sc st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_sc (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_sc at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.SC.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ntfn.set_head.mguard (self : obj.Ntfn)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Ntfn.set_head st self s v = ok s') (hq : Q s s') :
+    obj.Ntfn.set_head (mguard st Q) self s v = ok s' := by
+  unfold obj.Ntfn.set_head at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ntfn.head.mguard (self : obj.Ntfn) (s : S) :
+    obj.Ntfn.head (mguard st Q) self s = obj.Ntfn.head st self s := by
+  unfold obj.Ntfn.head; rfl
+
+theorem obj.Tcb.block_obj.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.block_obj (mguard st Q) self s = obj.Tcb.block_obj st self s := by
+  unfold obj.Tcb.block_obj; rfl
+
+theorem obj.Tcb.reply_obj.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.reply_obj (mguard st Q) self s = obj.Tcb.reply_obj st self s := by
+  unfold obj.Tcb.reply_obj; rfl
+
+theorem obj.Sc.set_reply.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_reply st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_reply (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_reply at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Reply.set_next_raw.mguard (self : obj.Reply)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Reply.set_next_raw st self s v = ok s') (hq : Q s s') :
+    obj.Reply.set_next_raw (mguard st Q) self s v = ok s' := by
+  unfold obj.Reply.set_next_raw at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Reply.next_raw.mguard (self : obj.Reply)
+  (s : S) :
+    obj.Reply.next_raw (mguard st Q) self s = obj.Reply.next_raw st self s := by
+  unfold obj.Reply.next_raw; rfl
+
+theorem obj.Reply.set_prev_raw.mguard (self : obj.Reply)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Reply.set_prev_raw st self s v = ok s') (hq : Q s s') :
+    obj.Reply.set_prev_raw (mguard st Q) self s v = ok s' := by
+  unfold obj.Reply.set_prev_raw at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Reply.prev_raw.mguard (self : obj.Reply)
+  (s : S) :
+    obj.Reply.prev_raw (mguard st Q) self s = obj.Reply.prev_raw st self s := by
+  unfold obj.Reply.prev_raw; rfl
+
+theorem obj.Reply.set_tcb.mguard (self : obj.Reply)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Reply.set_tcb st self s v = ok s') (hq : Q s s') :
+    obj.Reply.set_tcb (mguard st Q) self s v = ok s' := by
+  unfold obj.Reply.set_tcb at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_fault_type.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_fault_type st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_fault_type (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_fault_type at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.FAULT_TYPE.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ep.tail_state.mguard (self : obj.Ep) (s : S) :
+    obj.Ep.tail_state (mguard st Q) self s = obj.Ep.tail_state st self s := by
+  unfold obj.Ep.tail_state; rfl
+
+theorem obj.Ep.set_tail_state.mguard (self : obj.Ep) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Ep.set_tail_state st self s v = ok s') (hq : Q s s') :
+    obj.Ep.set_tail_state (mguard st Q) self s v = ok s' := by
+  unfold obj.Ep.set_tail_state at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ep.set_head.mguard (self : obj.Ep) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Ep.set_head st self s v = ok s') (hq : Q s s') :
+    obj.Ep.set_head (mguard st Q) self s v = ok s' := by
+  unfold obj.Ep.set_head at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Ep.head.mguard (self : obj.Ep) (s : S) :
+    obj.Ep.head (mguard st Q) self s = obj.Ep.head st self s := by
+  unfold obj.Ep.head; rfl
+
+theorem obj.Sc.badge.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.badge (mguard st Q) self s = obj.Sc.badge st self s := by
+  unfold obj.Sc.badge; rfl
+
+theorem obj.Tcb.set_fault_w2.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_fault_w2 st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_fault_w2 (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_fault_w2 at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.FAULT_W2.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_lf_w1.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_lf_w1 st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_lf_w1 (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_lf_w1 at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.LF_W1.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_fault_w1.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_fault_w1 st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_fault_w1 (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_fault_w1 at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.FAULT_W1.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_lf_w0.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_lf_w0 st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_lf_w0 (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_lf_w0 at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.LF_W0.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_fault_w0.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_fault_w0 st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_fault_w0 (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_fault_w0 at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.FAULT_W0.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_lf_type.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_lf_type st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_lf_type (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_lf_type at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.LF_TYPE.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_block_flags.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_block_flags st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_block_flags (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_block_flags at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BLOCK_FLAGS.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.fault_type.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.fault_type (mguard st Q) self s = obj.Tcb.fault_type st self s := by
+  unfold obj.Tcb.fault_type; rfl
+
+theorem obj.Tcb.set_block_badge.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_block_badge st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_block_badge (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_block_badge at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BLOCK_BADGE.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_block_obj.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_block_obj st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_block_obj (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_block_obj at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BLOCK_OBJ.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_reply_obj.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_reply_obj st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_reply_obj (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_reply_obj at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.REPLY_OBJ.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.reply.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.reply (mguard st Q) self s = obj.Sc.reply st self s := by
+  unfold obj.Sc.reply; rfl
+
+theorem obj.Tcb.fault_w2.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.fault_w2 (mguard st Q) self s = obj.Tcb.fault_w2 st self s := by
+  unfold obj.Tcb.fault_w2; rfl
+
+theorem obj.Tcb.fault_w1.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.fault_w1 (mguard st Q) self s = obj.Tcb.fault_w1 st self s := by
+  unfold obj.Tcb.fault_w1; rfl
+
+theorem obj.Tcb.fault_w0.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.fault_w0 (mguard st Q) self s = obj.Tcb.fault_w0 st self s := by
+  unfold obj.Tcb.fault_w0; rfl
+
+theorem obj.Tcb.lf_w1.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.lf_w1 (mguard st Q) self s = obj.Tcb.lf_w1 st self s := by
+  unfold obj.Tcb.lf_w1; rfl
+
+theorem obj.Tcb.lf_w0.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.lf_w0 (mguard st Q) self s = obj.Tcb.lf_w0 st self s := by
+  unfold obj.Tcb.lf_w0; rfl
+
+theorem obj.Tcb.lf_type.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.lf_type (mguard st Q) self s = obj.Tcb.lf_type st self s := by
+  unfold obj.Tcb.lf_type; rfl
+
+theorem obj.Tcb.flags.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.flags (mguard st Q) self s = obj.Tcb.flags st self s := by
+  unfold obj.Tcb.flags; rfl
+
+theorem obj.Sc.set_ntfn.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_ntfn st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_ntfn (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_ntfn at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.ntfn.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.ntfn (mguard st Q) self s = obj.Sc.ntfn st self s := by
+  unfold obj.Sc.ntfn; rfl
+
+theorem obj.Ntfn.set_sc.mguard (self : obj.Ntfn)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Ntfn.set_sc st self s v = ok s') (hq : Q s s') :
+    obj.Ntfn.set_sc (mguard st Q) self s v = ok s' := by
+  unfold obj.Ntfn.set_sc at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.set_refill_max.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_refill_max st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_refill_max (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_refill_max at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.set_sporadic.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_sporadic st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_sporadic (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_sporadic at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.yield_from.mguard (self : obj.Sc) (s : S) :
+    obj.Sc.yield_from (mguard st Q) self s = obj.Sc.yield_from st self s := by
+  unfold obj.Sc.yield_from; rfl
+
+theorem obj.Reply.tcb.mguard (self : obj.Reply)
+  (s : S) :
+    obj.Reply.tcb (mguard st Q) self s = obj.Reply.tcb st self s := by
+  unfold obj.Reply.tcb; rfl
+
+theorem obj.Ntfn.set_bound_tcb.mguard (self : obj.Ntfn)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Ntfn.set_bound_tcb st self s v = ok s') (hq : Q s s') :
+    obj.Ntfn.set_bound_tcb (mguard st Q) self s v = ok s' := by
+  unfold obj.Ntfn.set_bound_tcb at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_bound_ntfn.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_bound_ntfn st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_bound_ntfn (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_bound_ntfn at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BOUND_NTFN.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.set_period.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_period st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_period (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_period at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_domain.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_domain st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_domain (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_domain at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.DOMAIN.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_mcp.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_mcp st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_mcp (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_mcp at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.MCP.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_prio.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_prio st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_prio (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_prio at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.PRIO.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_ipc_buffer.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_ipc_buffer st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_ipc_buffer (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_ipc_buffer at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.IPC_BUFFER.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Sc.set_cpu.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_cpu st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_cpu (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_cpu at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.set_flags.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_flags st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_flags (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_flags at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.FLAGS.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.block_badge.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.block_badge (mguard st Q) self s = obj.Tcb.block_badge st self s := by
+  unfold obj.Tcb.block_badge; rfl
+
+theorem obj.Tcb.block_flags.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.block_flags (mguard st Q) self s = obj.Tcb.block_flags st self s := by
+  unfold obj.Tcb.block_flags; rfl
+
+theorem obj.Tcb.set_timer_badge.mguard (self : obj.Tcb)
+  (s : S) (v : Std.U64) {s' : S} (h : obj.Tcb.set_timer_badge st self s v = ok s') (hq : Q s s') :
+    obj.Tcb.set_timer_badge (mguard st Q) self s v = ok s' := by
+  unfold obj.Tcb.set_timer_badge at h ⊢
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.TIMER_BADGE.spec] at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Tcb.mcp.mguard (self : obj.Tcb) (s : S) :
+    obj.Tcb.mcp (mguard st Q) self s = obj.Tcb.mcp st self s := by
+  unfold obj.Tcb.mcp; rfl
+
+theorem obj.Sc.set_badge.mguard (self : obj.Sc) (s : S)
+  (v : Std.U64) {s' : S} (h : obj.Sc.set_badge st self s v = ok s') (hq : Q s s') :
+    obj.Sc.set_badge (mguard st Q) self s v = ok s' := by
+  unfold obj.Sc.set_badge at h ⊢
+  simp only [lift, bind_ok] at h ⊢
+  exact mguard_write h hq
+
+theorem obj.Slot.cap.mguard (self : obj.Slot) (s : S) :
+    obj.Slot.cap (mguard st Q) self s = obj.Slot.cap st self s := by
+  unfold obj.Slot.cap; rfl
+
+end mleaf
+
 end Fl4Proofs.P2.PathObl
