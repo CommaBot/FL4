@@ -1480,3 +1480,5 @@ import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.XTopJointKEntryVm
 import Fl4Proofs.P3.XTopJointKEntryU29S
 import Fl4Proofs.P3.XTopJointKEntryU29I
+import Fl4Proofs.P1.LocalInv
+import Fl4Proofs.P3.XTopJointKEntryInvL
