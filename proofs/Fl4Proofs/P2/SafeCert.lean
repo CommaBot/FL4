@@ -1,31 +1,30 @@
 /-
 P2: **`Safe` from sequential-run certificates** (step 4 of `SerialSafe`'s
-plan, at the level of `Serial.Prog`; the bridge from `PathObl` builds the
-certificates).
+plan, at the level of `Serial.Prog`; `P2/E2E.lean` builds the certificates
+from `PathObl`).
 
 A body `q` (on core `c` with locks `hs`) is checked against the
 *deterministic* sequential run that reads a memory `ν` (`AltRun`): every `rd`
 is of a word in `Rp`, every write of a word in `Hp` and passes `WrOK` (`MoveV`
-and the class condition) at `ν`; racy reads (`rds`, `rdc`) are allowed only
-when `racy`, each word at most once (the set `P` of words already read
-racily: `DecOnce`'s form here), `rdc` with its class conditions.
+and the class condition); racy reads (`rds`, `rdc`) take each word at most once
+(the set `P` of words already read racily), `rdc` with its class conditions.
+`WrOK` is checked at a second memory `κ`, written along with `ν`, which need
+not be `ν`: it only has to differ from the real memory on words the core may
+not read (`Diff`). Declined runs take the alternative store's memory for `κ`;
+accepted runs, which read no racy kernel word and whose write check `PathObl`
+gives only at the entry state, take the real memory.
 
-* `safe_of_acc` (accepted runs): if the run from the real memory `σ` passes
-  with no racy read, `q` is `Safe` from `σ`.
-* `safe_of_dec` (declined runs): if the run from **every** memory `ν`
-  admissible for `μ` (`Adm`: equal to `μ` on the words `c` may read,
-  of the same class on the class-tracked words) passes, `q` is `Safe` from `μ`.
-
-Both need, at the start, `Rp` words readable and `Hp` words held (`RInv`),
-and the ownership map's `Deciders` and `MoveLocal`. The invariant behind
-them: along the real interleaving (another core's `Foreign` writes and the
+`safe_of_runs`: if for **every** memory `ν` admissible for `μ` (`Adm`: equal to
+`μ` on the words `c` may read, of the same class on the class-tracked words)
+there is a check memory `κ` with `Diff μ κ` such that the run passes, `q` is
+`Safe` from `μ`. It needs `Rp` words readable and `Hp` words held at the start
+(`RInv`), and the ownership map's `Deciders` and `MoveLocal`. The invariant
+behind it: along the real interleaving (another core's `Foreign` writes and the
 body's own `MoveV` writes), the words `c` may read keep their owners up to
 moves between held owners, and those it may not read stay unreadable
-(`freach_po`, `write_po`); the real memory and the certificate's memory differ
-only on unreadable words, where `moveV_transfer` carries each write's check
-over. In the declined case the certificate's memory is the current one with
-each racy word at the value it was read (`pick`); a racy read pins its word
-(`DInv`).
+(`freach_po`, `write_po`); the real memory and `κ` differ only on unreadable
+words, where `moveV_transfer` carries each write's check over. A racy read
+pins its word at the value read (`DInv`).
 
 No premises (everything is a hypothesis of the theorems).
 -/
@@ -42,22 +41,22 @@ def WrOK (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A →
     (hs : L → Prop) (ν : A → V) (a : A) (v : V) : Prop :=
   MoveV own c hs ν (Function.update ν a v) ∧ (cls a v = cls a (ν a) ∨ ko a = .core c ∨ ko a = .free)
 
-/-- **The deterministic run of `q` reading `ν`** passes: `rd` words in `Rp`,
-written words in `Hp` passing `WrOK`, racy reads only if `racy` and each word
-(outside `rd`) at most once (`P`: the words already read racily). Bodies take
-no locks and have no `start`. -/
+/-- **The deterministic run of `q` reading `ν`** passes, its writes checked at
+`κ`: `rd` words in `Rp`, written words in `Hp` passing `WrOK` at `κ`, racy
+reads of each word (outside `rd`) at most once (`P`: the words already read
+racily). Bodies take no locks and have no `start`. -/
 def AltRun (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C) (c : C)
-    (hs : L → Prop) (Rp Hp : A → Prop) (racy : Prop) : Set A → Prog A V L → (A → V) → Prop
-  | _, .done, _ => True
-  | P, .rd a k, ν => Rp a ∧ AltRun own cls ko c hs Rp Hp racy P (k (ν a)) ν
-  | P, .rds a k, ν => racy ∧ a ∉ P ∧ AltRun own cls ko c hs Rp Hp racy (insert a P) (k (ν a)) ν
-  | P, .rdc a K k, ν => racy ∧ a ∉ P ∧ (ko a = .gate ∨ ko a = .core c) ∧
+    (hs : L → Prop) (Rp Hp : A → Prop) : Set A → Prog A V L → (A → V) → (A → V) → Prop
+  | _, .done, _, _ => True
+  | P, .rd a k, ν, κ => Rp a ∧ AltRun own cls ko c hs Rp Hp P (k (ν a)) ν κ
+  | P, .rds a k, ν, κ => a ∉ P ∧ AltRun own cls ko c hs Rp Hp (insert a P) (k (ν a)) ν κ
+  | P, .rdc a K k, ν, κ => a ∉ P ∧ (ko a = .gate ∨ ko a = .core c) ∧
       (∀ u w, cls a u = cls a w → K u w) ∧
-      AltRun own cls ko c hs Rp Hp racy (insert a P) (k (ν a)) ν
-  | P, .wr a v k, ν => Hp a ∧ WrOK own cls ko c hs ν a v ∧
-      AltRun own cls ko c hs Rp Hp racy P k (Function.update ν a v)
-  | _, .lock _ _, _ => False
-  | _, .start _, _ => False
+      AltRun own cls ko c hs Rp Hp (insert a P) (k (ν a)) ν κ
+  | P, .wr a v k, ν, κ => Hp a ∧ WrOK own cls ko c hs κ a v ∧
+      AltRun own cls ko c hs Rp Hp P k (Function.update ν a v) (Function.update κ a v)
+  | _, .lock _ _, _, _ => False
+  | _, .start _, _, _ => False
 
 /-- `ν` is admissible for the real memory `μ` with pinned racy values `π`:
 equal to `μ` where `c` may read, equal to the pins, and of `μ`'s class on
@@ -169,57 +168,16 @@ theorem Diff.eq_of_po {μ ν : A → V} (hd : Diff own c hs μ ν) {y : A}
     (h : PO c hs (own μ y)) : ν y = μ y := by
   by_contra hne; exact hd y hne h
 
-/-! ## Accepted runs -/
+/-! ## The theorem -/
 
-/-- **`Safe` from an accepted run**: the run reading the certificate memory
-`σ` (the real memory up to unreadable words) passes with no racy read. -/
-theorem safe_of_acc (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop}
-    (q : Prog A V L) :
-    ∀ (P : Set A) (σ μ : A → V), AltRun own cls ko c hs Rp Hp False P q σ →
-      Diff own c hs μ σ → RInv own c hs Rp Hp μ → Safe own cls ko c hs μ q := by
-  induction q with
-  | done => intros; exact .done
-  | lock l k _ => intro _ _ _ h; simp only [AltRun] at h
-  | start k _ => intro _ _ _ h; simp only [AltRun] at h
-  | rds a k _ => intro _ _ _ h; simp only [AltRun, false_and] at h
-  | rdc a K k _ => intro _ _ _ h; simp only [AltRun, false_and] at h
-  | rd a k ih =>
-    intro P σ μ h hd I
-    simp only [AltRun] at h
-    refine .rd (fun μ' hR => (I.freach hR).2 a h.1) (fun μ' hR => ?_)
-    have hd' := hd.freach hR
-    have I' := I.freach hR
-    have e : σ a = μ' a := hd'.eq_of_po (I'.2 a h.1)
-    rw [← e]
-    exact ih (σ a) P σ μ' h.2 hd' I'
-  | wr a v k ih =>
-    intro P σ μ h hd I
-    simp only [AltRun] at h
-    obtain ⟨hHp, ⟨hM, hcl⟩, hk⟩ := h
-    have go : ∀ μ', FReach own cls ko c hs μ μ' →
-        HeldV c hs (own μ' a) ∧ MoveV own c hs μ' (Function.update μ' a v) ∧
-          (cls a v = cls a (μ' a) ∨ ko a = .core c ∨ ko a = .free) := by
-      intro μ' hR
-      have hd' := hd.freach hR
-      have I' := I.freach hR
-      have ha := I'.1 a hHp
-      have ea : σ a = μ' a := hd'.eq_of_po (Or.inl ha)
-      refine ⟨ha, moveV_transfer hD hL hd' ha hM, ?_⟩
-      rw [← ea]; exact hcl
-    refine .wr (fun μ' hR => (go μ' hR).1) (fun μ' hR => (go μ' hR).2.1)
-      (fun μ' hR => (go μ' hR).2.2) (fun μ' hR => ?_)
-    have hM' := (go μ' hR).2.1
-    exact ih P (Function.update σ a v) (Function.update μ' a v) hk
-      ((hd.freach hR).write hM') ((I.freach hR).write hM')
 
-/-! ## Declined runs -/
-
-/-- The declined-run invariant at real memory `μ` with pins `π` and the racy
+/-- The invariant at real memory `μ` with pins `π` and the racy
 words `P` read so far. -/
 structure DInv (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C) (c : C)
     (hs : L → Prop) (Rp Hp : A → Prop) (P : Set A) (q : Prog A V L) (μ : A → V)
     (π : A → Option V) : Prop where
-  run : ∀ ν, Adm own cls ko c hs μ π ν → AltRun own cls ko c hs Rp Hp True P q ν
+  run : ∀ ν, Adm own cls ko c hs μ π ν →
+    ∃ κ, Diff own c hs μ κ ∧ AltRun own cls ko c hs Rp Hp P q ν κ
   pin : ∀ y u, π y = some u → y ∈ P
   pinPO : ∀ y u, π y = some u → PO c hs (own μ y) → μ y = u
   pinCls : ∀ y u, π y = some u → (ko y = .gate ∨ ko y = .core c) → cls y u = cls y (μ y)
@@ -239,31 +197,27 @@ theorem adm_pick {Rp Hp : A → Prop} {P : Set A} {q : Prog A V L} {μ : A → V
     | none => rfl
     | some u => exact I.pinCls y u hπ hy
 
-theorem pick_diff {Rp Hp : A → Prop} {P : Set A} {q : Prog A V L} {μ : A → V}
-    {π : A → Option V} (I : DInv own cls ko c hs Rp Hp P q μ π) :
-    Diff own c hs μ (pick μ π) := by
-  intro y hy hpo
-  exact hy ((adm_pick I).1 y hpo)
-
 theorem DInv.freach {Rp Hp : A → Prop} {P : Set A} {q : Prog A V L} {μ μ' : A → V}
     {π : A → Option V} (I : DInv own cls ko c hs Rp Hp P q μ π)
     (hR : FReach own cls ko c hs μ μ') : DInv own cls ko c hs Rp Hp P q μ' π := by
   obtain ⟨f1, f2, f3⟩ := freach_po hR
-  refine ⟨fun ν hν => I.run ν ⟨fun y hy => ?_, hν.2.1, fun y hy => ?_⟩, I.pin,
-    fun y u hu hy => ?_, fun y u hu hy => ?_, I.rinv.freach hR⟩
-  · rw [hν.1 y ((f1 y hy).1 ▸ hy), (f1 y hy).2]
-  · rw [hν.2.2 y hy, f3 y hy]
+  refine ⟨fun ν hν => ?_, I.pin, fun y u hu hy => ?_, fun y u hu hy => ?_, I.rinv.freach hR⟩
+  · obtain ⟨κ, hd, h⟩ := I.run ν ⟨fun y hy => by rw [hν.1 y ((f1 y hy).1 ▸ hy), (f1 y hy).2],
+      hν.2.1, fun y hy => by rw [hν.2.2 y hy, f3 y hy]⟩
+    exact ⟨κ, hd.freach hR, h⟩
   · rw [(f1 y (f2 y hy)).2]; exact I.pinPO y u hu (f2 y hy)
   · rw [f3 y hy]; exact I.pinCls y u hu hy
 
 /-- A racy read of `b` at the real memory: pin `b` to the value read. -/
 theorem DInv.read {Rp Hp : A → Prop} {P : Set A} {μ : A → V} {π : A → Option V} {b : A}
     {k : V → Prog A V L} {q : Prog A V L}
-    (hq : ∀ ν, AltRun own cls ko c hs Rp Hp True P q ν →
-      b ∉ P ∧ AltRun own cls ko c hs Rp Hp True (insert b P) (k (ν b)) ν)
+    (hq : ∀ ν κ, AltRun own cls ko c hs Rp Hp P q ν κ →
+      b ∉ P ∧ AltRun own cls ko c hs Rp Hp (insert b P) (k (ν b)) ν κ)
     (I : DInv own cls ko c hs Rp Hp P q μ π) :
     DInv own cls ko c hs Rp Hp (insert b P) (k (μ b)) μ (Function.update π b (some (μ b))) := by
-  have hbP : b ∉ P := (hq _ (I.run _ (adm_pick I))).1
+  have hbP : b ∉ P := by
+    obtain ⟨κ, -, h⟩ := I.run _ (adm_pick I)
+    exact (hq _ _ h).1
   have hπb : π b = none := by
     cases h : π b with
     | none => rfl
@@ -276,8 +230,9 @@ theorem DInv.read {Rp Hp : A → Prop} {P : Set A} {μ : A → V} {π : A → Op
   · have hν0 : Adm own cls ko c hs μ π ν :=
       ⟨hν.1, fun y u hu => hν.2.1 y u (ext y u hu), hν.2.2⟩
     have e : ν b = μ b := hν.2.1 b (μ b) (by rw [Function.update_self])
-    have h := (hq ν (I.run ν hν0)).2
-    rw [e] at h; exact h
+    obtain ⟨κ, hd, h⟩ := I.run ν hν0
+    have h := (hq ν κ h).2
+    rw [e] at h; exact ⟨κ, hd, h⟩
   · by_cases hyb : y = b
     · subst hyb; exact Set.mem_insert _ _
     · rw [Function.update_of_ne hyb] at hu; exact Set.mem_insert_of_mem _ (I.pin y u hu)
@@ -288,38 +243,40 @@ theorem DInv.read {Rp Hp : A → Prop} {P : Set A} {μ : A → V} {π : A → Op
     · subst hyb; rw [Function.update_self] at hu; rw [← Option.some.inj hu]
     · rw [Function.update_of_ne hyb] at hu; exact I.pinCls y u hu hy
 
-/-- **`Safe` from a declined run**: the run reading every admissible memory passes. -/
-theorem safe_of_dec (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop}
+/-- **`Safe` from sequential runs**: the run reading every admissible memory passes, for
+some check memory differing from the real one only on unreadable words. -/
+theorem safe_of_runs (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop}
     (q : Prog A V L) :
     ∀ (P : Set A) (μ : A → V) (π : A → Option V), DInv own cls ko c hs Rp Hp P q μ π →
       Safe own cls ko c hs μ q := by
   induction q with
   | done => intros; exact .done
   | lock l k _ =>
-    intro _ _ _ I; have h := I.run _ (adm_pick I); simp only [AltRun] at h
+    intro _ _ _ I; obtain ⟨κ, -, h⟩ := I.run _ (adm_pick I); simp only [AltRun] at h
   | start k _ =>
-    intro _ _ _ I; have h := I.run _ (adm_pick I); simp only [AltRun] at h
+    intro _ _ _ I; obtain ⟨κ, -, h⟩ := I.run _ (adm_pick I); simp only [AltRun] at h
   | rd a k ih =>
     intro P μ π I
-    have hRp : Rp a := by have h := I.run _ (adm_pick I); simp only [AltRun] at h; exact h.1
+    have hRp : Rp a := by
+      obtain ⟨κ, -, h⟩ := I.run _ (adm_pick I); simp only [AltRun] at h; exact h.1
     refine .rd (fun μ' hR => (I.freach hR).rinv.2 a hRp) (fun μ' hR => ?_)
     have I' := I.freach hR
     have hpo := I'.rinv.2 a hRp
     refine ih (μ' a) P μ' π ⟨fun ν hν => ?_, I'.pin, I'.pinPO, I'.pinCls, I'.rinv⟩
-    have h := I'.run ν hν
+    obtain ⟨κ, hd, h⟩ := I'.run ν hν
     simp only [AltRun] at h
     have h := h.2
-    rw [hν.1 a hpo] at h; exact h
+    rw [hν.1 a hpo] at h; exact ⟨κ, hd, h⟩
   | rds b k ih =>
     intro P μ π I
     refine .rds fun μ' hR => ?_
-    exact ih _ _ _ _ ((I.freach hR).read (fun ν h => by simp only [AltRun] at h; exact ⟨h.2.1, h.2.2⟩))
+    exact ih _ _ _ _ ((I.freach hR).read (fun ν κ h => by simp only [AltRun] at h; exact h))
   | rdc b K k ih =>
     intro P μ π I
-    have h0 := I.run _ (adm_pick I)
+    obtain ⟨κ, -, h0⟩ := I.run _ (adm_pick I)
     simp only [AltRun] at h0
-    refine .rdc h0.2.2.1 h0.2.2.2.1 fun μ' hR => ?_
-    exact ih _ _ _ _ ((I.freach hR).read (fun ν h => by simp only [AltRun] at h; exact ⟨h.2.1, h.2.2.2.2⟩))
+    refine .rdc h0.2.1 h0.2.2.1 fun μ' hR => ?_
+    exact ih _ _ _ _ ((I.freach hR).read (fun ν κ h => by simp only [AltRun] at h; exact ⟨h.1, h.2.2.2⟩))
   | wr a v k ih =>
     intro P μ π I
     have go : ∀ μ', FReach own cls ko c hs μ μ' →
@@ -327,12 +284,12 @@ theorem safe_of_dec (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop
           (cls a v = cls a (μ' a) ∨ ko a = .core c ∨ ko a = .free) := by
       intro μ' hR
       have I' := I.freach hR
-      have h0 := I'.run _ (adm_pick I')
+      obtain ⟨κ, hd, h0⟩ := I'.run _ (adm_pick I')
       simp only [AltRun] at h0
       obtain ⟨hHp, ⟨hM, hcl⟩, _⟩ := h0
       have ha := I'.rinv.1 a hHp
-      have ea : pick μ' π a = μ' a := (pick_diff I').eq_of_po (Or.inl ha)
-      refine ⟨ha, moveV_transfer hD hL (pick_diff I') ha hM, ?_⟩
+      have ea : κ a = μ' a := hd.eq_of_po (Or.inl ha)
+      refine ⟨ha, moveV_transfer hD hL hd ha hM, ?_⟩
       rw [← ea]; exact hcl
     refine .wr (fun μ' hR => (go μ' hR).1) (fun μ' hR => (go μ' hR).2.1)
       (fun μ' hR => (go μ' hR).2.2) (fun μ' hR => ?_)
@@ -360,14 +317,14 @@ theorem safe_of_dec (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop
           · subst hya; simp [ν]
           · simp only [ν, Function.update_of_ne hya]
             rw [hν.2.2 y hy, Function.update_of_ne hya]
-      have h := I'.run ν hadm
+      obtain ⟨κ, hd, h⟩ := I'.run ν hadm
       simp only [AltRun] at h
       have h := h.2.2
       have e : Function.update ν a v = ν'' := by
         simp only [ν, Function.update_idem]
         have : ν'' a = v := by rw [hν.1 a hpoa', Function.update_self]
         rw [← this, Function.update_eq_self]
-      rw [e] at h; exact h
+      rw [e] at h; exact ⟨_, hd.write hM, h⟩
     · by_cases hya : y = a
       · subst hya; rw [Function.update_self] at hu; cases hu
       · rw [Function.update_of_ne hya] at hu; exact I'.pin y u hu
