@@ -601,7 +601,7 @@ theorem set_timer_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : 
   have ecr2 : obj.Slot.cap st r.slot s2 = ok (capability.Cap.Thread target) := by
     rw [found_cap_keep (hCn t et) oK er]; exact ecr
   obtain ⟨buf, ebuf, -⟩ := spec_ex_fd (P0.msg.lookup_ipc_buffer.p0 st s2 false t L.total)
-  obtain ⟨ex, eex⟩ := lec_none s2 t buf hx0
+  obtain ⟨ex, eex⟩ := lec_none (st := st) (L := L) s2 t buf hx0
   -- the stall: `target` is this core's
   have haff : L.mem s (affA target) = L.cpu s := by
     unfold localtimer.set_timer_target_ok at eb
@@ -614,7 +614,7 @@ theorem set_timer_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : 
     rw [hW.2.1]
     have e : affA target = core.num.U64.wrapping_add target 3520#u64 := rfl
     rw [e, uK htg (by simp) (by simp) (fun _ => by simp), ← e, haff]
-  have hst := stall_none ar s2 a1 target haff2
+  have hst := stall_none (st := st) (L := L) ar s2 a1 target haff2
   -- the length passed to the decode
   have hlen : ∀ len : U64, (if info.length > msg.N_MSG_REGISTERS then (if buf = 0#u64 then ok msg.N_MSG_REGISTERS
       else ok info.length) else ok info.length : Result U64) = ok len → ¬ len < 2#u64 := by
@@ -642,10 +642,10 @@ theorem set_timer_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : 
     rw [hN4]; scalar_tac
   have earg0 : tcb.arg st s2 { length := len, buf := buf, call := true, slot := r.slot, extra := ex } 0#u64 = ok dl := by
     unfold tcb.arg; rw [et2]; simp only [bind_ok]
-    rw [syscall_arg_reg s2 t buf 0#u64 0#u64 (hNR _ (by decide))]; exact edl
+    rw [syscall_arg_reg (st := st) (L := L) s2 t buf 0#u64 0#u64 (hNR _ (by decide))]; exact edl
   have earg1 : tcb.arg st s2 { length := len, buf := buf, call := true, slot := r.slot, extra := ex } 1#u64 = ok bd := by
     unfold tcb.arg; rw [et2]; simp only [bind_ok]
-    rw [syscall_arg_reg s2 t buf 0#u64 1#u64 (hNR _ (by decide))]; exact ebd
+    rw [syscall_arg_reg (st := st) (L := L) s2 t buf 0#u64 1#u64 (hNR _ (by decide))]; exact ebd
   have erc : tcb.restart_caller st s2 = ok s3 := by
     unfold tcb.restart_caller; rw [et2]; simp only [bind_ok]; exact es3
   -- the caller is still `Restart` after the timer insert
