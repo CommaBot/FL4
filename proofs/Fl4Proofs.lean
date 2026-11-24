@@ -169,6 +169,7 @@ import Fl4Proofs.P2.InvKeep
 import Fl4Proofs.P2.InvStall
 import Fl4Proofs.P2.StallAt
 import Fl4Proofs.P2.FootN
+import Fl4Proofs.P2.FootN2
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
