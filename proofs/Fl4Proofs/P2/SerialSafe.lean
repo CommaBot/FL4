@@ -41,6 +41,49 @@ Premises (all named, nothing else):
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
 * `DecidersOK s0` [W]: every ownership map of the execution satisfies
   `Deciders` (for `OwnMap.own`, to be proved from P1's typed-heap disjointness).
+
+## Remaining plan: discharging `BodyOK` (handoff; not yet written)
+
+Goal: `BodyOK` from, per local path, `PathObl` v3 (`PathObl.lean`) for every
+Arch instance, `IsProg` [P], `DecOnce` [W], and the glue's `Pre` [P]. Steps:
+
+1. **Choice node.** Add `Serial.Prog.ch (k : Option (V ⊕ Bool) → Prog)` (Arch
+   results; `PathObl.AV` maps `u x ↦ some (inl x)`, `b x ↦ some (inr x)`,
+   `none ↦ none`); `Run.ch` (any value), `Step.ch` (any value), `Allowed` True,
+   `inv_ch` as `inv_rds`, `Within.ch`, `Safe.ch` (∀ values), `Glue` unchanged,
+   `Safe.foreign`/`sinv_step`/`allowed_of_sinv` cases as for `rds`.
+2. **Translation** `tr : SProg X → Serial.Prog U64 U64 U64` (new module, e.g.
+   `P2/E2E.lean`), parameters fixed at body start: `R` (= `ReadSet s`), `User`,
+   `ko`, `cls`, the core `c`, `ksb`, `masks`; carries the set `Wd` of words the
+   body has written and a cache of pure Arch queries since the last
+   state-changing call. A read of `a`: `rd` if `R a ∧ ¬ User a` or `a ∈ Wd`;
+   else `rdc a (fun u w => cls a u = cls a w)` if `¬ User a` and `ko a` is
+   gate or `core c`; else `rds`. `rdp` as two reads (`a`, `a + 8` wrapping).
+   `wr`: dropped for a user word, else `wr` (and add to `Wd`). `zero` / `clr`:
+   `wr 0` on each aligned word of the range. `ksb`/`cpu`/`masks`: the
+   constants. `arch op k`: a pure query (`Self → Result _` methods) already in
+   the cache reuses its value; otherwise `ch`, updating the cache (a
+   state-changing call empties it). `ret`/`err`: `done`.
+3. **Realizability.** For each branch of `tr p` (values at `rds`/`rdc`/`ch`
+   nodes): an alternative entry state `s*` = `s` with each racy word set to
+   its branch value (via `LawfulStore.wr`; `DecOnce` and the `Wd` rule make each
+   racy word read once, before any write of it), and an oracle Arch instance
+   (state: a list of per-segment answer functions `ArchCall → AV`; a pure query
+   answers from the head, a state-changing call answers from the head and pops)
+   whose `interp` run follows the branch.
+4. **Safety of every branch.** Let `R0` be the run from `(s, oracle)`. If it
+   accepts, `acc` (instance: the oracle) makes all its reads `ReadSet`, so the
+   branch has no racy nodes and is `R0`: `Within` gives `rd` permission
+   (`read_own`), `wr` holding (`write_own`), `StepOK` (`move`) gives `MoveV` and
+   the class condition. If it declines, `dec_alt` at `s*` gives: the branch
+   declines, writes only `DecSet s` (held, `write_own`), and `StepOK` at every
+   write. Along the run, `PO`/held sets stay those of the entry (`MoveV`
+   preserves them), and `μ` tracks `L.mem` on kernel words (`aligned` +
+   `LawfulStore.mem_wr`).
+5. Store hypotheses to name: `MasksWr` [P] (`frame_masks` unchanged by `wr`;
+   true of `PlainStore`, where it is constant) for `Alt.masks` of `s*`;
+   `OwnUserFree` [W] (`own`, `cls`, `ko` do not depend on user words; true of
+   `OwnMap`, whose regions are kernel objects) since `μ` is stale on user words.
 -/
 import Fl4Proofs.P2.Serial
 
