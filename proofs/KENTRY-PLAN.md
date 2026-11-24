@@ -19565,12 +19565,18 @@ None (no Lean change).
     **`BufKeep.of_footB`, `BufKeep.of_footDB`** (from the invariants at the start state) and
     **`BufKeep.of_footDBU (hU : ∀ b ∈ U, OutsideObjs st T Cs s b)`** for a footprint `KWB ∨ DbgW ∨ U` (the full-state
     report's IPC-buffer words `U`).
-  - `…B` footprints (originals kept as instances): `sched.enqueue/dequeue/release_remove/set_action/schedule_tcb/
-    set_thread_state/reschedule_required/possible_switch_to.kwB`, `endpoint/notification.unblock_sporadic.kwB`,
-    `sched.release_enqueue.kwB`, `schedcontext.donate.kwCB/.kwB`, `sched.postpone.kwB`, `schedcontext.resume.kwB`,
-    `notification.maybe_donate_sched_context.tinvFB'` (FootDB / FootB in place of FootD / Foot), `signal_tail.FB`,
-    `reg_allFB`, `obj.Tcb.set_reg.blkFB`, `msg.set_mr.blkFB`, `ipc.cancel_ipc.kwB`, `dequeue_blocked_kwB`,
-    `timer.remove` (TF footprint B), and the post-fire half of `schedule` (`SchedWB`/`SFootB`, `….sfootB`).
+  - `…B` footprints (originals kept as instances): QueueFoot `sched.enqueue/dequeue/release_remove/set_action/
+    schedule_tcb/set_thread_state/reschedule_required/possible_switch_to.kwB`, `endpoint/notification.unblock_sporadic.kwB`,
+    `ipc.reply_unlink.kwB`; QueueFootD `sched.release_enqueue.kwB`, `schedcontext.donate.kwCB` / `.kwB`; QueueFootS
+    `sched.postpone.kwB`, `schedcontext.resume.kwB`, `notification.maybe_donate_sched_context.tinvFK` / `.tinvFBK`,
+    `signal_tail.FK`, `reg_allFK`, `obj.Tcb.set_reg.blkFK`, `msg.set_mr.blkFK` (`K`: `FootDB`/`FootB` in place of
+    `FootD`/`Foot`, the rest of the post unchanged); QueueTimerR `TF.footB` (`timer.remove`'s `TF` footprint).
+  - Footprints that are `KW` ones with a field frame lift without re-proof: **`FootB.of_foot (f : Foot …)
+    (hib : ∀ y ∈ T, mem s' (ibA y) = mem s (ibA y))`**, `FootDB.of_footD` (QueueFinal); the field frames give `hib`
+    / `BufKeep` directly: `KeepT0.bufKeep` (cancel_ipc / `sts_all`), `BufKeep.of_fields` (the `ntfn_state_all` /
+    `ntfn_dequeue` field frame). So `cancel_ipc.kw`, `dequeue_blocked_kw`, `set_thread_state.kwP` need no `B` copy.
+  - `BufKeep.of_blkDBU (h : BlkOK … s) (hU : ∀ b ∈ U, OutsideObjs st T Cs s b) (f : WritesIn s s' (KWB … (EH H) s ∨
+    DbgW ∨ U))` (QueueFinal): the form the fire loop / P3 use.
 - **How the core line uses it** (`send_signal` family, being rewritten on int/j6 for the new extraction): state the
   new `send_signal.tinvF` / `timer.fire_loop.tinvF` / `timer.fire.tinvF` footprints with `FootDB` (∪ the report's
   `U`) built from the `…B` sublemmas above (same proof, `B` names); the fire loop's invariant then carries

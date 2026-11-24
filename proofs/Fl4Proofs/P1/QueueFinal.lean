@@ -1387,6 +1387,36 @@ theorem FootD.mono {s s' : S} {Es Es' : Set U64} (f : FootD st T Cs Sg Scs Z Es 
     FootD st T Cs Sg Scs Z Es' s s' :=
   WritesIn.mono f fun _ hb => Or.elim hb (fun h => Or.inl (KW.mono h hE)) Or.inr
 
+/-- **The buffer lookups kept across a `KWB` / debug-list / outside-word
+footprint** from a `BlkOK` state, with the heap's endpoints and notifications
+(`BufKeep.of_footDBU`; `U`: e.g. a full-state report's IPC-buffer words). -/
+theorem BufKeep.of_blkDBU {s s' : S} {U : Set U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hU : ∀ b ∈ U, OutsideObjs st T Cs s b)
+    (f : WritesIn st s s' (fun b => KWB st T Cs Sg Scs Z (EH H) s b ∨ DbgW st T Cs s b ∨ b ∈ U)) :
+    BufKeep st T s s' := by
+  obtain ⟨⟨Q, R, h0⟩, -, hX, -, hSg⟩ := h
+  exact BufKeep.of_footDBU h0 hX.1 hSg.sub (fun _ he => he) hU f
+
+/-- **A `FootD` step that keeps every TCB's `IPC_BUFFER` word is a `FootDB`
+step.** -/
+theorem FootDB.of_footD {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s')
+    (hib : ∀ y ∈ T, L.mem s' (ibA y) = L.mem s (ibA y)) : FootDB st T Cs Sg Scs Z Es s s' := by
+  refine ⟨f.1, f.2.1, fun b hb hn => ?_⟩
+  by_cases hk : KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b
+  · rcases hk with (⟨y, hy, K, h1, h2, h3, h4, e⟩ | hk) | hk
+    · by_cases h5 : K.val = 3512
+      · have eK : K = 3512#u64 := UScalar.eq_of_val_eq (by simp [h5])
+        subst eK e
+        exact hib y hy
+      · exact absurd (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, h4, h5, e⟩)) hn
+    · exact absurd (Or.inl (Or.inr hk)) hn
+    · exact absurd (Or.inr hk) hn
+  · exact f.2.2 b hb hk
+
+/-- `FootDB` (QueueFoot, KENTRY-PLAN a6f) is a `FootD`. -/
+theorem FootDB.footD {s s' : S} {Es : Set U64} (f : FootDB st T Cs Sg Scs Z Es s s') : FootD st T Cs Sg Scs Z Es s s' :=
+  WritesIn.mono f fun _ hb => Or.elim hb (fun h => Or.inl h.kw) Or.inr
+
 /-- A write of a debug link of a TCB. -/
 theorem dbgF_all {s : S} {y K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hy : y ∈ T)
     (hK : K.val = 3576 ∨ K.val = 3584) (hv : Tz T v) :

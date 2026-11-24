@@ -1415,6 +1415,7 @@ import Fl4Spec.Ext.VirtP3x
 import Fl4Spec.Ext.Tick
 import Fl4Proofs.P3.XTopJointKEntryUH
 import Fl4Proofs.P3.XTopJointKEntryFF
+import Fl4Proofs.P3.BufKeepJ
 import Fl4Proofs.P3.XTopJointKEntryU2
 import Fl4Proofs.P3.XTopJointKEntryU2F
 import Fl4Proofs.P3.XTopJointKEntryU2L

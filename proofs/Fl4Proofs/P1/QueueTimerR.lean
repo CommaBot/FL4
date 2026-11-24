@@ -42,6 +42,11 @@ theorem timer.remove.tf {s0 : S} (s : S) (t : U64) (h : TF st T Cs Ω H Sg Rp Sc
   WP.spec_mono (WP.spec_and (timer.remove.tfb s t h.tfb ht) (timer.remove.rb s t h.1.tcbs ht h.1.rb h.1.nodes))
     fun _ h' => h'.1.tf h'.2.1
 
+/-- **`TF`'s footprint is a `FootB` one** (KENTRY-PLAN a6f): the timer code
+keeps every TCB's `IPC_BUFFER` word (`TKeep`). -/
+theorem TF.footB {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : FootB st T Cs Sg Scs Z ∅ s0 s :=
+  FootB.of_foot h.2.1 fun y hy => h.2.2.2.1 y hy 3512#u64 (by simp) (by simp) (Or.inl (by simp))
+
 theorem timer.remove.tinv (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (ht : t ∈ T) : timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
   WP.spec_mono (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun _ h' => h'.1
