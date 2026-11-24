@@ -120,6 +120,11 @@ inductive Prog (A V L : Type) where
   /-- A ghost marker: the fl4-sync glue (speculative reads, lock attempts)
   hands over to the extracted body here. No memory effect. -/
   | start (k : Prog A V L)
+  /-- A class read: of a word whose value class (`Cfg.cls`) only the gate or
+  this core changes beside the gate. It reads memory; its sequential meaning
+  returns any value `K`-related to memory's (`K`: the reader's class relation,
+  covering the class). -/
+  | rdc (a : A) (K : V → V → Prop) (k : V → Prog A V L)
 
 variable {A V C L : Type} [DecidableEq A]
 
@@ -136,6 +141,8 @@ inductive Run : Prog A V L → (A → V) → (A → V) → Prop
   | rds {a : A} {k : V → Prog A V L} {m m' : A → V} (v : V) :
       Run (k v) m m' → Run (.rds a k) m m'
   | start {k : Prog A V L} {m m' : A → V} : Run k m m' → Run (.start k) m m'
+  | rdc {a : A} {K : V → V → Prop} {k : V → Prog A V L} {m m' : A → V} (v : V) :
+      K (m a) v → Run (k v) m m' → Run (.rdc a K k) m m'
 
 /-- Running a list of bodies one after another, each from the memory the
 previous one left. -/
@@ -226,6 +233,13 @@ theorem Phase.ser_not_loc (p : Prog A V L) : ¬ (Phase.ser p).IsLoc := fun h => 
 theorem Phase.active_of_isLoc {X : Phase A V L} (h : X.IsLoc) : X.Active := by
   cases X <;> first | exact h | trivial
 
+/-- Who may change a word's value class beside the gate: only the gate, one
+core, or anyone (no class reads of it). -/
+inductive ClsOwner (C : Type) where
+  | gate
+  | core (c : C)
+  | free
+
 structure Cfg (A V C L : Type) where
   mem : A → V
   gate : Gate
@@ -236,6 +250,10 @@ structure Cfg (A V C L : Type) where
   ph : C → Phase A V L
   /-- The ownership map (ghost), replaced only by serial entries. -/
   own : (A → V) → A → Owner C L
+  /-- The value class of each word (ghost), replaced only by serial entries. -/
+  cls : A → V → V
+  /-- Who may change a word's class beside the gate (ghost). -/
+  ko : A → ClsOwner C
   /-- Completed entries, in completion order (ghost). -/
   log : List (Prog A V L)
 
@@ -262,6 +280,10 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
   /-- A speculative read: no ownership condition. -/
   | rds {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A} :
       s.ph c = .loc p0 (.rds a k) W →
+      Step s c { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) }
+  /-- A class read: no ownership condition beyond `Allowed`'s class one. -/
+  | rdc {p0 : Prog A V L} {a : A} {K : V → V → Prop} {k : V → Prog A V L} {W : Set A} :
+      s.ph c = .loc p0 (.rdc a K k) W →
       Step s c { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) }
   /-- The body starts (ghost). -/
   | start {p0 : Prog A V L} {k : Prog A V L} {W : Set A} :
@@ -291,11 +313,12 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
   | drain : s.holder = some c → s.gate = .draining → (∀ d, d ∈ s.seen) →
       Step s c { s with gate := .closed }
   /-- The serial body, then release (keeping the gate closed or opening it). -/
-  | serial {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L) :
+  | serial {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L)
+      (cls' : A → V → V) (ko' : A → ClsOwner C) :
       s.holder = some c → s.gate = .closed → s.ph c = .ser p → Run p s.mem m' →
       Step s c { s with mem := m', holder := none, ph := Function.update s.ph c .idle,
                         gate := if keep then .closed else .opn, log := s.log ++ [p],
-                        own := own' }
+                        own := own', cls := cls', ko := ko' }
 
 /-- Core `c` may read `x`: it holds `x`'s owner, or the gate owns `x`. -/
 def Perm (s : Cfg A V C L) (c : C) (x : A) : Prop :=
@@ -305,10 +328,13 @@ def Perm (s : Cfg A V C L) (c : C) (x : A) : Prop :=
 def Allowed (s : Cfg A V C L) (c : C) : Prop :=
   match s.ph c with
   | .loc _ (.rd a _) _ => Perm s c a
+  | .loc _ (.rdc a K _) _ =>
+      (s.ko a = .gate ∨ s.ko a = .core c) ∧ ∀ u w, s.cls a u = s.cls a w → K u w
   | .loc _ (.wr a v _) _ =>
       Held s.lk c (s.own s.mem a) ∧
-      ∀ x, s.own (Function.update s.mem a v) x ≠ s.own s.mem x →
-        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x)
+      (∀ x, s.own (Function.update s.mem a v) x ≠ s.own s.mem x →
+        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x)) ∧
+      (s.cls a v = s.cls a (s.mem a) ∨ s.ko a = .core c ∨ s.ko a = .free)
   | _ => True
 
 /-- Executions whose local-path accesses respect ownership. -/
@@ -369,6 +395,7 @@ structure LocInv (s : Cfg A V C L) (H : A → V) (d : C)
     (p0 p : Prog A V L) (W : Set A) : Prop where
   held : ∀ x ∈ W, Held s.lk d (s.own s.mem x)
   sim : ∀ n n' : A → V, (∀ x, Perm s d x → n x = H x) →
+    (∀ x, (s.ko x = .gate ∨ s.ko x = .core d) → s.cls x (n x) = s.cls x (H x)) →
     Run p (mix W s.mem n) n' → Run p0 n n'
 
 /-- The invariant, with `H` the memory of the serial history. -/
@@ -379,6 +406,10 @@ structure InvH (m0 : A → V) (s : Cfg A V C L)
   drn : s.gate = .draining → ∀ d ∈ s.seen, ¬ (s.ph d).IsLoc
   agree : ∀ x, (∀ d p0 p W, s.ph d = .loc p0 p W → x ∉ W) → s.mem x = H x
   loc : ∀ d p0 p W, s.ph d = .loc p0 p W → LocInv s H d p0 p W
+  /-- A word's class differs between memory and the history only where a
+  local path that may change it has written it. -/
+  clsinv : ∀ x, s.cls x (s.mem x) = s.cls x (H x) ∨
+    ∃ e p0 p W, s.ph e = .loc p0 p W ∧ x ∈ W ∧ (s.ko x = .core e ∨ s.ko x = .free)
 
 
 theorem LocInv.mono {s s' : Cfg A V C L} {H H' : A → V} {d : C} {p0 p : Prog A V L}
@@ -386,16 +417,22 @@ theorem LocInv.mono {s s' : Cfg A V C L} {H H' : A → V} {d : C} {p0 p : Prog A
     (hheld : ∀ x, Held s.lk d (s.own s.mem x) → Held s'.lk d (s'.own s'.mem x))
     (hperm : ∀ x, Perm s d x → Perm s' d x)
     (hH : ∀ x, Perm s d x → H' x = H x)
-    (hmem : ∀ x ∈ W, s'.mem x = s.mem x) :
+    (hmem : ∀ x ∈ W, s'.mem x = s.mem x)
+    (hko : s'.ko = s.ko) (hcl : s'.cls = s.cls)
+    (hHc : ∀ x, (s.ko x = .gate ∨ s.ko x = .core d) → s.cls x (H' x) = s.cls x (H x)) :
     LocInv s' H' d p0 p W where
   held x hx := hheld x (I.held x hx)
-  sim n n' hn hr := by
+  sim n n' hn hc hr := by
     have he : mix W s'.mem n = mix W s.mem n := by
       funext x
       by_cases hx : x ∈ W
       · rw [mix_mem hx, mix_mem hx, hmem x hx]
       · rw [mix_nmem hx, mix_nmem hx]
-    exact I.sim n n' (fun x hx => (hn x (hperm x hx)).trans (hH x hx)) (by rw [← he]; exact hr)
+    refine I.sim n n' (fun x hx => (hn x (hperm x hx)).trans (hH x hx)) (fun x hx => ?_)
+      (by rw [← he]; exact hr)
+    have h1 := hc x (by rw [hko]; exact hx)
+    rw [hcl] at h1
+    exact h1.trans (hHc x hx)
 
 theorem upd_loc {f : C → Phase A V L} {c d : C} {X : Phase A V L} {p0 p : Prog A V L}
     {W : Set A} (h : Function.update f c X d = .loc p0 p W) :
@@ -435,6 +472,7 @@ theorem gate_mono {s s' : Cfg A V C L}
 which local path. -/
 theorem InvH.frame {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     (hmem : s'.mem = s.mem) (hlk : s'.lk = s.lk) (hown : s'.own = s.own) (hlog : s'.log = s.log)
+    (hko : s'.ko = s.ko) (hcl : s'.cls = s.cls)
     (hl : ∀ d q0 q U, s'.ph d = .loc q0 q U → s.ph d = .loc q0 q U)
     (hl' : ∀ d q0 q U, s.ph d = .loc q0 q U → s'.ph d = .loc q0 q U)
     (hclo : s'.gate = .closed → NoLoc s')
@@ -449,7 +487,12 @@ theorem InvH.frame {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH m
     (I.loc d q0 q U (hl d q0 q U hd)).mono
       (fun x h => by rw [hlk, hmem, hown]; exact h)
       (fun x h => by unfold Perm; rw [hlk, hmem, hown]; exact h)
-      (fun _ _ => rfl) (fun x _ => by rw [hmem])
+      (fun _ _ => rfl) (fun x _ => by rw [hmem]) hko hcl (fun _ _ => rfl)
+  clsinv x := by
+    rw [hmem, hcl, hko]
+    rcases I.clsinv x with h | ⟨e, q0, q, U, he, hx, hk⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨e, q0, q, U, hl' e q0 q U he, hx, hk⟩
 
 /-- A step of core `c` inside its local path. -/
 theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
@@ -462,6 +505,8 @@ theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH
     (hheld : ∀ d, d ≠ c → ∀ x, Held s.lk d (s.own s.mem x) → Held s'.lk d (s'.own s'.mem x))
     (hperm : ∀ d, d ≠ c → ∀ x, Perm s d x → Perm s' d x)
     (hmemd : ∀ d, d ≠ c → ∀ q0 q U, s.ph d = .loc q0 q U → ∀ x ∈ U, s'.mem x = s.mem x)
+    (hko : s'.ko = s.ko) (hcl : s'.cls = s.cls)
+    (hcw : ∀ x, x ∈ W' → s.cls x (s'.mem x) = s.cls x (H x) ∨ s.ko x = .core c ∨ s.ko x = .free)
     (hcinv : LocInv s' H c p0 p' W') : InvH m0 s' H := by
   have hl : ∀ d, (s'.ph d).IsLoc → (s.ph d).IsLoc := by
     intro d hd
@@ -469,7 +514,7 @@ theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH
     · subst hdc; rw [hc]; trivial
     · rw [hph, Function.update_of_ne hdc] at hd; exact hd
   have hg := gate_mono I.clo I.drn hgate hseen hl
-  refine ⟨by rw [hlog]; exact I.hist, hg.1, hg.2, ?_, ?_⟩
+  refine ⟨by rw [hlog]; exact I.hist, hg.1, hg.2, ?_, ?_, ?_⟩
   · intro x hx
     have hxW' : x ∉ W' := hx c p0 p' W' (by rw [hph, Function.update_self])
     rw [hmem x hxW']
@@ -483,7 +528,31 @@ theorem InvH.locstep {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} (I : InvH
     rcases upd_loc hd with ⟨rfl, he⟩ | ⟨hdc, hd⟩
     · cases he; exact hcinv
     · exact (I.loc d q0 q U hd).mono (hheld d hdc) (hperm d hdc) (fun _ _ => rfl)
-        (hmemd d hdc q0 q U hd)
+        (hmemd d hdc q0 q U hd) hko hcl (fun _ _ => rfl)
+  · intro x
+    by_cases hxW' : x ∈ W'
+    · rcases hcw x hxW' with h | h
+      · left; rw [hcl]; exact h
+      · right; exact ⟨c, p0, p', W', by rw [hph, Function.update_self], hxW', by rw [hko]; exact h⟩
+    · rw [hmem x hxW', hcl, hko]
+      rcases I.clsinv x with h | ⟨e, q0, q, U, he, hx, hk⟩
+      · exact Or.inl h
+      · have hec : e ≠ c := by
+          rintro rfl; rw [hc] at he; cases he; exact hxW' (hWW hx)
+        exact Or.inr ⟨e, q0, q, U, by rw [hph, Function.update_of_ne hec]; exact he, hx, hk⟩
+
+/-- The words a local path wrote: class kept since the history, or the path
+may change their class. -/
+theorem InvH.clsW {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
+    {p0 p : Prog A V L} {W : Set A} (hc : s.ph c = .loc p0 p W) :
+    ∀ x, x ∈ W → s.cls x (s.mem x) = s.cls x (H x) ∨ s.ko x = .core c ∨ s.ko x = .free := by
+  intro x hx
+  rcases I.clsinv x with h | ⟨e, q0, q, U, he, hxU, hk⟩
+  · exact Or.inl h
+  · by_cases hec : e = c
+    · subst hec; exact Or.inr hk
+    · exact absurd (Or.inl ((I.loc c p0 p W hc).held x hx))
+        (fun h => held_disj hec ((I.loc e q0 q U he).held x hxU) h)
 
 theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A}
@@ -502,8 +571,9 @@ theorem inv_rd {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) 
       · exact held_disj hdc ((I.loc d q0 q U hd).held a haU) hp
   exact I.locstep (p' := k (s.mem a)) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
     (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    rfl rfl (I.clsW hc)
     { held := Ic.held
-      sim := fun n n' hn hr => Ic.sim n n' hn (Run.rd (by rw [hma n hn]; exact hr)) }
+      sim := fun n n' hn hcn hr => Ic.sim n n' hn hcn (Run.rd (by rw [hma n hn]; exact hr)) }
 
 theorem inv_rds {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A}
@@ -512,8 +582,9 @@ theorem inv_rds {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
   have Ic := I.loc c p0 _ W hc
   exact I.locstep (p' := k (s.mem a)) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
     (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    rfl rfl (I.clsW hc)
     { held := Ic.held
-      sim := fun n n' hn hr => Ic.sim n n' hn (Run.rds _ hr) }
+      sim := fun n n' hn hcn hr => Ic.sim n n' hn hcn (Run.rds _ hr) }
 
 theorem inv_start {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 k : Prog A V L} {W : Set A} (hc : s.ph c = .loc p0 (.start k) W) :
@@ -521,15 +592,45 @@ theorem inv_start {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s 
   have Ic := I.loc c p0 _ W hc
   exact I.locstep (p' := k) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
     (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    rfl rfl (I.clsW hc)
     { held := Ic.held
-      sim := fun n n' hn hr => Ic.sim n n' hn (Run.start hr) }
+      sim := fun n n' hn hcn hr => Ic.sim n n' hn hcn (Run.start hr) }
+
+theorem inv_rdc {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
+    {p0 : Prog A V L} {a : A} {K : V → V → Prop} {k : V → Prog A V L} {W : Set A}
+    (hc : s.ph c = .loc p0 (.rdc a K k) W) (hko : s.ko a = .gate ∨ s.ko a = .core c)
+    (hK : ∀ u w, s.cls a u = s.cls a w → K u w) :
+    InvH m0 { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) } H := by
+  have Ic := I.loc c p0 _ W hc
+  have hcl : ∀ n : A → V, (∀ x, (s.ko x = .gate ∨ s.ko x = .core c) →
+      s.cls x (n x) = s.cls x (H x)) → s.cls a (mix W s.mem n a) = s.cls a (s.mem a) := by
+    intro n hn
+    by_cases haW : a ∈ W
+    · rw [mix_mem haW]
+    · rw [mix_nmem haW, hn a hko]
+      rcases I.clsinv a with h | ⟨e, q0, q, U, he, hx, hk⟩
+      · exact h.symm
+      · exfalso
+        rcases hko with hg | hco
+        · rcases hk with h | h <;> rw [hg] at h <;> cases h
+        · rcases hk with h | h
+          · rw [hco] at h
+            obtain rfl : c = e := ClsOwner.core.inj h
+            rw [hc] at he; cases he; exact haW hx
+          · rw [hco] at h; cases h
+  exact I.locstep (p' := k (s.mem a)) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
+    (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    rfl rfl (I.clsW hc)
+    { held := Ic.held
+      sim := fun n n' hn hcn hr => Ic.sim n n' hn hcn (Run.rdc _ (hK _ _ (hcl n hcn)) hr) }
 
 theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A}
     (hc : s.ph c = .loc p0 (.wr a v k) W)
     (ha : Held s.lk c (s.own s.mem a))
     (hmv : ∀ x, s.own (Function.update s.mem a v) x ≠ s.own s.mem x →
-        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x)) :
+        Held s.lk c (s.own s.mem x) ∧ Held s.lk c (s.own (Function.update s.mem a v) x))
+    (hcls : s.cls a v = s.cls a (s.mem a) ∨ s.ko a = .core c ∨ s.ko a = .free) :
     InvH m0 { s with mem := Function.update s.mem a v,
                          ph := Function.update s.ph c (.loc p0 k (insert a W)) } H := by
   have Ic := I.loc c p0 _ W hc
@@ -545,7 +646,7 @@ theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) 
     · rw [he]; exact h
     · exact (hmv x he).2
   refine I.locstep (p' := k) (W' := insert a W) hc rfl rfl rfl rfl (Set.subset_insert a W)
-    ?_ ?_ ?_ ?_ ?_
+    ?_ ?_ ?_ ?_ rfl rfl ?_ ?_
   · intro x hx
     exact Function.update_of_ne (fun h => hx (by rw [h]; exact Set.mem_insert a W)) _ _
   · intro d hdc x h
@@ -560,13 +661,30 @@ theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) 
       rintro rfl
       exact held_disj (Ne.symm hdc) ha (Or.inl ((I.loc d q0 q U hd).held x hx))
     exact Function.update_of_ne hxa _ _
+  · intro x hx
+    by_cases hxa : x = a
+    · subst hxa
+      show s.cls x (Function.update s.mem x v x) = _ ∨ _
+      rw [Function.update_self]
+      rcases hcls with h | h
+      · rw [h]
+        rcases I.clsinv x with h2 | ⟨e, q0, q, U, he, hxU, hk⟩
+        · exact Or.inl h2
+        · by_cases hec : e = c
+          · subst hec; exact Or.inr hk
+          · exact absurd (Or.inl ha) (fun h3 => held_disj hec ((I.loc e q0 q U he).held x hxU) h3)
+      · exact Or.inr h
+    · have hxW : x ∈ W := (Set.mem_insert_iff.mp hx).resolve_left hxa
+      show s.cls x (Function.update s.mem a v x) = _ ∨ _
+      rw [Function.update_of_ne hxa]
+      exact I.clsW hc x hxW
   · refine { held := ?_, sim := ?_ }
     · intro x hx
       rcases Set.mem_insert_iff.mp hx with rfl | hx
       · exact hcpres x ha
       · exact hcpres x (Ic.held x hx)
-    · intro n n' hn hr
-      refine Ic.sim n n' (fun x hx => hn x ?_) (Run.wr (by rw [mix_upd]; exact hr))
+    · intro n n' hn hcn hr
+      refine Ic.sim n n' (fun x hx => hn x ?_) hcn (Run.wr (by rw [mix_upd]; exact hr))
       show Held s.lk c (s.own (Function.update s.mem a v) x) ∨
         s.own (Function.update s.mem a v) x = .gate
       by_cases he : s.own (Function.update s.mem a v) x = s.own s.mem x
@@ -599,9 +717,10 @@ theorem inv_lock {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H
   exact I.locstep (p' := k b) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
     (fun _ _ => rfl) (fun _ _ _ h => held_lock hb h)
     (fun _ _ _ h => Or.imp (held_lock hb) id h) (fun _ _ _ _ _ _ _ _ => rfl)
+    rfl rfl (I.clsW hc)
     { held := fun x hx => held_lock hb (Ic.held x hx)
-      sim := fun n n' hn hr =>
-        Ic.sim n n' (fun x hx => hn x (Or.imp (held_lock hb) id hx)) (Run.lock b hr) }
+      sim := fun n n' hn hcn hr =>
+        Ic.sim n n' (fun x hx => hn x (Or.imp (held_lock hb) id hx)) hcn (Run.lock b hr) }
 
 theorem held_release {lk : L → Option C} {c d : C} (hdc : d ≠ c) {o : Owner C L}
     (h : Held lk d o) : Held (release lk c) d o := by
@@ -620,8 +739,8 @@ theorem inv_leave {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s 
   have Ic := I.loc c p0 _ W hc
   have hl : ∀ d, ((Function.update s.ph c Phase.idle) d).IsLoc → (s.ph d).IsLoc :=
     fun d hd => (upd_isLoc Phase.idle_not_loc hd).2
-  refine ⟨RunAll.snoc I.hist (Ic.sim H _ (fun _ _ => rfl) (Run.done _)),
-    fun h d hd => I.clo h d (hl d hd), fun h d hm hd => I.drn h d hm (hl d hd), ?_, ?_⟩
+  refine ⟨RunAll.snoc I.hist (Ic.sim H _ (fun _ _ => rfl) (fun _ _ => rfl) (Run.done _)),
+    fun h d hd => I.clo h d (hl d hd), fun h d hm hd => I.drn h d hm (hl d hd), ?_, ?_, ?_⟩
   · intro x hx
     show s.mem x = mix W s.mem H x
     by_cases hxW : x ∈ W
@@ -637,15 +756,38 @@ theorem inv_leave {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s 
   · intro d q0 q U hd
     rcases upd_loc hd with ⟨_, he⟩ | ⟨hdc, hd⟩
     · cases he
-    · exact (I.loc d q0 q U hd).mono (fun x h => held_release hdc h)
+    · refine (I.loc d q0 q U hd).mono (fun x h => held_release hdc h)
         (fun x h => Or.imp (held_release hdc) id h)
         (fun x hp => mix_nmem (fun hxW => held_disj (Ne.symm hdc) (Ic.held x hxW) hp))
-        (fun _ _ => rfl)
+        (fun _ _ => rfl) rfl rfl (fun x hx => ?_)
+      by_cases hxW : x ∈ W
+      · rw [mix_mem hxW]
+        rcases I.clsinv x with h | ⟨e, q0', q', U', he, hxU, hk⟩
+        · exact h
+        · exfalso
+          have hec : e = c := by
+            by_contra hne
+            exact held_disj hne ((I.loc e q0' q' U' he).held x hxU) (Or.inl (Ic.held x hxW))
+          subst hec
+          rcases hx with h1 | h1 <;> rcases hk with h2 | h2 <;> rw [h1] at h2 <;>
+            first | exact hdc (ClsOwner.core.inj h2) | exact hdc (ClsOwner.core.inj h2).symm | cases h2
+      · rw [mix_nmem hxW]
+  · intro x
+    show s.cls x (s.mem x) = s.cls x (mix W s.mem H x) ∨ _
+    by_cases hxW : x ∈ W
+    · rw [mix_mem hxW]; exact Or.inl rfl
+    · rw [mix_nmem hxW]
+      rcases I.clsinv x with h | ⟨e, q0, q, U, he, hxU, hk⟩
+      · exact Or.inl h
+      · have hec : e ≠ c := by rintro rfl; rw [hc] at he; cases he; exact hxW hxU
+        exact Or.inr ⟨e, q0, q, U, by
+          show Function.update s.ph c .idle e = _
+          rw [Function.update_of_ne hec]; exact he, hxU, hk⟩
 
 theorem inv_phase {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {X : Phase A V L} (hX : ¬ X.IsLoc) (hc : ¬ (s.ph c).IsLoc) :
     InvH m0 { s with ph := Function.update s.ph c X } H :=
-  I.frame rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mp h)
+  I.frame rfl rfl rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mp h)
     (fun d q0 q U h => (upd_nonloc hX hc d q0 q U).mpr h)
     (fun h d hd => I.clo h d (upd_isLoc hX hd).2)
     (fun h d hm hd => I.drn h d hm (upd_isLoc hX hd).2)
@@ -655,7 +797,7 @@ theorem inv_enter {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s 
     InvH m0 { s with ph := Function.update s.ph c (.loc p p ∅) } H := by
   have hnc : ∀ d q0 q U, s.ph d = .loc q0 q U → d ≠ c := by
     rintro d q0 q U hd rfl; rw [hc] at hd; cases hd
-  refine ⟨I.hist, fun h => ?_, fun h => ?_, ?_, ?_⟩
+  refine ⟨I.hist, fun h => ?_, fun h => ?_, ?_, ?_, ?_⟩
   · have h' : s.gate = .closed := h
     rw [hg] at h'; cases h'
   · have h' : s.gate = .draining := h
@@ -670,9 +812,15 @@ theorem inv_enter {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s 
     rcases upd_loc hd with ⟨rfl, he⟩ | ⟨hdc, hd⟩
     · cases he
       exact { held := fun x hx => absurd hx (by simp)
-              sim := fun n n' _ hr => by rw [mix_empty] at hr; exact hr }
+              sim := fun n n' _ _ hr => by rw [mix_empty] at hr; exact hr }
     · exact (I.loc d q0 q U hd).mono (fun _ h => h) (fun _ h => h) (fun _ _ => rfl)
-        (fun _ _ => rfl)
+        (fun _ _ => rfl) rfl rfl (fun _ _ => rfl)
+  · intro x
+    rcases I.clsinv x with h | ⟨e, q0, q, U, he, hxU, hk⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨e, q0, q, U, by
+        show Function.update s.ph c _ e = _
+        rw [Function.update_of_ne (hnc e q0 q U he)]; exact he, hxU, hk⟩
 
 theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     (p : Prog A V L) (hc : s.ph c = .idle) :
@@ -680,7 +828,7 @@ theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H
                          gate := if s.gate = .opn then .draining else s.gate } H := by
   have hX : ¬ (Phase.ser p : Phase A V L).IsLoc := Phase.ser_not_loc p
   have hc' : ¬ (s.ph c).IsLoc := by rw [hc]; exact Phase.idle_not_loc
-  refine I.frame rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mp h)
+  refine I.frame rfl rfl rfl rfl rfl rfl (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mp h)
     (fun d q0 q U h => (upd_nonloc hX hc' d q0 q U).mpr h) ?_ ?_
   · intro h d hd
     have h' : (if s.gate = .opn then Gate.draining else s.gate) = .closed := h
@@ -694,7 +842,7 @@ theorem inv_take {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H
 theorem inv_scan {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     (d : C) (hd : ¬ (s.ph d).Active) :
     InvH m0 { s with seen := insert d s.seen } H := by
-  refine I.frame rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h) I.clo ?_
+  refine I.frame rfl rfl rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h) I.clo ?_
   intro h e he hl
   rcases Set.mem_insert_iff.mp he with rfl | he
   · exact hd (Phase.active_of_isLoc hl)
@@ -703,16 +851,17 @@ theorem inv_scan {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H
 theorem inv_drain {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     (hg : s.gate = .draining) (hall : ∀ d, d ∈ s.seen) :
     InvH m0 { s with gate := .closed } H := by
-  refine I.frame rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
+  refine I.frame rfl rfl rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
     (fun _ d => I.drn hg d (hall d)) ?_
   intro h; cases h
 
 theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L)
+    (cls' : A → V → V) (ko' : A → ClsOwner C)
     (hg : s.gate = .closed) (hr : Run p s.mem m') :
     InvH m0 { s with mem := m', holder := none, ph := Function.update s.ph c .idle,
                          gate := if keep then .closed else .opn, log := s.log ++ [p],
-                         own := own' } m' := by
+                         own := own', cls := cls', ko := ko' } m' := by
   have nl := I.clo hg
   have hmH : s.mem = H := by
     funext x
@@ -720,7 +869,7 @@ theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s
   have nl' : ∀ d, ¬ ((Function.update s.ph c Phase.idle) d).IsLoc :=
     fun d hd => nl d (upd_isLoc Phase.idle_not_loc hd).2
   refine ⟨RunAll.snoc I.hist (by rw [← hmH]; exact hr), fun _ => nl', fun _ d _ => nl' d,
-    fun _ _ => rfl, ?_⟩
+    fun _ _ => rfl, ?_, fun _ => Or.inl rfl⟩
   intro d q0 q U hd
   have hd' : Function.update s.ph c Phase.idle d = .loc q0 q U := hd
   exact absurd (by rw [hd']; trivial) (nl' d)
@@ -737,7 +886,10 @@ theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
     exact ⟨H, inv_rd I hc hal⟩
   | wr hc =>
     simp only [Allowed, hc] at hal
-    exact ⟨H, inv_wr I hc hal.1 hal.2⟩
+    exact ⟨H, inv_wr I hc hal.1 hal.2.1 hal.2.2⟩
+  | rdc hc =>
+    simp only [Allowed, hc] at hal
+    exact ⟨H, inv_rdc I hc hal.1 hal.2⟩
   | lock b hc hb => exact ⟨H, inv_lock I hc b hb⟩
   | rds hc => exact ⟨H, inv_rds I hc⟩
   | start hc => exact ⟨H, inv_start I hc⟩
@@ -745,7 +897,7 @@ theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
   | take p hc _ => exact ⟨H, inv_take I p hc⟩
   | scan d _ _ hd => exact ⟨H, inv_scan I d hd⟩
   | drain _ hg hall => exact ⟨H, inv_drain I hg hall⟩
-  | serial keep own' _ hg _ hr => exact ⟨_, inv_serial I keep own' hg hr⟩
+  | serial keep own' cls' ko' _ hg _ hr => exact ⟨_, inv_serial I keep own' cls' ko' hg hr⟩
 
 theorem inv_init {s0 : Cfg A V C L} (h0 : Init s0) : InvH s0.mem s0 s0.mem where
   hist := by rw [h0.1]; rfl
@@ -753,6 +905,7 @@ theorem inv_init {s0 : Cfg A V C L} (h0 : Init s0) : InvH s0.mem s0 s0.mem where
   drn _ d _ := h0.2 d
   agree _ _ := rfl
   loc d _ _ _ hd := absurd (by rw [hd]; trivial) (h0.2 d)
+  clsinv _ := Or.inl rfl
 
 theorem greach_inv {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
     ∃ H, InvH s0.mem s H := by
@@ -826,6 +979,8 @@ inductive Within (F : Set A) : Prog A V L → Prop
   | lock {l : L} {k : Bool → Prog A V L} : (∀ b, Within F (k b)) → Within F (.lock l k)
   | rds {a : A} {k : V → Prog A V L} : a ∈ F → (∀ v, Within F (k v)) → Within F (.rds a k)
   | start {k : Prog A V L} : Within F k → Within F (.start k)
+  | rdc {a : A} {K : V → V → Prop} {k : V → Prog A V L} :
+      a ∈ F → (∀ v, Within F (k v)) → Within F (.rdc a K k)
 
 /-- (a) An access footprint is a write footprint. -/
 theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -841,6 +996,7 @@ theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Wit
   | lock b _ ih => cases hw with | lock hk => exact ih (hk b)
   | rds v _ ih => cases hw with | rds _ hk => exact ih (hk v)
   | start _ ih => cases hw with | start hk => exact ih hk
+  | rdc v _ _ ih => cases hw with | rdc _ hk => exact ih (hk v)
 
 /-- (b) An access footprint is a frame. -/
 theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -882,6 +1038,12 @@ theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within 
       intro n hn
       obtain ⟨n', h1, h2⟩ := ih hk n hn
       exact ⟨n', .start h1, h2⟩
+  | @rdc a K k m m' v hK _ ih =>
+    cases hw with
+    | rdc ha hk =>
+      intro n hn
+      obtain ⟨n', h1, h2⟩ := ih (hk v) n hn
+      exact ⟨n', .rdc v (by rw [hn a ha]; exact hK) h1, h2⟩
 
 theorem run_rd_inv {a : A} {k : V → Prog A V L} {m m' : A → V} (h : Run (.rd a k) m m') :
     Run (k (m a)) m m' := by cases h; assumption
@@ -917,6 +1079,8 @@ def cx0 : Cfg Bool ℕ Bool Empty where
   ph := fun _ => .idle
   log := []
   own := fun _ _ => .gate
+  cls := fun _ v => v
+  ko := fun _ => .free
 
 theorem cxP_run {m m' : Bool → ℕ} (h : Run cxP m m') : m' = Function.update m true 0 := by
   have h3 := run_wr_inv (run_rd_inv (run_rd_inv h))

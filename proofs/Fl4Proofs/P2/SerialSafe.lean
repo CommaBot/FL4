@@ -66,23 +66,31 @@ def MoveV (own : (A → V) → A → Owner C L) (c : C) (hs : L → Prop) (μ μ
 /-- **A body safe from core `c`'s view** with locks `hs`, from memory `μ`: its
 sequential run reads held or gate-owned words (or reads speculatively) and
 writes held words, moving owners only between held owners. -/
-inductive Safe (own : (A → V) → A → Owner C L) (c : C) (hs : L → Prop) :
-    (A → V) → Prog A V L → Prop
-  | done {μ : A → V} : Safe own c hs μ .done
+inductive Safe (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C)
+    (c : C) (hs : L → Prop) : (A → V) → Prog A V L → Prop
+  | done {μ : A → V} : Safe own cls ko c hs μ .done
   | rd {μ : A → V} {a : A} {k : V → Prog A V L} :
-      PO c hs (own μ a) → Safe own c hs μ (k (μ a)) → Safe own c hs μ (.rd a k)
+      PO c hs (own μ a) → Safe own cls ko c hs μ (k (μ a)) → Safe own cls ko c hs μ (.rd a k)
   | rds {μ : A → V} {a : A} {k : V → Prog A V L} :
-      (∀ v, Safe own c hs μ (k v)) → Safe own c hs μ (.rds a k)
+      (∀ v, Safe own cls ko c hs μ (k v)) → Safe own cls ko c hs μ (.rds a k)
+  | rdc {μ : A → V} {a : A} {K : V → V → Prop} {k : V → Prog A V L} :
+      (ko a = .gate ∨ ko a = .core c) → (∀ u w, cls a u = cls a w → K u w) →
+      (∀ v, cls a v = cls a (μ a) → Safe own cls ko c hs μ (k v)) →
+      Safe own cls ko c hs μ (.rdc a K k)
   | wr {μ : A → V} {a : A} {v : V} {k : Prog A V L} :
       HeldV c hs (own μ a) → MoveV own c hs μ (Function.update μ a v) →
-      Safe own c hs (Function.update μ a v) k → Safe own c hs μ (.wr a v k)
+      (cls a v = cls a (μ a) ∨ ko a = .core c ∨ ko a = .free) →
+      Safe own cls ko c hs (Function.update μ a v) k → Safe own cls ko c hs μ (.wr a v k)
 
 /-- The fl4-sync glue: speculative reads and lock attempts, up to `start`. -/
-inductive Glue : Prog A V L → Prop
-  | done : Glue .done
-  | rds {a : A} {k : V → Prog A V L} : (∀ v, Glue (k v)) → Glue (.rds a k)
-  | lock {l : L} {k : Bool → Prog A V L} : (∀ b, Glue (k b)) → Glue (.lock l k)
-  | start (k : Prog A V L) : Glue (.start k)
+inductive Glue (cls : A → V → V) (ko : A → ClsOwner C) (c : C) : Prog A V L → Prop
+  | done : Glue cls ko c .done
+  | rds {a : A} {k : V → Prog A V L} : (∀ v, Glue cls ko c (k v)) → Glue cls ko c (.rds a k)
+  | rdc {a : A} {K : V → V → Prop} {k : V → Prog A V L} :
+      (ko a = .gate ∨ ko a = .core c) → (∀ u w, cls a u = cls a w → K u w) →
+      (∀ v, Glue cls ko c (k v)) → Glue cls ko c (.rdc a K k)
+  | lock {l : L} {k : Bool → Prog A V L} : (∀ b, Glue cls ko c (k b)) → Glue cls ko c (.lock l k)
+  | start (k : Prog A V L) : Glue cls ko c (.start k)
 
 /-- **`Deciders`**: a word's owner changes only through a write to a word with
 the same owner, or the gate's. -/
@@ -126,40 +134,46 @@ theorem not_PO_of_held {lk : L → Option C} {e d : C} (hed : e ≠ d) {o : Owne
     | gate => exact h
   · subst hg; exact h
 
-theorem Safe.congr {own : (A → V) → A → Owner C L} {c : C} {hs hs' : L → Prop}
-    (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {q : Prog A V L} (hS : Safe own c hs μ q) :
-    Safe own c hs' μ q := by
+theorem Safe.congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
+    {c : C} {hs hs' : L → Prop}
+    (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {q : Prog A V L} (hS : Safe own cls ko c hs μ q) :
+    Safe own cls ko c hs' μ q := by
   induction hS with
   | done => exact .done
   | rd hp _ ih => exact .rd (hp.imp_left (heldV_congr h _).mp) ih
   | rds _ ih => exact .rds ih
-  | wr ha hm _ ih =>
+  | rdc hko hK _ ih => exact .rdc hko hK ih
+  | wr ha hm hcl _ ih =>
     exact .wr ((heldV_congr h _).mp ha)
-      (fun x hx => ⟨(heldV_congr h _).mp (hm x hx).1, (heldV_congr h _).mp (hm x hx).2⟩) ih
+      (fun x hx => ⟨(heldV_congr h _).mp (hm x hx).1, (heldV_congr h _).mp (hm x hx).2⟩) hcl ih
 
 /-! ## Stability under another core's write -/
 
 /-- What another core's write `b := v` looks like from core `c`: `b` is not a
 word `c` may read, and every owner it changes is, before and after, one `c`
 may not read. -/
-def Foreign (own : (A → V) → A → Owner C L) (c : C) (hs : L → Prop) (μ : A → V) (b : A)
-    (v : V) : Prop :=
-  ¬ PO c hs (own μ b) ∧ ∀ x, own (Function.update μ b v) x ≠ own μ x →
-    ¬ PO c hs (own μ x) ∧ ¬ PO c hs (own (Function.update μ b v) x)
+def Foreign (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C) (c : C)
+    (hs : L → Prop) (μ : A → V) (b : A) (v : V) : Prop :=
+  ¬ PO c hs (own μ b) ∧ (∀ x, own (Function.update μ b v) x ≠ own μ x →
+    ¬ PO c hs (own μ x) ∧ ¬ PO c hs (own (Function.update μ b v) x)) ∧
+  (cls b v = cls b (μ b) ∨ (ko b ≠ .gate ∧ ko b ≠ .core c))
 
-theorem Foreign.perm {own : (A → V) → A → Owner C L} {c : C} {hs : L → Prop} {μ : A → V}
-    {b : A} {v : V} (hF : Foreign own c hs μ b v) {x : A} (hx : PO c hs (own μ x)) :
+theorem Foreign.perm {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
+    {c : C} {hs : L → Prop} {μ : A → V}
+    {b : A} {v : V} (hF : Foreign own cls ko c hs μ b v) {x : A} (hx : PO c hs (own μ x)) :
     own (Function.update μ b v) x = own μ x ∧ Function.update μ b v x = μ x := by
   refine ⟨?_, ?_⟩
-  · by_contra hne; exact (hF.2 x hne).1 hx
+  · by_contra hne; exact (hF.2.1 x hne).1 hx
   · have hxb : x ≠ b := by rintro rfl; exact hF.1 hx
     exact Function.update_of_ne hxb _ _
 
 /-- **Stability**: a body `Safe` from `μ` stays `Safe` after another core's
 write that is `Foreign` to it. -/
-theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {c : C}
-    {hs : L → Prop} {μ : A → V} {q : Prog A V L} (hS : Safe own c hs μ q) :
-    ∀ {b : A} {v : V}, Foreign own c hs μ b v → Safe own c hs (Function.update μ b v) q := by
+theorem Safe.foreign {own : (A → V) → A → Owner C L} {cls : A → V → V}
+    {ko : A → ClsOwner C} (hD : Deciders own) {c : C}
+    {hs : L → Prop} {μ : A → V} {q : Prog A V L} (hS : Safe own cls ko c hs μ q) :
+    ∀ {b : A} {v : V}, Foreign own cls ko c hs μ b v →
+      Safe own cls ko c hs (Function.update μ b v) q := by
   induction hS with
   | done => intro _ _ _; exact .done
   | @rd μ a k hp _ ih =>
@@ -169,7 +183,20 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
     · rw [ho]; exact hp
     · rw [hv]; exact ih hF
   | rds _ ih => intro b v hF; exact .rds (fun w => ih w hF)
-  | @wr μ a w k ha hm _ ih =>
+  | @rdc μ a K k hko hK _ ih =>
+    intro b v hF
+    have hca : cls a (Function.update μ b v a) = cls a (μ a) := by
+      by_cases hab : a = b
+      · subst hab
+        rw [Function.update_self]
+        rcases hF.2.2 with h | ⟨h1, h2⟩
+        · exact h
+        · rcases hko with h | h
+          · exact absurd h h1
+          · exact absurd h h2
+      · rw [Function.update_of_ne hab]
+    exact .rdc hko hK (fun w hw => ih w (hw.trans hca) hF)
+  | @wr μ a w k ha hm hcl _ ih =>
     intro b v hF
     have hpa : PO c hs (own μ a) := Or.inl ha
     have hab : a ≠ b := by rintro rfl; exact hF.1 hpa
@@ -185,8 +212,10 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
       intro x hx
       by_contra hne; exact hx (Or.inl (hm x hne).2)
     -- The foreign write seen after `c`'s write.
-    have hF' : Foreign own c hs (Function.update μ a w) b v := by
-      refine ⟨by rw [hob]; exact hnb, fun x hx => ?_⟩
+    have hF' : Foreign own cls ko c hs (Function.update μ a w) b v := by
+      refine ⟨by rw [hob]; exact hnb, fun x hx => ?_, ?_⟩
+      swap
+      · rw [Function.update_of_ne (Ne.symm hab)]; exact hF.2.2
       have hdec := hD (Function.update μ a w) b v x hx
       rw [hob] at hdec
       have hxo : own (Function.update μ a w) x = own μ b := by
@@ -201,7 +230,7 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
       have hn2 : ¬ PO c hs (own (Function.update μ b v) x) := by
         by_cases he : own (Function.update μ b v) x = own μ x
         · rw [he, hμx]; exact hnb
-        · exact (hF.2 x he).2
+        · exact (hF.2.1 x he).2
       rw [Function.update_comm hab] at hP
       by_cases he2 : own (Function.update (Function.update μ b v) a w) x =
           own (Function.update μ b v) x
@@ -211,7 +240,7 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
         rcases hd2 with h | h
         · exact hn2 (by rw [← h]; exact hpa)
         · exact heldV_ne_gate ha h
-    refine .wr ?_ ?_ ?_
+    refine .wr ?_ ?_ ?_ ?_
     · rw [hoa]; exact ha
     · intro x hx
       have hd1 := hD (Function.update μ b v) a w x hx
@@ -225,7 +254,7 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
       have hμx : own μ x = own μ a := by
         by_cases he : own (Function.update μ b v) x = own μ x
         · rw [← he, hx1]
-        · exact absurd (by rw [hx1]; exact hpa) (hF.2 x he).2
+        · exact absurd (by rw [hx1]; exact hpa) (hF.2.1 x he).2
       have hνx : HeldV c hs (own (Function.update μ a w) x) := by
         by_cases he : own (Function.update μ a w) x = own μ x
         · rw [he, hμx]; exact ha
@@ -234,7 +263,8 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
       by_cases he : own (Function.update (Function.update μ a w) b v) x =
           own (Function.update μ a w) x
       · rw [he]; exact hνx
-      · exact absurd (Or.inl hνx) (hF'.2 x he).1
+      · exact absurd (Or.inl hνx) (hF'.2.1 x he).1
+    · rw [Function.update_of_ne hab]; exact hcl
     · rw [← Function.update_comm hab]; exact ih hF'
 
 /-! ## The invariant -/
@@ -243,17 +273,17 @@ theorem Safe.foreign {own : (A → V) → A → Owner C L} (hD : Deciders own) {
 current memory with its current locks. -/
 def SInv (s : Cfg A V C L) : Prop :=
   ∀ d p0 q W, s.ph d = .loc p0 q W →
-    Glue q ∨ Safe s.own d (fun l => s.lk l = some d) s.mem q
+    Glue s.cls s.ko d q ∨ Safe s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem q
 
 /-- **Premise** [W]: every program a core arms is glue up to its body. -/
 def ArmGlue (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p, s.ph c = .arm p → Glue p
+  ∀ s, GReach s0 s → ∀ c p, s.ph c = .arm p → Glue s.cls s.ko c p
 
 /-- **Premise** [W]: a body is `Safe` from the memory and locks when it starts
 (per path, from `PathObl` and the glue's `Pre` [P]). -/
 def BodyOK (s0 : Cfg A V C L) : Prop :=
   ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
-    Safe s.own c (fun l => s.lk l = some c) s.mem k
+    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem k
 
 /-- **Premise** [W]: every ownership map of the execution satisfies `Deciders`. -/
 def DecidersOK (s0 : Cfg A V C L) : Prop := ∀ s, GReach s0 s → Deciders s.own
@@ -277,8 +307,16 @@ theorem allowed_of_sinv {s : Cfg A V C L} (I : SInv s) (c : C) : Allowed s c := 
       rcases hI with hg | hS
       · cases hg
       · cases hS with
-        | wr ha hm _ =>
-          exact ⟨held_of_heldV ha, fun x hx => ⟨held_of_heldV (hm x hx).1, held_of_heldV (hm x hx).2⟩⟩
+        | wr ha hm hcl _ =>
+          exact ⟨held_of_heldV ha,
+            fun x hx => ⟨held_of_heldV (hm x hx).1, held_of_heldV (hm x hx).2⟩, hcl⟩
+    | rdc a K k =>
+      simp only [Allowed, hph]
+      rcases hI with hg | hS
+      · cases hg with
+        | rdc hko hK _ => exact ⟨hko, hK⟩
+      · cases hS with
+        | rdc hko hK _ => exact ⟨hko, hK⟩
     | done => simp only [Allowed, hph]
     | rds a k => simp only [Allowed, hph]
     | lock l k => simp only [Allowed, hph]
@@ -288,9 +326,10 @@ theorem allowed_of_sinv {s : Cfg A V C L} (I : SInv s) (c : C) : Allowed s c := 
 theorem sinv_keep {s : Cfg A V C L} {d : C} {own' : (A → V) → A → Owner C L}
     {mem' : A → V} {lk' : L → Option C} (hown : own' = s.own) (hmem : mem' = s.mem)
     (hlk : ∀ l, lk' l = some d ↔ s.lk l = some d) {q : Prog A V L}
-    (h : Glue q ∨ Safe s.own d (fun l => s.lk l = some d) s.mem q) :
-    Glue q ∨ Safe own' d (fun l => lk' l = some d) mem' q := by
-  subst hown hmem
+    {cls' : A → V → V} {ko' : A → ClsOwner C} (hcl : cls' = s.cls) (hko : ko' = s.ko)
+    (h : Glue s.cls s.ko d q ∨ Safe s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem q) :
+    Glue cls' ko' d q ∨ Safe own' cls' ko' d (fun l => lk' l = some d) mem' q := by
+  subst hown hmem hcl hko
   exact h.imp id (Safe.congr (fun l => (hlk l).symm))
 
 theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0 s)
@@ -333,6 +372,16 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       · cases hS with
         | rds hk => exact Or.inr (hk _)
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
+  | @rdc p1 a K k W1 hc =>
+    have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
+    by_cases hdc : d = c
+    · subst hdc; rw [Function.update_self] at hd'; cases hd'
+      rcases I d _ _ _ hc with hg | hS
+      · cases hg with
+        | rdc _ _ hk => exact Or.inl (hk _)
+      · cases hS with
+        | rdc _ _ hk => exact Or.inr (hk _ rfl)
+    · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @start p1 k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 k W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
@@ -346,17 +395,25 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       rcases I d _ _ _ hc with hg | hS
       · cases hg
       · cases hS with
-        | wr _ _ hk => exact Or.inr hk
+        | wr _ _ _ hk => exact Or.inr hk
     · rw [Function.update_of_ne hdc] at hd'
       rcases I d p0 q W hd' with hg | hS
       · exact Or.inl hg
       · right
         simp only [Allowed, hc] at hal
-        obtain ⟨hb, hmv⟩ := hal
+        obtain ⟨hb, hmv, hcl⟩ := hal
         have hcd : c ≠ d := Ne.symm hdc
-        exact Safe.foreign hD hS
+        refine Safe.foreign hD hS
           ⟨not_PO_of_held hcd hb, fun x hx =>
-            ⟨not_PO_of_held hcd (hmv x hx).1, not_PO_of_held hcd (hmv x hx).2⟩⟩
+            ⟨not_PO_of_held hcd (hmv x hx).1, not_PO_of_held hcd (hmv x hx).2⟩, ?_⟩
+        rcases hcl with h | h | h
+        · exact Or.inl h
+        · refine Or.inr ⟨?_, ?_⟩
+          · rw [h]; intro e; cases e
+          · rw [h]; intro e; exact hcd (ClsOwner.core.inj e)
+        · refine Or.inr ⟨?_, ?_⟩
+          · rw [h]; intro e; cases e
+          · rw [h]; intro e; cases e
   | @lock p1 l k W1 b hc hb =>
     have hd' : Function.update s.ph c (.loc p1 (k b) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
@@ -367,7 +424,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       · cases hS
     · rw [Function.update_of_ne hdc] at hd'
       refine sinv_keep (s := s) (lk' := if b then Function.update s.lk l (some c) else s.lk)
-        rfl rfl (fun l' => ?_) (I d p0 q W hd')
+        rfl rfl (fun l' => ?_) rfl rfl (I d p0 q W hd')
       cases b with
       | false => rw [if_neg (by decide)]
       | true =>
@@ -382,7 +439,8 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
     · rw [Function.update_of_ne hdc] at hd'
-      refine sinv_keep (s := s) (lk' := release s.lk c) rfl rfl (fun l' => ?_) (I d p0 q W hd')
+      refine sinv_keep (s := s) (lk' := release s.lk c) rfl rfl (fun l' => ?_) rfl rfl
+        (I d p0 q W hd')
       show (if s.lk l' = some c then none else s.lk l') = some d ↔ s.lk l' = some d
       by_cases hl : s.lk l' = some c
       · rw [if_pos hl, hl]
@@ -395,7 +453,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | scan e _ _ _ => exact I d p0 q W hd
   | drain _ _ _ => exact I d p0 q W hd
-  | serial keep own' _ hg _ _ =>
+  | serial keep own' cls' ko' _ hg _ _ =>
     have hd' : Function.update s.ph c .idle d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
