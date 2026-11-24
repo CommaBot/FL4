@@ -426,7 +426,7 @@ fn el2_reflect_uses_only_x0() {
 }
 
 /// Phase 1: `fl4_el2_vhe_setup` stays at EL2 with VHE (E2H|RW|TGE), clears
-/// fine-grained traps / HCRX / PAuth keys (clearing APK|API back to 0),
+/// fine-grained traps / HCRX / PAuth keys (keeping APK|API set after them),
 /// sets CPTR_EL2, CNTHCTL_EL2, MDCR_EL2, ICC_SRE_EL2, ICH_HCR_EL2 and
 /// SCTLR_EL2, and returns at EL2 without an `eret`.
 #[test]
@@ -435,13 +435,13 @@ fn el2_vhe_setup_stays_at_el2_and_initializes_host_state() {
     assert!(!vhe.iter().any(|l| l == "eret"), "fl4_el2_vhe_setup must stay at EL2");
     assert_eq!(vhe.last().map(String::as_str), Some("ret"));
     let has = |s: &str| vhe.iter().any(|l| l == s);
-    // HCR_EL2 = E2H | RW | TGE, and APK/API cleared back after PAuth keys.
+    // HCR_EL2 = E2H | RW | TGE, with APK/API for the PAuth keys and kept.
     assert_eq!(
         vhe.iter().filter(|l| *l == "ldr x9, =((1 << 34) | (1 << 31) | (1 << 27))").count(),
         2,
         "HCR_EL2 base value must be loaded before and after PAuth key clearing"
     );
-    assert!(has("orr x9, x9, #(3 << 40)"));
+    assert_eq!(vhe.iter().filter(|l| *l == "orr x9, x9, #(3 << 40)").count(), 2, "APK|API set for the keys and kept");
     assert!(has("msr hstr_el2, xzr"));
     assert!(has("msr vttbr_el2, xzr"));
     assert!(has("msr cntvoff_el2, xzr"));

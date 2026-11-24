@@ -785,6 +785,14 @@ pub fn complete_run<S: Store, A: Arch>(
     let ip = ct.reg(s, reg::NEXT_IP);
     ct.set_reg(s, reg::FAULT_IP, ip);
     sched::set_thread_state(s, ct, sched::TS_RUNNING);
+    // Back to a native thread: while it ran the VCPU it had neither its
+    // `ArmHighVSpace` (`set_vm_root` leaves it out for `TS_RUNNING_VM`) nor,
+    // on this core, the window in TTBR1 (`leave_high` before the guest). If
+    // the scheduler resumes it without a switch, its address space must be
+    // set again here; one on another core is stalled and switched to anew.
+    if ct == sched::cur_thread(s) {
+        vspace::set_vm_root(s, a, ct);
+    }
 }
 
 fn decode_run<S: Store, A: Arch>(s: &mut S, a: &mut A, vc: u64, length: u64, call: bool, buf: u64) -> KResult<()> {

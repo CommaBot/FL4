@@ -92,9 +92,10 @@ fn tdx_labels_do_not_exist_on_aarch64() {
     assert_eq!(l::X86TdxControlGetReport, u64::MAX);
     assert_eq!(l::X86TdxControlExtendRTMR, u64::MAX);
     assert_eq!(l::X86TdxControlGetQuote, u64::MAX);
-    // GetMSI is AArch64's one label after the generic ones.
     assert_eq!(l::ARMIRQIssueIRQHandlerMSI, l::UntypedRetypeShared + 1);
-    assert_eq!(l::nArchInvocationLabels, l::ARMIRQIssueIRQHandlerMSI + 1);
+    assert_eq!(l::TCBSetPACKeys, l::ARMIRQIssueIRQHandlerMSI + 1);
+    assert_eq!(l::TCBSetHighVSpace, l::TCBSetPACKeys + 1);
+    assert_eq!(l::nArchInvocationLabels, l::TCBSetHighVSpace + 1);
 }
 
 /// AArch64 MSIs: the BootInfo record on both sides of the kernel/libsel4
@@ -120,4 +121,63 @@ fn aarch64_msi_bootinfo_and_get_msi_match_libsel4() {
     }).collect();
     assert_eq!(params, ["irq", "device", "event", "root", "index", "depth", "target"]);
     assert!(!m.contains("<param dir=\"out\""));
+}
+
+/// The AArch64 TCB extensions exist only there: x86_64's numbering is
+/// unchanged by them.
+#[test]
+#[cfg(not(feature = "aarch64"))]
+fn aarch64_tcb_labels_do_not_exist_on_x86_64() {
+    use fl4_abi::label as l;
+    assert_eq!(l::TCBSetPACKeys, u64::MAX);
+    assert_eq!(l::TCBSetHighVSpace, u64::MAX);
+}
+
+/// SetPACKeys and SetHighVSpace are AArch64 only, with the parameters the
+/// ABI names, and the constants of libsel4 match the kernel's.
+#[test]
+fn aarch64_tcb_methods_and_constants() {
+    let iface = &EXTENSIONS[EXTENSIONS.find("<interface name=\"seL4_TCB\"").expect("interface")..];
+    let params = |id: &str| -> Vec<(String, String)> {
+        let m = &iface[iface.find(&format!("<method id=\"{id}\"")).unwrap_or_else(|| panic!("{id}"))..];
+        let m = &m[..m.find("</method>").unwrap()];
+        assert!(m.contains("<condition><config var=\"CONFIG_ARCH_AARCH64\"/></condition>"), "{id}");
+        let tag = "<param dir=\"in\" name=\"";
+        m.match_indices(tag).map(|(at, _)| {
+            let rest = &m[at + tag.len()..];
+            let name = rest[..rest.find('"').unwrap()].to_string();
+            let ty = &rest[rest.find("type=\"").unwrap() + 6..];
+            (name, ty[..ty.find('"').unwrap()].to_string())
+        }).collect()
+    };
+    let mut want = vec![("flags".to_string(), "seL4_Word".to_string())];
+    for k in ["apia", "apib", "apda", "apdb", "apga"] {
+        for h in ["lo", "hi"] {
+            want.push((format!("{k}_{h}"), "seL4_Word".into()));
+        }
+    }
+    assert_eq!(params("TCBSetPACKeys"), want);
+    assert_eq!(params("TCBSetHighVSpace"), [("high_vspace".to_string(), "seL4_CPtr".to_string())]);
+    let objs = include_str!("../../../libsel4/arch_include/arm/sel4/arch/objecttype.h");
+    assert!(objs.contains("    seL4_ARM_Stage2VSpaceObject,\n    /* FL4: TTBR1 EL0 window (seL4_TCB_SetHighVSpace), no EL2 needed. */\n    seL4_ARM_HighVSpaceObject,\n"));
+    let consts = include_str!("../../../libsel4/sel4_arch_include/aarch64/sel4/sel4_arch/constants.h");
+    for line in [
+        "#define seL4_ARM_HighVSpaceBits    13",
+        "#define seL4_ARM_HighVSpaceBase    0xffffffe000000000ul",
+        "#define seL4_ARM_HighVSpaceTop     0xfffffffc00000000ul",
+        "#define seL4_ARM_PAC_EnIA (1ul << 0)",
+        "#define seL4_ARM_PAC_EnIB (1ul << 1)",
+        "#define seL4_ARM_PAC_EnDA (1ul << 2)",
+        "#define seL4_ARM_PAC_EnDB (1ul << 3)",
+    ] {
+        assert!(consts.contains(line), "{line}");
+    }
+    #[cfg(feature = "aarch64")]
+    {
+        use fl4_abi::consts::{bits, object, pac_flag, HIGH_VSPACE_BASE, HIGH_VSPACE_TOP};
+        assert_eq!((object::ArmStage2VSpace, object::ArmHighVSpace, object::Count), (13, 14, 15));
+        assert_eq!(bits::HIGH_VSPACE, 13);
+        assert_eq!((HIGH_VSPACE_BASE, HIGH_VSPACE_TOP), (0xffff_ffe0_0000_0000, 0xffff_fffc_0000_0000));
+        assert_eq!((pac_flag::EN_IA, pac_flag::EN_IB, pac_flag::EN_DA, pac_flag::EN_DB, pac_flag::MASK), (1, 2, 4, 8, 0xf));
+    }
 }

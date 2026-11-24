@@ -63,7 +63,10 @@ pub mod object {
     pub const ArmPageTable: u64 = 11;
     pub const ArmVcpu: u64 = 12;
     pub const ArmStage2VSpace: u64 = 13;
-    pub const Count: u64 = 14;
+    /// FL4: the TTBR1 (upper-half) EL0 window of `seL4_TCB_SetHighVSpace`,
+    /// usable without EL2.
+    pub const ArmHighVSpace: u64 = 14;
+    pub const Count: u64 = 15;
     pub const X86Pdpt: u64 = u64::MAX - 11;
     pub const X64Pml4: u64 = u64::MAX - 10;
     pub const X64HugePage: u64 = u64::MAX - 9;
@@ -93,6 +96,10 @@ pub mod bits {
     #[cfg(feature = "aarch64")]
     pub const VCPU: u64 = 12;
     pub const STAGE2_VSPACE: u64 = 13;
+    /// FL4 AArch64 `ArmHighVSpace`: 8 KiB, the TTBR1 level-0 table and the
+    /// level-1 table its last entry points to.
+    #[cfg(feature = "aarch64")]
+    pub const HIGH_VSPACE: u64 = 13;
     pub const ENDPOINT: u64 = 4;
     pub const NOTIFICATION: u64 = 6;
     pub const REPLY: u64 = 5;
@@ -249,6 +256,26 @@ pub mod sc_flag {
 }
 
 /// `seL4_ARM_VMAttributes`.
+/// FL4 AArch64: the TTBR1 addresses an `ArmHighVSpace` may map, level-0
+/// entry 511, level-1 entries 384-495 (112 GiB): clear of the kernel window
+/// (`PPTR_BASE..PPTR_TOP`), the device mappings below this window and the
+/// kernel image at `KERNEL_VBASE`.
+#[cfg(feature = "aarch64")]
+pub const HIGH_VSPACE_BASE: u64 = 0xffff_ffe0_0000_0000;
+#[cfg(feature = "aarch64")]
+pub const HIGH_VSPACE_TOP: u64 = 0xffff_fffc_0000_0000;
+
+/// FL4 AArch64 `seL4_TCB_SetPACKeys` flags: the SCTLR_EL1 pointer
+/// authentication enables the thread runs with.
+#[cfg(feature = "aarch64")]
+pub mod pac_flag {
+    pub const EN_IA: u64 = 1;
+    pub const EN_IB: u64 = 2;
+    pub const EN_DA: u64 = 4;
+    pub const EN_DB: u64 = 8;
+    pub const MASK: u64 = 0xf;
+}
+
 #[cfg(feature = "aarch64")]
 pub mod arm_vm_attr {
     pub const PAGE_CACHEABLE: u64 = 1;

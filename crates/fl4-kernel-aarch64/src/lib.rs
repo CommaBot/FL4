@@ -215,6 +215,11 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     let ttbr1 = paging::init(bi.region_paddr, bi.region_len, &window[..ram.n], pa_top);
     paging::activate(ttbr1);
+    // What a new ArmHighVSpace copies: the tables themselves, read when it
+    // is made, so the device mappings made below are in them too.
+    let (kl0, kl1) = paging::kernel_tables();
+    fl4_arch_aarch64::mmu::set_kernel_ttbr1(ttbr1, kl0, kl1);
+    cpu::init_pauth();
     if cpu::is_el2_nvhe() {
         fl4_arch_aarch64::hyp_nvhe::init_core(
             0,
@@ -762,6 +767,8 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     if !fl4_abi::config::PRINTING {
         serial::release();
     }
+    // Every kernel mapping is made: ArmHighVSpaces copy the tables from now.
+    paging::freeze_kernel_tables();
     entry::lock();
     smp::release_aps();
     sched::schedule(&mut s, &mut a);

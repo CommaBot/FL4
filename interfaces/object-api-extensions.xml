@@ -135,4 +135,43 @@
             <error name="seL4_FailedLookup" description="The destination slot could not be resolved."/>
         </method>
     </interface>
+    <interface name="seL4_TCB" manual_name="TCB" cap_description="Capability to the TCB which is being operated on.">
+        <method id="TCBSetPACKeys" name="SetPACKeys" manual_name="Set PAC Keys">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Give a thread its own pointer authentication keys and enables.</brief>
+            <description>
+                The thread runs at EL0 with these five 128-bit keys (APIA, APIB, APDA, APDB, APGA) loaded
+                and with the SCTLR_EL1 enables in flags (seL4_ARM_PAC_EnIA, _EnIB, _EnDA, _EnDB). Flags 0
+                turns pointer authentication off for the thread; PACGA then runs with an all-zero key.
+                The kernel switches keys lazily, only between threads whose keys differ.
+            </description>
+            <param dir="in" name="flags" type="seL4_Word" description="seL4_ARM_PAC_En* bits"/>
+            <param dir="in" name="apia_lo" type="seL4_Word" description="APIAKeyLo_EL1"/>
+            <param dir="in" name="apia_hi" type="seL4_Word" description="APIAKeyHi_EL1"/>
+            <param dir="in" name="apib_lo" type="seL4_Word" description="APIBKeyLo_EL1"/>
+            <param dir="in" name="apib_hi" type="seL4_Word" description="APIBKeyHi_EL1"/>
+            <param dir="in" name="apda_lo" type="seL4_Word" description="APDAKeyLo_EL1"/>
+            <param dir="in" name="apda_hi" type="seL4_Word" description="APDAKeyHi_EL1"/>
+            <param dir="in" name="apdb_lo" type="seL4_Word" description="APDBKeyLo_EL1"/>
+            <param dir="in" name="apdb_hi" type="seL4_Word" description="APDBKeyHi_EL1"/>
+            <param dir="in" name="apga_lo" type="seL4_Word" description="APGAKeyLo_EL1"/>
+            <param dir="in" name="apga_hi" type="seL4_Word" description="APGAKeyHi_EL1"/>
+            <error name="seL4_IllegalOperation" description="flags is nonzero and the processor has no FEAT_PAuth."/>
+            <error name="seL4_InvalidArgument" description="flags has a bit other than the four enables."/>
+            <error name="seL4_TruncatedMessage" description="Fewer than 11 message words."/>
+        </method>
+        <method id="TCBSetHighVSpace" name="SetHighVSpace" manual_name="Set High VSpace">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Bind an ArmHighVSpace to a thread, or unbind it with a null capability.</brief>
+            <description>
+                While the thread runs on a VSpace assigned to an ASID pool, the bound ArmHighVSpace
+                (itself assigned to an ASID pool) is its TTBR1 address space: what it maps between
+                seL4_ARM_HighVSpaceBase and seL4_ARM_HighVSpaceTop is reachable from EL0. Other
+                threads, including ones on the same VSpace, never see those mappings.
+            </description>
+            <param dir="in" name="high_vspace" type="seL4_CPtr" description="An ArmHighVSpace capability assigned to an ASID pool, or seL4_CapNull"/>
+            <error name="seL4_InvalidCapability" description="high_vspace is neither null nor an ArmHighVSpace whose ASID still names it; the thread keeps its binding."/>
+            <error name="seL4_TruncatedMessage" description="The capability is missing."/>
+        </method>
+    </interface>
 </api>

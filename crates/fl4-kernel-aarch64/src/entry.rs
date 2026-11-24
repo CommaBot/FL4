@@ -2,7 +2,7 @@
 //! current TCB; dispatch to fl4-core, then run whichever thread is current.
 use crate::kprintln;
 use fl4_arch_aarch64::arch::PhysArch;
-use fl4_arch_aarch64::{cpu, fpu, gic, mmu, percpu, smp, timer, vcpu};
+use fl4_arch_aarch64::{cpu, fpu, gic, mmu, pac, percpu, smp, timer, vcpu};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -465,12 +465,19 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
 #[inline(always)]
 fn dispatch_syscall<S: Store>(s: &mut S, a: &mut PhysArch, number: i64) -> bool {
     let ct = sched::cur_thread(s);
-    let vroot = ct.slot(tl::SLOT_VTABLE).cap(s);
+    let roots = vm_roots(s, ct);
     let fast = syscall::handle_syscall_fast(s, a, number);
-    if sched::cur_thread(s) == ct && ct.slot(tl::SLOT_VTABLE).cap(s) != vroot {
+    if sched::cur_thread(s) == ct && vm_roots(s, ct) != roots {
         fl4_core::vspace::set_vm_root(s, a, ct);
     }
     fast
+}
+
+/// The caps `set_vm_root` switches by: the VSpace root and the
+/// `ArmHighVSpace` (TCBSetHighVSpace).
+#[inline(always)]
+fn vm_roots<S: Store>(s: &S, t: Tcb) -> (fl4_core::capability::Cap, fl4_core::capability::Cap) {
+    (t.slot(tl::SLOT_VTABLE).cap(s), t.slot(tl::SLOT_HIGH_VSPACE).cap(s))
 }
 
 #[inline(always)]
@@ -482,9 +489,9 @@ fn dispatch<S: Store>(s: &mut S, a: &mut PhysArch, ec: u64, esr: u64, far: u64, 
     // switch to its new root here, in the entry, rather than letting it go
     // on in the address space it gave up.
     let ct = sched::cur_thread(s);
-    let vroot = ct.slot(tl::SLOT_VTABLE).cap(s);
+    let roots = vm_roots(s, ct);
     dispatch_handler(s, a, ec, esr, far, elr);
-    if sched::cur_thread(s) == ct && ct.slot(tl::SLOT_VTABLE).cap(s) != vroot {
+    if sched::cur_thread(s) == ct && vm_roots(s, ct) != roots {
         fl4_core::vspace::set_vm_root(s, a, ct);
     }
 }
@@ -573,6 +580,7 @@ pub fn exit() -> ! {
         mmu::publish_tables();
         unlock();
         if idle {
+            pac::switch_to(0);
             vcpu::switch_to(0);
             vcpu::set_host_hcr();
             pc.idle.set(true);
@@ -584,6 +592,8 @@ pub fn exit() -> ! {
                 let guest_ptr = s.read(run_v + fl4_core::vcpu::TCB);
                 if guest_ptr != 0 {
                     let guest = Tcb(guest_ptr);
+                    pac::switch_to(0);
+                    mmu::leave_high();
                     fpu::switch_to(guest.0, guest.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0, true);
                     vcpu::switch_to(run_v);
                     if cpu::is_el2_nvhe() {
@@ -608,6 +618,12 @@ pub fn exit() -> ! {
             }
         }
         let v = fl4_core::vcpu::bound(s, ct);
+        if v != 0 {
+            pac::switch_to(0);
+            mmu::leave_high();
+        } else {
+            pac::switch_to(ct.0);
+        }
         fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0, v != 0);
         vcpu::switch_to(v);
         if v != 0 && cpu::is_el2_nvhe() {

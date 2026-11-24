@@ -33,10 +33,26 @@ fn has_ras() -> bool {
     (crate::mrs!("id_aa64pfr0_el1") >> 28) & 0xf != 0
 }
 
+/// `HCR_EL2.APK` and `API`: with E2H and TGE set they trap nothing of
+/// EL0's or EL2's, but kept set with FEAT_PAuth (as boot.S leaves them),
+/// pointer authentication keys and instructions can never trap to the
+/// kernel on a host thread's behalf.
+const HCR_APK_API: u64 = (1 << 40) | (1 << 41);
+
+/// Host EL2 VHE `HCR_EL2` on this processor.
+#[inline]
+pub fn host_hcr_vhe() -> u64 {
+    if cpu::has_pauth() {
+        HCR_HOST_VHE | HCR_APK_API
+    } else {
+        HCR_HOST_VHE
+    }
+}
+
 #[inline]
 pub fn set_host_hcr() {
     if cpu::is_el2_vhe() {
-        crate::msr!("hcr_el2", HCR_HOST_VHE);
+        crate::msr!("hcr_el2", host_hcr_vhe());
         cpu::isb();
     }
 }

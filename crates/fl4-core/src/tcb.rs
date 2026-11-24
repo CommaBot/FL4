@@ -403,6 +403,10 @@ fn set_breakpoint_checked<S: Store>(s: &mut S, t: Tcb, c: &Ctx) -> KResult<()> {
 /// seL4 `decodeTCBInvocation`: one decoder per invocation, as in seL4.
 pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, target: Tcb, c: &Ctx) -> KResult<()> {
     crate::smp::remote_tcb_stall(s, a, target);
+    #[cfg(feature = "aarch64")]
+    if lbl == label::TCBSetPACKeys || lbl == label::TCBSetHighVSpace {
+        return decode_arch(s, a, lbl, target, c);
+    }
     if lbl == label::TCBSetEPTRoot {
         if c.extra[0].is_null() { return truncated(); }
         let src = c.extra[0];

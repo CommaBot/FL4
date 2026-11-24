@@ -46,5 +46,26 @@ macro_rules! arch_machine_methods {
         fn vcpu_gic_version(&self) -> u64 { 3 }
         /// AArch64: boot core `MIDR_EL1` for `VPIDR_EL2` default.
         fn vcpu_midr(&self) -> u64 { 0 }
+        /// AArch64: the processor has FEAT_PAuth (`TCBSetPACKeys`).
+        fn has_pauth(&self) -> bool { false }
+        /// AArch64: a PAC key generation no thread's keys had before
+        /// (never 0), so the backend reloads keys whose generation changed.
+        fn next_pac_epoch(&mut self) -> u64 { 1 }
+        /// AArch64: entry `index` of the kernel's own TTBR1 tables, level 0
+        /// (`level` 0) or the level-1 table level-0 entry 511 points to
+        /// (`level` 1); 0 where there are none (host tests). A new
+        /// `ArmHighVSpace` starts as a copy of them.
+        fn kernel_ttbr1_entry(&self, _level: u64, _index: u64) -> u64 { 0 }
+        /// AArch64: run with TTBR1 on the `ArmHighVSpace` at `root` (kernel
+        /// virtual; 0 = the kernel's own TTBR1) beside the TTBR0 VSpace of
+        /// ASID `ttbr0_asid`.
+        fn set_high_vspace(&mut self, _root: u64, _ttbr0_asid: u64) {}
+        /// AArch64: drop every core's translations of `vaddr` in the high
+        /// window, for every ASID.
+        fn invalidate_high_page(&mut self, _vaddr: u64) {}
+        /// AArch64: no core may go on using the `ArmHighVSpace` at `root`
+        /// (deleted, or a table of it unmapped): those running it leave it,
+        /// and every translation it gave is dropped.
+        fn invalidate_high_vspace(&mut self, _root: u64) {}
     };
 }

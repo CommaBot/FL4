@@ -36,6 +36,25 @@ pub struct Caps {
     /// core. Compared only when guests can run: a guest that moves between
     /// cores must find the same interface.
     pub vgic_vtr: u64,
+    /// The pointer authentication fields (`cpu::pauth_fields`: APA, API,
+    /// GPA, GPI, APA3, GPA3): a thread's keys and enables (`TCBSetPACKeys`)
+    /// must compute the same, and fail the same way, on every core it may
+    /// run on, and TCR_EL1.TBID0 is set with FEAT_PAuth. Compared whole.
+    pub pauth: u64,
+}
+
+/// `cpu::pauth_fields` of the two ID register values: ID_AA64ISAR1_EL1.APA
+/// [7:4], API [11:8], GPA [27:24], GPI [31:28] where they are, and
+/// ID_AA64ISAR2_EL1.APA3 [15:12], GPA3 [11:8] moved up by 32.
+pub const fn pauth_fields_of(isar1: u64, isar2: u64) -> u64 {
+    (isar1 & 0xff00_0ff0) | ((isar2 & 0xff00) << 32)
+}
+
+/// FEAT_PAuth in `pauth_fields_of`'s value: an address authentication
+/// algorithm (APA, API or APA3), the fields boot.S also tests before it
+/// writes the keys and sets TCR_EL1.TBID0.
+pub const fn pauth_in(fields: u64) -> bool {
+    fields & (0xff0 | (0xf000 << 32)) != 0
 }
 
 /// Whether a core with `ap` may run beside a boot core with `bsp`.
@@ -51,4 +70,5 @@ pub fn ap_matches(bsp: &Caps, ap: &Caps) -> bool {
         && ap.vmid16 == bsp.vmid16
         && ap.vgic_lrs == bsp.vgic_lrs
         && (!bsp.virt || (ap.virt && ap.vgic_vtr == bsp.vgic_vtr))
+        && ap.pauth == bsp.pauth
 }

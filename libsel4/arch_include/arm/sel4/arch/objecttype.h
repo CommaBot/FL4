@@ -21,6 +21,8 @@ typedef enum _object {
 #endif
 #ifdef CONFIG_ARCH_AARCH64
     seL4_ARM_Stage2VSpaceObject,
+    /* FL4: TTBR1 EL0 window (seL4_TCB_SetHighVSpace), no EL2 needed. */
+    seL4_ARM_HighVSpaceObject,
 #endif
 #ifdef CONFIG_TK1_SMMU
     seL4_ARM_IOPageTableObject,

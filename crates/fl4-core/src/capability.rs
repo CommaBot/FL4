@@ -71,6 +71,10 @@ pub enum Cap {
     IoPort { first: u64, last: u64, vcpu: u64 },
     /// Intel TDX attestation (`crate::tdx`): only in a TDX guest's root CNode.
     TdxControl,
+    /// AArch64 `ArmHighVSpace`: a TTBR1 level-0 table and its last level-1
+    /// table (`vspace`), assigned to an ASID pool like a VSpace.
+    #[cfg(feature = "aarch64")]
+    HighVSpace { ptr: u64, mapped: bool, asid: u64 },
 }
 
 const PTR_MASK: u64 = 0x0000_ffff_ffff_ffff;
@@ -86,6 +90,43 @@ fn unpack_ptr(w: u64) -> u64 {
     } else {
         p
     }
+}
+
+/// The virtual address of a mapping cap. AArch64 mappings can lie in the
+/// TTBR1 half (`HighVSpace`), so the 48 stored bits are sign-extended there,
+/// as a pointer is; user addresses below bit 47 decode unchanged. (A macro,
+/// so the x86_64 extraction stays as it was.)
+#[cfg(feature = "aarch64")]
+macro_rules! unpack_vaddr {
+    ($w:expr) => {
+        unpack_ptr($w)
+    };
+}
+#[cfg(not(feature = "aarch64"))]
+macro_rules! unpack_vaddr {
+    ($w:expr) => {
+        $w & PTR_MASK
+    };
+}
+
+/// A frame cap's address: a Stage-2 mapping's (bit 58 of the first word) is
+/// an IPA, up to 48 bits unsigned, which is never sign-extended; a Stage-1
+/// one is a virtual address (`unpack_vaddr`).
+#[cfg(feature = "aarch64")]
+macro_rules! unpack_frame_vaddr {
+    ($w0:expr, $w1:expr) => {
+        if bit($w0, 58) {
+            $w1 & PTR_MASK
+        } else {
+            unpack_ptr($w1)
+        }
+    };
+}
+#[cfg(not(feature = "aarch64"))]
+macro_rules! unpack_frame_vaddr {
+    ($w0:expr, $w1:expr) => {
+        $w1 & PTR_MASK
+    };
 }
 
 fn bit(w: u64, n: u64) -> bool {
@@ -152,9 +193,9 @@ impl Cap {
                 mapped: bit(w0, 53),
                 is_ept: bit(w0, 58),
                 asid: unpack_asid(w0, 54, w1),
-                vaddr: w1 & PTR_MASK,
+                vaddr: unpack_frame_vaddr!(w0, w1),
             },
-            14 => Cap::PageTable { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
+            14 => Cap::PageTable { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: unpack_vaddr!(w1) },
             15 => Cap::PageDirectory { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
             16 => Cap::Pdpt { ptr: p, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
             17 => Cap::Pml4 { ptr: p, mapped: bit(w0, 48), asid: w1 },
@@ -165,6 +206,8 @@ impl Cap {
             20 => Cap::IoPortControl,
             21 => Cap::IoPort { first: w1 & 0xffff, last: (w1 >> 16) & 0xffff, vcpu: if w0 & PTR_MASK == 0 { 0 } else { p } },
             24 => Cap::TdxControl,
+            #[cfg(feature = "aarch64")]
+            25 => Cap::HighVSpace { ptr: p, mapped: bit(w0, 48), asid: w1 },
             _ => Cap::Null,
         }
     }
@@ -222,6 +265,8 @@ impl Cap {
             Cap::IoPortControl => (tag(20), 0),
             Cap::IoPort { first, last, vcpu } => (tag(21) | pack_ptr(vcpu), (first & 0xffff) | ((last & 0xffff) << 16)),
             Cap::TdxControl => (tag(24), 0),
+            #[cfg(feature = "aarch64")]
+            Cap::HighVSpace { ptr, mapped, asid } => (tag(25) | pack_ptr(ptr) | b(mapped, 48), asid),
         }
     }
 
@@ -231,6 +276,10 @@ impl Cap {
 
     /// seL4's `isArchCap`.
     pub fn is_arch(self) -> bool {
+        #[cfg(feature = "aarch64")]
+        if let Cap::HighVSpace { .. } = self {
+            return true;
+        }
         matches!(
             self,
             Cap::Frame { .. }
@@ -267,6 +316,8 @@ impl Cap {
             | Cap::Vcpu { ptr }
             | Cap::Ept { ptr, .. }
             | Cap::AsidPool { ptr, .. } => ptr,
+            #[cfg(feature = "aarch64")]
+            Cap::HighVSpace { ptr, .. } => ptr,
             _ => 0,
         }
     }
@@ -331,5 +382,42 @@ pub fn mask_cap_rights(r: Rights, c: Cap) -> Cap {
             vaddr,
         },
         other => other,
+    }
+}
+
+#[cfg(all(test, feature = "aarch64"))]
+mod tests {
+    use super::*;
+    use fl4_abi::consts::{HIGH_VSPACE_BASE, HIGH_VSPACE_TOP, USER_TOP};
+
+    fn round(c: Cap) -> Cap {
+        let (w0, w1) = c.encode();
+        Cap::decode(w0, w1)
+    }
+
+    /// Mapping caps keep high-window addresses (bit 47 set: sign-extended
+    /// back) as well as user ones (bit 47 clear: unchanged), with the ASID
+    /// beside them; and `HighVSpace` caps round-trip.
+    #[test]
+    fn mapping_caps_keep_high_window_addresses() {
+        let vaddrs = [0, 0x1000, 0x4000_0000, USER_TOP & !0xfff, HIGH_VSPACE_BASE, HIGH_VSPACE_BASE + 0x20_1000, HIGH_VSPACE_TOP - 0x1000];
+        for vaddr in vaddrs {
+            for asid in [0, 1, 0x200, 0xffff] {
+                for size in [FrameSize::Small, FrameSize::Large, FrameSize::Huge] {
+                    let f = Cap::Frame { ptr: 0xffff_8000_1234_5000, size, rights: VM_READ_WRITE, is_device: false, mapped: true, is_ept: false, asid, vaddr };
+                    assert!(round(f) == f, "frame {vaddr:#x} {asid:#x}");
+                }
+                let pt = Cap::PageTable { ptr: 0xffff_8000_0002_0000, mapped: true, asid, vaddr };
+                assert!(round(pt) == pt, "page table {vaddr:#x} {asid:#x}");
+            }
+        }
+        for c in [
+            Cap::HighVSpace { ptr: 0xffff_8000_0020_0000, mapped: false, asid: 0 },
+            Cap::HighVSpace { ptr: 0xffff_8000_0020_2000, mapped: true, asid: 0x1ff },
+        ] {
+            assert!(round(c) == c);
+            assert!(c.is_arch());
+            assert_eq!(c.ptr(), match c { Cap::HighVSpace { ptr, .. } => ptr, _ => 0 });
+        }
     }
 }

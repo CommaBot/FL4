@@ -139,13 +139,13 @@ pub fn lookup_slot<S: Store>(s: &S, root: u64, ipa: u64, ipa_bits: u64) -> S2Slo
     S2Slot { slot, shift }
 }
 
-/// Look up a Stage-2 root in the ASID pool (requires bit 0 == 1).
+/// Look up a Stage-2 root in the ASID pool (tag `vspace::ROOT_S2`).
 pub fn find<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     let r = vspace::find_asid_raw(s, asid)?;
-    if r & 1 == 0 {
+    if r & vspace::ROOT_TAG != vspace::ROOT_S2 {
         Err(LookupFault::InvalidRoot)
     } else {
-        Ok(r & !1)
+        Ok(r & !vspace::ROOT_TAG)
     }
 }
 
@@ -166,7 +166,7 @@ pub fn root<S: Store>(s: &S, c: Cap, cap_arg: u64) -> KResult<(u64, u64)> {
 /// Finalise a Stage-2 VSpace capability on deletion.
 pub fn finalise<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap) {
     if let Cap::Ept { ptr, level: 0, mapped: true, asid, .. } = c {
-        vspace::delete_asid(s, a, asid, ptr | 1);
+        vspace::delete_asid(s, a, asid, ptr | vspace::ROOT_S2);
     }
 }
 
@@ -648,6 +648,35 @@ mod tests {
         }
         assert_eq!(lookup_slot(&s, root, ipa, ipa_bits).shift, PAGE_BITS);
         S2World { s, a, log, ipa, tables, slots }
+    }
+
+    /// Astra R1 P1: a Stage-2 frame cap at a 48-bit IPA with bit 47 set,
+    /// read back from its slot, keeps the IPA unsigned (Stage-1 addresses
+    /// are sign-extended, IPAs never): remapping it with new rights works,
+    /// and the invalidation gets the IPA as mapped.
+    #[test]
+    fn a_stage2_frame_at_a_bit_47_ipa_remaps_from_its_slot() {
+        let mut w = s2_world(48);
+        assert_ne!(w.ipa & (1 << 47), 0);
+        let root = layout::pptr(0x10_0000);
+        let fslot = Slot(layout::pptr(0x70_1000));
+        let frame_va = layout::pptr(0x40_0000);
+        assert!(map_frame(&mut w.s, &mut w.a, root, 1, w.ipa, VM_READ_WRITE, arm_vm_attr::PAGE_CACHEABLE, frame_va, FrameSize::Small, VM_READ_WRITE, false, 0, 0, fslot).is_ok());
+        let (mapped_asid, mapped_vaddr, is_ept) = match fslot.cap(&w.s) {
+            Cap::Frame { asid, vaddr, is_ept, .. } => (asid, vaddr, is_ept),
+            _ => panic!("no frame cap"),
+        };
+        assert!(is_ept);
+        assert_eq!((mapped_asid, mapped_vaddr), (1, w.ipa));
+        w.log.borrow_mut().clear();
+        let r = map_frame(&mut w.s, &mut w.a, root, 1, w.ipa, VM_READ_ONLY, arm_vm_attr::PAGE_CACHEABLE, frame_va, FrameSize::Small, VM_READ_WRITE, false, mapped_asid, mapped_vaddr, fslot);
+        assert!(r.is_ok());
+        assert_eq!(w.log.borrow().last(), Some(&Ev::InvS2Page(1, w.ipa)));
+        assert!(matches!(fslot.cap(&w.s), Cap::Frame { vaddr, .. } if vaddr == w.ipa));
+        // A Stage-1 frame cap at the same 48 bits is a TTBR1 address.
+        let s1 = Cap::Frame { ptr: frame_va, size: FrameSize::Small, rights: VM_READ_WRITE, is_device: false, mapped: true, is_ept: false, asid: 1, vaddr: w.ipa | 0xffff_0000_0000_0000 };
+        let (a0, a1) = s1.encode();
+        assert!(Cap::decode(a0, a1) == s1);
     }
 
     /// Run `f` (an unmap of `w.ipa`): the words it changed and the events.

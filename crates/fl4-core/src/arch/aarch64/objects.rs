@@ -24,6 +24,8 @@ pub fn object_size(t: u64, user_size: u64) -> Option<u64> {
         Some(bits::VCPU)
     } else if t == ot::ArmStage2VSpace {
         Some(bits::STAGE2_VSPACE)
+    } else if t == ot::ArmHighVSpace {
+        Some(bits::HIGH_VSPACE)
     } else {
         None
     }
@@ -51,6 +53,9 @@ fn create_arch_object<S: Store, A: Arch>(s: &mut S, a: &mut A, t: u64, base: u64
         Cap::Vcpu { ptr: base }
     } else if t == ot::ArmStage2VSpace {
         Cap::Ept { ptr: base, level: 0, mapped: false, asid: 0, vaddr: 0 }
+    } else if t == ot::ArmHighVSpace {
+        vspace::init_high_vspace(s, a, base);
+        Cap::HighVSpace { ptr: base, mapped: false, asid: 0 }
     } else {
         let size = if t == ot::ArmSmallPage {
             FrameSize::Small

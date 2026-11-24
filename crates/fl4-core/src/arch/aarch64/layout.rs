@@ -14,7 +14,9 @@ pub mod tcb {
     pub const SLOT_FAULT_HANDLER: u64 = 3;
     pub const SLOT_TIMEOUT_HANDLER: u64 = 4;
     pub const SLOT_EPT: u64 = 5;
-    pub const NUM_SLOTS: u64 = 6;
+    /// FL4: the thread's `ArmHighVSpace` (`TCBSetHighVSpace`).
+    pub const SLOT_HIGH_VSPACE: u64 = 6;
+    pub const NUM_SLOTS: u64 = 7;
 
     /// User registers, in the order of `reg::*`. The entry code saves
     /// straight into this array.
@@ -27,6 +29,14 @@ pub mod tcb {
     /// The backend's lazy-FPU counter, after the image. Only the core
     /// running the thread writes it.
     pub const FPU_USE: u64 = FPU + FPU_SIZE;
+    /// FL4 `TCBSetPACKeys`: the `pac_flag` enables (0: no pointer
+    /// authentication), the key generation the backend compares to decide
+    /// whether the keys it holds are this thread's, and the ten key words
+    /// (APIA, APIB, APDA, APDB, APGA; low word first).
+    pub const PAC_FLAGS: u64 = 0x690;
+    pub const PAC_EPOCH: u64 = 0x698;
+    pub const PAC_KEYS: u64 = 0x6a0;
+    pub const PAC_KEYS_LEN: u64 = 10 * 8;
 
     const F: u64 = 0xd00;
     pub const STATE: u64 = F;
@@ -73,6 +83,11 @@ pub mod tcb {
     pub const VCPU: u64 = NAME + NAME_LEN;
     pub const RUN_VCPU: u64 = VCPU + 8;
     pub const END: u64 = RUN_VCPU + 8;
+
+    const _: () = assert!(NUM_SLOTS * crate::layout::cte::SIZE <= REGS);
+    const _: () = assert!(FPU_USE + 8 <= PAC_FLAGS);
+    const _: () = assert!(PAC_FLAGS + 8 == PAC_EPOCH && PAC_EPOCH + 8 == PAC_KEYS);
+    const _: () = assert!(PAC_KEYS + PAC_KEYS_LEN <= STATE);
 }
 
 /// Register indices into `tcb::REGS` (seL4's AArch64 `enum _register`).
