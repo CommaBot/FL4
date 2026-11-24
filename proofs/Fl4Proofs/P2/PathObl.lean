@@ -52,7 +52,7 @@ than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
 run reads each word outside `ReadSet` at most once, which makes `dec_alt`'s
 per-state alternatives cover `Serial`'s per-read ones.
 
-`PathObl` packages these. Arch calls are not memory and are outside the
+`PathObl` packages these. `PathSide` [W] (same parameters) adds the side conditions the end-to-end bridge needs: aligned reads, aligned `ReadSet` and class-tracked words, `Pre` and the sets independent of user words; `NoZero` says a tree makes no `zero` / `clear_free` call. Arch calls are not memory and are outside the
 model (`Serial.lean`, Scope); in `Serial` a read of a user word is an input
 (any value) and a write to one is not tracked: races on a frame two cores'
 threads share are the user's (DESIGN §7).
@@ -418,6 +418,51 @@ def IsProg {X : Type}
     (F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A))
     (p : SProg X) : Prop :=
   ∀ (A : Type) (ar : machine.Arch A) (st : machine.Store S), F ar st = interp st ar p
+
+
+/-! ## Per-path side conditions (beside `PathObl`) -/
+
+/-- **The side conditions of a local path** [W] (per path, next to `PathObl`,
+same parameters), needed by the end-to-end bridge (`P2/E2E.lean`) to realize a
+racy read's value in an alternative state built by aligned writes:
+
+* `read_aligned`: from the entry state and every alternative (`Alt`), every
+  read of the run is of an aligned word (both words of `read_pair`): the run
+  on the store guarded to aligned reads succeeds the same way;
+* `rs_aligned`: `ReadSet` words are aligned;
+* `ko_aligned`: words whose value class some core or the gate tracks are
+  aligned;
+* `user_free`: writing a user word keeps `Pre` and leaves `Locks`,
+  `ReadSet`, `WriteSet`, `DecSet` unchanged (the kernel's entry facts do not
+  depend on user memory). -/
+structure PathSide {A X : Type} (st : machine.Store S) [L : LawfulStore st]
+    (f : machine.Store S → S → A → Result (X × S × A))
+    (cls : U64 → U64 → U64) (ko : U64 → ClsOwner U64) (User : U64 → Prop)
+    (Locks : S → U64 → Prop) (Pre : S → Prop)
+    (ReadSet WriteSet DecSet : S → U64 → Prop) : Prop where
+  read_aligned : ∀ s s' a r, Pre s → Alt st (ReadSet s) cls ko User s s' → f st s' a = ok r →
+    f (guard st (fun b => Aligned b) (fun _ => True)) s' a = ok r
+  rs_aligned : ∀ s x, Pre s → ReadSet s x → Aligned x
+  ko_aligned : ∀ x, ko x ≠ .free → Aligned x
+  user_free : ∀ s b v, Pre s → User b → Aligned b →
+    Pre (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧ ReadSet (L.wr s b v) = ReadSet s ∧
+      WriteSet (L.wr s b v) = WriteSet s ∧ DecSet (L.wr s b v) = DecSet s
+
+/-- The tree makes no `zero` / `clear_free` call (a syntactic property of a
+local path's `SProg`, proved per path: `PathObl.aligned` over every byte of a
+range would allow them to clear at most one byte). -/
+def NoZero {X : Type} : SProg X → Prop
+  | .ret _ => True
+  | .err _ => True
+  | .rd _ k => ∀ v, NoZero (k v)
+  | .rdp _ k => ∀ v, NoZero (k v)
+  | .wr _ _ k => NoZero k
+  | .zero _ _ _ => False
+  | .clr _ _ _ => False
+  | .ksb k => ∀ v, NoZero (k v)
+  | .cpu k => ∀ v, NoZero (k v)
+  | .masks k => ∀ v, NoZero (k v)
+  | .arch _ k => ∀ v, NoZero (k v)
 
 end
 
