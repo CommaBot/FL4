@@ -9,7 +9,12 @@ write, `switch_sched_context`, the `REPROGRAM` check with
 `set_next_interrupt`, `send_pending`), followed by `activate_thread` and
 `vcpu.check` of a running thread.
 
-* `sched.awaken.guard_none`: nothing due: the guarded `awaken` reads the
+* `sched.awaken.guard_nd` (`guard_none` its empty-queue case): nothing due
+  (`NoDue`: `schedulable_here` accepts a non-empty timer queue whose earliest
+  deadline is later than `CUR_TIME` and a release queue whose head is not
+  ready, so `TIMER_MIN` / `RELEASE_HEAD` need not be empty): the guarded
+  `awaken` reads the earliest timer's deadline and the release head's SC head
+  refill besides the node's words; the guarded `awaken` reads the
   node's `CUR_TIME`, `TIMER_MIN`, `RELEASE_HEAD` and returns;
 * `check_domain_time_any`, `schedule_res_eq` (any store);
 * `vcpu.check.guard_running` (`smp.send_pending.guard` is p2sl's, `AccessSched`);
@@ -24,6 +29,7 @@ Generic over the Arch instance, no Arch premise. Premises: none.
 import Fl4Proofs.P2.AccessTail
 import Fl4Proofs.P2.AccessIoInv
 import Fl4Proofs.P1.FastSched
+import Fl4Proofs.P1.FastFin
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -193,14 +199,97 @@ theorem schedRes.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     have ipd := nd_at hNd k6.1 k6.2 _ ip
     exact smp.send_pending.guard ar s6 a4 ipd.1 ipd.2
 
+/-- **`timer.fire` with no timeout due** (the earliest timer empty or later
+than `CUR_TIME`, `NoDue`'s first half) on the guarded store: it reads the
+node's `CUR_TIME`, `TIMER_MIN` and the earliest timer's deadline. -/
+theorem timer.fire.guard_nd {A : Type} (ar : machine.Arch A) (s : S) (a : A)
+    (hRc : R (L.nodeAt s (L.cpu s) layout.node.CUR_TIME))
+    (hRt : R (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))
+    (htd : L.mem s (tmA (L := L) s) ≠ 0#u64 →
+      R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64))
+    (h : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64 ∨
+      L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) <
+        L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) :
+    timer.fire (PathObl.guard st R W) ar s a = ok (s, a) := by
+  have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
+  unfold timer.fire timer.fire_loop
+  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  rw [obj.node_get.guard s _ _ hRc, node_get_ok]
+  simp only [bind_ok, bind_tc_ok]
+  rw [loop]
+  unfold timer.fire_loop.body
+  simp only [hb, ↓reduceIte, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  rw [obj.node_get.guard s _ _ hRt, node_get_ok]
+  simp only [bind_ok, bind_tc_ok, is_null_ok]
+  by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64
+  · simp only [h0, decide_true, ↓reduceIte, bind_ok, bind_tc_ok]
+  simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte]
+  rw [obj.Tcb.timer_deadline.guard _ s (htd h0), eq_of_spec_fd (obj.Tcb.timer_deadline.val (L := L) s _)]
+  simp only [bind_ok, bind_tc_ok]
+  have h1' : L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) >
+      L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) := h.resolve_left h0
+  simp only [h1', ↓reduceIte, bind_ok, bind_tc_ok]
+
+/-- **`awaken_loop` with no release due** (`NoDue`'s second half) on the
+guarded store: the node's `RELEASE_HEAD`, the head's SC word and that SC's
+head refill, and `CUR_TIME`. -/
+theorem sched.awaken_loop.guard_nd (s : S) (fuel : U64)
+    (hRc : R (L.nodeAt s (L.cpu s) layout.node.CUR_TIME))
+    (hRr : R (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))
+    (hrs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
+      RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
+    (h : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64 ∨
+      ¬ ((L.refill s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
+          (L.rhead s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))).time ≤
+        L.curTime s)) :
+    sched.awaken_loop (PathObl.guard st R W) s fuel = ok s := by
+  unfold sched.awaken_loop
+  rw [loop]
+  unfold sched.awaken_loop.body
+  by_cases hf : fuel > 0#u64
+  swap
+  · simp only [hf, ↓reduceIte, bind_ok, bind_tc_ok]
+  obtain ⟨f1, hf1, -⟩ := spec_ex_fd (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
+  simp only [hf, ↓reduceIte, hf1, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  rw [obj.node_get.guard s _ _ hRr, node_get_ok]
+  simp only [bind_ok, bind_tc_ok, is_null_ok]
+  by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64
+  · simp only [h0, decide_true, ↓reduceIte, bind_ok, bind_tc_ok]
+  simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte]
+  rw [obj.Tcb.sc.guard _ s (hrs h0).1, eq_of_spec_fd (obj.Tcb.sc.spec (L := L) s _)]
+  simp only [bind_ok, bind_tc_ok]
+  rw [sporadic.ready.guard s _ (hrs h0).2 hRc, eq_of_spec_fd (sporadic.ready.spec (L := L) s _)]
+  simp only [bind_ok, bind_tc_ok]
+  simp only [h.resolve_left h0, decide_false, Bool.false_eq_true, ↓reduceIte, bind_ok, bind_tc_ok]
+
+/-- **`awaken` with nothing due** (`NoDue`) on the guarded store. -/
+theorem sched.awaken.guard_nd {A : Type} (ar : machine.Arch A) (s : S) (a : A)
+    (hRc : R (L.nodeAt s (L.cpu s) layout.node.CUR_TIME))
+    (hRt : R (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))
+    (hRr : R (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))
+    (htd : L.mem s (tmA (L := L) s) ≠ 0#u64 →
+      R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64))
+    (hrs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
+      RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
+    (hnd : NoDue (L := L) s) :
+    sched.awaken (PathObl.guard st R W) ar s a = ok (s, a) := by
+  unfold sched.awaken
+  rw [timer.fire.guard_nd ar s a hRc hRt htd hnd.1]
+  simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
+  rw [sched.awaken_loop.guard_nd s _ hRc hRr hrs hnd.2]
+  simp only [bind_ok, bind_tc_ok]
+
 /-- **`finish` after a local invocation** (module docstring): nothing due,
 the action `RESUME_CURRENT`, then `schedRes.guard`'s hypotheses, p2sl's
 `activate_thread.guard` at the state `schedule` reaches, and a running
 current thread at the state `activate_thread` reaches. -/
 theorem syscall.finish.guard_resume {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
-    (h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64)
-    (h1 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64)
+    (hnd : NoDue (L := L) s)
+    (htd : L.mem s (tmA (L := L) s) ≠ 0#u64 →
+      R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64))
+    (hrs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
+      RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
     (ha : L.actionW s = sched.ACTION_RESUME_CURRENT)
     (hsw : ∀ s4, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
       sched.switch_sched_context (PathObl.guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a)
@@ -224,10 +313,10 @@ theorem syscall.finish.guard_resume {A : Type} (ar : machine.Arch A) (s : S) (a 
   have hac : sched.action st s = ok sched.ACTION_RESUME_CURRENT := by
     rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
   have es : sched.schedule st ar s a = schedRes st ar s a :=
-    schedule_res_eq st ar s a (awaken_none ar s a (Or.inl h0) (Or.inl h1)) hac
+    schedule_res_eq st ar s a (awaken_none ar s a hnd.1 hnd.2) hac
   have eg : sched.schedule (PathObl.guard st R W) ar s a = schedRes (PathObl.guard st R W) ar s a :=
     schedule_res_eq _ ar s a
-      (sched.awaken.guard_none ar s a (hNd _ ct).1 (hNd _ tm).1 (hNd _ rh).1 h0 h1)
+      (sched.awaken.guard_nd ar s a (hNd _ ct).1 (hNd _ tm).1 (hNd _ rh).1 htd hrs hnd)
       (by rw [sched.action.guard s (hNd _ sa).1]; exact hac)
   unfold syscall.finish
   rw [eg, schedRes.guard ar s a hNd hsw hfr, ← es]

@@ -132,8 +132,11 @@ the entry's kernel base and core. -/
 structure FinOK {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S) (a3 : A) : Prop where
   k : L.ksb s3 = L.ksb s
   c : L.cpu s3 = L.cpu s
-  h0 : L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.TIMER_MIN) = 0#u64
-  h1 : L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.RELEASE_HEAD) = 0#u64
+  nd : NoDue (L := L) s3
+  td : L.mem s3 (tmA (L := L) s3) ≠ 0#u64 →
+    R (core.num.U64.wrapping_add (L.mem s3 (tmA (L := L) s3)) 3528#u64)
+  rs : L.mem s3 (rhA (L := L) s3) ≠ 0#u64 → R (scA (L.mem s3 (rhA (L := L) s3))) ∧
+    RdHead (L := L) R s3 (L.mem s3 (scA (L.mem s3 (rhA (L := L) s3))))
   ha : L.actionW s3 = sched.ACTION_RESUME_CURRENT
   hsw : ∀ s4, sched.set_action st s3 sched.ACTION_RESUME_CURRENT = ok s4 →
     sched.switch_sched_context (PathObl.guard st R W) ar s4 a3 = sched.switch_sched_context st ar s4 a3
@@ -159,7 +162,13 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
       obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
       ∃ C sl, IoMid (L := L) R W s s2 t info (L.mem s2 (regA t layout.reg.CAP)) C sl)
-    (hfin : ∀ s2 a1 r s3 a2, syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
+    (hfin : ∀ nx s1 s2 a1 r s3 a2, obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
+      obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
+      sched.update_timestamp st ar s1 a = ok (s2, a1) →
+      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st t s2 = ok 0#u64 →
+      ioport.invocation_ok st s2 t (L.mem s2 (regA t layout.reg.CAP)) info = ok true →
+      fastpath.schedulable_here st s2 t = ok true →
+      syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
       true (decide (number = fl4_abi.syscall.SysCall)) false (L.mem s2 (regA t layout.reg.CAP)) = ok (r, s3, a2) →
       FinOK (L := L) R W ar s s3 a2)
     (h : ioTail st ar s a t info number = ok (true, s', a')) :
@@ -193,13 +202,13 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   rw [sched.cur_sc.guard s2 (nd2 _ (by simp [layout.node.CUR_SC])).1]
   refine tr_bind_same (fun csc ecsc => ?_)
   rw [sched.action.guard s2 (nd2 _ (by simp [layout.node.SCHED_ACTION])).1]
-  refine tr_bind_same (fun i3 _ => ?_)
+  refine tr_bind_same (fun i3 ei3 => ?_)
   beta_reduce
-  refine tr_ite (fun _ h => h) (fun _ => ?_)
+  refine tr_ite (fun _ h => h) (fun hi3 => ?_)
   rw [obj.Tcb.yield_to.guard (L.curW s2) s2 M.yld]
-  refine tr_bind_same (fun i4 _ => ?_)
+  refine tr_bind_same (fun i4 ei4 => ?_)
   beta_reduce
-  refine tr_ite (fun _ h => h) (fun _ => ?_)
+  refine tr_ite (fun _ h => h) (fun hi4 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hx0 => ?_)
   have hx : info.extra_caps = 0#u64 := by
@@ -220,9 +229,9 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   rw [fastpath.schedulable_here.guard s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME])).1
     (nd2 _ (by simp [layout.node.TIMER_MIN])).1 (nd2 _ (by simp [layout.node.RELEASE_HEAD])).1
     M.td M.rs M.dt M.cd M.af M.dom M.iok.1.sc M.iok.1.inq]
-  refine tr_bind_same (fun b3 _ => ?_)
+  refine tr_bind_same (fun b3 eb3 => ?_)
   beta_reduce
-  refine tr_ite (fun _ => ?_) (fun _ h => h)
+  refine tr_ite (fun hb3 => ?_) (fun _ h => h)
   have hb1t : b1 = true := by assumption
   subst hb1t
   refine tr_bind (fun y ey _ => by
@@ -235,7 +244,10 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
     (fun y ey => ?_)
   obtain ⟨r, s3, a2⟩ := y
   simp only [uncurry_apply_pair]
-  have F := hfin s2 a1 r s3 a2 ey
+  have F := by
+    simp only [bne_iff_ne, ne_eq, not_not] at hi3 hi4
+    subst hi3 hi4 hb3
+    exact hfin nx s1 s2 a1 r s3 a2 enx es1 eu ei3 ei4 eb1 eb3 ey
   have hr : r = .Ok () := by
     have e := syscall.handle_invocation.guard_io (R := R) (W := W) ar
         (call := decide (number = fl4_abi.syscall.SysCall))
@@ -247,7 +259,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   subst hr
   rw [syscall.after_invocation.ok_eq, syscall.after_invocation.ok_eq]
   simp only [bind_ok, uncurry_apply_pair]
-  rw [syscall.finish.guard_resume ar s3 a2 (nd_at hNd F.k F.c) F.h0 F.h1 F.ha F.hsw F.hfr F.hact F.hvc]
+  rw [syscall.finish.guard_resume ar s3 a2 (nd_at hNd F.k F.c) F.nd F.td F.rs F.ha F.hsw F.hfr F.hact F.hvc]
   exact fun h => h
 
 /-- **`syscall.handle_ioport_local.guard_acc`: the accepted I/O port local
@@ -263,7 +275,14 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
       obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
       ∃ C sl, IoMid (L := L) R W s s2 (L.curW s) info (L.mem s2 (regA (L.curW s) layout.reg.CAP)) C sl)
-    (hfin : ∀ s2 a1 r s3 a2, syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
+    (hfin : ∀ info nx s1 s2 a1 r s3 a2, msg.msg_info st s (L.curW s) = ok info →
+      obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
+      obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
+      sched.update_timestamp st ar s1 a = ok (s2, a1) →
+      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st (L.curW s) s2 = ok 0#u64 →
+      ioport.invocation_ok st s2 (L.curW s) (L.mem s2 (regA (L.curW s) layout.reg.CAP)) info = ok true →
+      fastpath.schedulable_here st s2 (L.curW s) = ok true →
+      syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
       true (decide (number = fl4_abi.syscall.SysCall)) false (L.mem s2 (regA (L.curW s) layout.reg.CAP)) =
         ok (r, s3, a2) → FinOK (L := L) R W ar s s3 a2)
     (h : syscall.handle_ioport_local st ar s a number = ok (true, s', a')) :
@@ -280,7 +299,7 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   have hT := fun (h : ioTail st ar s a (L.curW s) info number = ok (true, s', a')) =>
-    ioTail.guard ar hNd hnx hfi (fun nx s1 s2 a1 e1 e2 e3 => hmid info nx s1 s2 a1 emi e1 e2 e3) hfin h
+    ioTail.guard ar hNd hnx hfi (fun nx s1 s2 a1 e1 e2 e3 => hmid info nx s1 s2 a1 emi e1 e2 e3) (hfin info · · · · · · · emi) h
   refine tr_ite (fun _ => tr_ite (fun _ h => h) (fun _ => hT)) (fun _ => hT)
 
 end
