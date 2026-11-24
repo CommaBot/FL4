@@ -534,11 +534,14 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
             }
             bi.modules[n] = Module { paddr: pa, size, name };
             bi.n_modules += 1;
-        } else if cl + w.len() + 1 < fl4_bootinfo::CMDLINE_LEN {
+        } else {
+            // A word that does not fit fails the boot: dropped, an option
+            // such as `warm_its` would silently not apply.
+            let Some(at) = fl4_bootinfo::cmdline_room(cl, w.len()) else { fail("kernel command line too long") };
             if cl > 0 {
                 bi.cmdline[cl] = b' ';
-                cl += 1;
             }
+            cl = at;
             bi.cmdline[cl..cl + w.len()].copy_from_slice(w);
             cl += w.len();
         }

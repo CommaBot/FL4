@@ -100,17 +100,46 @@ DEFINE_TEST(FL4TRAP0001, "trapSyscalls sends syscalls to the fault handler (l4h 
 
 #ifdef CONFIG_ARCH_AARCH64
 /* FL4: a trapped AArch64 syscall's message has x8-x30 and TPIDR_EL0 after
- * the standard 13 words, and a reply that long sets them. */
-#define TRAP_EXTRA_FIRST 13
-#define TRAP_FULL_LENGTH (TRAP_EXTRA_FIRST + 24)
-static int trap_regs_once(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+ * the standard 13 words, and a reply that long sets them; a reply of the
+ * standard 13 words leaves them as they were. */
+#define TRAP_TLS_FULL_SENT  0x7171
+#define TRAP_TLS_FULL_SET   0x7272
+#define TRAP_TLS_SHORT_SENT 0x7373
+
+/* One trapped svc with x19 = 0x1919, x20 = `x20_in` and TPIDR_EL0 = `tls`;
+ * returns x19, x20 and TPIDR_EL0 as the svc left them. TPIDR_EL0 (this
+ * thread's TLS) is restored before anything else runs. */
+static void trap_svc(seL4_Word x20_in, seL4_Word tls, seL4_Word out[3])
 {
+    seL4_Word saved;
     register seL4_Word x7 __asm__("x7") = (seL4_Word) seL4_SysYield;
     register seL4_Word x8 __asm__("x8") = TRAP_X8;
     register seL4_Word x19 __asm__("x19") = 0x1919;
-    register seL4_Word x20 __asm__("x20") = 0;
-    __asm__ volatile("svc #0" : "+r"(x7), "+r"(x8), "+r"(x19), "+r"(x20) : : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "memory");
-    return x19 == 0x1919 && x20 == 0x2020 ? 7 : 1;
+    register seL4_Word x20 __asm__("x20") = x20_in;
+    register seL4_Word x21 __asm__("x21") = tls;
+    __asm__ volatile("mrs %[saved], tpidr_el0\n"
+                     "msr tpidr_el0, %[tls]\n"
+                     "svc #0\n"
+                     "mrs %[tls], tpidr_el0\n"
+                     "msr tpidr_el0, %[saved]"
+                     : [saved] "=&r"(saved), "+r"(x7), "+r"(x8), "+r"(x19), "+r"(x20), [tls] "+r"(x21)
+                     : : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "memory");
+    out[0] = x19;
+    out[1] = x20;
+    out[2] = x21;
+}
+
+static int trap_regs_twice(seL4_Word a, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_Word r[3];
+    int ok = 1;
+    /* A full-length reply: x20 and TPIDR_EL0 changed, x19 as sent. */
+    trap_svc(0, TRAP_TLS_FULL_SENT, r);
+    ok = ok && r[0] == 0x1919 && r[1] == 0x2020 && r[2] == TRAP_TLS_FULL_SET;
+    /* A standard-length reply: x19, x20 and TPIDR_EL0 as sent. */
+    trap_svc(0x2121, TRAP_TLS_SHORT_SENT, r);
+    ok = ok && r[0] == 0x1919 && r[1] == 0x2121 && r[2] == TRAP_TLS_SHORT_SENT;
+    return ok ? 7 : 1;
 }
 
 static int test_trap_full_registers(env_t env)
@@ -118,28 +147,61 @@ static int test_trap_full_registers(env_t env)
     helper_thread_t t;
     vka_object_t reply;
     test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
-    seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+    vka_object_t ep = {0};
+    int error = vka_alloc_endpoint(&env->vka, &ep);
+    test_error_eq(error, 0);
+    seL4_CPtr fault_ep = ep.cptr;
     create_helper_thread(env, &t);
-    int error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
-                                  api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
-                                  env->page_directory, seL4_NilData);
+    error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                              api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                              env->page_directory, seL4_NilData);
     test_error_eq(error, seL4_NoError);
     seL4_TCB_SetFlags_t f = seL4_TCB_SetFlags(get_helper_tcb(&t), 0, seL4_TCBFlag_trapSyscalls);
     test_error_eq(f.error, seL4_NoError);
-    start_helper(env, &t, trap_regs_once, 0, 0, 0, 0);
+    start_helper(env, &t, trap_regs_twice, 0, 0, 0, 0);
     seL4_Word badge;
+
+    /* The first svc: the whole message, then a full-length reply back to
+     * after the svc with x20 and TPIDR_EL0 changed, every other register as
+     * sent. */
     seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
     test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
-    test_eq(seL4_MessageInfo_get_length(tag), (seL4_Word) TRAP_FULL_LENGTH);
-    test_eq((seL4_Word) seL4_GetMR(TRAP_EXTRA_FIRST), (seL4_Word) TRAP_X8);
-    test_eq((seL4_Word) seL4_GetMR(TRAP_EXTRA_FIRST + 19 - 8), (seL4_Word) 0x1919);
-    /* Back to after the svc with x20 changed, every other register as sent. */
+    test_eq(seL4_MessageInfo_get_length(tag), (seL4_Word) seL4_UnknownSyscall_TrapLength);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX8), (seL4_Word) TRAP_X8);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX19), (seL4_Word) 0x1919);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX20), (seL4_Word) 0);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapTPIDR_EL0), (seL4_Word) TRAP_TLS_FULL_SENT);
     seL4_SetMR(seL4_UnknownSyscall_FaultIP, seL4_GetMR(seL4_UnknownSyscall_FaultIP) + 4);
     seL4_SetMR(seL4_UnknownSyscall_LR, seL4_GetMR(seL4_UnknownSyscall_FaultIP));
-    seL4_SetMR(TRAP_EXTRA_FIRST + 20 - 8, 0x2020);
-    seL4_Send(reply.cptr, seL4_MessageInfo_new(0, 0, 0, TRAP_FULL_LENGTH));
-    test_eq(wait_for_helper(&t), 7);
+    seL4_SetMR(seL4_UnknownSyscall_TrapX20, 0x2020);
+    seL4_SetMR(seL4_UnknownSyscall_TrapTPIDR_EL0, TRAP_TLS_FULL_SET);
+    seL4_Send(reply.cptr, seL4_MessageInfo_new(0, 0, 0, seL4_UnknownSyscall_TrapLength));
+
+    /* The second: a reply of the standard length, with other values in
+     * the message registers past it, which the kernel leaves alone. */
+    tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+    test_eq(seL4_MessageInfo_get_length(tag), (seL4_Word) seL4_UnknownSyscall_TrapLength);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapX20), (seL4_Word) 0x2121);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_TrapTPIDR_EL0), (seL4_Word) TRAP_TLS_SHORT_SENT);
+    seL4_SetMR(seL4_UnknownSyscall_FaultIP, seL4_GetMR(seL4_UnknownSyscall_FaultIP) + 4);
+    seL4_SetMR(seL4_UnknownSyscall_LR, seL4_GetMR(seL4_UnknownSyscall_FaultIP));
+    seL4_SetMR(seL4_UnknownSyscall_TrapX19, 0xdead);
+    seL4_SetMR(seL4_UnknownSyscall_TrapX20, 0xbeef);
+    seL4_SetMR(seL4_UnknownSyscall_TrapTPIDR_EL0, 0xcafe);
+    seL4_Send(reply.cptr, seL4_MessageInfo_new(0, 0, 0, seL4_UnknownSyscall_Length));
+
+    /* Its return value reaches the fault handler too: the helper's
+     * seL4_Call to report it (helpers.c signal_helper_finished, MR 0 in x2)
+     * is trapped like any syscall, so wait_for_helper would never return.
+     * Left unanswered. */
+    tag = api_recv(fault_ep, &badge, reply.cptr);
+    test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X7), (seL4_Word) seL4_SysCall);
+    test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X2), (seL4_Word) 7);
     cleanup_helper(env, &t);
+    vka_free_object(&env->vka, &reply);
+    vka_free_object(&env->vka, &ep);
     return sel4test_get_result();
 }
 DEFINE_TEST(FL4TRAP0002, "a trapped AArch64 syscall carries and takes every register", test_trap_full_registers, true)

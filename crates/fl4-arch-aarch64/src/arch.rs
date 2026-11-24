@@ -30,10 +30,13 @@ fn remote_gic(kind: u64, id: u64, core: u64, v: bool) {
     smp::remote_call(kind, id, v as u64, 1u64 << (core & 63));
 }
 
-/// The raw acknowledge value to end `irq` with.
+/// The raw acknowledge value to end `irq` with: the one acknowledged, also
+/// for an LPI past the kernel's (`irq::of` clamps it to `MAX + 1`, whose
+/// ID would end another interrupt).
 fn eoi_value(irq: u64) -> u64 {
     let raw = percpu::get().iar.get();
-    if gic::raw_id(raw) == irq::id(irq) {
+    let id = gic::raw_id(raw);
+    if id == irq::id(irq) || (irq > irq::MAX && id >= irq::LPI_ID_BASE + irq::NUM_LPIS) {
         raw
     } else {
         irq::id(irq)
@@ -51,6 +54,11 @@ pub fn poll_irq() -> u64 {
     let raw = gic::ack();
     let id = gic::raw_id(raw);
     if gic::is_spurious(raw) {
+        return fl4_core::syscall::NO_IRQ;
+    }
+    if gic::is_unsupported(raw) {
+        gic::disable_unsupported(raw);
+        gic::eoi(raw);
         return fl4_core::syscall::NO_IRQ;
     }
     if id == irq::REMOTE_CALL_ID {

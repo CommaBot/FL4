@@ -49,6 +49,23 @@ pub const MAX_MODULES: usize = 8;
 pub const CMDLINE_LEN: usize = 256;
 pub const NAME_LEN: usize = 64;
 
+/// Where a word of `word_len` bytes goes on a kernel command line now
+/// `len` bytes long (after a space separating it from the words before),
+/// leaving room for the closing NUL; None when it does not fit. The loader
+/// fails rather than drop a word (`warm_its`, `novirt` would silently not
+/// apply).
+pub fn cmdline_room(len: usize, word_len: usize) -> Option<usize> {
+    let at = len + usize::from(len > 0);
+    (word_len < CMDLINE_LEN && at.checked_add(word_len)? < CMDLINE_LEN).then_some(at)
+}
+
+/// Whether the kernel command line `cmdline` (NUL-terminated, or full) has
+/// the word `opt`.
+pub fn has_option(cmdline: &[u8; CMDLINE_LEN], opt: &[u8]) -> bool {
+    let n = cmdline.iter().position(|&c| c == 0).unwrap_or(CMDLINE_LEN);
+    cmdline[..n].split(|&c| c == b' ').any(|w| w == opt)
+}
+
 /// Memory map entry kinds (from the UEFI memory types).
 pub mod mem {
     /// Free after ExitBootServices: conventional, loader and boot

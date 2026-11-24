@@ -30,6 +30,39 @@ typedef enum {
     SEL4_FORCE_LONG_ENUM(seL4_UnknownSyscall_Msg),
 } seL4_UnknownSyscall_Msg;
 
+/* FL4 (l4h): the UnknownSyscall message of a thread with
+ * seL4_TCBFlag_trapSyscalls goes on after the standard
+ * seL4_UnknownSyscall_Length words with x8-x30 and TPIDR_EL0, and a reply
+ * of seL4_UnknownSyscall_TrapLength words sets them too (a shorter reply
+ * leaves them as they were). */
+#define seL4_UnknownSyscall_TrapExtraFirst 13
+#define seL4_UnknownSyscall_TrapX8         13
+#define seL4_UnknownSyscall_TrapX9         14
+#define seL4_UnknownSyscall_TrapX10        15
+#define seL4_UnknownSyscall_TrapX11        16
+#define seL4_UnknownSyscall_TrapX12        17
+#define seL4_UnknownSyscall_TrapX13        18
+#define seL4_UnknownSyscall_TrapX14        19
+#define seL4_UnknownSyscall_TrapX15        20
+#define seL4_UnknownSyscall_TrapX16        21
+#define seL4_UnknownSyscall_TrapX17        22
+#define seL4_UnknownSyscall_TrapX18        23
+#define seL4_UnknownSyscall_TrapX19        24
+#define seL4_UnknownSyscall_TrapX20        25
+#define seL4_UnknownSyscall_TrapX21        26
+#define seL4_UnknownSyscall_TrapX22        27
+#define seL4_UnknownSyscall_TrapX23        28
+#define seL4_UnknownSyscall_TrapX24        29
+#define seL4_UnknownSyscall_TrapX25        30
+#define seL4_UnknownSyscall_TrapX26        31
+#define seL4_UnknownSyscall_TrapX27        32
+#define seL4_UnknownSyscall_TrapX28        33
+#define seL4_UnknownSyscall_TrapX29        34
+#define seL4_UnknownSyscall_TrapX30        35
+#define seL4_UnknownSyscall_TrapTPIDR_EL0  36
+#define seL4_UnknownSyscall_TrapLength     37
+SEL4_COMPILE_ASSERT(trap_extra_after_unknown_syscall, seL4_UnknownSyscall_TrapExtraFirst == seL4_UnknownSyscall_Length);
+
 /* format of a user exception message */
 typedef enum {
     seL4_UserException_FaultIP,

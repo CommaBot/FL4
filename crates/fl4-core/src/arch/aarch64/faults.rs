@@ -81,11 +81,15 @@ pub const TRAP_FULL_LENGTH: u64 = TRAP_EXTRA_FIRST + TRAP_EXTRA_MESSAGE.len() as
 /// `set_mrs_fault` for an UnknownSyscall whose standard message is `n`
 /// words: a trapping sender's extra registers, when the receiver has an
 /// IPC buffer (they are past the message registers). Returns the length.
+/// The long form is latched in the fault (its word 1, which `set_fault`
+/// leaves 0 for an UnknownSyscall), so the reply is read in the form the
+/// handler was sent even if the thread's flags change meanwhile.
 #[inline(always)]
 fn trap_extra_mrs<S: Store>(s: &mut S, sender: Tcb, buf: u64, n: u64) -> u64 {
     if buf == 0 || n != TRAP_EXTRA_FIRST || sender.flags(s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS == 0 {
         return n;
     }
+    sender.set_fault_w1(s, 1);
     let mut i: usize = 0;
     while i < TRAP_EXTRA_MESSAGE.len() {
         let v = sender.reg(s, TRAP_EXTRA_MESSAGE[i]);
@@ -96,10 +100,11 @@ fn trap_extra_mrs<S: Store>(s: &mut S, sender: Tcb, buf: u64, n: u64) -> u64 {
 }
 
 /// `handle_fault_reply` for an UnknownSyscall: a full-length reply to a
-/// trapping thread also sets its extra registers.
+/// fault sent in the long form (`trap_extra_mrs`) also sets the extra
+/// registers.
 #[inline(always)]
 fn trap_extra_reply<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, length: u64) {
-    if length < TRAP_FULL_LENGTH || receiver.flags(s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS == 0 {
+    if length < TRAP_FULL_LENGTH || receiver.fault_w1(s) == 0 {
         return;
     }
     let buf = msg::lookup_ipc_buffer(s, false, sender);

@@ -92,5 +92,32 @@ fn tdx_labels_do_not_exist_on_aarch64() {
     assert_eq!(l::X86TdxControlGetReport, u64::MAX);
     assert_eq!(l::X86TdxControlExtendRTMR, u64::MAX);
     assert_eq!(l::X86TdxControlGetQuote, u64::MAX);
-    assert_eq!(l::nArchInvocationLabels, l::UntypedRetypeShared + 1);
+    // GetMSI is AArch64's one label after the generic ones.
+    assert_eq!(l::ARMIRQIssueIRQHandlerMSI, l::UntypedRetypeShared + 1);
+    assert_eq!(l::nArchInvocationLabels, l::ARMIRQIssueIRQHandlerMSI + 1);
+}
+
+/// AArch64 MSIs: the BootInfo record on both sides of the kernel/libsel4
+/// boundary, and GetMSI's parameters.
+#[test]
+fn aarch64_msi_bootinfo_and_get_msi_match_libsel4() {
+    use fl4_abi::consts::bootinfo_header as h;
+    assert_eq!(h::AARCH64_MSI_INFO, 15);
+    assert!(BOOTINFO_TYPES.contains("SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO   = 15,"));
+    let info = &BOOTINFO_TYPES[BOOTINFO_TYPES.find("typedef struct seL4_AArch64MsiInfo {").expect("seL4_AArch64MsiInfo")..];
+    let info = &info[..info.find('}').unwrap()];
+    let order = ["doorbell", "num_lpis", "num_events", "num_devices"].map(|f| info.find(&format!("seL4_Word {f};")).expect(f));
+    assert!(order.windows(2).all(|w| w[0] < w[1]), "seL4_AArch64MsiInfo's field order");
+    assert_eq!(info.matches("seL4_Word ").count(), 4, "seL4_AArch64MsiInfo has four words");
+
+    let m = &EXTENSIONS[EXTENSIONS.find("<method id=\"ARMIRQIssueIRQHandlerMSI\"").expect("ARMIRQIssueIRQHandlerMSI")..];
+    let m = &m[..m.find("</method>").unwrap()];
+    assert!(m.contains("<condition><config var=\"CONFIG_ARCH_AARCH64\"/></condition>"));
+    let tag = "<param dir=\"in\" name=\"";
+    let params: Vec<&str> = m.match_indices(tag).map(|(at, _)| {
+        let name = &m[at + tag.len()..];
+        &name[..name.find('"').unwrap()]
+    }).collect();
+    assert_eq!(params, ["irq", "device", "event", "root", "index", "depth", "target"]);
+    assert!(!m.contains("<param dir=\"out\""));
 }

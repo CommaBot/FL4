@@ -168,17 +168,31 @@ fn resume() -> ! {
     unsafe { fl4_restore_user(target.0 + tl::REGS) }
 }
 
+#[derive(Clone, Copy)]
 enum TakenIrq {
     Normal(u64),
     VgicMaint(u64),
     Vppi(u64),
 }
 
-/// Acknowledge an interrupt; returns what kind of kernel entry it needs.
-fn take_irq() -> Option<TakenIrq> {
+/// Acknowledge an interrupt under the serial gate; returns what kind of
+/// entry it needs. Every interrupt is acknowledged only once the gate is
+/// held: an LPI acknowledged before could wait for the gate while its
+/// holder deletes the LPI's handler (`its::unmap`) and gives the LPI to
+/// another device's new handler, which would then take it. Remote calls
+/// are serviced while the gate is awaited (`run_entry`), and only the gate
+/// holder sends them, so none is left for the remote-call SGI here.
+fn take_irq_under_gate() -> Option<TakenIrq> {
     let raw = gic::ack();
     let id = gic::raw_id(raw);
     if gic::is_spurious(raw) {
+        return None;
+    }
+    // Acknowledged, so ended; disabled first where it is an extended SPI
+    // or PPI, which a level would otherwise raise again at once.
+    if gic::is_unsupported(raw) {
+        gic::disable_unsupported(raw);
+        gic::eoi(raw);
         return None;
     }
     percpu::get().iar.set(raw);
@@ -204,12 +218,8 @@ fn take_irq() -> Option<TakenIrq> {
         }
         timer::quiesce();
     }
-    if id == irq::REMOTE_CALL_ID {
-        service_remote();
-    }
     Some(TakenIrq::Normal(irq::of(id, percpu::cpu_index() as u64)))
 }
-
 /// Handle an exception/IRQ from a guest entered via `ARMVCPURun` (caller `t`
 /// stays in `TS_RUNNING_VM` with its own `FAULT_IP` untouched).
 #[allow(clippy::too_many_arguments)]
@@ -231,23 +241,32 @@ fn fl4_entry_vcpu_run(
         } else {
             (false, false)
         };
-        let taken = take_irq();
-        if cpu::is_el2_nvhe() {
-            let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
-            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
-        }
-        match taken {
-            None => resume(),
-            Some(TakenIrq::VgicMaint(eisr)) => {
-                run_entry(true, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VGIC_MAINT, eisr, 0, 0));
+        let nvhe_quiesce = |taken: &Option<TakenIrq>| {
+            if cpu::is_el2_nvhe() {
+                let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
+                vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
             }
-            Some(TakenIrq::Vppi(irq_id)) => {
-                run_entry(true, |s, a| syscall::handle_vcpu_run_vppi(s, a, irq_id));
+        };
+        // The thread running the VCPU. A remote stall serviced while the
+        // gate is awaited takes it off this core (the current thread is
+        // then the idle thread): a guest event is then not its to take.
+        // The VGIC maintenance and virtual timer PPIs are levels from the
+        // VCPU's saved state, raised again when it next runs.
+        let caller = sched::cur_thread(s);
+        run_entry(true, |s, a| {
+            let taken = take_irq_under_gate();
+            nvhe_quiesce(&taken);
+            let owner = sched::cur_thread(s) == caller
+                && caller.state(s) == sched::TS_RUNNING_VM
+                && s.read(caller.0 + tl::RUN_VCPU) == run_v;
+            match taken {
+                None => {}
+                Some(TakenIrq::Normal(irq)) => syscall::handle_interrupt_entry(s, a, irq),
+                Some(TakenIrq::VgicMaint(eisr)) if owner => syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VGIC_MAINT, eisr, 0, 0),
+                Some(TakenIrq::Vppi(irq_id)) if owner => syscall::handle_vcpu_run_vppi(s, a, irq_id),
+                Some(_) => {}
             }
-            Some(TakenIrq::Normal(irq)) => {
-                run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
-            }
-        }
+        });
         exit()
     }
     if kind != KIND_SYNC {
@@ -349,33 +368,39 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
     }
     let v = bound_v;
     if kind == KIND_IRQ {
-        // The restart PC first: taking a remote-call SGI services a stall,
-        // and once that is acknowledged the calling core may restart,
-        // rewrite or delete `t` (and retype its memory). Not a word of `t`
-        // after `take_irq`. Harmless when the interrupt needs no entry.
+        // The restart PC first: waiting for the gate services remote
+        // calls, a stall among them, and once that is acknowledged the
+        // calling core may restart, rewrite or delete `t` (and retype its
+        // memory). Not a word of `t` in the entry unless it is still the
+        // current thread. Harmless when the interrupt needs no entry.
         t.set_reg(s, reg::FAULT_IP, elr);
         let (quiesce_cntv, quiesce_vgic) = if cpu::is_el2_nvhe() && v != 0 {
             vcpu::nvhe_irq_quiesce_flags(v)
         } else {
             (false, false)
         };
-        let taken = take_irq();
-        if cpu::is_el2_nvhe() && v != 0 {
-            let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
-            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
-        }
-        match taken {
-            None => resume(),
-            Some(TakenIrq::VgicMaint(eisr)) => {
-                run_entry(true, |s, a| syscall::handle_vgic_maintenance_entry(s, a, eisr));
+        let nvhe_quiesce = |taken: &Option<TakenIrq>| {
+            if cpu::is_el2_nvhe() && v != 0 {
+                let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
+                vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
             }
-            Some(TakenIrq::Vppi(irq_id)) => {
-                run_entry(true, |s, a| syscall::handle_vppi_event_entry(s, a, irq_id));
+        };
+        // As in `fl4_entry_vcpu_run`: a guest event goes to the bound
+        // VCPU's thread only while it is still this core's current thread
+        // (`t` is not read once a stall may have moved it: the comparison
+        // with the current thread comes first).
+        run_entry(true, |s, a| {
+            let taken = take_irq_under_gate();
+            nvhe_quiesce(&taken);
+            let owner = v != 0 && sched::cur_thread(s) == t && fl4_core::vcpu::bound(s, t) == v;
+            match taken {
+                None => {}
+                Some(TakenIrq::Normal(irq)) => syscall::handle_interrupt_entry(s, a, irq),
+                Some(TakenIrq::VgicMaint(eisr)) if owner => syscall::handle_vgic_maintenance_entry(s, a, eisr),
+                Some(TakenIrq::Vppi(irq_id)) if owner => syscall::handle_vppi_event_entry(s, a, irq_id),
+                Some(_) => {}
             }
-            Some(TakenIrq::Normal(irq)) => {
-                run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
-            }
-        }
+        });
         exit()
     }
     if v != 0 {
@@ -481,9 +506,11 @@ fn dispatch_handler<S: Store>(s: &mut S, a: &mut PhysArch, ec: u64, esr: u64, fa
 #[no_mangle]
 extern "C" fn fl4_kernel_irq() -> ! {
     percpu::get().idle.set(false);
-    if let Some(TakenIrq::Normal(irq)) = take_irq() {
-        run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
-    }
+    run_entry(true, |s, a| {
+        if let Some(TakenIrq::Normal(irq)) = take_irq_under_gate() {
+            syscall::handle_interrupt_entry(s, a, irq)
+        }
+    });
     exit()
 }
 
