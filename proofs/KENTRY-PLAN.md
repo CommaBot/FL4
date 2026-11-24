@@ -19287,3 +19287,10 @@ None (no Lean change).
     fl4-sync's `found = reply_caps` at the entry state).
 - **Premises vs U29:** none added to either top (only the entry inputs `found` and its contract, as U15Vm).
   No existing top statement changed.
+- **Builds (afkprover, mirror FL4-lcs, SEED=FL4-int5):** lcs-m1 (FastSysLocal + U29S): FastVmLocal / XTopJointKEntryVm
+  green after the `local_prefix_keep` change; FastSysLocal 3 errors (a `congr 1` recursion in `flags_spec_mem`, two
+  `simpa` on `bne`), fixed; lcs-m2: ERRORS 0, SORRY 0 (commit a6921249); lcs-full1 FULL BUILD: "Build completed
+  successfully (7477 jobs)", ERRORS 0, SORRY 0. Axioms (`ax-lcs.lean`, untracked, worktree root):
+  `kernel_entry_reachU29S`, `kernel_entry_reachU29Vm`, `kernel_entry_reachU29`, `kernel_entry_reachU15Vm`,
+  `syscall_local_same`, `syscall_local_triple`, `found_vacuous`, `flags_fip`, `syscall_rr_fast`, `syscall_trap_fast`,
+  `local_prefix_keep`, `rr_prefix_keep`, `rr_vm_local_same`: all [propext, Classical.choice, Quot.sound].
