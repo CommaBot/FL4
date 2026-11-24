@@ -127,8 +127,8 @@ theorem kernel_entry_reachUH [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ (SpecUtZ σ' → JReachU (L := L) arI AR MR r.1 r.2 σ') ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachU hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachUV hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl,
     fun n c hct hn hLF hflag hK hDL hFin => ?_, hIrq, hUs, hVm, hTr, hSU⟩
   have hni := hX.entered hct
