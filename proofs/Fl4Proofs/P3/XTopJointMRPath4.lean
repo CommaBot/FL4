@@ -201,7 +201,7 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
@@ -254,7 +254,7 @@ theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩

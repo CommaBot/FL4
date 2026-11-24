@@ -204,7 +204,7 @@ theorem JHole.mcsPPJZ [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : 
         rintro ⟨r, s', a'⟩ hF hr
         obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF hr
         exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, fun hy => fail_pp_sched hs' hz hy,
-          Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩
+          Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩
     refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb) hFT) ?_
     rintro ⟨r, s', a'⟩ ⟨hT', hF⟩
     refine (WP.spec_ok _).2 ?_

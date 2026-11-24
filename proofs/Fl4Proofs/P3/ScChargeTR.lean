@@ -453,7 +453,7 @@ theorem JHole.mcsPPJR [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : 
   cases r
   · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
     exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-      Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩
+      Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩
   · exact absurd (hT rfl).2.2 hnsuf
 
 variable (arI) in

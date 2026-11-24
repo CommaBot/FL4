@@ -1809,7 +1809,7 @@ theorem tcb_set_timerJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   obtain ⟨r, J2⟩ := J1'.tmw_step hw' hR hblk2 hTd2
   refine (WP.spec_ok _).2 (Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _),
     setTimer_memB blk call don σ1 p.bv y0.bv y1.bv r, ⟨Z.th, Z.G, Or.inl ⟨rfl, rfl⟩, J2.xtop.rel.1,
-      J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩, ⟨Z, H, Cs, Ac1, Lst1, D1 \ {p}, J2⟩⟩)
+      J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩, ⟨Z, H, Cs, Ac1, Lst1, D1 \ {p}, J2, inferInstance⟩⟩)
 
 set_option maxHeartbeats 8000000 in
 /-- **The WriteFPU label at `JAt`** (as `tcb_fpuX` with `toFrame` false):

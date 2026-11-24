@@ -1480,7 +1480,7 @@ theorem ssp_tailJM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec
     have hsco : sco = none := h1.2 rfl
     subst hsco
     simp only [Bool.false_eq_true, ↓reduceIte]
-    exact fin s4 a1 σb (Set.mem_singleton _) ⟨_, _, _, _, J4⟩
+    exact fin s4 a1 σb (Set.mem_singleton _) ⟨_, _, _, _, J4, inferInstance⟩
   simp only [↓reduceIte]
   step with Sched.obj.Sc.is_null.spec' as ⟨bz, hbz⟩
   by_cases hs0 : scv = 0#u64
