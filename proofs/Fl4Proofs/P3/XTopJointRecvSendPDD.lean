@@ -37,7 +37,7 @@ set_option maxHeartbeats 32000000 in
 (module docstring, sch29): `JAtZ.pushDonRJ` for any current SC (`JAtZ.own`); `t`, blocked on the reply `w` (bound to it, unlinked, on
 no call stack), donates its SC `sc` (active, released) to `d` (no SC, not
 blocked in an IPC queue, not dead), both in no queue, a reschedule pending. -/
-theorem JAtZ.pushDonRJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+theorem JAtZ.pushDonRJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t d w sc : U64} (ht : t ∈ Z.T) (hd : d ∈ Z.T) (hw : w ∈ Z.R) (hsC : sc ∈ Z.C) (htd : t ≠ d)
     {xt xd : Fl4Spec.Tcb} {xw : Fl4Spec.Reply} {y : Fl4Spec.SchedContext} {n : Nat}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))

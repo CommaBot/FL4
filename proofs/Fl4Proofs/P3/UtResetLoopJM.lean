@@ -114,7 +114,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The reset's chunk loop at `J`** (module docstring), from offset `o`
 (a multiple of the chunk; the region zero above `o` plus a chunk; the spec's
 chunks `o / 2^16, .., 0` left, `RContX`). -/
-theorem JAtZ.reset_loopJM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+theorem JAtZ.reset_loopJM [VxE Z] (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hM : MachPlat arI MR) (hPA : PPPlatA arI AR) (hrcb : Fl4Spec.resetChunkBits = 16)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb kb : U64} (hTh : restrictTh Z.th p.val (p.val + 2 ^ sb.val) = Z.th)

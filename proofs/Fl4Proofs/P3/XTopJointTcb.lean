@@ -1275,7 +1275,7 @@ scheduler-action word (outside the objects, `JKern.act`), no flags word
 (offset 3456 of a TCB of `T`, the TCBs disjoint); the spec changes the
 caller's state only. -/
 theorem JAtZ.flagsRestart {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hFl : FlagsRel Z.T (L.mem s) σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hFl : FlagsRel Z.T (L.mem s) σ)
     {ct : U64} (hth : Z.th ct = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x))
     {s1 : S} (h1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
     FlagsRel Z.T (L.mem s1) (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by

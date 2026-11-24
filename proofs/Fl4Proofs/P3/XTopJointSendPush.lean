@@ -475,7 +475,7 @@ set_option maxHeartbeats 8000000 in
 after was free before, `hfree1`; a reply bound to a receive-blocked thread
 after was one before, `hrb1`) instead of the replies kept: the step may bind
 a free reply, as `reply_push` does. -/
-theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {n t : Fl4Spec.ObjRef}
+theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
     {s' : S} {σa σ' : Fl4Spec.State Unit}
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))

@@ -252,7 +252,7 @@ variable {arI}
 
 theorem KDispHypsKV35E.to35 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hI : SInvI σ)
+    {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hI : SInvI σ)
     (h : KDispHypsKV35E (L := L) arI AR MR Z H Cs D s a σ n c) :
     KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p, v⟩ := h.inv ct call bl don hct hi; ⟨e.toR3 J hI, p.to35 J, v⟩,

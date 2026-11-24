@@ -196,7 +196,7 @@ theorem JAtZ.curNb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
   exact nb_of_code hnb hv
 
 /-- **The fault-handler cap typed** (`JPlaced.typed` at the TCB's slot 3). -/
-theorem JAtZ.fhTyped {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] :
+theorem JAtZ.fhTyped {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     obj.Tcb.slot (L.curW s) layout.tcb.SLOT_FAULT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s ⦃ c => P1.CapTyped H (P1.Heap.replies H) (P1.Heap.ntfns H) c ⦄ ⦄ := by
   have htcb := J.curW_tcb (cur_thread_curW (L := L) s)

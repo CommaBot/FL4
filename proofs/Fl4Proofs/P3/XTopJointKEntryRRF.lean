@@ -195,7 +195,7 @@ theorem JAtZ.capSW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
 caps reachable from the current thread's root are CNodes of `Z.th` with their
 radix (`SlotsValid`, `StateRel.ctable`), whose indexed slots
 `x &&& mask r < 2 ^ r` are slots of `Z.th` (`JAtZ.capSW`). -/
-theorem JAtZ.cnOff {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+theorem JAtZ.cnOff {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (et : sched.cur_thread st s = ok t) :
     P1.CnOff (L := L) (P1.Heap.tcbs H) Cs (P1.Heap.frame H) s t := by
   have htcb := J.curW_tcb et

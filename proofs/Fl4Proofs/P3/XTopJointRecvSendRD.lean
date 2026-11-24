@@ -211,7 +211,7 @@ set_option maxHeartbeats 32000000 in
 no call stack), donates its SC `sc` (active, released) to `d` (no SC, not
 blocked in an IPC queue, not dead), both in no queue, a reschedule pending;
 the current SC is another one, bound to no thread. -/
-theorem JAtZ.pushDonRJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+theorem JAtZ.pushDonRJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t d w sc : U64} (ht : t ∈ Z.T) (hd : d ∈ Z.T) (hw : w ∈ Z.R) (hsC : sc ∈ Z.C) (htd : t ≠ d)
     {xt xd : Fl4Spec.Tcb} {xw : Fl4Spec.Reply} {y : Fl4Spec.SchedContext} {n : Nat}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))

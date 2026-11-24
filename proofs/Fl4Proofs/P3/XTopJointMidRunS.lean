@@ -643,7 +643,7 @@ relation's sets by `ObjCover`); `nf` is `JEntryAt.cnf`'s [J] fact (l4v
 `fault_tcbs_valid_states`), passed in. -/
 theorem JAtZ.midEntry {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
     (hnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none) : MidEntry σ := by
   have hrun := J.curRun.run hni
   refine ⟨hrun, hnf, fun p n q hp hq hm => ?_⟩

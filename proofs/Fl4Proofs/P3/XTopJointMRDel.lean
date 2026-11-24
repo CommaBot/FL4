@@ -205,7 +205,7 @@ def WJPM (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → 
 set_option maxHeartbeats 4000000 in
 /-- **The preemption point keeps `WMR MR WJL`** (module docstring). -/
 theorem jPreemptHypLM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hM : MachPlat arI MR) (hPA : PPPlatA arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
+    (hM : MachPlat arI MR) (hPA : PPPlatA arI AR) (Z : XSets) [VxE Z] (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     PPHypDW (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb) th := by
   intro s a σ G hDS ⟨⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩, hR, hV, hVI⟩
   subst hth

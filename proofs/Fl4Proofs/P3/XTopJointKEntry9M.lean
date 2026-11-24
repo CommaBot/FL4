@@ -96,7 +96,7 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
 /-- `CQ ∧ NQ` at a resumed dispatch state (`MidEntry` from `JEntryAt.cnf`,
 `JEntryAt.ctnq`). -/
 theorem JAtZ.midCQ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
     (hE : JEntryAt (L := L) arI AR Z H Cs s a σ) : MidRun.CQ σ.curThread σ ∧ MidRun.NQ σ.curThread σ := by
   have hME := J.midEntry hni hE.cnf
   exact ⟨⟨⟨rfl, fun x hx => ⟨hME.run x hx, hME.nf x hx⟩⟩, hE.ctnq, by rw [hni.2]; intro e; cases e⟩, hME.nq⟩

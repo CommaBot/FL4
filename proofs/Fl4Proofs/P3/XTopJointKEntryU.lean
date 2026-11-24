@@ -249,7 +249,7 @@ variable {arI}
 state's `JAtZ`, `valid_irq_handlers`, `SInvIR`, `LargeFrOK`). -/
 theorem KDispHypsKV42.to41 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hV : SInvV.ValidIrqHandlers σ) (hI : SInvIR σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : SInvV.ValidIrqHandlers σ) (hI : SInvIR σ)
     (hLF : LargeFrOK Z.G (L.mem s)) (h : KDispHypsKV42 (L := L) arI AR Z H Cs D s a σ n c) :
     KDispHypsKV41 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi;

@@ -45,7 +45,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- **One register write of a thread keeps the slots and the debug words**
 (module docstring). -/
-theorem JAtZ.regWrSD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
+theorem JAtZ.regWrSD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (r : Fl4Spec.Register) (v : U64) :
     SlotsSame Z.th (L.mem s) (L.mem (L.wr s (regA t (regIdx r)) v)) ∧
       P1.DbgKeep st (P1.Heap.tcbs H) Cs s (L.wr s (regA t (regIdx r)) v) := by

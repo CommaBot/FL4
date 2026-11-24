@@ -38,7 +38,7 @@ variable {MR : A → Fl4Spec.MachineState → Prop}
 /-- **`FlagsRel` at every `JAtZ` state** (`McpRel`'s flags part). -/
 theorem _root_.Fl4Proofs.P3.JAtZ.flagsRel {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] : FlagsRel Z.T (L.mem s) σ :=
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : FlagsRel Z.T (L.mem s) σ :=
   FlagsRel.of_mcp J.mcp
 
 /-- **`kernel_entryJ38E`**: `kernel_entryJ37E` without `hFl : FlagsRel`

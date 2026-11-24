@@ -163,7 +163,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across an `RSFr` step and a step keeping them**
 (`JAtZ.deadP_rsfr` with the dead objects of the state after kept from the
 middle state, `hkq`, as XTopJointSendCall's `JAtZ.deadP_dfrCI`). -/
-theorem JAtZ.deadP_rsfrC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t r : Fl4Spec.ObjRef} {s3 : S}
+theorem JAtZ.deadP_rsfrC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t r : Fl4Spec.ObjRef} {s3 : S}
     {σa σ3 : Fl4Spec.State Unit} (F : RSFr t r σ σa) (hkq : ∀ q ∈ D, σ3.kheap q.bv = σa.kheap q.bv)
     (hidl : σ3.idleThread = σ.idleThread) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
@@ -207,7 +207,7 @@ set_option maxHeartbeats 8000000 in
 /-- **XTopJointSendPush's `JAtZ.wake_postGR` with an `RSFr` frame first**
 (module docstring): the frame `σ → σa` by `RSFr` (replies kept), then a step
 `σa → σ'` that may bind a free reply. -/
-theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {n t : Fl4Spec.ObjRef}
+theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
     {s' : S} {σa σ' : Fl4Spec.State Unit}
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
