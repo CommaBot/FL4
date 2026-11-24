@@ -81,7 +81,7 @@ set** (module docstring): `JAtZ.vsPostJ`'s argument with FL4 also writing
 `q`'s frame, and `JAtZ` after at the sets with `q` added. `q`'s facts at the
 entry: 4 KiB-aligned, a spec arch object of a page, and its frame no `OObj`,
 `VObj` or typed-heap word (XTopJointEntry's `JEntryAt.vsTyp`). -/
-theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {pc : U64} {r : Nat} {idx : List Bool} {c : capability.Cap} {q : U64}
     (hqa : q.val % 4096 = 0) (hTy : ∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12)
@@ -93,7 +93,7 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hV : VsJPostO (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G pc r idx c q s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
   rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO', hz, hTE⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, hσ1, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
@@ -247,7 +247,7 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
     ⟨Set.subset_union_left, Set.subset_union_left, Set.subset_union_left⟩ hvn
-  exact ⟨_, H, Cs, Ac1, Lst1, D1, J'⟩
+  exact ⟨_, H, Cs, Ac1, Lst1, D1, J', inferInstance⟩
 
 end
 
@@ -287,7 +287,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_page_table_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_page_tableJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
     (hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap)
@@ -325,7 +325,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_page_directory_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_page_directoryJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageDirectoryMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap)
     (hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
@@ -363,7 +363,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_pdpt_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_pdptJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
     (hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap)

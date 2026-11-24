@@ -444,7 +444,7 @@ yield (`JAtZ.completeYieldJa`; afterwards the SC is yielded from by none,
 `sched_context_yield_to` returns no data in the first case (`JAt` after it),
 the consumed time in the second (`JAt` after `handle_invocation`'s reply
 tail). -/
-theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
+theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
@@ -556,7 +556,7 @@ theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
   swap
   · show (if true = true then _ else _) ⦃ _ ⦄
     rw [ite_eq_left rfl]
-    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, by rw [hpre]; rfl, Or.inl ⟨rfl, _, _, _, _, _, _, J3⟩⟩
+    exact (WP.spec_ok _).mpr ⟨rfl, [], σ3, by rw [hpre]; rfl, Or.inl ⟨rfl, _, _, _, _, _, _, J3, inferInstance⟩⟩
   -- the call returns at once: the consumed time
   show (if false = true then _ else _) ⦃ _ ⦄
   rw [ite_eq_right (fun h => Bool.false_ne_true h)]
@@ -598,7 +598,7 @@ theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
   have hct4 : ct ∈ Z4.T := by rw [hZ4]; exact hct
   refine WP.spec_bind (J4.runJ hct4 hk4 hrs4) ?_
   rintro s5 ⟨Lst5, D5, J5⟩
-  refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime c, σu, ?_, Or.inr ⟨?_, _, ?_, _, _, _, _, _, _, J5⟩⟩
+  refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime c, σu, ?_, Or.inr ⟨?_, _, ?_, _, _, _, _, _, _, J5, inferInstance⟩⟩
   · rw [hpre]; exact hrc
   · intro e
     obtain ⟨x5, hk5, hrel5⟩ := J5.xtop.fin.1.1.2.2.1.tcb ct hct4
@@ -638,7 +638,7 @@ reply tail. Named [P]: the platform's `min_budget`, `ticks_to_us`,
 `getMaxTicksToUs` and `ArchTotal` (`hmb`, `hmax`, `htu`, `hAT`, as
 `JSchedCtxPath`'s and `sc_consumedReplyJ`'s). -/
 theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (hAT : P0.ArchTotal arI)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (hAT : P0.ArchTotal arI)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
@@ -681,7 +681,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   cases fp
   swap
   · simp only [↓reduceIte, WP.spec_ok]
-    exact Or.inl (Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J⟩)
+    exact Or.inl (Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J, inferInstance⟩)
   simp only [Bool.false_eq_true, ↓reduceIte]
   unfold schedcontext.decode
   step with P1.obj.Sc.tcb.spec as ⟨i, hi⟩
@@ -711,7 +711,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   by_cases h0 : L.mem s (scW sc 24#u64) = 0#u64
   · simp only [h0, decide_true, ↓reduceIte]
     refine illegal_ok s a _ (Or.inl (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
-      _, _, _, _, _, _, J⟩))
+      _, _, _, _, _, _, J, inferInstance⟩))
     rw [hdec]
     unfold Fl4Spec.decodeSchedContextYieldTo
     rw [lE_bind (getScObjRef_eq hk _), hxtw, h0, Notif.optRef_zero]
@@ -729,7 +729,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   · have : b1 = true := hb1.2 hte
     simp only [this, ↓reduceIte]
     refine illegal_ok s a _ (Or.inl (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
-      _, _, _, _, _, _, J⟩))
+      _, _, _, _, _, _, J, inferInstance⟩))
     rw [hdec]
     unfold Fl4Spec.decodeSchedContextYieldTo
     rw [hpre, wE_neg (by simp), lE_bind (show Fl4Spec.NonDet.gets (fun s : Fl4Spec.State Unit => s.curThread) σ =
@@ -758,7 +758,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   by_cases hgt : L.mem s (prioA t) > L.mem s (mcpA ct)
   · simp only [hgt, ↓reduceIte]
     refine illegal_ok s a _ (Or.inl (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
-      _, _, _, _, _, _, J⟩))
+      _, _, _, _, _, _, J, inferInstance⟩))
     rw [hdec, hpre2]
     exact hill _ ((w8_gt_iff hpt hmc).1 hgt) _
   simp only [hgt, ↓reduceIte]
@@ -771,7 +771,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   · have : (L.mem s (yieldA ct) != 0#u64) = true := by simp [hy0]
     simp only [this, ↓reduceIte]
     refine illegal_ok s a _ (Or.inl (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
-      _, _, _, _, _, _, J⟩))
+      _, _, _, _, _, _, J, inferInstance⟩))
     rw [hdec, hpre3]
     exact hill _ (by rw [hyc, Notif.optRef_ne hy0]; simp) _
   have : (L.mem s (yieldA ct) != 0#u64) = false := by simp [hy0]
@@ -806,20 +806,20 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   have hmem : (data, σy) ∈ (Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextYieldTo sc.bv) σ1).1 := by
     show (data, σy) ∈ (Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ1).1
     rw [hyt]; exact Set.mem_singleton _
-  rcases hcase with ⟨rfl, Z', H', Cs', Ac', Lst', D', J'⟩ | ⟨hne, σ2, htail, Z', H', Cs', Ac', Lst', D', J'⟩
+  rcases hcase with ⟨rfl, Z', H', Cs', Ac', Lst', D', J', _⟩ | ⟨hne, σ2, htail, Z', H', Cs', Ac', Lst', D', J', _⟩
   · left
     obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J'.xtop.rel
     exact Or.inr ⟨.invokeSchedContext (.invokeSchedContextYieldTo sc.bv), DecOut.of_eq (run_liftME_ok hrun), σ1, he0,
       (.ok [], σy), mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextYieldTo sc.bv))
         (s := σ1) (x := ([], σy)) hmem,
-      ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩
+      ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J', inferInstance⟩⟩
   · right
     obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J'.xtop.rel
     exact Or.inr ⟨rfl, hne, .invokeSchedContext (.invokeSchedContextYieldTo sc.bv), DecOut.of_eq (run_liftME_ok hrun),
       σ1, he0, data, σy,
       mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextYieldTo sc.bv))
         (s := σ1) (x := (data, σy)) hmem,
-      ((), σ2), htail, ⟨Z'.th, Z'.G, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩
+      ((), σ2), htail, ⟨Z'.th, Z'.G, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J', inferInstance⟩⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **The SchedContext cap with a label of no SC invocation, `XCap` at
@@ -828,7 +828,7 @@ set_option maxHeartbeats 8000000 in
 state unchanged. Premise: the front end's label (`hlbl` [W], as every SC
 label's). -/
 theorem decode_invocation_sched_context_otherJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     (l44 : lbl ≠ fl4_abi.label.SchedContextConsumed) (l41 : lbl ≠ fl4_abi.label.SchedContextBind)
     (l43 : lbl ≠ fl4_abi.label.SchedContextUnbindObject) (l42 : lbl ≠ fl4_abi.label.SchedContextUnbind)
@@ -854,7 +854,7 @@ theorem decode_invocation_sched_context_otherJ (s : S) (a : A) (σ : Fl4Spec.Sta
   cases fp
   swap
   · simp only [↓reduceIte, WP.spec_ok]
-    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J⟩
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J, inferInstance⟩
   simp only [Bool.false_eq_true, ↓reduceIte]
   unfold schedcontext.decode
   step with P1.obj.Sc.tcb.spec as ⟨i, hi⟩
@@ -872,7 +872,7 @@ theorem decode_invocation_sched_context_otherJ (s : S) (a : A) (σ : Fl4Spec.Sta
   rw [hct, bind_tc_ok]
   rw [ite_eq_right l44, ite_eq_right l41, ite_eq_right l43, ite_eq_right l42, ite_eq_right l45]
   refine illegal_ok s a _ (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
-    _, _, _, _, _, _, J⟩)
+    _, _, _, _, _, _, J, inferInstance⟩)
   unfold Fl4Spec.decodeSchedContextInvocation; rw [hg]; rfl
 
 end

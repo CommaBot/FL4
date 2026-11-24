@@ -47,6 +47,27 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
+/-! ## The exempt set closed (KENTRY-PLAN f6) -/
+
+/-- (f6) A set of exempt slots that is empty (instance form of `vx = ∅`). -/
+class VxV (v : Set U64) : Prop where
+  eq : v = ∅
+
+/-- (f6) **No slot exempt from `JCarry.vsNamed`** (`Z.vx = ∅`, KENTRY-PLAN f6): what `JAt`
+carries besides `JAtZ`, so that every kernel-entry `JAtZ` gives `VsNamed`. An instance so that
+the steps' generic `Z.mv` / `{Z with …}` outcomes get it from their input's without threading. -/
+class VxE (Z : XSets) : Prop where
+  eq : Z.vx = ∅
+
+instance VxV.ofE {Z : XSets} [h : VxE Z] : VxV Z.vx := ⟨h.eq⟩
+instance VxV.empty : VxV (∅ : Set U64) := ⟨rfl⟩
+instance VxE.ofMk {th : TypedHeap} {G : MdbGhost} {P L4 L3 L2 L1 N T C E R : Set U64}
+    {B : Set (U64 × Fl4Spec.Word)} {c : U64} {vx : Set U64} [h : VxV vx] :
+    VxE ⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c, vx⟩ := ⟨h.eq⟩
+
+/-- (f6) `Z.mv` keeps `vx`. -/
+instance VxE.mv {Z : XSets} [h : VxE Z] {G : MdbGhost} {V : XVs} : VxE (Z.mv G V) := ⟨h.eq⟩
+
 /-! ## Merges -/
 
 section
@@ -328,10 +349,12 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   `JCarry.frame` (a `JCarryS`) and the device part by `JCarry.devStep` (`JCarryS.withP`). -/
   carry : JCarry (L := L) Z H Cs s σ
 
-/-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
+/-- **`JAt`: the joint invariant at a state** (the ghosts existential), with no slot
+exempt from `JCarry.vsNamed` (`VxE Z`, KENTRY-PLAN f6: the deletion loop's window is closed at
+every `JAt` state). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 /-! ## Projections -/
 
@@ -484,13 +507,13 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.sch
     J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩
 
 /-- `UtP3Ok` (P1's `P3Ok` for the untyped retype), no reschedule pending. -/
-theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
+theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
     (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
     (hcap : capAt (L.mem s) slot = ok cap)
     (hext : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot Z.th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c) :
     Sched.UtP3Ok (L := L) arI H Cs s slot cap extra :=
-  ⟨_, _, _, _, _, _, _, J.utJoint hres hnode hidx hslot hcap hext⟩
+  ⟨_, _, _, _, _, _, _, J.utJoint hres hnode hidx hslot hcap hext, inferInstance⟩
 
 /-- Today's `JointInv` body at this state (P1's `BlkOK` with `JPlaced`,
 `SpecCover`, `SpecFree`). -/

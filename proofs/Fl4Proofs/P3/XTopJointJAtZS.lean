@@ -173,7 +173,7 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
 /-- `JAtS`: `JAtZS` at a state (the ghosts existential). -/
 def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -294,11 +294,11 @@ theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   · exact Or.inr h
 
 theorem JAt.toS (h : JAt (L := L) arI AR s a σ) : JAtS (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toS⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toS, inferInstance⟩
 
 /-- `JAtS` with the `JAtZ` case split off. -/
 theorem JAtS.toJ_or (h : JAtS (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ ∨ SwBlk σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J⟩ := h; J.toJ_or.imp (fun J => ⟨Z, H, Cs, Ac, Lst, D, J⟩) id
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; J.toJ_or.imp (fun J => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) id
 
 end
 

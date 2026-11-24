@@ -31,7 +31,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` at a hole with `CurInv` and an unschedulable
 current thread** (module docstring; XTopJointPreempt's `JHole.mcsPPJ` charge
 branch without `NoTmoSend`, `JAt` after). -/
-theorem JHole.mcsPPJC {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJC [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -79,7 +79,7 @@ theorem JHole.mcsPPJC {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
   have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
     rw [hs.consumed]; exact h1
   exact ⟨σ', fun y hy => mem_pp_charge hsch hga (by rw [h1']; rfl) hy,
-    fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, Z, H, Cs, Ac, Lst', D, J'⟩
+    fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
 
 variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with

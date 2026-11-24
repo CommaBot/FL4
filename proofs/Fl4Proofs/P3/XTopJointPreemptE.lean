@@ -77,7 +77,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` at a shifted hole with `CurInv`, a schedulable
 current thread and a sufficient head** (module docstring). -/
-theorem JHole.mcsPPJS {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJS [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -114,7 +114,7 @@ theorem JHole.mcsPPJS {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
   have hO := Hh.offOK_suff hT hC hni hsch hsufH
   obtain ⟨Lst', J'⟩ := Hh.toJ hO (Or.inl (curOwn_of_curInv hS Hh.inv hC))
   exact ⟨σ, fun y hy => mem_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy,
-    fun hy => fail_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy, Z, H, Cs, Ac, Lst', D, J'⟩
+    fun hy => fail_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
 
 variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with

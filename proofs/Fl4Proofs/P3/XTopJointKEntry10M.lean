@@ -111,7 +111,7 @@ leaves (module docstring): `handle_recvJ`'s proof without `hni`/`hnq`/`hvfh`
 (only its fault leaf read them). -/
 theorem handle_recvJR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (canReply : Bool)
     (hLv : JRecvLeavesR (L := L) arI AR Z.th ct s a σ) :
     syscall.handle_recv st arI s a true canReply ⦃ r =>
@@ -170,7 +170,7 @@ theorem JRecvLeavesRN.full (hAT : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {C
 theorem jMidRecvHypS_of (hAT : P0.ArchTotal arI) {cptr : Fl4Spec.CapRef} {cr : Bool} {σ : Fl4Spec.State Unit}
     (hL : JMidLeavesHyp (L := L) arI AR cptr σ) : JMidRecvHypS (L := L) arI AR cptr cr σ := by
   intro y hy hok ha hnq hsw hvf s1 a1 hM
-  obtain ⟨hR, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hrun, hni1⟩ := hM
+  obtain ⟨hR, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hrun, hni1⟩ := hM
   have hct := cur_thread_eq (L := L) s1
   exact handle_recvJR s1 a1 y.2 J hct cr ((hL y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J _ hct).full
     hAT J hct hni1 hrun ha hsw hnq)

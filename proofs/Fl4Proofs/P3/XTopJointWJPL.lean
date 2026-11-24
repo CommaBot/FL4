@@ -160,7 +160,7 @@ def JAtPreMVL (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState
 theorem JAtPreMVL.toMV {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPreMVL (L := L) arI AR MR s a σ) :
     JAtPreMV (L := L) arI AR MR s a σ :=
   let ⟨s0, a0, σ0, Z, H, Cs, Ac, Lst, D, ⟨J, h1, h2, h3, h4, h5⟩, hp, hm, _⟩ := h
-  ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, h1, h2, h3, h4, h5⟩, hp, hm⟩
+  ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, h1, h2, h3, h4, h5⟩, hp, hm⟩
 
 /-- **The deletion's state after a preemption with liveness** (module
 docstring). -/
@@ -231,11 +231,11 @@ theorem JDelParts.jDelHypLML [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L
 /-- **`JAt` with `LiveDN` at its own ghosts** (module docstring). -/
 def JAtL (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ ∧ VxE Z
 
 theorem JAtL.toJAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtL (L := L) arI AR s a σ) :
     JAt (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 /-- **`DelE` and `WJPML`** (after a preemption). -/
 abbrev EJPML (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets) (H : P1.Heap)
@@ -245,7 +245,7 @@ abbrev EJPML (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState 
 set_option maxHeartbeats 4000000 in
 /-- **A Delete's or Revoke's outcome with `LiveDN`** (`cn_del_topJLM` at `EJLM` / `EJPML`;
 the error branch at the entry state, `hLv`). -/
-theorem cn_del_topJLML {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem cn_del_topJLML {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     {kb : U64} {K : Nat} {blk call don : Bool}
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
@@ -279,7 +279,7 @@ set_option maxHeartbeats 4000000 in
 `decode_invocation_cnode_revokeJLM` with the deletion at `EJLM` / `EJPML`
 (`JDelHypLML`, `rppHyp_fullW` of a `PPHypDW … WJPML`), then `cn_del_topJLML`. -/
 theorem decode_invocation_cnode_revokeJLML (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hMP : MachPlat arI MR) (hmv : MRV MR ar σ) (hJD : JDelHypLML (L := L) arI AR MR Z.th)
     (hJP : ∀ kb, PPHypDW (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPML (L := L) arI AR MR Z H Cs kb) Z.th)
     (hsg : SpecGlob σ) (hP0 : PPR0 σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
@@ -329,7 +329,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAtL` / `JAtPreMVL` at the Delete label** (26): as
 `decode_invocation_cnode_revokeJLML`, by `cnode_delete_refinesW` at `EJLM` / `EJPML`. -/
 theorem decode_invocation_cnode_deleteJLML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hMP : MachPlat arI MR) (hmv : MRV MR ar σ) (hJD : JDelHypLML (L := L) arI AR MR Z.th) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeDelete)

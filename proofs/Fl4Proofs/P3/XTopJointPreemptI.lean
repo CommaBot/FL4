@@ -208,7 +208,7 @@ theorem JHole.mcsPPJI {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
       · rw [← hk, ← hcs]; exact hy
     · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs.symm⟩, fun y m hy => h2 y m (by rw [← hk, ← hcs]; exact hy)⟩
   obtain ⟨Lst', J'⟩ := Hh2.toJ hO hOw
-  exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, Z, H, Cs, Ac, Lst', D, J'⟩
+  exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`after_invocation (Err _)` from an `mcs_preemption_point` with `JAt`
@@ -223,7 +223,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQZ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   unfold syscall.after_invocation
   refine WP.spec_bind hmcs ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J'⟩
+  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J', _⟩
   have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (WP.spec_and (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) (hIP.noIpi a1)) ?_
   rintro ⟨w, a2⟩ ⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩
@@ -239,7 +239,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [e]
     simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
     refine (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst2, D', J2⟩⟩⟩
+      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩⟩⟩
   · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
       cases irq with
       | none => exact absurd (hnone.2 rfl) hw
@@ -251,7 +251,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
       ok (false, s2, a3)) ⦃ _ ⦄
     rw [e]
     simp only [↓reduceIte]
-    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst2, D', J2⟩ hwi hmask h126 h127) ?_
+    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩ hwi hmask h126 h127) ?_
     rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩⟩

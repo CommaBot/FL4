@@ -63,7 +63,7 @@ theorem receive_signal_poll_eq {s : S} {a : A} {σ : Fl4Spec.State Unit} {N T E 
 set_option maxHeartbeats 8000000 in
 /-- **Polling a non-active notification at `J`** (module docstring). -/
 theorem JAtZ.recvSigPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) :
     notification.receive_signal st arI s a t n false ⦃ r =>
@@ -84,7 +84,7 @@ theorem JAtZ.recvSigPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [nd_bind_one (asUser_setRegister_eq _ _ hkt)]
     rfl
   rw [hspec, badgeRegA_eq_regA]
-  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1⟩
+  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1, inferInstance⟩
 
 /-- P1's `CanBlock` of the current thread, runnable, in no queue, not the
 idle thread, at a resumed entry or after a reschedule became pending when the
@@ -206,7 +206,7 @@ set_option maxHeartbeats 16000000 in
 /-- **Receiving from an active notification at `J`** (module docstring): the
 current thread, resumed. -/
 theorem JAtZ.recvSigActiveJ (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0) (blk : Bool) (cb : Fl4Spec.Badge)
@@ -277,7 +277,7 @@ theorem JAtZ.recvSigActiveJ (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Sp
   have hct : σ.curSc ≠ t.bv := fun e => by rw [e, hkt] at hks; cases hks
   have hcn : σ.curSc ≠ n.bv := fun e => by rw [e, hk] at hks; cases hks
   rw [hspec, specRecvTail_cur hkt2' hscc (y := ys) (m := ms) (by simp [updK, hct, hcn, hks]), heq, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 end
 

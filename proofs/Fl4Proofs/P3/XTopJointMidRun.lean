@@ -100,8 +100,8 @@ theorem HIPostMXP.mid {AR : A → Fl4Spec.Cr3 → Prop} {σ : Fl4Spec.State Unit
   · have hJ : JAt (L := L) arI AR res.2.1 res.2.2 y.2 :=
       ifP_X (X := JAt (L := L) arI AR) (XP := JAtPre (L := L) arI AR) (by rw [h1]; intro e; cases e) hX
     have hC := hM hE y hy h2
-    obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
-    exact Or.inl ⟨h1, h2, hR, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hC, curRun_ne_idle hC J.act.2⟩
+    obtain ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := hJ
+    exact Or.inl ⟨h1, h2, hR, ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hC, curRun_ne_idle hC J.act.2⟩
   · rw [h1, if_pos rfl] at hX
     exact Or.inr ⟨h1, h2, hR, hX⟩
 

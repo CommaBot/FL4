@@ -73,7 +73,7 @@ theorem kPreFinAtGS {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit} {r : S × A}
       ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, ∃ σ',
         ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) z.2).1 ∧
         RJ (L := L) arI AR r'.1 r'.2 σ' ⦄ := by
-  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hQ
+  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hQ
   obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
   have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
     mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
@@ -194,7 +194,7 @@ theorem kernel_entryJ13PUGS [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3
       (hK σb hBA V0 _ _ _ s2 a1 ⟨ct, v, hct, hbeq⟩ J') hMRσb hVIσb hNSb hARI hA hnd hM hMK hPA hIA hmrt hmax htu)
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩, hdeq⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -335,7 +335,7 @@ set_option maxHeartbeats 4000000 in
 spec syscall entry has an outcome (related to FL4's exit). -/
 theorem kentry_nofailJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ)
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -405,7 +405,7 @@ theorem kernel_entry_reachN [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧
           (MR r.2 σ'.machineState → JReach (L := L) arI AR MR r.1 r.2 σ') ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_inv hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_inv hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hFin hFast => ?_⟩
   have hE := kernel_entryJ36N (MR := MR) s a σ J hct hR hX n c hn hflag hK hFin hARI hA hnd hM hKD hPA hIA
     hmrt hmb hT hmax htu hRef hPI hFast

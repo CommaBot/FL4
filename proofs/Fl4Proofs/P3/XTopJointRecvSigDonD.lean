@@ -288,7 +288,7 @@ not** (module docstring). -/
 theorem JAtZ.recvSigDonJN (hAT : P0.ArchTotal arI)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
@@ -432,14 +432,14 @@ theorem JAtZ.recvSigDonJN (hAT : P0.ArchTotal arI)
   have hsT : specRecvTail t.bv n.bv σ2 = specUnblock t.bv σd := by
     unfold specRecvTail; rw [nd_bind_one hd]; rfl
   rw [hspec, hsT, hu]
-  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J'⟩
+  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **Every notification receive at a `MidN` state** (module docstring):
 XTopJointRecvSigN's `jRecvSigHypN_of` without `¬ SigDon`. -/
 theorem jRecvSigHypDN (hAT : P0.ArchTotal arI)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidN σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
@@ -455,7 +455,7 @@ theorem jRecvSigHypDN (hAT : P0.ArchTotal arI)
     obtain ⟨x', hk', ⟨b0, hact⟩, -⟩ := hdon
     rw [hk] at hk'; cases hk'
     exact WP.spec_mono (J.recvSigDonJN hAT hmb ht hcur hni hnq hn hk hact true b.bv (rightsOf w rd false false))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · exact jRecvSigHypN_of hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd hdon
 
 end

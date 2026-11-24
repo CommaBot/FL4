@@ -76,7 +76,7 @@ path reaches (g3b): `P` along the fired timers (`hP`), `hvm` at the state
 after `schedule`. -/
 theorem jat_finishJRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -109,7 +109,7 @@ theorem jat_finishJRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   refine WP.spec_bind (jat_scheduleSR2ZRP s a σ J hd hnd hAT hVt P hP hW hmb hA hAN hFO hsni hsend hT hTail) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1R⟩, hC2, hcr⟩
   have J1 := J1R.toJ (Or.inr hC2)
-  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm σ1 σ2 _ _ hF hsc ⟨_, _, _, _, _, _, J1⟩)) ?_
+  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm σ1 σ2 _ _ hF hsc ⟨_, _, _, _, _, _, J1, inferInstance⟩)) ?_
   rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2, hnv⟩
   refine ⟨?_, J2.cur_not_vm hnv⟩
   have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by
@@ -122,7 +122,7 @@ theorem jat_finishJRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 pre-g3b statement). -/
 theorem jat_finishJR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -277,7 +277,7 @@ theorem kernel_entryJ4 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → 
     refine WP.spec_bind (dispatch_allS s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hRest hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmS⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmS, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -334,7 +334,7 @@ theorem kPreFinHyp_of {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit}
     KPreFinHyp (L := L) arI AR c σ := by
   intro σ1 hPA r hQ
   by_cases hJ : ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, JAt (L := L) arI AR r.1 r.2 z.2
-  · obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hJ
+  · obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hJ
     obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
     have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
       mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))

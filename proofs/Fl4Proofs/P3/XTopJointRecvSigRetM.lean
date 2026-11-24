@@ -254,7 +254,7 @@ theorem JAtZ.recvSigBlockPreJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI A
 set_option maxHeartbeats 4000000 in
 /-- **The blocking receive giving the SC back at a switch mid state**
 (module docstring): `recvSigBlockPreJM`, then `JAtZR.maybeReturnJQ`. -/
-theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -291,13 +291,13 @@ theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     (J3.inv.notQueued hkt3 (by rfl)) (P1.blocked_out h0 htP hnrw)
     (fun u hu => hsa u (by rw [← hact3]; exact hu)) (by rw [hid3, ← hcur]; exact hni.1)) ?_
   rintro s5 ⟨-, σ5, he5, Ac', Lst', J5⟩
-  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The blocking notification receive at a switch mid state, every case**
 (module docstring): `jRecvSigHypM_of` outside the SC return,
 `JAtZ.recvSigRetJM` for it. -/
-theorem jRecvSigHypM2_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem jRecvSigHypM2_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)

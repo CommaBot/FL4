@@ -295,7 +295,7 @@ and donating the SC at `J`** (module docstring): XTopJointRecvSendP's
 timeout, the receiver (current) without an SC, a reschedule pending (any current SC, sch29); the push donates `p` to the receiver
 (`reply_push_iC`'s donation step: `JAtZ` at the block by `JAtZ.rsfr_postGR`,
 then `JAtZ.pushDonRJW`). -/
-theorem JAtZ.recvSendFPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendFPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -871,14 +871,14 @@ theorem JAtZ.recvSendFPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     (Or.inr (by rw [hft]; simp)) (by rw [hxsp]; simp)
     (by rw [hft]; cases f <;> simp [Fl4Spec.isTimeoutFault] <;> exact hnto _ rfl)
     (fun r hr => by rw [Notif.optRef_ne hw00] at hr; cases hr; exact hpushE)
-  exact ⟨((), σD), by rw [hspec]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  exact ⟨((), σD), by rw [hspec]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 
 set_option maxHeartbeats 64000000 in
 /-- **`receive_ipc` from a calling head sender (no fault) with an SC pushing
 a reply and donating the SC at `J`** (module docstring): XTopJointRecvSendP's
 `JAtZ.recvSendPJG` with the donation of `JAtZ.recvSendFPDJW` (any current SC). -/
-theorem JAtZ.recvSendPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1436,7 +1436,7 @@ theorem JAtZ.recvSendPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
   have hspec := receiveIpc_sendPushD_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inl hcl) (by rw [hxsp]; simp) (by rw [hfs]; simp)
     (fun r hr => by rw [Notif.optRef_ne hw00] at hr; cases hr; exact hpushE)
-  exact ⟨((), σD), by rw [hspec]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  exact ⟨((), σD), by rw [hspec]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 end
 

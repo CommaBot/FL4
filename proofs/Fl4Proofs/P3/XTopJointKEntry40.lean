@@ -142,7 +142,7 @@ labels by XTopJointMRTcbM, every other non-VT-x label by `XCapP.mrG` on
 `decode_invocation_threadJ_stepM` (FL4 `MKD.decode_thread_nonins`, spec
 `perfF_tcbN`). -/
 theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hFl : FlagsRel Z.T (L.mem s) σ) (hfnz : FrNZ Z.th (L.mem s))
     (lbl length : U64) (p : U64)
@@ -181,7 +181,7 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have hJ0M : JAtM (L := L) arI AR MR s ar σ := ⟨hJ0, hmv.1⟩
   have hX := decode_invocation_threadJ_stepM arI s ar σ J hni hARI hT hFl hfnz lbl length p blk call don fp buf extra ct
     hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc
@@ -646,7 +646,7 @@ theorem kernel_entryJ13PUGMD3 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨hDMp, hdeq⟩
     obtain ⟨y, hy, ⟨hy1, hR, hJ, hMy⟩ | ⟨hy1, hQ⟩⟩ := hDMp
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -790,7 +790,7 @@ theorem kernel_entry_reachMD3 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachM (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invM hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invM hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDL hFin hFast => ?_⟩
   have hE := kernel_entryJ40 (MR := MR) s a σ J hct hR hX n c hn hflag hK hDL hFin hARI hA hnd hM hKD hIo hIoa hPA hIA
     hmrt hmb hT hmax htu hRef hPI hFast

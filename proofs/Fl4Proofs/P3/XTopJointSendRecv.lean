@@ -343,7 +343,7 @@ woken as a cancelled receive: its TCB from receive-blocked to `Running`
 with a new user context, the endpoint's queue shrunk, its reply unbound),
 `Inv` by `InvBut.ik`; `JAtZ` by ScSignalDonJ's `JAtZ.wake_postD`; then the
 tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_recv_eqD`. -/
-theorem JAtZ.sendRecvJ0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.sendRecvJ0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     {e d : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
@@ -716,7 +716,7 @@ theorem JAtZ.sendRecvJ0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec, h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec, h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 end
 

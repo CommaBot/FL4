@@ -318,7 +318,7 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
 set_option maxHeartbeats 16000000 in
 /-- **`reply1` at `J`** (module docstring): every outcome of the spec's
 success tail has `JAt`. -/
-theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : ct ∈ Z.T)
+theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : ct ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart) (call : Bool) (v : U64) :
     vspace.reply1 st s ct call v ⦃ s2 => ∀ z ∈ (specTail call ct.bv [v.bv] σ).1, JAt (L := L) arI AR s2 a z.2 ⦄ := by
   unfold vspace.reply1
@@ -330,7 +330,7 @@ theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
     simp only [Bool.false_eq_true, ↓reduceIte] at hz
     rw [Notif.setThreadState_eq .running hk] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J2⟩
+    exact ⟨_, _, _, _, _, _, J2, inferInstance⟩
   · simp only [↓reduceIte]
     have hin : (do
         let buf ← msg.lookup_ipc_buffer st s true ct
@@ -393,7 +393,7 @@ theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
     simp only [↓reduceIte] at hz
     rw [Notif.setThreadState_eq .running hkC] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J4⟩
+    exact ⟨_, _, _, _, _, _, J4, inferInstance⟩
 
 end
 
@@ -416,7 +416,7 @@ set_option maxHeartbeats 4000000 in
 (XTopJointPortIn's `decode_invocation_ioportJ_steps` with `jReplyHyp`, the
 primitive steps' closure `jStepHyps`). -/
 theorem decode_invocation_ioportJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)

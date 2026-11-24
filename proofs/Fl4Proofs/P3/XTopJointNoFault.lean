@@ -301,7 +301,7 @@ theorem fhCap_rel {th : TypedHeap} {m : U64 → U64} {σ' : Fl4Spec.State Unit} 
 
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J`** (module docstring). -/
-theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hnull : capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok .Null)
     (f : error.Fault) (f' : Fl4Spec.Fault) :
@@ -348,7 +348,7 @@ theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : E
   rintro s6 ⟨Lst', J6⟩
   refine (WP.spec_ok _).2 ⟨_, by rw [hspec]; exact Set.mem_singleton _,
     ⟨Z.th, Z.G, J6.xtop.rel.1, J6.xtop.rel.2.1, J6.xtop.rel.2.2.1, J6.xtop.rel.2.2.2.1, J6.xtop.rel.2.2.2.2.1⟩,
-    ⟨Z, H, Cs, Ac, Lst', D, J6⟩⟩
+    ⟨Z, H, Cs, Ac, Lst', D, J6, inferInstance⟩⟩
 
 /-- **[W] The fault handler at `JAt` when the faulting thread's
 fault-handler slot holds an endpoint cap**: FL4's `set_fault` then the
@@ -370,7 +370,7 @@ theorem faultHypJ (s : S) (σ : Fl4Spec.State Unit) (hni : Entered σ) {ct : U64
     (f : error.Fault) (f' : Fl4Spec.Fault) (hep : FaultEpHypJ (L := L) (arI := arI) AR s σ ct f f') :
     FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct f f' := by
   intro a hJ
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := hJ
   obtain ⟨hcur, x, hk⟩ := J.curEq hct
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
   obtain ⟨x1, c1, hk1, hc1, hcr⟩ := fhCap_rel J.xtop.rel.2.1.1 htcb
@@ -381,7 +381,7 @@ theorem faultHypJ (s : S) (σ : Fl4Spec.State Unit) (hni : Entered σ) {ct : U64
   · subst hn
     exact J.noFaultJ hni hct (hnq hni.2) hc1 f f'
   · obtain ⟨e, b, x1, x2, x3, x4, rfl⟩ := vfh_ep hv hn
-    exact hep ⟨e, b, x1, x2, x3, x4, hc1⟩ a ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    exact hep ⟨e, b, x1, x2, x3, x4, hc1⟩ a ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 end
 

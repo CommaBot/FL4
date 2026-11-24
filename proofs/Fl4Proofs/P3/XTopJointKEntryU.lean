@@ -202,7 +202,7 @@ theorem kernel_entryJ13PUGMD4S [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨hDMp, hdeq⟩
     obtain ⟨y, hy, ⟨hy1, hR, hJ, hMy⟩ | ⟨hy1, hQ⟩⟩ := hDMp
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -370,7 +370,7 @@ variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → 
 inductive JReachU : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → SInvIP σ → MR a σ.machineState → JReachU s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → SInvIP σ → MR a σ.machineState → JReachU s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReachU s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -407,7 +407,7 @@ variable {arI AR MR}
 theorem JReachU.toE4 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachU (L := L) arI AR MR s a σ) :
     JReachE4 (L := L) arI AR MR s a σ := by
   induction h with
-  | start J hX _ hR => exact JReachE4.start J hX hR
+  | start J hvx hX _ hR => exact JReachE4.start J hvx hX hR
   | step n c _ hct hn hv hy hRJ _ ih => exact JReachE4.step n c ih hct hn hv hy hRJ
   | irq w _ hI hv hO hRJ _ ih => exact JReachE4.irq w ih hI hv hO hRJ
   | user n c _ hct hU hv hO hRJ _ ih => exact JReachE4.user n c ih hct hU hv hO hRJ
@@ -436,10 +436,10 @@ theorem jreach_invU (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec
     (h : JReachU (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ SInvR.B8w.SInvW σ ∧ SInvIP σ ∧
-      SInvIo.IoNoOverlap σ ∧ MR a σ.machineState ∧ FlagsRel Z.T (L.mem s) σ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invE4 hnd h.toE4
+      SInvIo.IoNoOverlap σ ∧ MR a σ.machineState ∧ FlagsRel Z.T (L.mem s) σ ∧ VxE Z := by
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, hvx⟩, hX, hR⟩ := jreach_invE4 hnd h.toE4
   have hI := h.sinv
-  exact ⟨Z, H, Cs, Ac, Lst, D, J, hX, hX.w, hI, hI.ioN, hR, J.flagsRel⟩
+  exact ⟨Z, H, Cs, Ac, Lst, D, J, hX, hX.w, hI, hI.ioN, hR, J.flagsRel, hvx⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **Refinement at every `JReachU` state** (module docstring): at the ghosts
@@ -513,7 +513,7 @@ theorem kernel_entry_reachU [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ (SpecUtZ σ' → JReachU (L := L) arI AR MR r.1 r.2 σ') ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl⟩ := jreach_invU hnd hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hvx⟩ := jreach_invU hnd hJ
   have hIO : SpecIoP σ ∧ SInvIo.IoNoOverlap σ := ⟨hI.ioP, hI.ioN⟩
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl,
     fun n c hct hn hLF hflag hK hDL hFin hRP5 => ?_,

@@ -74,7 +74,7 @@ theorem JAtZ.regWrSD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
 set_option maxHeartbeats 16000000 in
 /-- **`reply1` at `J` keeps `LiveDN`** (XTopJointReply's `JAtZ.reply1J` from
 `J.addDeadSet`, with `runJD` and `regWrSD`; `LiveDN.of_jstep` at the end). -/
-theorem JAtZ.reply1JL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reply1JL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hL : LiveDN (L := L) Z.th H Cs Z.G s σ) {ct : U64} (hct : ct ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart) (call : Bool) (v : U64) :
     vspace.reply1 st s ct call v ⦃ s2 => ∀ z ∈ (specTail call ct.bv [v.bv] σ).1, JAtL (L := L) arI AR s2 a z.2 ⦄ := by
@@ -174,7 +174,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The `In` tail at `JAtL`** (XTopJointPortIn's `portInTail_jat`: the
 primitive steps by `Steps.jatL`, `reply1` by `JAtZ.reply1JL`). -/
 theorem portInTail_jatL (hAM : ARMask arI AR) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hL : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hL : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hZ : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ) {ct : U64} (hcur : σ.curThread = ct.bv)
     (port z : U64) (call : Bool)
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInValAt arI ar σ) :
@@ -253,7 +253,7 @@ set_option maxHeartbeats 8000000 in
 /-- **IOPort `In`** (labels 64..66, any `call`) at `JAtL` (XTopJointPortIn's
 `decode_invocation_ioport_inJ` with `portInTail_jatL`). -/
 theorem decode_invocation_ioport_inJL (hAM : ARMask arI AR) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hL : LiveDN (L := L) Z.th H Cs Z.G s σ) (hZ : ZNoBlk Z.th (L.mem s) (L.ksb s)) (lbl : U64)
     (hl : 64 ≤ lbl.val ∧ lbl.val ≤ 66)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel (inLabel (portSz lbl)))
@@ -350,7 +350,7 @@ set_option maxHeartbeats 4000000 in
 /-- **An IO port cap, `JAtL` after, every label** (XTopJointPortIn's
 `decode_invocation_ioportJ_steps`; no `JStepHyps` / `JReplyHyp`). -/
 theorem decode_invocation_ioportJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
@@ -391,7 +391,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`JAtL` after an IRQ handler invocation's run** (XTopJointIrqL's
 `IrqSteps.jat`; module docstring). -/
 theorem IrqSteps.jatL [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hsg : SpecGlob σ) (hP0 : PPR0 σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (h : IrqSteps (L := L) arI Z.th s ar σ s' a' σ') : JAtL (L := L) arI AR s' a' σ' := by
   rcases h with h | ⟨ct, s2, σ1, sl, p, b, w, r, s3, a3, σ3, hct, hs2, hst, -, hA, -, hk, hd, hm, h2⟩
@@ -419,7 +419,7 @@ set_option maxHeartbeats 4000000 in
 /-- **An IRQ handler cap, `JAtL` after** (XTopJointIrqL's
 `decode_invocation_irq_handlerJL`; module docstring). -/
 theorem decode_invocation_irq_handlerJLL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
@@ -449,7 +449,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The IRQ control cap, `JAtL` after** (XTopJointStep's
 `decode_invocation_irq_controlJ_step`; no `JStepHyps`). -/
 theorem decode_invocation_irq_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
@@ -483,7 +483,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The IO port control cap, `JAtL` after** (XTopJointStep's
 `decode_invocation_ioport_controlJ_step`; no `JStepHyps`). -/
 theorem decode_invocation_ioport_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hPA : IoPortsAlloc (L.mem s) (L.ksb s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
@@ -513,7 +513,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The domain cap, `JAtL` after** (XTopJointStep's
 `decode_invocation_domainJ_step`; no `JStepHyps`). -/
 theorem decode_invocation_domainJ_stepL (hcfg : DomConfig) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hksO : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → OutsideObjects Z.th (ksW (L.ksb s) o))

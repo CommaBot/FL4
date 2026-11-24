@@ -34,7 +34,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 /-- **`JAtZ.ppJS` under `MachPlat`** (module docstring): `JAtZ.ppJDMV` with FL4's frame. -/
-theorem JAtZ.ppJSM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
+theorem JAtZ.ppJSM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hPA : PPPlatA arI AR)
     (hR : MR a σ.machineState) (hV : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hRd : PPR0 σ) :
     ∃ r, sched.preemption_point st arI s a = ok r ∧ ∃ σ',

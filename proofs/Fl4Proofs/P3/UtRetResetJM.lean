@@ -742,7 +742,7 @@ theorem JAtZ.jUtRetHypDevM {s : S} {ar : A} {σ : Fl4Spec.State Unit}
 /-- **An untyped cap's decode at `J` under `MachPlat`** (XTopJointUt's
 `decode_invocation_untypedJ` with `JUtRetHypDM`): `XCapP` at `JAt`/`JAtPreMV`. -/
 theorem decode_invocation_untypedJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (argsU : List U64)
@@ -758,7 +758,7 @@ theorem decode_invocation_untypedJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     (hR : JUtRetHypDM (L := L) arI AR MR Z.th s ar σ sl p sb fi dev ct blk call don argsU) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl)
       (.Untyped p sb fi dev) blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, -⟩ := J.xtop.rel
   left
   unfold DecOKDMXP syscall.decode_invocation

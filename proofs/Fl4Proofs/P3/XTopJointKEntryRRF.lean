@@ -267,7 +267,7 @@ theorem JAtZ.rrDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hBud := JAtZ.budgetOkB (σ0 := faultIPSt σ σ.curThread x) J0 hni0 hBu
     (SInv.ns_fl4SyscallFaultIP σ.curThread σ hS.1.1.ns _ hF) hARI.toARKeep hA hnd hmrt hmb hmax htu
   rw [hb, WP.spec_ok] at hBud
-  obtain ⟨σb, -, ekh, -, -, -, -, -, -, Ac', Lst', D', J'⟩ := hBud.1 rfl
+  obtain ⟨σb, -, ekh, -, -, -, -, -, -, Ac', Lst', D', J', _⟩ := hBud.1 rfl
   exact ⟨x, σb, hk', ekh, V0, Ac', Lst', D', J'⟩
 
 /-- **`P1.RRPreAt` from the joint relation** (module docstring): at every

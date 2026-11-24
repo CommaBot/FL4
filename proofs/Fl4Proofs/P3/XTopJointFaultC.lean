@@ -183,7 +183,7 @@ theorem JAtZ.stsCurJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J` under a pending
 switch** (module docstring). -/
-theorem JAtZ.noFaultJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidC σ)
+theorem JAtZ.noFaultJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hnull : capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok .Null)
@@ -232,12 +232,12 @@ theorem JAtZ.noFaultJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : 
   rintro s6 ⟨Lst', J6⟩
   refine (WP.spec_ok _).2 ⟨_, by rw [hspec]; exact Set.mem_singleton _,
     ⟨Z.th, Z.G, J6.xtop.rel.1, J6.xtop.rel.2.1, J6.xtop.rel.2.2.1, J6.xtop.rel.2.2.2.1, J6.xtop.rel.2.2.2.2.1⟩,
-    ⟨Z, H, Cs, Ac, Lst', D, J6⟩⟩
+    ⟨Z, H, Cs, Ac, Lst', D, J6, inferInstance⟩⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **`handle_fault` with an endpoint handler and no waiting receiver at
 `J` under a pending reschedule (with `CurInv`)** (module docstring). -/
-theorem JAtZ.faultBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidC σ)
+theorem JAtZ.faultBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {ptr bdg : U64} {sd rv g gr : Bool}
@@ -543,7 +543,7 @@ theorem JAtZ.faultBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
 set_option maxHeartbeats 4000000 in
 /-- **`handle_fault` at a reschedule mid state outside `FltOpen`** (module
 docstring; `JAtZ.faultHypJZ`'s case split). -/
-theorem JAtZ.faultHypJZC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidC σ)
+theorem JAtZ.faultHypJZC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)

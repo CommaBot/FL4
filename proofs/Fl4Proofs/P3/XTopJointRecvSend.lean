@@ -439,7 +439,7 @@ set_option maxHeartbeats 64000000 in
 /-- **`receive_ipc` from the head sender at `J`**, for any FL4 program `m`
 reducing to the endpoint-state switch (`hm`; `JAtZ.recvSendJ0`, and after
 `maybe_return_sched_context` XTopJointRecvSendRet's `JAtZ.recvSendRetJ`). -/
-theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -753,7 +753,7 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       have hspec := receiveIpc_send_eqB b rights blk hsr hkt hbN hk hks hse hstd hcl e2' hA hks3 hfs
       refine WP.spec_bind (J5.sendSwitchJ hsT hk5 rfl hnr5 hact5 hti5 htc5) ?_
       rintro s7 ⟨σ7, h7, Lst7, J7⟩
-      refine (WP.spec_ok _).2 ⟨((), σ7), ?_, J7.xtop.relTop, _, _, _, _, _, _, J7⟩
+      refine (WP.spec_ok _).2 ⟨((), σ7), ?_, J7.xtop.relTop, _, _, _, _, _, _, J7, inferInstance⟩
       rw [hspec, h7]; exact Set.mem_singleton _
 
   | true =>
@@ -878,7 +878,7 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
           (Notif.updK σ e.bv (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv))) = ({((), σ2)}, False) := by
         rw [← hbb, ← hg]; exact e2
       have hspec := receiveIpc_sendCall_eq b rights blk hsr hkt hbN hk hks hse hstd hnoS e2' hA hks3 (Or.inl hcl)
-      refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+      refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
       rw [hspec]; exact Set.mem_singleton _
 
 set_option maxHeartbeats 4000000 in
@@ -951,7 +951,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` from the head sender at `J`**, the sender neither calling
 nor faulted, the receiver (the current thread) without a bound notification
 (module docstring). -/
-theorem JAtZ.recvSendJ0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJ0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧

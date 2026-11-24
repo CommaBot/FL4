@@ -455,7 +455,7 @@ set_option maxHeartbeats 16000000 in
 `JAtZ.utCheckBI` for the budget check; the scheduler action resumed by `SInvX`'s `SInvCR`). -/
 theorem jEvRef_irqI {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hid : σ.curThread = σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hid : σ.curThread = σ.idleThread)
     {w : U64} (hI : IrqHw AR MR a a' σ w)
     (hFin : ∀ x ∈ ((Fl4Spec.NonDetE.handleE (Fl4Spec.fl4HandleEvent (Z := Unit) true .interrupt)
         (fun _ => Fl4Spec.withoutPreemption Fl4Spec.preemptionPath)).run σ).1,
@@ -527,7 +527,7 @@ theorem jEvRef_irqI {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → L
   refine WP.spec_bind (spec_and_eq (J3.handleIrqJIM hARI hA hIA hM hMK hmb hN3 hR3 w i hwi hI.lt hI.n126 hI.n127)
     fun _ h => h) ?_
   rintro ⟨s3, a3⟩ ⟨hP, heq2⟩
-  rcases hP with hin | ⟨z', hz', ⟨Z3, H3, Cs3, Ac3, Lst4, D3, J4⟩, hM3⟩
+  rcases hP with hin | ⟨z', hz', ⟨Z3, H3, Cs3, Ac3, Lst4, D3, J4, _⟩, hM3⟩
   · exact absurd hin hact3
   have hEv := mem_irqEv hz hga hz'
   have hx := mem_handleE_ok (h := fun _ => Fl4Spec.withoutPreemption (Z := Unit) Fl4Spec.preemptionPath) hEv
@@ -546,7 +546,7 @@ set_option maxHeartbeats 8000000 in
 thread. -/
 theorem jEvRef_irqA {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ)
     {w : U64} (hI : IrqHw AR MR a a' σ w)
     (hFin : ∀ x ∈ ((Fl4Spec.NonDetE.handleE (Fl4Spec.fl4HandleEvent (Z := Unit) true .interrupt)
         (fun _ => Fl4Spec.withoutPreemption Fl4Spec.preemptionPath)).run σ).1,

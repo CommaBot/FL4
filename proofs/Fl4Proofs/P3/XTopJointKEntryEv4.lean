@@ -133,7 +133,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → 
 set_option maxHeartbeats 8000000 in
 /-- **`JFltHyp` of the unknown-syscall fault** (as `jFltHyp_user`). -/
 theorem jFltHyp_unk (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
-    (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hA : P0.ArchTotal arI) {Z : XSets} [VxE Z] {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread) (num : U64) :
     JFltHyp (L := L) arI AR MR Z H Cs (brK (st := st) (arI := arI) num) (brKS num.val) s a σ := by
   intro σb s1 a1 Ac' Lst' D' hb _ J1 hM1
@@ -145,8 +145,8 @@ theorem jFltHyp_unk (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD :
   rw [hct1, bind_ok]
   refine WP.spec_mono (WP.spec_and (J1.faultHypJZG hA hni1 hct1 hnq1 hvfh1 hf)
     (MKD.faults_handle_fault L.total hA hKD hM1)) ?_
-  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J'⟩, hMr⟩
-  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
+  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J', _⟩, hMr⟩
+  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR, inferInstance⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
   have e1 : (BitVec.ofNat 64 num.val : BitVec 64) = num.bv := by
     apply BitVec.eq_of_toNat_eq
     rw [BitVec.toNat_ofNat]
@@ -211,7 +211,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The `int $N` entry at `J`** (module docstring): no `JEvRef`. -/
 theorem jEvRef_trap (hnd : Fl4Spec.numDomains = 1) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} (v : U64) (hv : v.val < 256)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct0 : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct0 : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hFin : ∀ ev, KEvSpec (.trap v) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
       KFinEv (L := L) arI AR ev (KFrontTrap (st := st) arI s a) w.2)
@@ -310,7 +310,7 @@ theorem kernel_entry_reachE3T (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     syscall.handle_trap_syscall st arI s a v ⦃ r => ∃ ev σ', KEvSpec (.trap v) true ev ∧ EvOut true ev σ σ' ∧
       RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
       JReachE3 (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invE3 hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invE3 hnd hJ
   have hE := jEvRef_trap hnd v hv J hX hct hR hFin hARI hA hM hKD hmrt hmb hT hmax htu
   obtain ⟨⟨s', a'⟩, hrun, ev, σ', hK, hO, hRJM⟩ := spec_exists hE
   rw [hrun, WP.spec_ok]

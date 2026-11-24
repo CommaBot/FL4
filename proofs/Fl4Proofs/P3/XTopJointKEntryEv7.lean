@@ -33,7 +33,7 @@ variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → 
 inductive JReachE4 : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → MR a σ.machineState → JReachE4 s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → MR a σ.machineState → JReachE4 s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReachE4 s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -69,7 +69,7 @@ variable {arI AR MR}
 theorem JReachE4.toE3 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE4 (L := L) arI AR MR s a σ) :
     JReachE3 (L := L) arI AR MR s a σ := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact JReachE3.start J hX hR
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact JReachE3.start J hvx hX hR
   | @step s a σ s' a' σ' n c _ hct hn hv hy hRJ ih => exact JReachE3.step n c ih hct hn hv hy hRJ
   | @irq s a a1 σ s' a' σ' w _ hI hv hO hRJ ih => exact JReachE3.irq w ih hI hv hO hRJ
   | @user s a σ s' a' σ' n c _ hct hU hv hO hRJ ih => exact JReachE3.user n c ih hct hU hv hO hRJ
@@ -83,7 +83,7 @@ theorem JReachE4.toE3 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE4 (L
 theorem jreach_invE4 (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JReachE4 (L := L) arI AR MR s a σ) :
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) ∧ SInvX σ ∧ MR a σ.machineState :=
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState :=
   jreach_invE3 hnd h.toE3
 
 set_option maxHeartbeats 8000000 in
@@ -149,7 +149,7 @@ theorem kernel_entry_reachE4 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE4 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invE4 hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invE4 hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDM hFin hFast => ?_,
     fun w a1 hI hFin => ?_, fun n c hct hU hFin => ?_, fun ad c ft hct hV hFin => ?_,
     fun v hct hv hFin => ?_, fun n hct hU hD hFF hFin => ?_⟩

@@ -970,7 +970,7 @@ set_option maxHeartbeats 4000000 in
 `JRecvSigRetHyp` [W]): the current thread blocks on an idle or waiting
 notification whose SC is the current SC (`hsc`); `JAtZ.recvSigBlockPreJ`,
 then `JAtZ.maybeReturnJ` unbinds the SC (a reschedule is pending already). -/
-theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -999,7 +999,7 @@ theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
   refine WP.spec_mono (J3.maybeReturnJ ht hn hiC hkt3 hkn3 (by rw [hib]; exact hscc) (by rw [hib]; exact hsc)
     (by rfl) hnrw (fun u hu => by rw [hact3] at hu; cases hu) (by rw [hid3, ← hcur]; exact hni.1)) ?_
   rintro s5 ⟨σ5, he5, Ac', Lst', J5⟩
-  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`JRecvSigHyp` at a resumed entry**: polling, an active notification,
@@ -1039,7 +1039,7 @@ set_option maxHeartbeats 4000000 in
 premise left. -/
 theorem dispatch_recvJS (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)

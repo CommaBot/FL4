@@ -107,10 +107,10 @@ variable {arI AR MR}
 
 /-- The base: a start state of `JReachU3` with the idle vtable fact (one state). -/
 theorem JReachU13.start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-    {Lst : U64 → List U64} {D : Set U64} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ)
+    {Lst : U64 → List U64} {D : Set U64} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hvx : VxE Z) (hX : SInvX σ)
     (hI : SInvIP σ) (hM : MR a σ.machineState) (hP : SInvUZ.UtPgR σ) (hV : SInvIV.IdleVtS σ) :
     JReachU13 (L := L) arI AR MR s a σ :=
-  ⟨JReachU3.start J hX hI hM hP, hV⟩
+  ⟨JReachU3.start J hvx hX hI hM hP, hV⟩
 
 variable (arI AR MR)
 

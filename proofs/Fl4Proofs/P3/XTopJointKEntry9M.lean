@@ -81,7 +81,7 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
   have hnq : ∀ d p, y.2.curThread ∉ y.2.readyQueues d p := by rw [hct0]; exact hnq0
   have hvf := hV y hy hok
   by_cases ha : y.2.schedulerAction = .resumeCurThread
-  · obtain ⟨-, ⟨Z, H, Cs, Ac, Lst, D, J⟩, -, hni1⟩ := hM
+  · obtain ⟨-, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, hni1⟩ := hM
     have hni : Entered y.2 := ⟨hni1, ha⟩
     have hct := cur_thread_eq (L := L) s1
     obtain ⟨hcur, -⟩ := J.curEq hct
@@ -89,8 +89,8 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
     refine WP.spec_mono (handle_recvJ arI hAT s1 a1 y.2 J hni hct hnq hvf true cr
       (jRecvIpcHypL_of hAT hmax (htu a1) J hctT hcur hni hnq true)
       (jRecvSigHyp_of hAT J hctT hcur hni hnq true)) ?_
-    rintro r ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'⟩
-    exact ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+    rintro r ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J', _⟩
+    exact ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · exact hS y hy hok ha hnq (by rw [hct0]; exact hsw) hvf s1 a1 hM
 
 /-- `CQ ∧ NQ` at a resumed dispatch state (`MidEntry` from `JEntryAt.cnf`,
@@ -276,7 +276,7 @@ theorem kernel_entryJ9M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     refine WP.spec_bind (dispatch_all9M s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=

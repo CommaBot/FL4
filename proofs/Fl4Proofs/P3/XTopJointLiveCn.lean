@@ -72,7 +72,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → 
 /-- **`JAtZ`, `LiveDN` and `ZNoBlk` at their own ghosts.** -/
 def JAtZLB (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ ∧ ZNoBlk Z.th (L.mem s) (L.ksb s)
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ ∧ ZNoBlk Z.th (L.mem s) (L.ksb s) ∧
+      VxE Z
 
 theorem JAtZLB.toL {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtZLB (L := L) arI AR s a σ) :
     JAtL (L := L) arI AR s a σ :=
@@ -82,7 +83,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A CancelBadgedSends's outcome at `JAtL`** (XTopJointCbs's `cn_cancel_topJ`;
 module docstring). -/
 theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv) (hQ : ∀ e, EpQPre σ e)
     (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv)
@@ -159,7 +160,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The CNode CancelBadgedSends label at `JAtL`** (XTopJointCbs's
 `decode_invocation_cnode_cancelJ`, `cn_cancel_topJL`). -/
 theorem decode_invocation_cnode_cancelJL (hAM : ARMask arI AR) (s : S)
-    (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -235,7 +236,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The CNode cap, every label, `JAtL` after** (XTopJointMRCnode's
 `decode_invocation_cnodeJ_stepsLM` with the liveness; module docstring). -/
 theorem decode_invocation_cnodeJ_stepsLML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hJDP : JDelParts (L := L) arI AR Z.th)
     (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)

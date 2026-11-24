@@ -107,7 +107,7 @@ the fast-path flag's decode error and the caller-bound check's
 and Unbind with `JAtZ` after (`JAtZ.scUnbindJ`). Premises: the front end's
 label (`hlbl` [W], as every SC label's); the SC's facts are `JAtZ.scCtxCap`'s. -/
 theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     (l42 : lbl = fl4_abi.label.SchedContextUnbind)
     {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
@@ -146,7 +146,7 @@ theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.St
   cases fp
   swap
   · simp only [↓reduceIte, WP.spec_ok]
-    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J⟩
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J, inferInstance⟩
   simp only [Bool.false_eq_true, ↓reduceIte]
   unfold schedcontext.decode
   step with P1.obj.Sc.tcb.spec as ⟨i, hi⟩
@@ -171,7 +171,7 @@ theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.St
   subst hi1
   by_cases he : L.mem s (scW sc 24#u64) = ct
   · rw [ite_eq_left he]
-    refine illegal_ok s a _ (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, _, _, _, _, _, _, J⟩)
+    refine illegal_ok s a _ (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, _, _, _, _, _, _, J, inferInstance⟩)
     exact run_liftME_err (by
       rw [hpre]; exact wE_pos (by rw [hx.tcb]; exact (bv_optRef_some hct0).2 he) _ _ σ)
   rw [ite_eq_right he]
@@ -185,7 +185,7 @@ theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.St
     by rw [hcur]; exact he0, (.ok [], σ'),
     mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextUnbind sc.bv)) (s := σ0)
       (x := ([], σ')) (by rw [he1]; exact Set.mem_singleton _),
-    ⟨Z'.th, Z'.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩
+    ⟨Z'.th, Z'.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J', inferInstance⟩⟩
 
 end
 

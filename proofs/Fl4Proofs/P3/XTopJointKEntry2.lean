@@ -65,7 +65,7 @@ theorem hvm_of_ns {AR : A → Fl4Spec.Cr3 → Prop}
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ) :
     ∀ s1 a1 σ1, JAt (L := L) arI AR s1 a1 σ1 → ∀ x, σ1.kheap σ1.curThread = some (.tcb x) →
       x.tcbState ≠ .runningVM := by
-  rintro s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1⟩ x hk
+  rintro s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ x hk
   exact hNS s1 a1 σ1 ⟨Z1, H1, Cs1, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole⟩ _ x hk
 
 theorem KFinAt2.toK {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
@@ -222,7 +222,7 @@ theorem kernel_entryJ2 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → 
     refine WP.spec_bind (dispatch_allK s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hRest hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=

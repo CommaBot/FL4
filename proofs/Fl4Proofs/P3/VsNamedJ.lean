@@ -75,6 +75,12 @@ theorem JAtZ.vsReachMissR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact J.vsReachMiss hN hx hcx hnd k q
     (hR.frame hF.2.1 hF.2.2.1 hF.2.2.2.1 hWt hWp hN'.1 hN'.2.1 hN'.2.2.1 hN'.2.2.2.1 hN'.2.2.2.2)
 
+/-- (f6) **`VsNamed` at a `JAtZ` with no exempt slot** (`VxE Z`: every `JAt` state, so every
+kernel-entry and dispatch state, KENTRY-PLAN f6). -/
+theorem JAtZ.vsNamedE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [hv : VxE Z] :
+    Vs.VsNamed Z.th (L.mem s) (L.ksb s) :=
+  J.carry.vsNamed hv.eq
+
 /-- **(F1) The `JAsidCPath.vsReach` shape** (C17). -/
 theorem JAtZ.vsReachAsidC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s)) (hni : Entered σ) {ct : U64}

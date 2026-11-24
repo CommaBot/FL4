@@ -63,7 +63,7 @@ theorem jAtPre_holeO (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
     JHoleAtT (L := L) arI AR s a σ ∧ σ.curThread ≠ σ.idleThread ∧ Vs.NoSwitch σ ∧ CurScFree σ := by
   refine ⟨(jAtPre_holeTN hAK hA hnd hP h).1, (jAtPre_holeTN hAK hA hnd hP h).2.1,
     (jAtPre_holeTN hAK hA hnd hP h).2.2, ?_⟩
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, -, hp00⟩, -, hσ⟩ := h
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, hp00⟩, -, hσ⟩ := h
   obtain ⟨r0, -, ms0, hm0, -, -⟩ := spec_exists (hP.now a0 σ0)
   have hE := Sched.updateTimeStamp_eq' hnd hm0
   obtain ⟨r1, -, irq, ms, hIq, -, -⟩ := spec_exists (hP.irq a0

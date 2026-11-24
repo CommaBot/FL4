@@ -119,7 +119,7 @@ set_option maxHeartbeats 8000000 in
 writes 0 to the badge register (`hpoll`), the spec's is the polling
 `receiveIpcBlocked` (`hsp`). -/
 theorem JAtZ.recvIpcPollJR {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) {e : U64} (cb : U64) (c1 c2 c3 c4 : Bool)
     {rc : capability.Cap} {rc' : Fl4Spec.Cap}
     (hpoll : endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
@@ -143,11 +143,11 @@ theorem JAtZ.recvIpcPollJR {s : S} {a : A} {σ : Fl4Spec.State Unit}
   rw [badgeRegA_eq_regA] at hXb
   obtain ⟨V1, J1⟩ := J.regWrJ ht hkt Fl4Spec.badge_register 0#u64 hXb
   rw [hspec]
-  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1⟩
+  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1, inferInstance⟩
 
 /-- **A polling receive at `J`** (module docstring). -/
 theorem JAtZ.recvIpcPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hbn : xt.tcbBoundNotification = none)
     {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
     (hns : ∀ q, x ≠ .sendEP q) (cb : U64) (c1 c2 c3 c4 : Bool)
@@ -173,7 +173,7 @@ theorem JAtZ.recvIpcPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
 `J`**: as `JAtZ.recvIpcPollJ` (no `maybe_return` when polling, on either
 side). -/
 theorem JAtZ.recvIpcPollNJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     {n : U64} (hn : n ∈ Z.N) (hbn : xt.tcbBoundNotification = some n.bv)
     {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn))

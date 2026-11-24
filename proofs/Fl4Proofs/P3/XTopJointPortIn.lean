@@ -46,7 +46,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The `In` tail at `JAt`** (module docstring). -/
 theorem portInTail_jat (hAM : ARMask arI AR) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hRep : JReplyHyp (L := L) arI AR Z.th) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv) (port z : U64) (call : Bool)
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInValAt arI ar σ) :
     portInTail (st := st) arI s ar ct port z call ⦃ res => res.1 = .Ok () ∧
@@ -123,7 +123,7 @@ set_option maxHeartbeats 8000000 in
 (`DecOKRMX`), from `portInTail_jat` (as `decode_invocation_ioport_inX`). -/
 theorem decode_invocation_ioport_inJ (hAM : ARMask arI AR) (hJS : JStepHyps (L := L) arI AR Z.th)
     (hRep : JReplyHyp (L := L) arI AR Z.th) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (lbl : U64) (hl : 64 ≤ lbl.val ∧ lbl.val ≤ 66)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.invocationType slbl = .archInvocationLabel (inLabel (portSz lbl)))
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -137,7 +137,7 @@ theorem decode_invocation_ioport_inJ (hAM : ARMask arI AR) (hJS : JStepHyps (L :
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKRMX (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf
       extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   unfold DecOKRMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   have hsz : portSz lbl = 1 ∨ portSz lbl = 2 ∨ portSz lbl = 4 := by unfold portSz; split_ifs <;> simp
@@ -221,7 +221,7 @@ other labels by their primitive steps (`decode_invocation_ioportXS`,
 `Steps.jat` with `JStepHyps`), `In` (64..66, whose reply writes the caller's
 message words) by `decode_invocation_ioport_inJ` from `JReplyHyp` [J]. -/
 theorem decode_invocation_ioportJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hRep : JReplyHyp (L := L) arI AR Z.th) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
@@ -248,7 +248,7 @@ theorem decode_invocation_ioportJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     exact ⟨a', h⟩
   exact decode_invocation_ioportXS arI Z.th hX.rel.1 s ar σ lbl slbl hlbl length buf ct hct args hlen hargs hcur
     (hX.curTcb hcur).1 J.kern.act first last hfl (by simpa using hl) call hout rfl hX (J.curRun.run hni)
-    ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB) (fun _ _ _ h => JAt.xtop arI h)
+    ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB) (fun _ _ _ h => JAt.xtop arI h)
     (cslotAddr sl) blk don fp extra ci sl excaps buffer
     (fun hI => Or.inr (decode_invocation_ioport_inJ arI hARI.toMask hJ hRep s ar σ J hZB lbl hI slbl (hlbl.1 hI) length
       buf ct hct args hlen hargs hcur first last hfl (by simpa using hl) (J.curRun.run hni) hin call hval

@@ -129,7 +129,7 @@ system call's entry state (`Entered`: the action `resumeCurThread`, so
 `CurInv` by `JAtZ.cur`), against `fl4HandleSyscall rep .sysYield`
 (`withoutPreemption handle_yield`). -/
 theorem dispatch_yieldJ (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
@@ -164,7 +164,7 @@ theorem dispatch_yieldJ (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A) (�
     (by rw [hsp]; exact Set.mem_singleton _), rfl, ?_⟩
   simp only
   rw [ha]
-  exact ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩
+  exact ⟨J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
 
 end
 

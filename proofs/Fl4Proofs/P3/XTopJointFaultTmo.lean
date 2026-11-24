@@ -653,7 +653,7 @@ shadows `rhoT` of the states between: `t` and its SC as at the base). -/
 theorem JAtZ.sendTmoRecvIJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
     {t : U64} (ht : t ∈ Z.T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
@@ -1251,7 +1251,7 @@ theorem JAtZ.sendTmoRecvIJ (hAT : P0.ArchTotal arI)
   rintro ⟨s7', a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7⟩⟩
+  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
   rw [hspec]
   show ((), σ7) ∈ (Endp.specWakeTailE d'.bv σ5).1
   rw [h7]; exact Set.mem_singleton _
@@ -1270,7 +1270,7 @@ is not the current thread). -/
 theorem JAtZ.sendTmoRecvPJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
     {t : U64} (ht : t ∈ Z.T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
@@ -2003,7 +2003,7 @@ theorem JAtZ.sendTmoRecvPJ (hAT : P0.ArchTotal arI)
   rintro ⟨s7', a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7⟩⟩
+  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
   rw [hspec, heq5, hpb]
   show ((), σ7) ∈ (Endp.specWakeTailE d'.bv σ').1
   rw [h7]; exact Set.mem_singleton _
@@ -2021,7 +2021,7 @@ theorem JAtZ.runTmoRecvJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
     {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n))

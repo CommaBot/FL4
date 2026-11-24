@@ -130,12 +130,13 @@ variable (arI) in
 at the same sets and heap. -/
 def JAtD (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ ∧
+      VxE Z
 
 theorem JAtD.jAt {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAtD (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ := by
   obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -⟩ := h
-  exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 variable (arI) in
 /-- **`UtBodyPost` with `JAtD` after.** -/

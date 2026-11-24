@@ -60,7 +60,7 @@ theorem jAtPreMV_holeQ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
     (h : JAtPreMV (L := L) arI AR MR s a σ) :
     JHoleAtT (L := L) arI AR s a σ ∧ σ.curThread ≠ σ.idleThread ∧ Vs.NoSwitch σ ∧ CurScFree σ ∧ CtOK σ ∧
       Chg σ ∧ CtNQ σ ∧ MR a σ.machineState ∧ ValidMachineTime σ ∧ ValidIrqMasks σ := by
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hns0, hp00, hR0, hV0, hI0⟩, hpp, hσ⟩ := h
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hns0, hp00, hR0, hV0, hI0⟩, hpp, hσ⟩ := h
   have h := J.ppJHM hAK hA hnd hM hPA hR0 hV0
   rw [hpp, WP.spec_ok] at h
   obtain ⟨s1, Ac1, Lst1, Hh, hR', hV'⟩ := h rfl σ hσ
