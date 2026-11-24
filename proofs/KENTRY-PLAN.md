@@ -19385,3 +19385,51 @@ None (no Lean change).
   `kernel_entry_reachU15Vm`, `JAtZ.sbufOK`, `JAtZ.bufWordG`, `JAtZ.bufWord`, `inv_local_same`, `inv_local_triple`,
   `plan_fields`, `plan_with_kp`, `lec_keep`, `lookup_slot_keep`, `inv_prefix`, `lookup_buf_agreeB`, `lookup_buf_agree`:
   all `[propext, Classical.choice, Quot.sound]`. No `kernel_entry_reach*` statement changed; no premise added to any top.
+## lcd (branch par/lcd from cbded6b6 = int/j5, top of record `kernel_entry_reachU29`) — the DECLINE case of the five fl4-sync `*_local` entries: route (c) (spec clock tick), new top `SInvR.G5.kernel_entry_reachU29D`, no premise added
+
+### (1) Design check: pf1b's `ClockLater` [P] is vacuous on a real clock (stopped and reported; lead chose route (c))
+- The joint relation reads the Arch value `a` in exactly two places: `JAtZ.xtop` (`OthersRel`'s
+  `AR a σ.archState.x64CurrentCr3`; no other `JAtZ` field takes `a`) and `JReachU3.start`'s `MR a σ.ms`.
+- `MachPlat.now`: `MR a ms → arI.now a` reads `gctVal ms` and leaves `MR a1 (gctState ms)`; the spec clock is a
+  deterministic oracle (`getCurrentTime_eq`), each reading advances `timeState`.
+- `ClockLater` asks `a'` with `MR a' σ.ms` (to keep the relation at `σ`) and `now a' = now a1`: the first forces the
+  reading `gctVal σ.ms`, the second `gctVal (gctState σ.ms)`; so with `MachPlat` it says the oracle never advances.
+  Likewise the brief's target (U29's postcondition from the entry state's `σ`) is false whenever time advances:
+  the general run sets `CUR_TIME` to the second reading, `SchedRel.curTime` ties it to the spec's, which from `σ`
+  reads the first. Not a FINDING (the clock really advanced between the two reads; the spec counts readings).
+
+### (2) Route (c): the declined case relates to `tick σ`
+- **Spec extension** `Fl4Spec/Ext/Tick.lean`: `clockTickMs` (getCurrentTime's state change), `fl4ClockTick σ` (an
+  environment step that only consumes one clock-oracle reading, the hardware clock advancing; l4v counterpart:
+  machine_state's `time_oracle` / `time_state` / `last_machine_time` as `getCurrentTime` moves them).
+- **P1 `FastLocalDecline`** (all green):
+  * `LocalPre ar s a r` (current thread's `FAULT_IP` from `NEXT_IP`, then one `update_timestamp` ending at `r`),
+    `RoT st s n` (number in the native range, or the thread traps syscalls);
+  * decline shapes `syscall_local_decline`, `rr_vm_local_decline`, `ioport_local_decline`,
+    `invocation_local_decline`: `= ok (false, s', a')` gives `(s', a') = (s, a)` or `LocalPre … (s', a') ∧ RoT`
+    (prefix by hand, the suffix by FastDecline's walk `decl_walk` / `decl_leaf`: read-only checks write nothing, the
+    fast paths' declines are FastDecline / FastVm's). VM entry: FastVm's `vm_local_decline` (one `update_timestamp`).
+  * `syscall_pre_same` / `handle_syscall_pre_same`: from the prefix's result `(s', a')`, `syscall` (any `fast`) runs
+    as from `(s, a')`: same current thread / `NEXT_IP` / flags (the three writes miss them), the `FAULT_IP` write
+    rewrites the value the word holds (`wr_mem`), `budget_ok_utW` (its own update supersedes the prefix's,
+    `utW_twice`); `vm_pre_same` for `handle_vm_fault`. Helpers `flags_ok`, `BXI.tcbNode`, `utW_mem/ksb/cpu/placed`,
+    `ut_now`, `localPre_now`, `rng_rr/call/send`.
+- **P3 `XTopJointKEntryU29D`** (green): `tick_eq`, `getCurrentTime_tick`, `vmt_tick`, `sinvA_tick`, `sinvX_tick`,
+  `sinvIP_tick` (only `ValidMachineTime` reads the clock fields; the rest by defeq, structures rebuilt);
+  **`jreachU17_tick`**: `JReachU17 s a σ → arI.now a = ok (n1, a1) → JReachU17 s a1 (tick σ)` (via `jreach_invU3`,
+  `JAtZ.msArJ` with `ARKeep.now`, `MachPlat.now`, `JReachU3.start`; no premise). `SysClU29` / `SysUClU29` /
+  `VmClU29` (U29's clause texts for a given run), `DeclAt` (`(s, a, σ)` for a decline before any write, else
+  `(s, a', tick σ)` with `now a = ok (n1, a')`), `DeclSysU29` / `DeclVmU29`, `declSys_of`, `declVm_of`.
+- **Top `kernel_entry_reachU29D`**: U29's premises verbatim, nothing added; for each of `handle_vm_fault_local`
+  (VM-fault clause of `handle_vm_fault`), `handle_syscall_local`, `handle_reply_recv_vm_local`,
+  `handle_ioport_local`, `handle_invocation_local` (syscall clause, every `c`, and unknown-syscall clause of
+  `handle_syscall`): on the runs returning `false`, the general entry from the declined state has the U29 clause's
+  postcondition at the joint state `DeclAt` gives (ghosts existential as in U29). The spec event starts from
+  `tick σ` in the clock-read case.
+- No existing statement changed; no sorry / admit / axiom / native_decide / bv_decide.
+- **Builds (afkprover, mirror FL4-lcd, seeded from FL4-lcs)**: lcd-b2 / lcd-b3 / lcd-b4 module rounds (fixes:
+  number equalities by `bne_iff_ne`, leaf lemmas under `with_reducible` (a whnf timeout), `BlockedScActive` rebuilt,
+  `(L := L)` on the clause defs); module build green (commit f556548b). **lcd-full1: full build
+  "Build completed successfully (7479 jobs)", ERRORS 0, SORRY 0**; `AX=axlcd.lean` (untracked): `kernel_entry_reachU29D`,
+  `declSys_of`, `declVm_of`, `jreachU17_tick`, `sinvX_tick`, P1 `syscall_pre_same`, `vm_pre_same`, the four
+  `*_local_decline`, and `kernel_entry_reachU29`: all `[propext, Classical.choice, Quot.sound]`.
