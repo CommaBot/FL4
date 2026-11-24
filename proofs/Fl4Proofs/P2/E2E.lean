@@ -46,17 +46,37 @@ and `move` there give the certificate, checked at the real memory; otherwise
 
 Of `serializable_e2e` (about executions `Exec`, each step an `Fl4Step`; not about
 all states reachable by `Step`, which arms any program: such a premise would be
-false, `SerialSafe`):
-* per path, inside `LocalPath`: `IsProg` [P], `PathObl` [W], `PathSide` [W],
-  `ReadOnce` [W] (it subsumes `DecOnce` and `NoZero`), totality (`<fn>.p0`,
-  from a total Arch instance), `MasksWr` [P];
-* per step: `Fl4Step.arm` [P] (armed programs are pure glue), `Fl4Step.start` [P]
-  (`StartAt`), `Fl4Step.ser` [J] (a serial entry leaves a layout with `RegionOK`
-  and `UserOK`; from P1 by `OwnLayout` / `OwnJAtZ`);
-* at the start: `Init`, `ArmInv`, the layout.
+false, `SerialSafe`). The exact list of what the end-to-end statement still
+assumes, nothing else:
 
-Beside the gate the layout and the ghost maps do not change (`maps_step`, proved).
-`MoveHeld` and `OwnDep` are proved for `OwnMap.own`.
+1. Per local path, the fields of `LocalPath` (the path lines' work):
+   * `isProg` [P]: `IsProg F p`, the body's own trait-call tree (`ReadGap`: the
+     result cannot observe read multiplicity, so `p` must be the body's own tree);
+   * `obl` [W]: `PathObl` (accept/decline refinement, `acc`, `move`, `dec_alt`);
+   * `side` [W]: `PathSide` (user-word and set side conditions);
+   * `once` [W]: `ReadOnce` (subsumes `DecOnce` and `NoZero`);
+   * `total`: totality of the body (`<fn>.p0`, from a total Arch instance);
+   * `masks` [P]: `MasksWr`.
+2. Per step, the fields of `Fl4Step`:
+   * `arm` [P]: an armed program is `PureGlue` (fl4-sync's `run_syscall` /
+     `run_vm_fault` / `run_timer_irq` before the body; trusted);
+   * `start` [P]: `StartAt`, the glue starts one of the paths `LP` on its own
+     core's state, with its locks, after `Pre`;
+   * `ser` [J]: a serial entry leaves `RegionOK`, `UserOK` and `Maps` for its new
+     layout. Discharged by `SerExit.ser_of_reach` at every exit P3 covers (each
+     `kernel_entry_reach*` exit ends in `JReachU17`), under P3's platform
+     premises of `kernel_entry_reachU17V` (as tagged there), `hn` [J] (the cores
+     the layout counts are the joint invariant's `Cs`; `SerExit.cores_one` for one
+     core) and `SerExit.ExitGhost` [P] (model memory is the store's on aligned
+     kernel words, the installed ghost maps are the exit layout's);
+   * `keep`: the layout is a ghost only serial entries change (model definition).
+3. At the start: `Init`, `ArmInv` (both hold with every core idle), `RegionOK` /
+   `UserOK` of the initial layout (by `OwnMap.ok_of_JAtZ` at the boot state's
+   `JAtZ`) and `Maps K0 s0`.
+
+Proved, not assumed: `MoveHeld` and `OwnDep` for `OwnMap.own`; beside the gate the
+layout and the ghost maps do not change (`maps_step`). The premises are jointly
+satisfiable with serial and local entries running (`E2EWitness`).
 -/
 import Fl4Proofs.P2.SafeCert
 import Fl4Proofs.P2.PathBridge
