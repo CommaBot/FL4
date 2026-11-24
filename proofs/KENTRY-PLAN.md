@@ -19279,3 +19279,28 @@ None (no Lean change).
   Top `SInvR.G5.kernel_entry_reachU29V`: U29's premises verbatim; conclusion = U29's syscall clause with
   `handle_invocation_local … p ⦃ r => r.1 = true → post ⦄` and the one added input `localinv.plan st s n = ok (some p)`.
 - Size: P1 module ~500 lines (plan fields M, congruence M, assembly M–L), P3 ~150 (S–M): L.
+### Done (lcv): P1 `LocalInv`, P3 `XTopJointKEntryInvL`, top `SInvR.G5.kernel_entry_reachU29V`; no FINDING
+- **P1 `Fl4Proofs/P1/LocalInv.lean`** (root-imported): `PlanKP` + `kp_new` / `kp_read` / `kp_read_cap` / `kp_add` /
+  `kp_add_pte` / `kp_some_if`, **`plan_with_kp`** (a walk over `plan_with`'s binds, ites and matches recording what each
+  bound call keeps of the plan: every `Some p` it returns has the `slot` / `extra` it was given), **`plan_fields`**
+  (`localinv.plan s n = some p` ⇒ `p.slot` / `p.extra` are what `lookup_slot (reg CAP)` / `lookup_extra_caps
+  (lookup_ipc_buffer false)` return at `s`); **`inv_prefix`** (the `FAULT_IP` write + `update_timestamp` keep the current
+  thread, every word of its TCB but offset 392, every `OutsideObjs` word); `reg_keepK`, **`lookup_slot_keep`** (root slot
+  words 0/8 + `CnOff`, `rab_loop_congr2`), **`lookup_buf_keep`** (`lookup_buf_agreeB`), `buf_get_ok`, `lecLoop_unfold`,
+  `lec_body_keep`, `lec_loop_keep`, **`lec_keep`** (extra caps: buffer words `122 + i` outside the TCBs and nodes);
+  **`inv_local_same`** (accepted `handle_invocation_local s a n p` with `plan s n = some p` = `handle_syscall s a n`,
+  given `BXI`, `CnOff`, the sender buffer's `BufOK` over `OutsideObjs`, the top's flag fact) and `inv_local_triple`.
+- **Shared-file edits (generalised in place, originals as instances, statements unchanged):** P1 FastFaultInv
+  `lookup_buf_agreeB` (any receiver flag; `lookup_buf_agree` = it at `true`); P3 XTopJointData `JAtZ.bufWordG` (any
+  receiver flag; `JAtZ.bufWord` = it at `true`).
+- **P3 `Fl4Proofs/P3/XTopJointKEntryInvL.lean`** (root-imported): `JAtZ.sbufOK` (every TCB's sender buffer word is
+  `OutsideObjs`: `lookup_buf_full … false`, `BufCover` at `false`, `balign`, `bufWordG`, `nodeB`), top
+  **`kernel_entry_reachU29V`**: U29's premises verbatim, `JReachU17 s a σ`; conclusion `∃ Z H Cs Ac Lst D, JAtZ … ∧
+  ∀ n c p, [U29 syscall clause's inputs] → localinv.plan st s n = ok (some p) → handle_invocation_local st arI s a n p
+  ⦃ r => r.1 = true → [U29 syscall post at (r.2.1, r.2.2)] ⦄`. Premises added to the top: none. Inputs added to the
+  clause: only fl4-sync's plan contract (`local_invocation` computes `p = plan(s, number)` at the entry state; nothing
+  writes the store between the plan and the call). Why the plan contract and not "any plan": `still_holds` checks
+  only the words the plan read, not that `p.slot` / `p.extra` are the lookups' slots, so an arbitrary `Plan` value
+  would decode at an arbitrary slot (no FL4 bug: fl4-sync never passes one).
+- Builds (afkprover, mirror FL4-lcv, SEED=FL4-int5): lcv-b1…b5 `MODE=mod Fl4Proofs.P1.LocalInv` (b5 green, ERRORS 0,
+  commit 51189aaa); lcv-b6 `Fl4Proofs.P3.XTopJointKEntryInvL`: 7378 jobs, ERRORS 0, SORRY 0.
