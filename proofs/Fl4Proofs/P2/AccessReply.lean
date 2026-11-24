@@ -144,7 +144,9 @@ def RdBuf (R : U64 → Prop) (t : U64) : Prop :=
 theorem faults.copy_mrs_fault_reply.guard (s : S) (snd rcv : U64) (regs : Slice U64) (len : U64)
     (hreg : ∀ r ∈ regs.val, r.val < 384) (hl : (Slice.len regs).val < 127)
     (hsr : Regs R snd) (hrw : Regs W rcv) (hb : RdBuf R snd)
-    (hbw : ∀ X : S, ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
+    (hrc : TcbAddr rcv)
+    (hbw : ∀ X : S, WritesIn st s X (XferRegW ({rcv} : Set U64) ∅) →
+      ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
     faults.copy_mrs_fault_reply (PathObl.guard st R W) s snd rcv regs len =
       faults.copy_mrs_fault_reply st s snd rcv regs len := by
   obtain ⟨sl, hsl, h1, h2, h3⟩ := hb
@@ -152,7 +154,12 @@ theorem faults.copy_mrs_fault_reply.guard (s : S) (snd rcv : U64) (regs : Slice 
   refine bind_guard_congr rfl fun _ _ => ?_
   refine bind_guard_congr rfl fun n _ => ?_
   rw [faults.copy_mrs_fault_reply_loop0.guard s snd rcv regs n _ hreg hsr hrw]
-  refine bind_guard_congr rfl fun p _ => ?_
+  refine bind_guard_congr rfl fun p hp => ?_
+  have hw1 : WritesIn st s p.1 (XferRegW ({rcv} : Set U64) ∅) := by
+    have hTd : TcbPlaced ({rcv} : Set U64) := fun y hy => by rw [Set.mem_singleton_iff] at hy; rw [hy]; exact hrc
+    have := faults.copy_mrs_fault_reply_loop0.rg (st := st) (L := L) (T := ({rcv} : Set U64)) (s0 := s) hTd (Set.mem_singleton _) hreg
+      (WritesIn.refl _ _) (snd := snd) (n := n) (i := 0#usize)
+    rw [hp, WP.spec_ok] at this; exact this
   obtain ⟨s1, i⟩ := p
   simp only [Aeneas.Std.uncurry_apply_pair]
   split
@@ -161,7 +168,7 @@ theorem faults.copy_mrs_fault_reply.guard (s : S) (snd rcv : U64) (regs : Slice 
     split
     · rename_i hne
       exact faults.copy_mrs_fault_reply_loop1.guard s1 rcv regs n i buf hreg hl (by simpa using hne)
-        (hbw s1 buf hbuf) hrw
+        (hbw s1 hw1 buf hbuf) hrw
     · rfl
   · rfl
 
@@ -171,7 +178,9 @@ theorem faults.handle_fault_reply.guardU {A : Type} (ar : machine.Arch A) (s : S
     (hty : L.mem s (faultA rcv) = fl4_abi.consts.fault.UnknownSyscall)
     (hmi : R (regA snd layout.reg.MSG_INFO)) (hft : R (core.num.U64.wrapping_add rcv 3376#u64))
     (hsr : Regs R snd) (hrw : Regs W rcv) (hb : RdBuf R snd)
-    (hbw : ∀ X : S, ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
+    (hrc : TcbAddr rcv)
+    (hbw : ∀ X : S, WritesIn st s X (XferRegW ({rcv} : Set U64) ∅) →
+      ∀ buf, msg.lookup_ipc_buffer st X false snd = ok buf → BufW R buf) :
     faults.handle_fault_reply (PathObl.guard st R W) ar s a rcv snd =
       faults.handle_fault_reply st ar s a rcv snd := by
   unfold faults.handle_fault_reply
@@ -179,7 +188,7 @@ theorem faults.handle_fault_reply.guardU {A : Type} (ar : machine.Arch A) (s : S
   refine bind_guard_congr rfl fun tag _ => ?_
   rw [obj.Tcb.fault_type.guard rcv s hft, fault_type_ok, hty]
   simp only [bind_ok, us_ne_cap, ↓reduceIte, lift]
-  rw [faults.copy_mrs_fault_reply.guard s snd rcv _ _ syscall_message_lt syscall_message_len hsr hrw hb hbw]
+  rw [faults.copy_mrs_fault_reply.guard s snd rcv _ _ syscall_message_lt syscall_message_len hsr hrw hb hrc hbw]
 
 /-! ## Reply objects -/
 
@@ -212,7 +221,9 @@ theorem reply_prev_ok (s : S) (r : U64) : obj.Reply.prev st r s = ok (L.mem s (r
 
 theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
     (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
-    (h3 : ∀ X : S, R (maxA (L.mem X (scA t)))) (h4 : R (inqA t)) :
+    (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
+    (h3 : ∀ X : S, WritesIn st s X (fun b => b = rTcbA r ∨ b = stA t) → R (maxA (L.mem X (scA t))))
+    (h4 : R (inqA t)) :
     ipc.reply_unlink (PathObl.guard st R W) s r t = ipc.reply_unlink st s r t := by
   unfold ipc.reply_unlink
   rw [obj.Reply.set_tcb.guard r s _ hrt]
@@ -221,7 +232,8 @@ theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) 
     unfold obj.Reply.set_tcb at hs1; simp only [lift, bind_ok, L.write_eq] at hs1
     exact (ok_inj_ff hs1).symm
   subst e
-  exact sched.set_thread_state.guard _ t _ hn.wr hw h1 h2 (h3 _) h4
+  exact sched.set_thread_state.guard _ t _ hn.wr hw h1 h2
+    (h3 _ ((writesIn_wr aT).trans (writesIn_wr aS))) h4
 
 /-- **`reply_remove` of a reply object with no neighbours** (`NEXT` and
 `PREV` are 0 up to the head bit). -/
@@ -230,7 +242,10 @@ theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hrn : R (rNextA r)) (hrp : R (rPrevA r)) (hwn : W (rNextA r)) (hwp : W (rPrevA r))
     (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
     (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
-    (h3 : ∀ X : S, R (maxA (L.mem X (scA t)))) (h4 : R (inqA t)) :
+    (aP : Aligned (rPrevA r)) (aN : Aligned (rNextA r)) (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
+    (h3 : ∀ X : S, WritesIn st s X (fun b => b = rPrevA r ∨ b = rNextA r ∨ b = rTcbA r ∨ b = stA t) →
+      R (maxA (L.mem X (scA t))))
+    (h4 : R (inqA t)) :
     ipc.reply_remove (PathObl.guard st R W) ar s a r t = ipc.reply_remove st ar s a r t := by
   unfold ipc.reply_remove
   rw [obj.Reply.next.guard s r hrn, obj.Reply.prev.guard s r hrp, reply_next_ok, reply_prev_ok, hz.1, hz.2]
@@ -247,7 +262,20 @@ theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     simp only [lift, bind_ok, L.write_eq, Bool.false_eq_true, ↓reduceIte] at hs4
     cases ok_inj_ff hs4
     exact hn.wr.wr
-  rw [ipc.reply_unlink.guard s4 r t hn4 hrt hw h1 h2 h3 h4]
+  have hw4 : WritesIn st s s4 (fun b => b = rPrevA r ∨ b = rNextA r) := by
+    unfold obj.Reply.set_prev obj.Reply.set_prev_raw at hs3
+    simp only [lift, bind_ok, L.write_eq] at hs3
+    cases ok_inj_ff hs3
+    unfold obj.Reply.set_next obj.Reply.set_next_raw at hs4
+    simp only [lift, bind_ok, L.write_eq, Bool.false_eq_true, ↓reduceIte] at hs4
+    cases ok_inj_ff hs4
+    exact (writesIn_wr aP).trans (writesIn_wr aN)
+  rw [ipc.reply_unlink.guard s4 r t hn4 hrt hw h1 h2 aT aS (fun X hX => h3 X ((hw4.trans hX).mono fun b hb => by
+    rcases hb with (h | h) | (h | h)
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl h))
+    · exact Or.inr (Or.inr (Or.inr h)))) h4]
 
 theorem faults.clear_fault.guard (s : S) (t : U64) (h : W (core.num.U64.wrapping_add t 3376#u64)) :
     faults.clear_fault (PathObl.guard st R W) s t = faults.clear_fault st s t := by
