@@ -5,6 +5,7 @@ import Fl4Proofs.P2.MoveTimer
 import Fl4Proofs.P2.FootTimerSetOwn
 import Fl4Proofs.P2.FootTimerSetObl
 import Fl4Proofs.P2.FootTimerIrqG
+import Fl4Proofs.P2.FootTimerSetLP
 open Fl4Proofs.P2
 #print axioms in_core_timer_tree_access
 #print axioms ge_remove
@@ -26,3 +27,4 @@ open Fl4Proofs.P2
 #print axioms Fl4Proofs.P2.set_timer_pathSide
 #print axioms Fl4Proofs.P2.wake_ok.guard
 #print axioms Fl4Proofs.P2.round_robin_ok.guard
+#print axioms Fl4Proofs.P2.set_timer_localPath

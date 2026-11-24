@@ -173,6 +173,8 @@ import Fl4Proofs.P2.FootTimerTree
 import Fl4Proofs.P2.FootTimerIns
 import Fl4Proofs.P2.FootTimerAcc
 import Fl4Proofs.P2.FootTimerSet
+import Fl4Proofs.P2.FootTimerSetLP
+import Fl4Proofs.P2.FootTimerIrqG
 import Fl4Proofs.P2.AccessLeaf
 import Fl4Proofs.P2.AccessSched
 import Fl4Proofs.P2.FootTimerAccLoop
