@@ -407,17 +407,37 @@ pub fn init_cpu(gicr: u64) {
     use fl4_core::layout::irq;
     let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
     let timer_id = crate::timer::timer_irq_id();
+    // GICv3: whether the priority registers and the priority mask store
+    // priorities alike (`gic_layout::v3_same_priority_view`): read back,
+    // a Non-secure shifted register and an unshifted mask look alike. The
+    // probe goes to the timer's priority, which is disabled until below.
+    let view_ok = version() != 3 || {
+        let ctlr: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_0_c12_c12_4", out(reg) ctlr) };
+        let pribits = (((ctlr >> 8) & 0x7) + 1) as u32;
+        // GICD_CTLR.DS, which reads as 0 in the Non-secure view of a GIC
+        // with two security states.
+        let ds = rd(gicd() + GICD_CTLR) & (1 << 6) != 0;
+        let probe = crate::gic_layout::v3_view_probe(pribits);
+        set_priority(bank, timer_id, probe);
+        let prio_probe = priority(bank, timer_id);
+        set_pmr(probe);
+        let pmr_probe = pmr();
+        set_pmr(PMR_OPEN);
+        crate::gic_layout::v3_same_priority_view(ds, pribits, prio_probe, pmr_probe)
+    };
     set_priority(bank, irq::REMOTE_CALL_ID, REMOTE_PRIO);
     set_priority(bank, timer_id, TIMER_PRIO);
     // What the GIC (or the hypervisor's emulation of it) kept, as it reads
-    // back: the two priorities, one left at PRIO, and the mask.
+    // back: the two priorities, one left at PRIO, and the mask. Read back
+    // in one view (`view_ok`), they compare as the GIC compares them.
     let remote = priority(bank, irq::REMOTE_CALL_ID);
     let timer = priority(bank, timer_id);
     let other = priority(bank, irq::RESCHEDULE_ID);
     set_pmr(TIMER_PMR);
     let mask = pmr();
     set_pmr(PMR_OPEN);
-    if !crate::gic_layout::timer_only_ok(remote, timer, mask, other) {
+    if !view_ok || !crate::gic_layout::timer_only_ok(remote, timer, mask, other) {
         TIMER_ONLY.store(false, Ordering::Release);
     }
     wr(bank + GICD_ISENABLER,
@@ -478,7 +498,9 @@ pub fn ack_timer_only() -> u64 {
 /// Set the priority of banked interrupt `id` (an SGI or PPI) in `bank`,
 /// the redistributor's SGI frame or the distributor: a byte of a 32-bit
 /// GICD_IPRIORITYR, read, changed and written back (word accesses, which
-/// every GIC takes; a Non-secure GICv2 view reads back what it stores).
+/// every GIC takes; a Non-secure view reads back what it stored shifted
+/// back, `gic_layout::readback_ns`, so a read, change and write keeps the
+/// other bytes).
 fn set_priority(bank: u64, id: u64, prio: u32) {
     let at = bank + GICD_IPRIORITYR + (id & !3);
     let shift = (id & 3) * 8;

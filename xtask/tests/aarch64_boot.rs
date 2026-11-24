@@ -2642,27 +2642,62 @@ fn tcr_sets_tbi0_and_with_pauth_tbid0() {
 
 /// The kernel timer's acknowledge beside the gate (gic.rs `ack_timer_only`)
 /// relies on the remote-call SGI and the timer being above `TIMER_PMR` and
-/// every other interrupt at or below it, in whatever the GIC stores: every
-/// implemented priority width (4 to 8 bits; a GICv3 has at least 5, a
-/// GICv2 at least 4), in a Secure, single-security or GICv3 view and in a
-/// GICv2's Non-secure view, where the mask is stored the same way.
+/// every other interrupt at or below it, as the GIC compares them: the
+/// values it stores (`stored`, `stored_ns`), which are not always what
+/// reads back (`readback_ns`). Each view: a GICv2 (4 to 8 implemented
+/// bits) in its Secure and Non-secure view (where the mask is shifted
+/// too); a GICv3 (5 to 8 bits) with one security state (DS 1, nothing
+/// shifted), with two and SCR_EL3.FIQ 1 (priorities and mask shifted), and
+/// with two and FIQ 0 (priorities shifted, the mask not), where the
+/// read-back check alone passes though the mask hides the timer, and
+/// `v3_same_priority_view` turns the local path off.
 #[test]
 fn timer_priorities_stay_above_the_mask_in_every_view() {
-    use gic_layout::{stored, stored_ns, timer_only_ok, PRIO, REMOTE_PRIO, TIMER_PMR, TIMER_PRIO};
-    for bits in 4..=8 {
-        for view in [stored, stored_ns] {
-            let (r, t, m, o) = (view(REMOTE_PRIO, bits), view(TIMER_PRIO, bits), view(TIMER_PMR, bits), view(PRIO, bits));
-            assert!(r < t && t < m && m < o, "{bits} bits: {r:#x} {t:#x} {m:#x} {o:#x}");
-            assert!(timer_only_ok(r, t, m, o), "{bits} bits");
-            // The open mask masks none of them.
-            assert!(o < view(gic_layout::PMR_OPEN, bits), "{bits} bits");
+    use gic_layout::{
+        acknowledge, readback_ns, stored, stored_ns, timer_only_ok, v3_same_priority_view, v3_view_probe, PMR_OPEN, PRIO, REMOTE_PRIO, TIMER_PMR, TIMER_PRIO,
+    };
+    const TIMER: u64 = 27;
+    const LPI: u64 = 8192;
+    type View = fn(u32, u32) -> u32;
+    // (name, GICv3, bit widths, priority stored/read back, mask stored/read back).
+    let views: [(&str, bool, std::ops::RangeInclusive<u32>, View, View, View, View); 5] = [
+        ("GICv2 Secure", false, 4..=8, stored, stored, stored, stored),
+        ("GICv2 Non-secure", false, 4..=8, stored_ns, readback_ns, stored_ns, readback_ns),
+        ("GICv3 DS=1", true, 5..=8, stored, stored, stored, stored),
+        ("GICv3 DS=0 FIQ=1", true, 5..=8, stored_ns, readback_ns, stored_ns, readback_ns),
+        ("GICv3 DS=0 FIQ=0", true, 5..=8, stored_ns, readback_ns, stored, stored),
+    ];
+    for (name, v3, widths, prio_in, prio_rb, mask_in, mask_rb) in views {
+        for bits in widths {
+            let rb = (prio_rb(REMOTE_PRIO, bits), prio_rb(TIMER_PRIO, bits), mask_rb(TIMER_PMR, bits), prio_rb(PRIO, bits));
+            // The read-back check passes in every view...
+            assert!(timer_only_ok(rb.0, rb.1, rb.2, rb.3), "{name}, {bits} bits: {rb:x?}");
+            // ...and the GICv3 probe tells the mixed view apart.
+            let probe = v3_view_probe(bits);
+            let same = v3_same_priority_view(name.contains("DS=1"), bits, prio_rb(probe, bits), mask_rb(probe, bits));
+            let mixed = name == "GICv3 DS=0 FIQ=0";
+            if v3 {
+                assert_eq!(same, !mixed, "{name}, {bits} bits: probe");
+            }
+            let pending = [(TIMER, prio_in(TIMER_PRIO, bits)), (LPI, prio_in(PRIO, bits))];
+            let under_mask = acknowledge(mask_in(TIMER_PMR, bits), &pending);
+            let open = acknowledge(mask_in(PMR_OPEN, bits), &pending);
+            assert_eq!(open, TIMER, "{name}, {bits} bits: the open mask takes the timer first");
+            assert_eq!(acknowledge(mask_in(TIMER_PMR, bits), &pending[1..]), 1023, "{name}, {bits} bits: the mask takes no LPI");
+            if mixed {
+                // What the probe guards against: the mask hides the timer.
+                assert_eq!(under_mask, 1023, "{name}, {bits} bits");
+            } else {
+                assert_eq!(under_mask, TIMER, "{name}, {bits} bits: the mask lets the timer through");
+            }
         }
     }
-    // A GIC that kept no difference (all at one priority) fails the check.
+    assert_eq!(v3_view_probe(4), 0);
+    assert!(!v3_same_priority_view(true, 4, 0x10, 0x10), "fewer bits than a GICv3 has");
     assert!(!timer_only_ok(0xa0, 0xa0, 0x80, 0xa0));
     assert!(!timer_only_ok(0x40, 0x60, 0xf0, 0xa0));
     assert_eq!(stored_ns(0x60, 4), 0xb0);
-    assert_eq!(stored_ns(0x80, 4), 0xc0);
+    assert_eq!(readback_ns(0x60, 8), 0x60);
 }
 
 /// The race `ack_timer_only` closes: the timer is the highest pending
@@ -2703,6 +2738,11 @@ fn the_timer_local_path_acknowledges_only_under_the_mask() {
     let local = &code[start..end];
     assert!(local.iter().any(|l| l.contains("gic::ack_timer_only()")), "the local path acknowledges under the mask");
     assert!(!local.iter().any(|l| l.contains("gic::ack()")), "the local path acknowledges with an open mask");
+    // Nothing above the mask goes to the serial path, never back to the
+    // thread (where a pending timer it hides would be taken again at once).
+    let spurious = local.iter().position(|l| l.contains("if gic::is_spurious(raw)")).expect("the spurious case");
+    let ret = local[spurious..].iter().find(|l| l.trim().starts_with("return")).expect("its return");
+    assert_eq!(ret.trim(), "return false;", "a spurious timer-only acknowledge leaves the timer to the serial path");
     let calls: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial();")).collect();
     assert_eq!(calls.len(), 2, "fl4_entry and fl4_kernel_irq");
     let guards = code.iter().filter(|l| l.contains("gic::can_ack_timer_only()")).count();

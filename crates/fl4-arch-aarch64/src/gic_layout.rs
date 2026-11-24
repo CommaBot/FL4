@@ -287,10 +287,53 @@ pub fn stored(p: u32, bits: u32) -> u32 {
     p & (0xffu32 << (8 - bits)) & 0xff
 }
 
-/// What it holds after a GICv2 Non-secure write of `p`: `(p >> 1) | 0x80`
-/// (GIC architecture v2, "Software views of interrupt priority").
+/// What it holds after a Non-secure write of `p` to a GIC with two
+/// security states (a GICv2's Non-secure view; a GICv3 with
+/// GICD_CTLR.DS 0: its priority registers, and ICC_PMR_EL1 if
+/// SCR_EL3.FIQ is 1): `(p >> 1) | 0x80` (GIC architecture v2, "Software
+/// views of interrupt priority"; IHI 0069 4.8.6). This, `stored`'s value,
+/// is what the GIC compares.
 pub fn stored_ns(p: u32, bits: u32) -> u32 {
     stored((p >> 1) | 0x80, bits)
+}
+
+/// What a Non-secure read returns of a field so written: the stored value
+/// shifted back, `(stored_ns << 1) & 0xff`. Read back, a shifted and an
+/// unshifted field look alike, though the GIC compares different values.
+pub fn readback_ns(p: u32, bits: u32) -> u32 {
+    (stored_ns(p, bits) << 1) & 0xff
+}
+
+/// GICv3: the value to write to a priority register and to ICC_PMR_EL1 to
+/// tell whether each is shifted (`stored_ns`): the least significant
+/// implemented bit, for `pribits` (ICC_CTLR_EL1.PRIbits + 1) of 5 to 8;
+/// 0 otherwise. Shifted, it is lost and reads back as 0.
+pub fn v3_view_probe(pribits: u32) -> u32 {
+    if (5..=8).contains(&pribits) {
+        1u32 << (8 - pribits)
+    } else {
+        0
+    }
+}
+
+/// GICv3: whether the priority registers and ICC_PMR_EL1 store priorities
+/// alike, so that their read-back values compare as the GIC compares
+/// them: from GICD_CTLR.DS (`ds`), `pribits` and what `v3_view_probe`'s
+/// value read back as from a priority register (`prio_probe`) and from
+/// ICC_PMR_EL1 (`pmr_probe`). With one security state (DS 1) neither is
+/// shifted; with two, Non-secure priority registers are, and ICC_PMR_EL1
+/// is only if SCR_EL3.FIQ is 1 (Linux `gic_has_group0`,
+/// `gic_prio_masking`): with FIQ 0 the mask `TIMER_PMR` would hide the
+/// timer itself.
+pub fn v3_same_priority_view(ds: bool, pribits: u32, prio_probe: u32, pmr_probe: u32) -> bool {
+    if !(5..=8).contains(&pribits) {
+        return false;
+    }
+    if ds {
+        prio_probe != 0 && pmr_probe != 0
+    } else {
+        prio_probe == 0 && pmr_probe == 0
+    }
 }
 
 /// Whether the priorities read back from the GIC (the remote-call SGI's,

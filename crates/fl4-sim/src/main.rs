@@ -828,6 +828,8 @@ enum Effect {
     Ack(u64),
     /// An address space loaded: root and ASID.
     SetVSpace(u64, u64),
+    /// The clock read, and what it gave.
+    Now(u64),
 }
 
 /// Per-core machine state.
@@ -919,6 +921,7 @@ impl SimArch {
                 assert_eq!(got, Some(irq), "core {cpu} ended interrupt {irq} with {got:?} in service");
             }
             Effect::SetVSpace(root, asid) => m.cores[cpu].vspace = (root, asid),
+            Effect::Now(_) => unreachable!("SimArch::now records its reads"),
         }
     }
 }
@@ -942,7 +945,11 @@ impl Arch for SimArch {
         // charges the running SC dozens of budgets at once.
         let d = if m.rng.below(4000) == 0 { 2_000_000 * TICKS_PER_US } else { 1 + m.rng.below(50) };
         m.now += d;
-        m.now
+        let now = m.now;
+        if let Some(log) = &mut m.effects {
+            log.push(Effect::Now(now));
+        }
+        now
     }
     fn set_deadline(&mut self, ticks: u64) {
         self.apply(Effect::Deadline(ticks));
@@ -4217,5 +4224,31 @@ mod tests {
         };
         run(false);
         assert!(std::panic::catch_unwind(move || run(true)).is_err(), "the effects in another order passed");
+    }
+
+    /// Clock reads are effects too: reading the clock before or after the
+    /// end of interrupt makes a different run.
+    #[test]
+    fn the_fast_path_check_orders_clock_reads() {
+        let run = |general_swapped: bool| {
+            let mut sim = booted(1);
+            sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+            let m0 = sim.start_diff();
+            sim.s.mem.start_log();
+            let _ = sim.a.now();
+            sim.a.ack_irq(irq::TIMER);
+            let fast_log = sim.s.mem.take_log();
+            sim.diff_general("clock", m0, fast_log, false, |_, a| {
+                if general_swapped {
+                    a.ack_irq(irq::TIMER);
+                    let _ = a.now();
+                } else {
+                    let _ = a.now();
+                    a.ack_irq(irq::TIMER);
+                }
+            });
+        };
+        run(false);
+        assert!(std::panic::catch_unwind(move || run(true)).is_err(), "a clock read in another order passed");
     }
 }

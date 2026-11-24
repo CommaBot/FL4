@@ -871,6 +871,11 @@ mod tests {
         gate.leave_local(&Atomics, 5);
     }
 
+    /// The tests that take object locks (`lock::try_lock_object`), whose
+    /// table is the process's, run one at a time: one test's held lock
+    /// would make another's lookup decline.
+    static LOCK_TABLE_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// Kernel memory as a map, recording the words read.
     struct MapStore {
         m: std::collections::HashMap<u64, u64>,
@@ -1029,6 +1034,7 @@ mod tests {
     /// on one level and two; it reads only slots it has locked.
     #[test]
     fn locked_lookup_finds_what_lookup_slot_finds() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
         let (s, t) = cspace();
         let mut x: u64 = 0x2545_f491_4f6c_dd1d;
         let mut found = 0;
@@ -1071,6 +1077,7 @@ mod tests {
     /// not read: the lookup gives up, and finds it once it is free.
     #[test]
     fn locked_lookup_declines_on_a_slot_another_core_holds() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
         let (s, t) = cspace();
         let terminal = fl4_core::obj::Slot::index(0x31_0000_0000, 3).0;
         // Root slot 1 (C), then C's slot 3: 0b0001 << 4 | 0b01 << 2 | 3.

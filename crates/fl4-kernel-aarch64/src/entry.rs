@@ -262,9 +262,11 @@ fn timer_irq_local_or_serial() {
         }
         let raw = gic::ack_timer_only();
         if gic::is_spurious(raw) {
-            // Nothing above the mask is pending any more: whatever is,
-            // the core takes again on its way out.
-            return true;
+            // Nothing above the mask: the timer stopped asserting, or the
+            // GIC masked it after all. The serial path acknowledges with
+            // the mask open (nothing pending: no entry), rather than leave
+            // a pending timer to be taken again at once, for ever.
+            return false;
         }
         let id = gic::raw_id(raw);
         if id == irq::REMOTE_CALL_ID {
