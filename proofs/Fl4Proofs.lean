@@ -552,6 +552,7 @@ import Fl4Proofs.P3.SpecFbKeepDel
 import Fl4Proofs.P3.SpecFbDelRun
 import Fl4Proofs.P3.XTopJointFbDelFrame
 import Fl4Proofs.P3.XTopJointFbDelFrameN
+import Fl4Proofs.P3.XTopJointFbDelDefer
 import Fl4Proofs.P3.XTopJointFbDel
 import Fl4Proofs.P3.XTopJointFbCopy
 import Fl4Proofs.P3.XTopJointVsFb
