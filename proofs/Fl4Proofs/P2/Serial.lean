@@ -117,6 +117,9 @@ inductive Prog (A V L : Type) where
   walk, a plan read before its locks). It reads memory like `rd`, but the
   sequential meaning lets it return any value. -/
   | rds (a : A) (k : V → Prog A V L)
+  /-- A ghost marker: the fl4-sync glue (speculative reads, lock attempts)
+  hands over to the extracted body here. No memory effect. -/
+  | start (k : Prog A V L)
 
 variable {A V C L : Type} [DecidableEq A]
 
@@ -132,6 +135,7 @@ inductive Run : Prog A V L → (A → V) → (A → V) → Prop
       Run (k b) m m' → Run (.lock l k) m m'
   | rds {a : A} {k : V → Prog A V L} {m m' : A → V} (v : V) :
       Run (k v) m m' → Run (.rds a k) m m'
+  | start {k : Prog A V L} {m m' : A → V} : Run k m m' → Run (.start k) m m'
 
 /-- Running a list of bodies one after another, each from the memory the
 previous one left. -/
@@ -259,6 +263,10 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
   | rds {p0 : Prog A V L} {a : A} {k : V → Prog A V L} {W : Set A} :
       s.ph c = .loc p0 (.rds a k) W →
       Step s c { s with ph := Function.update s.ph c (.loc p0 (k (s.mem a)) W) }
+  /-- The body starts (ghost). -/
+  | start {p0 : Prog A V L} {k : Prog A V L} {W : Set A} :
+      s.ph c = .loc p0 (.start k) W →
+      Step s c { s with ph := Function.update s.ph c (.loc p0 k W) }
   | wr {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A} :
       s.ph c = .loc p0 (.wr a v k) W →
       Step s c { s with mem := Function.update s.mem a v,
@@ -507,6 +515,15 @@ theorem inv_rds {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
     { held := Ic.held
       sim := fun n n' hn hr => Ic.sim n n' hn (Run.rds _ hr) }
 
+theorem inv_start {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
+    {p0 k : Prog A V L} {W : Set A} (hc : s.ph c = .loc p0 (.start k) W) :
+    InvH m0 { s with ph := Function.update s.ph c (.loc p0 k W) } H := by
+  have Ic := I.loc c p0 _ W hc
+  exact I.locstep (p' := k) (W' := W) hc rfl rfl rfl rfl (subset_refl _)
+    (fun _ _ => rfl) (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ _ _ _ _ _ _ => rfl)
+    { held := Ic.held
+      sim := fun n n' hn hr => Ic.sim n n' hn (Run.start hr) }
+
 theorem inv_wr {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
     {p0 : Prog A V L} {a : A} {v : V} {k : Prog A V L} {W : Set A}
     (hc : s.ph c = .loc p0 (.wr a v k) W)
@@ -723,6 +740,7 @@ theorem InvH.step {m0 : A → V} {s s' : Cfg A V C L} {H : A → V} {c : C}
     exact ⟨H, inv_wr I hc hal.1 hal.2⟩
   | lock b hc hb => exact ⟨H, inv_lock I hc b hb⟩
   | rds hc => exact ⟨H, inv_rds I hc⟩
+  | start hc => exact ⟨H, inv_start I hc⟩
   | leave hc => exact ⟨_, inv_leave I hc⟩
   | take p hc _ => exact ⟨H, inv_take I p hc⟩
   | scan d _ _ hd => exact ⟨H, inv_scan I d hd⟩
@@ -807,6 +825,7 @@ inductive Within (F : Set A) : Prog A V L → Prop
   | wr {a : A} {v : V} {k : Prog A V L} : a ∈ F → Within F k → Within F (.wr a v k)
   | lock {l : L} {k : Bool → Prog A V L} : (∀ b, Within F (k b)) → Within F (.lock l k)
   | rds {a : A} {k : V → Prog A V L} : a ∈ F → (∀ v, Within F (k v)) → Within F (.rds a k)
+  | start {k : Prog A V L} : Within F k → Within F (.start k)
 
 /-- (a) An access footprint is a write footprint. -/
 theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -821,6 +840,7 @@ theorem within_unchanged {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Wit
       rw [ih hk x hx, Function.update_of_ne (fun h => hx (by rw [h]; exact ha))]
   | lock b _ ih => cases hw with | lock hk => exact ih (hk b)
   | rds v _ ih => cases hw with | rds _ hk => exact ih (hk v)
+  | start _ ih => cases hw with | start hk => exact ih hk
 
 /-- (b) An access footprint is a frame. -/
 theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within F p)
@@ -856,6 +876,12 @@ theorem within_frame {F : Set A} {p : Prog A V L} {m m' : A → V} (hw : Within 
       intro n hn
       obtain ⟨n', h1, h2⟩ := ih (hk v) n hn
       exact ⟨n', .rds v h1, h2⟩
+  | start _ ih =>
+    cases hw with
+    | start hk =>
+      intro n hn
+      obtain ⟨n', h1, h2⟩ := ih hk n hn
+      exact ⟨n', .start h1, h2⟩
 
 theorem run_rd_inv {a : A} {k : V → Prog A V L} {m m' : A → V} (h : Run (.rd a k) m m') :
     Run (k (m a)) m m' := by cases h; assumption
