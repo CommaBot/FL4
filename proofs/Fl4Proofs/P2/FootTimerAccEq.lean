@@ -1,10 +1,4 @@
 /-
-WIP (p2lt, not imported). Memory bisect on afkprover (scratch modules, `sorry`-truncated, not committed):
-the `do`-notation copy of the step tail alone cost ~5 GiB, hence `ictTail`/`ictRight` in term mode
-(def + `body_split` by `rfl`: 3.9 GiB, fine); `ictt_body_eq` up to `rw [body_split, body_split]`: 4.3 GiB,
-fine; the segment `by_cases`/`rw [if_pos ..]`/`cases found`/`cases ov`/`simp only [..]` after it still runs
-past 9 GiB (next bisect point). `FootTimerAccStep` (rewritten on `ictTail`) is not yet compiled.
-
 # P2: `in_core_timer_tree` reads only core `c`'s tree (`PathObl.acc` piece)
 
 `in_core_timer_tree_access`: run on `guard st R W`, `localtimer.in_core_timer_tree st s c target d` ends as on
@@ -14,6 +8,10 @@ only (`StackOK`): a popped node is a key (`ictt_body_eq`: the guarded step is th
 is a non-null child link of a key, a key again (`ictt_body_step`, by explicit cases on the branch:
 deadline order, null children, a full stack). Composed with `PathObl.loop_guard_congr`
 (`P2/AccessSched.lean`), the measure being the visits left.
+
+Elaboration note: the branches where both sides are `ok (done ..)` after the flag tests are closed by
+`rw [if_pos rfl, ..]`, not `rfl`: `rfl` compares the `ite`'s else branches (guarded against real reads)
+before reducing the condition and ran past 9 GiB.
 
 No named premises.
 -/
@@ -143,8 +141,8 @@ theorem ictt_body_eq {s : S} {c target d : U64} {Ks : List U64}
           have rl : R (tlA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inl rfl)⟩))
           have rr : R (trA i1) := hR _ (Or.inr (Or.inr ⟨i1, Or.inr hi1m, Or.inr (Or.inr rfl)⟩))
           rw [tdG (Wr := Wr) (s := s) rd, tlG (Wr := Wr) (s := s) rl, trG (Wr := Wr) (s := s) rr]
-        · rfl
-      · rfl
+        · rw [if_neg Bool.false_ne_true, if_neg Bool.false_ne_true, if_pos rfl, if_pos rfl]
+      · rw [if_pos rfl, if_pos rfl]
     · rw [if_neg h2, if_neg h2]
   · rw [if_neg h1, if_neg h1]
 

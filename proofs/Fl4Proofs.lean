@@ -175,6 +175,7 @@ import Fl4Proofs.P2.FootTimerAcc
 import Fl4Proofs.P2.FootTimerSet
 import Fl4Proofs.P2.AccessLeaf
 import Fl4Proofs.P2.AccessSched
+import Fl4Proofs.P2.FootTimerAccLoop
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine

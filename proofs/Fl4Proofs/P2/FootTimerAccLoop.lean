@@ -48,7 +48,7 @@ theorem in_core_timer_tree_access {s : S} {c target d : U64} {W : TRB.RBT} {b : 
   · rw [if_pos c2, if_pos c2]
   rw [if_neg c2, if_neg c2]
   by_cases c3 : (L.mem s (L.nodeAt s c layout.node.TIMER_ROOT) != 0#u64) = true
-  · rw [if_pos c3, if_pos c3]
+  · rw [if_pos c3]
     have hr : L.mem s (L.nodeAt s c layout.node.TIMER_ROOT) ∈ W.keys := hroot.resolve_left (by simpa using c3)
     have hl : (0#usize).val < (Array.repeat 32#usize 0#u64).length := by simp
     rw [eq_of_spec_fd (Array.update_spec _ 0#usize _ hl)]
@@ -57,7 +57,7 @@ theorem in_core_timer_tree_access {s : S} {c target d : U64} {W : TRB.RBT} {b : 
     have : j = 0 := by simp at hj1; omega
     subst this
     simpa [Array.set_val_eq] using hr
-  · rw [if_neg c3, if_neg c3]
+  · rw [if_neg c3]
     simp only [bind_ok]
     exact init _ _ ⟨by simp, fun j hj hj1 => by simp at hj1⟩
 end

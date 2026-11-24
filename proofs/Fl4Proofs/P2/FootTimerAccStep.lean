@@ -76,15 +76,12 @@ theorem ictTail_step {Ks : List U64} {i d v1 i1 cd l r : U64} {stack : Array U64
       obtain ⟨⟨xm, back⟩, em, hxm, hback⟩ := spec_ex_fd (Array.index_mut_usize_spec stack sp1 hl')
       obtain ⟨sp2, esp2, hsp2⟩ := spec_ex_fd (Usize.add_spec (x := sp1) (y := 1#usize) (by scalar_tac))
       rw [em, esp2] at h
-      simp only [bind_ok, Bool.false_eq_true, ite_false] at h
-      simp only at hback
+      simp only [bind_ok] at h
       subst hback
       exact ictRight_step (hpop.push h31 (by scalar_tac) (hl (by simpa using hl0))) (by scalar_tac) hr h
     · rw [if_neg hl0] at h
-      simp only [Bool.false_eq_true, ite_false] at h
       exact ictRight_step hpop (by omega) hr h
   · rw [if_neg hdc] at h
-    simp only [Bool.false_eq_true, ite_false] at h
     exact ictRight_step hpop (by omega) hr h
 
 /-- One step of the search (on the real store) keeps the stack of keys and counts a visit. -/

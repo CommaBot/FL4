@@ -6,7 +6,7 @@ the guarded store `guard st R W`. This module gives the pieces for the timer pat
 
 * accessor lemmas: an accessor on `guard st R W` is the accessor on `st` when its word is in `R`
   (`tdG`, `tlG`, `trG`, `nodeGetG`);
-* `in_core_timer_tree` (proof in progress, `P2/FootTimerAccLoop.lean`, not imported): it reads only core `c`'s
+* `in_core_timer_tree` (`P2/FootTimerAccLoop.lean`, `in_core_timer_tree_access`): it reads only core `c`'s
   `TIMER_ROOT` and `TIMER_MIN` and the `TIMER_DEADLINE` / `TIMER_LEFT` / `TIMER_RIGHT` words of the keys of
   `c`'s tree (`TreeReads`; the null handle's words are in the set but never read: the stack holds keys
   only, `StackOK`). Never a word of `target` unless `target` is a key (DESIGN.md §7 "Timer ownership"):
