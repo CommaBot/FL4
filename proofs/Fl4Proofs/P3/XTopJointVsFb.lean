@@ -204,12 +204,13 @@ theorem fb_entryJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT : P
     (hDP : JDelParts (L := L) arI AR th0) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (C : FbCtx σ th0 args bt b)
     (x : S) (a : A) (τ : Fl4Spec.State Unit) (hM : FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ)
+    (hRt : (∃ y, IsSlot th0 y ∧ capV (L.mem x) y = bt.cnode) ∧ (∃ y, IsSlot th0 y ∧ capV (L.mem x) y = bt.dest_cnode))
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
     (hw0 : w0.bv = w.1) (hw1 : w1.bv = w.2.1) (hw2 : w2.bv = w.2.2) (df : Bool) :
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
-      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
+      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
   by_cases h1 : bt.op = vspace.frame_batch.COPY_MAP
-  · exact fb_entry_copyJ arI hA hT hDP hnd hARI C h1 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
+  · exact fb_entry_copyJ arI hA hT hDP hnd hARI C h1 x a τ hM hRt w w0 w1 w2 hw0 hw1 hw2 df
   by_cases h2 : bt.op = vspace.frame_batch.REMAP
   · exact fb_entry_remapJ arI hA hT C h1 h2 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
   · exact fb_entry_delJ arI hA hT hDP hnd hARI C h1 h2 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
@@ -249,6 +250,7 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
     (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
+    (hRt0 : (∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = cnode) ∧ (∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = dcnode))
     {MC : Type} {MR : A → MC → Prop} (hKD : MRKeepD arI MR) {m0 : MC} (hmr0 : MR ar m0) :
     vspace.decode_frame_batch_loop st arI s ar buf ct n words p asid op depth mr cr attr dd cnode dcnode
         0#u64 false ⦃ r => ∃ (τ : Fl4Spec.State Unit) (Z1 : XSets) (H1 : P1.Heap) (Cs1 Ac1 : Set U64)
@@ -263,8 +265,9 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
   apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, d, _) => n.val - d.val)
     (inv := fun x => (∃ τ, FbMidJ (L := L) (AR := AR) arI σ Z.th ct buf args x.1 x.2.1 τ ∧ x.2.2.1.val ≤ n.val ∧
       ∀ y ∈ (Fl4Spec.fbRun (Z := Unit) b (b.entries.drop x.2.2.1.val) x.2.2.1.val x.2.2.2 τ).1,
-        y ∈ (Fl4Spec.fbRun (Z := Unit) b b.entries 0 false σ).1) ∧ MR x.2.1 m0)
-  · rintro ⟨x0, x1, x2, x3⟩ ⟨⟨τ, hM, hle, hpre⟩, hmq⟩
+        y ∈ (Fl4Spec.fbRun (Z := Unit) b b.entries 0 false σ).1) ∧ MR x.2.1 m0 ∧
+      ((∃ y, IsSlot Z.th y ∧ capV (L.mem x.1) y = cnode) ∧ (∃ y, IsSlot Z.th y ∧ capV (L.mem x.1) y = dcnode)))
+  · rintro ⟨x0, x1, x2, x3⟩ ⟨⟨τ, hM, hle, hpre⟩, hmq, hRt⟩
     dsimp only at hM hle hpre
     unfold vspace.decode_frame_batch_loop.body
     dsimp only
@@ -311,13 +314,15 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
           exact (WP.spec_ok _).2 rfl
       intro w2 hw2
       have hdrop := fbEntries_drop (A := (args.map UScalar.bv : List Fl4Spec.Data)) (w := b.op.words) hx
-      refine WP.spec_bind (WP.spec_and (fb_entryJ arI hA hT hDP hnd hARI C x0 x1 τ hM
+      refine WP.spec_bind (WP.spec_and (fb_entryJ arI hA hT hDP hnd hARI C x0 x1 τ hM hRt
         (Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val]?,
           if b.op.words > 1 then Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val + 1]? else 0,
           if b.op.words > 2 then Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val + 2]? else 0)
         _ w1 w2 (by rw [fb_the_arg (i := 1 + b.op.words * x2.val) (by rw [Nat.mul_succ] at hk; rw [← hw]; omega)]; simp only [hi4']) hw1 hw2 x3)
         (MKD.vspace_frame_batch_entry L.total hT hKD (FbMidJ.delOK arI C hM _ _) hmq)) ?_
-      rintro ⟨r, s1, a1, d1⟩ ⟨⟨τ1, hM1, hres⟩, hmr1⟩
+      rintro ⟨r, s1, a1, d1⟩ ⟨⟨⟨τ1, hM1, hres⟩, hCK⟩, hmr1⟩
+      have hRt1 : (∃ y, IsSlot Z.th y ∧ capV (L.mem s1) y = cnode) ∧ (∃ y, IsSlot Z.th y ∧ capV (L.mem s1) y = dcnode) :=
+        ⟨hCK.held hcnC hRt.1, hCK.held C.hdcC hRt.2⟩
       fbj_red
       rcases hres with ⟨hr, d', hmem, hd1⟩ | ⟨e, hr, hd1, hE⟩
       · try dsimp only at hr hd1
@@ -327,8 +332,8 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
         try simp only [WP.spec_ok]
         try dsimp only
         first
-          | refine ⟨⟨⟨τ1, hM1, by omega, ?_⟩, hmr1⟩, by omega⟩
-          | refine ⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, by omega⟩
+          | refine ⟨⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, hRt1⟩, by omega⟩
+          | refine ⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, hRt1, by omega⟩
         intro y hy
         apply hpre
         rw [hbe] at hy ⊢
@@ -374,7 +379,7 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
   · have hctT : ct ∈ Z.T := J.thT ct (J.xtop.curTcb (J.curEq hct).1).1
     have hns : Vs.NoSwitch σ := fun u e => by rw [hni.2] at e; cases e
     refine ⟨⟨σ, ⟨⟨Z, H, Cs, Ac, Lst, D, rfl, hctT, hbm, J, hLv⟩, hargs, FbKeep.refl σ, hns, hsg, hp0⟩, by simp,
-      fun y hy => ?_⟩, hmr0⟩
+      fun y hy => ?_⟩, hmr0, hRt0⟩
     simpa using hy
 
 /-- Reassociating a bind under a spec. -/
@@ -417,6 +422,7 @@ theorem fb_loopJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
     (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
+    (hRt0 : (∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = cnode) ∧ (∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = dcnode))
     {MC : Type} {MR : A → MC → Prop} (hKD : MRKeepD arI MR) {m0 : MC} (hmr0 : MR ar m0)
     (K : S × A × U64 × U64 × Bool → Result (core.result.Result Unit error.Exc × S × A))
     (hK : ∀ s1 a1 done1 err deferred, K (s1, a1, done1, err, deferred) = (do
@@ -447,7 +453,7 @@ theorem fb_loopJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
       (.pml4Cap p.bv (some asid.bv)) excaps) σ = ({(.ok b, σ)}, False) := by rw [hfd, hb]
   refine WP.spec_bind (fb_loopI arI s ar σ J hni hA hT ct hct p asid h0 length buf args hlen hargs extra excaps
     hXO hXN hf b hb a0 ha0 n words op depth mr cr attr dd cnode dcnode hop hw hn hdp hmr hcr hat hdd hcn hdcn
-    hbc hbd hcnC hdc6 hbe hln hbv hba C hbm hLv hsg hp0 hDP hnd hARI hKD hmr0) ?_
+    hbc hbd hcnC hdc6 hbe hln hbv hba C hbm hLv hsg hp0 hDP hnd hARI hRt0 hKD hmr0) ?_
   rintro ⟨s1, a1, d1, e1, df⟩ ⟨τ, Z1, H1, Cs1, Ac1, Lst1, D1, hrun1, J1, hcurτ, hy, hmr1⟩
   obtain ⟨y, hky, hys⟩ := hy x hk
   rw [hK]
@@ -779,7 +785,7 @@ theorem decode_invocation_pml4_fbJVM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
     cases h : excaps with
     | nil => rw [h] at hl0; simp at hl0
     | cons a r => exact ⟨a, r, rfl⟩
-  obtain ⟨-, -, -, cv, hcv, hy1, hcr0, hcvv0, -⟩ := srcOK_facts hPl (hXs 0 (by omega))
+  obtain ⟨-, hIs0, -, cv, hcv, hy1, hcr0, hcvv0, -⟩ := srcOK_facts hPl (hXs 0 (by omega))
   have hthe0 : (Fl4Spec.the excaps[0]?).1 = absCap cv := by subst hy; exact hy1
   rw [slot_cap_eq, hcv]
   simp only [bind_ok]
@@ -795,11 +801,13 @@ theorem decode_invocation_pml4_fbJVM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
     refine WP.spec_bind (show _ ⦃ dc => (dc = .CNode cp cr cg cgs ∨
         ∃ x, vspace.extra extra 1#usize = ok (some x) ∧ capAt (L.mem s) x = ok dc) ∧
         (if op' = .copyMap ∧ excaps.length > 1 then (Fl4Spec.the excaps[1]?).1
-          else (Fl4Spec.the excaps[0]?).1) = absCap dc ∧ CapValid Z.th dc ∧ CapWf dc ⦄ from ?_) ?_
+          else (Fl4Spec.the excaps[0]?).1) = absCap dc ∧ CapValid Z.th dc ∧ CapWf dc ∧
+        ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = dc ⦄ from ?_) ?_
     · by_cases hx1 : exAt extra 1 = 0#u64
       · simp only [hx1, ↓reduceIte, WP.spec_ok]
         have hl1 : ¬ excaps.length > 1 := fun h => (srcOK_facts hPl (hXs 1 h)).1 hx1
-        exact ⟨Or.inl (by first | rfl | trivial), by rw [if_neg (fun h => hl1 h.2)]; exact hthe0, hcvv0, hcr0.1⟩
+        exact ⟨Or.inl (by first | rfl | trivial), by rw [if_neg (fun h => hl1 h.2)]; exact hthe0, hcvv0, hcr0.1,
+          _, hIs0, capV_of_capAt hcv⟩
       simp only [hx1, ↓reduceIte]
       have hl1 : excaps.length > 1 := by
         by_contra hn
@@ -809,14 +817,15 @@ theorem decode_invocation_pml4_fbJVM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
       by_cases hcm : op' = .copyMap
       · have hcm' : a0 &&& vspace.frame_batch.OP = vspace.frame_batch.COPY_MAP := hcpy.2 hcm
         simp only [hcm', ↓reduceIte]
-        obtain ⟨-, -, -, cv1, hcv1, hy11, hcr1, hcvv1, -⟩ := srcOK_facts hPl (hXs 1 hl1)
+        obtain ⟨-, hIs1, -, cv1, hcv1, hy11, hcr1, hcvv1, -⟩ := srcOK_facts hPl (hXs 1 hl1)
         rw [slot_cap_eq, hcv1, WP.spec_ok]
-        refine ⟨Or.inr ⟨_, hx1e, hcv1⟩, ?_, hcvv1, hcr1.1⟩
+        refine ⟨Or.inr ⟨_, hx1e, hcv1⟩, ?_, hcvv1, hcr1.1, _, hIs1, capV_of_capAt hcv1⟩
         rw [if_pos ⟨hcm, hl1⟩, List.getElem?_eq_getElem hl1]; exact hy11
       · have hcm' : ¬ a0 &&& vspace.frame_batch.OP = vspace.frame_batch.COPY_MAP := fun h => hcm (hcpy.1 h)
         simp only [hcm', ↓reduceIte, WP.spec_ok]
-        exact ⟨Or.inl (by first | rfl | trivial), by rw [if_neg (fun h => hcm h.1)]; exact hthe0, hcvv0, hcr0.1⟩
-    rintro dc ⟨hdcn, hdeq, hdcv, hdcw⟩
+        exact ⟨Or.inl (by first | rfl | trivial), by rw [if_neg (fun h => hcm h.1)]; exact hthe0, hcvv0, hcr0.1,
+          _, hIs0, capV_of_capAt hcv⟩
+    rintro dc ⟨hdcn, hdeq, hdcv, hdcw, hdcs⟩
     refine WP.spec_bind (show _ ⦃ b1 => b1 = Fl4Spec.isCnodeCap (absCap dc) ⦄ from ?_) ?_
     · cases dc <;> first | exact rfl | (simp only [WP.spec_ok]; rfl) | (simp only [WP.spec_ok]; decide) | simp [WP.spec_ok, absCap, Fl4Spec.isCnodeCap]
     rintro b1 rfl
@@ -854,7 +863,7 @@ theorem decode_invocation_pml4_fbJVM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
           try rfl)
       (by have h3' := h3; rw [List.length_map, hhd, hnn, ← hwv] at h3'; omega)
       rfl rfl (fbCtx_mk hni h0' (h20 rfl) hf hhd hop' hcpy hd2 hd3 hi13 hthe0 hdeq h6 ⟨_, _, _, _, rfl⟩ hcvv0 hcr0.1 hdcv hdcw
-        (by omega)) hbm hLv hsg hp0 hDP hnd hARI hKD hmr0
+        (by omega)) hbm hLv hsg hp0 hDP hnd hARI ⟨⟨_, hIs0, capV_of_capAt hcv⟩, hdcs⟩ hKD hmr0
       _ (fun _ _ _ _ _ => rfl)
   all_goals
     simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]

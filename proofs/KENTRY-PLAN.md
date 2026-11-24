@@ -17272,3 +17272,28 @@ global ref).
   `FbMidJ` may be extended (e.g. `Entered τ`, slot facts) if the entry proofs need it; it is local to this module.
 - Commits: 6ceaac2c, this part (fb_loopI). Still open: `fb_entryJ`, MachKeepG4d's batch arm (fb3m To finish (1)-(3)),
   then full no-SCR build + `axfb3k.lean`.
+### fb3l (resume of fb3k, branch par/fb3 in FL4-fb3; coordinator + parallel forks par/fb3l-{a,b,c,d}) — `fb_entryJ` split by op and the three ops PROVED (DELETE's deferred-unmap step `JAtZ.fbDelDeferJ` last); fb3m "To finish" (1)-(3) DONE (MachKeepG4d stub gone); no premise on any top; no FINDING
+- **Interface (XTopJointFbDefs, new):** `FbKeep σ σ'` (spec: objects kept but CNodes of the same size, non-pool arch
+  objects of the same type, TCBs' caps; scheduler fields, ASID table, global PML4; refl/trans, `FbKeep.tcb`,
+  `FbKeep.findVs` with `findVs_pool`/`getAsidPool_none`), `FbFootK Z s s'` (FL4: TCB registers of `Z.T` and the buffer
+  words of `Z.B` kept), `FbMidJ σ th0 ct buf args x a τ` (the loop invariant: `JAtZ` at typed heap `th0`, `ct ∈ T`,
+  `BufMap` of `buf`, `LiveDN` at JAtZ's ghost; the message words; `FbKeep σ τ`; `NoSwitch`, `SpecGlob`, `PPR0` —
+  the frame delete runs at `WJL`), `FbMidJ.step`, `FbCtx` (decode facts: FL4 batch record vs spec `b`, roots valid,
+  `hasid`, `args.length < 127`), `FbEntryPost`, `FbErrOK`, `CnSlotsKept` (slots holding CNode caps keep them).
+- **Per op:** XTopJointFbRemap `fb_entry_remapJ` (fork A; batch_map vs fbMap: XTopJointFbMapRel
+  `batch_map_{small,large,huge}_rel`/`batch_map_rel`, XTopJointFbMapJ `JAtZ.batchMapJ{,X}`, XTopJointFbMapJL
+  `JAtZ.batchMapJL` with LiveDN/NoSwitch/SpecGlob/PPR0); XTopJointFbDel `fb_entry_delJ` (fork B; XTopJointFbDelFrame,
+  XTopJointFbDelFrameN `JAtZ.fbDelFrameJN` = one finalise round + empty slot at WJL, NO `PPPlat` (false,
+  `PPPlat.false`); SpecFbKeepDel, SpecFbDelRun; XTopJointFbDelDefer `JAtZ.fbDelDeferJ` the deferred unmap);
+  XTopJointFbCopy `fb_entry_copyJ` (fork C; SpecFbCopyRun, XTopJointFbCopyIns `JAtZ.fbInsJ`, `fbc_ppk`); `fb_entryJ`
+  (VsFb) = case split, post `FbEntryPost ∧ CnSlotsKept`, premise `hRt` (both root CNode caps held in slots, carried by
+  fb_loopI via `CnSlotsKept.held`).
+- **MR (fork D, fb3m To finish):** XTopJointFbDelOK `FbMidJ.delOK` (FbDelOK from the J state); `MKD.vspace_decode`
+  autoParam `hfb`, `MKD.decode_quiet` explicit `hfb`; `fb_loopI`/`fb_loopJ` also carry `MR` (`MRKeepD`);
+  `decode_invocation_pml4_fbJVM` (walk with `MR` conjunct), `decode_invocation_pml4_fbJV` its corollary at
+  `mrKeepD_true`; `decOK_JMM` (KEntry38) uses fbJVM at the batch label (statement unchanged). `FbDelOK.cpy` takes the
+  `ensure_empty_slot` result.
+- **Statements changed (none a top):** `fb_entryJ` (FbCtx form, hDP/hnd/hARI, hRt, conjunctive post), `fb_loopI`,
+  `fb_loopJ`, `decode_invocation_pml4_fbJV`, `decode_invocation_pml4JV` (+ `[PlainStore]`, `hbuf`, `hl`, `h20`, `hLv`,
+  `hsg`, `hp0`, `hDP`, `hnd`, `hARI`; callers XTopJointEntry/KEntry13P/KEntry23P pass `hbuf hl (hok.2.2 h).2 hE.live
+  hE.sg (J.ppr0_start …) hG.delParts hG.nd hG.ari`), `FbDelOK.cpy`, `MKD.vspace_decode`, `MKD.decode_quiet`.
