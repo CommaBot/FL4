@@ -104,36 +104,41 @@ pub fn in_core_timer_tree<S: Store>(s: &S, cpu: u64, target: Tcb, d: u64) -> boo
         sp = 1;
     }
     let mut visits: u64 = 0;
-    while sp > 0 && visits < TREE_VISITS {
+    let mut found = false;
+    let mut overflow = false;
+    while sp > 0 && visits < TREE_VISITS && !found && !overflow {
         visits += 1;
         sp -= 1;
         let cur = Tcb(stack[sp]);
         if cur == target {
-            return true;
-        }
-        let cd = cur.timer_deadline(s);
-        if d <= cd {
-            let l = cur.timer_left(s);
-            if l != 0 {
-                if sp == TREE_STACK {
-                    return false;
+            found = true;
+        } else {
+            let cd = cur.timer_deadline(s);
+            if d <= cd {
+                let l = cur.timer_left(s);
+                if l != 0 {
+                    if sp == TREE_STACK {
+                        overflow = true;
+                    } else {
+                        stack[sp] = l;
+                        sp += 1;
+                    }
                 }
-                stack[sp] = l;
-                sp += 1;
             }
-        }
-        if d >= cd {
-            let r = cur.timer_right(s);
-            if r != 0 {
-                if sp == TREE_STACK {
-                    return false;
+            if !overflow && d >= cd {
+                let r = cur.timer_right(s);
+                if r != 0 {
+                    if sp == TREE_STACK {
+                        overflow = true;
+                    } else {
+                        stack[sp] = r;
+                        sp += 1;
+                    }
                 }
-                stack[sp] = r;
-                sp += 1;
             }
         }
     }
-    false
+    found
 }
 
 /// Whether `schedule()`'s `awaken` would release a thread of this core's
