@@ -318,7 +318,7 @@ theorem kernel_entryJ29G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
 
 /-- **J29G's premises are weaker than J29's**: the re-scoped `hK` / `hFin` are
 instances of J29's (so J29 is a corollary; the converse is the point of J29G). -/
-theorem kernel_entryJ29_of_G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
+theorem kernel_entryJ29_of_G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} [VxE Z] {H : P1.Heap}
     {Cs : Set U64} {σ : Fl4Spec.State Unit} {s : S} {a : A} {n : I64} {c : Fl4Spec.Syscall}
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
