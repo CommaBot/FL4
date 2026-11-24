@@ -140,7 +140,7 @@ theorem JHole.mcsPPJZMF [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s 
 
 /-- **`mcsPPJZ` with `MR` and `ValidIrqMasks` after** (module docstring). -/
 theorem JHole.mcsPPJZM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -160,7 +160,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The covered preemption path under `MachPlat`** (module docstring), `NativeScope` at the hole
 (g3b). -/
 theorem JHole.afterInvJZIMN {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -175,7 +175,7 @@ theorem JHole.afterInvJZIMN {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S}
 
 /-- `afterInvJZIMN` from the ∀-form `hNS` (the pre-g3b statement). -/
 theorem JHole.afterInvJZIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -184,7 +184,7 @@ theorem JHole.afterInvJZIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} 
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     (hcov : PPCov σ ∨ PPCovT σ) (hR : MR a σ.machineState) (hV : ValidIrqMasks σ) (e : error.Exc) :
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ :=
-  Hh.afterInvJZIMN hT hAT hnd hmrt hmb hM hK hIA hARI hmbA (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hcov hR hV e
+  Hh.afterInvJZIMN hT hAT hnd hmrt hmb hM hK hIA hARI hmbA (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hcov hR hV e
 
 end
 

@@ -48,7 +48,7 @@ theorem jPreemptRestHypEQ_ofI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (h
       syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r =>
         r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   intro s a σ hJ hn hi hs hf hc hg hnq hC hsc hnsuf hcov
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   have hII : IrqPlatI (L := L) arI AR := irqPlatI_of hIP
   have hnt : ¬ NoTmoSend σ := fun h => hcov (Or.inl ⟨hC, hi, hs σ.curThread, h⟩)
   unfold NoTmoSend at hnt
@@ -94,7 +94,7 @@ theorem hPre_ofZQI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
         r.1 = false ∧ PPQJI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
   have hII : IrqPlatI (L := L) arI AR := irqPlatI_of hIP
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg, hnq⟩ :=
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg, hnq⟩ :=
     jAtPre_holeQ hARI.toARKeep hA hnd hP h
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZI hTs hA hnd (hmrt a1) (hP.minBudget a1) hII hARI hP.minBudget hNS hc _)
@@ -108,8 +108,8 @@ theorem hPre_ofZQI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
           Fl4Spec.refillSufficient σ1.consumedTime (Fl4Spec.refillHd y) = true
       · exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJS hTs hA hnd (hP.minBudget a1) hC hni hsc hsuf)
           hII hARI hA hP.minBudget hNS _) fun _ h => h
-      · exact jPreemptRestHypEQ_ofI hARI hA hP hmrt hIP hNS hmax htu s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hnq hC hsc hsuf
+      · exact jPreemptRestHypEQ_ofI hARI hA hP hmrt hIP hNS hmax htu s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns hfr hct hcg hnq hC hsc hsuf
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>
       exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJC hA (hmrt a1) (hP.minBudget a1) hC hni hns hsc)

@@ -183,7 +183,7 @@ variable (arI) in
 /-- Some `JHole` ends at `(s, a, σ)`. -/
 def JHoleAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s0 : S) (a0 : A)
-    (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ
+    (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ ∧ VxE Z
 
 /-- **The cases of the preemption path proved here**: `CurInv`, the current
 thread not idle, no switch to it pending, no timeout fault raisable. -/
@@ -205,7 +205,7 @@ def PPCovT (σ : Fl4Spec.State Unit) : Prop :=
 set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` from a `JHole`** (module docstring). -/
 theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -289,7 +289,7 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
       simp only [Prod.mk.injEq] at e
       obtain ⟨rfl, rfl⟩ := e
       exact ⟨σ, fun y hy => mem_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy,
-        fun hy => fail_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy, Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+        fun hy => fail_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy, Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
 
 variable (arI) in
 /-- **The platform's pending interrupt is the spec's** [P] (M4; module
@@ -329,7 +329,7 @@ def PPQ (AR : A → Fl4Spec.Cr3 → Prop) (σ1 : Fl4Spec.State Unit) (r : S × A
 set_option maxHeartbeats 16000000 in
 /-- **`after_invocation (Err _)` from a `JHole`** (module docstring). -/
 theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -337,7 +337,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   unfold syscall.after_invocation
   refine WP.spec_bind (Hh.mcsPPJ hAT hnd hmrt hmb hcov) ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh'⟩
+  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh', _⟩
   have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := Hh'.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (WP.spec_and (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) (hIP.noIpi a1)) ?_
   rintro ⟨w, a2⟩ ⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩
@@ -353,7 +353,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
     rw [e]
     simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
     refine (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩⟩⟩
+      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2, inferInstance⟩⟩⟩
   · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
       cases irq with
       | none => exact absurd (hnone.2 rfl) hw
@@ -365,7 +365,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
       ok (false, s2, a3)) ⦃ _ ⦄
     rw [e]
     simp only [↓reduceIte]
-    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩ hwi hmask h126 h127) ?_
+    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2, inferInstance⟩ hwi hmask h126 h127) ?_
     rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩⟩
@@ -386,10 +386,10 @@ theorem hPre_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.num
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := jAtPre_hole hAK hA hnd hP h
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := jAtPre_hole hAK hA hnd hP h
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJ hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _) fun _ h => h.2
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ hc
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩ hc
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJ` without `hPre`**: the preemption path from

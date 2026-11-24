@@ -22,7 +22,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJI` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hcov : PPCovI σ)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hcov : PPCovI σ)
     (hAT : P0.ArchTotal arI)
     (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hR : MR a σ.machineState) (hV : ValidIrqMasks σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
@@ -157,7 +157,7 @@ theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJA` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
@@ -209,7 +209,7 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJR` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)

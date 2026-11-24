@@ -39,7 +39,7 @@ set_option maxHeartbeats 16000000 in
 timeout handler on an idle or sending endpoint, a reschedule pending or
 not** (module docstring). -/
 theorem JHole.mcsPPJA {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)

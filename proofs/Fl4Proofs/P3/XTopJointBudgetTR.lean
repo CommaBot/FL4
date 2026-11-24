@@ -29,7 +29,7 @@ set_option maxHeartbeats 16000000 in
 thread's timeout fault goes to a receiver waiting on its handler's endpoint**
 (module docstring; the clock [P] `NowAgree`, one domain, the platform's
 `MAX_RELEASE_TIME`/`MIN_BUDGET`/`maxTicksToUs`/`ticks_to_us` [P]). -/
-theorem JAtZ.budgetOkTR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR)
+theorem JAtZ.budgetOkTR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hAK : ARKeep arI AR)
     (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hnow : NowAgree arI a σ) (hni : Entered σ)
     (hC : CurInv σ)
     (hmrt : ∀ a : A, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)

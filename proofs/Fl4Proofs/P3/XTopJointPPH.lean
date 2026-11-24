@@ -237,7 +237,7 @@ theorem jAtPre_hole (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
   have h := J.ppJH hAK hA hnd hP
   rw [hpp, WP.spec_ok] at h
   obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
-  exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh⟩
+  exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, inferInstance⟩
 
 end
 

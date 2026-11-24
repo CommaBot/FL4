@@ -87,7 +87,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` with an inactive current SC, from any `JHole`**
 (module docstring). -/
 theorem JHole.mcsPPJI {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hcov : PPCovI σ) :
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hcov : PPCovI σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
@@ -279,15 +279,15 @@ theorem hPre_ofZI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩ := jAtPre_holeT hARI.toARKeep hA hnd hP h
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩ := jAtPre_holeT hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) fun h' => h'.elim (fun h2 => hc (Or.inl h2))
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in
@@ -354,15 +354,15 @@ theorem hPre_ofZJ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns⟩ := jAtPre_holeTN hARI.toARKeep hA hnd hP h
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns⟩ := jAtPre_holeTN hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in

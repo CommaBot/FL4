@@ -109,7 +109,7 @@ theorem hPre_ofZS (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg⟩ :=
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg⟩ :=
     jAtPre_holeL hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
@@ -120,8 +120,8 @@ theorem hPre_ofZS (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
   by_cases hC : CurInv σ1
   · cases hsc : Fl4Spec.schedulable σ1.curThread σ1 with
     | true =>
-      exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-        (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC hsc
+      exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+        (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns hfr hct hcg hC hsc
         fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>
       exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJC hA (hmrt a1) (hP.minBudget a1) hC hni hns hsc)

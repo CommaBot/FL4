@@ -397,7 +397,7 @@ theorem JHole.handleIrqJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z]
     (hSig : ¬ (OffOK σ ∧ CurOwnW Z.T Z.C σ) → ∀ (w n badge : U64) (r : Bool),
       w.val < 128 → capAt (L.mem s) (nodeA (L.ksb s) w) = ok (.Notification n badge true r) →
       notification.send_signal st arI s a n badge ⦃ r' =>
@@ -406,7 +406,7 @@ theorem JHole.handleIrqJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ :=
-  Hh.handleIrqJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hSig w i hwi h126 h127
+  Hh.handleIrqJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hSig w i hwi h126 h127
 
 
 /-- **`handle_interrupt` at `J`** (module docstring): `JIrqHyp` from the
@@ -417,7 +417,7 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
     (hSig : JIrqSigHyp (L := L) arI AR) :
     JIrqHyp (L := L) arI AR := by
   intro s a σ w i hJ hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJ hARI hAT hIP hmb hNS
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -433,7 +433,7 @@ theorem jIrqHyp_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
   intro s a σ w i hJ hN hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJN hARI hAT hIP hmb hN
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 

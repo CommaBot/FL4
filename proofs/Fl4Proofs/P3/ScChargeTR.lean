@@ -30,7 +30,7 @@ endpoint and a non-round-robin SC**: both sides take the timeout-fault branch
 (`handle_timeout` of the current thread with the SC's badge), then
 `JTH.tmoBlockJ`. -/
 theorem JTH.endTimesliceTmoJR {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hj : JTH (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hj : JTH (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) {t : U64} (ht : t ∈ Z.T)
     (htc : t.bv = σ.curThread) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
@@ -117,7 +117,7 @@ consumed-time reset, the `JTH` state there (`ScOnly` from the base), then
 `end_timeslice` (`JTH.endTimesliceTmoJ`), `reschedule_required`
 (`JAtZ.reschedJ`) and the reprogram flag (`JAtZ.reprogramJ`) at `J`. -/
 theorem JHole.chargeBudgetTmoJR {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread) (hres : σ.schedulerAction = .resumeCurThread ∨ σ.schedulerAction = .chooseNewThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -351,7 +351,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`check_budget` charging from a `JHole`, the current thread's timeout
 fault blocking it** (module docstring). -/
 theorem JHole.checkBudgetTR {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread) (hres : σ.schedulerAction = .resumeCurThread ∨ σ.schedulerAction = .chooseNewThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)

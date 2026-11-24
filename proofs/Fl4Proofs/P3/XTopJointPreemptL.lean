@@ -98,7 +98,7 @@ theorem hPre_ofZL (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg⟩ :=
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg⟩ :=
     jAtPre_holeL hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
@@ -110,8 +110,8 @@ theorem hPre_ofZL (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       cases e : Fl4Spec.schedulable σ1.curThread σ1
       · exact Or.inr rfl
       · exact Or.inl (curInv_of_sched hct e)
-    exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hcs
+    exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns hfr hct hcg hcs
       fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in

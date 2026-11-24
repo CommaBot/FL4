@@ -355,7 +355,7 @@ theorem JAtZR.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :=
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZR` across timer-word writes** (module docstring): the timer words
 written, `REPROGRAM` kept or set to 1, P1's `BlkOK` after given. -/
-theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
     (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
       L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)

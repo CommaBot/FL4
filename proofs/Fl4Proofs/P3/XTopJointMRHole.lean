@@ -103,7 +103,7 @@ theorem jPreemptRestHypEQ_ofIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
       syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r =>
         r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   intro s a σ hJ hn hR hV hi hs hf hc hg hnq hC hsc hnsuf hcov
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   have hnt : ¬ NoTmoSend σ := fun h => hcov (Or.inl ⟨hC, hi, hs σ.curThread, h⟩)
   unfold NoTmoSend at hnt
   simp only [not_or, not_forall] at hnt
@@ -147,7 +147,7 @@ theorem hPre_ofZQIMN (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r =>
         r.1 = false ∧ PPQJI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h hN1
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg, hnq, hR, -, hV⟩ :=
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg, hnq, hR, -, hV⟩ :=
     jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZIMN hTs hA hnd (hmrt a1) (hPA.minBudget a1) hM hK hIA hARI hPA.minBudget hN1
@@ -163,7 +163,7 @@ theorem hPre_ofZQIMN (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
       · exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJSM hTs hA hnd (hPA.minBudget a1) hC hni hsc hsuf hM hK hR hV))
           hM hIA hARI hA hPA.minBudget _) fun _ h => h
       · exact jPreemptRestHypEQ_ofIM hARI hA hM hK hPA hIA hmrt hmax htu s1 a1 σ1
-          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
           hN1 hR hV hni hns hfr hct hcg hnq hC hsc hsuf
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
     | false =>
@@ -190,7 +190,7 @@ theorem hPre_ofZQIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
   intro s1 a1 σ1 hr h
   obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, -⟩, -⟩ := jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
   exact hPre_ofZQIMN hARI hA hnd hM hK hPA hIA hmrt hmax htu s1 a1 σ1 hr h
-    (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩)
+    (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩)
 
 end
 
