@@ -17917,3 +17917,49 @@ New: `Vs.VsNamed.retypeGrow`, `vfh_vkey`.
 Stage 6: the vsReach consumers (C24 drop premise `JAtZ.vsReachMiss` etc.) read it at kernel-entry `JAtZ`
 states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top statements unchanged), then the
 `[J]` premise it replaces is dropped from the next top.
+
+## f6 (branch par/f6 from f7a4e47f = int/j4 = PR #66 head, top of record `kernel_entry_reachU28`) — F1 stage 6 (discharge C17 / C23 `vsReach` via `JCarry.vsNamed`) STOPPED at the design check: **`Z.vx = ∅` cannot be pinned at `JReachU17` states in place**; lead decision needed; no Lean change, no build slot used, no new top, no FINDING of a false premise
+
+### (1) What the discharge needs
+`JAtZ.vsReachAsidC` / `JAtZ.vsReachMissR` (VsNamedJ) give C17 (`JAsidCPathU28.vsReach`) and C23
+(`JUtPathMU28.vsReach`) verbatim from `Vs.VsNamed Z.th (L.mem s) (L.ksb s)` at the dispatch `JAtZ`
+(`hni`, `hct` available as in `KDispHypsKVU28.toU27`). At the dispatch state the top gives
+`J' : JAtZ (Z.mv Z.G V') …`, so `J'.carry.vsNamed` needs `(Z.mv Z.G V').vx = Z.vx = ∅`, where `Z` is the
+top's existential, produced by `jreach_invU` / `jreach_invE4` from the `JReachU3` induction: the `start`
+constructor's `JAtZ` (any `Z`) or a step's exit `RJM` = `RelTopM ∧ JAt ∧ MR` with
+`JAt s a σ := ∃ Z H Cs Ac Lst D, JAtZ …` (JointAt:332). So `Z.vx = ∅` (equivalently `VsNamed`, via
+`JAtZ.vxSet`) has to hold for the `Z` of *every* kernel exit.
+
+### (2) Why it cannot be pinned in place (the blocker)
+Some kernel exits are not produced by our proofs but by the tops' own **[scope] premises** (VT-x), whose
+conclusion is `JAt` with a `Z` chosen by whoever supplies the premise:
+- `JUtPathMU28.vtx` / `JDevPathU28.vtx : … → JVtxScope …` (U28:41, :62; `JVtxScope` = `XCapP (JAt …) (JAtPre …)`,
+  XTopJointEntry:449), consumed at XTopJointEntry:1051/1065;
+- the syscall clause's `… → JDecMRLK arI VtxK AR MR (Z.mv Z.G V') …` (U28:212; `JDecMRLK` concludes
+  `XCapP (JAtM …) (JAtPreMV …)`, KEntry40:279, `JAtM := JAt ∧ MR`, KEntry38:57).
+After such a syscall the exit's `JAtZ` (and so the next entry's `Z`, through `RJ`/`JReachU3.step`) can have
+any `vx`; nothing in `JAtZ` relates `vx` to the state (the field is a pure ghost: `{Z with vx := {0}}` is a
+legitimate `JAtZ` whenever `JAtZ Z` is), so `VsNamed` at the next entry is not derivable. Any in-place carry
+(pinning `vx = ∅` or `VsNamed` in `JAt`, `RJ` or `JReachU3`) changes the meaning of those [scope] premises
+(their obligation becomes "the VT-x op returns with `VsNamed`"), i.e. weakens every existing top U9..U28,
+which the stage's rules forbid. A state-based guard instead of `vx` (e.g. `vsNamed : PoolT → …`) was checked
+and does not work: the deletion window's `VsPend` (Rd3) needs `VsNamed` before the window opens, which a
+state guard cannot give to the generic step lemmas.
+
+### (3) Size of the in-place route even if the lead accepts the [scope] change
+`JAt` is the dispatch currency: 307 theorem statements take a generic-`Z` `JAtZ` and mention `JAt`/`RJ`/`RJM`
+(script count over Fl4Proofs), ~120 anonymous packers `⟨_, _, _, _, _, _, J'⟩` / `⟨Z', …, J'⟩`, ~70
+destructurers `obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩`. Each producer must get `Z.vx = ∅` from its input
+(the outputs are at `Z.mv …` / `{Z with …}`, so `vx` is kept definitionally, but the input is generic):
+a hypothesis threaded through every leaf and caller, plus `JReachU3.start` with `Z.vx = ∅` (boot `VsNamed`,
+a start-state fact as `BndS` / `JPlaced`). Estimate XL (several sessions of build-fix rounds).
+
+### (4) Options for the lead
+(a) In-place: `JAt := ∃ …, JAtZ … ∧ Z.vx = ∅` (+ start), accepting that the VT-x [scope] premises
+    (`JVtxScope`, `JVtxScopeM`, `JDecMRLK VtxK`) then also ask `VsNamed` at their outcomes; XL threading as (3).
+(b) New top family whose [scope] premises conclude a `vx`-pinned `JAtV` (new statement text for the scope
+    premises only; the [J] C17/C23 gone). Same threading for the native leaves; old tops untouched.
+(c) Keep C17 / C23 as the last [J] of U28 (true at real states; derivable only modulo the VT-x scope).
+
+### (5) Builds
+None (no Lean change).
