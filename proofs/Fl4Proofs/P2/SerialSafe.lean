@@ -42,7 +42,7 @@ Premises (all named, nothing else):
   bridge), with the glue's guarantee that it starts a body only in a state
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
 
-`Deciders` (and `DecidersOK`) are no longer needed here; they are kept for the
+`Deciders` (and `DecidersOK`) and `MoveLocal` are not needed here; they are kept for the
 `BodyOK` bridge, which compares owners across memories differing on words the
 core does not hold.
 
@@ -53,12 +53,16 @@ class-tracked words aligned, `Pre` and the sets independent of user words (a
 separate per-path structure `PathSide` beside `PathObl`); `zero` /
 `clear_free` excluded syntactically from the local paths' trees (with
 `PathObl.aligned` over every byte of a range they could only clear one byte);
-totality from P0's `<fn>.p0`. Open point for step 4: a write's `MoveV` is
+totality from P0's `<fn>.p0`. Step 4's per-write check: a write's `MoveV` is
 needed at the reached memory, where a word the path already read racily may
 since have been changed by another core, while `dec_alt` certifies it in the
-alternative state holding the read value; the two differ only on words the
-core does not hold (non-`PO`), and `Deciders` should give that owners the core
-can read agree across them.
+alternative state holding the read values; the two differ only on words the
+core may not read (non-`PO`) in the reached memory. `Deciders` alone does
+**not** carry the check across (`P2/MoveGap.lean`: two racy words, read at
+different times, decide together in the alternative an owner no real memory
+shows; the real write is not `Allowed`). With `MoveLocal` [J] (the owners a
+write moves are decided by words of the writer's owner and the gate's; proved
+for `OwnMap.own`, `OwnMap.moveLocal`) it does: `moveV_transfer`.
 
 Goal: `BodyOK` from, per local path, `PathObl` v3 (`PathObl.lean`) for every
 Arch instance, `IsProg` [P], `DecOnce` [W], and the glue's `Pre` [P]. Steps:
@@ -221,6 +225,50 @@ theorem not_PO_of_held {lk : L → Option C} {e d : C} (hed : e ≠ d) {o : Owne
       exact hed (Option.some.inj (h1.symm.trans h2))
     | gate => exact h
   · subst hg; exact h
+
+/-- **`MoveLocal`** [J] (a property of the ownership map, proved for
+`OwnMap.own` from its layout facts): which owner a write moves a word to is
+decided by words of the written word's (non-gate) owner and the gate's only.
+Two memories agreeing on those words give every word of that owner the same
+owner after the same write. Needed beside `Deciders` to carry a per-write
+check from an alternative memory (`PathObl.dec_alt`'s) to the real one
+(`moveV_transfer`); `Deciders` alone does not suffice (`P2/MoveGap.lean`). -/
+def MoveLocal (own : (A → V) → A → Owner C L) : Prop :=
+  ∀ (m m' : A → V) (a : A) (v : V) (x : A), own m a ≠ .gate → own m x = own m a →
+    (∀ y, own m y = own m a ∨ own m y = .gate → m' y = m y) →
+    own (Function.update m a v) x = own (Function.update m' a v) x
+
+/-- **Transfer of the per-write check.** If the real memory `μ` and an
+alternative `μ'` differ only on words the core may not read in `μ`, a write of
+a held word passing `MoveV` in `μ'` passes it in `μ`. -/
+theorem moveV_transfer {own : (A → V) → A → Owner C L} (hD : Deciders own)
+    (hL : MoveLocal own) {c : C} {hs : L → Prop} {μ μ' : A → V} {a : A} {v : V}
+    (hdiff : ∀ y, μ' y ≠ μ y → ¬ PO c hs (own μ y)) (ha : HeldV c hs (own μ a))
+    (hM : MoveV own c hs μ' (Function.update μ' a v)) :
+    MoveV own c hs μ (Function.update μ a v) := by
+  have hag : ∀ y, own μ y = own μ a ∨ own μ y = .gate → μ' y = μ y := by
+    intro y hy
+    by_contra hne
+    apply hdiff y hne
+    rcases hy with hy | hy
+    · left; rw [hy]; exact ha
+    · exact Or.inr hy
+  have hga : own μ a ≠ .gate := heldV_ne_gate ha
+  intro x hx
+  have hxa : own μ x = own μ a := by
+    rcases hD μ a v x hx with h | h
+    · exact h.symm
+    · exact absurd h hga
+  have h1 := hL μ μ' a v x hga hxa hag
+  have h0 : own μ x = own μ' x := by
+    have h := hL μ μ' a (μ a) x hga hxa hag
+    rw [Function.update_eq_self, ← hag a (Or.inl rfl), Function.update_eq_self] at h
+    exact h
+  have hx' : own (Function.update μ' a v) x ≠ own μ' x := by rw [← h1, ← h0]; exact hx
+  obtain ⟨p1, p2⟩ := hM x hx'
+  refine ⟨?_, ?_⟩
+  · rw [h0]; exact p1
+  · rw [h1]; exact p2
 
 theorem foreign_congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
     {c : C} {hs hs' : L → Prop} (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {b : A} {v : V}

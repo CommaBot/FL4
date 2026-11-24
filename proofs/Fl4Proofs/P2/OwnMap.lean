@@ -381,6 +381,106 @@ theorem deciders {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.Deciders 
     · simp only [tcbOwner, if_neg hG, if_neg hT, if_neg hGF, hA'] at hx
       exact absurd rfl hx
 
+
+/-! ## `MoveLocal` -/
+
+/-- A TCB's `AFFINITY` word is the gate's. -/
+theorem own_aff_gate {K : KLayout} (hK : RegionOK K) {t : U64} (ht : K.heap t = some .tcb)
+    (m : U64 → U64) : own K m (fld t oAFFINITY) = .gate := by
+  rw [own_tcb_at hK ht (Or.inl rfl), oAFF_val]
+  simp [tcbOwner, GateField]
+
+/-- **`MoveLocal` for the ownership map**, from the layout facts: every word
+deciding a word's owner is that owner's or the gate's. -/
+theorem moveLocal {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.MoveLocal (own K) := by
+  intro m m' a v x _ hxa hag
+  have hag' : ∀ y, (own K m y = own K m x ∨ own K m y = .gate) →
+      Function.update m a v y = Function.update m' a v y := by
+    intro y hy
+    by_cases hya : y = a
+    · subst hya; simp only [Function.update_self]
+    · rw [Function.update_of_ne hya, Function.update_of_ne hya]
+      exact (hag y (by rw [← hxa]; exact hy)).symm
+  cases hR : region K x with
+  | node c => simp only [own, hR]
+  | obj p => simp only [own, hR]
+  | none => simp only [own, hR]
+  | slot p =>
+    have hp := hK.slot p (hK.slotOf p x hR)
+    by_cases ho : 16 ≤ x.val - p.val
+    · simp only [own, hR, slotOwner, if_pos ho]
+    · have hpx : own K m p = own K m x := by
+        simp only [own, hR, hp, Nat.sub_self, slotOwner, if_neg ho, if_neg (by omega : ¬ 16 ≤ 0)]
+      simp only [own, hR, slotOwner, if_neg ho, hag' p (Or.inl hpx)]
+  | sc p =>
+    obtain ⟨h16, h16v⟩ := hK.scw p x hR
+    have hg : own K m (fld p 16#u64) = .gate := by simp only [own, h16, if_pos h16v]
+    simp only [own, hR, hag' _ (Or.inr hg)]
+  | ntfn p =>
+    have hpn := hK.ntfnOf p x hR
+    obtain ⟨h24, h24v⟩ := hK.ntfn p hpn
+    have hg : own K m (fld p 24#u64) = .gate := by
+      simp only [own, h24, h24v, ntfnOwner]; exact if_pos trivial
+    simp only [own, hR, ntfnOwner, hag' _ (Or.inr hg)]
+    by_cases ho : x.val - p.val = 24
+    · simp only [if_pos ho]
+    · simp only [if_neg ho]
+      by_cases hB : K.heap (Function.update m' a v (fld p 24#u64)) = some .tcb
+      · simp only [if_pos hB]
+        rw [hag' _ (Or.inr (own_aff_gate hK hB m))]
+      · simp only [if_neg hB]
+  | tcb t =>
+    have ht := hK.tcbOf t x hR
+    have hA := hag' _ (Or.inr (own_aff_gate hK ht m))
+    simp only [own, hR]
+    by_cases hG : GateField (x.val - t.val)
+    · simp only [tcbOwner, if_pos hG]
+    by_cases hT : TimerField (x.val - t.val)
+    · have kT : ∀ off, (off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT) →
+          own K m (fld t off) = own K m x := by
+        intro off hoff
+        have hoff' : off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ ∨
+            off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT := by
+          rcases hoff with h | h
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
+          · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))
+        rw [own_tcb_at hK ht hoff']
+        simp only [own, hR, tcbOwner, if_neg hG, if_pos hT]
+        have hv : off.val = 3528 ∨ off.val = 3568 := by
+          rcases hoff with h | h <;> subst h
+          · exact Or.inl oDL_val
+          · exact Or.inr oHT_val
+        have h1 : ¬ GateField off.val := by simp only [GateField]; omega
+        have h2 : TimerField off.val := by simp only [TimerField]; omega
+        simp only [if_neg h1, if_pos h2]
+      simp only [tcbOwner, if_neg hG, if_pos hT, hA, hag' _ (Or.inl (kT _ (Or.inl rfl))),
+        hag' _ (Or.inl (kT _ (Or.inr rfl)))]
+    by_cases hGF : GField (x.val - t.val)
+    · have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ) →
+          own K m (fld t off) = own K m x := by
+        intro off hoff
+        have hoff' : off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ ∨
+            off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT := by
+          rcases hoff with h | h | h
+          · exact Or.inr (Or.inl h)
+          · exact Or.inr (Or.inr (Or.inl h))
+          · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
+        rw [own_tcb_at hK ht hoff']
+        simp only [own, hR, tcbOwner, if_neg hG, if_neg hT, if_pos hGF]
+        have hv : off.val = 3328 ∨ off.val = 3336 ∨ off.val = 3360 := by
+          rcases hoff with h | h | h <;> subst h
+          · exact Or.inl oSTATE_val
+          · exact Or.inr (Or.inl oBOBJ_val)
+          · exact Or.inr (Or.inr oROBJ_val)
+        have h1 : ¬ GateField off.val := by simp only [GateField]; omega
+        have h2 : ¬ TimerField off.val := by simp only [TimerField]; omega
+        have h3 : GField off.val := by simp only [GField]; omega
+        simp only [if_neg h1, if_neg h2, if_pos h3]
+      simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA,
+        hag' _ (Or.inl (key _ (Or.inl rfl))), hag' _ (Or.inl (key _ (Or.inr (Or.inl rfl)))),
+        hag' _ (Or.inl (key _ (Or.inr (Or.inr rfl))))]
+    · simp only [tcbOwner, if_neg hG, if_neg hT, if_neg hGF, hA]
+
 end
 
 end Fl4Proofs.P2.OwnMap
