@@ -21,12 +21,28 @@ DESIGN.md §7, "What a local path may write, its footprint", made concrete:
   object `r` (32 bytes), and the queue links (`EP_NEXT`, `EP_PREV`) of the
   threads queued on `ep` (`QueueRel` at `s`).
 
-Results here:
+Results here (P2 (2a), the write footprint):
 
-* `vm_local_decline_foot`: a declined `handle_vm_fault_local` wrote only this
-  core's node (its `update_timestamp`);
-* `rr_vm_local_decline_foot`: a declined `handle_reply_recv_vm_local` wrote
-  only the current thread's `FAULT_IP` and this core's node.
+* `vm_local_foot`: `handle_vm_fault_local`, accepted or declined, writes only
+  `FootVm T Scs Z s ep r`, with `ep`, `r` the endpoint and reply object
+  fl4-sync's `local_vm_fault` locked (`hLk`: the fast path's endpoint and its
+  handler's reply object are those). Inputs: `BXI` at `s`, and after the
+  entry's `update_timestamp` the facts P1's fast-path analysis takes there
+  (`VmFootHyps`, what P3's `JAtZ.vmFaultOK` supplies);
+* `rr_vm_local_foot`: `handle_reply_recv_vm_local`, accepted or declined,
+  writes only `FootVm T Scs Z s ep rptr` for `found = (rptr, ep)`. Inputs:
+  `BXI` at `s`; fl4-sync's check under the lock that the reply has no
+  neighbours on a call stack (`hnb`: otherwise `reply_remove` writes the
+  neighbours, unlocked); after the prefix, `BXI`, P1's ring-sum bound `RRSum`
+  (P1 takes it as `RRSumAt` [J] at its top) and m68's placement `RRPl`
+  (`rrPl_ofG`);
+* the declines alone: `vm_local_decline_foot` (only the node's timestamp
+  words), `rr_vm_local_decline_foot` (and the current thread's `FAULT_IP`);
+* tools: `switch_to_foot` / `activate_foot` (the fast paths' tail writes only a
+  given `B` holding this core's node, the switched-to thread, the current SC,
+  its SC and the SC it yields to), `FootVm.of_agree` (the footprint reads few
+  words, so it moves across the prefix), `ObjsOK.one` (P1's object facts for
+  one SC, to reuse P1 lemmas stated over an object set with a single SC).
 
 Premises: none.
 -/
@@ -1011,6 +1027,436 @@ theorem vm_local_foot (hA : P0.ArchTotal ar) {T Cs Ω U Sg Rp Scs Nt Ac : Set U6
     (w.mono fun _ hb => FootVm.of_utW hT hN hEN E.hE.fits E.hE.align hb)
 
 end top
+
+
+/-! ## The accepted VM-fault ReplyRecv -/
+
+theorem tcb_range {y b : U64} (hy : TcbAddr y) (h1 : y.val ≤ b.val) (h2 : b.val < y.val + 4096) :
+    ∃ K : U64, K.val < 4096 ∧ b = core.num.U64.wrapping_add y K := by
+  have hm : b.val - y.val < 2 ^ 64 := by omega
+  refine ⟨⟨BitVec.ofNat 64 (b.val - y.val)⟩, ?_, ?_⟩
+  · show (BitVec.ofNat 64 (b.val - y.val)).toNat < 4096
+    simp [Nat.mod_eq_of_lt hm]; omega
+  · apply UScalar.eq_of_val_eq
+    rw [tcb_wadd_val hy (by show (BitVec.ofNat 64 (b.val - y.val)).toNat < 4096; simp [Nat.mod_eq_of_lt hm]; omega)]
+    show _ = y.val + (BitVec.ofNat 64 (b.val - y.val)).toNat
+    simp [Nat.mod_eq_of_lt hm]; omega
+
+section rr
+variable {A : Type _} {ar : machine.Arch A}
+
+set_option maxHeartbeats 8000000 in
+/-- **An accepted VM-fault ReplyRecv fast run writes only `FootVm` of its
+dispatch state `X0`**, the reply object `rptr` having no neighbours on a call
+stack (`hnb`: fl4-sync `local_syscall` checks it with `rptr` locked). Inputs:
+`BXI` and m68's placement `RRPl` at `X0`, m68's ring-sum bound for the
+receiver's SC (`hsum`, P1 `RRSum`). -/
+theorem rr_tail_foot (hA : P0.ArchTotal ar) {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    {X0 sF : S} {a aF : A} {t rptr ep u usc : U64}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X0)
+    (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hC : RRChecksG st ar fl4_abi.consts.fault.VMFault X0 a t rptr ep u usc)
+    (hsum : L.mem X0 (sporA usc) ≠ 0#u64 → L.amtSum X0 usc < 2 ^ 64)
+    (hnb : L.mem X0 (rPrevA rptr) = 0#u64 ∧ L.mem X0 (rNextA rptr) = 0#u64)
+    (h : rrTail st ar X0 a t rptr ep u usc = ok (true, sF, aF)) :
+    WritesIn st X0 sF (FootVm (L := L) T Scs Z X0 ep rptr) := by
+  unfold rrTail at h
+  obtain ⟨X1, e1, h⟩ := bind_eq_ok h
+  obtain ⟨⟨X2, a1⟩, e2, h⟩ := bind_eq_ok h
+  try simp only [uncurry_apply_pair] at h
+  obtain ⟨b9, e3s, h⟩ := bind_eq_ok h
+  obtain ⟨X3, e3, h⟩ := bind_eq_ok h
+  obtain ⟨⟨restart, X4, a2⟩, e4, h⟩ := bind_eq_ok h
+  try simp only [uncurry_apply_pair] at h
+  obtain ⟨X5, e5, h⟩ := bind_eq_ok h
+  have R3 := rr_r3G ar P hC hsum e1 e2 e3s e3
+  obtain ⟨ha1, w1, -, w23, -⟩ := rr_x3G ar P hC hsum e1 e2 e3s e3
+  subst ha1
+  obtain ⟨hrs, hX4, -⟩ := hfr_vm st ar R3.ft3 e4
+  subst hrs
+  simp only [↓reduceIte] at h
+  obtain ⟨X6, e6, h⟩ := bind_eq_ok h
+  obtain ⟨X7, e7, h⟩ := bind_eq_ok h
+  obtain ⟨X8, e8, h⟩ := bind_eq_ok h
+  obtain ⟨X9, e9, h⟩ := bind_eq_ok h
+  obtain ⟨X10, e10, h⟩ := bind_eq_ok h
+  obtain ⟨X11, e11, h⟩ := bind_eq_ok h
+  obtain ⟨X12, e12, h⟩ := bind_eq_ok h
+  obtain ⟨X13, e13, h⟩ := bind_eq_ok h
+  obtain ⟨X14, e14, h⟩ := bind_eq_ok h
+  obtain ⟨X15, e15, h⟩ := bind_eq_ok h
+  obtain ⟨⟨x1, x2⟩, hsw, hx⟩ := bind_eq_ok h
+  have hx' := ok_inj_ff hx
+  simp only [Prod.mk.injEq, true_and] at hx'
+  obtain ⟨rfl, rfl⟩ := hx'
+  obtain ⟨-, -, K8, -⟩ := rr_x8G ar P hC hsum e1 e2 e3s e3 e4 e5 e6 e7 e8
+  obtain ⟨-, -, -, -, -, hW3, -⟩ := rr_x3G ar P hC hsum e1 e2 e3s e3
+  obtain ⟨om38, su8⟩ := rr_om38 ar P K8.ksb K8.cpu e4 e5 e6 e7 e8
+  obtain ⟨k15, c15, m15⟩ := rr_m15 P e9 e10 e11 e12 e13 e14 e15
+  obtain ⟨-, -, hX, -, hS0⟩ := hI
+  have hX0 : ScExtra0 st T Cs Scs Nt X0 := hX.2.2.toScExtra0
+  have hO := P.hO
+  have hT := P.hT
+  have hu' := hT u P.hu
+  have ht' := hT t P.ht
+  have ua := hu'.align; have ta := ht'.align
+  have hut : u.val ≠ t.val := fun e => P.hut (UScalar.eq_of_val_eq e)
+  have hrΩ := P.hSg.sub _ P.rtS
+  -- Ω words pass `m15`'s side conditions
+  have m15Ω : ∀ b ∈ Ω, b ≠ rTcbA rptr → L.mem X15 b = L.mem X8 b := fun b hb hne =>
+    m15 b (P.hΩ b hb).1 ((P.hΩ b hb).2.1 t P.ht) (P.hEΩ b hb) (fun e => hne (UScalar.eq_of_val_eq e))
+  -- u's words too
+  have m15u : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
+      L.mem X15 (core.num.U64.wrapping_add u K) = L.mem X8 (core.num.U64.wrapping_add u K) := by
+    intro K hK h8
+    have v := tcbw_val hT P.hu hK
+    have hed := P.hE.disj u P.hu
+    have hro := (P.hΩ _ hrΩ).2.1 u P.hu
+    exact m15 _ (field_aligned hu' hK h8) (by rw [v]; omega) (by rw [v]; omega) (by rw [v]; omega)
+  have kX : L.ksb X15 = L.ksb X0 := k15.trans K8.ksb
+  have cX : L.cpu X15 = L.cpu X0 := c15.trans K8.cpu
+  -- SC facts
+  have nrp : ∀ c ∈ Scs, ∀ b, InSC c (Z c) b → ¬ RpLW Rp b ∧ b ≠ rTcbA rptr := by
+    intro c hc b hin
+    unfold InSC at hin
+    refine ⟨?_, fun e => ?_⟩
+    · rintro ⟨r', hr', rfl | rfl⟩
+      · have := hO.rpSc r' hr' _ hc; rw [rPrevA_val (hO.rp r' hr')] at hin; omega
+      · have := hO.rpSc r' hr' _ hc; rw [rNextA_val (hO.rp r' hr')] at hin; omega
+    · have := hO.rpSc rptr P.hrR _ hc; rw [e, rTcbA_val0] at hin; omega
+  have scWu : ∀ b, Aligned b → InSC usc (Z usc) b → b ∈ Ω := fun b hb h => P.hSg.sub _ (P.scSg b hb h)
+  have hWX : RefillsWF st X15 usc (Z usc) := hW3.agree fun b hb hin => by
+    rw [m15Ω b (scWu b hb hin) (nrp _ P.hcS b hin).2, om38 b (scWu b hb hin)]
+  have hcs : L.cscW X0 ∈ Scs := hX0.cur
+  have hcq0 : SCq st X0 Ω (L.cscW X0) (Z (L.cscW X0)) := by
+    obtain ⟨hP', hz⟩ := hO.sc _ hcs
+    obtain ⟨h8, h128, -⟩ := sc_lo hP' hz
+    have hv := sc_word_val hP' hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
+    have hcv : layout.sc.CONSUMED.val = 8 := by simp [layout.sc.CONSUMED]
+    obtain ⟨a1, a2, a3⟩ := maxA_facts hO hcs
+    exact ⟨(hS0.all _ hcs).1, fun b hb hi => hS0.sub _ ((hS0.all _ hcs).2.2 b hb hi),
+      ⟨⟨by rw [hv]; omega, by rw [hv, hcv]; omega⟩, by unfold Aligned; rw [hv, hcv]; omega⟩, ⟨a2, a3⟩, a1⟩
+  have csA : Aligned (L.nodeAt X0 (L.cpu X0) layout.node.CUR_SC) :=
+    nodeAt_aligned P.hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+  have ecX : L.cscW X15 = L.cscW X0 := by
+    unfold LawfulStore.cscW LawfulStore.nodeA
+    rw [cX, nodeAt_of_ksb kX]
+    have v := nodeAt_val P.hN (off := layout.node.CUR_SC) (by simp [layout.node.CUR_SC])
+    have hnt := P.hN.disj t P.ht
+    have hne := P.hEN.1 _ P.hcC
+    have hro := (P.hΩ _ hrΩ).2.2 _ P.hcC
+    have c24 : layout.node.CUR_SC.val = 24 := by simp [layout.node.CUR_SC]
+    rw [m15 _ csA (by rw [v]; omega) (by rw [v]; omega) (by rw [v]; omega)]
+    exact K8.node _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+      (by simp [layout.node.CUR_SC])
+  have escX : L.mem X15 (scA u) = usc := by
+    rw [scA_eq, m15u _ (by simp) (by simp)]
+    rw [K8.tcb u P.hu 3464#u64 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide), ← scA_eq]
+    exact P.husc
+  have stX : L.mem X15 (stA u) = sched.TS_RESTART := by
+    rw [stA_eq, m15u _ (by simp) (by simp), ← stA_eq]; exact su8
+  have eyX : L.mem X15 (yieldA u) = L.mem X0 (yieldA u) := by
+    rw [show yieldA u = core.num.U64.wrapping_add u 3472#u64 from rfl, m15u _ (by simp) (by simp)]
+    exact K8.tcb u P.hu 3472#u64 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide)
+  have hcX : SCq st X15 Ω (L.cscW X15) (Z (L.cscW X15)) := by
+    rw [ecX]
+    refine ⟨fun hm => ?_, hcq0.2.1, hcq0.2.2⟩
+    by_cases hcd : L.cscW X0 = usc
+    · rw [hcd]; exact hWX
+    · have agC : ∀ b, Aligned b → InSC (L.cscW X0) (Z (L.cscW X0)) b → L.mem X15 b = L.mem X0 b := by
+        intro b hb hin
+        have hbΩ := hcq0.2.1 b hb hin
+        obtain ⟨n1, n2⟩ := nrp _ hcs b hin
+        rw [m15Ω b hbΩ n2]
+        refine K8.omg b ⟨hbΩ, n1⟩ n2 fun hR => ?_
+        have := hO.scDisj _ hcs _ P.hcS hcd
+        unfold InSC at hin; unfold InRing at hR; omega
+      have em : L.rmax X15 (L.cscW X0) = L.rmax X0 (L.cscW X0) := by
+        obtain ⟨a1, a2, a3⟩ := maxA_facts hO hcs
+        exact agC _ a1 ⟨a2, a3⟩
+      exact (hcq0.1 (em ▸ hm)).agree agC
+  have htX : L.mem X15 (scA u) ≠ L.cscW X15 → SCin st X15 Ω (L.mem X15 (scA u)) (Z (L.mem X15 (scA u))) ∧
+      ∀ b, InSC (L.mem X15 (scA u)) (Z (L.mem X15 (scA u))) b → Outside b (L.cscW X15) (Z (L.cscW X15)) := by
+    rw [escX, ecX]
+    intro hne
+    refine ⟨⟨hWX, scWu⟩, fun b hin => ?_⟩
+    have := hO.scDisj _ P.hcS _ hcs hne
+    unfold InSC at hin; unfold Outside; omega
+  have hyX : L.mem X15 (yieldA u) ≠ 0#u64 → L.mem X15 (yieldA u) ∈ Scs := by
+    rw [eyX]; exact hX0.yt.2.1 u P.hu
+  have PX : TailPld (L := L) T Cs Ω X15 u :=
+    (⟨hT, P.hu, P.hN, P.hcC, P.hΩ⟩ : TailPld (L := L) T Cs Ω X0 u).ksb kX cX
+  -- the footprint and its words
+  generalize hG : FootVm (L := L) T Scs Z X0 ep rptr = G
+  have HF := here_facts (L := L) (by obtain ⟨b, eb, hb⟩ := hC.here; rw [eb, hb])
+  have huF : FootVmTcb (L := L) T X0 u := ⟨P.hu, Or.inr HF.aff⟩
+  have Gt : ∀ K : U64, K.val < 4096 → G (core.num.U64.wrapping_add t K) := fun K hK => by
+    rw [← hG]; exact (footVm_tcb ⟨P.ht, Or.inl P.hcur.symm⟩ hK).foot
+  have Gu : ∀ K : U64, K.val < 4096 → G (core.num.U64.wrapping_add u K) := fun K hK => by
+    rw [← hG]; exact (footVm_tcb huF hK).foot
+  have Gn : ∀ o : U64, o.val < 4288 → G (L.nodeAt X0 (L.cpu X0) o) := fun o ho => by
+    rw [← hG]; exact (footVm_node ho).foot
+  have Gsc : ∀ c b, FootVmSc (L := L) T Scs X0 c → InSC c (Z c) b → G b := fun c b hc' hb => by
+    rw [← hG]; exact Or.inl (Or.inr (Or.inr ⟨c, hc', hb⟩))
+  have Gep : ∀ b, InObj ep 16 b → G b := fun b hb => by rw [← hG]; exact Or.inr (Or.inl hb)
+  have Grp : ∀ b, InObj rptr 32 b → G b := fun b hb => by rw [← hG]; exact Or.inr (Or.inr (Or.inl hb))
+  have hrp := P.hO.rp rptr P.hrR
+  have GrT : G (rTcbA rptr) := Grp _ ⟨by rw [rTcbA_val0], by rw [rTcbA_val0]; omega⟩
+  have Gst : G (stA t) := by rw [stA_eq]; exact Gt _ (by simp)
+  have Gsu : G (stA u) := by rw [stA_eq]; exact Gu _ (by simp)
+  have uscF : FootVmSc (L := L) T Scs X0 usc := ⟨P.hcS, Or.inr ⟨u, huF, Or.inl P.husc.symm⟩⟩
+  -- X0 → X1: t's state
+  have w01 : WritesIn st X0 X1 G := by rw [w1]; exact wi_wr (WritesIn.refl _ _) (P.aS P.ht) Gst
+  -- X1 → X2: the reply unlink, the reply having no neighbours
+  have aNx : Aligned (rNextA rptr) := (P.rpA rptr P.hrR).2
+  have aPv : Aligned (rPrevA rptr) := (P.rpA rptr P.hrR).1
+  have ntS : ∀ b ∈ Ω, b ≠ stA t := fun b hb => by rw [stA_eq]; exact P.omg_tcb hb P.ht (by decide)
+  have mNx : L.mem X1 (rNextA rptr) = 0#u64 := by
+    rw [w1, mem_wr_ne' (P.aS P.ht) aNx (Ne.symm (ntS _ (P.hSg.sub _ (P.hO.nextW P.hrR))))]; exact hnb.2
+  have mPv : L.mem X1 (rPrevA rptr) = 0#u64 := by
+    rw [w1, mem_wr_ne' (P.aS P.ht) aPv (Ne.symm (ntS _ (P.hSg.sub _ (P.hO.prevW P.hrR))))]; exact hnb.1
+  have hrΩ := P.hSg.sub _ P.rtS
+  have aR : Aligned (rTcbA rptr) := (P.hΩ _ hrΩ).1
+  have hRT : rTcbA rptr ≠ stA u := by rw [stA_eq]; exact P.omg_tcb hrΩ P.hu (by decide)
+  have hcur1 : ∀ X, WritesIn st X1 X (fun b => RpLW {rptr} b ∨ b = rTcbA rptr ∨ b = stA u) → L.curW X ≠ u := by
+    intro X wX
+    have aC : Aligned (L.nodeAt X0 (L.cpu X0) layout.node.CUR_THREAD) :=
+      nodeAt_aligned P.hN (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
+    have k1 : L.ksb X1 = L.ksb X0 := by rw [w1, L.ksb_wr]
+    have c1 : L.cpu X1 = L.cpu X0 := by rw [w1, L.cpu_wr]
+    show L.mem X (L.nodeAt X (L.cpu X) layout.node.CUR_THREAD) ≠ u
+    rw [wX.2.1, c1, nodeAt_of_ksb (wX.1.trans k1)]
+    rw [wX.2.2 _ aC ?_]
+    · have nC : stA t ≠ L.nodeAt X0 (L.cpu X0) layout.node.CUR_THREAD := by
+        rw [stA_eq]; exact P.tcb_node P.ht (by decide) (by simp [layout.node.CUR_THREAD])
+      rw [w1, mem_wr_ne' (P.aS P.ht) aC nC]
+      have := P.hcur; unfold LawfulStore.curW at this; rw [this]; exact Ne.symm P.hut
+    rintro (⟨r', hr', hh⟩ | hh | hh)
+    · rw [Set.mem_singleton_iff] at hr'; rw [hr'] at hh
+      exact P.omg_node (P.hSg.sub _ (P.rpS _ ⟨_, P.hrR, hh⟩)) (by simp [layout.node.CUR_THREAD]) rfl
+    · exact P.omg_node hrΩ (by simp [layout.node.CUR_THREAD]) hh.symm
+    · rw [stA_eq] at hh; exact P.tcb_node P.hu (by decide) (by simp [layout.node.CUR_THREAD]) hh.symm
+  have hn1 : (∃ i, obj.Reply.next st rptr X1 = ok i ∧ ¬ (i != 0#u64) = true) ∨
+      (∃ i, obj.Reply.next st rptr X1 = ok i ∧ (i != 0#u64) = true ∧
+        ∃ b, obj.Reply.next_is_head st rptr X1 = ok b ∧ ¬ b = true) :=
+    Or.inl ⟨_, eq_of_spec_fd (obj.Reply.next.spec (L := L) X1 rptr), by rw [mNx]; simp⟩
+  obtain ⟨-, w12', -⟩ := rr_remove_foot (Rp := {rptr}) ar hn1 (fun h0 => absurd (by rw [mNx]; simp) h0)
+    (fun h0 => absurd (by rw [mPv]; simp) h0)
+    (fun r' hr' => by rw [Set.mem_singleton_iff] at hr'; subst hr'; exact ⟨aPv, aNx⟩)
+    (Set.mem_singleton rptr) aR (P.aS P.hu) hRT hcur1 e2
+  have w12 : WritesIn st X1 X2 G := w12'.mono fun b hb => by
+    rcases hb with ⟨r', hr', e | e⟩ | e | e
+    · rw [Set.mem_singleton_iff] at hr'; subst hr' e
+      exact Grp _ ⟨by rw [rPrevA_val hrp]; omega, by rw [rPrevA_val hrp]; omega⟩
+    · rw [Set.mem_singleton_iff] at hr'; subst hr' e
+      exact Grp _ ⟨by rw [rNextA_val hrp]; omega, by rw [rNextA_val hrp]; omega⟩
+    · rw [e]; exact GrT
+    · rw [e]; exact Gsu
+  -- X2 → X3: u's SC, the core's REPROGRAM
+  have w23' : WritesIn st X2 X3 G := w23.mono fun b hb => by
+    rcases hb with hin | e
+    · exact Gsc usc b uscF hin.inSC
+    · rw [e]; exact Gn _ (by simp [layout.node.REPROGRAM])
+  -- X3 → X5: the fault reply writes nothing, then u's fault type
+  have e5' := e5
+  rw [hX4] at e5'
+  have x5 : X5 = L.wr X3 (faultA u) fl4_abi.consts.fault.NullFault := by
+    unfold faults.clear_fault at e5'
+    have := obj.Tcb.set_fault_type.spec (L := L) X3 u fl4_abi.consts.fault.NullFault
+    rw [e5', WP.spec_ok] at this; exact this
+  have hu' := P.hT u P.hu
+  have w35 : WritesIn st X3 X5 G := by
+    rw [x5]; exact wi_wr (WritesIn.refl _ _) (field_aligned hu' (K := 3376#u64) (by simp) (by simp))
+      (Gu 3376#u64 (by simp))
+  -- X5 → X8: u's state, the action, t's state
+  have x6 : X6 = L.wr X5 (stA u) sched.TS_RESTART := by
+    have := obj.Tcb.set_state.spec (L := L) X5 u sched.TS_RESTART; rw [e6, WP.spec_ok] at this; exact this
+  have x7 : X7 = L.wr X6 (L.nodeAt X6 (L.cpu X6) layout.node.SCHED_ACTION) u := by
+    rw [set_action_ok] at e7; exact (ok_inj_ff e7).symm
+  have x8 : X8 = L.wr X7 (stA t) sched.TS_RUNNING := by
+    have := obj.Tcb.set_state.spec (L := L) X7 t sched.TS_RUNNING; rw [e8, WP.spec_ok] at this; exact this
+  have w05 := wt w01 (wt w12 (wt w23' w35))
+  have w06 : WritesIn st X0 X6 G := by rw [x6]; exact wi_wr w05 (P.aS P.hu) Gsu
+  have w07 : WritesIn st X0 X7 G := by
+    rw [x7, w06.2.1, nodeAt_of_ksb w06.1]
+    exact wi_wr w06 (nodeAt_aligned P.hN (by rw [act_val]; omega) (by rw [act_val]))
+      (Gn _ (by rw [act_val]; omega))
+  have w08 : WritesIn st X0 X8 G := by rw [x8]; exact wi_wr w07 (P.aS P.ht) Gst
+  -- X8 → X15: t blocked on the endpoint
+  have ht' := P.hT t P.ht
+  have w815 : WritesIn st X8 X15 G := by
+    refine ⟨k15, c15, fun b hb hn => ?_⟩
+    refine m15 b hb ?_ ?_ ?_
+    · by_contra hc
+      have h1 : t.val ≤ b.val := by omega
+      have h2 : b.val < t.val + 4096 := by omega
+      obtain ⟨K, hK, rfl⟩ := tcb_range (b := b) ht' h1 h2
+      exact hn (Gt K hK)
+    · by_contra hc
+      have := P.hE.align
+      have hb8 : b.val % 8 = 0 := hb
+      exact hn (Gep b ⟨by omega, by omega⟩)
+    · intro e; exact hn (by rw [UScalar.eq_of_val_eq e]; exact GrT)
+  -- X15 → sF: `switch_to u`
+  have wF := switch_to_foot hA X15 a2 PX (ObjsOK.any hO) P.hSg.sub hcX htX hyX (B := G)
+    (fun o ho => by rw [cX, nodeAt_of_ksb kX]; exact Gn o ho) Gu
+    (fun b hb => by rw [ecX] at hb; exact Gsc _ b ⟨hcs, Or.inl rfl⟩ hb)
+    (fun _ b hb => by rw [escX] at hb; exact Gsc _ b uscF hb)
+    (fun hne b hb => by
+      rw [eyX] at hne hb
+      exact Gsc _ b ⟨hX0.yt.2.1 u P.hu hne, Or.inr ⟨u, huF, Or.inr rfl⟩⟩ hb)
+  rw [hsw, WP.spec_ok] at wF
+  exact wt w08 (wt w815 wF)
+
+end rr
+
+
+/-- The footprint after a write of a TCB register word is the one before. -/
+theorem FootVm.of_reg {T Scs : Set U64} {Z : U64 → Nat} {s : S} {y K v ep r b : U64} (hT : TcbPlaced T)
+    (hN : NodePlaced st T s (L.cpu s)) (hy : y ∈ T) (hK : K.val < 3328) (hK8 : K.val % 8 = 0)
+    (hE : EpPlaced T ep)
+    (h : FootVm (L := L) T Scs Z (L.wr s (core.num.U64.wrapping_add y K) v) ep r b) :
+    FootVm (L := L) T Scs Z s ep r b := by
+  have hya := hT y hy
+  have aW : Aligned (core.num.U64.wrapping_add y K) := field_aligned hya (by omega) hK8
+  have vW := field_val hya (K := K) (by omega)
+  have nN : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
+      L.mem (L.wr s (core.num.U64.wrapping_add y K) v) (L.nodeAt s (L.cpu s) o) = L.mem s (L.nodeAt s (L.cpu s) o) :=
+    fun o ho h8 => mem_wr_ne' aW (nodeAt_aligned hN ho h8)
+      (fun e => node_ne_field hN ho hy hya (by omega) e.symm)
+  refine FootVm.of_agree (L.ksb_wr _ _ _) (L.cpu_wr _ _ _) ?_ ?_ ?_ ?_ h
+  · show L.mem _ (L.nodeAt _ _ _) = _
+    rw [L.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
+    exact nN _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
+  · show L.mem _ (L.nodeA _ _) = L.mem _ (L.nodeA _ _)
+    unfold LawfulStore.nodeA
+    rw [L.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
+    exact nN _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+  · intro y' hy' K' hK'
+    have hy'a := hT y' hy'
+    exact mem_wr_ne' aW (field_aligned hy'a (by omega) (by omega))
+      (tcbw_ne hya hy'a (by omega) (by omega) (Or.inr (by omega)))
+  · have hd := hE.disj y hy
+    have ha : L.mem (L.wr s (core.num.U64.wrapping_add y K) v) (epHeadA ep) = L.mem s (epHeadA ep) :=
+      mem_wr_ne' aW (by unfold Aligned; rw [epHeadA_val]; exact hE.align)
+        (fun e => by have := congrArg UScalar.val e; rw [epHeadA_val, vW] at this; omega)
+    have ht : L.mem (L.wr s (core.num.U64.wrapping_add y K) v) (epTSA ep) = L.mem s (epTSA ep) :=
+      mem_wr_ne' aW (by unfold Aligned; rw [epTSA_val hE]; have := hE.align; omega)
+        (fun e => by have := congrArg UScalar.val e; rw [epTSA_val hE, vW] at this; omega)
+    unfold LawfulStore.epQ; rw [ha, ht]
+
+section rrtop
+variable {A : Type _} {ar : machine.Arch A}
+
+set_option maxHeartbeats 4000000 in
+/-- **P2 (2a) for `handle_reply_recv_vm_local`**: the local VM-fault
+ReplyRecv entry, accepted or declined, writes only `FootVm` of its entry
+state `s`, with `found = (rptr, ep)` the reply object and endpoint fl4-sync's
+`local_syscall` locked. Inputs: `BXI` at `s`; fl4-sync's check under the
+lock that the reply has no neighbours on a call stack (`hnb`); and at the
+dispatch state after the prefix (`LocalPre`), `BXI`, m68's ring-sum bound
+`RRSum` (P1's `RRSumAt` [J] at the top) and m68's placement `RRPl` (what P1
+`rrPl_ofG` gives there). -/
+theorem rr_vm_local_foot (hA : P0.ArchTotal ar) {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap}
+    {Z : U64 → Nat} {s s' : S} {a a' : A} {rptr ep : U64} {ok' : Bool}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hD : ∀ s2 a2, LocalPre (st := st) ar s a (s2, a2) → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s2 ∧
+      RRSum (L := L) Scs s2 ∧ ∀ u usc, RRChecksG st ar fl4_abi.consts.fault.VMFault s2 a2 (L.curW s) rptr ep u usc →
+        RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s2 (L.curW s) rptr ep u usc)
+    (hnb : L.mem s (rPrevA rptr) = 0#u64 ∧ L.mem s (rNextA rptr) = 0#u64)
+    (h : syscall.handle_reply_recv_vm_local st ar s a (rptr, ep) = ok (ok', s', a')) :
+    WritesIn st s s' (FootVm (L := L) T Scs Z s ep rptr) := by
+  cases ok'
+  · exact rr_vm_local_decline_foot hA hI h
+  have hN : NodePlaced st T s (L.cpu s) := by
+    obtain ⟨⟨Q, R, hSQ⟩, -, -, -, -⟩ := hI; exact hSQ.nodes _ hSQ.cur
+  have hT : TcbPlaced T := by obtain ⟨⟨Q, R, hSQ⟩, -, -, -, -⟩ := hI; exact hSQ.tcbs
+  have hcT : L.curW s ∈ T := by obtain ⟨⟨Q, R, hSQ⟩, -, -, -, -⟩ := hI; exact hSQ.curT
+  unfold syscall.handle_reply_recv_vm_local at h
+  try simp only [lift, bind_ok] at h
+  obtain ⟨t, et, h⟩ := bind_eq_ok h
+  rw [num_domains_ne_one_false] at h
+  simp only [Bool.false_eq_true, ↓reduceIte] at h
+  obtain ⟨i, -, h⟩ := bind_eq_ok h
+  by_cases c1 : (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS != 0#u64) = true
+  · rw [if_pos c1] at h; simp at h
+  rw [if_neg c1] at h
+  obtain ⟨nx, enx, h⟩ := bind_eq_ok h
+  obtain ⟨s1, es1, h⟩ := bind_eq_ok h
+  obtain ⟨⟨s2, a1⟩, eu, h⟩ := bind_eq_ok h
+  try simp only [uncurry_apply_pair] at h
+  obtain ⟨csc, -, h⟩ := bind_eq_ok h
+  obtain ⟨c, -, h⟩ := bind_eq_ok h
+  obtain ⟨b, -, h⟩ := bind_eq_ok h
+  cases b
+  · simp at h
+  simp only [↓reduceIte] at h
+  try dsimp only at h
+  have ht : t = L.curW s := by rw [cur_thread_ok] at et; exact (ok_inj_ff et).symm
+  subst ht
+  have hpre : LocalPre (st := st) ar s a (s2, a1) := ⟨_, nx, s1, et, enx, es1, eu⟩
+  obtain ⟨hI2, hS2, hP2⟩ := hD s2 a1 hpre
+  obtain ⟨u, usc, hC, hfast⟩ := reply_recv_vm_found_acc st ar h
+  have P := hP2 u usc hC
+  -- the prefix: `FAULT_IP`, then the timestamp
+  have hW1 := obj.Tcb.set_reg.wrK (L := L) s (L.curW s) layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64)
+    (hT _ hcT) (by simp [layout.reg.FAULT_IP])
+  rw [es1, WP.spec_ok] at hW1
+  obtain ⟨K, hK, e1⟩ := hW1
+  have hK' : K.val = 392 := by rw [hK]; simp [layout.reg.FAULT_IP]
+  obtain ⟨⟨n, a3⟩, hn, -⟩ := spec_ex_fd (hA.now a)
+  have hN1 : NodePlaced st T s1 (L.cpu s1) := by rw [e1, LawfulStore.cpu_wr]; exact hN.wr
+  rw [update_timestamp_ok ar hN1 hn] at eu
+  obtain ⟨rfl, -⟩ := Prod.mk.inj (ok_inj_ff eu)
+  have wpre : WritesIn st s (utW (L := L) s1 n) (FootVmCore (L := L) T Scs Z s) :=
+    localPre_foot hA hT hN hcT hpre
+  -- the reply's link words at the dispatch state are those at `s`
+  have wsm : WritesIn st s (utW (L := L) s1 n) (fun b => b = core.num.U64.wrapping_add (L.curW s) K ∨
+      b = ctA (L := L) s1 ∨ b = cnA (L := L) s1) := by
+    have w1 : WritesIn st s s1 (· = core.num.U64.wrapping_add (L.curW s) K) := by
+      rw [e1]; exact writesIn_wr (field_aligned (hT _ hcT) (by omega) (by omega))
+    exact (w1.trans (utW_writes hN1 n)).mono fun b hb => by
+      rcases hb with h1 | h2 | h2
+      · exact Or.inl h1
+      · exact Or.inr (Or.inl h2)
+      · exact Or.inr (Or.inr h2)
+  have keepΩ : ∀ x ∈ Ω, L.mem (utW (L := L) s1 n) x = L.mem s x := by
+    intro x hx
+    have hO := P.hΩ x hx
+    refine wsm.mem_eq hO.1 ?_
+    have hcpu : L.cpu (utW (L := L) s1 n) ∈ Cs := P.hcC
+    have eC : L.cpu (utW (L := L) s1 n) = L.cpu s1 := wsm.2.1.trans (by rw [e1, LawfulStore.cpu_wr])
+    have eB : L.nodeBase (utW (L := L) s1 n) (L.cpu s1) = L.nodeBase s1 (L.cpu s1) := by
+      simp only [LawfulStore.nodeBase]; rw [(utW_writes hN1 n).1]
+    have hc1 := hO.2.2 _ hcpu
+    rw [eC, eB] at hc1
+    rintro (e | e | e)
+    · have := hO.2.1 _ hcT; rw [e, field_val (hT _ hcT) (by omega)] at this; omega
+    · have := nodeAt_val hN1 (off := layout.node.CUR_TIME) (by simp [layout.node.CUR_TIME])
+      have e' := congrArg UScalar.val e; unfold ctA at e'; rw [this] at e'
+      simp [layout.node.CUR_TIME] at e'; omega
+    · have := nodeAt_val hN1 (off := layout.node.CONSUMED) (by simp [layout.node.CONSUMED])
+      have e' := congrArg UScalar.val e; unfold cnA at e'; rw [this] at e'
+      simp [layout.node.CONSUMED] at e'; omega
+  have hnb2 : L.mem (utW (L := L) s1 n) (rPrevA rptr) = 0#u64 ∧ L.mem (utW (L := L) s1 n) (rNextA rptr) = 0#u64 :=
+    ⟨by rw [keepΩ _ (P.hSg.sub _ (P.hO.prevW P.hrR))]; exact hnb.1,
+     by rw [keepΩ _ (P.hSg.sub _ (P.hO.nextW P.hrR))]; exact hnb.2⟩
+  have w := rr_tail_foot hA hI2 P hC (hS2 usc P.hcS) hnb2 hfast
+  -- the footprint at the dispatch state is the one at `s`
+  have hk1 : L.ksb s1 = L.ksb s := by rw [e1, L.ksb_wr]
+  have hc1 : L.cpu s1 = L.cpu s := by rw [e1, LawfulStore.cpu_wr]
+  have hEN := P.hEN.1 _ P.hcC
+  have eB2 : L.nodeBase (utW (L := L) s1 n) (L.cpu (utW (L := L) s1 n)) = L.nodeBase s1 (L.cpu s1) := by
+    simp only [LawfulStore.nodeBase, (utW_writes hN1 n).1, (utW_writes hN1 n).2.1]
+  rw [eB2] at hEN
+  refine wt (wpre.mono fun _ hb => hb.foot) (w.mono fun b hb => ?_)
+  have h1 := FootVm.of_utW hT hN1 hEN P.hE.fits P.hE.align hb
+  rw [e1] at h1
+  exact FootVm.of_reg hT hN hcT (by omega) (by omega) P.hE h1
+
+end rrtop
 
 end
 
