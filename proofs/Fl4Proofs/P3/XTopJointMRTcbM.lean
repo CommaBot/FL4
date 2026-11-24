@@ -164,7 +164,7 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
       (fun _ => by
         show NewCapOK Z.th (L.mem s1) (capV (L.mem s) x0) e.2
         rw [← hc1, hxe]
-        exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe, hc1]; exact hnf))
+        exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe, hc1]; exact hv))
       (fun h => (Eq.mp flags_T.2.2.1 h).elim) (fun h => (Eq.mp flags_T.2.2.1 h).elim) (fun _ h => absurd rfl h)
       0#u64 0 (fun h => absurd hU0 h) .Null none (fun _ _ h => by cases h) (fun _ _ h => by cases h) (fun _ _ h => by cases h)
     simp only [cslot_zero, ← hxe] at hT'
@@ -328,7 +328,7 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
         (fun _ => by
           show NewCapOK Z.th (L.mem s1) (capV (L.mem s) x0) e0.2
           rw [← hc1, hxe0]
-          exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps0 hps01 (by rw [← hxe0, hc1]; exact vfh_not_frame hv))
+          exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps0 hps01 (by rw [← hxe0, hc1]; exact hv))
         (fun h => (Eq.mp flags_SF.2.1 h).elim) (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1)
         (fun _ => vfh_ep hv) 0#u64 0 (fun h => absurd hU0 h) .Null none (fun _ _ h => by cases h) (fun _ _ h => by cases h) (fun _ _ h => by cases h)
       simp only [cslot_zero, ← hxe0, bufArg] at hT'
@@ -521,13 +521,14 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
         obtain ⟨rfl, m0, ep0, a0, va0, hc0⟩ := derive_frame_inv (fun h => ⟨_, hnc e2 ⟨ps, hps1, Or.inl hps⟩ rfl h⟩) hr
         have hcvc : CapValid Z.th (capability.Cap.Frame q sz rr false m false aa va) := hcv' Z.th hcv0
         have hok : NewCapOK Z.th (L.mem s1) (.Frame q sz rr false m false aa va) e2 := by
-          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_⟩
+          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           · rw [hc1, hc0]; rfl
           · rw [hc1, hc0]; exact Or.inl rfl
           · rw [hc1, hc0]; rfl
           · rw [hc1]; exact derive_vcap hr
           · exact fun h => False.elim h
           · exact fun _ => by simp [Vs.NativeCap]
+          · exact fun h => absurd rfl h
         have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetIpcBuffer (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)).run σ =
@@ -823,7 +824,7 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
   have hc1 : capV (L.mem s1') x2 = capV (L.mem s) x2 := hS1.capV hxs
   have hnf := vfh_not_frame hv
   have hok : NewCapOK Z.th (L.mem s1') (capV (L.mem s) x2) e2.2 := by
-    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
+    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hv)
   have hI := install_fhOkJM arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots]) (by decide)
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs
     (capV (L.mem s) x2) e2.2 hok (fun _ => vfh_ep hv) hnoe

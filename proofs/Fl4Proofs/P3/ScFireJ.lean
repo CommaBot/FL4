@@ -308,7 +308,8 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     J.notDbg_tw (fun y hy w K hwv h1 h2 => J.tmw_ne_tcb hb hy hwv (Or.inr ⟨h1, h2⟩))
       (fun c hc => J.tmw_ne_node hb hc (by simp [P1.debug_val]) (by simp [P1.debug_val]) (by simp [P1.debug_val])
         (by simp [P1.debug_val]))
-  exact J.cs_frameK hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX' hks hSS (Vs.ArchShr.of_ao F.sk.arch fun q ao h =>
+    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
     hSS hKd F.sk.idle
 
 

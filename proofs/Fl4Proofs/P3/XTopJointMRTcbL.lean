@@ -66,8 +66,8 @@ theorem tcbInsWM_wjl [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR :
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) :
     TcbInsWM (L := L) arI AR MR Z H Cs (fun kb => WMR MR (WJL (L := L) arI AR Z H Cs kb))
-      (RdLO (L := L) (A := A) Z.th H) (RzJ (L := L) (A := A) H) :=
-  ⟨fun kb => insWJ_wjlM hM kb, fun kb => delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb rfl⟩
+      (RdLX (L := L) (A := A) Z.th H Z.vx) (RzJ (L := L) (A := A) H) :=
+  ⟨fun kb => insWJ_wjlM hM kb, fun kb => ⟨_, delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb rfl⟩⟩
 
 set_option maxHeartbeats 4000000 in
 set_option maxHeartbeats 4000000 in

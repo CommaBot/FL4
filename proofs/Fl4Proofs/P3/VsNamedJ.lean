@@ -5,7 +5,7 @@ machinery sits upstream of JCarryDefs).
 
 * `JAtZ.vsReachMiss`, `JAtZ.vsReachMissR`, `JAtZ.vsReachAsidC` (VsNamed's
   module docstring): the C17 / C23 / C24 vsReach discharge.
-* `JAtZ.vsNamedDrop`, `JAtZ.vsNamedRestart` (VsNamedKeep's).
+* `JAtZ.vsNamedRestart` (VsNamedKeep's; `JAtZ.vsNamedDrop` is in VsNamedRet).
 -/
 import Fl4Proofs.P3.UtDropJ2
 import Fl4Proofs.P3.VsNamedStep
@@ -101,18 +101,6 @@ open Fl4Proofs.P3.Sched
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-
-/-- **(F1 stage 3) `VsNamed` at the drop's typed heap** (`JAtZ.drop`'s
-`restrictTh`, same memory): the MDB's slots miss the region (`UtCapP3.ns`). -/
-theorem _root_.Fl4Proofs.P3.JAtZ.vsNamedDrop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : VsNamed Z.th (L.mem s) (L.ksb s)) {lo hi : Nat} (hNS : NoStraddle Z.th lo hi)
-    (hns : ∀ a ∈ Z.G.chains.flatten, a.val < lo ∨ hi ≤ a.val) :
-    VsNamed (restrictTh Z.th lo hi) (L.mem s) (L.ksb s) := by
-  obtain ⟨hPl, ⟨-, -, hML, -, -⟩, -⟩ := J.xtop.rel
-  refine hN.sub (fun y hy => hy.of_restrict) fun y hy hk => ?_
-  have hne : capV (L.mem s) y ≠ .Null := fun h => hk (by rw [h]; rfl)
-  have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy, _, capAt_capV _ _, hne⟩
-  exact hy.restrict hPl hNS (hns y hyG)
 
 /-- **(F1 stage 3, frame class) `VsNamed` across the caller's restart**
 (`set_thread_state Restart`: the slots and the `VObj` words kept,

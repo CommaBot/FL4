@@ -321,7 +321,7 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
     refine J.notDbg' (fun p hp => ?_) (fun c hc => ?_)
     · rcases hAp p .tcb hp (fun z h => by cases h) with e | e <;> simp only [P1.HKind.bits] at e ⊢ <;> omega
     · rcases hnd c hc with e | e <;> omega
-  exact J.cs_frameK hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.refl _)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
     obtain ⟨-, h1, h2⟩ := hb
     have hv := Sched.tVcpuA_val J.ip.e.tcb hu'
     have := hAp u .tcb (J.zH.1 u hu') (fun z h => by cases h)

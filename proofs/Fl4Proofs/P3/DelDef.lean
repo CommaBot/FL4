@@ -207,7 +207,7 @@ def DefInv (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : Type
     W x.1 x.2.1 σ G
 
 /-- What `finalise_slot_deferred` ends with. -/
-def DefPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+def DefPost (W Wx Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (res : core.result.Result cdt.Finalised error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G0).card ∧
@@ -218,19 +218,20 @@ def DefPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
         (f.success = false → HomeZ (L.mem res.2.1) (cslotAddr sl)) ∧
         (f.success = true → capV (L.mem res.2.1) (cslotAddr sl) ≠ .Null →
           Rd res.2.1 res.2.2 σ' G' (cslotAddr sl)) ∧
+        (f.success = false ∨ capV (L.mem res.2.1) (cslotAddr sl) = .Null → W res.2.1 res.2.2 σ' G') ∧
         RD (.finaliseSlotCall sl false) σ0
           (.ok (f.success, if f.success then absCap f.cleanup else .nullCap), σ')) ∨
       (res.1 = .Err .Preempted ∧ RD (.finaliseSlotCall sl false) σ0 (.error (), σ'))) ∧
-    WPost W Wp res.1 res.2.1 res.2.2 σ' G'
+    WPost Wx Wp res.1 res.2.1 res.2.2 σ' G'
 
 /-- **FL4's deferred finalisation loop refines `finalise_slot slot False`.** -/
-theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wx Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wp Rd Rz th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wx Wp Rd Rz th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (s : S) (a : A) (fuel : U64) (hinv : DefInv (L := L) W th sl s0 σ0 G0 (s, a, fuel)) :
     cdt.finalise_slot_deferred_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      DefPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ := by
+      DefPost (L := L) W Wx Wp Rd th sl s0 σ0 G0 res ⦄ := by
   unfold cdt.finalise_slot_deferred_loop
   refine loop.spec_decr_nat (fun x => x.2.2.val) (DefInv (L := L) W th sl s0 σ0 G0) _ _ _ ?_ hinv
   rintro ⟨s, a, fuel⟩ ⟨σ, G, hDS, hlt, hcd, hps, htr, hch, hsc, hmS, hW⟩
@@ -250,13 +251,13 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
     have ha : ac = .nullCap := hca.abs
     subst ha
     refine ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcd, hps, hch, hsc, hmS, Or.inl ⟨_, rfl, trivial, trivial,
-      fun h => by simp at h, fun _ h => absurd (capV_of_capAt hc) h, htr _ (rd_fin_null hg)⟩, hW⟩
+      fun h => by simp at h, fun _ h => absurd (capV_of_capAt hc) h, fun _ => hW, htr _ (rd_fin_null hg)⟩, hH.wx _ _ _ _ hW⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
-  apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
+  apply WP.spec_bind (fin_stepZ arI W Wx Rd Rz th hH.fin hH.wx hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
     hfs1, hW1, hRd1, hRz1, hZF1⟩
@@ -272,15 +273,23 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   · -- nothing remains: done
     simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      fun h => by simp at h, fun _ _ => hRd1 (Or.inl rfl), htr _ (rd_fin_removable hg hcan hmem trivial)⟩, hW1⟩
+      fun h => by simp at h, fun _ _ => hRd1 (Or.inl rfl),
+      fun h => h.elim (fun e => by simp at e) (fun e => absurd (hx1.symm.trans e) hcn),
+      htr _ (rd_fin_removable hg hcan hmem trivial)⟩, hW1.2 (Or.inl rfl)⟩
   -- a zombie remains
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch1', hsc1, hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      fun h => by simp at h, fun _ _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩), htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv))⟩, hW1⟩
+      fun h => by simp at h, fun _ _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩),
+      fun h => h.elim (fun e => by simp at e) (fun e => absurd (hx1.symm.trans e) hcn),
+      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv))⟩, hW1.2 (Or.inr ⟨p, zt, n, rfl, hrmv⟩)⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
+  replace hW1 := hW1.1 (fun h => by
+    rcases h with e | ⟨p', zt', n', e, h⟩
+    · cases e
+    · cases e; exact hrmv h)
   have hxn1 : capV (L.mem s1) (cslotAddr sl) ≠ .Null := by rw [hx1]; exact hcn
   apply WP.spec_bind (WP.spec_and (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok
     hz.zu hz.bx hz.bf hz.h1 hz.h2 hz.home) (set_zombie_frame hP s1 hxs _))
@@ -314,7 +323,8 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   · -- cyclic: stop
     simp only [hpx, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ2, G1, ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch2, hsc2', hmS2, Or.inl ⟨_, rfl, hcl, hclw,
-      fun _ => ⟨zt, n, by rw [hx2, hpx]⟩, fun h => by simp at h, htr _ (rd_fin_cyclic hg hcan hmem hnrm (hcyS.2 hpx) hsc2)⟩, hW2⟩
+      fun _ => ⟨zt, n, by rw [hx2, hpx]⟩, fun h => by simp at h, fun _ => hW2,
+      htr _ (rd_fin_cyclic hg hcan hmem hnrm (hcyS.2 hpx) hsc2)⟩, hH.wx _ _ _ _ hW2⟩
   simp only [hpx, decide_false, Bool.false_eq_true, ↓reduceIte]
   -- swap the zombie into its first slot
   have hx2a : capAt (L.mem s2) (cslotAddr sl) = ok (.Zombie p zt n) := by rw [capAt_capV, hx2]
@@ -368,8 +378,8 @@ theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (s : S) (a : A) (fuel : U64) (hinv : DefInv (L := L) W th sl s0 σ0 G0 (s, a, fuel)) :
     cdt.finalise_slot_deferred_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      DefPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ :=
-  deferred_loopZ arI W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s0 σ0 G0 s a fuel hinv
+      DefPost (L := L) W W Wp Rd th sl s0 σ0 G0 res ⦄ :=
+  deferred_loopZ arI W W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s0 σ0 G0 s a fuel hinv
 
 end
 

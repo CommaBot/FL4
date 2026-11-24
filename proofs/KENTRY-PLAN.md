@@ -17531,3 +17531,195 @@ See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` l
   Not yet reached by the module builds (depend on the above): UtEpRet (PDPT/PD/PT retypes: new keyed caps, sets grow
   in L3/L2/L1, so stepShrGrow needs PtRel at the old sets after), UtDevRet (frames only: `vsNamedRet` after rewriting
   the empty `{q | … ∧ nt = 7/13/12}` set unions away), XTopJointMakePool (`VsNamed.makePoolS`).
+
+### (12) f4f (sixth session): FINDING — `VsNamed.poolT` fails at a reachable J state inside the delete loop; stopped
+- **Branch state**: f4e's group-C WIP (worktree `FL4-f4c`) rebased onto par/f4 a86d738a as one WIP commit on
+  **`par/f4f-wip`** (still with the temporary `sorry`s, grep `f4e WIP`; the old base copy is commit e605b921 on
+  `par/f4c-wip`). No builds were run in f4f; nothing committed to par/f4.
+- **FINDING (needs a lead decision on the invariant, not a site proof).** `Vs.VsNamed.poolT` (every slot's
+  `.AsidPool q b` cap has `m (atA ksb (b/512)) = q`) is false at the state between the finalisation of a *final*
+  ASID-pool cap and its `empty_slot`, and that state must be a `JAtZ` (hence `JCarry.vsNamed`):
+  - FL4 `objects::finalise_cap` (crates/fl4-core/src/objects.rs:283): `Cap::AsidPool { ptr, asid_base } => if fin
+    { vspace::delete_asid_pool(s, a, asid_base, ptr) }`; `delete_asid_pool` (arch/x86_64/vspace.rs:345) returns early
+    only if `asid_table(base>>9) != pool` — by `poolT` itself it is equal — and ends with
+    `set_asid_table(s, base >> 9, 0)`. The cap stays in its slot until `cdt::empty_slot`.
+  - P3: VsFin `fin_asid_pool` (`delete_asid_pool_rel`, post `SlotsSame`), consumed by
+    `JAtZ.finVsJb` (XTopJointFinVs 451), whose post asks `JAtZ … r.2.1 … σ'` ∧ `SlotsSame Z.th (L.mem s) (L.mem r.2.1)`;
+    this is the `W` (= `WJL`, which contains `WJR`'s `JAtZ`) the delete loop's `FinObjHypWRcZ` asks after finalise.
+    So at `r.2.1`: the slot still holds `.AsidPool q b` (`q ≠ 0`, `VCapW`), the table word is `0`: `poolT` fails.
+    Reachable: MakePool (ASID control) then CNode Delete / Revoke of the only cap of that pool.
+  - Not affected: PT / PD / PDPT / PML4 finalise (walks only removed, the cap kept mapped: `VsNamed.shrink`; the
+    PML4's `delete_asid` clears a pool entry, the ASID table is kept) — so XTopJointFinVs 607 is closable for those
+    by `shrink` with `hT`/`hW` from the `ArFr`/`ArchShr`-style facts once VsFin exports them.
+  - `VsReach.split` (and so `JAtZ.vsReachMiss`, the C24 drop premise) uses `poolT` to make a pool root a walk node;
+    after the table word is cleared the pool still holds its PML4 entries (FL4 does not clear them), so simply
+    weakening `poolT` to `= q ∨ = 0` breaks `split`. Options for the lead: (a) restrict `NeedR 5` (the pool roots)
+    to pools the ASID table names and weaken `poolT` to `= q ∨ = 0` (check `JAtZ.drop`'s use of `NeedR` / `VCapW`);
+    (b) give `JCarry.vsNamed` an exempt slot (`VsNamedX … Ex`, `Ex = ∅` outside the delete loop, the finalised slot
+    inside, discharged by `empty_slot`); (c) carry `VsNamed` in `JCarry` only at kernel-entry J states, not in `WJR`.
+- **Second design point (same loop, independent of the finding)**: XTopJointWJLEmpty 133 (`empty_slot` of a keyed
+  cap) needs `VsNamed.delSlot`'s `hgone` (a walk at the removed cap's ref is named by another slot of its key). It
+  is not derivable at the empty step; it must be produced by the finalisation (final: the unmap removed the walk;
+  not final: `final_iff` / `FinInv.fm.key` give another MDB cap of the same object, then same `VKey`) and handed to
+  the empty step through the loop's readiness `Rd` (`RdLO` in XTopJointWJLEmpty: add a third conjunct; producers
+  XTopJointWJLFin / WJLRd / WJLFinT, `RdTrivHyp` vacuous: keyed caps are `FinObjKind`).
+- **Ready to apply (not applied, no build)**: XTopJointWJL 126 (zombie written over a cap): give `JAtZ.zombieWD` a
+  premise `hxk : VKey (capV (L.mem s) (cslotAddr sl)) = none` (at `jZombieHypL` from `hcd` / `hZF`: the old cap is a
+  zombie, thread or CNode cap) and pass `hvn := J.vsShr (J.xtop.vs_backC hX2 …) hks (Vs.VsKeep.of_nokey (· = cslotAddr sl)
+  hoth (hxk) (by rw [hz]; rfl)) (Vs.ArchShr.of_objCn hnk.2 (archState from hnk.1))`. WJLSwap 172 likewise needs
+  `VsKeep` for a swap of a zombie with its first slot (`vsKeep_swap`).
+- Open sites otherwise unchanged from (11).
+
+### (13) f4f, after the lead's decision (option (b) + the `RdLO` third part): design worked out, first sites
+- **Rust check (asked by the lead)**: no preemption point or loop exit lies between `finalise_cap` of a final
+  ASID-pool cap and that slot's `empty_slot` (crates/fl4-core/src/cdt.rs): `objects::finalise_cap` returns
+  `(Null, Null)` for `Cap::AsidPool`; `cap_removable(Null)` is true, so `finalise_slot_immediate` /
+  `finalise_slot_deferred` return `Ok(success)` at once (the `preemption_point` and the `Err(Preempted)` fuel exit
+  are after the `cap_removable` return), and `delete` / `delete_deferred` call `empty_slot` next (`delete_one` is used
+  only on IRQ-slot notification caps). So the window is exactly finalise → empty of one slot.
+- **How (b) must be encoded (found while designing; not yet implemented)**. `JAtZ` has ~2250 occurrences, so the
+  exempt set cannot be a `JAtZ` / `JCarry` parameter. Workable encoding:
+  1. `XSets` gets a field `vx : Set U64` (the exempt slots; `Z.mv` keeps it; the one explicit `XSets` construction
+     is VsThX.lean:98). `JCarry.vsNamed : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)`: every non-loop site is
+     generic (it passes the implication through: `fun h => lemma (J.carry.vsNamed h)`; the JointAt helpers
+     `vsW` / `vsShr` / `vsSS` return the implication, so their call sites stay as they are), and a window `JAtZ` at
+     `{Z with vx := insert x Z.vx}` holds with the field vacuous. Stage 6 (the vsReach consumers) must pin
+     `Z.vx = ∅` in the carried entry predicate (top statements unchanged).
+  2. **The delete framework must separate the window from the other loop states** (DelW / DelFinStep / DelImm /
+     DelDelete / DelFull / DelEmpty, ~1800 lines, generic in `W`): today `FinPost` gives `W` after every
+     finalisation and `EmptyHypWR` takes `W`. If `W` (= `WJL`) allowed `vx ≠ Z.vx`, the next finalisation of a keyed
+     cap could not get `VsNamed` before (needed for its `Rd` part), and every loop step (zombie, swap, preemption,
+     the other kinds' finalisation) would have to keep a "VsNamed modulo E" — not provable generically. So: a
+     second predicate `Wx` (window) with `W → Wx`; `FinPost`'s `W r` becomes `(¬ RmOK r.1.1 x → W r) ∧ (RmOK → Wx r)`
+     (or `Wx r` throughout, `W` recovered on the non-removable branch), the success return of the finalise loops
+     carries `Wx`, and `EmptyHypWR` takes `Wx` + `Rd`. Every instantiation outside `WJL` takes `Wx := W`.
+     At `WJL`: `WJLx` = `WJL` with `WJR`'s `JAtZ` at `{(Z.mv G V) with vx := E}` for some `E`.
+  3. `RdLO` gets a third part `Rd3 s x := Z.vx = ∅ → VsPend th (L.mem s) (L.ksb s) x` (`VsNamed` over the slots
+     `≠ x`, plus `delSlot`'s `hgone` for `x`'s cap); new lemma `VsNamed.ofPend` (after `empty_slot` of `x`,
+     the other slots kept, walk words kept: `VsNamed`). Producers: every keyed finalise (XTopJointFinVs: PT / PD /
+     PDPT / PML4 by `shrink` + gone-facts that VsFin must export: `unmap_*_rel`'s `NoName*` and the analogues for
+     `delete_asid` / `delete_asid_pool`; non-final: `final_iff` + `FinInv.fm.key`), the unkeyed kinds trivially
+     (`VKey = none`, `VsNamed ⇒ VsPend`), `RdTrivHyp` (keyed caps are all `FinObjKind`).
+- **Sites closed in f4f (module build f4f-m2, SEED=A: BUILD 0, ERRORS 0; the only SORRY left in that closure is XTopJointFinVs 451/607)**: XTopJointWJL 126 (`zombieWD` takes `hxk : VKey old = none`,
+  from `hcd`/`hZF` at `jZombieHypL`; `vsShr` + `VsKeep.of_nokey`), XTopJointWJLSwap 172 (`vsShr` + `vsKeep_swap`).
+  New `Vs.vsKeep_copy` (VsKeyDefs; for TcbInstall).
+- **TcbInstall 323 plan (not done)**: `NewCapOK` (TcbCaps) gets a last conjunct
+  `Vs.VKey nc ≠ none → nc = capV mem0 (cslotAddr sl) ∧ ¬ Vs.TabUn nc`; producers: `newCapOK_self` (+ premise
+  `¬ TabUn`, from a new `vfh_not_tabUn hv` at its 13 callers), TcbCtl 1046 (CNode: unkeyed) / 1077 (PML4 from
+  `isValidVtableRoot`: mapped, `hv0` the source), TcbCtl 695 / ScTcb (frames: unkeyed), `NewCapOK.of_same`;
+  consumers binding `hnat⟩` (MRTcb 161 / 589, TcbInstall 1013, TcbSsp 627) bind one more name and pass it to the
+  install lemmas; `insTJ` gets `hkr` (keyed ⇒ the source's cap at a slot ≠ dest) and `hnt` (¬ TabUn), and the site
+  is `J.vsShr hX1 hw.1 (Vs.vsKeep_copy hcap (by rw [hnull]; rfl) hkr hnt) (ArchShr.of_objCn hkc archState)`.
+- Other open sites as in (11)/(12): XTopJointFinVs 607 and WJLEmpty 133 wait for 1–3 above; UtPmRet 799, UtEpRet,
+  UtDevRet, XTopJointMakePool 1074 (`makePoolS`: `hfresh` from `tabOff` on the retyped untyped region, the spec
+  table / kheap shapes from the MakePool rel) unchanged.
+
+### (14) f4g (seventh session): option (b) implemented (encoding of (13), one simplification); open sites
+- **Branch** `par/f4f-wip` (WIP commits on top of ca5034d6; temporary `sorry`s, grep `f4g WIP` / `f4e WIP`; not for par/f4).
+- **Encoding as built** (differences from (13) noted):
+  1. `XSets.vx : Set U64` (TopXAll; the two explicit constructions IpcXTop / VsThX's `xsetsOf` give `∅`);
+     `JCarry.vsNamed : Z.vx = ∅ → VsNamed …`; `JCarryS.withD/withP`, JointAt's `vsW/vsShr/vsSS`, XTopJointStep's
+     `vsKs` and every `cs_frame*` `hvn` take/return the implication (sites unchanged in pattern; the retype /
+     drop / `ofOpF` sites wrap `fun hvx => … (J.carry.vsNamed hvx)`). `XTopAt` and `JRest`/`JCs` are structures
+     over the whole `Z`, so `{Z with vx := E}` is *not* defeq to `Z` at those types: **`JAtZ.vxSet`**
+     (JAtZ at `{Z with vx := E}` given `E = ∅ → VsNamed`, rebuilding `xtop`/`carry`) and **`JAtZ.ofVx`**
+     (back, given `E = Z.vx`) do the moves; `vx0_ne : {0} ≠ ∅`.
+  2. Delete framework (DelW … DelFull): **`Wx` is a parameter only of `FinObjHypWRcZ`, `EmptyHypWR`,
+     `DelHypsWRZ` (+ field `wx : W → Wx`), `FinPost(Z)`, `DefPost`, `ImmPost` and the `*Z` loops**; the
+     finalisation's `W` became `WF W Wx rem x` (`¬ RmOK → W`, `RmOK → Wx`); the loop posts carry `WPost Wx Wp`
+     plus `W` when the slot is null / not to be emptied; `empty_stepWR'` takes `Wx` and `capV x = Null → W`.
+     The `W`-only bundles (`DelHypsWR`, `DelHypsW`) instantiate `Wx := W` (`toZ`, `WF.self`). Callers outside
+     the loop that carry a `DelHypsWRZ` generically (TcbSsp, MRTcb, TcbInstall: `TcbInsW(M).del`) carry
+     **`DelHypsWRZx` (`∃ Wx, DelHypsWRZ …`)** and use `delete_fullWRZx` (simplification: no new parameter
+     threaded through ~25 lemma signatures).
+  3. At `WJL`: `WJLx Z := ∃ E, WJL {Z with vx := E}`, `RdLX th H vx := RdLO ∧ (vx = ∅ → VsPend th m ksb x)`
+     (the readiness gets the third part as a separate abbrev rather than changing `RdLO`'s 24 uses).
+     `emptyHypJL : EmptyHypWR (WJL Z) (WJLx Z) (RdLX th H Z.vx)`: the window `JAtZ` is moved to exempt set
+     `{0}` (vacuous `vsNamed` through the edit) and back to `Z.vx` with **`Vs.VsNamed.ofPendShr`** (VsNamedPost:
+     `VsPend` before, the other slots kept, `ArchShr` (`of_objCn`), the relations at the old sets via
+     `vs_backC`). `finJLZ` lifts the per-kind posts (`FinPostL` → `FinPostLX`; `FinPostL.liftK` for unkeyed caps
+     by `VsPend.of_nokey`, `vkey_none_of_not_vsK`); `jFin_nonfinalLO` also returns `VsPend` (`VsPend.of_copy`,
+     `vkey_of_okey` from `other_key`); `rdTrivJLX`; `jFinAtL_vs` returns the window form directly (`wjl_keepX`).
+     MRDel's `.mrv` lemmas, `delHypsJLM`/`delHypsJLML`, `tcbInsW_wjl`, `tcbInsWM_wjl` follow.
+  4. VsNamedOps: **`VsPend`** (structure: `VsNamed` with slot `x` exempt), `VsNamed.pend` (as `down`, `x`'s walks
+     gone or named by another cap of its key), `pendSelf`, `VsPend.of_nokey`, `VsPend.of_copy`.
+  5. `JAtZ.finVsJb` / `finVsJ` (XTopJointFinVs) now return `∃ E, JAtZ {Z with vx := E} … ∧ (E = Z.vx ∨ pool)`
+     and `Z.vx = ∅ → VsPend … x`; the pool case builds the window `JAtZ` at `{0}` (`mk`). DelR's unused
+     `jFinAt_vs` was deleted (its pool case has no `JAtZ` at `Z`); `jFrMap_of`, `jFinAt_eptRoot` use `ofVx`.
+- **XTopJointFinVs closed (f4g, pending the module build)**: VsFin exports **`VsFinF st s s' c σ σ'`** as a
+  conjunct of the per-kind posts' `X` (**`FinXV`**; `vs_finV`, `vs_fin` derived by `FinOKX.mono`): frames
+  `ArchShr`; PT/PD/PDPT `ArchShr` + `NoName2/3/4` (kept from the unmap rels); PML4 / EPT root: zero writes +
+  ASID-table words kept + (mapped PML4) **`DaMem`** (VsDel: exported by `delete_asid_relR`'s five exits, `da_idx`,
+  `mem_wr_pool_tbl`); ASID pool: zero writes + **`DpMem`** (VsDel/VsDelPool: only the table word at the base
+  changes, and not to the pool). VsNamedPost: **`VsNamed.pendUnmap`**, **`VsNamed.shrinkZ`**,
+  **`VsNamed.pendDa`**, **`VsNamed.pendPool`** (+ `peA_al_sets`); `finVsJb` and `finVsJ` take a new premise
+  `hfinP` (an ASID pool cap is the only cap of its key: `jFinAtL_vs` derives it from `hfin` by `final_iff` +
+  `vkey_ovl`; the frame / EPT-root callers pass it vacuously).
+- **Also closed in f4g**: UtDevRet (frames only: `vsNamedRet` at `hXZ`'s old sets, new caps unkeyed).
+  Other fixes the `vx` field needed: `XSets.keep` (UtDropSets) carries `Z.vx`; `IRel.xtopMv` (XTopFinThread)
+  rebuilds `XTopAt` field-wise (a fresh `XSets` has `vx = ∅`); DelR's unused `jFinAt_vs` deleted.
+- **Module build f4g-m12** (mirror FL4-f4g, worktree `../FL4-f4g` detached at par/f4f-wip; 26 target modules
+  incl. all WJL/MR/Tcb deletion users, Ut*Ret, XTopFinVs, DelObjVs): **BUILD 0, ERRORS 0, SORRY 4**, jobs
+  6961/6962. No full build or axiom check yet.
+- **Open (exactly 4 temporary `sorry`s, grep `f4e WIP` / `f4g WIP`)**:
+  1. XTopJointTcbInstall 323 (`cs_frameV`'s `hvn`): plan as in (13) (`NewCapOK` conjunct
+     `VKey nc ≠ none → nc = src ∧ ¬ TabUn nc`, then `vsShr` + `vsKeep_copy`).
+  2. UtPmRet 799 (new PML4 caps): `VsNamed.stepShrGrow` with `hR'`/`hPt'` restricted from `hX4` to the old
+     sets (PtRel is four `∀ p ∈ Lk` fields), `hsh` = `of_specAdd` ∘ `of_objCn`, `hold` from `RetExp.keep`,
+     `hnew`: `newCapOf` PML4 caps are `Pml4 q false 0` (TabUn), keys distinct (window addresses; old keyed caps'
+     objects off the free region), user half not present (hX4's `PtRel.l4` at the fresh spec PML4).
+  3. UtEpRet ~1209 (PDPT/PD/PT retypes; temporary `sorry` as `withP`'s last argument): as 2 at levels 3/2/1.
+  4. XTopJointMakePool ~1110 (temporary `sorry` as `withP`'s last argument): `VsNamed.makePoolS`.
+
+## f4h (eighth session on par/f4; worktree `FL4-f4g`, branch `par/f4h-wip` from par/f4f-wip 25421eff) — F1 stage 5 item 4 DONE: the last four `sorry`s closed (`JCarry.vsNamed` carried everywhere)
+
+### (1) What closed each open site of f4 (14)
+1. **XTopJointTcbInstall (`insTJ`)**: `NewCapOK` (TcbCaps) has a last conjunct
+   `Vs.VKey nc ≠ none → nc = capV mem0 (cslotAddr sl) ∧ ¬ Vs.TabUn nc` (a keyed new cap is the source's cap,
+   not an unmapped table cap). Producers: `newCapOK_self` now takes the source's
+   `Fl4Spec.validFaultHandler (absCap …)` instead of `isFrame … = false` (all 13 callers had it: `hnf` was
+   `vfh_not_frame hv`; new `vfh_vkey`: a valid fault handler is unkeyed), the frame producers (TcbCtl, MRTcb,
+   MRTcbM, TcbInstall: unkeyed), TcbCtl's CNode root (unkeyed) and VSpace root (`isValidVtableRoot`: a mapped
+   PML4, the source's cap). `install_tcb_capJ`, `install_tcb_capJM`, `install_fhJ`, `install_fhJM` take
+   `hkr0 : VKey nc ≠ none → nc = srcC0 ∧ ¬ TabUn nc` (from `NewCapOK` in the `*_ok*` wrappers);
+   `JAtZ.insTJ` takes `hkr` (keyed after ⇒ another slot's cap before, not TabUn); the six `insTJ` sites
+   supply it (buffer frames: unkeyed). Site: `J.vsShr hX1 hw.1 (Vs.vsKeep_copy …) (ArchShr.of_objCn …)`.
+2. **UtPmRet / 3. UtEpRet**: new **`Vs.VsNamed.retypeGrow`** (VsNamedRet): `stepShrGrow` from a `RetExp`
+   whose new keyed caps are unmapped with empty tables after; their keys are window addresses
+   (`RetExp.cbase`), distinct from each other and, by `UtInv.noov` at the source untyped, from every old
+   keyed cap's object (a keyed cap is physical, non-untyped, so off the free part). Relations at the
+   *old* sets (`hXZ`, before `addPml4` / `addTab`); `hsh` = `of_specAdd` ∘ `of_objCn`. UtEpRet factors
+   the new tables' zero entries out of `addTab` (`hzT`).
+4. **XTopJointMakePool**: `VsNamed.makePoolS`. It needs the old ASID-table entry free and the pool cap's
+   base `= hi · 512`, which `MpMid` did not export: **`MpMid` / `MpMidB`** (VsMakePoolRel) gain
+   `(∀ b, capV dest = .AsidPool p b → b.val = hi.val * 512) ∧ σ1.table (ucast hi) = none ∧
+   σ'.table = update σ1.table (ucast hi) (some p)`; `mp_perform_relB` / `mp_perform_rel` take
+   `hfree : σ.table (ucast i) = none`, and the perform premise `hPf` of `makepool_relP` (and its copies in
+   VsDecFrame ×2, MpDirtyJ) gets that hypothesis, discharged by the decode's free-entry search (`hfi`).
+   `JAtZ.mpStepJ` takes `hbhi`, `hat0`, `hat` (both callers: decode_invocation_asid_controlJC, MpDirtyJ).
+
+### (2) Internal statement changes (no top changed, no premise added to a top)
+`NewCapOK` (+1 conjunct), `newCapOK_self` (premise `validFaultHandler` for `isFrame = false`),
+`install_tcb_capJ(M)`, `install_fhJ(M)` (+`hkr0`), `JAtZ.insTJ` (+`hkr`), `MpMid`, `MpMidB` (+3 conjuncts),
+`mp_perform_relB`, `mp_perform_rel` (+`hfree`), `makepool_relP`'s `hPf` and the `hPf`-shaped premises in
+VsDecFrame and MpDirtyJ (+ free-entry hypothesis), `JAtZ.mpStepJ` (+`hbhi`, `hat0`, `hat`).
+New: `Vs.VsNamed.retypeGrow`, `vfh_vkey`.
+
+### (3) Builds and axioms (afkprover, mirror FL4-f4g, SEED=A)
+- Module builds f4h-m1..m3 (three fix rounds: `vfh_*` order in TcbCtl, a `first` alternative order, a
+  `simp_all` recursion in UtEpRet replaced by a reverted `cases`), then **full build f4h-b1: BUILD 0,
+  ERRORS 0, SORRY 0 (7355 jobs)**; f4h-b2 = same tree + `AX=axf4g.lean`: green, and every name printed
+  depends only on `propext`, `Classical.choice`, `Quot.sound`: `Vs.VsNamed.ofPendShr`, `pendPool`,
+  `pendUnmap`, `pendDa`, `shrinkZ`, `stepShrGrow`, `makePoolS`, `retypeGrow`, `Vs.vsKeep_copy`,
+  `vfh_vkey`, `newCapOK_self`, `JAtZ.vxSet`, `JAtZ.ofVx`, `JAtZ.finVsJ`, `JAtZ.finVsJb`, `emptyHypJL`,
+  `JAtZ.insTJ`, `install_tcb_capJ`, `JAtZ.mpStepJ`, `decode_invocation_asid_controlJM`, `JAtZ.utPmJ`,
+  `JAtZ.utEpJ`, `Vs.mp_perform_rel`, `Vs.makepool_rel`, and the tops on this branch
+  `SInvR.G5.kernel_entry_reachU25` / `U21` / `U20` / `UH2` / `UH`. (`kernel_entry_reachU28` is not on
+  par/f4: it lives on the jc6e line, 5e8c4f67; nothing of item 4 is merged there yet.)
+- No new `maxHeartbeats` option; no top statement changed.
+
+### (4) What remains of F1 (stage 6)
+`JCarry.vsNamed` is now carried at every `JAtZ` (vacuous only inside the deletion loop's window, `Z.vx ≠ ∅`).
+Stage 6: the vsReach consumers (C24 drop premise `JAtZ.vsReachMiss` etc.) read it at kernel-entry `JAtZ`
+states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top statements unchanged), then the
+`[J]` premise it replaces is dropped from the next top.

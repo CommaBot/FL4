@@ -258,7 +258,7 @@ theorem JAtZ.vtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) ar
       J.vt_utc hW hSS hDbg, J.nsc, J.inv, J.cur, J.own, J.off, hAI, J.bsa, J.isorted, J.curRun, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb =>
     J.notDbg (fun p hp => hb.obj p .tcb hp (fun z h => by cases h)) hb.node
-  exact ⟨J.cs_frameK hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  exact ⟨J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.refl _)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
     hSS hKd F.idle, hSS, hkb⟩
 
 
@@ -313,7 +313,7 @@ theorem JAtZ.vheadJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨⟨Ac', Lst', J.cs_frameK hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
+  exact ⟨⟨Ac', Lst', J.cs_frameK (hvn := J.vsKs hw) hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
     hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl⟩, hSS, hw.1⟩
 
 /-- **`JAtZ` across writes of `VtOut` words and the VCPU list's head word**

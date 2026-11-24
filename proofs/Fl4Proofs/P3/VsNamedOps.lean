@@ -547,6 +547,75 @@ theorem VsNamed.makePool {P L4 L3 L2 L1 : Set U64} (hN : VsNamed th m ksb) (hS :
 
 end Ops
 
+/-! ## The deletion loop's window (KENTRY-PLAN f4 (13), f4g) -/
+
+/-- (f4g) **`VsNamed` but at the slot `x`**, which the deletion loop empties next: every walk
+node named by a slot other than `x`, and `uref` / `uun` / `empty` / `poolT` at the other
+slots. `VsNamed.ofPend`: once `x` is emptied (the other slots and the walk words kept),
+`VsNamed` holds. Produced at the finalisation (`VsNamed.pend`: a final cap's walk gone, or
+another cap of its key; `VsPend.of_nokey` for an unkeyed cap). -/
+structure VsPend (th : TypedHeap) (m : U64 → U64) (ksb : U64) (x : U64) : Prop where
+  named : ∀ k q a v, VsPath m ksb k q a v → ∃ y, IsSlot th y ∧ y ≠ x ∧ VRef (capV m y) k q a v
+  uref : ∀ y y', IsSlot th y → IsSlot th y' → y ≠ x → y' ≠ x → VKey (capV m y) = VKey (capV m y') →
+    VKey (capV m y) ≠ none → VRefOf (capV m y) = VRefOf (capV m y')
+  uun : ∀ y y', IsSlot th y → IsSlot th y' → y ≠ x → y' ≠ x → VKey (capV m y) = VKey (capV m y') →
+    TabUn (capV m y) → y = y'
+  empty : ∀ y, IsSlot th y → y ≠ x → TabUn (capV m y) → ∀ k q, VKey (capV m y) = some (k, q) →
+    ∀ i : U64, i.val < (if k = 4 then 256 else 512) → ¬ eP (m (peA q i))
+  poolT : ∀ y, IsSlot th y → y ≠ x → ∀ q b, capV m y = .AsidPool q b → ∀ hi : U64, hi.val * 512 = b.val →
+    m (atA ksb hi) = q
+
+section Pend
+variable {th : TypedHeap} {m m' : U64 → U64} {ksb : U64}
+
+/-- **(f4g) Walks removed, the slots kept, `x`'s walk gone or named by another cap of its key**:
+`VsPend` at `x` (as `VsNamed.down`, the slot `x` exempt). -/
+theorem VsNamed.pend (hN : VsNamed th m ksb) {x : U64}
+    (hc : ∀ y, IsSlot th y → capV m' y = capV m y)
+    (hT : ∀ hi : U64, hi.val < 2048 → m' (atA ksb hi) = m (atA ksb hi) ∨ m' (atA ksb hi) = 0#u64)
+    (hW : ∀ (k : Nat) (p : U64) (a v : Nat) (i : U64), VsPath m ksb k p a v → 2 ≤ k → k ≤ 5 → i.val < bnd k →
+      wstep k (m' (peA p i)) = wstep k (m (peA p i)) ∨ wstep k (m' (peA p i)) = none)
+    (hE : ∀ y, IsSlot th y → y ≠ x → TabUn (capV m y) → ∀ k q, VKey (capV m y) = some (k, q) →
+      ∀ i : U64, i.val < bnd k → ¬ eP (m' (peA q i)))
+    (hP : ∀ y, IsSlot th y → y ≠ x → ∀ q b, capV m y = .AsidPool q b → ∀ hi : U64, hi.val * 512 = b.val →
+      m' (atA ksb hi) = q)
+    (hgone : ∀ k q a v, VsPath m' ksb k q a v → VRef (capV m x) k q a v →
+      ∃ y1, IsSlot th y1 ∧ y1 ≠ x ∧ VKey (capV m y1) = VKey (capV m x)) :
+    VsPend th m' ksb x := by
+  refine ⟨fun k q a v h => ?_, fun y y' hy hy' _ _ hk hn => ?_, fun y y' hy hy' _ _ hk hu => ?_,
+    fun y hy hyx hu k q hk i hi => ?_, fun y hy hyx q b hb hi hib => ?_⟩
+  · obtain ⟨y, hy, hr⟩ := hN.named k q a v (VsPath.sub_down hT hW h)
+    by_cases e : y = x
+    · subst e
+      obtain ⟨y1, hy1, hne, hk1⟩ := hgone k q a v h hr
+      have hu := hN.uref y1 y hy1 hy hk1 (by rw [hk1, hr.1]; simp)
+      exact ⟨y1, hy1, hne, by rw [hc y1 hy1, hk1]; exact hr.1, by rw [hc y1 hy1, hu]; exact hr.2⟩
+    · exact ⟨y, hy, e, by rw [hc y hy]; exact hr⟩
+  · rw [hc y hy, hc y' hy'] at hk ⊢; rw [hc y hy] at hn; exact hN.uref y y' hy hy' hk hn
+  · rw [hc y hy, hc y' hy'] at hk; rw [hc y hy] at hu; exact hN.uun y y' hy hy' hk hu
+  · rw [hc y hy] at hu hk; exact hE y hy hyx hu k q hk i (by unfold bnd; exact hi)
+  · rw [hc y hy] at hb; exact hP y hy hyx q b hb hi hib
+
+/-- `VsPend` at the state itself, `x`'s walks named by another cap of its key. -/
+theorem VsNamed.pendSelf (hN : VsNamed th m ksb) {x : U64}
+    (hgone : ∀ k q a v, VsPath m ksb k q a v → VRef (capV m x) k q a v →
+      ∃ y1, IsSlot th y1 ∧ y1 ≠ x ∧ VKey (capV m y1) = VKey (capV m x)) :
+    VsPend th m ksb x :=
+  hN.pend (fun _ _ => rfl) (fun _ _ => .inl rfl) (fun _ _ _ _ _ _ _ _ _ => .inl rfl)
+    (fun y hy _ hu k q hk i hi => hN.empty y hy hu k q hk i (by unfold bnd at hi; exact hi))
+    (fun y hy _ => hN.poolT y hy) hgone
+
+/-- `VsPend` at an unkeyed slot. -/
+theorem VsPend.of_nokey (hN : VsNamed th m ksb) {x : U64} (hk : VKey (capV m x) = none) : VsPend th m ksb x :=
+  hN.pendSelf fun _ _ _ _ _ hr => absurd (hr.1.symm.trans hk) (by simp)
+
+/-- `VsPend` at a slot with another cap of its key (a non-final cap). -/
+theorem VsPend.of_copy (hN : VsNamed th m ksb) {x y1 : U64} (hy1 : IsSlot th y1) (hne : y1 ≠ x)
+    (hk : VKey (capV m y1) = VKey (capV m x)) : VsPend th m ksb x :=
+  hN.pendSelf fun _ _ _ _ _ _ => ⟨y1, hy1, hne, hk⟩
+
+end Pend
+
 /-! ## Site helpers -/
 
 section Help

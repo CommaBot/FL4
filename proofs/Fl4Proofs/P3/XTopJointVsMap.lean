@@ -432,7 +432,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
     (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s'))
-    (hgr : Z.L3 ⊆ L3' ∧ Z.L2 ⊆ L2' ∧ Z.L1 ⊆ L1') :
+    (hgr : Z.L3 ⊆ L3' ∧ Z.L2 ⊆ L2' ∧ Z.L1 ⊆ L1') (hvn : (Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s'))) :
     JAtZ (L := L) arI AR (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) H Cs Ac Lst D s' a' σ' := by
   set x := cslotAddr (pc.bv, idx) with hxdef
   have hkb : L.ksb s' = L.ksb s := hW.1
@@ -685,7 +685,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     · rw [hp] at h1; cases h1
   have hvy : VsTyp (L := L) (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) s' σ' :=
     J.carry.vsTyp.step hTT (tabSet_mono hgr.2.2 hgr.2.1 hgr.1) subset_rfl rfl hkb hAF
-  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
+  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) (hvn := hvn) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
     hvc ⟨fun y hy => by
       by_cases e : y = x
       · subst e; exact (J.ext.nat _ hy).of_vtF hvf
@@ -714,10 +714,10 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hvf : Vs.vtF (capV (L.mem s') (cslotAddr (pc.bv, idx))) = Vs.vtF (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
-    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) (hvn : (Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s'))) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' :=
   J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hok hnu hvf hl hvc
-    ⟨subset_rfl, subset_rfl, subset_rfl⟩
+    ⟨subset_rfl, subset_rfl, subset_rfl⟩ hvn
 
 end
 
@@ -788,7 +788,7 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPost (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G s ar σ s' a' σ') : JAt (L := L) arI AR s' a' σ' := by
-  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hTI, hSF, hLk, hsp, -⟩, hCR', hFI', hMO'⟩
+  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hTI, hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO'⟩
   · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
@@ -893,9 +893,22 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
           exact hw.okTab hTI
       exact (hLk.2 _ _ _ _ _ hok).toW
     · rw [hcap y hy e]; exact J1.vsc y hy
+  -- (F1 stage 5, item 4) `VsNamed` after, from the op's fact at `J` (`Vs.VsNamed.ofOpF`)
+  have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') := fun hvx => by
+    obtain ⟨hPl, ⟨-, -, hML, -, hMI⟩, hFI0, -⟩ := J.xtop.rel
+    have hR' : Vs.VsRel Z.P (L.mem s') (L.ksb s) σ' := by rw [← hks']; exact hX'.fin.2.1
+    have h := (J.carry.vsNamed hvx).ofOpF J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 J.xtop.fin.1.2.pt
+      hR' hX'.fin.2.2.1 hA.isSlot hcv0 hSF hOp (fun hf hk => by
+        have hk' : Vs.VKey c ≠ none := by rw [← hcv0]; exact hk
+        have hnz : NeedsFin c ∧ isZb c = false := by
+          cases c <;> first | exact absurd rfl hk' | exact ⟨Or.inl ⟨trivial, rfl⟩, rfl⟩
+        have hx0 : capV (L.mem s) (cslotAddr (pc.bv, idx)) ≠ .Null := fun e => hk (by rw [e]; rfl)
+        exact Vs.huq_of_finF hPl hML hMI hFI0 ((hML.members _).2 ⟨hA.isSlot, _, capAt_capV _ _, hx0⟩)
+          (by rw [hcv0]; exact hnz.1) (by rw [hcv0]; exact hnz.2) hf hk)
+    rw [hks']; exact h
   have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
-    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
+    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc hvn
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J'⟩
 
 

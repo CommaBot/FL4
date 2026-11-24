@@ -129,7 +129,8 @@ theorem delete_asid_rel {A : Type} {ar : machine.Arch A} {P : Set U64} {th : Typ
     vspace.delete_asid st ar s a asid root ⦃ r =>
       ¬ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).1 ∧
-        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SRV st th P SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ⦄ :=
+        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SRV st th P SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ∧
+          DaMem st asid root s r.1 ⦄ :=
   delete_asid_relR hH.toR s a σ hP hR hS asid root hr0
 
 /-- **`delete_asid_pool`** refines l4v `delete_asid_pool` (see VsDelPool),
@@ -142,7 +143,8 @@ theorem delete_asid_pool_rel {A : Type} {ar : machine.Arch A} {P : Set U64} {th 
     vspace.delete_asid_pool st ar s a base pool ⦃ r =>
       ¬ (Fl4Spec.deleteAsidPool (Z := Unit) base.bv pool.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.deleteAsidPool (Z := Unit) base.bv pool.bv σ).1 ∧
-        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SRV st th P SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ⦄ :=
+        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SRV st th P SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ∧
+          DpMem st base pool s r.1 ⦄ :=
   delete_asid_pool_relR hH.toR s a σ hP hR hS base pool hb hp0
 
 end

@@ -1220,6 +1220,7 @@ theorem decode_invocation_asid_controlXP (th : TypedHeap) (hP : Placed th) (s : 
       ∀ (pd : U64) (rd : Nat) (idxd : List Bool), th pd = some (.cnode rd) → idxd.length = rd →
       capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null → CnRef th (L.mem s) rc pd →
       ∀ (i base : U64), i.val < 2048 → base.val = i.val * 512 →
+      σ.archState.x64AsidTable (Fl4Spec.ucast 11 i.bv) = none →
       (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
         let i1 ← lift (sb &&& 63#u64)
@@ -1363,6 +1364,7 @@ theorem decode_invocation_asid_controlXG (th : TypedHeap) (hP : Placed th) (s : 
       ∀ (pd : U64) (rd : Nat) (idxd : List Bool), th pd = some (.cnode rd) → idxd.length = rd →
       capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null → CnRef th (L.mem s) rc pd →
       ∀ (i base : U64), i.val < 2048 → base.val = i.val * 512 →
+      σ.archState.x64AsidTable (Fl4Spec.ucast 11 i.bv) = none →
       (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
         let i1 ← lift (sb &&& 63#u64)
@@ -1382,14 +1384,14 @@ theorem decode_invocation_asid_controlXG (th : TypedHeap) (hP : Placed th) (s : 
     rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hRg⟩
     · exact Or.inl h
     refine Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, ?_⟩
-    intro p sb fi hsb hcap hnch pd rd idxd hpd hld hnull hCn i base hi hbase
+    intro p sb fi hsb hcap hnch pd rd idxd hpd hld hnull hCn i base hi hbase hfree
     obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR
     obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
     have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
     have huc : uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false := by
       subst hsb; exact eq_of_ok_eq (h5.symm.trans hcap)
     refine WP.spec_mono (mp_perform_rel (L := L) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP ct hcur.symm hkt
-      (hrun _ hkt) htcb hact h1 h2 hsb hcap hnch hpd hld hnull hi hbase (hRg p fi huc hnch).1 (hRg p fi huc hnch).2 hVO hPO
+      (hrun _ hkt) htcb hact h1 h2 hsb hcap hnch hpd hld hnull hi hbase hfree (hRg p fi huc hnch).1 (hRg p fi huc hnch).2 hVO hPO
       hPV hFI hMO.1.1 hCn) ?_
     rintro ⟨r1, r2, r3⟩ ⟨hok, har, σ', th', G', hm, hnf', hP', hSt', hSV', hM', hC', hI', hU', hR', hPt', hSRq, hF', -, -,
       hMSp, -, hcur', hth', hk', hscs, hRgp, hxu, hPI', hMid⟩

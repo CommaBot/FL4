@@ -242,6 +242,35 @@ theorem vsKeep_swap {th : TypedHeap} {s1 s2 : U64} (hs1 : IsSlot th s1) (hs2 : I
       · exact ⟨s1, hs1, by simp [e2]⟩
       · exact ⟨y, hy, by simp only [if_neg e, if_neg e2]⟩
 
+/-- (F1 stage 5) **A copy into an empty slot** (TCB install): every slot but
+`dest` kept, `dest` unkeyed before, and after either unkeyed or holding, not
+unmapped, the cap of another slot. -/
+theorem vsKeep_copy {th : TypedHeap} {dest : U64}
+    (hc : ∀ y, IsSlot th y → y ≠ dest → capV m' y = capV m y) (hd0 : VKey (capV m dest) = none)
+    (hr : VKey (capV m' dest) ≠ none → ∃ y0, IsSlot th y0 ∧ y0 ≠ dest ∧ capV m' dest = capV m y0)
+    (hu : ¬ TabUn (capV m' dest)) : VsKeep th th m m' := by
+  by_cases hk : VKey (capV m' dest) = none
+  · exact VsKeep.of_nokey (W := (· = dest)) (fun y hy h => hc y hy h) (fun y _ e => by rw [e]; exact hd0)
+      (fun y _ e => by rw [e]; exact hk)
+  · obtain ⟨y0, hy0, hne, he⟩ := hr hk
+    refine VsKeep.of_pre (fun y => if y = dest then y0 else y) (fun y hy => ?_) (fun y hy _ => ?_)
+      (fun y hy hk' => ?_) (fun y1 y2 hy1 hy2 hne' hu1 _ => ?_)
+    · split_ifs
+      · exact hy0
+      · exact hy
+    · by_cases e : y = dest
+      · rw [if_pos e, e]; exact he
+      · rw [if_neg e]; exact hc y hy e
+    · have hyd : y ≠ dest := by rintro rfl; exact hk' hd0
+      exact ⟨y, hy, by simp only [if_neg hyd]⟩
+    · have h1d : y1 ≠ dest := by rintro rfl; exact hu hu1
+      rw [if_neg h1d]
+      by_cases e : y2 = dest
+      · rw [if_pos e]
+        rintro rfl
+        exact hu (by rw [he, ← hc y1 hy1 h1d]; exact hu1)
+      · rw [if_neg e]; exact hne'
+
 end
 
 end

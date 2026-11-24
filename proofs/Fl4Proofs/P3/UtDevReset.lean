@@ -236,7 +236,9 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
     (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
     (fun y hy => LSim.of_shape (hshape y hy))
-  exact J.cs_frameD (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
+  exact J.cs_frameD (G' := Z.G) (hvn := J.vsShr (G' := Z.G) hX' hks (Vs.VsKeep.of_nokey (W := (· = x)) (fun y hy e => hco y hy e)
+      (fun y _ e => by subst e; rw [hcx]; rfl) (fun y _ e => by subst e; rw [hcap']; rfl))
+      (Vs.ArchShr.of_objCn hcn.2 (ostep_of_cnk hcn hkc).2.2)) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
     (fun hI => ⟨J.carry.devApart.setFi hks hI hxm hcx hcap' (fun y hy e => hco y ((hM.members y).1 hy).1 e) hHr,
       J.carry.devSep.frame hUF⟩) (DevSub.of_utFrom hUF) hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e)

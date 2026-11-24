@@ -25,6 +25,7 @@ changes CNodes. `T` grows by the window's TCBs `Wn`; the typed heap grows to
 * the untyped caps by `JAtZ.ret_utcT` (`head_off_childless`) and
   `UtCapP3.growI`; the sets and heap by `JAtZ.addSetsT`; `JCs.retype`.
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtCnRet
 import Fl4Proofs.P3.UtTcbRel
 import Fl4Proofs.P3.UtTcbXTop
@@ -1363,6 +1364,9 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     · exact ⟨ao', h, hv⟩
     · cases e
     · cases e
+  -- (F1 stage 5, item 4) `vsNamed` after: no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hXT.fin.2.1 hXT.fin.2.2.1 hks hE hM hM'
+    (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.VKey]) hA hcnk hkc
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G', T := Z.T ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hwT.1 hXT hCs hJR hKs'
     (fun t0 ht0 => by
@@ -1389,7 +1393,7 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
         rw [newKind_bits (show newKind nt.val us.val = some kd by rw [← h]; simp [newKind, hnt])]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hM' fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwT.1 (ArchFwd.of_ipcFr hfk))
-      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTBd.new _ _)))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTBd.new _ _)) hvnR)
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

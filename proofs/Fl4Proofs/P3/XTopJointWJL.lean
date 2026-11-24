@@ -82,7 +82,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null) (hz : capV (L.mem s') (cslotAddr sl) = .Zombie p zt n)
     (hal : CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)))
     (hoth : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
-    (hmS : MdbStep (L.mem s) G (L.mem s') G) :
+    (hmS : MdbStep (L.mem s) G (L.mem s') G) (hxk : Vs.VKey (capV (L.mem s) (cslotAddr sl)) = none) :
     ∃ V2 Ac' Lst', XTopAt (L := L) AR ((Z.mv G V).mv G (Z.mv G V).vs) s' a σ' ∧
       (∀ q ∈ D, DeadP (L := L) H s' q) ∧
       (LiveDN (L := L) Z.th H Cs G s' σ' → (∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D) →
@@ -123,7 +123,10 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) (fun y _ e _ => by rw [e, hz]; trivial) fun y _ e _ _ => by rw [e, hz]; trivial
   exact ⟨V, Ac', Lst', J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk, fun q hq => R.jcov.dead q hq,
-    fun hlv hzD => J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
+    fun hlv hzD => J.cs_frameB (hvn := J.vsShr (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hks
+      (Vs.VsKeep.of_nokey (W := (· = cslotAddr sl)) (fun y hy hn => hoth y hy hn) (fun y _ e => by rw [e]; exact hxk)
+        (fun y _ e => by rw [e, hz]; rfl))
+      (Vs.ArchShr.of_objCn hnk.2 (by have e := congrArg Fl4Spec.AbstractState.archState hnk.1; exact e))) hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb)))
     hlv hzD (J.carry.of_objCn hnk.2)
     (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J.ut (utKept_ins hoth fun p0 sb0 fi0 d0 h => by rw [hz] at h; cases h))
@@ -144,7 +147,11 @@ theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z
   set E : Set U64 := ZTcb (L := L) Z.th s ∪ {q | capV (L.mem s) (cslotAddr sl) = .Thread q} with hE
   have J0 := J.addDeadSet (E := E) (fun q hq => hq.elim (hL.ztcb q) (fun h => (hRz q h).1))
   obtain ⟨V2, Ac', Lst', hXb, hdead0, mk, hks, hns', hsg'⟩ :=
-    J0.zombieWD arI hns hsg hD1 hD2 hF hsc hA hxn hz hal hoth hmS
+    J0.zombieWD arI hns hsg hD1 hD2 hF hsc hA hxn hz hal hoth hmS (by
+      cases hzb : isZb (capV (L.mem s) (cslotAddr sl))
+      · rcases (hZF hzb).2 with ⟨q, hq⟩ | ⟨q, r, gs, g, hq⟩ <;> rw [hq] <;> rfl
+      · generalize capV (L.mem s) (cslotAddr sl) = c at hzb ⊢
+        cases c <;> first | rfl | simp [isZb] at hzb)
   have hdead : ∀ q ∈ E, DeadP (L := L) H s' q := fun q hq => hdead0 q (Or.inr hq)
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)))
   have hdk := J.slotFrame_dbgKeep hF

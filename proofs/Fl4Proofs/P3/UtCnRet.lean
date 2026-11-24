@@ -27,6 +27,7 @@ sets); the typed heap grows to `th'` (`ThX`). The fields after:
   CNodes in its CNode disjunct), put together by `JAtZ.add_frameT`
   (`thk_grow`, `thT_grow`, `DelBound.of_placed`, `IntLayout.grow`).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtCnAdd
 import Fl4Proofs.P3.UtRetLive
 open Aeneas Aeneas.Std Result
@@ -755,6 +756,9 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · cases e
     · refine Or.inr ⟨q, hq, hqo, ?_⟩
       have := newKind_bits hk; simp only [P1.HKind.bits] at this; omega
+  -- (F1 stage 5, item 4) `vsNamed` after: no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hX'.fin.2.1 hX'.fin.2.2.1 hks hE hM hM'
+    (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.VKey]) hA hcnk hkc
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G' }) rfl rfl hwI.1 hX' hCs hJR
     hKs' (fun t0 ht0 => J.thT t0 (thT_grow hThX hksk hn1 ht0)) (thk_grow hThX hksk J.thk)
     (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
@@ -763,7 +767,7 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hM' fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
-      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) hTN))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) hTN) hvnR)
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

@@ -25,6 +25,7 @@ and the global PML4), with free index 0.
   `ArchFitHyp`, `RegionUnrefJ` [J], `Z.c = 0`); UtEpJ's `create_noresetG`
   for P1's creation (no `H` object for untypeds, `newKind 0 = none`).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtScRet
 import Fl4Proofs.P3.UtRetLive
 open Aeneas Aeneas.Std Result
@@ -755,6 +756,9 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · cases e
     · cases e
     · rw [hK0] at hk; cases hk
+  -- (F1 stage 5, item 4) `vsNamed` after: no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hX'.fin.2.1 hX'.fin.2.2.1 hks hE hM hX'.rel.2.1.2.2.1
+    (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.VKey]) hA hcnk hkc
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
     ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
@@ -762,7 +766,7 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
-      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTB.new _ _)))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTB.new _ _)) hvnR)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

@@ -26,6 +26,7 @@ UtDropJ2's `JAtZ.dropA` with the source's RAM facts (`JAtZ.utc`, `SpecFree`,
 
 * `JAtZ.dropAD`: the result (`JAtZ.dropA` for a device cap).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtDevUt
 import Fl4Proofs.P3.UtResetTopJ
 open Aeneas Aeneas.Std Result
@@ -225,7 +226,8 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (J.carry.devTab.frame (devSub_of_eq fun _ _ => rfl) fun o ao ho hv => by
         by_cases hr : RgOf p sb o
         · rw [hD.kin o hr] at ho; cases ho
-        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)⟩
+        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)
+      (fun hvx => J.vsNamedDrop (J.carry.vsNamed hvx) hN hns)⟩
 
 end
 

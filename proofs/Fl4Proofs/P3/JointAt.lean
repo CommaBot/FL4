@@ -335,6 +335,9 @@ def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Un
 
 /-! ## Projections -/
 
+/-- A nonempty exempt set (the deletion loop's window, KENTRY-PLAN f4 (13)). -/
+theorem vx0_ne : ({0#u64} : Set U64) ≠ ∅ := Set.singleton_ne_empty _
+
 namespace JAtZ
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -740,6 +743,43 @@ theorem not_ztcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx
 theorem zDX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' := fun p hp => hDD p (ZTcb.of_same hSS hp)
+
+/-- (F1 stage 5, item 4) **`vsNamed` across a step writing `OObj` words** (`XTopAt.vsNamed_of`). -/
+theorem vsW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  fun h => J.xtop.vsNamed_of (J.carry.vsNamed h) J.vsc hw hWO
+
+/-- (F1 stage 5, item 4) **`vsNamed` across a step with `VsKeep` and `ArchShr`**, `XTopAt` after at
+`Z`'s VSpace sets (`XTopAt.vsNamedShr`). -/
+theorem vsShr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    {th' : TypedHeap} (hK : Vs.VsKeep Z.th th' (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed th' (L.mem s') (L.ksb s') :=
+  fun h => J.xtop.vsNamedShr hX (J.carry.vsNamed h) J.vsc hks hK hsh
+
+/-- `vsShr` with the slots kept. -/
+theorem vsSS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  J.vsShr hX hks (Vs.VsKeep.of_eq fun y hy => hSS.capV hy) hsh
+
+/-- (F1 stage 5, item 4; KENTRY-PLAN f4 (13)) **`JAtZ` at another exempt set**: only
+`JCarry.vsNamed` reads `Z.vx`, so `JAtZ` moves to `{Z with vx := E}` given `VsNamed` when `E = ∅`
+(vacuous for `E ≠ ∅`: the deletion loop's window after a final ASID pool cap's finalisation). -/
+theorem vxSet (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+    (hN : E = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)) :
+    JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ :=
+  have hX : XTopAt (L := L) AR { Z with vx := E } s a σ := ⟨J.xtop.fin, J.xtop.rel, J.xtop.ipc, J.xtop.esa⟩
+  have hC : JCarry (L := L) { Z with vx := E } H Cs s σ :=
+    ⟨J.carry.bufPg, J.carry.archFit, J.carry.devApart, J.carry.devSep, J.carry.vsTyp, J.carry.devTab, hN⟩
+  { J with xtop := hX, carry := hC }
+
+/-- `JAtZ` at `{Z with vx := E}` for `E = Z.vx` is `JAtZ` at `Z`. -/
+theorem ofVx {E : Set U64} (J : JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ) (h : E = Z.vx) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ := by
+  subst h; exact J
 
 end JAtZ
 

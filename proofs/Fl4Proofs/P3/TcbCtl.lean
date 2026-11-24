@@ -74,11 +74,20 @@ theorem XcRel.get {th : TypedHeap} {mem : U64 → U64} {x0 x1 x2 : U64} {excaps 
     by_contra hc; exact hne (h1.2 (by omega))
   exact ⟨excaps[i], List.getElem?_eq_getElem hl, h2 _ (List.getElem?_eq_getElem hl)⟩
 
+/-- A valid fault handler is no frame cap. -/
+theorem vfh_not_frame {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) : isFrame c = false := by
+  cases c <;> simp_all [isFrame, absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
+
+/-- (F1 stage 5) A valid fault handler's cap is unkeyed. -/
+theorem vfh_vkey {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) : Vs.VKey c = none := by
+  cases c <;> simp_all [Vs.VKey, absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
+
 /-- A slot's own cap, as the new cap of an install from that slot. -/
 theorem newCapOK_self {th : TypedHeap} {mem : U64 → U64} {σ : Fl4Spec.State Unit} (hR : StateRel th mem σ)
     (hV : SlotsValid th mem) {sl : Fl4Spec.CslotPtr} {ps : U64} (hps : th ps = some (.cnode sl.2.length))
-    (h1 : sl.1 = ps.bv) (hnf : isFrame (capV mem (cslotAddr sl)) = false) :
+    (h1 : sl.1 = ps.bv) (hv : Fl4Spec.validFaultHandler (absCap (capV mem (cslotAddr sl)))) :
     NewCapOK th mem (capV mem (cslotAddr sl)) sl := by
+  have hnf := vfh_not_frame hv
   obtain ⟨cs, hk, hwf, hs⟩ := hR.cnode ps _ hps
   obtain ⟨c, a, hc, -, hrel⟩ := hs sl.2 rfl
   have hc' : capAt mem (cslotAddr sl) = ok c := by
@@ -88,7 +97,7 @@ theorem newCapOK_self {th : TypedHeap} {mem : U64 → U64} {σ : Fl4Spec.State U
   have hA : AbsSlot th sl := ⟨ps, h1, Or.inl hps⟩
   refine ⟨ps, _, hps, h1, rfl, ?_, hV.abs hA (capAt_capV _ _), decode_encWf (w0 := mem (cslotAddr sl))
     (w1 := mem (core.num.U64.wrapping_add (cslotAddr sl) 8#u64)) ?_, (fun h => by rw [hnf] at h; cases h),
-    rfl, Or.inl rfl, rfl, fun _ _ _ _ _ h => h, id, id⟩
+    rfl, Or.inl rfl, rfl, fun _ _ _ _ _ h => h, id, id, fun hk => absurd (vfh_vkey hv) hk⟩
   · rw [e]; exact hrel.1
   · have := capAt_capV mem (cslotAddr sl); unfold capAt at this; exact this
 
@@ -232,11 +241,6 @@ theorem vfh_ep {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) :
     c ≠ .Null → ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4 := by
   intro hn
   cases c <;> simp_all [absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
-
-/-- A valid fault handler is no frame cap. -/
-theorem vfh_not_frame {c : capability.Cap} (h : Fl4Spec.validFaultHandler (absCap c)) : isFrame c = false := by
-  cases c <;> simp_all [isFrame, absCap, Fl4Spec.validFaultHandler, Fl4Spec.isEpCap]
-
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
@@ -395,7 +399,7 @@ theorem tcb_set_timeout_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → F
       (fun _ => by
         show NewCapOK th (L.mem s1) (capV (L.mem s) x0) e.2
         rw [← hc1, hxe]
-        exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe, hc1]; exact hnf))
+        exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe, hc1]; exact hv))
       (fun h => (Eq.mp flags_T.2.2.1 h).elim) (fun h => (Eq.mp flags_T.2.2.1 h).elim) 0#u64 0
       (fun h => (Eq.mp flags_T.2.2.2 h).elim) .Null none (fun _ _ h => by cases h)
     simp only [cslot_zero, ← hxe] at hT'
@@ -693,13 +697,14 @@ theorem tcb_set_ipc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Sp
         obtain ⟨rfl, m0, ep0, a0, va0, hc0⟩ := derive_frame_inv (fun h => ⟨_, hnc e2 ⟨ps, hps1, Or.inl hps⟩ rfl h⟩) hr
         have hcvc : CapValid th (capability.Cap.Frame q sz rr false m false aa va) := hcv' th hcv0
         have hok : NewCapOK th (L.mem s1) (.Frame q sz rr false m false aa va) e2 := by
-          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_⟩
+          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
           · rw [hc1, hc0]; rfl
           · rw [hc1, hc0]; exact Or.inl rfl
           · rw [hc1, hc0]; rfl
           · rw [hc1]; exact derive_vcap hr
           · exact fun h => False.elim h
           · exact fun _ => by simp [Vs.NativeCap]
+          · exact fun h => absurd rfl h
         have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetIpcBuffer (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)).run σ =
@@ -1046,7 +1051,7 @@ theorem roots_rel (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State 
         have hokc : NewCapOK th (L.mem s) c' ec.2 := by
           obtain ⟨q, r, gs, g, rfl⟩ := cnode_of_abs hcn'
           obtain ⟨gs0, g0, hc0⟩ := hcn _ _ _ _ rfl
-          refine ⟨psc, _, hpsc, hpsc1, rfl, hw', hcv' th hvc, he', fun h => (by cases h), ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+          refine ⟨psc, _, hpsc, hpsc1, rfl, hw', hcv' th hvc, he', fun h => (by cases h), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
             rw [hc0]
           · rfl
           · exact Or.inl rfl
@@ -1054,6 +1059,7 @@ theorem roots_rel (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State 
           · exact fun _ _ _ _ _ _ => trivial
           · exact fun h => False.elim h
           · exact fun _ => trivial
+          · exact fun h => absurd rfl h
         cases rv with
         | Err e =>
           cases rv' with
@@ -1077,12 +1083,13 @@ theorem roots_rel (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State 
               have hokv : NewCapOK th (L.mem s) v' ev.2 := by
                 obtain ⟨q, aa, rfl⟩ := pml4_of_abs hvr
                 have hv0 := hpm _ _ _ rfl
-                refine ⟨psv, _, hpsv, hpsv1, rfl, hwv', hcvv' th hvv, hev', fun h => (by cases h), ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+                refine ⟨psv, _, hpsv, hpsv1, rfl, hwv', hcvv' th hvv, hev', fun h => (by cases h), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
                   rw [hv0]
                 · exact Or.inl rfl
                 · exact fun _ _ _ _ _ h => h
                 · exact fun h => absurd h (by simp [Vs.TabUn])
                 · exact id
+                · exact fun _ => ⟨rfl, by simp [Vs.TabUn]⟩
               exact ⟨_, rfl, Or.inl ⟨c', v', rfl, hcv, hokc, hokv⟩⟩
             · simp only [hvr, decide_false, Bool.false_eq_true, ↓reduceIte, error.illegal] at hcv ⊢
               exact ⟨_, rfl, Or.inr ⟨_, .illegalOperation, rfl, by rw [hcv]; exact ill _, Or.inl trivial⟩⟩
@@ -1284,7 +1291,7 @@ theorem tcb_set_space_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
         (fun _ => by
           show NewCapOK th (L.mem s1) (capV (L.mem s) x0) e0.2
           rw [← hc1, hxe0]
-          exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps0 hps01 (by rw [← hxe0, hc1]; exact vfh_not_frame hv))
+          exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps0 hps01 (by rw [← hxe0, hc1]; exact hv))
         (fun h => (Eq.mp flags_SF.2.1 h).elim) (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1)
         0#u64 0 (fun h => (Eq.mp flags_SF.2.2.2 h).elim) .Null none (fun _ _ h => by cases h)
       simp only [cslot_zero, ← hxe0, bufArg] at hT'
@@ -1436,8 +1443,8 @@ theorem buf_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost
           exact ⟨⟨q, sz, rr, m, aa, va, rfl⟩, Vs.check_valid_ipc_buffer_al hrc'⟩
         · intro c sl h
           cases h
-          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-            rw [hc0e] <;> first | rfl | exact Or.inl rfl | exact derive_vcap hr | exact fun h => False.elim h | exact fun _ => by simp [Vs.NativeCap]
+          refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+            rw [hc0e] <;> first | rfl | exact Or.inl rfl | exact derive_vcap hr | exact fun h => False.elim h | exact fun h => absurd rfl h | exact fun _ => by simp [Vs.NativeCap]
       · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
           core.convert.FromSame.from, bind_tc_ok, bind_ok]
         exact ⟨_, rfl, Or.inr ⟨er, er', rfl, (run_bind_ok hr' _).trans (run_bind_error hck _), ErrRel.of_map hmer⟩⟩
