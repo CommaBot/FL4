@@ -2302,7 +2302,7 @@ theorem runTmoP_recv (Z0 : XSets) (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     RunTmoP (L := L) arI AR Z0 (fun xe => ¬ Endp.CanBlock false xe) :=
-  fun _ _ _ _ _ _ _ a _ hth J hcr _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hthd hcb ts hrun hts v hv hB =>
+  fun _ _ _ _ _ _ _ a _ hth J _ hcr _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hthd hcb ts hrun hts v hv hB =>
     JAtZ.runTmoRecvJ hAT hmax (htu a) hcr J ht htD hk hrs htc
       hsc hxsc hky hya hthd hcb ts hrun hts v hv hB
 end
