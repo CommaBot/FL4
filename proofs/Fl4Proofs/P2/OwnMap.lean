@@ -21,12 +21,30 @@ state base, the number of cores, and the set of capability slots. In order:
      `IPC_BUFFER`, `DEBUG_NEXT` / `DEBUG_PREV`, `VCPU`.
    * Timer fields `TIMER_DEADLINE` … `TIMER_HEIGHT`: armed (deadline ≠ 0), the
      core of its tree, `TIMER_HEIGHT >> 8`; disarmed, the home core.
-   * Blocked on an endpoint or notification (`STATE` ∈ {3, 4, 6}): `STATE`,
-     `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS`, `REPLY_OBJ`, `EP_NEXT`,
-     `EP_PREV`, `IN_QUEUES` are `lock <BLOCK_OBJ>`'s.
-   * Blocked on reply (`STATE` = 5): `STATE`, `REPLY_OBJ`, the fault and
-     lookup-fault words, `IN_QUEUES` are `lock <REPLY_OBJ>`'s.
-   * Everything else of the TCB: the home core's.
+   * The queue links `EP_NEXT`, `EP_PREV` of a thread queued on a receive queue
+     or a notification (`STATE` ∈ {3, 6}): `lock <BLOCK_OBJ>`'s; otherwise the
+     home core's. State 4 (blocked on send) is not in the list: no local path
+     dequeues from or appends to a send queue (`fault` takes an endpoint in
+     `EP_RECV` only, ReplyRecv one in `EP_IDLE` only, the timer interrupt's
+     `cancel_ipc` runs on a thread in `Recv` only), so beside the gate a
+     sender's links are only its home core's.
+   * Everything else of the TCB: the home core's, whatever the state: `STATE`,
+     `BLOCK_OBJ`, `BLOCK_BADGE`, `BLOCK_FLAGS` of a queued thread too (no local
+     path writes them of another core's thread, and an accepted one reads them
+     only of its own core's: the queue's owner needs only the links), always
+     `REPLY_OBJ`, the fault and lookup-fault words and `IN_QUEUES`. So the timer
+     interrupt reads its timer's thread's `STATE` as its own word, whichever
+     object that thread may be blocked on. An accepted local path writes or relies on these words only of
+     threads of its own core: `fault`/`vm_fault` of the current thread `t`, and
+     of `dest` after `schedulable_here(dest)`; ReplyRecv of `t`, and of the
+     replied thread `u` after `schedulable_here(u)`; the timer interrupt of the
+     current thread and of threads `may_run_here` accepts, or the timer's thread
+     `tm` (its `affinity` checked); `TCB_SetTimer` and I/O ports of the caller.
+     A path reading them of another core's thread (`dest.REPLY_OBJ`, `u.STATE`,
+     `u.FAULT_TYPE`, before the check) declines on the thread's (gate-owned)
+     `AFFINITY`. A reply object's lock therefore owns no TCB word: `fault` writes
+     `STATE := 5` before `REPLY_OBJ`, which under a lock-of-`REPLY_OBJ` rule
+     moved the group to the stale reply object for one write.
 4. **Endpoints, reply objects**: `lock <object>`. **Notifications**: bound
    (`BOUND_TCB` ≠ 0), the bound thread's home core (only that core's timer
    path signals it beside the gate); unbound, `lock <object>`; `BOUND_TCB`
@@ -114,11 +132,8 @@ def oVCPU : U64 := 3664#u64
 
 def oREPLY_OBJ : U64 := 3360#u64
 
-/-- Blocked on an endpoint (receive or send) or a notification. -/
-def QueuedState (v : U64) : Prop := v.val = 3 ∨ v.val = 4 ∨ v.val = 6
-
-/-- Blocked on reply. -/
-def ReplyState (v : U64) : Prop := v.val = 5
+/-- Queued on an endpoint's receive queue or a notification. -/
+def QueuedState (v : U64) : Prop := v.val = 3 ∨ v.val = 6
 
 /-- TCB words only the gate writes: `AFFINITY`, `DOMAIN`, `MCP`, `PRIO`, `SC`,
 `BOUND_NTFN`, `IPC_BUFFER`, `DEBUG_NEXT` / `DEBUG_PREV`, `VCPU`. -/
@@ -129,16 +144,13 @@ def GateField (o : Nat) : Prop :=
 /-- The timer fields `TIMER_DEADLINE` … `TIMER_HEIGHT`. -/
 def TimerField (o : Nat) : Prop := 3528 ≤ o ∧ o ≤ 3568
 
-/-- The words `STATE` decides: `STATE`, `BLOCK_OBJ` / `BADGE` / `FLAGS`,
-`REPLY_OBJ`, the fault and lookup-fault words, `EP_NEXT` / `EP_PREV`,
-`IN_QUEUES`. -/
-def GField (o : Nat) : Prop :=
-  o = 3328 ∨ o = 3336 ∨ o = 3344 ∨ o = 3352 ∨ o = 3360 ∨ (3376 ≤ o ∧ o ≤ 3424) ∨ o = 3496 ∨
-    o = 3504 ∨ o = 3592
+/-- The words `STATE` and `BLOCK_OBJ` decide: the queue links `EP_NEXT` /
+`EP_PREV`. -/
+def GField (o : Nat) : Prop := o = 3496 ∨ o = 3504
 
-/-- The owner of the `STATE` group. -/
-def gOwner (st bo ro : U64) (home : Owner U64 U64) : Owner U64 U64 :=
-  if QueuedState st then .lock bo else if ReplyState st then .lock ro else home
+/-- The owner of the queue links. -/
+def gOwner (st bo : U64) (home : Owner U64 U64) : Owner U64 U64 :=
+  if QueuedState st then .lock bo else home
 
 /-- The owner of the timer group. -/
 def tOwner (dl ht : U64) (home : Owner U64 U64) : Owner U64 U64 :=
@@ -150,8 +162,7 @@ def tcbOwner (m : U64 → U64) (t : U64) (o : Nat) : Owner U64 U64 :=
   else if TimerField o then
     tOwner (m (fld t oTIMER_DEADLINE)) (m (fld t oTIMER_HEIGHT)) (.core (m (fld t oAFFINITY)))
   else if GField o then
-    gOwner (m (fld t oSTATE)) (m (fld t oBLOCK_OBJ)) (m (fld t oREPLY_OBJ))
-      (.core (m (fld t oAFFINITY)))
+    gOwner (m (fld t oSTATE)) (m (fld t oBLOCK_OBJ)) (.core (m (fld t oAFFINITY)))
   else .core (m (fld t oAFFINITY))
 
 /-- A slot word's tag: Null (0) or Frame (13). -/
@@ -210,25 +221,31 @@ def GateOnlyK (K : KLayout) (m : U64 → U64) (x : U64) : Prop := PathObl.GateOn
 
 /-! ## Value classes -/
 
-/-- The class of a CNode slot's `CAP0` (Null/Frame lumped together) and of a
-TCB's `STATE` (Recv, RunningVM, other); every other word is its own class. -/
+/-- The class of a CNode slot's `CAP0` (Null/Frame lumped together), of a
+TCB's `STATE` (Recv, RunningVM, other) and `TIMER_DEADLINE` (zero, nonzero);
+every other word is its own class. -/
 def cls (K : KLayout) (b v : U64) : U64 :=
   match region K b with
   | .slot p => if b = p ∧ ¬ TcbSlot K p ∧ NullOrFrame v then 0#u64 else v
   | .tcb t => if b.val - t.val = 3328 then
-      (if v.val = 3 then 3#u64 else if v.val = 8 then 8#u64 else 0#u64) else v
+      (if v.val = 3 then 3#u64 else if v.val = 8 then 8#u64 else 0#u64)
+    else if b.val - t.val = 3528 then (if v.val = 0 then 0#u64 else 1#u64) else v
   | _ => v
 
 /-- Who may change a word's class beside the gate: a CNode slot's `CAP0`, the
-gate (localinv keeps it Null/Frame); a TCB's `STATE`, the thread's home core;
+gate (localinv keeps it Null/Frame); a TCB's `STATE` and whether its timer is
+armed (`TIMER_DEADLINE`), the thread's home core (a timer fires beside the gate
+only on a core that is both its thread's home and its tree's, and `TCB_SetTimer`
+needs its target homed there; another core's tree operations write links only);
 everything else, untracked. -/
 def ko (K : KLayout) (m : U64 → U64) (b : U64) : Serial.ClsOwner U64 :=
   match region K b with
   | .slot p => if b = p ∧ ¬ TcbSlot K p then .gate else .free
-  | .tcb t => if b.val - t.val = 3328 then .core (m (fld t oAFFINITY)) else .free
+  | .tcb t => if b.val - t.val = 3328 ∨ b.val - t.val = 3528 then .core (m (fld t oAFFINITY))
+    else .free
   | _ => .free
 
-/-! ## `Deciders` -/
+/-! ## Where the deciding words lie -/
 
 /-- **Layout facts** [J] (from P1's typed-heap disjointness, `HeapOK`, with the
 nodes and capability slots disjoint from the objects and from each other, TCB
@@ -261,123 +278,133 @@ theorem own_tcb_at {K : KLayout} (hK : RegionOK K) {t off : U64} (ht : K.heap t 
   obtain ⟨hr, ho⟩ := hK.tcb t ht off hoff
   simp only [own, hr, ho]
 
-/-- **`Deciders` for the ownership map**, from the layout facts. -/
-theorem deciders {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.Deciders (own K) := by
-  intro m b v x hx
+/-- A TCB's `AFFINITY` word is the gate's. -/
+theorem own_aff_gate {K : KLayout} (hK : RegionOK K) {t : U64} (ht : K.heap t = some .tcb)
+    (m : U64 → U64) : own K m (fld t oAFFINITY) = .gate := by
+  rw [own_tcb_at hK ht (Or.inl rfl), oAFF_val]
+  simp [tcbOwner, GateField]
+
+/-- A TCB's `STATE` and `BLOCK_OBJ` are its home core's. -/
+theorem own_state_home {K : KLayout} (hK : RegionOK K) {t off : U64} (ht : K.heap t = some .tcb)
+    (hoff : off = oSTATE ∨ off = oBLOCK_OBJ) (m : U64 → U64) :
+    own K m (fld t off) = .core (m (fld t oAFFINITY)) := by
+  have hv : off.val = 3328 ∨ off.val = 3336 := by
+    rcases hoff with h | h <;> subst h
+    · exact Or.inl oSTATE_val
+    · exact Or.inr oBOBJ_val
+  rw [own_tcb_at hK ht (by rcases hoff with h | h <;> simp [h])]
+  have h1 : ¬ GateField off.val := by simp only [GateField]; omega
+  have h2 : ¬ TimerField off.val := by simp only [TimerField]; omega
+  have h3 : ¬ GField off.val := by simp only [GField]; omega
+  simp only [tcbOwner, if_neg h1, if_neg h2, if_neg h3]
+
+/-- `TIMER_DEADLINE` and `TIMER_HEIGHT` have the timer group's owner. -/
+theorem own_timer_at {K : KLayout} (hK : RegionOK K) {t off : U64} (ht : K.heap t = some .tcb)
+    (hoff : off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT) (m : U64 → U64) {o : Nat}
+    (hG : ¬ GateField o) (hT : TimerField o) : own K m (fld t off) = tcbOwner m t o := by
+  have hv : off.val = 3528 ∨ off.val = 3568 := by
+    rcases hoff with h | h <;> subst h
+    · exact Or.inl oDL_val
+    · exact Or.inr oHT_val
+  rw [own_tcb_at hK ht (by rcases hoff with h | h <;> simp [h])]
+  have h1 : ¬ GateField off.val := by simp only [GateField]; omega
+  have h2 : TimerField off.val := by simp only [TimerField]; omega
+  simp only [tcbOwner, if_neg hG, if_pos hT, if_neg h1, if_pos h2]
+
+/-! ## `MoveHeld` -/
+
+/-- **`MoveHeld` for the ownership map**, from the layout facts: a word that
+decides another's owner is the gate's, or whoever holds it may read the words
+that decide with it. -/
+theorem moveHeld {K : KLayout} (hK : RegionOK K) : Fl4Proofs.P2.Serial.MoveHeld (own K) := by
+  intro c hs m m' a v x ha hag hx
+  have hna : ∀ {y}, own K m y = .gate → y ≠ a := by
+    rintro y hy rfl
+    rw [hy] at ha; exact ha
+  have hgate : ∀ {y}, own K m y = .gate → m' y = m y := fun hy => hag _ (Or.inr hy)
+  have haa : m' a = m a := hag a (Or.inl ha)
+  have hupd : ∀ {y}, m' y = m y → Function.update m' a v y = Function.update m a v y := by
+    intro y hy
+    by_cases hya : y = a
+    · subst hya; simp only [Function.update_self]
+    · rw [Function.update_of_ne hya, Function.update_of_ne hya, hy]
   cases hR : region K x with
   | node c => simp only [own, hR] at hx; exact absurd rfl hx
   | obj p => simp only [own, hR] at hx; exact absurd rfl hx
   | none => simp only [own, hR] at hx; exact absurd rfl hx
   | slot p =>
-    simp only [own, hR] at hx
-    have hbp : b = p := by
+    simp only [own, hR] at hx ⊢
+    have hap : a = p := by
       by_contra hne
       apply hx
       simp only [slotOwner, Function.update_of_ne (Ne.symm hne)]
-    subst hbp
-    left
-    have hp := hK.slot b (hK.slotOf b x hR)
-    simp only [own, hR, hp, Nat.sub_self]
-    by_cases ho : 16 ≤ x.val - b.val
-    · exfalso; apply hx; simp only [slotOwner, if_pos ho]
-    · simp only [slotOwner, if_neg ho, if_neg (by omega : ¬ 16 ≤ 0)]
+    subst hap
+    simp only [slotOwner, haa, hupd haa, true_and]
   | sc p =>
-    simp only [own, hR] at hx
+    simp only [own, hR] at hx ⊢
     obtain ⟨h16, h16v⟩ := hK.scw p x hR
-    by_cases hxp : x.val = p.val + 16
-    · simp only [if_pos hxp] at hx; exact absurd rfl hx
-    · simp only [if_neg hxp] at hx
-      have hb : b = fld p 16#u64 := by
-        by_contra hne
-        apply hx
-        rw [Function.update_of_ne (Ne.symm hne)]
-      subst hb
-      right
-      simp only [own, h16, if_pos h16v]
+    have hg : own K m (fld p 16#u64) = .gate := by simp only [own, h16, if_pos h16v]
+    simp only [hgate hg, hupd (hgate hg), true_and]
   | ntfn p =>
+    exfalso
     simp only [own, hR] at hx
     have hpn := hK.ntfnOf p x hR
     obtain ⟨h24, h24v⟩ := hK.ntfn p hpn
-    by_cases hb24 : b = fld p 24#u64
-    · subst hb24; right; simp only [own, h24, h24v, ntfnOwner]; exact if_pos trivial
-    · simp only [ntfnOwner, Function.update_of_ne (Ne.symm hb24)] at hx
-      by_cases ho : x.val - p.val = 24
-      · simp only [if_pos ho] at hx; exact absurd rfl hx
-      · simp only [if_neg ho] at hx
-        by_cases hB : K.heap (m (fld p 24#u64)) = some .tcb
-        · simp only [if_pos hB] at hx
-          have hb : b = fld (m (fld p 24#u64)) oAFFINITY := by
-            by_contra hne
-            apply hx
-            rw [Function.update_of_ne (Ne.symm hne)]
-          subst hb
-          right
-          rw [own_tcb_at hK hB (Or.inl rfl), oAFF_val]
-          simp [tcbOwner, GateField]
-        · simp only [if_neg hB] at hx; exact absurd rfl hx
+    have hg : own K m (fld p 24#u64) = .gate := by
+      simp only [own, h24, h24v, ntfnOwner]; exact if_pos trivial
+    simp only [ntfnOwner, Function.update_of_ne (hna hg)] at hx
+    by_cases ho : x.val - p.val = 24
+    · simp only [if_pos ho] at hx; exact absurd rfl hx
+    · simp only [if_neg ho] at hx
+      by_cases hB : K.heap (m (fld p 24#u64)) = some .tcb
+      · simp only [if_pos hB, Function.update_of_ne (hna (own_aff_gate hK hB m))] at hx
+        exact absurd rfl hx
+      · simp only [if_neg hB] at hx; exact absurd rfl hx
   | tcb t =>
-    simp only [own, hR] at hx
     have ht := hK.tcbOf t x hR
-    -- the six deciding words
-    by_cases hA : b = fld t oAFFINITY
-    · subst hA; right
-      rw [own_tcb_at hK ht (Or.inl rfl), oAFF_val]
-      simp [tcbOwner, GateField]
-    have hA' : Function.update m b v (fld t oAFFINITY) = m (fld t oAFFINITY) :=
-      Function.update_of_ne (Ne.symm hA) _ _
+    have hgA := own_aff_gate hK ht m
+    have hA := hgate hgA
+    have hA' : Function.update m a v (fld t oAFFINITY) = m (fld t oAFFINITY) :=
+      Function.update_of_ne (hna hgA) _ _
+    simp only [own, hR] at hx ⊢
     by_cases hG : GateField (x.val - t.val)
     · simp only [tcbOwner, if_pos hG] at hx; exact absurd rfl hx
     by_cases hT : TimerField (x.val - t.val)
-    · simp only [tcbOwner, if_neg hG, if_pos hT, hA'] at hx
-      left
-      by_cases hD : b = fld t oTIMER_DEADLINE
-      · subst hD
-        rw [own_tcb_at hK ht (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))), oDL_val]
-        simp only [own, hR, tcbOwner, if_neg hG, if_pos hT]
-        have h1 : ¬ GateField 3528 := by unfold GateField; decide
-        have h2 : TimerField 3528 := by unfold TimerField; decide
-        simp only [if_neg h1, if_pos h2]
-      by_cases hH : b = fld t oTIMER_HEIGHT
-      · subst hH
-        rw [own_tcb_at hK ht (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))), oHT_val]
-        simp only [own, hR, tcbOwner, if_neg hG, if_pos hT]
-        have h1 : ¬ GateField 3568 := by unfold GateField; decide
-        have h2 : TimerField 3568 := by unfold TimerField; decide
-        simp only [if_neg h1, if_pos h2]
-      exfalso; apply hx
-      rw [Function.update_of_ne (Ne.symm hD), Function.update_of_ne (Ne.symm hH)]
-    by_cases hGF : GField (x.val - t.val)
-    · simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA'] at hx
-      left
-      have key : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ) →
-          own K m (fld t off) = own K m x := by
+    · have hd : a = fld t oTIMER_DEADLINE ∨ a = fld t oTIMER_HEIGHT := by
+        by_contra hne
+        obtain ⟨h1, h2⟩ := not_or.mp hne
+        apply hx
+        simp only [tcbOwner, if_neg hG, if_pos hT, hA', Function.update_of_ne (Ne.symm h1),
+          Function.update_of_ne (Ne.symm h2)]
+      have e : ∀ off, (off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT) →
+          m' (fld t off) = m (fld t off) := by
         intro off hoff
-        have hoff' : off = oAFFINITY ∨ off = oSTATE ∨ off = oBLOCK_OBJ ∨ off = oREPLY_OBJ ∨
-            off = oTIMER_DEADLINE ∨ off = oTIMER_HEIGHT := by
-          rcases hoff with h | h | h
-          · exact Or.inr (Or.inl h)
-          · exact Or.inr (Or.inr (Or.inl h))
-          · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
-        rw [own_tcb_at hK ht hoff']
-        simp only [own, hR, tcbOwner, if_neg hG, if_neg hT, if_pos hGF]
-        have hv : off.val = 3328 ∨ off.val = 3336 ∨ off.val = 3360 := by
-          rcases hoff with h | h | h <;> subst h
-          · exact Or.inl oSTATE_val
-          · exact Or.inr (Or.inl oBOBJ_val)
-          · exact Or.inr (Or.inr oROBJ_val)
-        have h1 : ¬ GateField off.val := by simp only [GateField]; omega
-        have h2 : ¬ TimerField off.val := by simp only [TimerField]; omega
-        have h3 : GField off.val := by simp only [GField]; omega
-        simp only [if_neg h1, if_neg h2, if_pos h3]
-      by_cases hS : b = fld t oSTATE
-      · subst hS; exact key _ (Or.inl rfl)
-      by_cases hBo : b = fld t oBLOCK_OBJ
-      · subst hBo; exact key _ (Or.inr (Or.inl rfl))
-      by_cases hRo : b = fld t oREPLY_OBJ
-      · subst hRo; exact key _ (Or.inr (Or.inr rfl))
-      exfalso; apply hx
-      rw [Function.update_of_ne (Ne.symm hS), Function.update_of_ne (Ne.symm hBo),
-        Function.update_of_ne (Ne.symm hRo)]
+        apply hag; left
+        rw [own_timer_at hK ht hoff m hG hT]
+        rcases hd with h | h
+        · rw [h, own_timer_at hK ht (Or.inl rfl) m hG hT] at ha; exact ha
+        · rw [h, own_timer_at hK ht (Or.inr rfl) m hG hT] at ha; exact ha
+      have e1 := e _ (Or.inl rfl)
+      have e2 := e _ (Or.inr rfl)
+      simp only [tcbOwner, if_neg hG, if_pos hT, hA, e1, e2, hupd hA, hupd e1, hupd e2, true_and]
+    by_cases hGF : GField (x.val - t.val)
+    · have hd : a = fld t oSTATE ∨ a = fld t oBLOCK_OBJ := by
+        by_contra hne
+        obtain ⟨h1, h2⟩ := not_or.mp hne
+        apply hx
+        simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA',
+          Function.update_of_ne (Ne.symm h1), Function.update_of_ne (Ne.symm h2)]
+      have e : ∀ off, (off = oSTATE ∨ off = oBLOCK_OBJ) → m' (fld t off) = m (fld t off) := by
+        intro off hoff
+        apply hag; left
+        rw [own_state_home hK ht hoff m]
+        rcases hd with h | h
+        · rw [h, own_state_home hK ht (Or.inl rfl) m] at ha; exact ha
+        · rw [h, own_state_home hK ht (Or.inr rfl) m] at ha; exact ha
+      have e1 := e _ (Or.inl rfl)
+      have e2 := e _ (Or.inr rfl)
+      simp only [tcbOwner, if_neg hG, if_neg hT, if_pos hGF, hA, e1, e2, hupd hA, hupd e1,
+        hupd e2, true_and]
     · simp only [tcbOwner, if_neg hG, if_neg hT, if_neg hGF, hA'] at hx
       exact absurd rfl hx
 

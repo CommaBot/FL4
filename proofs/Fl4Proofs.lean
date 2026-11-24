@@ -181,6 +181,13 @@ import Fl4Proofs.P2.FootTimerGE
 import Fl4Proofs.P2.FootTimerGELoop
 import Fl4Proofs.P2.FootTimerGERem
 import Fl4Proofs.P2.FootTimerGEIns
+import Fl4Proofs.P2.SafeGap
+import Fl4Proofs.P2.MoveGap
+import Fl4Proofs.P2.SafeCert
+import Fl4Proofs.P2.E2E
+import Fl4Proofs.P2.ReadGap
+import Fl4Proofs.P2.OwnLayout
+import Fl4Proofs.P2.OwnJAtZ
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
