@@ -1,5 +1,6 @@
 import Fl4Proofs.P2.FootTimerGEIns
 import Fl4Proofs.P2.FootTimerSetG
+import Fl4Proofs.P2.FootTimerSetAcc
 open Fl4Proofs.P2
 #print axioms in_core_timer_tree_access
 #print axioms ge_remove
@@ -13,3 +14,4 @@ open Fl4Proofs.P2
 #print axioms Fl4Proofs.P2.release_due.guard
 #print axioms Fl4Proofs.P2.timer_due.guard
 #print axioms Fl4Proofs.P2.sched_quiet.guard
+#print axioms Fl4Proofs.P2.set_timer_acc
