@@ -130,7 +130,9 @@ theorem IoMid.of_entry {s s2 : S} {t sl : U64} {info : msginfo.MessageInfo} {C :
       L.mem s2 (scA (L.mem s (rhA (L := L) s))) = L.mem s (scA (L.mem s (rhA (L := L) s))) ∧
       L.mem s2 (headA (L.mem s (scA (L.mem s (rhA (L := L) s))))) =
         L.mem s (headA (L.mem s (scA (L.mem s (rhA (L := L) s))))))
-    (est : L.mem s2 (scA t) = L.mem s (scA t)) :
+    (est : L.mem s2 (scA t) = L.mem s (scA t))
+    (ecs : ∀ x, cspace.lookup_slot st s t (L.mem s (regA t layout.reg.CAP)) = ok (.Ok x) →
+      obj.Slot.cap st x.slot s2 = obj.Slot.cap st x.slot s) :
     IoMid (L := L) R W s s2 t info (L.mem s2 (regA t layout.reg.CAP)) C sl := by
   have nd : ∀ o, L.nodeAt s2 (L.cpu s2) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [ec, nodeAt_of_ksb ek]
@@ -154,7 +156,10 @@ theorem IoMid.of_entry {s s2 : S} {t sl : U64} {info : msginfo.MessageInfo} {C :
       intro p r m y p' r' gs' g' hp hm hc; rw [eC p r m y hp hm] at hc; exact M.hRc p r m y p' r' gs' g' hp hm hc
     hcl := hcl2
     hroot := by intro p r gs g h; rw [esl] at h; exact M.hroot p r gs g h
-    hRf := fun x h => M.hRf x (lookup_slot_back M.hsl esl eC M.hcl M.hroot h)
+    hRf := fun x f l z h hc => by
+      have hl := lookup_slot_back M.hsl esl eC M.hcl M.hroot h
+      rw [ecs x hl] at hc
+      exact M.hRf x f l z hl hc
     rh := by rw [ecsc']; exact erh _ ehd M.rh
     td := by rw [etm']; exact M.td
     rs := by
@@ -180,6 +185,8 @@ theorem io_hmid {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : 
       IoMid (L := L) R W s s (L.curW s) info (L.mem s (regA (L.curW s) layout.reg.CAP)) C sl)
     (hCo : ∀ p r m y, C p r → cspace.mask r = ok m → OutsideObjs st T Cs s (cnSlot p (y &&& m)) ∧
       OutsideObjs st T Cs s (core.num.U64.wrapping_add (cnSlot p (y &&& m)) 8#u64))
+    (hLo : ∀ x, cspace.lookup_slot st s (L.curW s) (L.mem s (regA (L.curW s) layout.reg.CAP)) = ok (.Ok x) →
+      OutsideObjs st T Cs s x.slot ∧ OutsideObjs st T Cs s (core.num.U64.wrapping_add x.slot 8#u64))
     (hhd : OutsideObjs st T Cs s (headA (L.cscW s)))
     (hrx : L.mem s (rhA (L := L) s) ≠ 0#u64 → L.mem s (rhA (L := L) s) ∈ T ∧
       OutsideObjs st T Cs s (headA (L.mem s (scA (L.mem s (rhA (L := L) s)))))) :
@@ -239,7 +246,11 @@ theorem io_hmid {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {T Cs : 
     (nk _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
       (by simp [layout.node.RELEASE_HEAD, layout.node.CUR_TIME])
       (by simp [layout.node.RELEASE_HEAD, layout.node.CONSUMED]))
-    (fun h0 => ?_) est
+    (fun h0 => ?_) est (fun x hx => ?_)
+  swap
+  · obtain ⟨h1, h2⟩ := hLo x hx
+    unfold obj.Slot.cap
+    rw [L.read_pair_eq, L.read_pair_eq, pre_out w hN hcC hcT hT h1, pre_out w hN hcC hcT hT h2]
   obtain ⟨hxT, hxo⟩ := hrx h0
   refine ⟨?_, pre_out w hN hcC hcT hT hxo⟩
   have hx := hT _ hxT

@@ -252,7 +252,7 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
     simp only [bind_ok]
     refine bind_guard_congr ?_ fun s3 hs3 => ?_
     · split
-      · exact sched.commit_time.guardS hA a c m2 hSc wf2 (hSc.rd _ hcM.1) (by rw [eN]; exact aN)
+      · exact sched.commit_time.guardS hA a c m2 hSc wf2 (hSc.rd _ hcM.1 hcM.2) (by rw [eN]; exact aN)
           (by rw [eN]; exact oNc) (by rw [eN]; exact (nd _ (by rw [cs]; omega) (by rw [cs])).1)
           (by rw [eN]; exact (nd _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])).1)
           (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).1) (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).2)

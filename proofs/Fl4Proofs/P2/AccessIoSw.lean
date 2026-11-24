@@ -422,7 +422,7 @@ theorem FinOK.of_sw {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s :
       have n0 := F.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
       have n1 := F.nd layout.node.SCHED_ACTION (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
       exact ⟨n0.1, n1.1, n1.2⟩
-    · rw [e3]; exact F.acc.rd _ F.q.2.2.2.1
+    · rw [e3]; exact F.acc.rd _ F.q.2.2.2.1 F.q.2.2.2.2
   · intro s1 a1 s2 a2 h1 h2
     have w := hs h1
     have hcur := F.curM w

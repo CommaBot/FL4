@@ -114,7 +114,7 @@ structure IoMid (R W : U64 → Prop) (s s2 : S) (t : U64) (info : msginfo.Messag
   hRc : WalkRc (st := st) R s2 C
   hcl : WalkCl (st := st) s2 C
   hroot : ∀ p r gs g, obj.Slot.cap st sl s2 = ok (.CNode p r gs g) → C p r
-  hRf : ∀ x, cspace.lookup_slot st s2 t cptr = ok (.Ok x) →
+  hRf : ∀ x f l z, cspace.lookup_slot st s2 t cptr = ok (.Ok x) → obj.Slot.cap st x.slot s2 = ok (.IoPort f l z) →
     R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64)
   rh : RdHead (L := L) R s2 (L.cscW s2)
   td : L.mem s2 (tmA (L := L) s2) ≠ 0#u64 →
@@ -126,6 +126,19 @@ structure IoMid (R W : U64 → Prop) (s s2 : S) (t : U64) (info : msginfo.Messag
   af : R (affA t)
   dom : R (core.num.U64.wrapping_add t 3432#u64)
   iok : IoK (L := L) R W s2 t
+
+/-- The looked-up slot of a passing `invocation_ok` (it holds the port cap). -/
+theorem IoMid.hRfT {s s2 : S} {t sl cptr : U64} {info : msginfo.MessageInfo} {C : U64 → U64 → Prop}
+    (M : IoMid (L := L) R W s s2 t info cptr C sl) (h : ioport.invocation_ok st s2 t cptr info = ok true) :
+    ∀ x, cspace.lookup_slot st s2 t cptr = ok (.Ok x) →
+      R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64) := by
+  intro x hx
+  obtain ⟨r1, f, l, z, -, -, -, -, -, hl, hc, -⟩ := inv_true h
+  rw [hl] at hx
+  have e := ok_inj_ff hx
+  injection e with e
+  subst e
+  exact M.hRf _ f l z hl hc
 
 /-- `finish.guard_resume`'s premises at the post-invocation state `s3`, with
 the entry's kernel base and core. -/
@@ -213,8 +226,15 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   refine tr_ite (fun _ h => h) (fun hx0 => ?_)
   have hx : info.extra_caps = 0#u64 := by
     simp only [bne_iff_ne, ne_eq, not_not] at hx0; exact hx0
-  refine tr_bind (fun b1 hb1 _ => ioport.invocation_ok.guard C M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot
-    M.hRf M.iok.1.ib M.iok.1.bs M.r10 hb1) (fun b1 eb1 => ?_)
+  refine tr_bind (fun b1 hb1 hk => ioport.invocation_ok.guard C M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot
+    (M.hRfT (by
+      have e : b1 = true := by
+        cases b1
+        · rw [if_neg Bool.false_ne_true] at hk
+          have e := ok_inj_ff hk
+          simp only [Prod.mk.injEq, Bool.false_eq_true, false_and] at e
+        · rfl
+      rw [← e]; exact hb1)) M.iok.1.ib M.iok.1.bs M.r10 hb1) (fun b1 eb1 => ?_)
   beta_reduce
   refine tr_ite (fun hb => ?_) (fun _ h => h)
   rw [sched.consumed.guard s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
@@ -238,7 +258,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
       have e := syscall.handle_invocation.guard_io ar (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
         (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
-        eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot M.hRf
+        eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot (M.hRfT eb1)
         M.iok ey
       exact e.1)
     (fun y ey => ?_)
@@ -253,7 +273,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
         (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
         (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
-        eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot M.hRf
+        eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot (M.hRfT eb1)
         M.iok ey
     exact e.2
   subst hr

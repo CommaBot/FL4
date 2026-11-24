@@ -38,34 +38,38 @@ variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore
 /-- The guarded sets hold the SC `sc` of size `2 ^ sb`: every word readable,
 the ring part and `CONSUMED` writable. -/
 structure ScAcc (R W : U64 → Prop) (sc : U64) (sb : Nat) : Prop where
-  rd : ∀ b, InSC sc sb b → R b
-  wr : ∀ b, InRing sc sb b → W b
+  rd : ∀ b, InSC sc sb b → Aligned b → R b
+  wr : ∀ b, InRing sc sb b → Aligned b → W b
   cons : W (core.num.U64.wrapping_add sc layout.sc.CONSUMED)
 
 variable {s : S} {sc : obj.Sc} {sb : Nat}
 
-theorem ScAcc.off (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) (K : U64) (hK : K.val < 96) :
+theorem ScAcc.off (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) (K : U64) (hK : K.val < 96)
+    (hK8 : K.val % 8 = 0 := by simp) :
     R (core.num.U64.wrapping_add sc K) := by
   obtain ⟨h8, hm, hfit⟩ := h.bounds
   obtain ⟨h96, -⟩ := h.inside
   have e : (core.num.U64.wrapping_add sc K).val = sc.val + K.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-  exact hS.rd _ ⟨by omega, by omega⟩
+  exact hS.rd _ ⟨by omega, by omega⟩ (by unfold Aligned; omega)
 
 theorem ScAcc.offW (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) (K : U64) (hK : 80 ≤ K.val)
-    (hK' : K.val < 96) : W (core.num.U64.wrapping_add sc K) := by
+    (hK' : K.val < 96) (hK8 : K.val % 8 = 0 := by simp) : W (core.num.U64.wrapping_add sc K) := by
   obtain ⟨h8, hm, hfit⟩ := h.bounds
   obtain ⟨h96, -⟩ := h.inside
   have e : (core.num.U64.wrapping_add sc K).val = sc.val + K.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-  exact hS.wr _ ⟨by omega, by omega⟩
+  exact hS.wr _ ⟨by omega, by omega⟩ (by unfold Aligned; omega)
 
 theorem ScAcc.rt (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) {i : U64} (hi : i.val < (L.rmax s sc).val) :
     R (rtA sc i) ∧ W (rtA sc i) ∧ R (raA sc i) ∧ W (raA sc i) := by
+  obtain ⟨h8, -⟩ := h.bounds
   obtain ⟨-, -, -, -, -, hin⟩ := h.inside
   obtain ⟨e1, e2, e3⟩ := hin i hi
-  exact ⟨hS.rd _ ⟨by omega, by omega⟩, hS.wr _ ⟨by omega, by omega⟩, hS.rd _ ⟨by omega, by omega⟩,
-    hS.wr _ ⟨by omega, by omega⟩⟩
+  have a1 : Aligned (rtA sc i) := by unfold Aligned; omega
+  have a2 : Aligned (raA sc i) := by unfold Aligned; omega
+  exact ⟨hS.rd _ ⟨by omega, by omega⟩ a1, hS.wr _ ⟨by omega, by omega⟩ a1, hS.rd _ ⟨by omega, by omega⟩ a2,
+    hS.wr _ ⟨by omega, by omega⟩ a2⟩
 
 theorem ScAcc.head (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) : RdHead (L := L) R s sc := by
   obtain ⟨a, -, b, -⟩ := hS.rt h h.head_lt
