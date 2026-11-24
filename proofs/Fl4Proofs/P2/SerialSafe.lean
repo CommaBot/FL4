@@ -60,9 +60,24 @@ alternative state holding the read values; the two differ only on words the
 core may not read (non-`PO`) in the reached memory. `Deciders` alone does
 **not** carry the check across (`P2/MoveGap.lean`: two racy words, read at
 different times, decide together in the alternative an owner no real memory
-shows; the real write is not `Allowed`). With `MoveLocal` [J] (the owners a
+shows; the real write is not `Allowed`). With `MoveLocal` (the owners a
 write moves are decided by words of the writer's owner and the gate's; proved
 for `OwnMap.own`, `OwnMap.moveLocal`) it does: `moveV_transfer`.
+
+**Status (p2e2).** Step 4 is proved at the level of `Prog` in `P2/SafeCert.lean`:
+`safe_of_acc` (the run reading the real memory passes with no racy read) and
+`safe_of_dec` (the run reading every memory `Adm`issible for the real one —
+equal where the core may read, same class on class-tracked words — passes,
+each racy word read once), both from `Deciders` + `MoveLocal`, through the
+invariant that the core's readable words keep their owners up to held moves
+and unreadable ones stay unreadable (`freach_po`, `write_po`). Step 1 can be
+dropped: the translation can evaluate Arch calls on the actual instance and
+Arch state at entry (their results do not depend on memory, and `PathObl` is
+for every instance and Arch value), so no choice node or oracle is needed.
+Remaining: the translation `tr` and the two certificates from `PathObl` (the
+declined one by realizing, for each admissible `ν`, an alternative entry state
+with the finitely many racy words of the `ν`-run written by `LawfulStore.wr`),
+user words (see step 5), the glue's `start` premise, and the top theorems.
 
 Goal: `BodyOK` from, per local path, `PathObl` v3 (`PathObl.lean`) for every
 Arch instance, `IsProg` [P], `DecOnce` [W], and the glue's `Pre` [P]. Steps:
@@ -226,8 +241,8 @@ theorem not_PO_of_held {lk : L → Option C} {e d : C} (hed : e ≠ d) {o : Owne
     | gate => exact h
   · subst hg; exact h
 
-/-- **`MoveLocal`** [J] (a property of the ownership map, proved for
-`OwnMap.own` from its layout facts): which owner a write moves a word to is
+/-- **`MoveLocal`** (a hypothesis on the abstract ownership map, proved for
+`OwnMap.own` from its layout facts `RegionOK`: `OwnMap.moveLocal`): which owner a write moves a word to is
 decided by words of the written word's (non-gate) owner and the gate's only.
 Two memories agreeing on those words give every word of that owner the same
 owner after the same write. Needed beside `Deciders` to carry a per-write
