@@ -172,6 +172,7 @@ import Fl4Proofs.P2.FootTimer
 import Fl4Proofs.P2.FootTimerTree
 import Fl4Proofs.P2.FootTimerIns
 import Fl4Proofs.P2.FootTimerAcc
+import Fl4Proofs.P2.FootTimerSet
 import Fl4Proofs.P2.AccessLeaf
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
