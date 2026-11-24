@@ -242,17 +242,16 @@ thread's `MSG_INFO` and the words of `invocation_ok.guard` (the CSpace walk,
 the found slot), and `IoK` (the decode's and the restart tail's words). -/
 theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s : S} {a : A}
     {cptr : U64} {info : msginfo.MessageInfo} {call blocking cd fp : Bool}
-    {y : (core.result.Result Unit error.Exc) × S × A} (C : U64 → Prop) {sl : U64}
+    {y : (core.result.Result Unit error.Exc) × S × A} (C : U64 → U64 → Prop) {sl : U64}
     (hct : R (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
     (hmi : msg.msg_info st s (L.curW s) = ok info) (hRmi : R (regA (L.curW s) layout.reg.MSG_INFO))
     (hx : info.extra_caps = 0#u64)
     (hinv : ioport.invocation_ok st s (L.curW s) cptr info = ok true)
     (hsl : obj.Tcb.slot (L.curW s) layout.tcb.SLOT_CTABLE = ok sl)
     (hR0 : R sl) (hR8 : R (core.num.U64.wrapping_add sl 8#u64))
-    (hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') →
-      R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
-    (hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') → C p')
-    (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p)
+    (hRc : WalkRc (st := st) R s C)
+    (hcl : WalkCl (st := st) s C)
+    (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p r)
     (hRf : ∀ x, cspace.lookup_slot st s (L.curW s) cptr = ok (.Ok x) →
       R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
     (hk : IoK (L := L) R W s (L.curW s))

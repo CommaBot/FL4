@@ -13,8 +13,9 @@ naming only the words that run reads (conditioned on the values `st` returns),
   (registers, refills and the scheduler checks: `P2/AccessSched.lean`, line p2sl);
 * `rab_body.guard`, `rab_loop.guard`, `rab.guard`: the CSpace walk
   (`resolve_address_bits`, fuel induction as P1's `rab_loop_congr`) reads the
-  slot words of the CNode-valued slots it walks through (`hRc`, closed under a
-  predicate `C` on CNode pointers) and of the slot it returns (`hRf`);
+  radix-masked slot words of the CNode-valued slots it walks through (`hRc`,
+  `WalkRc`, closed under a predicate `C` on CNode pointer and radix, `WalkCl`:
+  P1's `CnOff` shape) and of the slot it returns (`hRf`);
 * `lookup_slot.guard`: the CTable root slot and the walk;
 * `lookup_ipc_buffer.guard`: the `IPC_BUFFER` word and the buffer slot;
 * `syscall_arg.guard`, `lookup_extra_caps.guard_zero` (no extra caps: no
@@ -24,6 +25,7 @@ Premises: none.
 -/
 import Fl4Proofs.P2.AccessSched
 import Fl4Proofs.P1.RabCongr
+import Fl4Proofs.P1.FastRRLk
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -91,17 +93,30 @@ theorem msg.syscall_arg.guard (s : S) (t : obj.Tcb) (buf i : U64)
 
 /-! ## The CSpace walk -/
 
+/-- The walk's read set: for each CNode `(p, r)` in `C` and each radix-masked
+index, a slot holding a CNode cap has both cap words in `R`. -/
+abbrev WalkRc (R : U64 → Prop) (s : S) (C : U64 → U64 → Prop) : Prop :=
+  ∀ p r m y p' r' gs' g', C p r → cspace.mask r = ok m →
+    obj.Slot.cap st (cnSlot p (y &&& m)) s = ok (.CNode p' r' gs' g') →
+    R (cnSlot p (y &&& m)) ∧ R (core.num.U64.wrapping_add (cnSlot p (y &&& m)) 8#u64)
+
+/-- `C` is closed under the CNode caps in its radix-masked slots. -/
+abbrev WalkCl (s : S) (C : U64 → U64 → Prop) : Prop :=
+  ∀ p r m y p' r' gs' g', C p r → cspace.mask r = ok m →
+    obj.Slot.cap st (cnSlot p (y &&& m)) s = ok (.CNode p' r' gs' g') → C p' r'
+
 /-- One step of the walk on a CNode cap. -/
-theorem rab_body.guard {s : S} {cptr n fuel p r gs g : U64}
+theorem rab_body.guard {s : S} {cptr n fuel p r gs g m : U64}
     {y : ControlFlow (capability.Cap × U64 × U64) (core.result.Result cspace.Resolved error.LookupFault)}
-    (hR : ∀ off c, obj.Slot.cap st (cnSlot p off) s = ok c →
+    (hm : cspace.mask r = ok m)
+    (hR : ∀ z c, obj.Slot.cap st (cnSlot p (z &&& m)) s = ok c →
       ((∃ p' r' gs' g', c = .CNode p' r' gs' g') ∨
-        ∃ bl, y = ControlFlow.done (core.result.Result.Ok { slot := cnSlot p off, bits_left := bl })) →
-      R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
+        ∃ bl, y = ControlFlow.done (core.result.Result.Ok { slot := cnSlot p (z &&& m), bits_left := bl })) →
+      R (cnSlot p (z &&& m)) ∧ R (core.num.U64.wrapping_add (cnSlot p (z &&& m)) 8#u64))
     (h : cspace.resolve_address_bits_loop.body st s cptr (.CNode p r gs g) n fuel = ok y) :
     cspace.resolve_address_bits_loop.body (PathObl.guard st R W) s cptr (.CNode p r gs g) n fuel = ok y := by
   unfold cspace.resolve_address_bits_loop.body at h ⊢
-  simp only [obj.Slot.index, lift, bind_ok] at h ⊢
+  simp only [obj.Slot.index, lift, bind_ok, hm] at h ⊢
   revert h
   repeat' (first
     | (exact fun h => h)
@@ -124,14 +139,13 @@ theorem rab_body_nonCN (st st' : machine.Store S) (s : S) (cptr : U64) (cap : ca
       cspace.resolve_address_bits_loop.body st s cptr cap n fuel := by
   cases cap <;> first | rfl | exact absurd rfl (hc _ _ _ _)
 
-/-- **The walk** (fuel induction): it reads the slots of the CNode caps it
-walks (`C`-closed) holding a CNode (`hRc`) and the slot it returns (`hRf`). -/
-theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
-    (hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') →
-      R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
-    (hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') → C p') :
+/-- **The walk** (fuel induction): it reads the radix-masked slots of the
+CNodes in `C` (`C`-closed) holding a CNode (`hRc`) and the slot it returns
+(`hRf`). -/
+theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → U64 → Prop)
+    (hRc : WalkRc (st := st) R s C) (hcl : WalkCl (st := st) s C) :
     ∀ (N : Nat) (cap : capability.Cap) (n fuel : U64) (res : core.result.Result cspace.Resolved error.LookupFault),
-      fuel.val < N → (∀ p r gs g, cap = .CNode p r gs g → C p) →
+      fuel.val < N → (∀ p r gs g, cap = .CNode p r gs g → C p r) →
       (∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64)) →
       cspace.resolve_address_bits_loop st cap s cptr n fuel = ok res →
       cspace.resolve_address_bits_loop (PathObl.guard st R W) cap s cptr n fuel = ok res := by
@@ -144,18 +158,20 @@ theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
     obtain ⟨y, hy, hk⟩ := bind_eq_ok h
     by_cases hcn : ∃ p r gs g, cap = .CNode p r gs g
     · obtain ⟨p, r, gs, g, rfl⟩ := hcn
+      obtain ⟨m, hm, -⟩ := spec_ex_fd (P0.cspace.mask.p0 r)
       have hy' : cspace.resolve_address_bits_loop.body (PathObl.guard st R W) s cptr (.CNode p r gs g) n fuel = ok y := by
-        refine rab_body.guard (fun off c hc' hb => ?_) hy
+        refine rab_body.guard hm (fun z c hc' hb => ?_) hy
         rcases hb with ⟨p', r', gs', g', rfl⟩ | ⟨bl, rfl⟩
-        · exact hRc p off p' r' gs' g' (hc _ _ _ _ rfl) hc'
+        · exact hRc p r m z p' r' gs' g' (hc _ _ _ _ rfl) hm hc'
         · exact hRf _ (ok_inj_ff hk).symm
       rw [hy']; simp only [bind_ok]
       cases y with
       | done z => exact hk
       | cont x =>
-        obtain ⟨off, hoff, hlt⟩ := rab_body_cont st hy
+        obtain ⟨m', z, hm', hoff, hlt⟩ := rab_body_cont2 st hy
+        rw [hm] at hm'; cases ok_inj_ff hm'
         exact ih x.1 x.2.1 x.2.2 res (by omega)
-          (fun p' r' gs' g' e => hcl p off p' r' gs' g' (hc _ _ _ _ rfl) (e ▸ hoff)) hRf hk
+          (fun p' r' gs' g' e => hcl p r m z p' r' gs' g' (hc _ _ _ _ rfl) hm (e ▸ hoff)) hRf hk
     · rw [rab_body_nonCN st (PathObl.guard st R W) s cptr cap n fuel (fun p r gs g e => hcn ⟨p, r, gs, g, e⟩), hy]
       simp only [bind_ok]
       cases y with
@@ -167,11 +183,9 @@ theorem rab_loop.guard {s : S} {cptr : U64} (C : U64 → Prop)
 
 /-- `resolve_address_bits` (the loop with fuel 65). -/
 theorem rab.guard {s : S} {root : capability.Cap} {cptr n : U64}
-    {res : core.result.Result cspace.Resolved error.LookupFault} (C : U64 → Prop)
-    (hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') →
-      R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
-    (hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') → C p')
-    (hroot : ∀ p r gs g, root = .CNode p r gs g → C p)
+    {res : core.result.Result cspace.Resolved error.LookupFault} (C : U64 → U64 → Prop)
+    (hRc : WalkRc (st := st) R s C) (hcl : WalkCl (st := st) s C)
+    (hroot : ∀ p r gs g, root = .CNode p r gs g → C p r)
     (hRf : ∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
     (h : cspace.resolve_address_bits st s root cptr n = ok res) :
     cspace.resolve_address_bits (PathObl.guard st R W) s root cptr n = ok res :=
@@ -183,13 +197,11 @@ theorem ctable_slot_ok (t : U64) : ∃ sl, obj.Tcb.slot t layout.tcb.SLOT_CTABLE
 
 /-- **`lookup_slot`**: the CTable root slot (`sl`, both words) and the walk. -/
 theorem cspace.lookup_slot.guard {s : S} {t cptr sl : U64}
-    {res : core.result.Result cspace.Resolved error.LookupFault} (C : U64 → Prop)
+    {res : core.result.Result cspace.Resolved error.LookupFault} (C : U64 → U64 → Prop)
     (hsl : obj.Tcb.slot t layout.tcb.SLOT_CTABLE = ok sl)
     (hR0 : R sl) (hR8 : R (core.num.U64.wrapping_add sl 8#u64))
-    (hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') →
-      R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
-    (hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') → C p')
-    (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p)
+    (hRc : WalkRc (st := st) R s C) (hcl : WalkCl (st := st) s C)
+    (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p r)
     (hRf : ∀ x, res = .Ok x → R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
     (h : cspace.lookup_slot st s t cptr = ok res) :
     cspace.lookup_slot (PathObl.guard st R W) s t cptr = ok res := by

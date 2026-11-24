@@ -29,13 +29,12 @@ theorem one_lt_nmr : (1#u64 : U64) < msg.N_MSG_REGISTERS := by rw [n_msg_regs]; 
 /-- **`ioport.invocation_ok`**, run-relative: the CSpace walk (`lookup_slot`'s
 hypotheses), the found slot, the IPC buffer word and slot, register `R10`. -/
 theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.MessageInfo} {b : Bool}
-  (C : U64 → Prop) {sl : U64}
+  (C : U64 → U64 → Prop) {sl : U64}
   (hsl : obj.Tcb.slot t layout.tcb.SLOT_CTABLE = ok sl)
   (hR0 : R sl) (hR8 : R (core.num.U64.wrapping_add sl 8#u64))
-  (hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') →
-    R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64))
-  (hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s = ok (.CNode p' r' gs' g') → C p')
-  (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p)
+  (hRc : WalkRc (st := st) R s C)
+  (hcl : WalkCl (st := st) s C)
+  (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p r)
   (hRf : ∀ x, cspace.lookup_slot st s t cptr = ok (.Ok x) →
     R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
   (hib : R (core.num.U64.wrapping_add t 3512#u64))

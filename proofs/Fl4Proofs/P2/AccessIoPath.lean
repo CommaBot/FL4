@@ -99,7 +99,7 @@ theorem handle_ioport_local_eq {A : Type} (m : machine.Store S) (ar : machine.Ar
 post-prefix state `s2` (entry `s`, current thread `t`, `cptr` its `CAP`; `C` the
 CNodes the CSpace walk may enter, `sl` the thread's CTABLE slot). -/
 structure IoMid (R W : U64 → Prop) (s s2 : S) (t : U64) (info : msginfo.MessageInfo) (cptr : U64)
-    (C : U64 → Prop) (sl : U64) : Prop where
+    (C : U64 → U64 → Prop) (sl : U64) : Prop where
   k : L.ksb s2 = L.ksb s
   c : L.cpu s2 = L.cpu s
   cur : L.curW s2 = t
@@ -111,10 +111,9 @@ structure IoMid (R W : U64 → Prop) (s s2 : S) (t : U64) (info : msginfo.Messag
   hsl : obj.Tcb.slot t layout.tcb.SLOT_CTABLE = ok sl
   hR0 : R sl
   hR8 : R (core.num.U64.wrapping_add sl 8#u64)
-  hRc : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s2 = ok (.CNode p' r' gs' g') →
-    R (cnSlot p off) ∧ R (core.num.U64.wrapping_add (cnSlot p off) 8#u64)
-  hcl : ∀ p off p' r' gs' g', C p → obj.Slot.cap st (cnSlot p off) s2 = ok (.CNode p' r' gs' g') → C p'
-  hroot : ∀ p r gs g, obj.Slot.cap st sl s2 = ok (.CNode p r gs g) → C p
+  hRc : WalkRc (st := st) R s2 C
+  hcl : WalkCl (st := st) s2 C
+  hroot : ∀ p r gs g, obj.Slot.cap st sl s2 = ok (.CNode p r gs g) → C p r
   hRf : ∀ x, cspace.lookup_slot st s2 t cptr = ok (.Ok x) →
     R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64)
   rh : RdHead (L := L) R s2 (L.cscW s2)
