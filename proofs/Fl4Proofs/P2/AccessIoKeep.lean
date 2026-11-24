@@ -10,7 +10,7 @@ active SC, not in the release queue: facts at the invocation's entry state the
 writes cannot change, `SchedOK`), so it never writes `SCHED_ACTION`.
 
 * `IoTW`, `iotw_field`, `iotw_aligned`; `KeepA s0 t x`: `WritesIn s0 x (IoTW t)` and
-  the action `RESUME_CURRENT`;
+  the action `RESUME_CURRENT`, `t`'s state `RESTART` / `RUNNING`;
 * `KeepA.wr_reg`, `KeepA.wr_st`, `KeepA.sts` (one write each);
 * `ioInTail_keepA`, `ioOutTail_keepA`, `ioArm_keepA`;
 * `io_inv_keep`: the whole invocation, from a passing `invocation_ok` at the
@@ -49,7 +49,8 @@ theorem iotw_aligned {t b : U64} (hT : TcbAddr t) (h : IoTW t b) : Aligned b := 
 
 /-- From `s0`: only `IoTW t` written, the action `RESUME_CURRENT`. -/
 def KeepA (s0 : S) (t : U64) (x : S) : Prop :=
-  WritesIn st s0 x (IoTW t) ∧ L.actionW x = sched.ACTION_RESUME_CURRENT
+  WritesIn st s0 x (IoTW t) ∧ L.actionW x = sched.ACTION_RESUME_CURRENT ∧
+    (L.mem x (stA t) = sched.TS_RESTART ∨ L.mem x (stA t) = sched.TS_RUNNING)
 
 /-- The facts at the invocation's entry `s0` that keep `schedule_tcb t` from
 writing: `t` the current thread, bound to an active SC, not in the release
@@ -66,8 +67,9 @@ structure SchedOK (s0 : S) (t : U64) : Prop where
 
 variable {s0 x : S} {t : U64}
 
-theorem KeepA.refl (ha : L.actionW s0 = sched.ACTION_RESUME_CURRENT) : KeepA (L := L) s0 t s0 :=
-  ⟨WritesIn.refl _ _, ha⟩
+theorem KeepA.refl (ha : L.actionW s0 = sched.ACTION_RESUME_CURRENT)
+    (hr : L.mem s0 (stA t) = sched.TS_RESTART ∨ L.mem s0 (stA t) = sched.TS_RUNNING) : KeepA (L := L) s0 t s0 :=
+  ⟨WritesIn.refl _ _, ha, hr⟩
 
 theorem KeepA.node (h : KeepA (L := L) s0 t x) (o : U64) :
     L.nodeAt x (L.cpu x) o = L.nodeAt s0 (L.cpu s0) o := by
@@ -81,24 +83,31 @@ theorem KeepA.cur (F : SchedOK (L := L) s0 t) (h : KeepA (L := L) s0 t x) : L.cu
   unfold LawfulStore.curW
   rw [h.node, h.mem hn.1 hn.2]; exact F.cur
 
-theorem KeepA.wr {b v : U64} (F : SchedOK (L := L) s0 t) (h : KeepA (L := L) s0 t x) (hb : IoTW t b) :
-    KeepA (L := L) s0 t (L.wr x b v) := by
+theorem KeepA.wr {b v : U64} (F : SchedOK (L := L) s0 t) (h : KeepA (L := L) s0 t x) (hb : IoTW t b)
+    (hs : b = stA t → v = sched.TS_RESTART ∨ v = sched.TS_RUNNING) : KeepA (L := L) s0 t (L.wr x b v) := by
   have ha : Aligned b := iotw_aligned F.tcb hb
-  refine ⟨h.1.trans1 ((writesIn_wr ha).mono fun b' hb' => by subst hb'; exact hb), ?_⟩
+  refine ⟨h.1.trans1 ((writesIn_wr ha).mono fun b' hb' => by subst hb'; exact hb), ?_, ?_⟩
+  swap
+  · by_cases e : b = stA t
+    · subst e; rw [L.mem_wr_same ha]; exact hs rfl
+    · rw [mem_wr_ne' ha (iotw_aligned F.tcb (Or.inr rfl)) e]; exact h.2.2
   have hsa := F.nd layout.node.SCHED_ACTION (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
   unfold LawfulStore.actionW
   rw [nd_wr, h.node, mem_wr_ne' ha hsa.1 (fun e => hsa.2 (by rw [← e]; exact hb)), ← h.node]
-  exact h.2
+  exact h.2.1
 
 theorem KeepA.wr_reg {r v : U64} (F : SchedOK (L := L) s0 t) (h : KeepA (L := L) s0 t x) (hr : r.val < 384) :
-    KeepA (L := L) s0 t (L.wr x (regA t r) v) := h.wr F (Or.inl ⟨r, hr, rfl⟩)
+    KeepA (L := L) s0 t (L.wr x (regA t r) v) := h.wr F (Or.inl ⟨r, hr, rfl⟩) fun e => by
+    have := congrArg UScalar.val e
+    unfold stA at this
+    rw [regA_val F.tcb hr, tcb_wadd_val F.tcb (by rw [st_val]; omega), st_val] at this; omega
 
 theorem KeepA.sts {x1 : S} {v : U64} (F : SchedOK (L := L) s0 t) (h : KeepA (L := L) s0 t x)
     (hv : v = sched.TS_RESTART ∨ v = sched.TS_RUNNING)
     (e : sched.set_thread_state st x t v = ok x1) : KeepA (L := L) s0 t x1 := by
   unfold sched.set_thread_state at e
   rw [set_state_ok'] at e; simp only [bind_ok] at e
-  have h1 : KeepA (L := L) s0 t (L.wr x (stA t) v) := h.wr F (Or.inr rfl)
+  have h1 : KeepA (L := L) s0 t (L.wr x (stA t) v) := h.wr F (Or.inr rfl) fun _ => hv
   have hst : L.mem (L.wr x (stA t) v) (stA t) = v := L.mem_wr_same (iotw_aligned F.tcb (Or.inr rfl))
   have hsc : L.mem (L.wr x (stA t) v) (scA t) = L.mem s0 (scA t) :=
     h1.mem (field_aligned F.tcb (by simp) (by simp)) (iotw_field F.tcb (by simp) (by simp))
@@ -108,7 +117,7 @@ theorem KeepA.sts {x1 : S} {v : U64} (F : SchedOK (L := L) s0 t) (h : KeepA (L :
     unfold LawfulStore.rmax
     exact h1.mem F.mx.1 F.mx.2
   have hcur := h1.cur F
-  have hac := h1.2
+  have hac := h1.2.1
   revert e h1 hst hsc hiq hmx hcur hac
   generalize L.wr x (stA t) v = y
   intro e h1 hst hsc hiq hmx hcur hac
@@ -208,11 +217,12 @@ and leaves the action `RESUME_CURRENT`. -/
 theorem io_inv_keep {A : Type} (ar : machine.Arch A) {a : A} {cptr : U64} {info : msginfo.MessageInfo}
     {call blocking cd fp : Bool} {y : (core.result.Result Unit error.Exc) × S × A}
     (F : SchedOK (L := L) s0 t) (ha : L.actionW s0 = sched.ACTION_RESUME_CURRENT)
+    (hr : L.mem s0 (stA t) = sched.TS_RESTART ∨ L.mem s0 (stA t) = sched.TS_RUNNING)
     (hmi : msg.msg_info st s0 t = ok info) (hx : info.extra_caps = 0#u64)
     (hinv : ioport.invocation_ok st s0 t cptr info = ok true)
     (h : syscall.handle_invocation st ar s0 a call blocking cd fp cptr = ok y) :
     KeepA (L := L) s0 t y.2.1 := by
-  have hk : KeepA (L := L) s0 t s0 := KeepA.refl ha
+  have hk : KeepA (L := L) s0 t s0 := KeepA.refl ha hr
   have hc := F.cur
   subst hc
   obtain ⟨r1, f, l, x, buf, len, size, b, i1, hres, hc, hbuf, hlen, hsz, hz, hb, hl, hi1, hal⟩ :=

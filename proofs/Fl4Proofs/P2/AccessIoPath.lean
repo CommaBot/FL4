@@ -165,7 +165,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
     (hfin : ∀ nx s1 s2 a1 r s3 a2, obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
-      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st t s2 = ok 0#u64 →
+      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st t s2 = ok 0#u64 → info.extra_caps = 0#u64 →
       ioport.invocation_ok st s2 t (L.mem s2 (regA t layout.reg.CAP)) info = ok true →
       fastpath.schedulable_here st s2 t = ok true →
       syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
@@ -247,7 +247,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   have F := by
     simp only [bne_iff_ne, ne_eq, not_not] at hi3 hi4
     subst hi3 hi4 hb3
-    exact hfin nx s1 s2 a1 r s3 a2 enx es1 eu ei3 ei4 eb1 eb3 ey
+    exact hfin nx s1 s2 a1 r s3 a2 enx es1 eu ei3 ei4 hx eb1 eb3 ey
   have hr : r = .Ok () := by
     have e := syscall.handle_invocation.guard_io (R := R) (W := W) ar
         (call := decide (number = fl4_abi.syscall.SysCall))
@@ -279,7 +279,7 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
       obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
-      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st (L.curW s) s2 = ok 0#u64 →
+      sched.action st s2 = ok sched.ACTION_RESUME_CURRENT → obj.Tcb.yield_to st (L.curW s) s2 = ok 0#u64 → info.extra_caps = 0#u64 →
       ioport.invocation_ok st s2 (L.curW s) (L.mem s2 (regA (L.curW s) layout.reg.CAP)) info = ok true →
       fastpath.schedulable_here st s2 (L.curW s) = ok true →
       syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
