@@ -196,19 +196,7 @@ theorem XG.xs {P3Ok : S → Prop} {s0 s : S} (hG : XG st T Cs Ω H Sg Scs Z P3Ok
 
 /-! ## The transfer's writes -/
 
-/-- The words of a (non-null) IPC buffer are user words: its 128 words
-(1024 bytes). FL4's IPC buffer is only 1024-byte aligned
-(`check_valid_ipc_buffer`, `bits::IPC_BUFFER = 10`) and `lookup_ipc_buffer`
-returns the frame pointer plus the in-frame offset, so only these 128 words
-are guaranteed inside the frame (l4v `ipc_buffer_wp_at` / P3
-`Endp.IpcBufCapOK`: `k < 128`). Every buffer index the kernel writes is below
-128 (`msg_max_length` 120 + 1, the three extra-cap / badge words at 122..124,
-the receive CNode / index / depth words 125..127; the fault messages and the
-register / VCPU transfers write fewer). (Before m72 this claimed 512 words,
-false for a buffer at frame offset 3072 followed by a TCB: KENTRY-PLAN m71.) -/
-def BufOK (U : Set U64) (buf : U64) : Prop :=
-  buf ≠ 0#u64 → ∀ i : U64, i.val < 128 → core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64) ∈ U
-
+-- `BufOK` (the IPC buffer's words are user words) moved to QueueSignal (int6).
 theorem obj.Tcb.set_reg.xs {s0 s : S} {y r v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hy : y ∈ T)
     (hr : r.val < 384) :
     obj.Tcb.set_reg st y s r v ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
