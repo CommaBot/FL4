@@ -15,7 +15,7 @@ inside `R`, and writes (`write`, every word of a `zero` / `clear_free` range)
 only inside `W`, and fails otherwise; `ks_base`, `cur_cpu` and `frame_masks`
 are not memory and pass through.
 
-## What each local path delivers (v2)
+## What each local path delivers (v3)
 
 A line proving a local path (the extracted body `f`, e.g.
 `syscall.handle_syscall_local st ar · · number found`, its arguments other
@@ -26,46 +26,36 @@ than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
   the words an *accepted* run may read and write, and the words a *declined*
   run may write (`FAULT_IP`, the timestamp words: what the general path
   repeats);
-* `Pre : S → Prop`: the entry facts the proof uses;
-* the two access lemmas, for a `LawfulStore` `st`:
+* `Pre : S → Prop`: the entry facts the proof uses, any (P1's heap-wide
+  invariants included): every obligation is asked only at the real entry
+  state `s`;
+* `acc`: at `s`, an accepted run reads only `ReadSet s` and writes only
+  `WriteSet s` (the run on `guard` succeeds the same way);
+* `dec_alt`: if the run at `s` declines, then from every **alternative** state
+  `s'` (`Alt`: same `cpu`, `ksb`, `frame_masks`; equal on `ReadSet s`; and, on
+  the words outside it that the path may read by class (`ko` gate or this
+  core), the same value class) and any Arch value, the run also declines,
+  writes only `DecSet s`, and passes the per-write check below. This is where
+  a declined run's racy reads are covered: the values another core may leave
+  in a word are exactly those of its class (a CNode slot's `CAP0`: Null or
+  Frame; p2lt's `STATE`: Recv/RunningVM vs other). Proofs follow the decline
+  path and need no invariants at `s'`. `s' = s` gives the plain decline;
+* `read_own`, `write_own`: `ReadSet s` / `WriteSet s ∪ DecSet s` kernel words
+  (`User`, user memory such as IPC buffers, exempt) are readable / held;
+  `aligned`: written words are aligned (the store laws are for aligned words);
+* `move`: the run at `s` passes the per-write check `StepOK` (the run on
+  `mguard` succeeds the same way): each write moves owners only between owners
+  the path holds, and keeps every changed kernel word's value class unless its
+  `ko` is this core or `free`.
 
-      theorem <path>_acc [L : LawfulStore st] (hpre : Pre s)
-          (h : f st s a = ok r) (hacc : Acc r.1) :
-          f (guard st (ReadSet s) (WriteSet s)) s a = ok r
-      theorem <path>_dec [L : LawfulStore st] (hpre : Pre s)
-          (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
-          f (guard st (fun _ => True) (DecSet s)) s a = ok r
+`DecOnce` [W] (per path, discharged by the line where it can): a declined
+run reads each word outside `ReadSet` at most once, which makes `dec_alt`'s
+per-state alternatives cover `Serial`'s per-read ones.
 
-  An accepted run reads only `ReadSet` and writes only `WriteSet`; a declined
-  run may read anything (a racy read of a word another core may be writing,
-  e.g. an unlocked CSpace walk hitting a Null/Frame slot) but writes only
-  `DecSet`. Typical proof: the spec proof replayed with `guard_read` /
-  `guard_write` / … in place of the store's own equations;
-* once the ownership map is fixed (`P2/OwnMap.lean`), the facts linking the
-  sets to it, kernel words only (`User`, user memory such as IPC buffers, is
-  exempt): `read_own` (accepted reads: held or gate-owned), `write_own`
-  (accepted and declined writes: held) and `move` (each write changes owners
-  only between owners the path holds: the run on `mguard`, which checks
-  `OwnMove` across every write, succeeds the same way).
-
-How the reads of a declined run enter `Serial`: in the path's `Serial.Prog`
-the reads outside `ReadSet` are speculative (`Serial.Prog.rds`): they read
-memory, need no ownership, and the path's sequential meaning lets them return
-any value. So refinement (P2 obligation (2)) for a local path is stated for
-every value of those reads: the run declines (writing only `DecSet`, with
-values from `ReadSet` words) or behaves as the general path (localinv: a plan
-whose recorded words `still_holds` re-checks under the locks). The extracted
-store cannot vary a word between two reads with no write between, so the line
-proves it for every entry state agreeing with the real one on `ReadSet`, and
-`DecOnce` [W] (per path, discharged by the line where it can) states that a
-declined run reads each word outside `ReadSet` at most once, which makes the
-two the same.
-
-`PathObl` packages these. The `Arch` value is threaded unchanged in kind:
-Arch calls are not memory and are outside the model (`Serial.lean`, Scope).
-In `Serial` a read of a user word is an input (any value) and a write to one is
-not tracked: races on a frame two cores' threads share are the user's
-(DESIGN §7); no local path branches on an IPC-buffer word it reads twice.
+`PathObl` packages these. Arch calls are not memory and are outside the
+model (`Serial.lean`, Scope); in `Serial` a read of a user word is an input
+(any value) and a write to one is not tracked: races on a frame two cores'
+threads share are the user's (DESIGN §7).
 
 ## The global side
 
@@ -109,7 +99,7 @@ open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
-open Fl4Proofs.P2.Serial (Owner)
+open Fl4Proofs.P2.Serial (Owner ClsOwner)
 
 noncomputable section
 open Classical
@@ -224,31 +214,69 @@ def OwnMove (own : (U64 → U64) → U64 → Owner U64 U64) (c : U64) (lk : U64 
 
 /-! ## The obligation -/
 
-/-- **The per-path obligation** [W] (per local path, other lines' work), v2,
-for the extracted body `f` (other arguments fixed), under `Pre`, with the
-locks `Locks` the fl4-sync glue holds, the global ownership map `own` and user
-memory `User`; the core is `L.cpu s`.
+/-- Every changed kernel word keeps its value class, unless its class owner is
+the core `c` or untracked. -/
+def ClsStep (cls : U64 → U64 → U64) (ko : U64 → ClsOwner U64) (User : U64 → Prop) (c : U64)
+    (m m' : U64 → U64) : Prop :=
+  ∀ x, m' x ≠ m x → ¬ User x → cls x (m' x) = cls x (m x) ∨ ko x = .core c ∨ ko x = .free
 
-* `acc`: an accepted run reads only `ReadSet` and writes only `WriteSet`;
-* `dec`: a declined run writes only `DecSet` (its reads are unrestricted);
-* `read_own`: `ReadSet`'s kernel words are held or gate-owned;
-* `write_own`: `WriteSet`'s and `DecSet`'s kernel words are held;
-* `move`: every write of the run (each step, not only entry to exit) moves
-  owners only between owners the path holds. -/
+/-- The per-write check: owner moves and value classes. -/
+def StepOK (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 → U64 → U64)
+    (ko : U64 → ClsOwner U64) (User : U64 → Prop) (c : U64) (lk : U64 → Prop)
+    (m m' : U64 → U64) : Prop :=
+  OwnMove own c lk m m' ∧ ClsStep cls ko User c m m'
+
+/-- `s'` is an alternative to the entry state `s`: what a declined run's racy
+reads may see instead. -/
+structure Alt (st : machine.Store S) [L : LawfulStore st] (ReadSet : U64 → Prop)
+    (cls : U64 → U64 → U64) (ko : U64 → ClsOwner U64) (User : U64 → Prop) (s s' : S) : Prop where
+  cpu : L.cpu s' = L.cpu s
+  ksb : L.ksb s' = L.ksb s
+  masks : st.frame_masks s' = st.frame_masks s
+  read : ∀ x, ReadSet x → L.mem s' x = L.mem s x
+  clsEq : ∀ x, ¬ ReadSet x → ¬ User x → (ko x = .gate ∨ ko x = .core (L.cpu s)) →
+    cls x (L.mem s' x) = cls x (L.mem s x)
+
+theorem Alt.refl {st : machine.Store S} [L : LawfulStore st] {R : U64 → Prop}
+    {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop} (s : S) :
+    Alt st R cls ko User s s :=
+  ⟨rfl, rfl, rfl, fun _ _ => rfl, fun _ _ _ _ => rfl⟩
+
+/-- **The per-path obligation** [W] (per local path, other lines' work), v3,
+for the extracted body `f` (other arguments fixed), under `Pre` (any facts),
+with the locks `Locks` the fl4-sync glue holds, the ownership map `own`, the
+value classes `cls` / `ko` and user memory `User`; the core is `L.cpu s`.
+Module docstring, "What each local path delivers (v3)". -/
 structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     (f : machine.Store S → S → A → Result (X × S × A)) (Acc : X → Prop)
-    (own : (U64 → U64) → U64 → Owner U64 U64) (User : U64 → Prop)
+    (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 → U64 → U64)
+    (ko : U64 → ClsOwner U64) (User : U64 → Prop)
     (Locks : S → U64 → Prop) (Pre : S → Prop)
     (ReadSet WriteSet DecSet : S → U64 → Prop) : Prop where
   acc : ∀ s a r, Pre s → f st s a = ok r → Acc r.1 →
     f (guard st (ReadSet s) (WriteSet s)) s a = ok r
-  dec : ∀ s a r, Pre s → f st s a = ok r → ¬ Acc r.1 →
-    f (guard st (fun _ => True) (DecSet s)) s a = ok r
+  dec_alt : ∀ s a r, Pre s → f st s a = ok r → ¬ Acc r.1 →
+    ∀ s' a' r', Alt st (ReadSet s) cls ko User s s' → f st s' a' = ok r' →
+      ¬ Acc r'.1 ∧ f (guard st (fun _ => True) (DecSet s)) s' a' = ok r' ∧
+      f (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y)))
+        s' a' = ok r'
   read_own : ∀ s x, Pre s → ReadSet s x → ¬ User x → RPerm own (L.cpu s) (Locks s) (L.mem s) x
   write_own : ∀ s x, Pre s → (WriteSet s x ∨ DecSet s x) → ¬ User x →
     WPerm own (L.cpu s) (Locks s) (L.mem s) x
+  aligned : ∀ s x, Pre s → (WriteSet s x ∨ DecSet s x) → Aligned x
   move : ∀ s a r, Pre s → f st s a = ok r →
-    f (mguard st (fun x y => OwnMove own (L.cpu s) (Locks s) (L.mem x) (L.mem y))) s a = ok r
+    f (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y)))
+      s a = ok r
+
+/-- The plain decline (`dec_alt` at `s' = s`). -/
+theorem PathObl.dec {A X : Type} {st : machine.Store S} [L : LawfulStore st]
+    {f : machine.Store S → S → A → Result (X × S × A)} {Acc : X → Prop}
+    {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → U64}
+    {ko : U64 → ClsOwner U64} {User : U64 → Prop} {Locks : S → U64 → Prop} {Pre : S → Prop}
+    {RS WS DS : S → U64 → Prop} (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS)
+    {s : S} {a : A} {r : X × S × A} (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
+    f (guard st (fun _ => True) (DS s)) s a = ok r :=
+  (O.dec_alt s a r hpre h hdec s a r (Alt.refl s) h).2.1
 
 /-! ## A Store-generic body as a tree of trait calls -/
 
