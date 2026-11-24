@@ -45,7 +45,7 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hKc : L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
     (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
     (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
     (hcap : TmoCap st Scs Z H Rp Nt s) :
@@ -98,8 +98,9 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
           rw [e, K1.cpu, nodeAt_of_ksb K1.ksb]
           exact ⟨_, trivial, by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], rfl⟩)
     refine WP.spec_bind (sched.check_budget.allGN (Kp := Kp) (Nd := True) hA s1 a1 Q R q1 hB1 hX1 hSg1 hS1 hcsc hna hcA
-      (G := GN st Kp True T Cs Ω H Sg Scs Z U P3Ok s) (fun _ _ g f => GN.foot g f) g1
-      (tmoKC_N hA hxf TX hxw hRSK trivial hKT Ac s s1 hKc hKB (q0.nodes _ q0.cur) q0.cur b1
+      (G := GN st Kp True T Cs Ω H Sg Scs Z U P3Ok s) (fun _ _ g f => GN.foot g f)
+      (fun _ g => GN.out g trivial (q0.nodes _ q0.cur) q0.cur hKa hKc) g1
+      (tmoKC_N hA hxf TX hxw hRSK trivial hKT Ac s s1 hKc hKB (q0.nodes _ q0.cur) q0.cur hKa b1
         (hRSK s s s1 hRS0 f1.foot) (hU.ksb K1.ksb) hq1 (by rw [ki1, hck.1]; exact hne.symm) hcap1)) ?_
     rintro ⟨r, s2, a2⟩ hh2
     simp only [WP.uncurry'_pair] at hh2 ⊢
@@ -131,7 +132,7 @@ theorem stallSeq.entryN (hA : P0.ArchTotal ar)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hKc : L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
     (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
     (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
     (hcap : TmoCap st Scs Z H Rp Nt s) :
@@ -141,7 +142,7 @@ theorem stallSeq.entryN (hA : P0.ArchTotal ar)
         StKeep st T Cs Scs Kp (L.cpu s) s s' ∧ L.curW s' = L.idleW s' ∧
         (L.actionW s' = L.actionW s ∨ L.actionW s' = 0#u64) ⦄ := by
   have q0 := h.1.choose_spec.choose_spec
-  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA hxf TX hxw hRSK hKT s a h hI hG hKc hKB hRS0 hU hnq hcap) ?_
+  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA hxf TX hxw hRSK hKT s a h hI hG hKc hKa hKB hRS0 hU hnq hcap) ?_
   rintro ⟨s1, a1⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨k1, K1, hc1⟩ := hh

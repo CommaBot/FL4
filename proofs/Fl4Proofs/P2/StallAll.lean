@@ -13,11 +13,24 @@ view.**
 Premises of `stallAt.views`:
 * the transfer at the view of `d` (P1's `XferOK`, `XferFootOKC`,
   `hRSK`; `RS`, `XG`, `UserOK` at the stall's start, as in P1), `TmoCap` [P];
-* `hact`: another core's `SCHED_ACTION` is not a thread (it is `RESUME`
-  between its own entries; for the issuer, at the call);
-* `hown` [J]: `d` does not run another core's idle thread;
+* `hown` [J]: `d`'s current thread is none of the other cores' idle,
+  current or action threads (`OtherK`); from `OwnJ.curAff` (a current
+  thread's `AFFINITY` is its core) and the idle threads' placement;
+* `hactK` [J]: `d`'s action, if a thread, is not in `OtherK` (an action
+  thread is on `d`'s ready queues, affinity `d`);
+* `hcurNB` [J]: another core's current thread is not blocked on an
+  endpoint or notification (it runs: only its own core blocks it);
 * `hnq` [J]: `d`'s current thread, unless idle, is in no ready queue (seL4
   `ct_not_in_q`).
+
+**(p2j5)** The protected set is now `OtherK` (was: the other cores' idle
+threads), and the exclusion layer (`FootN`'s `PrW`) also protects their
+`IN_QUEUES` and every thread's `AFFINITY`. So the old premise `hact` (another
+core's action is no thread) is gone: an action thread's state, queue flags
+and SC are kept (`CoreInv.keep`). The conclusion `OKeep` now also keeps the
+`IN_QUEUES` of `OtherK` (so another core's `hnq`, `ct_not_in_q`, survives
+the stall: `OKeep.nq`) and every thread's `AFFINITY` (`OwnJ`'s (1)/(2) for
+the other cores).
 -/
 import Fl4Proofs.P2.StallView
 import Fl4Proofs.P1.QueueIpcFoot
@@ -61,6 +74,8 @@ structure OKeep (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Kp : Set U
   nd : ∀ c ∈ Cs, ∀ o : U64, (o.val = 8 ∨ o.val = 32 ∨ (c ≠ d ∧ (o.val = 0 ∨ o.val = 16 ∨ o.val = 24))) →
     L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
   kp : ∀ y ∈ Kp, L.mem s' (stA y) = L.mem s (stA y)
+  iq : ∀ y ∈ Kp, L.mem s' (inqA y) = L.mem s (inqA y)
+  af : ∀ y ∈ T, L.mem s' (affA y) = L.mem s (affA y)
   sc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)
   lk : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) ∧ L.mem s' (scTcbA c) = L.mem s (scTcbA c)
 
@@ -84,13 +99,17 @@ theorem keep_words {Kp : Set U64} {d c : U64} {s s' : S} (k : OKeep st T Cs Scs 
 
 /-- **A stall of `d` keeps the other cores' clauses.** -/
 theorem CoreInv.keep {Kp : Set U64} {d c : U64} {s s' : S} (p : CoreInv st T Cs Scs Z Ac c s)
-    (k : OKeep st T Cs Scs Kp d s s') (hc : c ∈ Cs) (hne : c ≠ d) (hKp : idleAt st c s ∈ Kp) (ha : actAt st c s ∉ T) :
+    (k : OKeep st T Cs Scs Kp d s s') (hc : c ∈ Cs) (hne : c ≠ d) (hKp : idleAt st c s ∈ Kp)
+    (ha : actAt st c s ∈ T → actAt st c s ∈ Kp) :
     CoreInv st T Cs Scs Z Ac c s' := by
   obtain ⟨ea, ec, ei, es⟩ := keep_words k hc hne
   obtain ⟨p, ac, ne, csc, isc⟩ := p
   have ksc := k.sc
-  refine ⟨⟨hc, by rw [ea]; exact p.action, fun h => absurd (ea ▸ h) ha, fun h => absurd (ea ▸ h) ha,
-    by rw [ec]; exact p.curT, by rw [ei]; exact p.idleT, fun h => absurd (ea ▸ h) ha,
+  refine ⟨⟨hc, by rw [ea]; exact p.action, fun h => by
+      rw [ea] at h ⊢; rw [k.kp _ (ha h)]; exact p.run h,
+    fun h => by rw [ea] at h ⊢; rw [k.iq _ (ha h)]; exact p.rel h,
+    by rw [ec]; exact p.curT, by rw [ei]; exact p.idleT,
+    fun h => by rw [ea] at h ⊢; rw [ksc _ h]; exact p.act h,
     by rw [ei, ksc _ p.idleT]; exact p.idle, fun h => by rw [ec, ksc _ p.curT]; exact p.resume (ea ▸ h),
     by rw [ei, k.kp _ hKp]; exact p.idleNB, fun t ht ho hb => ?_, fun j hj hb => ?_, by rw [es]; exact p.csc,
     fun t ht hb hn => ?_⟩, by rw [es]; exact ac, by rw [ea, ec]; exact ne, fun hb => ?_,
@@ -106,9 +125,17 @@ theorem CoreInv.keep {Kp : Set U64} {d c : U64} {s s' : S} (p : CoreInv st T Cs 
   · rw [ec, ksc _ p.curT] at hb ⊢
     rw [es]; exact csc hb
 
-/-- The other cores' idle threads. -/
-def OtherIdle (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (d : U64) (s : S) : Set U64 :=
-  {y | ∃ c ∈ Cs, c ≠ d ∧ y = idleAt st c s}
+/-- The other cores' idle, current and action threads: the threads a stall
+of `d` must not touch. -/
+def OtherK (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (d : U64) (s : S) : Set U64 :=
+  {y | ∃ c ∈ Cs, c ≠ d ∧ (y = idleAt st c s ∨ y = curAt st c s ∨ (y = actAt st c s ∧ y ∈ T))}
+
+/-- Another core's `ct_not_in_q` survives the stall. -/
+theorem OKeep.nq {Kp : Set U64} {d c : U64} {s s' : S} (k : OKeep st T Cs Scs Kp d s s') (hc : c ∈ Cs)
+    (hne : c ≠ d) (hK : curAt st c s ∈ Kp)
+    (h : (L.mem s (inqA (curAt st c s)) &&& sched.Q_QUEUED) = 0#u64) :
+    (L.mem s' (inqA (curAt st c s')) &&& sched.Q_QUEUED) = 0#u64 := by
+  rw [(keep_words k hc hne).2.1, k.iq _ hK]; exact h
 
 /-- **A remote stall keeps the invariants at every core's view.** -/
 theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
@@ -124,30 +151,35 @@ theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
     (hRS0 : RS s s) (hU : @UserOK S (atCpu st d) (L.atCpu d) T Cs Ω H U s)
     (hcap : @TmoCap S (atCpu st d) (L.atCpu d) Scs Z H Rp Nt s)
     (hC : ∀ c ∈ Cs, c ≠ d → CoreInv st T Cs Scs Z Ac c s)
-    (hact : ∀ c ∈ Cs, c ≠ d → actAt st c s ∉ T)
-    (hown : ∀ c ∈ Cs, c ≠ d → curAt st d s ≠ idleAt st c s)
+    (hown : curAt st d s ∉ OtherK st T Cs d s)
+    (hactK : actAt st d s ∈ T → actAt st d s ∉ OtherK st T Cs d s)
+    (hcurNB : ∀ c ∈ Cs, c ≠ d → ¬ Blocked (L.mem s (stA (curAt st c s))))
     (hnq : curAt st d s ≠ idleAt st d s → (L.mem s (inqA (curAt st d s)) &&& sched.Q_QUEUED) = 0#u64) :
     stallAt st ar d s a ⦃ s' _ =>
       (∀ c ∈ Cs, @EntryInv S (atCpu st c) (L.atCpu c) T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ IdleSc st c s') ∧
-      OKeep st T Cs Scs (OtherIdle st Cs d s) d s s' ∧ curAt st d s' = idleAt st d s' ∧
+      OKeep st T Cs Scs (OtherK st T Cs d s) d s s' ∧ curAt st d s' = idleAt st d s' ∧
       (actAt st d s' = actAt st d s ∨ actAt st d s' = 0#u64) ∧ (∀ c ∈ Cs, c ≠ d → actAt st c s' = actAt st c s) ⦄ := by
-  have hKT : ∀ y ∈ OtherIdle st Cs d s, y ∈ T := by
-    rintro y ⟨c, hc, hne, rfl⟩; exact (hC c hc hne).per.idleT
-  have hKB : ∀ y ∈ OtherIdle st Cs d s, ¬ Blocked (L.mem s (stA y)) := by
-    rintro y ⟨c, hc, hne, rfl⟩ hb; exact (hC c hc hne).per.idleNB (Or.inl hb)
-  have hKc : curAt st d s ∉ OtherIdle st Cs d s := by
-    rintro ⟨c, hc, hne, e⟩; exact hown c hc hne e
+  have hKT : ∀ y ∈ OtherK st T Cs d s, y ∈ T := by
+    rintro y ⟨c, hc, hne, rfl | rfl | ⟨rfl, hy⟩⟩
+    · exact (hC c hc hne).per.idleT
+    · exact (hC c hc hne).per.curT
+    · exact hy
+  have hKB : ∀ y ∈ OtherK st T Cs d s, ¬ Blocked (L.mem s (stA y)) := by
+    rintro y ⟨c, hc, hne, rfl | rfl | ⟨rfl, hy⟩⟩ hb
+    · exact (hC c hc hne).per.idleNB (Or.inl hb)
+    · exact hcurNB c hc hne hb
+    · exact blocked_not_runnable hb ((hC c hc hne).per.run hy)
   unfold stallAt
   refine WP.spec_mono (@stallSeq.entryN S (atCpu st d) (L.atCpu d) T Ω H Cs Sg Rp Scs Nt Z Ac U
-    (OtherIdle st Cs d s) P3Ok A ar hA hxf (tmoXG_holds (st := atCpu st d) (ar := ar) hA) RS hxw hRSK hKT s a h hI hG hKc hKB hRS0 hU hnq hcap) ?_
+    (OtherK st T Cs d s) P3Ok A ar hA hxf (tmoXG_holds (st := atCpu st d) (ar := ar) hA) RS hxw hRSK hKT s a h hI hG hown hactK hKB hRS0 hU hnq hcap) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨e', hI', k, hcur, hac⟩ := hh
-  have k' : OKeep st T Cs Scs (OtherIdle st Cs d s) d s s' := ⟨k.ksb, k.nd, k.kp, k.sc, k.lk⟩
+  have k' : OKeep st T Cs Scs (OtherK st T Cs d s) d s s' := ⟨k.ksb, k.nd, k.kp, k.iq, k.af, k.sc, k.lk⟩
   refine ⟨fun c hc => ?_, k', hcur, hac, fun c hc hne => (keep_words k' hc hne).1⟩
   by_cases e : c = d
   · subst e; exact ⟨e', hI'⟩
-  · have p := (hC c hc e).keep k' hc e ⟨c, hc, e, rfl⟩ (hact c hc e)
+  · have p := (hC c hc e).keep k' hc e ⟨c, hc, e, Or.inl rfl⟩ fun h => ⟨c, hc, e, Or.inr (Or.inr ⟨rfl, h⟩)⟩
     exact ⟨p.entry (@EntryInv.blkOK S (atCpu st d) (L.atCpu d) _ _ _ _ _ _ _ _ _ _ _ e'), p.isc⟩
 
 end

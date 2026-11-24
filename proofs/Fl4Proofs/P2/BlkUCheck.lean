@@ -35,9 +35,12 @@ theorem bxi_idle_state {s : S} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
   have hk' := Post.blk hk P
   refine ⟨s', ⟨hk'.1, hk'.2.1, hk'.2.2.1, hk'.2.2.2.2, hk'.2.2.2.1⟩, ?_, f.foot⟩
   rw [ec]
-  have k := StKeep.ofFr (Kp := ∅) (Es := EH H) hk (fun _ hy => absurd hy (Set.notMem_empty _)) f P.fr
+  have e : L.mem s' (L.nodeAt s (L.cpu s) layout.node.IDLE_THREAD) =
+      L.mem s (L.nodeAt s (L.cpu s) layout.node.IDLE_THREAD) :=
+    f.idKeep (nodeAt_aligned (h0.nodes _ h0.cur) (by rw [idle8]; omega) (by rw [idle8]))
+      (Or.inl ⟨_, h0.cur, _, Or.inl idle8, rfl⟩)
   unfold LawfulStore.idleW
-  rw [k.cpu, nodeAt_of_ksb k.ksb, k.nd _ h0.cur _ (Or.inl idle8)]
+  rw [f.2.1, nodeAt_of_ksb f.1, e]
 
 /-- `EntryHyps0` (its `blkU`) is contradictory with any `BXI` state. -/
 theorem entryHyps0_blkU_false (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {s : S}

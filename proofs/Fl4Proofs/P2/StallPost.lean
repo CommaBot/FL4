@@ -37,11 +37,13 @@ structure StKeep (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Kp : Set 
   nd : ∀ c ∈ Cs, ∀ o : U64, (o.val = 8 ∨ o.val = 32 ∨ (c ≠ d ∧ (o.val = 0 ∨ o.val = 16 ∨ o.val = 24))) →
     L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o)
   kp : ∀ y ∈ Kp, L.mem s' (stA y) = L.mem s (stA y)
+  iq : ∀ y ∈ Kp, L.mem s' (inqA y) = L.mem s (inqA y)
+  af : ∀ y ∈ T, L.mem s' (affA y) = L.mem s (affA y)
   sc : ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y)
   lk : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) ∧ L.mem s' (scTcbA c) = L.mem s (scTcbA c)
 
 theorem StKeep.refl {d : U64} (s : S) : StKeep st T Cs Scs Kp d s s :=
-  ⟨rfl, rfl, fun _ _ _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => ⟨rfl, rfl⟩⟩
+  ⟨rfl, rfl, fun _ _ _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => ⟨rfl, rfl⟩⟩
 
 theorem StKeep.trans {d : U64} {s1 s2 s3 : S} (h : StKeep st T Cs Scs Kp d s1 s2) (k : StKeep st T Cs Scs Kp d s2 s3) :
     StKeep st T Cs Scs Kp d s1 s3 :=
@@ -49,7 +51,8 @@ theorem StKeep.trans {d : U64} {s1 s2 s3 : S} (h : StKeep st T Cs Scs Kp d s1 s2
       have e := k.nd c hc o ho
       rw [nodeAt_of_ksb h.ksb] at e
       exact e.trans (h.nd c hc o ho),
-    fun y hy => (k.kp y hy).trans (h.kp y hy), fun y hy => (k.sc y hy).trans (h.sc y hy),
+    fun y hy => (k.kp y hy).trans (h.kp y hy), fun y hy => (k.iq y hy).trans (h.iq y hy),
+    fun y hy => (k.af y hy).trans (h.af y hy), fun y hy => (k.sc y hy).trans (h.sc y hy),
     fun c hc => ⟨(k.lk c hc).1.trans (h.lk c hc).1, (k.lk c hc).2.trans (h.lk c hc).2⟩⟩
 
 /-- The SC link words are aligned words of their SC. -/
@@ -75,7 +78,11 @@ theorem StKeep.ofI {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → Lis
       · exact Or.inr (Or.inl e)
       · exact Or.inr (Or.inr (Or.inl ⟨hne, e⟩)), rfl⟩)
   kp := fun y hy => f.stK h.tcbs (hKT y hy) hy
-  sc := fun y hy => f.idKeep (scA_aligned (h.tcbs y hy)) (Or.inr (Or.inr ⟨trivial, Or.inl ⟨y, hy, h.tcbs y hy, rfl⟩⟩))
+  iq := fun y hy => f.iqK h.tcbs (hKT y hy) hy
+  af := fun y hy => f.idKeep (by rw [affA_eq]; exact field_aligned (h.tcbs y hy) (by simp) (by simp))
+    (Or.inr (Or.inr ⟨trivial, Or.inl ⟨y, hy, h.tcbs y hy, Or.inr rfl⟩⟩))
+  sc := fun y hy => f.idKeep (scA_aligned (h.tcbs y hy))
+    (Or.inr (Or.inr ⟨trivial, Or.inl ⟨y, hy, h.tcbs y hy, Or.inl rfl⟩⟩))
   lk := fun c hc => by
     obtain ⟨⟨a1, i1⟩, ⟨a2, i2⟩⟩ := sclink_in hO hc
     exact ⟨f.idKeep a1 (Or.inr (Or.inr ⟨trivial, Or.inr ⟨c, hc, Or.inl rfl, h.omega _ (hO.scW c hc _ a1 i1)⟩⟩)),
@@ -88,7 +95,8 @@ theorem StKeep.ofN {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hKT 
 
 /-- A `FootN` footprint in donation mode that is a `Fr` is an `StKeep`. -/
 theorem StKeep.ofFr {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hKT : ∀ y ∈ Kp, y ∈ T)
-    (f : FootN st Kp False T Cs Sg Scs Z Es s s') (fr : Fr st T Sg s s') :
+    (f : FootN st Kp False T Cs Sg Scs Z Es s s') (fr : Fr st T Sg s s')
+    (haf : ∀ y ∈ T, L.mem s' (affA y) = L.mem s (affA y)) :
     StKeep st T Cs Scs Kp (L.cpu s) s s' where
   ksb := f.1
   cpu := f.2.1
@@ -100,6 +108,10 @@ theorem StKeep.ofFr {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hKT
       · exact Or.inr (Or.inl e)
       · exact Or.inr (Or.inr (Or.inl ⟨hne, e⟩)), rfl⟩)
   kp := fun y hy => fr.st y (hKT y hy)
+  iq := fun y hy => f.idKeep (by
+      rw [inqA_eq]; exact field_aligned (h.1.choose_spec.choose_spec.tcbs y (hKT y hy)) (by simp) (by simp))
+    (Or.inr (Or.inl ⟨y, hKT y hy, h.1.choose_spec.choose_spec.tcbs y (hKT y hy), hy, Or.inr rfl⟩))
+  af := haf
   sc := fr.sc
   lk := fun c hc => ⟨fr.sig _ (h.2.2.1.1.repW c hc), fr.sig _ (h.2.2.1.1.fixW c hc).1⟩
 
@@ -242,7 +254,7 @@ theorem stall_restart (s : S) (ct : obj.Tcb) (i : U64) (h : BlkOK st T Cs Ω H S
 
 /-- Enqueue of the stalled thread, if schedulable. -/
 theorem stall_enqueue (s : S) (ct : obj.Tcb) (b : Bool) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hct : ct ∈ T)
-    (hKT : ∀ y ∈ Kp, y ∈ T)
+    (hcK : ct ∉ Kp) (hKT : ∀ y ∈ Kp, y ∈ T)
     (hb : b = true → Runnable (L.mem s (stA ct)) ∧ L.mem s (scA ct) ≠ 0#u64 ∧
       (L.mem s (inqA ct) &&& sched.Q_RELEASE) = 0#u64 ∧ L.rmax s (L.mem s (scA ct)) ≠ 0#u64) :
     (if b then sched.enqueue st s ct else ok s)
@@ -253,7 +265,7 @@ theorem stall_enqueue (s : S) (ct : obj.Tcb) (b : Bool) (h : BlkOK st T Cs Ω H 
     obtain ⟨b1, b2, b3, b4⟩ := hb e
     refine WP.spec_mono (WP.spec_and (sched.enqueue.sch s ct Q R h0 hB hSg hct (fun _ => b3) (fun _ => b1) (fun _ => b2)
       (fun _ => (hS.act _ (hX.2.2.bound _ hct b2).1).2 b4))
-      (sched.enqueue.kwN (Kp := Kp) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s ct h0 hct)) fun s' hh => ?_
+      (sched.enqueue.kwN (Kp := Kp) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s ct h0 hct hcK)) fun s' hh => ?_
     exact ⟨Post.blk h hh.1.1, StKeep.ofN h hKT hh.2⟩
   · exact (WP.spec_ok _).2 ⟨h, StKeep.refl s⟩
 
@@ -272,13 +284,22 @@ theorem stall_idle (hA : P0.ArchTotal ar) (s : S) (a : A) (h : BlkOK st T Cs Ω 
   subst s1
   have hiT : idle ∈ T := by rw [idle_post]; exact h0.idleT
   have hbd : L.mem s (scA idle) ≠ 0#u64 := by rw [idle_post]; exact hB.idle
-  refine WP.spec_bind (WP.spec_and (sched.set_cur_thread.sch s idle Q R h0 hB hSg hiT (fun _ => hbd)
+  have hw0 : sched.set_cur_thread st s idle
+      ⦃ s' => WritesIn st s s' (· = L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) ⦄ :=
+    WP.spec_mono (sched.set_cur_thread.spec s idle) fun s' e => by
+      subst e
+      exact writesIn_wr (nodeAt_aligned (h0.nodes _ h0.cur) (by rw [curth0]; omega) (by rw [curth0]))
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (sched.set_cur_thread.sch s idle Q R h0 hB hSg hiT (fun _ => hbd)
     (fun _ => by rw [idle_post]; exact hB.idleA h0.idleT))
     (sched.set_cur_thread.kwN (Kp := Kp) (Nd := False) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) (T := T) s idle
-      h0.nodes h0.cur id)) ?_
-  rintro s2 ⟨⟨P, ec, -⟩, f⟩
+      h0.nodes h0.cur id)) hw0) ?_
+  rintro s2 ⟨⟨⟨P, ec, -⟩, f⟩, hw⟩
   simp only [WP.spec_ok, WP.uncurry'_pair]
-  have k := StKeep.ofFr (Es := ∅) h hKT f P.fr
+  have haf : ∀ y ∈ T, L.mem s2 (affA y) = L.mem s (affA y) := fun y hy => by
+    refine hw.mem_eq (by rw [affA_eq]; exact field_aligned (h0.tcbs y hy) (by simp) (by simp)) fun e => ?_
+    rw [affA_eq] at e
+    exact node_ne_field (h0.nodes _ h0.cur) (by rw [curth0]; omega) hy (h0.tcbs y hy) (by simp) e.symm
+  have k := StKeep.ofFr (Es := ∅) h hKT f P.fr haf
   refine ⟨Post.blk h P, k, ?_⟩
   rw [ec, idle_post]
   unfold LawfulStore.idleW
@@ -286,10 +307,10 @@ theorem stall_idle (hA : P0.ArchTotal ar) (s : S) (a : A) (h : BlkOK st T Cs Ω 
 
 /-- A write of one own node word is an `StKeep`. -/
 theorem StKeep.own {s : S} {o v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hKT : ∀ y ∈ Kp, y ∈ T)
-    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hi8 : o.val ≠ 8) (h32 : o.val ≠ 32) (h0 : o.val ≠ 0) :
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hi8 : o.val ≠ 8) (h32 : o.val ≠ 32) (h0 : o.val ≠ 0) (h16 : o.val ≠ 16) :
     StKeep st T Cs Scs Kp (L.cpu s) s (L.wr s (L.nodeAt s (L.cpu s) o) v) :=
   StKeep.ofN (Es := ∅) h hKT (footN_node h.1.choose_spec.choose_spec.nodes h.1.choose_spec.choose_spec.cur ho h8 h88
-    (idOff_cur hi8 h32 (fun _ => h0)))
+    (idOff_cur hi8 h32 (fun _ => h0)) h.1.choose_spec.choose_spec.cur h16)
 
 theorem own_w {s : S} {o v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ho : o.val < 4288) (h8 : o.val % 8 = 0) :
     WritesIn st s (L.wr s (L.nodeAt s (L.cpu s) o) v) (· = L.nodeAt s (L.cpu s) o) :=
@@ -317,7 +338,7 @@ theorem stall2.blk (hA : P0.ArchTotal ar) (s : S) (a : A) (ct : obj.Tcb) (h : Bl
   rintro s4 ⟨h4, k4⟩
   refine WP.spec_bind (sched.is_schedulable.spec' s4 ct) ?_
   intro b1 hb1
-  refine WP.spec_bind (stall_enqueue s4 ct b1 h4 hct hKT hb1) ?_
+  refine WP.spec_bind (stall_enqueue s4 ct b1 h4 hct hcK hKT hb1) ?_
   rintro s5 ⟨h5, k5⟩
   refine WP.spec_bind (stall_idle hA s5 a h5 hKT) ?_
   rintro ⟨s6, a3⟩ hh6
@@ -344,7 +365,7 @@ theorem stall2.blk (hA : P0.ArchTotal ar) (s : S) (a : A) (ct : obj.Tcb) (h : Bl
     rw [e7, hv]
     exact L.mem_wr_same (nodeAt_aligned (q6.nodes _ q6.cur) (by omega) (by omega)))
   have k7 : StKeep st T Cs Scs Kp (L.cpu s6) s6 s7 := by
-    rw [e7]; exact StKeep.own h6 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+    rw [e7]; exact StKeep.own h6 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
   refine WP.spec_bind (obj.node_set.spec s7 _ _ _) ?_
   intro s8 e8
   rw [← k7.cpu] at e8
@@ -352,14 +373,14 @@ theorem stall2.blk (hA : P0.ArchTotal ar) (s : S) (a : A) (ct : obj.Tcb) (h : Bl
     rw [e8]; exact own_w h7 (by omega) (by omega)
   obtain ⟨h8, ka8, kc8, ki8, cs8⟩ := node_blk h7 (by unfold LowFree; omega) (by omega) (by omega) w8
   have k8 : StKeep st T Cs Scs Kp (L.cpu s7) s7 s8 := by
-    rw [e8]; exact StKeep.own h7 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+    rw [e8]; exact StKeep.own h7 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
   refine WP.spec_bind (sched.set_reprogram.spec s8) ?_
   intro s9 e9
   have w9 : WritesIn st s8 s9 (· = L.nodeAt s8 (L.cpu s8) layout.node.REPROGRAM) := by
     rw [e9]; exact own_w h8 (by omega) (by omega)
   obtain ⟨h9, ka9, kc9, ki9, cs9⟩ := node_blk h8 (by unfold LowFree; omega) (by omega) (by omega) w9
   have k9 : StKeep st T Cs Scs Kp (L.cpu s8) s8 s9 := by
-    rw [e9]; exact StKeep.own h8 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
+    rw [e9]; exact StKeep.own h8 hKT (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
   have cT6 : L.curW s6 ∈ T := q6.curT
   have kcur : L.curW s9 = L.curW s6 := kc9.trans (kc8.trans kc7)
   have kidl : L.idleW s9 = L.idleW s6 := ki9.trans (ki8.trans ki7)
@@ -372,7 +393,7 @@ theorem stall2.blk (hA : P0.ArchTotal ar) (s : S) (a : A) (ct : obj.Tcb) (h : Bl
     (fun hT => absurd hT (notT_small q9.tcbs (by simp))) (fun hT => absurd hT (notT_small q9.tcbs (by simp)))
     (fun _ => by rw [hsc9]; exact ⟨hidle6, hidA⟩) (fun hT => absurd hT (notT_small q9.tcbs (by simp))))
     (sched.set_action.kwN (Kp := Kp) (Nd := True) (T := T) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := ∅) s9 0#u64
-      q9.nodes q9.cur)) ?_
+      q9.nodes q9.cur (small_out q9.tcbs (by simp)))) ?_
   rintro s10 ⟨⟨P, ea, ec, -⟩, f10⟩
   have k10 : StKeep st T Cs Scs Kp (L.cpu s9) s9 s10 := StKeep.ofN h9 hKT f10
   have ki10 : L.idleW s10 = L.idleW s9 := by

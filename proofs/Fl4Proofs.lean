@@ -178,6 +178,8 @@ import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
 import Fl4Proofs.P2.StallAll
+import Fl4Proofs.P2.StallBase
+import Fl4Proofs.P2.StallLawNote
 import Fl4Proofs.P2.BlkUCheck
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine

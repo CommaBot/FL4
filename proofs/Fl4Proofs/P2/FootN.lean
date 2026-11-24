@@ -32,6 +32,14 @@ with `Kp` = the other cores' idle threads and `Nd` true, so its footprint
 keeps their states, every thread's SC binding, every SC's reply stack and
 thread, and the stalled core's current thread. The lemmas writing a `STATE`
 take `t ∉ Kp`; those writing an SC link (`donate`) take `¬ Nd`.
+
+**(p2j5)** `PrW` also protects the `IN_QUEUES` words of `Kp` and, under `Nd`,
+every thread's `AFFINITY`: `Kp` now is the other cores' idle, current and
+action threads, which a stall keeps unqueued (seL4 `ct_not_in_q`). The
+queue operations take `t ∉ Kp`. `reschedule_required` queues the executing
+core's action thread, so the footprint also carries `AcK` (a new
+`SCHED_ACTION` is no thread of `Kp`; `WritesA`), and it and
+`possible_switch_to` take `ActOut` (the action is no thread of `Kp`).
 -/
 import Fl4Proofs.P1.QueueFoot
 open Aeneas Aeneas.Std Result
@@ -70,15 +78,15 @@ def IdN (st : machine.Store S) [L : LawfulStore st] (Nd : Prop) (Cs : Set U64) (
   ∃ c ∈ Cs, ∃ o : U64, IdOff (c = L.cpu s0) Nd o.val ∧ b = L.nodeAt s0 c o
 
 /-- **The protected thread and SC words** (P2 p2j3, the stall's exclusion
-layer): the `STATE` words of the threads `Kp` (the other cores' idle
-threads, during a stall), and, when `Nd` (no
-donation), every thread's `SC` word and every SC's `REPLY` and `TCB` words.
+layer): the `STATE` and `IN_QUEUES` words of the threads `Kp` (the other
+cores' threads, during a stall), and, when `Nd` (no
+donation), every thread's `SC` and `AFFINITY` words and every SC's `REPLY` and `TCB` words.
 The witnesses carry their placement (`TcbAddr`, `OutsideObjs`), so a node or
 TCB-field write is seen to miss them without further hypotheses. -/
 def PrW (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (T Cs Scs : Set U64) (s0 : S)
     (b : U64) : Prop :=
-  (∃ y ∈ T, TcbAddr y ∧ y ∈ Kp ∧ b = stA y) ∨
-  (Nd ∧ ((∃ y ∈ T, TcbAddr y ∧ b = scA y) ∨
+  (∃ y ∈ T, TcbAddr y ∧ y ∈ Kp ∧ (b = stA y ∨ b = inqA y)) ∨
+  (Nd ∧ ((∃ y ∈ T, TcbAddr y ∧ (b = scA y ∨ b = affA y)) ∨
     (∃ c ∈ Scs, (b = scReplyA c ∨ b = scTcbA c) ∧ OutsideObjs st T Cs s0 b)))
 
 /-- The words no `KWN` step writes: the node identity words (`IdN`) and the
@@ -93,10 +101,91 @@ def KWN (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (
     (Z : U64 → Nat) (Es : Set U64) (s0 : S) (b : U64) : Prop :=
   KW st T Cs Sg Scs Z Es s0 b ∧ ¬ IdW st Kp Nd T Cs Scs s0 b
 
+/-- The executing core's action is no protected thread. -/
+def ActOut (st : machine.Store S) [L : LawfulStore st] (T Kp : Set U64) (s : S) : Prop :=
+  L.actionW s ∈ T → L.actionW s ∉ Kp
+
+/-- A step makes no protected thread the executing core's action. -/
+def AcK (st : machine.Store S) [L : LawfulStore st] (T Kp : Set U64) (s s' : S) : Prop :=
+  L.actionW s' ∈ T → L.actionW s' ∈ Kp → L.actionW s' = L.actionW s
+
+theorem AcK.of_eq {Kp : Set U64} {s s' : S} (h : L.actionW s' = L.actionW s) : AcK st T Kp s s' := fun _ _ => h
+
+theorem AcK.of_nT {Kp : Set U64} {s s' : S} (h : L.actionW s' ∉ T) : AcK st T Kp s s' := fun h' => absurd h' h
+
+theorem AcK.trans {Kp : Set U64} {s₁ s₂ s₃ : S} (h₁ : AcK st T Kp s₁ s₂) (h₂ : AcK st T Kp s₂ s₃) :
+    AcK st T Kp s₁ s₃ := fun hT hK => by
+  have e := h₂ hT hK
+  exact e.trans (h₁ (e ▸ hT) (e ▸ hK))
+
+theorem ActOut.step {Kp : Set U64} {s s' : S} (h : ActOut st T Kp s) (k : AcK st T Kp s s') : ActOut st T Kp s' :=
+  fun hT hK => by
+    have e := k hT hK
+    exact h (e ▸ hT) (e ▸ hK)
+
+/-- `WritesIn` with `AcK`. -/
+def WritesA (st : machine.Store S) [L : LawfulStore st] (T Kp : Set U64) (s s' : S) (B : U64 → Prop) : Prop :=
+  L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧ (∀ b, Aligned b → ¬ B b → L.mem s' b = L.mem s b) ∧ AcK st T Kp s s'
+
+theorem WritesA.refl {Kp : Set U64} (s : S) (B : U64 → Prop) : WritesA st T Kp s s B :=
+  ⟨rfl, rfl, fun _ _ _ => rfl, AcK.of_eq rfl⟩
+
+theorem WritesA.w {Kp : Set U64} {s s' : S} {B : U64 → Prop} (h : WritesA st T Kp s s' B) : WritesIn st s s' B :=
+  ⟨h.1, h.2.1, h.2.2.1⟩
+
+theorem WritesA.ac {Kp : Set U64} {s s' : S} {B : U64 → Prop} (h : WritesA st T Kp s s' B) : AcK st T Kp s s' :=
+  h.2.2.2
+
+theorem WritesA.out {Kp : Set U64} {s s' : S} {B : U64 → Prop} (h : WritesA st T Kp s s' B)
+    (ha : ActOut st T Kp s) : ActOut st T Kp s' := ha.step h.ac
+
+theorem WritesIn.a {Kp : Set U64} {s s' : S} {B : U64 → Prop} (h : WritesIn st s s' B) (k : AcK st T Kp s s') :
+    WritesA st T Kp s s' B := ⟨h.1, h.2.1, h.2.2, k⟩
+
+theorem WritesA.mono {Kp : Set U64} {s s' : S} {A B : U64 → Prop} (h : WritesA st T Kp s s' A) (hAB : ∀ b, A b → B b) :
+    WritesA st T Kp s s' B := (WritesIn.mono h.w hAB).a h.ac
+
+theorem WritesA.trans {Kp : Set U64} {s₁ s₂ s₃ : S} {A B : U64 → Prop} (h₁ : WritesA st T Kp s₁ s₂ A)
+    (h₂ : WritesA st T Kp s₂ s₃ B) : WritesA st T Kp s₁ s₃ (fun b => A b ∨ B b) :=
+  (WritesIn.trans h₁.w h₂.w).a (h₁.ac.trans h₂.ac)
+
+theorem WritesA.mem_eq {Kp : Set U64} {s s' : S} {B : U64 → Prop} (h : WritesA st T Kp s s' B) {b : U64}
+    (hb : Aligned b) (hn : ¬ B b) : L.mem s' b = L.mem s b := h.2.2.1 b hb hn
+
+/-- A step whose writes miss the action word keeps the action. -/
+theorem actionW_of {s s' : S} {B : U64 → Prop} (h : WritesIn st s s' B) (hN : NodePlaced st T s (L.cpu s))
+    (hn : ¬ B (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION)) : L.actionW s' = L.actionW s := by
+  unfold LawfulStore.actionW
+  rw [h.2.1, nodeAt_of_ksb h.1]
+  exact h.mem_eq (nodeAt_aligned hN (by rw [act_val]; omega) (by rw [act_val])) hn
+
+theorem actionW_out {s : S} {a v : U64} (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs)
+    (ha : OutsideObjs st T Cs s a) : L.actionW (L.wr s a v) = L.actionW s :=
+  actionW_of (writesIn_wr ha.1) (NP _ hc) fun e =>
+    out_ne_node ha hc (NP _ hc) (by rw [act_val]; omega) (congrArg UScalar.val e)
+
+theorem actionW_field {s : S} {y K v : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hc : L.cpu s ∈ Cs) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) :
+    L.actionW (L.wr s (core.num.U64.wrapping_add y K) v) = L.actionW s :=
+  act_wr_field (NP _ hc) hy (hT y hy) rfl hK hK8
+
+theorem act_aligned {s : S} (hN : NodePlaced st T s (L.cpu s)) :
+    Aligned (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) :=
+  nodeAt_aligned hN (by rw [act_val]; omega) (by rw [act_val])
+
+theorem notAct_omega {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s : S}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) : L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ∉ Ω := fun hm =>
+  out_ne_node (h.omega _ hm) h.cur (h.nodes _ h.cur) (by rw [act_val]; omega) rfl
+
+theorem notAct_node {s : S} {c o : U64} (hN : NodePlaced st T s (L.cpu s)) (hN' : NodePlaced st T s c)
+    (ho : o.val < 4288) (h16 : o.val ≠ 16) : L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ L.nodeAt s c o := fun e =>
+  node_ne_node hN hN' (by rw [act_val]; omega) ho (fun _ => by rw [act_val]; exact fun h => h16 h.symm)
+    (congrArg UScalar.val e)
+
 /-- A footprint inside `KWN`. -/
 abbrev FootN (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (T Cs Sg Scs : Set U64)
     (Z : U64 → Nat) (Es : Set U64) (s s' : S) : Prop :=
-  WritesIn st s s' (KWN st Kp Nd T Cs Sg Scs Z Es s)
+  WritesA st T Kp s s' (KWN st Kp Nd T Cs Sg Scs Z Es s)
 
 variable {Kp : Set U64} {Nd : Prop}
 
@@ -117,18 +206,19 @@ theorem IdW.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (hc : L.cpu s1 
   h.imp (IdN.ksb hk hc) (PrW.ksb hk)
 
 theorem FootN.foot {s s' : S} (h : FootN st Kp Nd T Cs Sg Scs Z Es s s') : Foot st T Cs Sg Scs Z Es s s' :=
-  WritesIn.mono h fun _ hb => hb.1
+  WritesIn.mono (WritesA.w h) fun _ hb => hb.1
 
-theorem FootN.refl (s : S) : FootN st Kp Nd T Cs Sg Scs Z Es s s := WritesIn.refl _ _
+theorem FootN.refl (s : S) : FootN st Kp Nd T Cs Sg Scs Z Es s s := WritesA.refl _ _
 
 theorem FootN.trans {s₁ s₂ s₃ : S} (h₁ : FootN st Kp Nd T Cs Sg Scs Z Es s₁ s₂)
     (h₂ : FootN st Kp Nd T Cs Sg Scs Z Es s₂ s₃) : FootN st Kp Nd T Cs Sg Scs Z Es s₁ s₃ :=
-  WritesIn.mono (WritesIn.trans h₁ h₂) fun b hb =>
+  WritesA.mono (WritesA.trans h₁ h₂) fun b hb =>
     Or.elim hb id fun hb => ⟨KW.ksb h₁.1 hb.1, fun hi => hb.2 (hi.ksb h₁.1 h₁.2.1)⟩
 
 theorem FootN.of' {s s' : S} {B : U64 → Prop} (h : WritesIn st s s' B)
-    (hB : ∀ b, Aligned b → B b → KWN st Kp Nd T Cs Sg Scs Z Es s b) : FootN st Kp Nd T Cs Sg Scs Z Es s s' :=
-  ⟨h.1, h.2.1, fun b hb hn => h.2.2 b hb fun hh => hn (hB b hb hh)⟩
+    (hB : ∀ b, Aligned b → B b → KWN st Kp Nd T Cs Sg Scs Z Es s b) (hk : AcK st T Kp s s') :
+    FootN st Kp Nd T Cs Sg Scs Z Es s s' :=
+  ⟨h.1, h.2.1, fun b hb hn => h.2.2 b hb fun hh => hn (hB b hb hh), hk⟩
 
 /-- **A `KWN` footprint keeps the node identity and protected words.** -/
 theorem FootN.idKeep {s s' : S} (f : FootN st Kp Nd T Cs Sg Scs Z Es s s') {b : U64} (hb : Aligned b)
@@ -142,31 +232,35 @@ theorem IdN.lt {s : S} {b : U64} (h : IdN st Nd Cs s b) :
   obtain ⟨c, hc, o, ho, e⟩ := h
   exact ⟨c, hc, o, ho, ho.lt, e⟩
 
-/-- What a write to field `K` of `y` must avoid: `STATE` of a protected
-thread, `SC` under `Nd`. -/
+/-- What a write to field `K` of `y` must avoid: `STATE` and `IN_QUEUES` of a
+protected thread, `SC` and `AFFINITY` under `Nd`. -/
 def PrF (Kp : Set U64) (Nd : Prop) (y K : U64) : Prop :=
-  (y ∈ Kp → K.val ≠ 3328) ∧ (Nd → K.val ≠ 3464)
+  (y ∈ Kp → K.val ≠ 3328 ∧ K.val ≠ 3592) ∧ (Nd → K.val ≠ 3464 ∧ K.val ≠ 3520)
 
-theorem PrF.of_ne {y K : U64} (h1 : K.val ≠ 3328) (h3 : K.val ≠ 3464) : PrF Kp Nd y K :=
-  ⟨fun _ => h1, fun _ => h3⟩
+theorem PrF.of_ne {y K : U64} (h1 : K.val ≠ 3328) (h2 : K.val ≠ 3592) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520) :
+    PrF Kp Nd y K := ⟨fun _ => ⟨h1, h2⟩, fun _ => ⟨h3, h4⟩⟩
 
-theorem PrF.of_nk {y K : U64} (hy : y ∉ Kp) (h3 : K.val ≠ 3464) : PrF Kp Nd y K :=
-  ⟨fun h => absurd h hy, fun _ => h3⟩
+theorem PrF.of_nk {y K : U64} (hy : y ∉ Kp) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520) : PrF Kp Nd y K :=
+  ⟨fun h => absurd h hy, fun _ => ⟨h3, h4⟩⟩
 
 /-- Discharges a literal offset inequality. -/
 macro "xf_ne" : tactic =>
   `(tactic| first | decide | omega | (simp; done) | (simp only [nextOff, prevOff]; decide) | (cases ‹tcbqueue.Link› <;> simp [nextOff, prevOff]; done))
 
 /-- Tries `PrF.of_ne` on literal offsets. -/
-macro "xf_auto" : tactic => `(tactic| exact PrF.of_ne (by xf_ne) (by xf_ne))
+macro "xf_auto" : tactic => `(tactic| exact PrF.of_ne (by xf_ne) (by xf_ne) (by xf_ne) (by xf_ne))
 
 theorem notPrW_field {s : S} {y K : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hK : K.val < 4096)
     (hx : PrF Kp Nd y K) : ¬ PrW st Kp Nd T Cs Scs s (core.num.U64.wrapping_add y K) := by
-  rintro (⟨y', hy', hya', hk, e⟩ | ⟨hn, ⟨y', hy', hya', e⟩ | ⟨c, hc, -, ho⟩⟩)
+  rintro (⟨y', hy', hya', hk, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, -, ho⟩⟩)
   · rw [stA_eq] at e
-    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact hx.1 hk) e
+    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.1 hk).1) e
+  · rw [inqA_eq] at e
+    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.1 hk).2) e
   · rw [scA_eq] at e
-    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact hx.2 hn) e
+    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).1) e
+  · rw [affA_eq] at e
+    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).2) e
   · exact out_ne_field ho hy (hT y hy) hK rfl
 
 theorem notIdW_field {s : S} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) {y K : U64} (hy : y ∈ T)
@@ -179,9 +273,11 @@ theorem notIdW_field {s : S} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced s
 
 theorem notPrW_node {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {c o : U64} (hc : c ∈ Cs)
     (ho : o.val < 4288) : ¬ PrW st Kp Nd T Cs Scs s (L.nodeAt s c o) := by
-  rintro (⟨y', hy', hya', -, e⟩ | ⟨-, ⟨y', hy', hya', e⟩ | ⟨c', -, -, hout⟩⟩)
+  rintro (⟨y', hy', hya', -, e | e⟩ | ⟨-, ⟨y', hy', hya', e | e⟩ | ⟨c', -, -, hout⟩⟩)
   · rw [stA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
+  · rw [inqA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · rw [scA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
+  · rw [affA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · exact out_ne_node hout hc (NP c hc) ho rfl
 
 theorem notIdW_node {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {c o : U64} (hc : c ∈ Cs)
@@ -204,9 +300,11 @@ theorem notIdW_out {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {a : U64} (h
   rintro (h | h)
   · obtain ⟨c, hc, o, -, ho, e⟩ := h.lt
     exact out_ne_node ha hc (NP c hc) (by omega) (congrArg UScalar.val e).symm
-  · rcases h with ⟨y', hy', hya', -, e⟩ | ⟨hn, ⟨y', hy', hya', e⟩ | ⟨c, hc, e | e, -⟩⟩
+  · rcases h with ⟨y', hy', hya', -, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, e | e, -⟩⟩
     · rw [stA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
+    · rw [inqA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · rw [scA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
+    · rw [affA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · exact (hh hn c hc).1 e
     · exact (hh hn c hc).2 e
 
@@ -259,34 +357,58 @@ theorem noHdr_ring {Ω Sg Rp Nt : Set U64} {s : S} (hO : ObjsOK st Ω Sg Rp Scs 
     (hb : InRing i (Z i) b) : NoHdr Nd Scs b :=
   noHdr_sc hO hi hb.inSC (by have := hb.1; omega) (by have := hb.1; omega)
 
-theorem footN_wr {s : S} {a v : U64} (ha : Aligned a) (hk : KWN st Kp Nd T Cs Sg Scs Z Es s a) :
-    FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s a v) :=
-  (writesIn_wr ha).mono fun b hb => hb ▸ hk
+theorem footN_wr {s : S} {a v : U64} (ha : Aligned a) (hk : KWN st Kp Nd T Cs Sg Scs Z Es s a)
+    (he : L.actionW (L.wr s a v) = L.actionW s) : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s a v) :=
+  ((writesIn_wr ha).mono fun b hb => hb ▸ hk).a (AcK.of_eq he)
 
-theorem footN_field {s : S} {y K v : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hy : y ∈ T)
+theorem footN_field {s : S} {y K v : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) (hy : y ∈ T)
     (hK : 192 ≤ K.val) (hK' : K.val < 4096) (hK8 : K.val % 8 = 0) (hKd : K.val ≠ 3576 ∧ K.val ≠ 3584)
     (hx : PrF Kp Nd y K := by xf_auto) :
     FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (core.num.U64.wrapping_add y K) v) :=
   footN_wr (field_aligned (hT y hy) hK' hK8) ⟨kw_field hy hK hK' hKd, notIdW_field hT NP hy hK' hx⟩
+    (actionW_field hT NP hc hy hK' hK8)
 
 theorem footN_node {s : S} {c o v : U64} (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : c ∈ Cs) (ho : o.val < 4288)
-    (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hn : ¬ IdOff (c = L.cpu s) Nd o.val) :
+    (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hn : ¬ IdOff (c = L.cpu s) Nd o.val) (hcpu : L.cpu s ∈ Cs)
+    (h16 : o.val ≠ 16 := by first | (simp; done) | omega) :
     FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (L.nodeAt s c o) v) :=
   footN_wr (nodeAt_aligned (NP c hc) ho h8) ⟨kw_node hc ho h88, notIdW_node NP hc ho hn⟩
+    (actionW_of (writesIn_wr (nodeAt_aligned (NP c hc) ho h8)) (NP _ hcpu) fun e =>
+      node_ne_node (NP _ hcpu) (NP c hc) (by rw [act_val]; omega) ho
+        (fun _ => by rw [act_val]; exact fun h => h16 h.symm) (congrArg UScalar.val e))
 
 theorem LawfulStore.QFoot.kwN {s : S} {W : List U64} {c : U64} {P : Nat → Prop} {t b : U64}
     (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hW : ∀ w ∈ W, w ∈ T)
     (hc : c ∈ Cs) (hcpu : L.cpu s ∈ Cs) (ht : t ∈ T) (hP : ∀ o, P o → o ≠ 88)
-    (hPi : ∀ o, P o → ¬ IdOff (c = L.cpu s) Nd o) (h : L.QFoot s W c P t b) :
+    (hPi : ∀ o, P o → ¬ IdOff (c = L.cpu s) Nd o) (htK : t ∉ Kp) (h : L.QFoot s W c P t b) :
     KWN st Kp Nd T Cs Sg Scs Z Es s b := by
   refine ⟨h.kw hW hc hcpu ht hP, ?_⟩
   rcases h with ⟨w, hw, e | e⟩ | ⟨o, hPo, ho, -, e⟩ | e | ⟨o, hPo, ho, -, e⟩ <;> subst e
   · rw [nextA_eq']; exact notIdW_field hT NP (hW w hw) (by simp [nextOff])
   · rw [prevA_eq']; exact notIdW_field hT NP (hW w hw) (by simp [prevOff])
   · exact notIdW_node NP hc ho (hPi _ hPo)
-  · rw [inqA_eq]; exact notIdW_field hT NP ht (by simp)
+  · rw [inqA_eq]; exact notIdW_field hT NP ht (by simp) (PrF.of_nk htK (by simp) (by simp))
   · have h120 : o.val = 120 := hPo
     exact notIdW_node NP hcpu ho (idOff_ge (by omega))
+
+/-- A queue operation keeps the action. -/
+theorem LawfulStore.QFoot.act {s s' : S} {W : List U64} {c : U64} {P : Nat → Prop} {t : U64}
+    (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hW : ∀ w ∈ W, w ∈ T)
+    (hc : c ∈ Cs) (hcpu : L.cpu s ∈ Cs) (ht : t ∈ T) (hP : ∀ o, P o → o ≠ 16)
+    (h : WritesIn st s s' (L.QFoot s W c P t)) : L.actionW s' = L.actionW s := by
+  refine actionW_of h (NP _ hcpu) ?_
+  have hN := NP _ hcpu
+  have e16 : layout.node.SCHED_ACTION.val = 16 := act_val
+  rintro (⟨w, hw, e | e⟩ | ⟨o, hPo, ho, -, e⟩ | e | ⟨o, hPo, ho, -, e⟩)
+  · rw [nextA_eq'] at e
+    exact node_ne_field hN (by omega) (hW w hw) (hT w (hW w hw)) (by simp [nextOff]) e
+  · rw [prevA_eq'] at e
+    exact node_ne_field hN (by omega) (hW w hw) (hT w (hW w hw)) (by simp [prevOff]) e
+  · exact node_ne_node hN (NP c hc) (by omega) ho (fun _ => by rw [e16]; exact fun h => hP _ hPo h.symm)
+      (congrArg UScalar.val e)
+  · rw [inqA_eq] at e; exact node_ne_field hN (by omega) ht (hT t ht) (by simp) e
+  · have h120 : o.val = 120 := hPo
+    exact node_ne_node hN hN (by omega) ho (fun _ => by omega) (congrArg UScalar.val e)
 
 /-! ## The scheduler-queue operations -/
 
@@ -298,46 +420,68 @@ theorem rTcbA_v (r : U64) : (rTcbA r).val = r.val := by
 section queues
 variable {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
-theorem sched.enqueue.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+theorem sched.enqueue.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (htK : t ∉ Kp) :
     sched.enqueue st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
   have hR1 := h.ready _ hc
-  refine WP.spec_mono (sched.enqueue.foot s t _ h.tcbs ht hp (h.nodes _ hc) (h.nodes _ h.cur) (hR1.1.rel _ hp)
-    (fun h0 => h.notQ ht h0 hc hp)) fun s' hh => hh.1.mono fun b hb =>
-      LawfulStore.QFoot.kwN h.tcbs h.nodes ?_ hc h.cur ht (fun o ho => by omega) (fun o ho => idOff_ge (by omega)) hb
-  intro w hw
-  rcases List.mem_cons.1 hw with rfl | hw
-  · exact ht
-  · exact (hR1.1.rel _ hp).mem w hw
+  have hW : ∀ w ∈ t :: Q (L.mem s (affA t)) (L.mem s (prioA t)), w ∈ T := by
+    intro w hw
+    rcases List.mem_cons.1 hw with rfl | hw
+    · exact ht
+    · exact (hR1.1.rel _ hp).mem w hw
+  exact WP.spec_mono (sched.enqueue.foot s t _ h.tcbs ht hp (h.nodes _ hc) (h.nodes _ h.cur) (hR1.1.rel _ hp)
+    (fun h0 => h.notQ ht h0 hc hp)) fun s' hh => WritesIn.a (hh.1.mono fun b hb =>
+      LawfulStore.QFoot.kwN h.tcbs h.nodes hW hc h.cur ht (fun o ho => by omega) (fun o ho => idOff_ge (by omega)) htK hb)
+      (AcK.of_eq (LawfulStore.QFoot.act h.tcbs h.nodes hW hc h.cur ht (fun o ho => by omega) hh.1))
 
-theorem sched.dequeue.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+theorem sched.dequeue.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (htK : t ∉ Kp) :
     sched.dequeue st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
   have hR1 := h.ready _ hc
   exact WP.spec_mono (sched.dequeue.foot s t _ h.tcbs ht hp (h.nodes _ hc) (h.nodes _ h.cur) (hR1.1.rel _ hp)
-    (h.queued t ht).1) fun s' hh => hh.1.mono fun b hb =>
+    (h.queued t ht).1) fun s' hh => WritesIn.a (hh.1.mono fun b hb =>
       LawfulStore.QFoot.kwN h.tcbs h.nodes (hR1.1.rel _ hp).mem hc h.cur ht (fun o ho => by omega)
-        (fun o ho => idOff_ge (by omega)) hb
+        (fun o ho => idOff_ge (by omega)) htK hb)
+      (AcK.of_eq (LawfulStore.QFoot.act h.tcbs h.nodes (hR1.1.rel _ hp).mem hc h.cur ht (fun o ho => by omega) hh.1))
 
-theorem sched.release_remove.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+theorem sched.release_remove.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (htK : t ∉ Kp) :
     sched.release_remove st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hc := h.aff t ht
   exact WP.spec_mono (sched.release_remove.foot s t _ h.tcbs ht (h.nodes _ hc) (h.nodes _ h.cur) (h.release _ hc)
-    (h.released t ht).1) fun s' hh => hh.1.mono fun b hb =>
+    (h.released t ht).1) fun s' hh => WritesIn.a (hh.1.mono fun b hb =>
       LawfulStore.QFoot.kwN h.tcbs h.nodes (h.release _ hc).mem hc h.cur ht
         (fun o ho => by unfold RelOffs at ho; omega)
-        (fun o ho => idOff_ge (by unfold RelOffs at ho; omega)) hb
+        (fun o ho => idOff_ge (by unfold RelOffs at ho; omega)) htK hb)
+      (AcK.of_eq (LawfulStore.QFoot.act h.tcbs h.nodes (h.release _ hc).mem hc h.cur ht
+        (fun o ho => by unfold RelOffs at ho; omega) hh.1))
 
-theorem sched.set_action.kwN (s : S) (v : U64) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
+theorem sched.set_action.kwN (s : S) (v : U64) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs)
+    (hv : v ∈ T → v ∉ Kp) :
     sched.set_action st s v ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ :=
   WP.spec_mono (sched.set_action.spec s v) fun s' e => by
     subst e
-    exact footN_node NP hc (by rw [act_val]; omega) (by rw [act_val]) (by rw [act_val]; omega)
-      (idOff_cur (by rw [act_val]; omega) (by rw [act_val]; omega) (fun _ => by rw [act_val]; omega))
+    have ha := act_aligned (NP _ hc)
+    refine WritesIn.a ((writesIn_wr ha).mono fun b hb => hb ▸ ⟨kw_node hc (by rw [act_val]; omega) (by rw [act_val]; omega),
+      notIdW_node NP hc (by rw [act_val]; omega)
+        (idOff_cur (by rw [act_val]; omega) (by rw [act_val]; omega) (fun _ => by rw [act_val]; omega))⟩) ?_
+    have hv' : L.actionW (L.wr s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) v) = v := by
+      unfold LawfulStore.actionW
+      rw [L.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
+      exact L.mem_wr_same ha
+    intro h1 h2
+    rw [hv'] at h1 h2
+    exact absurd h2 (hv h1)
 
-theorem sched.schedule_tcb.kwN (s : S) (t : obj.Tcb) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
+theorem small_out {v : U64} (hT : TcbPlaced T) (hv : v.val < 4096) : v ∈ T → v ∉ Kp :=
+  fun h => absurd h (notT_small hT hv)
+
+theorem sched.schedule_tcb.kwN (s : S) (t : obj.Tcb) (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
+    (hc : L.cpu s ∈ Cs) :
     sched.schedule_tcb st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   unfold sched.schedule_tcb
   step with sched.cur_thread.spec as ⟨t1, e1⟩
@@ -348,7 +492,7 @@ theorem sched.schedule_tcb.kwN (s : S) (t : obj.Tcb) (NP : ∀ c ∈ Cs, NodePla
     · step with sched.is_schedulable.spec as ⟨b1, eb1⟩
       split
       · exact (WP.spec_ok _).2 (FootN.refl _)
-      · exact sched.set_action.kwN s _ NP hc
+      · exact sched.set_action.kwN s _ NP hc (small_out hT (by rw [choose_val]; simp))
     · exact (WP.spec_ok _).2 (FootN.refl _)
   · exact (WP.spec_ok _).2 (FootN.refl _)
 
@@ -357,13 +501,13 @@ theorem sched.set_thread_state.kwN (s : S) (t : obj.Tcb) (v : U64) (h : SchedQue
   unfold sched.set_thread_state
   refine WP.spec_bind (obj.Tcb.set_state.spec s t v) fun s1 e1 => ?_
   subst e1
-  refine WP.spec_mono (sched.schedule_tcb.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) _ t
+  refine WP.spec_mono (sched.schedule_tcb.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) _ t h.tcbs
     (fun c hc => (h.nodes c hc).ksb (L.ksb_wr _ _ _)) (by rw [LawfulStore.cpu_wr]; exact h.cur)) fun s2 f2 => ?_
   have f1 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (stA t) v) := by
-    rw [stA_eq]; exact footN_field h.tcbs h.nodes ht (by simp) (by simp) (by simp) (by simp) (PrF.of_nk hKt (by simp))
+    rw [stA_eq]; exact footN_field h.tcbs h.nodes h.cur ht (by simp) (by simp) (by simp) (by simp) (PrF.of_nk hKt (by simp) (by simp))
   exact f1.trans f2
 
-theorem sched.reschedule_required.kwN (s : S) (h : SchedQueuesInvX st T Cs Ω H X s Q R) :
+theorem sched.reschedule_required.kwN (s : S) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hKa : ActOut st T Kp s) :
     sched.reschedule_required st s ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   unfold sched.reschedule_required
   step with sched.action.spec as ⟨act, act_post⟩
@@ -383,15 +527,16 @@ theorem sched.reschedule_required.kwN (s : S) (h : SchedQueuesInvX st T Cs Ω H 
           · rw [← act_post] at e; exact e
         step with sched.is_schedulable.spec as ⟨b, hb⟩
         split
-        · exact sched.enqueue.kwN s act h hT
+        · exact sched.enqueue.kwN s act h hT (by rw [act_post] at hT ⊢; exact hKa hT)
         · exact (WP.spec_ok _).2 (FootN.refl _)
       · exact (WP.spec_ok _).2 (FootN.refl _)
     · exact (WP.spec_ok _).2 (FootN.refl _)
   refine WP.spec_bind hpart fun s1 f1 => ?_
   exact WP.spec_mono (sched.set_action.kwN s1 _ (fun c hc => (h.nodes c hc).ksb f1.1)
-    (by rw [f1.2.1]; exact h.cur)) fun s2 f2 => f1.trans f2
+    (by rw [f1.2.1]; exact h.cur) (small_out h.tcbs (by rw [choose_val]; simp))) fun s2 f2 => f1.trans f2
 
-theorem sched.possible_switch_to.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
+theorem sched.possible_switch_to.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (htK : t ∉ Kp) (hKa : ActOut st T Kp s) :
     sched.possible_switch_to st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hST : P0.StoreTotal st := L.total
   unfold sched.possible_switch_to sched.cur_domain
@@ -404,18 +549,18 @@ theorem sched.possible_switch_to.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX 
   step as ⟨i1, ei1⟩
   step as ⟨i2, ei2⟩
   split
-  · exact sched.enqueue.kwN s t h ht
+  · exact sched.enqueue.kwN s t h ht htK
   step as ⟨i3, ei3⟩
   step as ⟨i4, ei4⟩
   split
-  · exact sched.enqueue.kwN s t h ht
+  · exact sched.enqueue.kwN s t h ht htK
   step as ⟨i5, ei5⟩
   split
   · refine WP.spec_bind (WP.spec_and (sched.reschedule_required.inv s Q R h)
-      (sched.reschedule_required.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s h)) ?_
+      (sched.reschedule_required.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s h hKa)) ?_
     rintro s1 ⟨⟨⟨Q1, h1⟩, -, -⟩, f1⟩
-    exact WP.spec_mono (sched.enqueue.kwN s1 t h1 ht) fun s2 f2 => f1.trans f2
-  · exact sched.set_action.kwN s _ h.nodes h.cur
+    exact WP.spec_mono (sched.enqueue.kwN s1 t h1 ht htK) fun s2 f2 => f1.trans f2
+  · exact sched.set_action.kwN s _ h.nodes h.cur (fun _ => htK)
 
 /-- An SC ring word is no node identity word. -/
 theorem notIdW_ring {s : S} {i b : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R)
@@ -445,7 +590,10 @@ theorem endpoint.unblock_sporadic.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX
       have aR : Aligned (L.nodeA s layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
       have oR : Outside (L.nodeA s layout.node.REPROGRAM) i (Z i) :=
         hSCin.node_out h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
-      refine WP.spec_mono (sporadic.unblock_check.fr hW ⟨aR, oR⟩) fun s3 w3 => FootN.of' w3 fun b hb hh => ?_
+      refine WP.spec_mono (sporadic.unblock_check.fr hW ⟨aR, oR⟩) fun s3 w3 => FootN.of' w3 (fun b hb hh => ?_) (AcK.of_eq (actionW_of w3 hN' (by
+        rintro (hh | e)
+        · exact notAct_omega h (hX.1.scW i hiS _ (act_aligned hN') hh.inSC)
+        · exact notAct_node hN' hN' (by rw [rp]; omega) (by rw [rp]; omega) e)))
       rcases hh with hh | rfl
       · exact ⟨hh.kw hiS, notIdW_ring h hX hiS hb hh⟩
       · exact ⟨kw_node h.cur (by rw [rp]; omega) (by rw [rp]; omega),
@@ -475,7 +623,10 @@ theorem notification.unblock_sporadic.kwN (s : S) (t : obj.Tcb) (h : SchedQueues
       have aR : Aligned (L.nodeA s layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
       have oR : Outside (L.nodeA s layout.node.REPROGRAM) i (Z i) :=
         hSCin.node_out h.omega h.cur hN' (by rw [rp]; omega) (by rw [rp])
-      refine WP.spec_mono (sporadic.unblock_check.fr hW ⟨aR, oR⟩) fun s3 w3 => FootN.of' w3 fun b hb hh => ?_
+      refine WP.spec_mono (sporadic.unblock_check.fr hW ⟨aR, oR⟩) fun s3 w3 => FootN.of' w3 (fun b hb hh => ?_) (AcK.of_eq (actionW_of w3 hN' (by
+        rintro (hh | e)
+        · exact notAct_omega h (hX.1.scW i hiS _ (act_aligned hN') hh.inSC)
+        · exact notAct_node hN' hN' (by rw [rp]; omega) (by rw [rp]; omega) e)))
       rcases hh with hh | rfl
       · exact ⟨hh.kw hiS, notIdW_ring h hX hiS hb hh⟩
       · exact ⟨kw_node h.cur (by rw [rp]; omega) (by rw [rp]; omega),
@@ -494,7 +645,7 @@ theorem ipc.reply_unlink.kwN (s : S) (r t : U64) (h : SchedQueuesInvX st T Cs Ω
   have h1 := inv_of_free h ((writesIn_wr (v := 0#u64) ha).mono fun b hb => hb ▸ Or.inl hm)
   exact WP.spec_mono (sched.set_thread_state.kwN _ t _ h1 ht hKt) fun s2 f2 =>
     (footN_wr ha ⟨kw_sg (hX.1.tcbW hr), notIdW_out h.nodes (h.omega _ hm)
-      (noHdr_rp hX.1 hr (by rw [rTcbA_v]) (by rw [rTcbA_v]; omega))⟩).trans f2
+      (noHdr_rp hX.1 hr (by rw [rTcbA_v]) (by rw [rTcbA_v]; omega))⟩ (actionW_out h.nodes h.cur (h.omega _ hm))).trans f2
 
 end queues
 

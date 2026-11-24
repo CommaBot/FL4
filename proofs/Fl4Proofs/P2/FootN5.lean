@@ -3,7 +3,7 @@ P2 (p2j, KWN step 5): **`send_ipc` and the timeout fault in `KWN`**.
 
 * `IpcFootN`: P1's `IpcFoot` (`IpcW`: `KW`, the receiver's user context and
   IPC buffer, cap-slot words, debug-list words) without node identity
-  words; `refl`/`trans`, `FootDN.ipc`, `FootN.ipc`, `XferW.ipcN` (the
+  words; `refl`/`trans`, `FootDN.ipc`, `FootN.ipc`, `XferWC.ipcN` (the
   transfer's words are no node identity words, from the invariants at the
   transfer's start and `UserOK`).
 * `send_ipc.footPN` (P1 `send_ipc.footP` over `KWN` steps), `send_ipc.footN`,
@@ -44,22 +44,22 @@ def IpcWN {S : Type _} (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64
 /-- A footprint inside `IpcWN`. -/
 abbrev IpcFootN {S : Type _} (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (T Cs Ω Sg Scs : Set U64) (Z : U64 → Nat)
     (Es U : Set U64) (s s' : S) : Prop :=
-  WritesIn st s s' (IpcWN st Kp Nd T Cs Ω Sg Scs Z Es U s)
+  WritesA st T Kp s s' (IpcWN st Kp Nd T Cs Ω Sg Scs Z Es U s)
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {Es U : Set U64} {Kp : Set U64} {Nd : Prop}
 
-theorem IpcFootN.refl (s : S) : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s := WritesIn.refl _ _
+theorem IpcFootN.refl (s : S) : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s := WritesA.refl _ _
 
 theorem IpcFootN.trans {s₁ s₂ s₃ : S} (h₁ : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s₁ s₂)
     (h₂ : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s₂ s₃) : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s₁ s₃ :=
-  WritesIn.mono (WritesIn.trans h₁ h₂) fun b hb =>
+  WritesA.mono (WritesA.trans h₁ h₂) fun b hb =>
     Or.elim hb id fun hb => ⟨IpcW.ksb h₁.1 hb.1, notIdW_ksb h₁.1.symm h₁.2.1.symm hb.2⟩
 
 theorem IpcFootN.ipc {s s' : S} (h : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s') : IpcFoot st T Cs Ω Sg Scs Z Es U s s' :=
-  WritesIn.mono h fun _ hb => hb.1
+  WritesIn.mono (WritesA.w h) fun _ hb => hb.1
 
 /-- An `IpcFootN` footprint keeps the node identity words. -/
 theorem IpcFootN.idKeep {s s' : S} (f : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s') {b : U64} (hb : Aligned b)
@@ -67,35 +67,10 @@ theorem IpcFootN.idKeep {s s' : S} (f : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U 
   f.mem_eq hb fun hk => hk.2 hi
 
 theorem FootDN.ipc {s s' : S} (h : FootDN st Kp Nd T Cs Sg Scs Z Es s s') : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s' :=
-  WritesIn.mono h fun _ hb => ⟨hb.1.elim Or.inl fun hd => Or.inr (Or.inr (Or.inr hd)), hb.2⟩
+  WritesA.mono h fun _ hb => ⟨hb.1.elim Or.inl fun hd => Or.inr (Or.inr (Or.inr hd)), hb.2⟩
 
 theorem FootN.ipc {s s' : S} (h : FootN st Kp Nd T Cs Sg Scs Z Es s s') : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s' :=
   FootDN.ipc h.d
-
-/-- The transfer's words are no node identity words. -/
-theorem XferW.ipcN {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s' : S}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hU : UserOK st T Cs Ω H U s)
-    (hsub : ∀ b ∈ Sg, b ∈ Ω)
-    (w : WritesIn st s s' (XferW T U Ω Sg Scs Z (L.ksb s)))
-    (hh : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) ∧ L.mem s' (scTcbA c) = L.mem s (scTcbA c)) :
-    IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s' := by
-  refine ⟨w.1, w.2.1, fun b hb hn => ?_⟩
-  by_cases hhd : ∃ c ∈ Scs, b = scReplyA c ∨ b = scTcbA c
-  · obtain ⟨c, hc, e | e⟩ := hhd <;> subst e
-    · exact (hh c hc).1
-    · exact (hh c hc).2
-  have nh : NoHdr Nd Scs b := fun _ c hc => ⟨fun e => hhd ⟨c, hc, Or.inl e⟩, fun e => hhd ⟨c, hc, Or.inr e⟩⟩
-  refine w.2.2 b hb fun hx => hn ⟨?_, ?_⟩
-  · rcases hx with hx | hx | ⟨c, hc, hin⟩
-    · exact Or.inr (Or.inl hx)
-    · exact Or.inr (Or.inr (Or.inl hx))
-    · exact Or.inl (kw_sc hc hin)
-  · rcases hx with (⟨y, hy, K, hK, -, e⟩ | hu) | ⟨⟨y, hy, K, hK, e⟩ | ⟨hm, -⟩, -⟩ | ⟨c, hc, hin⟩
-    · subst e; exact notIdW_field h.tcbs h.nodes hy (by omega)
-    · exact notIdW_out h.nodes (hU b hu).1 nh
-    · subst e; exact notIdW_field h.tcbs h.nodes hy (by omega)
-    · exact notIdW_out h.nodes (h.omega _ hm) nh
-    · exact notIdW_out h.nodes (h.omega _ (hX.1.scW c hc b hb hin)) nh
 
 /-- An SC's `CONSUMED` word is no SC's `REPLY` or `TCB` word. -/
 theorem cons_ne_hdr {s : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c c' : U64} (hc : c ∈ Scs) (hc' : c' ∈ Scs) :
@@ -130,7 +105,17 @@ theorem XferWC.ipcN {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → Li
     (w : WritesIn st s s' (XferWC T U Ω Sg Scs (L.ksb s))) :
     IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s' := by
   have hO := hX.1
-  refine ⟨w.1, w.2.1, fun b hb hn => w.2.2 b hb fun hx => hn ⟨?_, ?_⟩⟩
+  have hN := h.nodes _ h.cur
+  have hact : L.actionW s' = L.actionW s := by
+    refine actionW_of w hN ?_
+    have e16 : layout.node.SCHED_ACTION.val = 16 := act_val
+    rintro ((⟨y, hy, K, hK, -, e⟩ | hu) | ⟨⟨y, hy, K, hK, e⟩ | ⟨hm, -⟩, -⟩ | ⟨c, hc, e⟩)
+    · exact node_ne_field hN (by omega) hy (h.tcbs y hy) (by omega) e
+    · exact out_ne_node (hU _ hu).1 h.cur hN (by omega) rfl
+    · exact node_ne_field hN (by omega) hy (h.tcbs y hy) (by omega) e
+    · exact notAct_omega h hm
+    · exact notAct_omega h (hO.scW c hc _ (act_aligned hN) (e ▸ (consW_in hO hc).2))
+  refine ⟨w.1, w.2.1, fun b hb hn => w.2.2 b hb fun hx => hn ⟨?_, ?_⟩, AcK.of_eq hact⟩
   · rcases hx with hx | hx | ⟨c, hc, e⟩
     · exact Or.inr (Or.inl hx)
     · exact Or.inr (Or.inr (Or.inl hx))
@@ -160,7 +145,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hU : UserOK st T Cs Ω H U s)
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
     (hH : H e = some .ep) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKt : t ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) (hdK : can_donate = true → ¬ Nd) (Pst : S → Prop)
+    (hKt : t ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) (hdK : can_donate = true → ¬ Nd) (hKa : ActOut st T Kp s) (Pst : S → Prop)
     (hPK : ∀ s1 s2 : S, Pst s1 → FootDN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → Pst s2) (hP0 : Pst s)
     (hxP : ∀ (Ac X : Set U64) (Q : U64 → U64 → List U64) (R : U64 → List U64) (s1 : S) (a : A) (snd ep badge : U64)
       (grant : Bool) (rcv : U64), snd ∈ T → rcv ∈ T →
@@ -208,7 +193,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   refine WP.spec_bind (WP.spec_and hdq (endpoint.ep_dequeue.foot s e hd (EQ0 e) hT hE0 hq0 hdm)) ?_
   rintro s1 ⟨⟨h1, f1, o1, n1, k1, c1, nc1⟩, w1⟩
   have F1 : FootN st Kp Nd T Cs Sg Scs Z (EH H) s s1 :=
-    FootN.of' w1 fun b _ hb => EpFoot.kwN hT h.nodes hq0.mem (Or.inl hH) hE0 hEN0 (hEW0.2.2.1 e heE0) (hdrΩ_of hX hSg.sub) hb
+    FootN.of' w1 (hk := AcK.of_eq (EpFoot.act hT h.nodes h.cur hq0.mem hE0 hEN0 w1)) fun b _ hb => EpFoot.kwN hT h.nodes hq0.mem (Or.inl hH) hE0 hEN0 (hEW0.2.2.1 e heE0) (hdrΩ_of hX hSg.sub) hb
   obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h hB hX hS hSg f1 o1 n1 k1
     (TmFr.mk0 ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
       fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩)
@@ -229,6 +214,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     rw [scA_eq]; exact F y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have ea2' : L.actionW s2 = L.actionW s := ea2.trans ea1
   have ei2' : L.idleW s2 = L.idleW s := ei2.trans ei1
+  have Ka2 : ActOut st T Kp s2 := hKa.step (AcK.of_eq ea2')
   step with obj.Tcb.reply_obj.spec as ⟨i, ei⟩
   have hds2 : L.mem s2 (stA hd) = sched.TS_BLOCKED_ON_RECV := (Fst hd hdT).trans hds
   -- the reply object leaves the receiver
@@ -239,7 +225,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       ((i != 0#u64) = true → hd ∉ X3 ∧ i ∈ Rp ∧ L.mem s3 (rTcbA i) = 0#u64) ∧
       L.mem s3 (stA t) = L.mem s (stA t) ∧ L.mem s3 (inqA t) = L.mem s (inqA t) ∧
       L.mem s3 (scA t) = L.mem s (scA t) ∧ L.actionW s3 ≠ t ∧ L.idleW s3 = L.idleW s ∧
-      L.mem s3 (scA hd) = L.mem s (scA hd) ∧ Pst s3) ?_ ?_
+      L.mem s3 (scA hd) = L.mem s (scA hd) ∧ Pst s3 ∧ ActOut st T Kp s3) ?_ ?_
   · split
     · rename_i hi
       have hi0 : i ≠ 0#u64 := by simpa using hi
@@ -260,7 +246,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
         fun y hy => ?_, Or.inr (by rw [e3]; exact not_blocked_inactive), by rw [e3]; exact not_runnable_inactive,
         fun hm => absurd rfl hm.2, fun _ => e3, fun _ => ⟨fun hm => hm.2 rfl, hiR, z3⟩,
         (k3.stf ht (Ne.symm hdt)).trans (Fst t ht), (k3.inqf ht).trans (Fiq t ht), (k3.scf ht).trans (Fsc t ht),
-        ?_, k3.idleW.trans ei2', (k3.scf hdT).trans (Fsc hd hdT), hPK _ _ F2 fu.d⟩
+        ?_, k3.idleW.trans ei2', (k3.scf hdT).trans (Fsc hd hdT), hPK _ _ F2 fu.d, fu.out Ka2⟩
       · obtain ⟨hy1, hy2⟩ := hy
         rcases hy1 with hy1 | hy1
         · exact absurd hy1 (Set.notMem_empty _)
@@ -273,8 +259,8 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       refine (WP.spec_ok _).2 ⟨_, h2, hB2, hX2, hS2, hSg2, fun y hy => by simpa using hy, Or.inl (Or.inr rfl),
         by rw [hds2]; exact blocked_not_runnable (Or.inr (Or.inl rfl)), fun _ => by rw [← ei, hi0],
         fun hm => absurd (Or.inr rfl) hm, fun hi' => absurd hi0 (by simpa using hi'),
-        Fst t ht, Fiq t ht, Fsc t ht, by rw [ea2']; exact hc.na, ei2', Fsc hd hdT, F2⟩
-  rintro s3 ⟨X3, h3, hB3, hX3, hS3, hSg3, hXc3, hx3, hnr3, hz3, hin3, hpu3, st3, iq3, sc3, na3, ei3, shd3, F3⟩
+        Fst t ht, Fiq t ht, Fsc t ht, by rw [ea2']; exact hc.na, ei2', Fsc hd hdT, F2, Ka2⟩
+  rintro s3 ⟨X3, h3, hB3, hX3, hS3, hSg3, hXc3, hx3, hnr3, hz3, hin3, hpu3, st3, iq3, sc3, na3, ei3, shd3, F3, Ka3⟩
   have hdA3 : L.mem s3 (scA hd) ≠ 0#u64 → L.mem s3 (scA hd) ∈ Ac := fun h0 => by
     rw [shd3] at h0 ⊢
     exact hB.sact hd hdT (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by rw [hds]; exact Or.inr (Or.inl rfl))))))))
@@ -304,7 +290,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   · rintro ⟨s4, a1⟩ ⟨X4, ⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4, hXc4, hx4, hnr4, hdA4, f4⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_mono (send_tail.footN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s4 a1 hd Q4 R4 h4 hB4 hX4 hS4
-      hSg4 hdT hXc4 hx4 hnr4 hdA4 hKd) fun r hr => ?_
+      hSg4 hdT hXc4 hx4 hnr4 hdA4 hKd (f4.out Ka3)) fun r hr => ?_
     obtain ⟨s', a'⟩ := r
     simp only [WP.uncurry'_pair] at hr ⊢
     exact hPK _ _ F3 (f4.trans hr.d)
@@ -322,7 +308,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       hiR hi0 hiz hdT hdt dq dr da (by rw [ei3]; exact hdi) htA3)
       (ipc.reply_push.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) hA s3 a t hd i can_donate h3
       (fun y hy => absurd (hXc3 y hy ▸ hy) hdX) (Or.inr hnb3) hB3 hX3 hS3 hSg3 ht htq3 htr3 na3 hidle3 hcold3
-      hiR hi0 hiz hdT htA3 hKt hdK)) fun r hh' => ?_
+      hiR hi0 hiz hdT htA3 hKt hdK Ka3)) fun r hh' => ?_
     obtain ⟨s4, a4⟩ := r
     simp only [WP.uncurry'_pair] at hh'
     obtain ⟨hh, fk⟩ := hh'
@@ -360,7 +346,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
       ExcT X4 hd ∧ (hd ∈ X4 ∨ ¬ Blocked (L.mem r.1 (stA hd))) ∧ (∀ r' ∈ Rp, L.mem r.1 (rTcbA r') ≠ hd) ∧
       (L.mem r.1 (scA hd) ≠ 0#u64 → L.mem r.1 (scA hd) ∈ Ac) ∧
       FootDN st Kp Nd T Cs Sg Scs Z (EH H) s3 r.1 ⦄ :=
-    (WP.spec_ok _).2 ⟨X3, ⟨Q, R, h3⟩, hB3, hX3, hS3, hSg3, hXc3, hx3, hnd3, hdA3, WritesIn.refl _ _⟩
+    (WP.spec_ok _).2 ⟨X3, ⟨Q, R, h3⟩, hB3, hX3, hS3, hSg3, hXc3, hx3, hnd3, hdA3, FootDN.refl _⟩
   have Pdon : can_donate = true → (do
       let i2 ← obj.Tcb.sc st hd s3
       if i2 = 0#u64 then do
@@ -383,7 +369,7 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
         (by rw [ei3', sc3]; exact hdon hcd) ⟨htq3, htr3, na3⟩ hidle3 hdT (by rw [← ei2, hi2]) dq dr da hdt
         (by rw [ei3']; exact htA3 (by rw [sc3]; exact hdon hcd)) (by rw [ei3]; exact hdi))
         (schedcontext.donate.kwIN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) hA s3 a i3 hd h3 hX3.1 hSg3.sub
-          hX3.dbg (hX3.2.2.core i3 hiS) hiS hdT (hdK hcd) fun _ => by rw [hitc]; exact ⟨ht, htq3, htr3⟩))
+          hX3.dbg (hX3.2.2.core i3 hiS) hiS hdT (hdK hcd) Ka3 fun _ => by rw [hitc]; exact ⟨ht, htq3, htr3⟩))
         fun r hh' => ?_
       obtain ⟨s4, a4⟩ := r
       simp only [WP.uncurry'_pair] at hh'
@@ -418,7 +404,13 @@ theorem endpoint.send_ipc.footPN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
 theorem IpcFootN.stK {s s' : S} (f : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s') (hT : TcbPlaced T) {y : U64}
     (hyT : y ∈ T) (hy : y ∈ Kp) : L.mem s' (stA y) = L.mem s (stA y) :=
   f.idKeep (by rw [stA_eq]; exact field_aligned (hT y hyT) (by simp) (by simp))
-    (Or.inr (Or.inl ⟨y, hyT, hT y hyT, hy, rfl⟩))
+    (Or.inr (Or.inl ⟨y, hyT, hT y hyT, hy, Or.inl rfl⟩))
+
+/-- … and their `IN_QUEUES`. -/
+theorem IpcFootN.iqK {s s' : S} (f : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s') (hT : TcbPlaced T) {y : U64}
+    (hyT : y ∈ T) (hy : y ∈ Kp) : L.mem s' (inqA y) = L.mem s (inqA y) :=
+  f.idKeep (by rw [inqA_eq]; exact field_aligned (hT y hyT) (by simp) (by simp))
+    (Or.inr (Or.inl ⟨y, hyT, hT y hyT, hy, Or.inr rfl⟩))
 
 /-- In no-donation mode an `IpcWN` footprint keeps the current thread. -/
 theorem IpcFootN.curK {s s' : S} (f : IpcFootN st Kp Nd T Cs Ω Sg Scs Z Es U s s') (hNd : Nd)
@@ -440,11 +432,12 @@ theorem endpoint.send_ipc.footN {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     (hc : CanBlock st T Ac s t) (hdon : can_donate = true → L.mem s (scA t) ≠ 0#u64)
     (hH : H e = some .ep) (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hRS0 : RS s s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKt : t ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) (hdK : can_donate = true → ¬ Nd) :
+    (hKt : t ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) (hdK : can_donate = true → ¬ Nd)
+    (hKa : ActOut st T Kp s) :
     endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
       ⦃ s' _ => IpcFootN st Kp Nd T Cs Ω Sg Scs Z (EH H) U s s' ⦄ :=
   endpoint.send_ipc.footPN hA hxf s a blocking do_call badge can_grant can_grant_reply can_donate t e Q R h hB hX hS
-    hSg hU hc hdon hH hG hKt hKB hdK (fun s' => IpcFootN st Kp Nd T Cs Ω Sg Scs Z (EH H) U s s')
+    hSg hU hc hdon hH hG hKt hKB hdK hKa (fun s' => IpcFootN st Kp Nd T Cs Ω Sg Scs Z (EH H) U s s')
     (fun _ _ p f => IpcFootN.trans p (FootDN.ipc f)) (IpcFootN.refl s)
     fun Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1 F1 hG1 =>
       WP.spec_mono (hxw Ac' X Q' R' s1 a' snd ep badge' grant rcv hs hr h1 hB1 hX1 hS1 hSg1 hU1
@@ -461,7 +454,8 @@ theorem faults.handle_timeout.footN {A : Type _} {ar : machine.Arch A} (hA : P0.
       obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hRS0 : RS s s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKt : t ∉ Kp) (hKT : ∀ y ∈ Kp, y ∈ T) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) :
+    (hKt : t ∉ Kp) (hKT : ∀ y ∈ Kp, y ∈ T) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hKa : ActOut st T Kp s) :
     faults.handle_timeout st ar s a t f ⦃ s' _ => IpcFootN st Kp Nd T Cs Ω Sg Scs Z (EH H) U s s' ⦄ := by
   have ht := hc.mem
   unfold faults.handle_timeout
@@ -475,14 +469,14 @@ theorem faults.handle_timeout.footN {A : Type _} {ar : machine.Arch A} (hA : P0.
     have hpH := hct.1 p b x y g gr rfl
     have q0 := h.1.choose_spec.choose_spec
     refine WP.spec_bind (WP.spec_and (faults.set_fault.blk s t f h ht hU hc)
-      (faults.set_fault.kwN (Cs := Cs) (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s t f q0.tcbs q0.nodes ht)) ?_
+      (faults.set_fault.kwN (Cs := Cs) (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s t f q0.tcbs q0.nodes q0.cur ht)) ?_
     rintro s1 ⟨⟨h1, hU1, hc1⟩, F1⟩
     obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
     refine WP.spec_bind (endpoint.send_ipc.footN (Nd := Nd) hA hxf hxw s1 a true false b g gr false t p Q1 R1 q1 hB1 hX1 hS1
       hSg1 hU1 hc1 (fun e => by cases e) hpH hRSK (hRSK s s s1 hRS0 F1.foot) (hG.foot F1.foot) hKt
       (fun y hy => by
         rw [IpcFootN.stK (Ω := Ω) (U := U) (Es := EH H) (FootN.ipc F1) q0.tcbs (hKT y hy) hy]; exact hKB y hy)
-      (fun e => by cases e)) ?_
+      (fun e => by cases e) (F1.out hKa)) ?_
     rintro ⟨s2, a1⟩ h2
     exact (WP.spec_ok _).2 ((FootN.ipc F1).trans (by simpa using h2))
   · rintro ⟨x, s2, a2⟩ h2
@@ -502,6 +496,12 @@ theorem GN.foot {s0 s1 s2 : S} (g : GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0 s1)
 theorem GN.refl {s0 : S} (g : XG st T Cs Ω H Sg Scs Z P3Ok s0) : GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0 s0 :=
   ⟨g, IpcFootN.refl s0⟩
 
+/-- At `GN s0` states the action and the current thread stay unprotected. -/
+theorem GN.out {s0 s : S} (g : GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0 s) (hNd : Nd)
+    (NP0 : NodePlaced st T s0 (L.cpu s0)) (hc0 : L.cpu s0 ∈ Cs) (hKa : ActOut st T Kp s0) (hKc : L.curW s0 ∉ Kp) :
+    ActOut st T Kp s ∧ L.curW s ∉ Kp :=
+  ⟨g.2.out hKa, by rw [g.2.curK hNd NP0 hc0]; exact hKc⟩
+
 /-- **Timeout faults keep `GN s0`** (`TmoKC` from the budget check's start
 `s1`, itself a `GN s0` state): the current thread can block (`CanBlock`) by
 `CurOK` and its queue flag and idleness at `s1`, which `ChgW` writes keep.
@@ -514,7 +514,7 @@ theorem tmoKC_N {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hNd : Nd) (hKT : ∀ y ∈ Kp, y ∈ T)
     (Ac : Set U64) (s0 s1 : S) (hKc : L.curW s0 ∉ Kp) (hKB0 : ∀ y ∈ Kp, ¬ Blocked (L.mem s0 (stA y)))
-    (NP0 : NodePlaced st T s0 (L.cpu s0)) (hc0 : L.cpu s0 ∈ Cs)
+    (NP0 : NodePlaced st T s0 (L.cpu s0)) (hc0 : L.cpu s0 ∈ Cs) (hKa0 : ActOut st T Kp s0)
     (h1 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1) (hRS1 : RS s1 s1) (hU1 : UserOK st T Cs Ω H U s1)
     (hnq : (L.mem s1 (inqA (L.curW s1)) &&& sched.Q_QUEUED) = 0#u64) (hni : L.idleW s1 ≠ L.curW s1)
     (hcap : ∀ s : S, WritesIn st s1 s (ChgW st Scs Z s1) →
@@ -553,7 +553,7 @@ theorem tmoKC_N {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       (XG.faultG hG.1 hk hU hc) hk hU hc (hcap s hw))
       (TX T Cs Ω H Sg Rp Scs Nt Z U P3Ok hxf Ac s a _ f hG.1 hk hU hc (hcap s hw)))
       (faults.handle_timeout.footN (Nd := Nd) hA hxf hxw s a _ f hk hU hc (hcap s hw) hRSK
-        hrs hG.1 hKt hKT hKB)) ?_
+        hrs hG.1 hKt hKT hKB (hG.2.out hKa0))) ?_
     rintro ⟨s', a'⟩ hr
     simp only [WP.uncurry'_pair] at hr ⊢
     exact ⟨BlkOK.bxi hr.1.1, hr.1.2, hG.2.trans hr.2⟩
