@@ -74,7 +74,8 @@ theorem JAtZ.batchMapJX [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {
           (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) τ).1 ∧
         JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 τ1 ∧ FbKeep τ τ1 ∧ FbFootK (L := L) Z s res.2.1 ∧
         VsSFr τ τ1 ∧ P1.WritesIn st s res.2.1 (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))) ∧
-        (∀ y, IsSlot Z.th y → LSim (capV (L.mem res.2.1) y) (capV (L.mem s) y)) ∧ CapPage τ τ1 (pc.bv, idx) ∧
+        (∀ y, IsSlot Z.th y → LSim (capV (L.mem res.2.1) y) (capV (L.mem s) y)) ∧
+        CnSlotsKept (L := L) Z.th s res.2.1 ∧ CapPage τ τ1 (pc.bv, idx) ∧
         ∃ a0, capOpt (τ.kheap pc.bv) idx = some a0 ∧ IsPageCap a0) ⦄ := by
   have hX := J.xtop
   obtain ⟨hS, hR, hPt, hPI, hCur⟩ := id hX.fin
@@ -200,7 +201,12 @@ theorem JAtZ.batchMapJX [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {
     rw [hc] at hcS; cases eq_of_ok_eq hcS
     refine ⟨aS, (getCap_set_iff τ pc.bv idx aS).1 (congrArg Prod.fst hgS), ?_⟩
     rw [hcaS.abs, hcf]; trivial
-  refine Or.inr ⟨h1, σ', hmem, J', hFK, ⟨fun t ht g => ?_, fun wp hw => ?_⟩, F, hW, hsim, hCP, h0⟩
+  have hcnk : CnSlotsKept (L := L) Z.th s s' := by
+    intro y hy p r gs g h
+    by_cases e : y = cslotAddr (pc.bv, idx)
+    · rw [e, hcv0, hcf] at h; cases h
+    · rw [hcap y hy e]; exact h
+  refine Or.inr ⟨h1, σ', hmem, J', hFK, ⟨fun t ht g => ?_, fun wp hw => ?_⟩, F, hW, hsim, hcnk, hCP, h0⟩
   · have hta : P1.TcbAddr t := J.ip.e.tcb t ht
     have hr := regA_val hta (regIdx_lt g)
     have hrl := regIdx_lt g

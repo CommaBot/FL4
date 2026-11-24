@@ -94,7 +94,7 @@ theorem JAtZ.batchMapJL [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {
         LiveDN (L := L) Z.th H Cs Z.G res.2.1 τ1 ∧ Vs.NoSwitch τ1 ∧ SpecGlob τ1 ∧ PPR0 τ1) ⦄ := by
   refine WP.spec_mono (JAtZ.batchMapJX arI hA J hpc hidx has1 has2 hf op depth a1 cr a2 dd cn dcn a0 b hbv hba hbm
     hbat) ?_
-  rintro ⟨r0, s', a'⟩ (h | ⟨h1, τ1, hm, J', hK, hF, F, hW, hsim, hCP, a00, ha00, hp00⟩)
+  rintro ⟨r0, s', a'⟩ (h | ⟨h1, τ1, hm, J', hK, hF, F, hW, hsim, -, hCP, a00, ha00, hp00⟩)
   · exact Or.inl h
   refine Or.inr ⟨h1, τ1, hm, J', hK, hF, ?_, fun u => by rw [F.act]; exact hns u,
     hsg.of_capPage hCP ⟨a00, ha00, hp00⟩ F.irqN F.idle, hp0.of_ppk (PPK.of_fbKeep hK)⟩

@@ -114,7 +114,8 @@ theorem JAtZ.fbInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
         ({((), σ')}, False) ∧
       JAtZ (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac Lst D s' a σ' ∧ LiveDN (L := L) Z.th H Cs G' s' σ' ∧
       Vs.NoSwitch σ' ∧ SpecGlob σ' ∧ PPR0 σ' ∧ FbKeep σ σ' ∧ FbFootK (L := L) Z s s' ∧
-      capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .Frame p sz rt' d false false 0#u64 0#u64 ⦄ := by
+      capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .Frame p sz rt' d false false 0#u64 0#u64 ∧
+      CnSlotsKept (L := L) Z.th s s' ⦄ := by
   set cc : capability.Cap := .Frame p sz rt' d false false 0#u64 0#u64 with hcc
   have hX := J.xtop
   have hPl : Placed Z.th := hX.rel.1
@@ -163,7 +164,12 @@ theorem JAtZ.fbInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hsg' : SpecGlob σ' := hsg.ins hk (congrArg Prod.fst hgk) (congrArg Prod.snd hgk) hd
     (fun hp => absurd (by simp [hcc, absCap, IsPageCap]) hp)
   refine ⟨σ', G', hci, J', hLv', fun u => by rw [hK.act]; exact hns u, hsg', PPR0.of_ppk hp0 (fbc_ppk hK), hK,
-    FbFootK.of_rel arI J J' rfl rfl hK hum, hdc⟩
+    FbFootK.of_rel arI J J' rfl rfl hK hum, hdc, fun y hy p0 r0 gs0 g0 h => ?_⟩
+  by_cases ey : y = cslotAddr (pd.bv, idxd)
+  · rw [ey, capV_of_capAt hdst] at h; cases h
+  by_cases es : y = cslotAddr (ps.bv, idxs)
+  · rw [es, capV_of_capAt hsrcC] at h; cases h
+  rw [hoth y hy es ey]; exact h
 
 end
 
