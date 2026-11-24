@@ -17302,3 +17302,10 @@ global ref).
   98a3ca72; C (COPY_MAP) b68a341f, 0903c831; D (MR) 84dd8fce, 9bb2d94f, ce84338a; E (deferred unmap) f49408f0,
   17c5a497; coordinator e515713d, afee8672, 108560a7 and merges. All merged into par/fb3 (local only).
 - **Scratch:** proofs/scratch/fb3scratch.py's stub list is EMPTY (no FrameBatch stub left anywhere).
+- **Done (fb3l):** full no-SCR build `fb3l-full1` (afkprover, `MODE=build SEED=B`, tree 0d395012): ERRORS 0, SORRY 0,
+  "Build completed successfully (7313 jobs)". Axioms (`axfb3k.lean`, untracked in the worktree root: `import Fl4Proofs`
+  + `#print axioms` of decode_invocation_pml4JV, _fbJV, _fbJVM, fb_loopJ, fb_loopI, fb_entryJ, the three per-op
+  lemmas, batchMapJL, fbDelFrameJN, fbDelDeferJ, decOK_JMM, MKD.vspace_decode, MKD.decode_quiet and all 37
+  `kernel_entry_reach*` tops; run `fb3l-ax5` with NAX=80): every one depends only on [propext, Classical.choice,
+  Quot.sound]. No `kernel_entry_reach*` statement changed; no premise added to any top or to JEntryGlob/JEntryGlobM;
+  no FINDING (FL4's batch matches `performFrameBatch` op by op, COPY_MAP's rollback included).
