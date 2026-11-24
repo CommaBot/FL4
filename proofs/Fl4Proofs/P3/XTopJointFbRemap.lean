@@ -89,7 +89,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
     (hw0 : w0.bv = w.1) (hw1 : w1.bv = w.2.1) (hw2 : w2.bv = w.2.2) (df : Bool) :
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
-      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
+      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
   unfold FbEntryPost
   obtain ⟨p1, as1, op, depth, a1, cr, a2, dd, cn, dcn⟩ := bt
   obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := id hM
@@ -119,7 +119,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
     | ok _ => exact hrel1.elim
     | error e' =>
       simp only [fbr_branch_err, bind_ok, fbr_fromResidual]
-      refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩
+      refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
       have hrun : ((Fl4Spec.fbEntry (Z := Unit) b w).run τ) = ({(.error (Fl4Spec.msgFromSyscallError e').1, τ)}, False) := by
         rw [hE]; exact runE_bind_err (fbCode_err hls)
       cases e with
@@ -141,11 +141,11 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
         rw [hE]; exact runE_bind_ok (fbCode_ok hls)
       refine WP.spec_bind (JAtZ.batchMapJL arI hA J hLv hns hsg hp0 hpc rfl C.h0 C.hasid hf op depth a1 cr a2 dd cn dcn w1 b C.hbv
         C.hba C.hmr C.hat) ?_
-      rintro ⟨r2, s2, a2'⟩ (⟨e, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ1, hmem, J', hK1, hF, hLv1, hns1, hsg1, hp01⟩)
+      rintro ⟨r2, s2, a2'⟩ (⟨e, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ1, hmem, J', hK1, hF, hLv1, hns1, hsg1, hp01, hCSK⟩)
       · simp only at h1 h4 h5
         subst h1 h4 h5
         fbj_red
-        refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩
+        refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
         have hrun : ((Fl4Spec.fbEntry (Z := Unit) b w).run τ) =
             ({(.error (Fl4Spec.msgFromSyscallError e').1, τ)}, False) := by
           rw [hrun1, ← hw1]; exact runE_bind_err (fbCode_err h3)
@@ -161,9 +161,9 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
       · simp only at h1
         subst h1
         fbj_red
-        refine (WP.spec_ok _).2 ⟨τ1, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1)
+        refine (WP.spec_ok _).2 ⟨⟨τ1, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1)
           C.hal hth hct hbm hargs hK J' rfl rfl rfl hF hK1 hLv1 hns1 hsg1 hp01,
-          Or.inl ⟨rfl, false, ?_, by simp⟩⟩
+          Or.inl ⟨rfl, false, ?_, by simp⟩⟩, hth ▸ hCSK⟩
         rw [hrun1]
         exact mem_bindE_ok (fbCode_mem (by rw [← hw1]; exact hmem)) (Set.mem_singleton _)
 
