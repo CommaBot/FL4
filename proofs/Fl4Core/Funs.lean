@@ -10459,7 +10459,7 @@ def timer.remove_loop3
     (y, fuel)
 
 /-- [fl4_core::timer::remove]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 249:0-315:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 249:0-316:1
     Visibility: public -/
 def timer.remove
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10506,8 +10506,8 @@ def timer.remove
           let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
           let s6 ← timer.set_left machineStoreInst s5 t 0#u64
           let s7 ← timer.set_right machineStoreInst s6 t 0#u64
-          let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
-          obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
+          let s8 ← obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+          obj.Tcb.set_timer_height machineStoreInst t s8 0#u64
         else
           let b2 ← obj.Tcb.is_null tr
           if b2
@@ -10532,8 +10532,8 @@ def timer.remove
             let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
             let s6 ← timer.set_left machineStoreInst s5 t 0#u64
             let s7 ← timer.set_right machineStoreInst s6 t 0#u64
-            let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
-            obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
+            let s8 ← obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+            obj.Tcb.set_timer_height machineStoreInst t s8 0#u64
           else
             let y ←
               timer.remove_loop0 machineStoreInst s1 tr layout.TREE_FUEL
@@ -10572,8 +10572,8 @@ def timer.remove
             let s9 ← timer.set_parent machineStoreInst s8 t 0#u64
             let s10 ← timer.set_left machineStoreInst s9 t 0#u64
             let s11 ← timer.set_right machineStoreInst s10 t 0#u64
-            let s12 ← obj.Tcb.set_timer_height machineStoreInst t s11 0#u64
-            obj.Tcb.set_timer_deadline machineStoreInst t s12 0#u64
+            let s12 ← obj.Tcb.set_timer_deadline machineStoreInst t s11 0#u64
+            obj.Tcb.set_timer_height machineStoreInst t s12 0#u64
       else
         let next1 ←
           timer.remove_loop1 machineStoreInst s next layout.TREE_FUEL
@@ -10605,8 +10605,8 @@ def timer.remove
           let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
           let s6 ← timer.set_left machineStoreInst s5 t 0#u64
           let s7 ← timer.set_right machineStoreInst s6 t 0#u64
-          let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
-          obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
+          let s8 ← obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+          obj.Tcb.set_timer_height machineStoreInst t s8 0#u64
         else
           let b2 ← obj.Tcb.is_null tr
           if b2
@@ -10631,8 +10631,8 @@ def timer.remove
             let s5 ← timer.set_parent machineStoreInst s4 t 0#u64
             let s6 ← timer.set_left machineStoreInst s5 t 0#u64
             let s7 ← timer.set_right machineStoreInst s6 t 0#u64
-            let s8 ← obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
-            obj.Tcb.set_timer_deadline machineStoreInst t s8 0#u64
+            let s8 ← obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+            obj.Tcb.set_timer_height machineStoreInst t s8 0#u64
           else
             let y ←
               timer.remove_loop2 machineStoreInst s1 tr layout.TREE_FUEL
@@ -10671,8 +10671,8 @@ def timer.remove
             let s9 ← timer.set_parent machineStoreInst s8 t 0#u64
             let s10 ← timer.set_left machineStoreInst s9 t 0#u64
             let s11 ← timer.set_right machineStoreInst s10 t 0#u64
-            let s12 ← obj.Tcb.set_timer_height machineStoreInst t s11 0#u64
-            obj.Tcb.set_timer_deadline machineStoreInst t s12 0#u64
+            let s12 ← obj.Tcb.set_timer_deadline machineStoreInst t s11 0#u64
+            obj.Tcb.set_timer_height machineStoreInst t s12 0#u64
     else
       let removed_red ← timer.is_red machineStoreInst s t
       let tl ← timer.left machineStoreInst s t
@@ -10700,8 +10700,8 @@ def timer.remove
         let s4 ← timer.set_parent machineStoreInst s3 t 0#u64
         let s5 ← timer.set_left machineStoreInst s4 t 0#u64
         let s6 ← timer.set_right machineStoreInst s5 t 0#u64
-        let s7 ← obj.Tcb.set_timer_height machineStoreInst t s6 0#u64
-        obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+        let s7 ← obj.Tcb.set_timer_deadline machineStoreInst t s6 0#u64
+        obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
       else
         let b1 ← obj.Tcb.is_null tr
         if b1
@@ -10726,8 +10726,8 @@ def timer.remove
           let s4 ← timer.set_parent machineStoreInst s3 t 0#u64
           let s5 ← timer.set_left machineStoreInst s4 t 0#u64
           let s6 ← timer.set_right machineStoreInst s5 t 0#u64
-          let s7 ← obj.Tcb.set_timer_height machineStoreInst t s6 0#u64
-          obj.Tcb.set_timer_deadline machineStoreInst t s7 0#u64
+          let s7 ← obj.Tcb.set_timer_deadline machineStoreInst t s6 0#u64
+          obj.Tcb.set_timer_height machineStoreInst t s7 0#u64
         else
           let y ← timer.remove_loop3 machineStoreInst s tr layout.TREE_FUEL
           let removed_red1 ← timer.is_red machineStoreInst s y
@@ -10765,8 +10765,8 @@ def timer.remove
           let s8 ← timer.set_parent machineStoreInst s7 t 0#u64
           let s9 ← timer.set_left machineStoreInst s8 t 0#u64
           let s10 ← timer.set_right machineStoreInst s9 t 0#u64
-          let s11 ← obj.Tcb.set_timer_height machineStoreInst t s10 0#u64
-          obj.Tcb.set_timer_deadline machineStoreInst t s11 0#u64
+          let s11 ← obj.Tcb.set_timer_deadline machineStoreInst t s10 0#u64
+          obj.Tcb.set_timer_height machineStoreInst t s11 0#u64
 
 /-- [fl4_core::timer::FIRE_BATCH]
     Source: 'crates/fl4-core/src/timer.rs', lines 11:0-11:31
@@ -12235,7 +12235,7 @@ def notification.send_signal
       ok (s1, a)
 
 /-- [fl4_core::timer::fire]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 376:4-391:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 378:4-393:1
     Visibility: public -/
 @[rust_loop_body]
 def timer.fire_loop.body
@@ -12273,7 +12273,7 @@ def timer.fire_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::timer::fire]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 376:4-391:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 378:4-393:1
     Visibility: public -/
 @[rust_loop]
 def timer.fire_loop
@@ -12288,7 +12288,7 @@ def timer.fire_loop
     (s, a, i)
 
 /-- [fl4_core::timer::fire]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 373:0-391:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 375:0-393:1
     Visibility: public -/
 def timer.fire
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12372,7 +12372,7 @@ def sched.check_domain_time
   else ok s
 
 /-- [fl4_core::timer::earliest]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 363:0-370:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 365:0-372:1
     Visibility: public -/
 def timer.earliest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
@@ -28517,7 +28517,7 @@ def faults.handle_fault_reply
           else ok (true, s, a)
 
 /-- [fl4_core::fastpath::reply_recv_found]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 187:0-251:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 187:0-255:1
     Visibility: public -/
 def fastpath.reply_recv_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -28564,16 +28564,16 @@ def fastpath.reply_recv_found
                     if b3
                     then ok (false, s, a)
                     else
-                      let b4 ← sporadic.ready machineStoreInst s i5
+                      let b4 ←
+                        fastpath.schedulable_here machineStoreInst s i1
                       if b4
                       then
-                        let b5 ←
-                          sporadic.sufficient machineStoreInst machineArchInst
-                            s a i5 0#u64
+                        let b5 ← sporadic.ready machineStoreInst s i5
                         if b5
                         then
                           let b6 ←
-                            fastpath.schedulable_here machineStoreInst s i1
+                            sporadic.sufficient machineStoreInst
+                              machineArchInst s a i5 0#u64
                           if b6
                           then
                             let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
@@ -28669,12 +28669,12 @@ def fastpath.reply_recv_found
                                                 machineStoreInst t s7
                                                 sched.TS_RUNNING
                                             let s9 ←
-                                              obj.Tcb.set_state
-                                                machineStoreInst t s8
-                                                sched.TS_BLOCKED_ON_RECV
-                                            let s10 ←
                                               obj.Tcb.set_block_obj
-                                                machineStoreInst t s9 ep_ptr
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
                                             let s11 ←
                                               obj.Tcb.set_reply_obj
                                                 machineStoreInst t s10 rptr
@@ -28708,12 +28708,12 @@ def fastpath.reply_recv_found
                                                 machineStoreInst t s7
                                                 sched.TS_RUNNING
                                             let s9 ←
-                                              obj.Tcb.set_state
-                                                machineStoreInst t s8
-                                                sched.TS_BLOCKED_ON_RECV
-                                            let s10 ←
                                               obj.Tcb.set_block_obj
-                                                machineStoreInst t s9 ep_ptr
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
                                             let s11 ←
                                               obj.Tcb.set_reply_obj
                                                 machineStoreInst t s10 rptr
@@ -28779,11 +28779,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -28814,11 +28814,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -28914,11 +28914,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -28949,11 +28949,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -29018,11 +29018,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29053,11 +29053,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29148,11 +29148,11 @@ def fastpath.reply_recv_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -29182,11 +29182,11 @@ def fastpath.reply_recv_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -29247,11 +29247,11 @@ def fastpath.reply_recv_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -29281,11 +29281,11 @@ def fastpath.reply_recv_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -29314,16 +29314,15 @@ def fastpath.reply_recv_found
                   if b2
                   then ok (false, s, a)
                   else
-                    let b3 ← sporadic.ready machineStoreInst s i5
+                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
                     if b3
                     then
-                      let b4 ←
-                        sporadic.sufficient machineStoreInst machineArchInst s
-                          a i5 0#u64
+                      let b4 ← sporadic.ready machineStoreInst s i5
                       if b4
                       then
                         let b5 ←
-                          fastpath.schedulable_here machineStoreInst s i1
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s a i5 0#u64
                         if b5
                         then
                           let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
@@ -29415,11 +29414,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -29450,11 +29449,11 @@ def fastpath.reply_recv_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -29519,11 +29518,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29554,11 +29553,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29654,11 +29653,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29689,11 +29688,11 @@ def fastpath.reply_recv_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -29756,11 +29755,11 @@ def fastpath.reply_recv_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -29790,11 +29789,11 @@ def fastpath.reply_recv_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -29880,11 +29879,11 @@ def fastpath.reply_recv_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -29914,11 +29913,11 @@ def fastpath.reply_recv_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -29979,11 +29978,11 @@ def fastpath.reply_recv_found
                                     obj.Tcb.set_state machineStoreInst t s7
                                       sched.TS_RUNNING
                                   let s9 ←
-                                    obj.Tcb.set_state machineStoreInst t s8
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s10 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                    obj.Tcb.set_block_obj machineStoreInst t s8
                                       ep_ptr
+                                  let s10 ←
+                                    obj.Tcb.set_state machineStoreInst t s9
+                                      sched.TS_BLOCKED_ON_RECV
                                   let s11 ←
                                     obj.Tcb.set_reply_obj machineStoreInst t
                                       s10 rptr
@@ -30013,11 +30012,11 @@ def fastpath.reply_recv_found
                                     obj.Tcb.set_state machineStoreInst t s7
                                       sched.TS_RUNNING
                                   let s9 ←
-                                    obj.Tcb.set_state machineStoreInst t s8
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s10 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                    obj.Tcb.set_block_obj machineStoreInst t s8
                                       ep_ptr
+                                  let s10 ←
+                                    obj.Tcb.set_state machineStoreInst t s9
+                                      sched.TS_BLOCKED_ON_RECV
                                   let s11 ←
                                     obj.Tcb.set_reply_obj machineStoreInst t
                                       s10 rptr
@@ -30342,7 +30341,7 @@ def fastpath_vm.vm_fault
     | capability.Cap.TdxControl => ok (false, s, a)
 
 /-- [fl4_core::fastpath_vm::reply_recv_vm_found]:
-    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 95:0-159:1
+    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 95:0-163:1
     Visibility: public -/
 def fastpath_vm.reply_recv_vm_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30389,16 +30388,16 @@ def fastpath_vm.reply_recv_vm_found
                     if b3
                     then ok (false, s, a)
                     else
-                      let b4 ← sporadic.ready machineStoreInst s i5
+                      let b4 ←
+                        fastpath.schedulable_here machineStoreInst s i1
                       if b4
                       then
-                        let b5 ←
-                          sporadic.sufficient machineStoreInst machineArchInst
-                            s a i5 0#u64
+                        let b5 ← sporadic.ready machineStoreInst s i5
                         if b5
                         then
                           let b6 ←
-                            fastpath.schedulable_here machineStoreInst s i1
+                            sporadic.sufficient machineStoreInst
+                              machineArchInst s a i5 0#u64
                           if b6
                           then
                             let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
@@ -30494,12 +30493,12 @@ def fastpath_vm.reply_recv_vm_found
                                                 machineStoreInst t s7
                                                 sched.TS_RUNNING
                                             let s9 ←
-                                              obj.Tcb.set_state
-                                                machineStoreInst t s8
-                                                sched.TS_BLOCKED_ON_RECV
-                                            let s10 ←
                                               obj.Tcb.set_block_obj
-                                                machineStoreInst t s9 ep_ptr
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
                                             let s11 ←
                                               obj.Tcb.set_reply_obj
                                                 machineStoreInst t s10 rptr
@@ -30533,12 +30532,12 @@ def fastpath_vm.reply_recv_vm_found
                                                 machineStoreInst t s7
                                                 sched.TS_RUNNING
                                             let s9 ←
-                                              obj.Tcb.set_state
-                                                machineStoreInst t s8
-                                                sched.TS_BLOCKED_ON_RECV
-                                            let s10 ←
                                               obj.Tcb.set_block_obj
-                                                machineStoreInst t s9 ep_ptr
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
                                             let s11 ←
                                               obj.Tcb.set_reply_obj
                                                 machineStoreInst t s10 rptr
@@ -30604,11 +30603,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -30639,11 +30638,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -30739,11 +30738,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -30774,11 +30773,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -30843,11 +30842,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -30878,11 +30877,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -30973,11 +30972,11 @@ def fastpath_vm.reply_recv_vm_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -31007,11 +31006,11 @@ def fastpath_vm.reply_recv_vm_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -31072,11 +31071,11 @@ def fastpath_vm.reply_recv_vm_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -31106,11 +31105,11 @@ def fastpath_vm.reply_recv_vm_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -31139,16 +31138,15 @@ def fastpath_vm.reply_recv_vm_found
                   if b2
                   then ok (false, s, a)
                   else
-                    let b3 ← sporadic.ready machineStoreInst s i5
+                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
                     if b3
                     then
-                      let b4 ←
-                        sporadic.sufficient machineStoreInst machineArchInst s
-                          a i5 0#u64
+                      let b4 ← sporadic.ready machineStoreInst s i5
                       if b4
                       then
                         let b5 ←
-                          fastpath.schedulable_here machineStoreInst s i1
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s a i5 0#u64
                         if b5
                         then
                           let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
@@ -31240,11 +31238,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -31275,11 +31273,11 @@ def fastpath_vm.reply_recv_vm_found
                                             obj.Tcb.set_state machineStoreInst
                                               t s7 sched.TS_RUNNING
                                           let s9 ←
-                                            obj.Tcb.set_state machineStoreInst
-                                              t s8 sched.TS_BLOCKED_ON_RECV
-                                          let s10 ←
                                             obj.Tcb.set_block_obj
-                                              machineStoreInst t s9 ep_ptr
+                                              machineStoreInst t s8 ep_ptr
+                                          let s10 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s9 sched.TS_BLOCKED_ON_RECV
                                           let s11 ←
                                             obj.Tcb.set_reply_obj
                                               machineStoreInst t s10 rptr
@@ -31344,11 +31342,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -31379,11 +31377,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -31479,11 +31477,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -31514,11 +31512,11 @@ def fastpath_vm.reply_recv_vm_found
                                           obj.Tcb.set_state machineStoreInst t
                                             s7 sched.TS_RUNNING
                                         let s9 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s8 sched.TS_BLOCKED_ON_RECV
-                                        let s10 ←
                                           obj.Tcb.set_block_obj
-                                            machineStoreInst t s9 ep_ptr
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
                                         let s11 ←
                                           obj.Tcb.set_reply_obj
                                             machineStoreInst t s10 rptr
@@ -31581,11 +31579,11 @@ def fastpath_vm.reply_recv_vm_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -31615,11 +31613,11 @@ def fastpath_vm.reply_recv_vm_found
                                         obj.Tcb.set_state machineStoreInst t s7
                                           sched.TS_RUNNING
                                       let s9 ←
-                                        obj.Tcb.set_state machineStoreInst t s8
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s10 ←
                                         obj.Tcb.set_block_obj machineStoreInst
-                                          t s9 ep_ptr
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
                                       let s11 ←
                                         obj.Tcb.set_reply_obj machineStoreInst
                                           t s10 rptr
@@ -31705,11 +31703,11 @@ def fastpath_vm.reply_recv_vm_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -31739,11 +31737,11 @@ def fastpath_vm.reply_recv_vm_found
                                       obj.Tcb.set_state machineStoreInst t s7
                                         sched.TS_RUNNING
                                     let s9 ←
-                                      obj.Tcb.set_state machineStoreInst t s8
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s10 ←
                                       obj.Tcb.set_block_obj machineStoreInst t
-                                        s9 ep_ptr
+                                        s8 ep_ptr
+                                    let s10 ←
+                                      obj.Tcb.set_state machineStoreInst t s9
+                                        sched.TS_BLOCKED_ON_RECV
                                     let s11 ←
                                       obj.Tcb.set_reply_obj machineStoreInst t
                                         s10 rptr
@@ -31804,11 +31802,11 @@ def fastpath_vm.reply_recv_vm_found
                                     obj.Tcb.set_state machineStoreInst t s7
                                       sched.TS_RUNNING
                                   let s9 ←
-                                    obj.Tcb.set_state machineStoreInst t s8
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s10 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                    obj.Tcb.set_block_obj machineStoreInst t s8
                                       ep_ptr
+                                  let s10 ←
+                                    obj.Tcb.set_state machineStoreInst t s9
+                                      sched.TS_BLOCKED_ON_RECV
                                   let s11 ←
                                     obj.Tcb.set_reply_obj machineStoreInst t
                                       s10 rptr
@@ -31838,11 +31836,11 @@ def fastpath_vm.reply_recv_vm_found
                                     obj.Tcb.set_state machineStoreInst t s7
                                       sched.TS_RUNNING
                                   let s9 ←
-                                    obj.Tcb.set_state machineStoreInst t s8
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s10 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                    obj.Tcb.set_block_obj machineStoreInst t s8
                                       ep_ptr
+                                  let s10 ←
+                                    obj.Tcb.set_state machineStoreInst t s9
+                                      sched.TS_BLOCKED_ON_RECV
                                   let s11 ←
                                     obj.Tcb.set_reply_obj machineStoreInst t
                                       s10 rptr
@@ -32310,7 +32308,7 @@ def ioport.is_port_in (lbl : Std.U64) : Result Bool := do
          else ok false
 
 /-- [fl4_core::ioport::invocation_ok]:
-    Source: 'crates/fl4-core/src/ioport.rs', lines 146:0-168:1
+    Source: 'crates/fl4-core/src/ioport.rs', lines 147:0-176:1
     Visibility: public -/
 def ioport.invocation_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -32324,55 +32322,58 @@ def ioport.invocation_ok
     let r ← cspace.lookup_slot machineStoreInst s t cptr
     match r with
     | core.result.Result.Ok r1 =>
-      let c ← obj.Slot.cap machineStoreInst r1.slot s
-      match c with
-      | capability.Cap.Null => ok false
-      | capability.Cap.Untyped _ _ _ _ => ok false
-      | capability.Cap.Endpoint _ _ _ _ _ _ => ok false
-      | capability.Cap.Notification _ _ _ _ => ok false
-      | capability.Cap.Reply _ _ => ok false
-      | capability.Cap.CNode _ _ _ _ => ok false
-      | capability.Cap.Thread _ => ok false
-      | capability.Cap.IrqControl => ok false
-      | capability.Cap.IrqHandler _ => ok false
-      | capability.Cap.Zombie _ _ _ => ok false
-      | capability.Cap.Domain => ok false
-      | capability.Cap.SchedContext _ _ => ok false
-      | capability.Cap.SchedControl _ => ok false
-      | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok false
-      | capability.Cap.PageTable _ _ _ _ => ok false
-      | capability.Cap.PageDirectory _ _ _ _ => ok false
-      | capability.Cap.Pdpt _ _ _ _ => ok false
-      | capability.Cap.Pml4 _ _ _ => ok false
-      | capability.Cap.Vcpu _ => ok false
-      | capability.Cap.Ept _ _ _ _ _ => ok false
-      | capability.Cap.AsidControl => ok false
-      | capability.Cap.AsidPool _ _ => ok false
-      | capability.Cap.IoPortControl => ok false
-      | capability.Cap.IoPort first last _ =>
-        let buf ← msg.lookup_ipc_buffer machineStoreInst s false t
-        let length ←
-          if info.length > msg.N_MSG_REGISTERS
-          then if buf = 0#u64
-               then ok msg.N_MSG_REGISTERS
-               else ok info.length
-          else ok info.length
-        let b ← ioport.is_port_in info.label
-        let i ← if b
-                  then ok 1#u64
-                  else ok 2#u64
-        if length < i
-        then ok false
-        else
-          let i1 ← msg.syscall_arg machineStoreInst s t buf 0#u64
-          let port ← lift (i1 &&& 65535#u64)
-          let r2 ← ioport.allowed first last port size
-          core.result.Result.is_ok r2
-      | capability.Cap.TdxControl => ok false
+      if r1.bits_left != 0#u64
+      then ok false
+      else
+        let c ← obj.Slot.cap machineStoreInst r1.slot s
+        match c with
+        | capability.Cap.Null => ok false
+        | capability.Cap.Untyped _ _ _ _ => ok false
+        | capability.Cap.Endpoint _ _ _ _ _ _ => ok false
+        | capability.Cap.Notification _ _ _ _ => ok false
+        | capability.Cap.Reply _ _ => ok false
+        | capability.Cap.CNode _ _ _ _ => ok false
+        | capability.Cap.Thread _ => ok false
+        | capability.Cap.IrqControl => ok false
+        | capability.Cap.IrqHandler _ => ok false
+        | capability.Cap.Zombie _ _ _ => ok false
+        | capability.Cap.Domain => ok false
+        | capability.Cap.SchedContext _ _ => ok false
+        | capability.Cap.SchedControl _ => ok false
+        | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok false
+        | capability.Cap.PageTable _ _ _ _ => ok false
+        | capability.Cap.PageDirectory _ _ _ _ => ok false
+        | capability.Cap.Pdpt _ _ _ _ => ok false
+        | capability.Cap.Pml4 _ _ _ => ok false
+        | capability.Cap.Vcpu _ => ok false
+        | capability.Cap.Ept _ _ _ _ _ => ok false
+        | capability.Cap.AsidControl => ok false
+        | capability.Cap.AsidPool _ _ => ok false
+        | capability.Cap.IoPortControl => ok false
+        | capability.Cap.IoPort first last _ =>
+          let buf ← msg.lookup_ipc_buffer machineStoreInst s false t
+          let length ←
+            if info.length > msg.N_MSG_REGISTERS
+            then if buf = 0#u64
+                 then ok msg.N_MSG_REGISTERS
+                 else ok info.length
+            else ok info.length
+          let b ← ioport.is_port_in info.label
+          let i ← if b
+                    then ok 1#u64
+                    else ok 2#u64
+          if length < i
+          then ok false
+          else
+            let i1 ← msg.syscall_arg machineStoreInst s t buf 0#u64
+            let port ← lift (i1 &&& 65535#u64)
+            let r2 ← ioport.allowed first last port size
+            core.result.Result.is_ok r2
+        | capability.Cap.TdxControl => ok false
     | core.result.Result.Err _ => ok false
 
 /-- [fl4_core::ioport::decode]:
-    Source: 'crates/fl4-core/src/ioport.rs', lines 170:0-214:1
+    Source: 'crates/fl4-core/src/ioport.rs', lines 178:0-222:1
     Visibility: public -/
 def ioport.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -33888,7 +33889,7 @@ def obj.Tcb.set_timer_badge
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::timer::insert]: loop body 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
+    Source: 'crates/fl4-core/src/timer.rs', lines 331:4-342:5
     Visibility: public -/
 @[rust_loop_body]
 def timer.insert_loop.body
@@ -33916,7 +33917,7 @@ def timer.insert_loop.body
     else ok (done (p, go_left, first))
 
 /-- [fl4_core::timer::insert]: loop 0:
-    Source: 'crates/fl4-core/src/timer.rs', lines 330:4-341:5
+    Source: 'crates/fl4-core/src/timer.rs', lines 331:4-342:5
     Visibility: public -/
 @[rust_loop]
 def timer.insert_loop
@@ -33931,7 +33932,7 @@ def timer.insert_loop
     (p, cur, go_left, first, fuel)
 
 /-- [fl4_core::timer::insert]:
-    Source: 'crates/fl4-core/src/timer.rs', lines 319:0-360:1
+    Source: 'crates/fl4-core/src/timer.rs', lines 320:0-362:1
     Visibility: public -/
 def timer.insert
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -33960,14 +33961,14 @@ def timer.insert
           then timer.set_left machineStoreInst s1 p t
           else timer.set_right machineStoreInst s1 p t
         ok (t2, t)
-    let s3 ← obj.Tcb.set_timer_deadline machineStoreInst t1 s2 deadline
-    let s4 ← obj.Tcb.set_timer_badge machineStoreInst t1 s3 badge
-    let s5 ← timer.set_parent machineStoreInst s4 t1 p
-    let s6 ← timer.set_left machineStoreInst s5 t1 0#u64
-    let s7 ← timer.set_right machineStoreInst s6 t1 0#u64
     let i ← cpu <<< 8#i32
     let i1 ← lift (i ||| timer.RED)
-    let s8 ← obj.Tcb.set_timer_height machineStoreInst t1 s7 i1
+    let s3 ← obj.Tcb.set_timer_height machineStoreInst t1 s2 i1
+    let s4 ← obj.Tcb.set_timer_deadline machineStoreInst t1 s3 deadline
+    let s5 ← obj.Tcb.set_timer_badge machineStoreInst t1 s4 badge
+    let s6 ← timer.set_parent machineStoreInst s5 t1 p
+    let s7 ← timer.set_left machineStoreInst s6 t1 0#u64
+    let s8 ← timer.set_right machineStoreInst s7 t1 0#u64
     let s9 ← timer.insert_fixup machineStoreInst s8 cpu t1
     if first
     then
