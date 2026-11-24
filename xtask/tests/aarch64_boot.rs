@@ -74,6 +74,8 @@ mod hw;
 mod efi_mmap;
 #[path = "../../crates/fl4-kernel-aarch64/src/extra_bi.rs"]
 mod extra_bi;
+#[path = "../../crates/fl4-arch-aarch64/src/mmu_switch.rs"]
+mod mmu_switch;
 
 // ---- GIC ---------------------------------------------------------------------
 
@@ -1517,10 +1519,59 @@ fn memory_map_entries_never_wrap() {
 }
 
 /// The kernel's device area (paging.rs): from the top of the window
-/// (fl4-core aarch64 `PPTR_TOP`) to the high window of `ArmHighVSpace`s
-/// (`HIGH_VSPACE_BASE`, below the kernel image at `KERNEL_VBASE`).
-const DEVICE_BASE: u64 = 0xffff_ff80_0000_0000;
-const DEVICE_TOP: u64 = 0xffff_ffe0_0000_0000;
+/// (fl4-core aarch64 `PPTR_TOP`, the start of TTBR1 level-0 entry 510) to
+/// the kernel image (`KERNEL_VBASE`, also in entry 510). Entry 511 is the
+/// high window's alone (`HIGH_VSPACE_BASE`).
+const DEVICE_BASE: u64 = 0xffff_ff00_0000_0000;
+const DEVICE_TOP: u64 = fl4_bootinfo::KERNEL_VBASE;
+const HIGH_VSPACE_BASE: u64 = 0xffff_ffe0_0000_0000;
+
+/// TTBR1 level-0 index of a kernel address.
+fn l0_index(va: u64) -> u64 {
+    (va >> 39) & 511
+}
+
+/// The kernel's TTBR1 layout, as every crate states it: the window in
+/// level-0 entries 256-509, the devices and the image in 510 (the region
+/// ending at 511's first address), the high window alone in 511.
+#[test]
+fn the_kernel_leaves_level0_entry_511_to_the_high_window() {
+    use fl4_bootinfo::{KERNEL_REGION_TOP, KERNEL_VBASE};
+    let layout = include_str!("../../crates/fl4-core/src/arch/aarch64/layout.rs");
+    assert!(layout.contains("pub const PPTR_BASE: u64 = 0xffff_8000_0000_0000;"));
+    assert!(layout.contains(&format!("pub const PPTR_TOP: u64 = {};", "0xffff_ff00_0000_0000")));
+    let consts = include_str!("../../crates/fl4-abi/src/consts.rs");
+    assert!(consts.contains("pub const HIGH_VSPACE_BASE: u64 = 0xffff_ffe0_0000_0000;"));
+    let linker = include_str!("../../crates/fl4-kernel-aarch64/linker.ld");
+    assert!(linker.contains("KERNEL_VBASE = 0xffffff7f80000000;"));
+    assert_eq!(KERNEL_VBASE, 0xffff_ff7f_8000_0000);
+    assert_eq!(l0_index(0xffff_8000_0000_0000), 256);
+    assert_eq!(l0_index(DEVICE_BASE - 1), 509);
+    assert_eq!((l0_index(DEVICE_BASE), DEVICE_BASE % (1 << 39)), (510, 0));
+    assert_eq!(l0_index(DEVICE_TOP - 1), 510);
+    assert_eq!(l0_index(KERNEL_VBASE), 510);
+    assert_eq!(l0_index(KERNEL_REGION_TOP - 1), 510);
+    assert_eq!((l0_index(KERNEL_REGION_TOP), KERNEL_REGION_TOP % (1 << 39)), (511, 0));
+    assert_eq!(l0_index(HIGH_VSPACE_BASE), 511);
+    assert!(DEVICE_BASE < DEVICE_TOP && DEVICE_TOP <= KERNEL_VBASE && KERNEL_REGION_TOP <= HIGH_VSPACE_BASE);
+    // The loader and the kernel bound the region by it, and the kernel
+    // checks entry 511 is still empty when it freezes its tables.
+    let efi = include_str!("../../crates/fl4-efi/src/lib.rs");
+    assert!(efi.contains("elf::check(kernel, KERNEL_VBASE, KERNEL_REGION_TOP)"));
+    assert!(efi.contains("fl4_bootinfo::kernel_region_layout("));
+    let paging = include_str!("../../crates/fl4-kernel-aarch64/src/paging.rs");
+    assert!(paging.contains("if !fl4_bootinfo::kernel_region_fits(region_len) || region_len < ro_end {"));
+    assert!(paging.contains("let e = unsafe { (entry(s.root, KERNEL_REGION_TOP, 39) as *const u64).read_volatile() };"));
+    // The region: exactly to entry 511, a page past it, and wrapping.
+    let room = KERNEL_REGION_TOP - KERNEL_VBASE;
+    assert!(fl4_bootinfo::kernel_region_fits(room));
+    assert!(!fl4_bootinfo::kernel_region_fits(room + 0x1000));
+    assert!(!fl4_bootinfo::kernel_region_fits(u64::MAX));
+    let tables = 10 * 0x1000;
+    assert_eq!(fl4_bootinfo::kernel_region_layout(room - tables - 0x1000, tables, 0x800, 0x1000, 2 << 20).map(|l| l.2), Some(room));
+    assert_eq!(fl4_bootinfo::kernel_region_layout(room - tables, tables, 0x800, 0x1000, 2 << 20), None);
+    assert_eq!(fl4_bootinfo::kernel_region_layout(u64::MAX - tables, tables, 0x800, 0x1000, 2 << 20), None);
+}
 
 /// Audit r10 F1: a device mapping never wraps past 2^64 into the kernel
 /// image. `device_pages` lets through any range below the physical address
@@ -1531,9 +1582,12 @@ const DEVICE_TOP: u64 = 0xffff_ffe0_0000_0000;
 #[test]
 fn device_mappings_never_wrap_past_the_device_area() {
     let paging = include_str!("../../crates/fl4-kernel-aarch64/src/paging.rs");
-    assert!(paging.contains("const DEVICE_BASE: u64 = PPTR_TOP;") && paging.contains("const DEVICE_TOP: u64 = HIGH_VSPACE_BASE;"));
+    assert!(paging.contains("const DEVICE_BASE: u64 = PPTR_TOP;") && paging.contains("const DEVICE_TOP: u64 = KERNEL_VBASE;"));
     assert!(paging.contains("crate::bootmem::device_va(s.next_device, size, DEVICE_TOP)"));
     let va = bootmem::device_va;
+    // The last device page ends at or below the image's first byte.
+    assert_eq!(va(DEVICE_TOP - 0x1_0000, 0x1_0000, DEVICE_TOP), Some((DEVICE_TOP - 0x1_0000, DEVICE_TOP)));
+    assert_eq!(va(DEVICE_TOP - 0x1_0000, 0x1_1000, DEVICE_TOP), None);
     // 512 GiB from the base ends exactly at 2^64; one page less than what
     // remains to 2^64; and everything to 2^64.
     assert_eq!(va(DEVICE_BASE, 0x80_0000_0000, DEVICE_TOP), None);
@@ -2453,18 +2507,18 @@ fn the_el2_identity_map_is_w_xor_x() {
     let hyp = &hyp[..hyp.find("s.hyp_ident = hyp;").expect("end of the EL2 map")];
     assert!(hyp.contains("const D_AP_RW_EL2: u64 = 1 << 6;"));
     assert!(hyp.contains("const D_AP_RO_EL2: u64 = 3 << 6;"));
-    let maps: Vec<&str> = hyp.lines().map(str::trim).filter(|l| l.starts_with("map(hyp, r_start")).collect();
+    let maps: Vec<&str> = hyp.lines().map(str::trim).filter(|l| l.starts_with("map(s, hyp, r_start")).collect();
     assert_eq!(
         maps,
         [
-            "map(hyp, r_start, r_start, text_end, normal() | D_AP_RO_EL2);",
-            "map(hyp, r_start + text_end, r_start + text_end, ro_end - text_end, normal() | D_AP_RO_EL2 | D_UXN);",
-            "map(hyp, r_start + ro_end, r_start + ro_end, region_len - ro_end, normal() | D_AP_RW_EL2 | D_UXN);",
+            "map(s, hyp, r_start, r_start, text_end, normal() | D_AP_RO_EL2);",
+            "map(s, hyp, r_start + text_end, r_start + text_end, ro_end - text_end, normal() | D_AP_RO_EL2 | D_UXN);",
+            "map(s, hyp, r_start + ro_end, r_start + ro_end, region_len - ro_end, normal() | D_AP_RW_EL2 | D_UXN);",
         ],
         "text RO+X, rodata RO+XN, the rest RW+XN"
     );
     // Nothing else in the EL2 map is both writable and executable.
-    for l in hyp.lines().map(str::trim).filter(|l| l.starts_with("map(hyp") || l.starts_with("let ram_attr")) {
+    for l in hyp.lines().map(str::trim).filter(|l| l.starts_with("map(s, hyp") || l.starts_with("let ram_attr")) {
         assert!(l.contains("D_UXN") || !l.contains("D_AP_RW_EL2"), "RW without XN at EL2: {l}");
     }
     // The split points are the TTBR1 ones.
@@ -2747,4 +2801,451 @@ fn the_timer_local_path_acknowledges_only_under_the_mask() {
     assert_eq!(calls.len(), 2, "fl4_entry and fl4_kernel_irq");
     let guards = code.iter().filter(|l| l.contains("gic::can_ack_timer_only()")).count();
     assert_eq!(guards, 2, "both entries check can_ack_timer_only");
+}
+
+// ---- Memory past the window --------------------------------------------------
+
+/// Round 1 review of #102 (P2-5): with the window at 127 TiB, free RAM the
+/// firmware reports past it is neither handed out as memory (the window
+/// does not map it) nor counted as device memory; real high MMIO still is.
+#[test]
+fn free_ram_past_the_window_is_never_device_memory() {
+    use fl4_bootinfo::{mem, MemRegion};
+    let window_top = 0x0000_7f00_0000_0000u64;
+    let pa_top = 1u64 << 48;
+    let wb = 1;
+    let e = |base: u64, len: u64, kind: u32, cacheable: u32| MemRegion { base, len, kind, cacheable, ..MemRegion::default() };
+    let map = [
+        // RAM across the window's top, then MMIO above it (not write-back,
+        // not free).
+        e(window_top - 0x10_0000, 0x40_0000, mem::FREE, wb | mem::ZEROED),
+        e(window_top + 0x100_0000, 0x10_0000, mem::FIRMWARE, 0),
+        e(0x4000_0000, 0x1000_0000, mem::FREE, wb),
+    ];
+    let l = bootmem::classify(&map, window_top, pa_top);
+    let r = |x: &bootmem::Ranges| x.r[..x.n].iter().map(|r| (r.start, r.end)).collect::<Vec<_>>();
+    assert_eq!(r(&l.usable), [(0x4000_0000, 0x5000_0000), (window_top - 0x10_0000, window_top)]);
+    assert_eq!(r(&l.ram), r(&l.usable));
+    assert_eq!(r(&l.zeroed), [(window_top - 0x10_0000, window_top)]);
+    assert_eq!(r(&l.all_usable), [(0x4000_0000, 0x5000_0000), (window_top - 0x10_0000, window_top + 0x30_0000)]);
+    // Device memory as fl4_boot makes it: everything but all free RAM.
+    let mut dev = bootmem::Ranges::new();
+    dev.add(0, pa_top);
+    for x in &l.all_usable.r[..l.all_usable.n] {
+        dev.remove(x.start, x.end);
+    }
+    let dev = r(&dev);
+    assert!(dev.iter().all(|&(s, e)| e <= window_top - 0x10_0000 || s >= window_top + 0x30_0000), "{dev:x?}");
+    assert!(dev.iter().any(|&(s, e)| s <= window_top + 0x100_0000 && window_top + 0x110_0000 <= e), "high MMIO");
+    // Nothing past what the processor addresses.
+    let l = bootmem::classify(&[e(pa_top - 0x1000, 0x2000, mem::FREE, wb)], window_top, pa_top);
+    assert_eq!((l.usable.n, r(&l.all_usable)), (0, vec![(pa_top - 0x1000, pa_top)]));
+    let lib = include_str!("../../crates/fl4-kernel-aarch64/src/lib.rs");
+    assert!(lib.contains("bootmem::classify(&bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)], PADDR_TOP, pa_top);"));
+    assert!(lib.contains("    for i in 0..all_usable.n {\n        dev.remove(all_usable.r[i].start, all_usable.r[i].end);"));
+    assert!(lib.contains("if ram.lost || usable.lost || all_usable.lost {"));
+}
+
+// ---- Address-space switches (fl4-arch-aarch64 mmu_switch.rs) -----------------
+
+mod switches {
+    use super::mmu_switch::{self as sw, CacheVia, Hw};
+    use std::collections::BTreeSet;
+
+    /// The kernel's TTBR1 and two `ArmHighVSpace`s.
+    const K: u64 = 0x4000_0000;
+    const W1: u64 = 0x5000_0000;
+    const W2: u64 = 0x6000_0000;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Ev {
+        Ttbr0(u64),
+        Ttbr1(u64),
+        TlbiAsid(u64),
+        TlbiAll,
+    }
+
+    /// One core: its registers, the per-CPU fields, a log of register
+    /// writes and TLB maintenance, and a model of the high-window
+    /// translations its TLB may hold, as (ASID, window) tags.
+    struct Core {
+        hw0: u64,
+        hw1: u64,
+        pub0: u64,
+        pub1: Option<u64>,
+        asid_gen: u64,
+        seen_asid: u64,
+        high_gen: u64,
+        seen_high: u64,
+        pair: Option<(u64, u64)>,
+        gate: bool,
+        multi: bool,
+        stale: bool,
+        log: Vec<Ev>,
+        tlb: BTreeSet<(u64, u64)>,
+    }
+
+    fn asid(ttbr0: u64) -> u64 {
+        ttbr0 >> 48
+    }
+
+    impl Core {
+        /// As after boot: the empty table with ASID 0, the kernel's TTBR1.
+        fn new() -> Core {
+            Core {
+                hw0: 0x1000,
+                hw1: K,
+                pub0: 0x1000,
+                pub1: Some(K),
+                asid_gen: 0,
+                seen_asid: 0,
+                high_gen: 0,
+                seen_high: 0,
+                pair: None,
+                gate: true,
+                multi: true,
+                stale: false,
+                log: Vec::new(),
+                tlb: BTreeSet::new(),
+            }
+        }
+        /// The state the walker sees after each logged event: on a window,
+        /// it may cache window translations for the running ASID.
+        fn step(&mut self, ev: Ev) {
+            self.log.push(ev);
+            match ev {
+                Ev::TlbiAsid(a) => self.tlb.retain(|&(x, _)| x != a),
+                Ev::TlbiAll => self.tlb.clear(),
+                _ => {}
+            }
+            if self.hw1 != K {
+                self.tlb.insert((asid(self.hw0), self.hw1));
+            }
+            self.check(ev);
+        }
+        /// Invariants 1 and 2 of mmu_switch.rs, after every event.
+        fn check(&self, ev: Ev) {
+            if self.hw1 != K {
+                assert_eq!(Some((self.hw1, asid(self.hw0))), self.pair, "a window beside an ASID not its pair's, after {ev:?}: {:x?}", self.log);
+            }
+            for &(a, w) in &self.tlb {
+                assert_eq!(Some((w, a)), self.pair, "window translations outside the pair, after {ev:?}: {:x?}", self.log);
+            }
+        }
+        fn tlbis(&self) -> usize {
+            self.log.iter().filter(|e| matches!(e, Ev::TlbiAsid(_) | Ev::TlbiAll)).count()
+        }
+    }
+
+    impl Hw for Core {
+        fn kernel_ttbr1(&self) -> Option<u64> {
+            Some(K)
+        }
+        fn ttbr0(&self) -> u64 {
+            self.pub0
+        }
+        fn ttbr1(&self) -> Option<u64> {
+            self.pub1
+        }
+        fn write_ttbr0(&mut self, v: u64) {
+            self.hw0 = v;
+            self.step(Ev::Ttbr0(v));
+        }
+        fn write_ttbr1(&mut self, v: u64) {
+            self.hw1 = v;
+            self.step(Ev::Ttbr1(v));
+        }
+        fn publish_ttbr0(&mut self, v: u64) {
+            assert_eq!(self.hw0, v);
+            self.pub0 = v;
+        }
+        fn publish_ttbr1(&mut self, v: u64) {
+            assert_eq!(self.hw1, v);
+            self.pub1 = Some(v);
+        }
+        fn asid_gen(&self) -> u64 {
+            self.asid_gen
+        }
+        fn seen_asid_gen(&self) -> u64 {
+            self.seen_asid
+        }
+        fn set_seen_asid_gen(&mut self, g: u64) {
+            self.seen_asid = g;
+        }
+        fn high_gen(&self) -> u64 {
+            self.high_gen
+        }
+        fn seen_high_gen(&self) -> u64 {
+            self.seen_high
+        }
+        fn set_seen_high_gen(&mut self, g: u64) {
+            self.seen_high = g;
+        }
+        fn high_pair(&self) -> Option<(u64, u64)> {
+            self.pair
+        }
+        fn set_high_pair(&mut self, pair: Option<(u64, u64)>) {
+            assert!(pair.is_none_or(|(_, a)| a != 0), "a pair with ASID 0");
+            self.pair = pair;
+        }
+        fn gate_held(&self) -> bool {
+            self.gate
+        }
+        fn multi(&self) -> bool {
+            self.multi
+        }
+        fn set_vspace_stale(&mut self) {
+            self.stale = true;
+        }
+        fn tlbi_asid(&mut self, asid: u64) {
+            self.step(Ev::TlbiAsid(asid));
+        }
+        fn tlbi_all(&mut self) {
+            self.step(Ev::TlbiAll);
+        }
+    }
+
+    /// A thread: its VSpace's TTBR0 value and its window's TTBR1 value
+    /// (physical; None: no window).
+    #[derive(Clone, Copy)]
+    struct T {
+        ttbr0: u64,
+        high: Option<u64>,
+    }
+
+    fn t(root: u64, a: u64, high: u64) -> T {
+        T { ttbr0: root | (a << 48), high: (high != 0).then_some(high) }
+    }
+
+    /// A thread on the window at physical address 0.
+    fn t0(root: u64, a: u64) -> T {
+        T { ttbr0: root | (a << 48), high: Some(0) }
+    }
+
+    /// fl4-core aarch64 `vspace::set_vm_root`'s order of calls.
+    fn run(c: &mut Core, th: T) {
+        match th.high {
+            None => {
+                sw::switch_high(c, None, asid(th.ttbr0));
+                sw::switch_to(c, th.ttbr0);
+            }
+            Some(w) => {
+                sw::switch_to(c, th.ttbr0);
+                sw::switch_high(c, Some(w), asid(th.ttbr0));
+            }
+        }
+        assert_eq!((c.hw0, c.pub0), (th.ttbr0, th.ttbr0));
+        let want1 = th.high.unwrap_or(K);
+        assert_eq!((c.hw1, c.pub1), (want1, Some(want1)));
+        if let Some(w) = th.high {
+            assert_eq!(c.pair, Some((w, asid(th.ttbr0))));
+        }
+    }
+
+    fn position(log: &[Ev], ev: Ev) -> usize {
+        log.iter().position(|&e| e == ev).unwrap_or_else(|| panic!("no {ev:?} in {log:x?}"))
+    }
+
+    /// Round 1 review of #102 (P1-1): from a thread on window W1 with ASID
+    /// 1 straight to a thread on the same or another window with the same
+    /// or another ASID. No intermediate state has a window beside an ASID
+    /// other than its pair's, and a pair's change flushes before the new
+    /// window is on.
+    #[test]
+    fn a_window_to_window_switch_never_mixes_pairs() {
+        let a = t(0x10_0000, 1, W1);
+        for (high, a2, tlbis) in [(W1, 1, 0), (W1, 2, 2), (W2, 1, 1), (W2, 2, 2)] {
+            let mut c = Core::new();
+            run(&mut c, a);
+            c.log.clear();
+            let root = if a2 == 1 { 0x10_0000 } else { 0x20_0000 };
+            let b = t(root, a2, high);
+            run(&mut c, b);
+            assert_eq!(c.tlbis(), tlbis, "{high:#x} ASID {a2}: {:x?}", c.log);
+            if (high, a2) == (W1, 1) {
+                assert!(c.log.is_empty(), "{:x?}", c.log);
+                continue;
+            }
+            // Off the old window before the new ASID or the flush, the
+            // flush before the new window.
+            let off = position(&c.log, Ev::Ttbr1(K));
+            let on = position(&c.log, Ev::Ttbr1(high));
+            if a2 != 1 {
+                assert!(off < position(&c.log, Ev::Ttbr0(b.ttbr0)), "{:x?}", c.log);
+                assert!(position(&c.log, Ev::TlbiAsid(2)) < on);
+            }
+            assert!(off < position(&c.log, Ev::TlbiAsid(1)) && position(&c.log, Ev::TlbiAsid(1)) < on, "{:x?}", c.log);
+            // And back.
+            run(&mut c, a);
+        }
+    }
+
+    /// The fast path the window exists for: an owner on its window, a
+    /// thread of another VSpace (or the idle thread's ASID 0) without one,
+    /// and back, again and again: no TLB maintenance after the first entry.
+    #[test]
+    fn owner_other_owner_flushes_nothing() {
+        let mut c = Core::new();
+        let owner = t(0x10_0000, 1, W1);
+        let other = t(0x20_0000, 3, 0);
+        let idle = t(0x1000, 0, 0);
+        run(&mut c, owner);
+        assert_eq!(c.log, [Ev::Ttbr0(owner.ttbr0), Ev::TlbiAsid(1), Ev::Ttbr1(W1)]);
+        c.log.clear();
+        for _ in 0..3 {
+            run(&mut c, other);
+            run(&mut c, owner);
+            run(&mut c, idle);
+            run(&mut c, owner);
+        }
+        assert_eq!(c.tlbis(), 0, "{:x?}", c.log);
+        // A thread of the owner's VSpace without the window drops the
+        // pair's translations; the owner then starts again.
+        c.log.clear();
+        run(&mut c, t(0x10_0000, 1, 0));
+        assert_eq!(c.log, [Ev::Ttbr1(K), Ev::TlbiAsid(1)]);
+        assert_eq!(c.pair, None);
+        run(&mut c, owner);
+        assert_eq!(c.tlbis(), 2);
+    }
+
+    /// The counts: a moved ASID_GEN flushes everything after the switch;
+    /// a moved HIGH_GEN outside the gate leaves the window and marks the
+    /// address space stale, under the gate it is only noted.
+    #[test]
+    fn generation_counts_flush_or_leave() {
+        let owner = t(0x10_0000, 1, W1);
+        let mut c = Core::new();
+        run(&mut c, owner);
+        c.asid_gen += 1;
+        c.log.clear();
+        run(&mut c, t(0x20_0000, 2, 0));
+        assert_eq!(c.log.last(), Some(&Ev::TlbiAll));
+        run(&mut c, owner);
+        c.high_gen += 1;
+        c.gate = false;
+        c.log.clear();
+        sw::switch_to(&mut c, owner.ttbr0);
+        sw::switch_high(&mut c, Some(W1), 1);
+        assert!(c.stale && c.hw1 == K && c.pair.is_none(), "{:x?}", c.log);
+        assert_eq!(c.log.last(), Some(&Ev::TlbiAll));
+        c.stale = false;
+        c.gate = true;
+        run(&mut c, owner);
+        assert!(!c.stale && c.seen_high == c.high_gen);
+    }
+
+    /// `cache_op` (P1-2): through the window, skipped, or borrowing the
+    /// target's TTBR0, its own or another ASID's, from a thread on a window
+    /// and from one without. While another ASID is borrowed the kernel's
+    /// TTBR1 is on; afterwards the registers, what the core published and
+    /// the pair are as before, and the next switch keeps the invariants.
+    #[test]
+    fn cache_maintenance_borrows_without_the_window() {
+        let owner = t(0x10_0000, 1, W1);
+        let plain = t(0x30_0000, 4, 0);
+        for from in [owner, plain] {
+            for (in_window, root, v) in [
+                (true, 0x10_0000, owner.ttbr0),
+                (false, 0, 0),
+                (false, 0x10_0000, owner.ttbr0),
+                (false, 0x20_0000, 0x20_0000 | (2 << 48)),
+            ] {
+                let mut c = Core::new();
+                run(&mut c, from);
+                let before = (c.hw0, c.hw1, c.pub0, c.pub1, c.pair);
+                c.log.clear();
+                match sw::cache_via(in_window, root, v) {
+                    CacheVia::Window => assert!(in_window),
+                    CacheVia::Skip => assert_eq!(root, 0),
+                    CacheVia::Borrow(b) => {
+                        assert_eq!(b, v);
+                        let old = sw::borrow(&mut c, b);
+                        assert_eq!(c.hw0, v);
+                        if asid(v) != asid(from.ttbr0) {
+                            assert_eq!(c.hw1, K, "another ASID beside the window");
+                        } else {
+                            assert!(c.log.is_empty(), "{:x?}", c.log);
+                        }
+                        sw::unborrow(&mut c, old);
+                    }
+                }
+                assert_eq!((c.hw0, c.hw1, c.pub0, c.pub1, c.pair), before, "{:x?}", c.log);
+                // Borrowing flushes nothing: the pair stays right.
+                assert_eq!(c.tlbis(), 0, "{:x?}", c.log);
+                for next in [plain, owner, t(0x20_0000, 2, W2), owner] {
+                    run(&mut c, next);
+                }
+            }
+        }
+    }
+
+    /// Round 2 review of #102: a window at physical address 0 is a window,
+    /// not "none": entered, kept across other threads, kept across a
+    /// borrowed TTBR0, retired running and dormant; and a core that has not
+    /// published a TTBR1 yet runs no window at 0.
+    #[test]
+    fn a_window_at_physical_address_zero_works() {
+        let owner = t0(0x10_0000, 1);
+        let other = t(0x20_0000, 3, 0);
+        let mut c = Core::new();
+        run(&mut c, owner);
+        assert_eq!(c.log, [Ev::Ttbr0(owner.ttbr0), Ev::TlbiAsid(1), Ev::Ttbr1(0)]);
+        assert_eq!(c.pair, Some((0, 1)));
+        c.log.clear();
+        run(&mut c, other);
+        run(&mut c, owner);
+        assert_eq!((c.tlbis(), c.hw1), (0, 0), "{:x?}", c.log);
+        // cache_op borrowing another ASID from it.
+        c.log.clear();
+        let CacheVia::Borrow(v) = sw::cache_via(false, 0x20_0000, 0x20_0000 | (2 << 48)) else { panic!() };
+        let old = sw::borrow(&mut c, v);
+        assert_eq!((c.hw0, c.hw1), (v, K));
+        sw::unborrow(&mut c, old);
+        assert_eq!((c.hw0, c.hw1, c.pub1, c.pair, c.tlbis()), (owner.ttbr0, 0, Some(0), Some((0, 1)), 0), "{:x?}", c.log);
+        // Retired while running: back on the kernel's TTBR1, flushed, stale.
+        sw::retire_window(&mut c, 0, true);
+        assert_eq!((c.hw1, c.pair, c.stale), (K, None, true));
+        assert_eq!(c.log.last(), Some(&Ev::TlbiAll));
+        // Retired while dormant: only the pair goes.
+        let mut c = Core::new();
+        run(&mut c, owner);
+        run(&mut c, other);
+        assert_eq!((c.hw1, c.pair), (K, Some((0, 1))));
+        c.log.clear();
+        sw::retire_window(&mut c, 0, true);
+        assert_eq!((c.pair, c.stale), (None, false));
+        assert!(c.log.is_empty(), "{:x?}", c.log);
+        // The retiring core's broadcast (`tlbi vmalle1is`) then drops the
+        // translations the pair named.
+        c.tlb.clear();
+        // Another window's retirement leaves this one alone.
+        run(&mut c, owner);
+        sw::retire_window(&mut c, W1, true);
+        assert_eq!((c.hw1, c.pair, c.stale), (0, Some((0, 1)), false));
+        // The retiring core itself: no local flush (it broadcasts).
+        c.log.clear();
+        sw::retire_window(&mut c, 0, false);
+        assert_eq!((c.hw1, c.pair, c.stale, c.tlbis()), (K, None, true, 0));
+        c.tlb.clear();
+        run(&mut c, owner);
+        assert_eq!((c.hw1, c.pair), (0, Some((0, 1))));
+        // No TTBR1 published yet: no window at 0 to retire.
+        let mut c = Core::new();
+        c.pub1 = None;
+        sw::retire_window(&mut c, 0, true);
+        assert!(c.log.is_empty() && !c.stale && c.pair.is_none());
+        // And the first switch from there publishes the kernel's TTBR1.
+        run(&mut c, other);
+        assert_eq!((c.hw1, c.pub1), (K, Some(K)));
+        // Then a thread of the owner's VSpace without the window: no pair.
+        let mut c = Core::new();
+        run(&mut c, owner);
+        c.log.clear();
+        run(&mut c, t(0x10_0000, 1, 0));
+        assert_eq!(c.log, [Ev::Ttbr1(K), Ev::TlbiAsid(1)]);
+        assert_eq!((c.hw1, c.pair), (K, None));
+        run(&mut c, owner);
+        assert_eq!(c.pair, Some((0, 1)));
+    }
 }

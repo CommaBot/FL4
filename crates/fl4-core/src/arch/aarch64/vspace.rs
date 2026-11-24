@@ -274,30 +274,26 @@ fn frame_root<S: Store>(s: &S, asid: u64) -> Result<(u64, u64), LookupFault> {
     }
 }
 
-/// A new `ArmHighVSpace` at `base` (8 KiB, zeroed): its level-0 table is
-/// the kernel's TTBR1 level-0 table, but for entry 511, which points to its
-/// own level-1 table (at `base + 4096`); that holds the kernel's level-1
-/// entries but for those of the high window (384-495), which stay empty for
-/// the owner's page tables and frames. The kernel's tables are built at
-/// boot and never change after, so the copy stays the kernel's. Entry 511
-/// has no PXNTable: the kernel image is below it.
+/// A new `ArmHighVSpace` at `base` (8 KiB, zeroed): its level-0 table copies
+/// the kernel's TTBR1 level-0 entries `0..511` (RAM window, devices, and the
+/// kernel image in `L0[510]`), while entry 511 points to its own empty
+/// level-1 table (at `base + 4096`) with `PXNTable` set so the kernel never
+/// executes high-window pages. Because `KERNEL_TTBR1.L0[511]` stays invalid,
+/// `switch_high` never needs to flush global walk caches on TTBR1 changes.
 pub fn init_high_vspace<S: Store, A: Arch>(s: &mut S, a: &mut A, base: u64) {
     let l1 = base.wrapping_add(4096);
-    if a.kernel_ttbr1_entry(0, HIGH_L0_INDEX) != 0 {
-        let mut i = 0;
-        while i < HIGH_L0_INDEX {
-            s.write(base.wrapping_add(i * 8), a.kernel_ttbr1_entry(0, i));
-            i += 1;
+    let mut i = 0;
+    while i < HIGH_L0_INDEX {
+        let e = a.kernel_ttbr1_entry(0, i);
+        if e != 0 {
+            s.write(base.wrapping_add(i * 8), e);
         }
-        let mut j = 0;
-        while j < 512 {
-            if j < HIGH_L1_FIRST || j >= HIGH_L1_END {
-                s.write(l1.wrapping_add(j * 8), a.kernel_ttbr1_entry(1, j));
-            }
-            j += 1;
-        }
+        i += 1;
     }
-    s.write(base.wrapping_add(HIGH_L0_INDEX * 8), (layout::paddr(l1) & ADDR_MASK) | D_VALID | D_TABLE_OR_PAGE);
+    s.write(
+        base.wrapping_add(HIGH_L0_INDEX * 8),
+        (layout::paddr(l1) & ADDR_MASK) | D_PXN_TABLE | D_VALID | D_TABLE_OR_PAGE,
+    );
 }
 
 /// The `ArmHighVSpace` bound to `t` (`TCBSetHighVSpace`), if its ASID
@@ -375,9 +371,21 @@ pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     match t.slot(tl::SLOT_VTABLE).cap(s) {
         Cap::Pml4 { ptr, mapped: true, asid } => match find_vspace_for_asid(s, asid) {
             Ok(r) if r == ptr => {
-                a.set_vspace(ptr, asid);
                 let high = if t.state(s) == sched::TS_RUNNING_VM { 0 } else { high_root_of(s, t) };
-                a.set_high_vspace(high, asid);
+                if high == 0 {
+                    // Leaving a high window: TTBR1 back on the kernel's
+                    // tables (L0[511] invalid) before the incoming TTBR0, so
+                    // the incoming ASID never runs beside an ArmHighVSpace.
+                    a.set_high_vspace(0, asid);
+                    a.set_vspace(ptr, asid);
+                } else {
+                    // Entering a high window: the owner's TTBR0 first (a new
+                    // TTBR0 takes TTBR1 back to the kernel's tables on the
+                    // way, also from another window), then the window, so
+                    // no other ASID runs beside it.
+                    a.set_vspace(ptr, asid);
+                    a.set_high_vspace(high, asid);
+                }
             }
             _ => set_kernel_vm_root(s, a),
         },
@@ -396,8 +404,8 @@ pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
 
 pub fn set_kernel_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let k = kernel_root(s);
-    a.set_vspace(k, 0);
     a.set_high_vspace(0, 0);
+    a.set_vspace(k, 0);
 }
 
 /// The kernel is in the TTBR1 half: a VSpace holds no kernel mappings.
@@ -1925,7 +1933,9 @@ mod high_window_tests {
             let log: Log = Rc::new(RefCell::new(Vec::new()));
             let mut s = Mem { words: BTreeMap::new() };
             let kernel = if kernel {
-                let l0: Vec<u64> = (0..512).map(|i| if i >= 256 { 0x9000_0003 + i * 0x1000 } else { 0 }).collect();
+                // As the kernel's own: the window, devices and image in 256-510,
+                // entry 511 invalid.
+                let l0: Vec<u64> = (0..512).map(|i| if (256..511).contains(&i) { 0x9000_0003 + i * 0x1000 } else { 0 }).collect();
                 let l1: Vec<u64> = (0..512).map(|i| 0xa000_0003 + i * 0x1000).collect();
                 Some((l0, l1))
             } else {
@@ -1992,21 +2002,20 @@ mod high_window_tests {
         let mut w = W::new(true);
         let c = crate::objects::create_object(&mut w.s, &mut w.a, fl4_abi::consts::object::ArmHighVSpace, p(HIGH), 0, false);
         assert!(c == Cap::HighVSpace { ptr: p(HIGH), mapped: false, asid: 0 });
-        let (kl0, kl1) = w.a.kernel.clone().unwrap();
+        let (kl0, _kl1) = w.a.kernel.clone().unwrap();
         for i in 0..511 {
             assert_eq!(w.s.read(p(HIGH) + i * 8), kl0[i as usize], "L0[{i}]");
         }
-        // L0[511]: its own level-1 table, no PXNTable (the kernel image is below it).
-        assert_eq!(w.s.read(p(HIGH) + 511 * 8), (HIGH + 4096) | D_VALID | D_TABLE_OR_PAGE);
+        // L0[511]: its own empty level-1 table with PXNTable (kernel lives in L0[510]).
+        assert_eq!(w.s.read(p(HIGH) + 511 * 8), (HIGH + 4096) | D_PXN_TABLE | D_VALID | D_TABLE_OR_PAGE);
         for i in 0..512 {
-            let want = if (384..496).contains(&i) { 0 } else { kl1[i as usize] };
-            assert_eq!(w.s.read(l1_slot(i)), want, "L1[{i}]");
+            assert_eq!(w.s.read(l1_slot(i)), 0, "L1[{i}]");
         }
         // Without kernel tables (host tests): only the window's path.
         let mut w = W::new(false);
         let _ = crate::objects::create_object(&mut w.s, &mut w.a, fl4_abi::consts::object::ArmHighVSpace, p(HIGH), 0, false);
         let set: Vec<_> = w.s.words.iter().filter(|(&k, &v)| v != 0 && (p(HIGH)..p(HIGH) + 8192).contains(&k)).map(|(&k, &v)| (k, v)).collect();
-        assert_eq!(set, vec![(p(HIGH) + 511 * 8, (HIGH + 4096) | D_VALID | D_TABLE_OR_PAGE)]);
+        assert_eq!(set, vec![(p(HIGH) + 511 * 8, (HIGH + 4096) | D_PXN_TABLE | D_VALID | D_TABLE_OR_PAGE)]);
     }
 
     #[test]
@@ -2164,11 +2173,11 @@ mod high_window_tests {
         w.log.borrow_mut().clear();
         set_vm_root(&mut w.s, &mut w.a, target);
         assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(p(HIGH), vs_asid)]);
-        // Running a VCPU (ARMVCPURun): never the window.
+        // Running a VCPU (ARMVCPURun): never the window (leave TTBR1 before TTBR0).
         target.set_state(&mut w.s, sched::TS_RUNNING_VM);
         w.log.borrow_mut().clear();
         set_vm_root(&mut w.s, &mut w.a, target);
-        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+        assert_eq!(w.events(), vec![Ev::SetHigh(0, vs_asid), Ev::SetVspace(p(VS), vs_asid)]);
         target.set_state(&mut w.s, sched::TS_RUNNING);
         // A thread without a VSpace never runs the window (ASID 0 is everyone's).
         let bare = Tcb(p(0x62_0000));
@@ -2176,7 +2185,7 @@ mod high_window_tests {
         crate::cdt::insert(&mut w.s, hc, slot(0), bare.slot(tl::SLOT_HIGH_VSPACE));
         w.log.borrow_mut().clear();
         set_vm_root(&mut w.s, &mut w.a, bare);
-        assert_eq!(w.events(), vec![Ev::SetVspace(0, 0), Ev::SetHigh(0, 0)]);
+        assert_eq!(w.events(), vec![Ev::SetHigh(0, 0), Ev::SetVspace(0, 0)]);
         // Unassigned or the wrong kind of cap: refused.
         slot(11).set_cap(&mut w.s, Cap::HighVSpace { ptr: p(0x22_0000), mapped: false, asid: 0 });
         slot(12).set_cap(&mut w.s, Cap::Pml4 { ptr: p(VS), mapped: true, asid: vs_asid });
@@ -2193,7 +2202,7 @@ mod high_window_tests {
         assert!(target.slot(tl::SLOT_HIGH_VSPACE).cap(&w.s).is_null());
         w.log.borrow_mut().clear();
         set_vm_root(&mut w.s, &mut w.a, target);
-        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+        assert_eq!(w.events(), vec![Ev::SetHigh(0, vs_asid), Ev::SetVspace(p(VS), vs_asid)]);
         // Bound again, then the window deleted: its ASID no longer names
         // it, so the thread runs without it.
         let ex = [slot(0), Slot(0), Slot(0)];
@@ -2201,7 +2210,7 @@ mod high_window_tests {
         delete_asid(&mut w.s, &mut w.a, asid, p(HIGH) | ROOT_HIGH);
         w.log.borrow_mut().clear();
         set_vm_root(&mut w.s, &mut w.a, target);
-        assert_eq!(w.events(), vec![Ev::SetVspace(p(VS), vs_asid), Ev::SetHigh(0, vs_asid)]);
+        assert_eq!(w.events(), vec![Ev::SetHigh(0, vs_asid), Ev::SetVspace(p(VS), vs_asid)]);
     }
 
     /// A VSpace assigned from the pool (slot 9) for thread `t`, and its ASID.
