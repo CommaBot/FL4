@@ -60,6 +60,7 @@ const LPI_GROUP1: u8 = 1 << 1;
 /// A disabled LPI at the priority of every other interrupt (gic.rs): what
 /// every entry holds from boot and after `unmap`.
 const LPI_DISABLED: u8 = 0xa0 | LPI_GROUP1;
+const _: () = assert!(LPI_DISABLED & 0xfc == crate::gic_layout::PRIO as u8);
 /// An enabled LPI.
 const LPI_ENABLED: u8 = LPI_DISABLED | 1;
 /// Bytes of the LPI configuration table: one per LPI ID from 8192.

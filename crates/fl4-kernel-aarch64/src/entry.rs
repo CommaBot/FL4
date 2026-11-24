@@ -189,7 +189,13 @@ enum TakenIrq {
 /// are serviced while the gate is awaited (`run_entry`), and only the gate
 /// holder sends them, so none is left for the remote-call SGI here.
 fn take_irq_under_gate() -> Option<TakenIrq> {
-    let raw = gic::ack();
+    classify_irq_under_gate(gic::ack())
+}
+
+/// `take_irq_under_gate` for the acknowledge value `raw`, which the
+/// kernel timer's local path took beside the gate and left to the serial
+/// path (`timer_irq_local_or_serial`).
+fn classify_irq_under_gate(raw: u64) -> Option<TakenIrq> {
     let id = gic::raw_id(raw);
     if gic::is_spurious(raw) {
         return None;
@@ -225,6 +231,79 @@ fn take_irq_under_gate() -> Option<TakenIrq> {
         timer::quiesce();
     }
     Some(TakenIrq::Normal(irq::of(id, percpu::cpu_index() as u64)))
+}
+
+/// The kernel timer interrupt, the highest pending one, taken from a
+/// native thread or the idle loop on a multi-core system: its local path
+/// beside the serial gate, else the serial path (`fl4_sync::run_timer_irq`).
+///
+/// Unlike `take_irq_under_gate`, the local path acknowledges an interrupt
+/// beside the gate, and only the timer: under the priority mask of
+/// `gic::ack_timer_only`, which only the timer and the remote-call SGI are
+/// above (gic.rs `init_cpu`, which checks the GIC keeps them so: callers
+/// check `gic::can_ack_timer_only`), the acknowledge returns one of them or
+/// nothing, even if the timer stopped asserting after it was found
+/// pending. Never an LPI, whose handler a serial entry may be moving to
+/// another device (`take_irq_under_gate`). The remote-call SGI needs only
+/// its end here: the call it rang for has been serviced, as a call is made
+/// only by the gate holder and the gate was open. A timer the local path
+/// acknowledged and did not handle is handled by the serial path.
+fn timer_irq_local_or_serial() {
+    let tid = timer::timer_irq_id();
+    let timer_irq = irq::of(tid, percpu::cpu_index() as u64);
+    // The local path acknowledged the timer and declined it; or (not
+    // expected: nothing else is above the mask) acknowledged another
+    // interrupt.
+    let taken_timer = core::cell::Cell::new(false);
+    let taken_raw = core::cell::Cell::new(None);
+    let local = |s: &mut PhysStore, a: &mut PhysArch| {
+        if gic::highest_pending() != tid {
+            return false;
+        }
+        let raw = gic::ack_timer_only();
+        if gic::is_spurious(raw) {
+            // Nothing above the mask: the timer stopped asserting, or the
+            // GIC masked it after all. The serial path acknowledges with
+            // the mask open (nothing pending: no entry), rather than leave
+            // a pending timer to be taken again at once, for ever.
+            return false;
+        }
+        let id = gic::raw_id(raw);
+        if id == irq::REMOTE_CALL_ID {
+            gic::eoi(raw);
+            return false;
+        }
+        if id != tid {
+            taken_raw.set(Some(raw));
+            return false;
+        }
+        // As `take_irq_under_gate`: a stale timer interrupt needs no
+        // entry (l4h 0012).
+        if timer::early() {
+            gic::eoi(raw);
+            return true;
+        }
+        timer::quiesce();
+        percpu::get().iar.set(raw);
+        if fl4_sync::local_timer_irq(s, a, &Phys, timer_irq, |_, _| {}) {
+            return true;
+        }
+        taken_timer.set(true);
+        false
+    };
+    let body = |s: &mut PhysStore, a: &mut PhysArch| {
+        let taken = if taken_timer.replace(false) {
+            Some(TakenIrq::Normal(timer_irq))
+        } else if let Some(raw) = taken_raw.take() {
+            classify_irq_under_gate(raw)
+        } else {
+            take_irq_under_gate()
+        };
+        if let Some(TakenIrq::Normal(irq)) = taken {
+            syscall::handle_interrupt_entry(s, a, irq)
+        }
+    };
+    fl4_sync::run_timer_irq(&KernelEnv, &GATE, local, body);
 }
 /// Handle an exception/IRQ from a guest entered via `ARMVCPURun` (caller `t`
 /// stays in `TS_RUNNING_VM` with its own `FAULT_IP` untouched).
@@ -391,22 +470,27 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
                 vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
             }
         };
-        // As in `fl4_entry_vcpu_run`: a guest event goes to the bound
-        // VCPU's thread only while it is still this core's current thread
-        // (`t` is not read once a stall may have moved it: the comparison
-        // with the current thread comes first).
-        run_entry(true, |s, a| {
-            let taken = take_irq_under_gate();
-            nvhe_quiesce(&taken);
-            let owner = v != 0 && sched::cur_thread(s) == t && fl4_core::vcpu::bound(s, t) == v;
-            match taken {
-                None => {}
-                Some(TakenIrq::Normal(irq)) => syscall::handle_interrupt_entry(s, a, irq),
-                Some(TakenIrq::VgicMaint(eisr)) if owner => syscall::handle_vgic_maintenance_entry(s, a, eisr),
-                Some(TakenIrq::Vppi(irq_id)) if owner => syscall::handle_vppi_event_entry(s, a, irq_id),
-                Some(_) => {}
-            }
-        });
+        if v == 0 && smp::multi() && gic::can_ack_timer_only() && gic::highest_pending() == timer::timer_irq_id() {
+            // The kernel timer of a native thread: first beside the gate.
+            timer_irq_local_or_serial();
+        } else {
+            // As in `fl4_entry_vcpu_run`: a guest event goes to the bound
+            // VCPU's thread only while it is still this core's current
+            // thread (`t` is not read once a stall may have moved it: the
+            // comparison with the current thread comes first).
+            run_entry(true, |s, a| {
+                let taken = take_irq_under_gate();
+                nvhe_quiesce(&taken);
+                let owner = v != 0 && sched::cur_thread(s) == t && fl4_core::vcpu::bound(s, t) == v;
+                match taken {
+                    None => {}
+                    Some(TakenIrq::Normal(irq)) => syscall::handle_interrupt_entry(s, a, irq),
+                    Some(TakenIrq::VgicMaint(eisr)) if owner => syscall::handle_vgic_maintenance_entry(s, a, eisr),
+                    Some(TakenIrq::Vppi(irq_id)) if owner => syscall::handle_vppi_event_entry(s, a, irq_id),
+                    Some(_) => {}
+                }
+            });
+        }
         exit()
     }
     if v != 0 {
@@ -519,6 +603,10 @@ fn dispatch_handler<S: Store>(s: &mut S, a: &mut PhysArch, ec: u64, esr: u64, fa
 #[no_mangle]
 extern "C" fn fl4_kernel_irq() -> ! {
     percpu::get().idle.set(false);
+    if smp::multi() && gic::can_ack_timer_only() && gic::highest_pending() == timer::timer_irq_id() {
+        timer_irq_local_or_serial();
+        exit()
+    }
     run_entry(true, |s, a| {
         if let Some(TakenIrq::Normal(irq)) = take_irq_under_gate() {
             syscall::handle_interrupt_entry(s, a, irq)

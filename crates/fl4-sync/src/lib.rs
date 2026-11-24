@@ -27,6 +27,7 @@
 compile_error!("fl4-sync's mutant features are for the host simulator (cargo xtask mutants), never for a kernel");
 
 use core::sync::atomic::{AtomicU64, Ordering};
+use fl4_core::localtimer;
 use fl4_store::lock::{self, Mem};
 
 /// Cores the runtime supports. Do not scan flags for cores it cannot run.
@@ -242,7 +243,8 @@ pub trait EntryEnv {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Count {
     Serial,
-    /// A syscall's local path ran beside the gate (`run_syscall`).
+    /// A local path ran beside the gate (`run_syscall`, `run_vm_fault`,
+    /// `run_timer_irq`).
     Local,
 }
 
@@ -261,17 +263,18 @@ pub fn run_entry<E: EntryEnv>(
 }
 
 /// A syscall: on several cores, first try its local path beside the serial
-/// gate (`fl4_core::syscall::handle_syscall_local`, `handle_ioport_local`),
-/// then `run_entry`. Returns as `run_entry` does.
+/// gate (`fl4_core::syscall::handle_syscall_local`, `handle_ioport_local`,
+/// `handle_invocation_local`, `localtimer::handle_set_timer_local`), then
+/// `run_entry`. Returns as `run_entry` does.
 ///
-/// The fast paths write only memory of this core (its scheduler state, and
-/// threads and scheduling contexts on it, which they check before writing),
-/// the endpoint and reply object involved, and a receiver's IPC buffer.
-/// Every other kernel word they read changes only under the gate, and any
-/// write other cores' kernel entries make outside the gate is another such
-/// local path. So: the core is marked active, which the gate drains; and
-/// the endpoint and the reply object, which threads on several cores may
-/// share, are locked (`fl4_store::lock`). A local path that cannot take
+/// The fast paths write only memory of this core (its scheduler state, its
+/// timer tree, and threads and scheduling contexts on it, which they check
+/// before writing), the endpoint and reply object involved, and a
+/// receiver's IPC buffer. Every other kernel word they read changes only
+/// under the gate, and any write other cores' kernel entries make outside
+/// the gate is another such local path. So: the core is marked active,
+/// which the gate drains; and the endpoint and the reply object, which
+/// threads on several cores may share, are locked (`fl4_store::lock`). A local path that cannot take
 /// them, or declines, leaves the entry to `run_entry`. (IPC buffers are user memory: a frame shared by
 /// threads on two cores is the user's race, as on a single core.)
 ///
@@ -291,7 +294,8 @@ pub fn run_syscall<E: EntryEnv>(
             let _ = body(s, a);
         });
     }
-    match local_entry(env, gate, &mut local) {
+    let res = local_entry(env, gate, &mut local);
+    match res {
         Local::Done => return true,
         Local::Stalled => return false,
         Local::Closed | Local::Declined => {}
@@ -304,8 +308,12 @@ pub fn run_syscall<E: EntryEnv>(
     let ran = run_entry(env, gate, false, |s, a| fast.set(body(s, a)));
     // An invocation candidate is so by its label alone: one that ran here
     // may be no frame cap's (a TCB's CNode_Delete), whose local attempt
-    // will decline again, so it does not wait next time.
-    let hit = fast.get() || candidate == Candidate::Port;
+    // will decline again, so it does not wait next time. Nor does a
+    // TCB_SetTimer that declined (most often: on another core's thread),
+    // but one that found the gate closed may run beside it next time.
+    let hit = fast.get()
+        || candidate == Candidate::Port
+        || (candidate == Candidate::SetTimer && matches!(res, Local::Closed));
     env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, hit as u64, Ordering::Relaxed);
     ran
 }
@@ -399,6 +407,11 @@ fn local_candidate<S: fl4_core::machine::Store>(s: &S, number: i64) -> Candidate
         && fl4_core::localinv::is_local_label(fl4_core::msg::msg_info(s, t).label)
     {
         Candidate::Invocation
+    } else if number == fl4_abi::syscall::SysCall
+        // A TCB_SetTimer, by its label alone.
+        && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::TCBSetTimer
+    {
+        Candidate::SetTimer
     } else {
         Candidate::No
     }
@@ -413,6 +426,8 @@ enum Candidate {
     Port,
     /// A frame-cap invocation (`handle_invocation_local`).
     Invocation,
+    /// A `TCB_SetTimer` (`localtimer::handle_set_timer_local`).
+    SetTimer,
 }
 
 /// How long `local_entry` waits for a closed gate to open, through
@@ -512,6 +527,139 @@ fn local_invocation<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: 
     done
 }
 
+/// `cspace::lookup_slot` of `cptr` in the CSpace of thread `t`, locking
+/// each slot (`lock::try_lock_object`) before reading it: other cores'
+/// frame-cap invocations write slots of a shared CSpace beside the gate,
+/// under those locks (`local_invocation`). The slot found, with every
+/// slot read locked in `held`; None if a lock is taken, the lookup fails,
+/// or it needs more than `lock::MAX_HELD` levels. (The root, `t`'s CTable
+/// slot, is no CNode's: only the gate's entries write it.)
+#[inline(always)]
+fn lookup_slot_locked<S: fl4_core::machine::Store, M: Mem>(
+    s: &S,
+    m: &M,
+    t: fl4_core::obj::Tcb,
+    cptr: u64,
+    held: &mut lock::Held,
+) -> Option<fl4_core::obj::Slot> {
+    use fl4_core::capability::Cap;
+    let mut cap = t.slot(fl4_core::layout::tcb::SLOT_CTABLE).cap(s);
+    let mut bits = fl4_core::cspace::WORD_BITS;
+    for _ in 0..lock::MAX_HELD {
+        let (slot, rest) = localtimer::cspace_step(cap, cptr, bits)?;
+        if !lock_object(m, slot.0, held) {
+            return None;
+        }
+        let next = slot.cap(s);
+        match next {
+            Cap::CNode { .. } if rest != 0 => {
+                cap = next;
+                bits = rest;
+            }
+            _ => return Some(slot),
+        }
+    }
+    None
+}
+
+/// A `TCB_SetTimer` beside the gate (`localtimer::handle_set_timer_local`),
+/// on the thread its capability register names, found with the slots of its
+/// lookup locked (`lookup_slot_locked`) and kept locked while it runs. It
+/// writes no slot; it writes this core's state, the caller, the target
+/// thread and the timer tree of this core, all of them this core's alone
+/// while the gate is open (`localtimer`'s Timer ownership): `observe` sees
+/// no object.
+#[inline(always)]
+fn local_set_timer<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    number: i64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let cptr = t.reg(s, fl4_core::layout::reg::CAP);
+    let mut held = lock::Held::new();
+    let target = match lookup_slot_locked(s, m, t, cptr, &mut held).map(|slot| slot.cap(s)) {
+        Some(fl4_core::capability::Cap::Thread { ptr }) => fl4_core::obj::Tcb(ptr),
+        _ => {
+            lock::unlock_held(m, &mut held);
+            return false;
+        }
+    };
+    observe(s, &[]);
+    let done = localtimer::handle_set_timer_local(s, a, number, target);
+    lock::unlock_held(m, &mut held);
+    done
+}
+
+const _: () = assert!(localtimer::MAX_TIMER_LOCKS <= lock::MAX_HELD);
+
+/// A kernel timer interrupt (`IRQ_TIMER`) on a multi-core system: first
+/// its local path beside the serial gate (`local_timer_irq`), then
+/// `run_entry`. The interrupt has been accepted, so it is handled whatever
+/// happens: a stall while the local path waits for the gate to open, or a
+/// local path that declines, leaves it to `body` under the gate, which runs
+/// even after a stall (`run_entry` with `irq`). Returns as `run_entry`
+/// does: true.
+///
+/// `local` runs `local_timer_irq` on the store it is given (and, on
+/// AArch64, acknowledges the interrupt first); `body` is the general path.
+#[inline(always)]
+pub fn run_timer_irq<E: EntryEnv>(
+    env: &E,
+    gate: &SerialGate,
+    mut local: impl FnMut(&mut E::S, &mut E::A) -> bool,
+    mut body: impl FnMut(&mut E::S, &mut E::A),
+) -> bool {
+    if !env.multi() {
+        return run_entry(env, gate, true, |s, a| body(s, a));
+    }
+    let res = local_entry(env, gate, &mut local);
+    if let Local::Done = res {
+        return true;
+    }
+    let ran = run_entry(env, gate, true, |s, a| body(s, a));
+    // The general path has no timer fast path. One that found the gate
+    // closed (or was stalled waiting for it) may run beside it next time;
+    // one that declined (`local_entry` stored 0) usually declines again.
+    if !matches!(res, Local::Declined) {
+        env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, 1, Ordering::Relaxed);
+    }
+    ran
+}
+
+/// The local path of kernel timer interrupt `irq`
+/// (`localtimer::handle_timer_irq_local`): plan with reads only, lock the
+/// notification the due timer signals (and, if that wakes its thread from
+/// `Recv`, the endpoint and reply object `cancel_ipc` writes), let
+/// `observe` see them, then run; true if it ran. As `local_syscall`, it
+/// writes nothing before `observe`.
+#[inline(always)]
+pub fn local_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    irq: u64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let p = match localtimer::plan_timer_irq(s, irq) {
+        Some(p) => p,
+        None => return false,
+    };
+    let mut held = lock::Held::new();
+    let mut ok = true;
+    for i in 0..p.n {
+        ok = ok && lock_object(m, p.objects[i].0, &mut held);
+    }
+    let done = ok && {
+        observe(s, &p.objects[..p.n]);
+        localtimer::handle_timer_irq_local(s, a, irq, &p)
+    };
+    lock::unlock_held(m, &mut held);
+    done
+}
+
 /// The local path of a syscall made outside the gate (`run_syscall`), with
 /// its endpoint and reply object locked; true if it ran. `observe` sees
 /// the objects it holds, as (address, bytes), once it holds them and
@@ -571,6 +719,10 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
         && fl4_core::localinv::is_local_label(fl4_core::msg::msg_info(s, t).label)
     {
         return local_invocation(s, a, m, number, observe);
+    } else if number == fl4_abi::syscall::SysCall
+        && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::TCBSetTimer
+    {
+        return local_set_timer(s, a, m, number, observe);
     } else {
         // An I/O port access writes only the caller and this core's
         // state: nothing to lock.
@@ -716,5 +868,229 @@ mod tests {
         assert_eq!(gate.head.closed.load(Ordering::Relaxed), 0);
         assert!(gate.try_enter_local(&Atomics, 5));
         gate.leave_local(&Atomics, 5);
+    }
+
+    /// The tests that take object locks (`lock::try_lock_object`), whose
+    /// table is the process's, run one at a time: one test's held lock
+    /// would make another's lookup decline.
+    static LOCK_TABLE_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Kernel memory as a map, recording the words read.
+    struct MapStore {
+        m: std::collections::HashMap<u64, u64>,
+        cpu: u64,
+        reads: core::cell::RefCell<std::vec::Vec<u64>>,
+    }
+
+    /// Threads at `TCB_BASE + i * TCB_STRIDE`; the global state below.
+    const KS_BASE: u64 = 0x1000_0000;
+    const TCB_BASE: u64 = 0x10_0000_0000;
+    const TCB_STRIDE: u64 = 0x10000;
+
+    impl fl4_core::machine::Store for MapStore {
+        fn read(&self, addr: u64) -> u64 {
+            self.reads.borrow_mut().push(addr);
+            *self.m.get(&addr).unwrap_or(&0)
+        }
+        fn write(&mut self, addr: u64, v: u64) {
+            self.m.insert(addr, v);
+        }
+        fn zero(&mut self, addr: u64, len: u64) {
+            for a in (addr..addr + len).step_by(8) {
+                self.m.insert(a, 0);
+            }
+        }
+        fn clear_free(&mut self, addr: u64, len: u64) {
+            self.zero(addr, len)
+        }
+        fn ks_base(&self) -> u64 {
+            KS_BASE
+        }
+        fn cur_cpu(&self) -> u64 {
+            self.cpu
+        }
+    }
+
+    fn thread(i: u64) -> fl4_core::obj::Tcb {
+        fl4_core::obj::Tcb(TCB_BASE + i * TCB_STRIDE)
+    }
+
+    /// Core `c`'s timer tree, through fl4-core's own insert.
+    fn arm(s: &mut MapStore, c: u64, i: u64, deadline: u64) {
+        s.cpu = c;
+        fl4_core::timer::insert(s, thread(i), deadline, i);
+    }
+
+    /// The threads of core `c`'s tree, walked from its root.
+    fn tree(s: &MapStore, c: u64) -> std::collections::HashSet<u64> {
+        let mut out = std::collections::HashSet::new();
+        let mut stack = std::vec![fl4_core::obj::node_get(s, c, fl4_core::layout::node::TIMER_ROOT)];
+        while let Some(u) = stack.pop() {
+            if u != 0 && out.insert(u) {
+                stack.push(fl4_core::obj::Tcb(u).timer_left(s));
+                stack.push(fl4_core::obj::Tcb(u).timer_right(s));
+            }
+        }
+        out
+    }
+
+    /// `in_core_timer_tree(cpu, target, d)`, checking that it read no
+    /// thread outside core `cpu`'s tree (`target`'s links included, unless
+    /// it is in that tree).
+    fn in_tree(s: &MapStore, cpu: u64, target: u64, d: u64) -> bool {
+        let mine = tree(s, cpu);
+        s.reads.borrow_mut().clear();
+        let r = localtimer::in_core_timer_tree(s, cpu, thread(target), d);
+        for &a in s.reads.borrow().iter() {
+            if a >= TCB_BASE {
+                let t = TCB_BASE + (a - TCB_BASE) / TCB_STRIDE * TCB_STRIDE;
+                assert!(mine.contains(&t), "read {a:#x} of thread {t:#x}, outside core {cpu}'s tree");
+            }
+        }
+        r
+    }
+
+    /// Exact answers on two cores' trees with equal deadlines on both
+    /// sides of nodes, as rotations leave them, and none read outside
+    /// the core's own tree; after removals too.
+    #[test]
+    fn in_core_timer_tree_finds_this_cores_nodes_only() {
+        let mut s = MapStore { m: std::collections::HashMap::new(), cpu: 0, reads: Default::default() };
+        let ds = [5, 3, 8, 3, 3, 9, 1, 5, 5, 7, 2, 8, 3, 5, 5];
+        let n = ds.len() as u64;
+        for (i, &d) in ds.iter().enumerate() {
+            arm(&mut s, 0, i as u64, d);
+            arm(&mut s, 1, n + i as u64, d);
+        }
+        assert_eq!(tree(&s, 0).len(), ds.len());
+        for i in 0..n {
+            let d = ds[i as usize];
+            assert!(in_tree(&s, 0, i, d), "thread {i} in core 0's tree");
+            assert!(!in_tree(&s, 1, i, d), "thread {i} not in core 1's tree");
+            assert!(in_tree(&s, 1, n + i, d), "thread {} in core 1's tree", n + i);
+            assert!(!in_tree(&s, 0, n + i, d), "thread {} not in core 0's tree", n + i);
+            assert_eq!(localtimer::core_of(&s, thread(i)), 0);
+        }
+        // A thread armed on neither.
+        assert!(!in_tree(&s, 0, 2 * n, 5));
+        // Removed threads are found no more, the others still are.
+        for i in (0..n).step_by(3) {
+            fl4_core::timer::remove(&mut s, thread(i));
+        }
+        for i in 0..n {
+            assert_eq!(in_tree(&s, 0, i, ds[i as usize]), i % 3 != 0, "thread {i} after removals");
+        }
+    }
+
+    /// Past its bounds (`TREE_STACK`, `TREE_VISITS`) the search answers no,
+    /// which only declines the local path; never yes for another tree's
+    /// node. The earliest node and the root are found at once.
+    #[test]
+    fn in_core_timer_tree_is_bounded() {
+        let mut s = MapStore { m: std::collections::HashMap::new(), cpu: 0, reads: Default::default() };
+        let n = 300;
+        for i in 0..n {
+            arm(&mut s, 0, i, 42);
+            arm(&mut s, 1, n + i, 42);
+        }
+        let min = fl4_core::obj::node_get(&s, 0, fl4_core::layout::node::TIMER_MIN);
+        let root = fl4_core::obj::node_get(&s, 0, fl4_core::layout::node::TIMER_ROOT);
+        assert!(in_tree(&s, 0, (min - TCB_BASE) / TCB_STRIDE, 42));
+        assert!(in_tree(&s, 0, (root - TCB_BASE) / TCB_STRIDE, 42));
+        let mut found = 0;
+        for i in 0..n {
+            found += in_tree(&s, 0, i, 42) as u64;
+            assert!(!in_tree(&s, 1, i, 42));
+            assert!(!in_tree(&s, 0, n + i, 42));
+        }
+        assert!(found >= localtimer::TREE_VISITS / 2 && found < n, "{found} of {n} found within the bounds");
+    }
+
+    /// A CSpace: root CNode `R` (radix 4, a 56-bit guard of 0), whose slot 1
+    /// holds CNode `C` (radix 2, a 2-bit guard of 1, resolving the last 4
+    /// bits), slot 2 a thread (found with bits left), slot 3 a CNode that
+    /// resolves more bits than are left, slot 4 one that resolves none;
+    /// `C`'s slots threads and nothing. Thread `T` has `R` as its CSpace.
+    fn cspace() -> (MapStore, fl4_core::obj::Tcb) {
+        use fl4_core::capability::Cap;
+        use fl4_core::obj::Slot;
+        let mut s = MapStore { m: std::collections::HashMap::new(), cpu: 0, reads: Default::default() };
+        let (r, c, d, e) = (0x30_0000_0000u64, 0x31_0000_0000u64, 0x32_0000_0000u64, 0x33_0000_0000u64);
+        let t = thread(1000);
+        t.slot(fl4_core::layout::tcb::SLOT_CTABLE).set_cap(&mut s, Cap::CNode { ptr: r, radix: 4, guard_size: 56, guard: 0 });
+        Slot::index(r, 1).set_cap(&mut s, Cap::CNode { ptr: c, radix: 2, guard_size: 2, guard: 1 });
+        Slot::index(r, 2).set_cap(&mut s, Cap::Thread { ptr: thread(1).0 });
+        Slot::index(r, 3).set_cap(&mut s, Cap::CNode { ptr: d, radix: 4, guard_size: 1, guard: 0 });
+        Slot::index(r, 4).set_cap(&mut s, Cap::CNode { ptr: e, radix: 0, guard_size: 0, guard: 0 });
+        Slot::index(c, 0).set_cap(&mut s, Cap::Thread { ptr: thread(2).0 });
+        Slot::index(c, 3).set_cap(&mut s, Cap::Thread { ptr: thread(3).0 });
+        (s, t)
+    }
+
+    /// `lookup_slot_locked`, one level at a time through `localtimer::cspace_step`,
+    /// finds the slot `cspace::lookup_slot` finds, and fails where it fails
+    /// (guard and depth mismatches, a CNode resolving no bits, not a CNode),
+    /// on one level and two; it reads only slots it has locked.
+    #[test]
+    fn locked_lookup_finds_what_lookup_slot_finds() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let (s, t) = cspace();
+        let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut found = 0;
+        for i in 0..4000u64 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            // Mostly the guard of 0 above the low 8 bits; sometimes not.
+            let cptr = if i % 8 == 0 { x } else { x & 0xff };
+            let mut held = lock::Held::new();
+            let got = lookup_slot(&s, t, cptr, &mut held);
+            let want = fl4_core::cspace::lookup_slot(&s, t, cptr).ok().map(|r| r.slot.0);
+            assert_eq!(got, want, "cptr {cptr:#x}");
+            found += got.is_some() as u64;
+            lock::unlock_held(&Atomics, &mut held);
+        }
+        assert!(found > 1000, "{found} lookups found a slot");
+    }
+
+    /// `lookup_slot_locked` and `cspace::lookup_slot` on the CSpace of
+    /// `t`; checks that every slot word read was locked first.
+    fn lookup_slot(s: &MapStore, t: fl4_core::obj::Tcb, cptr: u64, held: &mut lock::Held) -> Option<u64> {
+        s.reads.borrow_mut().clear();
+        let got = lookup_slot_locked(s, &Atomics, t, cptr, held).map(|sl| sl.0);
+        let reads: std::vec::Vec<u64> = s.reads.borrow().clone();
+        for a in reads {
+            let ctable = t.slot(fl4_core::layout::tcb::SLOT_CTABLE).0;
+            if a >= 0x30_0000_0000 && a < 0x40_0000_0000 {
+                let slot = a & !31;
+                let mut other = lock::Held::new();
+                assert!(!lock::try_lock_object(&Atomics, slot, &mut other), "slot {slot:#x} read unlocked");
+            } else {
+                assert!(a >= ctable && a < ctable + 32, "read {a:#x} outside the lookup");
+            }
+        }
+        got
+    }
+
+    /// A slot another core holds (a frame-cap invocation writing it) is
+    /// not read: the lookup gives up, and finds it once it is free.
+    #[test]
+    fn locked_lookup_declines_on_a_slot_another_core_holds() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let (s, t) = cspace();
+        let terminal = fl4_core::obj::Slot::index(0x31_0000_0000, 3).0;
+        // Root slot 1 (C), then C's slot 3: 0b0001 << 4 | 0b01 << 2 | 3.
+        let cptr = (1 << 4) | (1 << 2) | 3;
+        let mut other = lock::Held::new();
+        assert!(lock::try_lock_object(&Atomics, terminal, &mut other));
+        let mut held = lock::Held::new();
+        s.reads.borrow_mut().clear();
+        assert!(lookup_slot_locked(&s, &Atomics, t, cptr, &mut held).is_none());
+        assert!(s.reads.borrow().iter().all(|&a| a & !31 != terminal), "read the held slot");
+        lock::unlock_held(&Atomics, &mut held);
+        lock::unlock_held(&Atomics, &mut other);
+        let got = lookup_slot_locked(&s, &Atomics, t, cptr, &mut held);
+        assert!(matches!(got.map(|sl| sl.cap(&s)), Some(fl4_core::capability::Cap::Thread { ptr }) if ptr == thread(3).0));
+        lock::unlock_held(&Atomics, &mut held);
     }
 }
