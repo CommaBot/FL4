@@ -406,7 +406,7 @@ theorem JHole.handleIrqJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ :=
-  Hh.handleIrqJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hSig w i hwi h126 h127
+  Hh.handleIrqJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hSig w i hwi h126 h127
 
 
 /-- **`handle_interrupt` at `J`** (module docstring): `JIrqHyp` from the
@@ -417,7 +417,7 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
     (hSig : JIrqSigHyp (L := L) arI AR) :
     JIrqHyp (L := L) arI AR := by
   intro s a σ w i hJ hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
   exact Hh.handleIrqJ hARI hAT hIP hmb hNS
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -433,7 +433,7 @@ theorem jIrqHyp_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
   intro s a σ w i hJ hN hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
   exact Hh.handleIrqJN hARI hAT hIP hmb hN
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 

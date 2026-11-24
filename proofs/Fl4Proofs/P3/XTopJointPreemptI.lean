@@ -286,8 +286,8 @@ theorem hPre_ofZI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) fun h' => h'.elim (fun h2 => hc (Or.inl h2))
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in
@@ -361,8 +361,8 @@ theorem hPre_ofZJ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in

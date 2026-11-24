@@ -37,7 +37,7 @@ theorem jPreemptRestHypC_of (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hP 
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     JPreemptRestHypC (L := L) arI AR := by
   intro s a σ hJ hn hi hs hf hc hg hC hsc hnsuf hnq hper xt p bd r q hkt hrr hth hke
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   have hres : σ.schedulerAction = .resumeCurThread ∨ σ.schedulerAction = .chooseNewThread := by
     rcases e : σ.schedulerAction with _ | u | _

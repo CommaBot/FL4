@@ -220,7 +220,7 @@ theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       σ.interruptStates i = .irqInactive ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, inferInstance⟩) w i hwi h126 h127
+  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
 
 
 variable (arI) in
@@ -411,8 +411,8 @@ theorem hPre_ofZECI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
           hIP hARI hA hP.minBudget hNS _) fun _ h => Or.inl h.2
       · have hnc : ¬ (PPCov σ1 ∨ PPCovT σ1 ∨ PPCovI σ1) :=
           fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
-        exact WP.spec_mono (hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns hfr hct hcg hC hsc hsuf hnc)
+        exact WP.spec_mono (hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC hsc hsuf hnc)
           fun _ h => Or.inr ⟨⟨hnc, hC, hsc, hsuf⟩, h⟩
     | false =>
       exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJC hA (hmrt a1) (hP.minBudget a1) hC hni hns hsc)

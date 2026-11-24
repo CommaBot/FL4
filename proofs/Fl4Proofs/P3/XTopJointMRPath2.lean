@@ -184,7 +184,7 @@ theorem JHole.afterInvJZIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} 
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     (hcov : PPCov σ ∨ PPCovT σ) (hR : MR a σ.machineState) (hV : ValidIrqMasks σ) (e : error.Exc) :
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ :=
-  Hh.afterInvJZIMN hT hAT hnd hmrt hmb hM hK hIA hARI hmbA (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hcov hR hV e
+  Hh.afterInvJZIMN hT hAT hnd hmrt hmb hM hK hIA hARI hmbA (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hcov hR hV e
 
 end
 

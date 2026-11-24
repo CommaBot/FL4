@@ -121,8 +121,8 @@ theorem hPre_ofZK (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       cases e : Fl4Spec.schedulable σ1.curThread σ1
       · exact Or.inr rfl
       · exact Or.inl (curInv_of_sched hct e)
-    exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hni hns hfr hct hcs
+    exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcs
       fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in

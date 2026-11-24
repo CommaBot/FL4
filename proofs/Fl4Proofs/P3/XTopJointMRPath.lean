@@ -242,7 +242,7 @@ theorem JAtZ.handleIrqJIA (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       σ.interruptStates i = .irqInactive ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJIAN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, inferInstance⟩) w i hwi h126 h127
+  J.handleIrqJIAN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
 
 set_option maxHeartbeats 16000000 in
 /-- `handleIrqJJ` with `IrqPlatA` (module docstring). -/
@@ -420,7 +420,7 @@ theorem JAtZ.handleIrqJJA (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJJAN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, inferInstance⟩) w i hwi h126 h127
+  J.handleIrqJJAN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
 
 
 /-- **`JIrqHypJ` from `IrqPlatA`** (`jIrqHypJ_of` with `IrqPlatA`). -/
@@ -506,7 +506,7 @@ theorem afterInv_of_mcsIM {s : S} {a : A} {σ : Fl4Spec.State Unit}
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ :=
   afterInv_of_mcsIMN (WP.spec_mono hmcs fun r ⟨σ', h1, h2, ⟨Z', H', Cs', Ac', Lst', D', J', _⟩, hR, hV⟩ =>
     ⟨σ', h1, h2, ⟨Z', H', Cs', Ac', Lst', D', J', inferInstance⟩, hR, hV,
-      hNS r.1 r.2 σ' ⟨Z', H', Cs', Ac', Lst', D', r.1, r.2, σ', J'.toHole, inferInstance⟩⟩) hM hIP hARI hAT hmbA e
+      hNS r.1 r.2 σ' ⟨Z', H', Cs', Ac', Lst', D', r.1, r.2, σ', J'.toHole⟩⟩) hM hIP hARI hAT hmbA e
 
 end
 

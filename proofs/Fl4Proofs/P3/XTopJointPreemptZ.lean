@@ -68,7 +68,7 @@ def JHoleAtT (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.Sta
 
 theorem JHoleAtT.hole {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JHoleAtT (L := L) arI AR s a σ) :
     JHoleAt (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
 
 /-- **`jAtPre_holeT` with the base's no-switch and non-idle facts at the
 hole** (kp10: the preemption point changes neither the action nor the
@@ -272,7 +272,7 @@ theorem PPQZ.toPPQ {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQZ (L := L) ar
     PPQ (L := L) arI AR σ1 r := by
   rcases h with h | ⟨z, hz, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ | h⟩
   · exact Or.inl h
-  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole, inferInstance⟩⟩
+  · exact Or.inr ⟨z, hz, Or.inl ⟨Z, H, Cs, Ac, Lst, D, _, _, _, J.toHole⟩⟩
   · exact Or.inr ⟨z, hz, Or.inr h⟩
 
 set_option maxHeartbeats 16000000 in
@@ -336,8 +336,8 @@ theorem hPre_ofZ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP
       (jIrqHypZ_of hARI hA hIP hP.minBudget hNS) hc _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩) hc
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hc
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPI` without `JIrqSigHyp`**. -/
