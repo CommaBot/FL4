@@ -38,7 +38,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
     (hw0 : w0.bv = w.1) (hw1 : w1.bv = w.2.1) (hw2 : w2.bv = w.2.2) (df : Bool) :
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
-      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
+      FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
   unfold FbEntryPost
   obtain ⟨p1, as1, op, depth, a1, cr, a2, dd, cn, dcn⟩ := bt
   obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := id hM
@@ -72,7 +72,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     | ok _ => exact hrel1.elim
     | error e' =>
       simp only [fbr_branch_err, bind_ok, fbr_fromResidual]
-      refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩
+      refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
       have hmem := fbEntry_copy_destErr (w := w) hbop (by rw [hld]; exact Set.mem_singleton _)
       cases e with
       | Sys e2 => exact WP.spec_mono (fb_code (Or.inl (Or.inl hrel1))) fun c hc => by rw [hc]; exact hmem
@@ -98,7 +98,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
   swap
   · rw [cap_is_null_ne hdn]
     simp only [bind_ok, Bool.false_eq_true, ↓reduceIte, fbr_branch_err, fbr_fromResidual]
-    refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨_, rfl, rfl, ?_⟩⟩
+    refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨_, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
     have hadn : ad ≠ .nullCap := fun h => hdn ((hcad.null_iff).1 h)
     have hmem := fbEntry_copy_full (w := w) hbop hdm (by rw [hee, if_neg hadn]; exact Set.mem_singleton _)
     exact WP.spec_mono (fb_code (Or.inl (Or.inl (show SysErrRel (.Sys .DeleteFirst) .deleteFirst from trivial))))
@@ -122,7 +122,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     | ok _ => exact hrel2.elim
     | error e' =>
       simp only [fbr_branch_err, bind_ok, fbr_fromResidual]
-      refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩
+      refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
       have hmem := fbEntry_copy_srcErr (w := w) hbop hdm hem (by rw [hls]; exact Set.mem_singleton _)
       cases e with
       | Sys e3 => exact WP.spec_mono (fb_code (Or.inl (Or.inl hrel2))) fun c hc => by rw [hc]; exact hmem
@@ -149,7 +149,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
   rw [ho, bind_ok]
   rcases o with _ | f
   · simp only [core.option.Option.is_none, ↓reduceIte, error.invalid_cap, bind_ok]
-    refine (WP.spec_ok _).2 ⟨τ, hM, Or.inr ⟨_, rfl, rfl, ?_⟩⟩
+    refine (WP.spec_ok _).2 ⟨⟨τ, hM, Or.inr ⟨_, rfl, rfl, ?_⟩⟩, CnSlotsKept.refl _ _⟩
     have hmem := fbEntry_copy_notPage (w := w) hbop hdm hem hsm hgsm (by rw [hsca.abs]; exact fbc_notPage ho)
     exact WP.spec_mono (fb_code (Or.inl (Or.inr ⟨0#u64, rfl, rfl⟩))) fun c hc => by rw [hc]; exact hmem
   obtain ⟨p, sz, rt, d, m, ep, asid, va, rfl⟩ :
@@ -191,15 +191,16 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
   have hDd := fbc_destCap hcrd hRt1.2
   refine WP.spec_bind (J.fbInsJ arI hLv hns hsg hp0 hps hpd rfl rfl hsc hcd hwc (hvc Z1.th (hv1 Z1.th hscv)) hec
     hDs hDd) ?_
-  rintro s1 ⟨σ1, G1, hci, J1, hLv1, hns1, hsg1, hp01, hK1, hF1, hdc1⟩
+  rintro s1 ⟨σ1, G1, hci, J1, hLv1, hns1, hsg1, hp01, hK1, hF1, hdc1, hcn1⟩
   have hcim : ((), σ1) ∈ (Fl4Spec.capInsert (Z := Unit) (absCap (.Frame p sz rt' d false false 0#u64 0#u64))
       (ps.bv, idxs) (pd.bv, idxd) τ).1 := by rw [hci]; rfl
   have hf1 : ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) as1.bv) σ1 = ({(.ok p1.bv, σ1)}, False) :=
     (hK.trans hK1).findVs hpos C.hf
   -- the map
-  refine WP.spec_bind (JAtZ.batchMapJL arI hA J1 hLv1 hns1 hsg1 hp01 (pc := pd) hpd rfl C.h0 C.hasid hf1
-    op depth a1 cr a2 dd cn dcn w2 b C.hbv C.hba C.hmr C.hat) ?_
-  rintro ⟨r5, s2, a2'⟩ (⟨e5, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ2, hmem2, J2, hK2, hF2, hLv2, hns2, hsg2, hp02⟩)
+  refine WP.spec_bind (WP.spec_and (JAtZ.batchMapJL arI hA J1 hLv1 hns1 hsg1 hp01 (pc := pd) hpd rfl C.h0 C.hasid hf1
+    op depth a1 cr a2 dd cn dcn w2 b C.hbv C.hba C.hmr C.hat) (JAtZ.batchMapJX arI hA J1 (pc := pd) hpd rfl C.h0
+    C.hasid hf1 op depth a1 cr a2 dd cn dcn w2 b C.hbv C.hba C.hmr C.hat)) ?_
+  rintro ⟨r5, s2, a2'⟩ ⟨(⟨e5, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ2, hmem2, J2, hK2, hF2, hLv2, hns2, hsg2, hp02, -⟩), hXJ⟩
   · simp only at h1 h4 h5
     subst h1
     subst s2 a2'
@@ -208,7 +209,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     have hc1 : capAt (L.mem s1) (cslotAddr (pd.bv, idxd)) = ok (.Frame p sz rt' d false false 0#u64 0#u64) := by
       rw [capAt_capV, hdc1]
     refine WP.spec_bind (JAtZ.fbDelFrameJN arI J1 hDP1 hT hnd hARI hLv1 hns1 hsg1 hp01 hAd hc1 rfl) ?_
-    rintro ⟨r6, s3, a3⟩ ⟨-, σ3, G3, V3, Ac3, Lst3, D3, hdel, J3, hLv3, hns3, hsg3, hp03, -⟩
+    rintro ⟨r6, s3, a3⟩ ⟨-, σ3, G3, V3, Ac3, Lst3, D3, hdel, J3, hLv3, hns3, hsg3, hp03, -, hcn3⟩
     fbj_red
     -- the spec's cap at the destination after the insert, for `FbKeep` across the delete
     obtain ⟨c9, a9, hc9, hca9, hg9⟩ := (J1.xtop.rel.2.1.1).slot_cap (Z := Unit) (sl := (pd.bv, idxd)) (p := pd) rfl hpd
@@ -218,10 +219,10 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
       rw [hg9]; exact Set.mem_singleton _)
     rw [hca9.abs] at hcap9
     obtain ⟨hKd, hum3⟩ := fbKeep_capDelete_frame hcap9 hdel
-    refine (WP.spec_ok _).2 ⟨σ3, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
+    refine (WP.spec_ok _).2 ⟨⟨σ3, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
       (D1 := D1) C.hal hth hct hbm hargs hK J3 rfl rfl rfl
       (fbc_foot_trans (Z' := Z1.mv G1 Z1.vs) rfl rfl hF1 (FbFootK.of_rel arI J1 J3 rfl rfl hKd hum3)) (hK1.trans hKd) hLv3 hns3 hsg3 hp03,
-      Or.inr ⟨e5, rfl, rfl, ?_⟩⟩
+      Or.inr ⟨e5, rfl, rfl, ?_⟩⟩, by rw [← hth]; exact hcn1.trans hcn3⟩
     have hm3 : (.error e', σ1) ∈ (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pd.bv, idxd) w.2.2) σ1).1 := by
       rw [← hw2, h3]; exact Set.mem_singleton _
     have hmem := fbEntry_copy_mapErr (w := w) hbop hdm hem hsm hgsm hp hdvm hcim hm3 hdel
@@ -237,9 +238,13 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
     subst h1
     fbj_red
     simp only [core.result.Result.is_err, bind_ok, Bool.false_eq_true, ↓reduceIte]
-    refine (WP.spec_ok _).2 ⟨τ2, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
+    obtain hcn2 : CnSlotsKept (L := L) Z1.th s1 s2 := by
+      rcases hXJ with ⟨e9, -, h9, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, hc9, -⟩
+      · cases h9
+      · exact hc9
+    refine (WP.spec_ok _).2 ⟨⟨τ2, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1)
       (D1 := D1) C.hal hth hct hbm hargs hK J2 rfl rfl rfl (fbc_foot_trans (Z' := Z1.mv G1 Z1.vs) rfl rfl hF1 hF2) (hK1.trans hK2)
-      hLv2 hns2 hsg2 hp02, Or.inl ⟨rfl, false, ?_, by simp⟩⟩
+      hLv2 hns2 hsg2 hp02, Or.inl ⟨rfl, false, ?_, by simp⟩⟩, by rw [← hth]; exact hcn1.trans hcn2⟩
     exact fbEntry_copy_ok hbop hdm hem hsm hgsm hp hdvm hcim (by rw [← hw2]; exact hmem2)
 
 end
