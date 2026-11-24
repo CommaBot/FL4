@@ -149,6 +149,8 @@ import Fl4Proofs.P1.QueueSuspendP1
 import Fl4Proofs.P1.QueueSorted
 import Fl4Proofs.P1.QueueXferFoot
 import Fl4Proofs.P1.QueueIpcFoot
+import Fl4Proofs.P1.EntryXG
+import Fl4Proofs.P1.EntryXGTop
 import Fl4Proofs.P1.QueueSortedC
 import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq

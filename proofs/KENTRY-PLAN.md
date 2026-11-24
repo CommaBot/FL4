@@ -19563,3 +19563,44 @@ None (no Lean change).
   the fault path / a failed budget check), `set_tls_base_self.entry` (after the TLS write / a failed budget
   check), `handle_syscall_old.entry` (over `σ3` after the dispatch), `handle_interrupt_entry.entry` (after
   `handle_interrupt`). Local builds stub them (`proofs/scratch/int6scratch.py`, untracked, SCRS=…).
+
+## a6x (branch par/a6x from int/j6 f76327d6) — gap 2 of int6 (cont.): `XG` reaches `finish` on every native path; two new P1 modules, no statement changed, no premise added
+- **Modules** `P1/EntryXG` (IPC paths) and `P1/EntryXGTop` (budget check, yield, IRQ, composites), root-imported. `XG`
+  (QueueEntry) is kept by any `Cur0W` frame; every step below is a `KW` / `FootD` step (existing footprint lemmas:
+  `take_reply.kw`, `maybe_return_sched_context.kw`, `maybe_donate_sched_context.tinvF`, `unblock_check.kw`,
+  `unblock_sporadic.kw`, `reply_push.kw`, `set_thread_state.kw`, `possible_switch_to.kw`, `ep_dequeue.head_kw`,
+  `set_fault.kw`, `schedule_tcb` via `blk_sched`/`BlkFoot`, `ep_append.foot`/`ntfn_append.foot`, `reschedule_required.kw`,
+  `foot_node`, `regW_spec`) or a message transfer (kept by `XferOK`'s guard `G := XG`, as `send_ipc.xg` does). New
+  footprint lemmas: `blkfoot_kw`, `ep_append_kw`, `ntfn_append_kw`, `endpoint.wait_for_sender.kw`, `ntfn_block.kw`.
+- **`XG`-preservation lemmas** (each under the hypotheses of the existing `.bxi`/`.ipc` lemma of the same function plus
+  `hG : XG … s`, post `⦃ s' _ => XG … s' ⦄`): `notification.receive_signal.xg`, `notification.complete_signal.xg`,
+  `endpoint.receive_from_sender.xg`, `endpoint.receive_ipc.xg`, `faults.handle_fault.xg` (fault IPC and the no-handler
+  `TS_INACTIVE` case), `syscall.handle_recv.xg` (cap faults via `hfault`), `syscall.handle_yield.xg` (`charge_budget.allG`
+  with `G := XG` and `TmoKG`, then the SC `CONSUMED` word), `syscall.budget_ok.xg` (`XG` after the entry's budget check
+  **whether it passes or fails**: `update_timestamp` node words, `check_budget.allG`, the restart's `set_thread_state`),
+  `interrupt.handle_interrupt.xg` (signal by `SigXG`, timer node words, IPI `reschedule_required.kw`). From
+  `EntryHyps0`: `EntryHyps0.faultXG` / `recvXG` (and `faultB` / `recvB`: `∃ Ac', BXI ∧ XG`).
+- **`SigXG st ar`** (a `def`, like `TmoXG`; not a premise of any existing top): `send_signal` from `XG ∧ BlkOK ∧ UserOK U`,
+  given `XferHyps … U P3Ok`, on `n ∈ Nt` with `H n = ntfn`, ends at `XG`. Needed because since #80/#85 `send_signal` may
+  write the bound thread's IPC buffer, so the old `KW`/`FootD` footprint no longer holds; it is the send_signal line's to
+  discharge, `SigXG.of_ipcFoot` reduces it to an `IpcFoot … (EH H) U s s'` footprint of `send_signal` (KW ∪ XferFoot T U ∪
+  …; buffer words are `UserW` by `UserOK` + `BufOK`). Used only on the IRQ path (`handle_interrupt.xg` and below).
+- **Composites for the core line** (the `finish` call as a hypothesis `hfin` that may use `BXI ∧ XG` at the `finish`
+  state; direct returns `hpost` at `EntryInv`): `syscall.dispatch_syscall.xg` (post `∃ σ', Adm σ' ∧ ∃ Ac', BXIs ∧ XG σ'`),
+  `syscall.unknown_syscall_fault_old.xgF`, `syscall.set_tls_base_self.xgF`, `syscall.handle_unknown_syscall_old.xgF`,
+  `syscall.handle_syscall_old.entryXG` (no `SigXG` needed: after an invocation `postG` already gives `XG`),
+  `syscall.handle_interrupt_entry.entryXG` (`SX : SigXG`, `XH : XferHyps` of the start tuple), `kernel_entry.entryXG`.
+  `syscall.handle_syscall_old.entry'` re-derives QueueEntry's `handle_syscall_old.entry` from `entryXG` (instance check).
+  So `syscall.finish.entry` can be restated with `hG : XG … s` (and use `P3Place.xfer.buf`) and fed to these as `hfin`.
+- **Not covered here:** gap 1 (loop-internal states of `timer.fire_loop` inside `schedule`), the `send_signal` lemmas
+  (another line), `SigXG` itself.
+- **Build** (afkprover, mirror FL4-a6x seeded from FL4-int6, keys `a6x-b1..b4`): `MODE=mod MODS="Fl4Proofs.P1.EntryXG
+  Fl4Proofs.P1.EntryXGTop"` → 0 errors, `Build completed successfully (3788 jobs)`. Because int/j6's `P1/QueueSignal` (and
+  `QueueFootS`'s send_signal lemmas) do not build since #80/#85 and every module here is downstream of it, the builds ran
+  with an untracked local stub (`proofs/scratch/a6xstub.py`, not committed, applied/reverted by `afk-build.sh SCRS=`):
+  the bodies of `vcpu.report.blk`, `vcpu.signal_completes.blk`, `send_signal.tinv`, `vcpu.report.blkF`, `signal_vmF`,
+  `send_signal.tinvF` replaced by `sorry`. Axioms (`#print axioms`): every new lemma of `EntryXG` and `budget_ok.xg`,
+  `handle_yield.xg`, `handle_interrupt.xg`, `SigXG.of_ipcFoot`, `EntryHyps0.faultXG`/`recvXG` — only propext /
+  Classical.choice / Quot.sound; the composites (`dispatch_syscall.xg`, `…entryXG`, `entry'`) show `sorryAx` only through
+  the stubbed `send_signal.tinv` (via the existing `after_invocation.bxi` / `handle_interrupt.bxi`), which disappears when
+  the send_signal line's QueueSignal lands. No full build (int/j6 has no green full build yet).
