@@ -171,6 +171,101 @@ theorem sched.awaken_loop.guard_nodue (s : S) (fuel : U64)
   have h1 := h.resolve_left h0
   simp only [h1, decide_false, Bool.false_eq_true, ↓reduceIte, bind_ok, bind_tc_ok]
 
+
+/-- **`schedule` with nothing due and the action `RESUME_CURRENT`** on the guarded store: `awaken` reads the
+node, the timer-min thread's deadline and the release head's head refill (`timer.fire.guard_nodue`,
+`awaken_loop.guard_nodue`), then p2io's `schedRes.guard` (`hsw`, `hfr`: p2sl's `switch_sched_context` /
+`set_next_interrupt` lemmas at the real run's states). -/
+theorem sched.schedule.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a : A)
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
+    (hd : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 →
+      R (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+    (hT : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64 ∨
+      L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) <
+        L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+    (h2 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) ≠ 0#u64 →
+      R (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))) ∧
+      PathObl.RdHead (L := L) R s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))
+    (hRel : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64 ∨
+      ¬ ((L.refill s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
+          (L.rhead s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))).time ≤
+        L.curTime s))
+    (ha : L.actionW s = sched.ACTION_RESUME_CURRENT)
+    (hsw : ∀ s4, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
+      sched.switch_sched_context (guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a)
+    (hfr : ∀ s4 s5 a3, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
+      sched.switch_sched_context st ar s4 a = ok (s5, a3) →
+      L.ksb s5 = L.ksb s ∧ L.cpu s5 = L.cpu s ∧
+      (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
+        sched.set_next_interrupt (guard st R W) ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
+        ∀ s7 a5, sched.set_next_interrupt st ar s5 a3 = ok (s7, a5) → L.ksb s7 = L.ksb s ∧ L.cpu s7 = L.cpu s)) :
+    sched.schedule (guard st R W) ar s a = sched.schedule st ar s a := by
+  have ct := hNd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
+  have tm := hNd layout.node.TIMER_MIN (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])
+  have rh := hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
+  have sa := hNd layout.node.SCHED_ACTION (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
+  have hac : sched.action st s = ok sched.ACTION_RESUME_CURRENT := by
+    rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
+  have es : sched.schedule st ar s a = PathObl.schedRes st ar s a :=
+    PathObl.schedule_res_eq st ar s a (awaken_none ar s a hT hRel) hac
+  have haw : sched.awaken (guard st R W) ar s a = ok (s, a) := by
+    unfold sched.awaken
+    rw [timer.fire.guard_nodue ar s a ct.1 tm.1 hd hT]
+    simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
+    rw [sched.awaken_loop.guard_nodue s _ rh.1 h2 ct.1 hRel]
+    simp only [bind_ok, bind_tc_ok]
+  have eg : sched.schedule (guard st R W) ar s a = PathObl.schedRes (guard st R W) ar s a :=
+    PathObl.schedule_res_eq _ ar s a haw (by rw [PathObl.sched.action.guard s sa.1]; exact hac)
+  rw [eg, es]
+  exact PathObl.schedRes.guard ar s a hNd hsw hfr
+
+end
+
+section
+variable {S : Type}
+
+/-! ## The SetTimer path's word sets (`PathObl`'s `ReadSet` / `WriteSet` before the ownership cut)
+
+`PathObl`'s sets are meant to be these words intersected with what the path may read / write at the entry
+state (`RPerm` / `WPerm` of the ownership map), so that `read_own` / `write_own` hold by construction and
+`acc` carries the content: on an accepted run every word it touches is in these sets and owned. -/
+
+/-- The timer keys the path may touch at `s`: core `L.cpu s`'s tree members (armed, `TIMER_HEIGHT >> 8` this
+core: exactly the keys of its tree under `TimerRB`) and the target. -/
+def StKeys (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s : S) (target y : U64) : Prop :=
+  y ∈ T ∧ (y = target ∨ FootLtArmed st s (L.cpu s) y)
+
+/-- The caller's own words: aligned, above its CNode slots, outside its timer fields. -/
+def CallerW (t w : U64) : Prop :=
+  ∃ k : U64, 256 ≤ k.val ∧ k.val < 4096 ∧ k.val % 8 = 0 ∧ (k.val < 3528 ∨ 3576 ≤ k.val) ∧
+    w = core.num.U64.wrapping_add t k
+
+/-- The caller's registers and `STATE` (aligned). -/
+def CallerRegW (t w : U64) : Prop :=
+  ∃ k : U64, 256 ≤ k.val ∧ k.val ≤ 3328 ∧ k.val % 8 = 0 ∧ w = core.num.U64.wrapping_add t k
+
+/-- The words an accepted `TCB_SetTimer` local path reads (entry state `s`, current SC sized by `Z`):
+the tree words `TW` of `StKeys` (this core's node words, the keys' timer fields), the caller's words, the
+target's `AFFINITY`, the null handle's deadline and child words (`TreeReads` names them; never read), the
+kernel's `CUR_DOMAIN` / `DOMAIN_TIME`, the current SC, and the release head's SC word and SC. -/
+def StRd (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (target w : U64) :
+    Prop :=
+  TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerW (L.curW s) w ∨ w = affA target ∨
+    w = tdA 0#u64 ∨ w = tlA 0#u64 ∨ w = trA 0#u64 ∨
+    w = core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN ∨
+    w = core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME ∨
+    InSC (L.cscW s) (Z (L.cscW s)) w ∨
+    (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) ≠ 0#u64 ∧
+      (w = scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)) ∨
+        InSC (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
+          (Z (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))) w))
+
+/-- The words an accepted `TCB_SetTimer` local path writes: `TW` of `StKeys`, the caller's registers and
+state, the current SC. -/
+def StWr (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (target w : U64) :
+    Prop :=
+  TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerRegW (L.curW s) w ∨ InSC (L.cscW s) (Z (L.cscW s)) w
+
 end
 
 end Fl4Proofs.P2
