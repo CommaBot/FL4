@@ -1,16 +1,23 @@
 {
- "functions": 1112,
- "proved": 1112,
+ "functions": 1179,
+ "proved": 1178,
  "manual": [
   "boot.create_untypeds",
+  "boot.init_irq_states_loop",
   "ept.flush_frame",
   "ept.geom",
   "ept.ipa_limit",
   "ept.lookup_slot_loop",
   "ept.unmap_table_loop",
+  "faults.trap_extra_mrs_loop",
+  "faults.trap_extra_reply_loop",
   "interrupt.decode_irq_control",
+  "layout.irq.id",
   "localinv.plan_with",
+  "localtimer.in_core_timer_tree",
+  "localtimer.in_core_timer_tree_loop",
   "notification.send_signal",
+  "smp.handle_ipi",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.reset_untyped_loop",
@@ -32,7 +39,11 @@
   "vcpu.write_state_from_frame_loop2",
   "vspace.lookup_pt_slot_loop"
  ],
- "preconditions": {},
+ "preconditions": {
+  "localtimer.in_core_timer_tree_loop": "`sp \u2264 32` (the stack's length). Its one caller, `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.",
+  "layout.irq.id": "`irq \u2264 irq::MAX` (3327). Callers: `boot.init_irq_states_loop` (its loop condition) and `smp.handle_ipi` (its own precondition, from `interrupt.handle_interrupt`'s `irq > MAX` check).",
+  "smp.handle_ipi": "`irq \u2264 irq::MAX` (`layout.irq.id`'s). Its one caller, `interrupt.handle_interrupt`, checks `irq > MAX` first."
+ },
  "loops_automatic": [
   "boot.all_zero_loop",
   "boot.clear_dirty_loop",
@@ -47,7 +58,7 @@
   "boot.init_bootinfo_loop0",
   "boot.init_bootinfo_loop1",
   "boot.init_core_state_loop",
-  "boot.init_irq_states_loop",
+  "boot.is_prezeroed_loop",
   "boot.set_name_loop0",
   "boot.set_name_loop0_loop0",
   "cdt.finalise_slot_deferred_loop",
@@ -65,6 +76,7 @@
   "ipc.lookup_extra_caps_loop",
   "ipc.transfer_caps_loop",
   "localinv.Plan.still_holds_loop",
+  "localtimer.fire_ok_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
   "notification.cancel_all_signals_loop",
@@ -94,6 +106,7 @@
   "tcb.read_registers_loop7",
   "tcb.read_registers_loop8",
   "tcb.read_registers_loop9",
+  "tcb.write_pac_keys_loop",
   "tcb.write_registers_loop0",
   "tcb.write_registers_loop1",
   "tcbqueue.append_by_prio_loop",
@@ -118,10 +131,18 @@
   "vspace.decode_loop0",
   "vspace.decode_loop1",
   "vspace.decode_loop2",
+  "vspace.decode_loop3",
   "vspace.delete_asid_pool_loop",
   "vspace.ensure_empty_run_loop",
+  "vspace.init_high_vspace_loop0",
+  "vspace.init_high_vspace_loop1",
   "vspace.insert_subframes_loop",
   "vspace.unmap_page_table_loop"
  ],
- "sorry": {}
+ "sorry": {
+  "vspace.decode_test_and_clear_accessed": [
+   "fun",
+   "(let (fs, b) := (capability.FrameSize.Small, false) if b = true then do let r \u2190 error.illegal Unit ok (r, s, a) else do let b1 \u2190 machineArchInst.hw_access_flag a if b1 = true then do let r \u2190 vspace.frame_root machineStoreInst s f.asid match r with | core.result.Result.Ok p => let (r1, _) := p do let"
+  ]
+ }
 }

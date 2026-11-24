@@ -19698,3 +19698,84 @@ None (no Lean change).
   `vcpu.decode.msr`), `FastFaultInv`, `LocalInv` (the `ibA`/`sbA` move) and **`QueueEntryGaps4` (which uses
   `ibKeep_holds hA`)** build (`a6f-b8`). **`P3/BufKeepJ` is not yet checked**: it sits downstream of further int/j6 P3
   breakage (ScFireJ 611–633, `fireJ` against the new `fire`/`schedule` statements), the core line's P3 work.
+
+## lt1 (branch par/lt1 in FL4-lt1, from int/j6 129b66c2 + main 6ca162d7 = #97, then #98 18e3c83a, int/j6 a31febb1 / 5b462fb8) — the local timer entries (`localtimer.handle_set_timer_local`, `handle_timer_irq_local`): accepted top `kernel_entry_reachU29T`, decline top `kernel_entry_reachU29TD`; no premise added; no FINDING of a local/general divergence
+- **Extraction (tokyo, `lt1ex.sh` untracked).** #97 as merged did not extract: Aeneas 0d21a9e rejects the early
+  `return`s inside `localtimer::in_core_timer_tree`'s `while` loop ("Early returns inside of loops are not supported
+  yet") and turns the function into an `axiom` of `FunsExternal_Template.lean` (x86 and AArch64), so `cargo xtask
+  extract` exits 1 (FINDING 1, fixed upstream by losfair/FL4#98 = 18e3c83a: `found` / `overflow` flags end the loop; the
+  same text as lt1's interim local commit, which was dropped for #98). Outside `localtimer.*` the x86 extraction is
+  unchanged (definition-by-definition comparison).
+- **P0** (afkprover, `p06.sh`): x86 **1157/1157**, 0 sorry. Hand proofs (Manual.lean.in, both arches):
+  `localtimer.in_core_timer_tree_loop` (P0 precondition `sp ≤ 32`, the stack's length; measure `64 − visits`; the
+  generator has no unconditional candidate since the pops / pushes index the 32-word stack) and
+  `localtimer.in_core_timer_tree` (discharges it: `sp` is 0 or 1). AArch64 (catch-up for main's A64-only #86 / #90 /
+  #96, not lt1's): `ArchTotal` fields + step lemmas for `msi_map`, `has_pauth`, `next_pac_epoch`,
+  `kernel_ttbr1_entry`, `set_high_vspace`, `invalidate_high_page`, `invalidate_high_vspace` (A64 Totality); hand proofs
+  `layout.irq.id` (P0 precondition `irq ≤ irq::MAX`: `irq - LPI_BASE + LPI_ID_BASE` uses Rust's unchecked `+`, FINDING 2),
+  `boot.init_irq_states_loop`, `smp.handle_ipi` (passes the precondition on; `interrupt.handle_interrupt` discharges it
+  after its `irq > MAX` check, automatically), `faults.trap_extra_mrs_loop` / `trap_extra_reply_loop` (measure
+  `24 − i`). A64 **1178/1179**: one sorry left, `vspace.decode_test_and_clear_accessed` (#90's code, not localtimer),
+  for the core line. (The 90-minute A64 run was not hung: each generator round rebuilds the whole A64 Auto.lean,
+  ~2–5 min, and the round loop retried the loop candidates that could not work.)
+- **Trace (Rust / extraction), no divergence.** *SetTimer.* An accepted run: read-only checks at `s` (number `SysCall`,
+  trap clear, label `TCBSetTimer`, no extra caps, length ≥ 2, `set_timer_target_ok`: `target`'s affinity this core,
+  `current_ok`, caller `TS_RUNNING`, schedulable, `sched_quiet`), the `FAULT_IP` write and `update_timestamp` (s2),
+  reads at s2 (`now`, the two message registers, `sufficient`, `timer_due`, `release_due`, deadline in the future),
+  then `set_thread_state Restart`, `timer.insert target`, `reply_success_empty`, `set_thread_state Running`,
+  `schedule`, `activate_thread`, `vcpu.check`. General `syscall … SysCall true`: same `FAULT_IP` write; flags after it
+  (top's flag fact); `budget_ok` = the same update + `check_budget_restart`, no writes (`sufficient` at s2 with the
+  current SC read at `s`, kept by the prefix); `dispatch_syscall` → `handle_invocation true true true false (CAP)`:
+  message info and `CAP` kept; `lookup_slot` finds fl4-sync's slot (`lookup_slot_keep`) holding `Thread target`
+  (`found_cap_keep`: the found slot is an indexed slot of a `CnOff` CNode, `rab_loop_slot`); no extra caps
+  (`lec_none`); length ≥ 2 either way; `decode_invocation` → `tcb.decode`: `remote_tcb_stall` stalls nothing (the
+  affinity word of `target ∈ T` is kept by the prefix, `lt_tcbK`, and equals this core: `stall_none`), the label chain
+  reaches the `SetTimer` arm (`decode_set_timer`), whose `tcb.arg` reads the same two registers (`syscall_arg_reg`:
+  `i < N_MSG_REGISTERS` ignores the buffer), `restart_caller` = the local `set_thread_state Restart`, the same
+  `timer.insert`; the caller is still `Restart` after it (`timer.insert.foot`: timer words and `REPROGRAM` only, from
+  `BlkOK` after the restart: `regW_all`, `update_timestamp.bxc`, `restart_caller.blk`), so the reply arm is the local
+  one; `after_invocation (Ok)` writes nothing; `finish`. *Timer IRQ.* An accepted run is `handle_interrupt_entry`
+  verbatim after reads (`update_timestamp`, `check_budget`, `handle_interrupt`, `finish`'s three calls); the plan
+  `p` only narrows.
+- **P1 `Fl4Proofs/P1/LocalTimer.lean`** (new, root-imported): `irq_local_same`, `irq_local_decline` (entry state or one
+  `update_timestamp`), `irq_pre_same` (from that update, `handle_interrupt_entry` runs as from the entry state:
+  `utW_twice`), `irq_local_triple`; `insn_len_eq`, `set_timer_local_decline` (entry state or `LocalPre` ∧ `RoT`),
+  `tcb_word_ne`, `tcb_node_ne`, `lt_prefix`, `lt_tcbK`, `found_cap_keep`, `lec_none`, `syscall_arg_reg`, `stall_none`,
+  `decode_set_timer`, **`set_timer_local_same`** (accepted `handle_set_timer_local s a n target` = `handle_syscall s a n`,
+  from `BXI` and `CnOff` at `s`, the top's flag fact, fl4-sync's contract and `target ∈ T`), `set_timer_local_triple`.
+- **P3 `Fl4Proofs/P3/XTopJointKEntryU29T.lean`** (new, root-imported): `JAtZ.threadCapT` (a `Thread` cap the current
+  thread's lookup finds names a TCB of `H`: `lookup_slot_refines`, `SlotsValid.abs`, `J.thT`, `J.zH`); `SetTimerFound`
+  (fl4-sync's contract: at the entry state the general lookup of the `CAP` register finds a slot holding
+  `Thread target` — fl4-sync's `lookup_slot_locked` is that lookup level by level with its slots locked; an input like
+  lcv's plan / lcs's `found`, not a state premise); `IrqClU29` (U29's interrupt clause text), `DeclIrqU29`,
+  `declIrq_of`.
+  * **`SInvR.G5.kernel_entry_reachU29T`**: U29's premises verbatim, `JReachU17 s a σ`; `∃ Z H Cs Ac Lst D, JAtZ … ∧`
+    (i) `∀ n c target`, under U29's syscall clause's inputs and `SetTimerFound s target`,
+    `handle_set_timer_local s a n target ⦃ r => r.1 = true → [U29 syscall post] ⦄`; (ii) `∀ w a1 p`, under U29's
+    interrupt clause's inputs (`IrqHw AR MR a a1 σ w`, `KFinEv13 … (KFrontI s a1 w) σ`),
+    `handle_timer_irq_local s a1 w p ⦃ r => r.1 = true → [U29 interrupt post] ⦄`.
+  * **`SInvR.G5.kernel_entry_reachU29TD`**: U29's premises verbatim; U29D's five conjuncts (unchanged, from
+    `kernel_entry_reachU29D`) ∧ declined `handle_set_timer_local … n target` → `DeclSysU29` (as lcd's syscall-type
+    entries) ∧ declined `handle_timer_irq_local … a1 w p` → `DeclIrqU29`: before any write, U29's interrupt clause at
+    `(s, a, σ)` for the general run from `(s, a1)`; after the clock reading, U29's interrupt clause at the reachable
+    `(s, a0, tick σ)` (`arI.now a = ok (n0, a0)`, `jreachU17_tick`) for the general run from the declined state. As in
+    U29 the clause keeps the entry's hardware fact `IrqHw` as an input; here it is stated at `tick σ` and the Arch value
+    after the local clock read (`IrqHw AR MR a0 a' (tick σ) w`): with the spec's order (tick, then the IRQ read) the
+    machine state matches when the two oracle steps commute, but `IrqHw.ar` (`AR a0 c → AR a' c`) is not derivable from
+    the original `IrqHw` and `ARKeep.now` (which go forward from `a`), so it stays the clause's input (no premise on
+    the top; the clause is vacuous where the platform does not provide it).
+- **Premises vs U29:** none added to either top. Inputs added: (U29T i) fl4-sync's `SetTimerFound` contract; (U29T ii)
+  none (the plan is universally quantified). No existing top statement changed.
+- **FINDINGs.** (1) #97's `in_core_timer_tree` did not extract (closed by #98). (2) AArch64 `layout::irq::id`
+  (`irq - LPI_BASE + LPI_ID_BASE`, #86) uses unchecked `+` (AGENTS.md: arithmetic explicitly checked or wrapping);
+  all callers pass `irq ≤ MAX`, so P0 holds under that precondition, no runtime bug. No local/general divergence.
+- **Builds (afkprover).** Interim stubbed rounds against older int/j6 (lt1-m2/m3) were superseded; on par/lt1 76dcc250
+  (int/j6 5b462fb8 merged): lt1-m6 `MODE=mod Fl4Proofs.P1.LocalTimer Fl4Proofs.P3.XTopJointKEntryU29T`, no stub:
+  "Build completed successfully (7402 jobs)", ERRORS 0, SORRY 0. Fixes on the way: no `subst` of the number (it hid the
+  run hypothesis), explicit store on store-free helpers.
+- **Full build** lt1-full1 (`MODE=build AX=axlt1.lean`, tree of 76dcc250; d884cc9a adds only this file and the A64 P0
+  files): "Build completed successfully (7513 jobs)", ERRORS 0, SORRY 0. Axioms (axlt1.lean, untracked):
+  `kernel_entry_reachU29T`, `kernel_entry_reachU29TD`, `declIrq_of`, `JAtZ.threadCapT`, `set_timer_local_same` /
+  `_triple` / `_decline`, `irq_local_same` / `_triple` / `_decline`, `irq_pre_same`, `lt_prefix`, `found_cap_keep`,
+  `decode_set_timer`, P0 `in_core_timer_tree_loop` / `handle_set_timer_local` / `handle_timer_irq_local`,
+  `kernel_entry_reachU29`, `kernel_entry_reachU29D`: all `[propext, Classical.choice, Quot.sound]`.
