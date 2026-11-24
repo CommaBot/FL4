@@ -507,13 +507,13 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.sch
     J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩
 
 /-- `UtP3Ok` (P1's `P3Ok` for the untyped retype), no reschedule pending. -/
-theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
+theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
     (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
     (hcap : capAt (L.mem s) slot = ok cap)
     (hext : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot Z.th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c) :
     Sched.UtP3Ok (L := L) arI H Cs s slot cap extra :=
-  ⟨_, _, _, _, _, _, _, J.utJoint hres hnode hidx hslot hcap hext, inferInstance⟩
+  ⟨_, _, _, _, _, _, _, J.utJoint hres hnode hidx hslot hcap hext⟩
 
 /-- Today's `JointInv` body at this state (P1's `BlkOK` with `JPlaced`,
 `SpecCover`, `SpecFree`). -/
