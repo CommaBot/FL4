@@ -78,9 +78,9 @@ pub fn fail(msg: &str) -> ! {
 }
 
 /// The extra BootInfo records (`extra_bi::build`): the ACPI RSDP, the
-/// boot core's ID registers, virtualization info, the boot modules and the
-/// device tree.
-fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module]) -> usize {
+/// boot core's ID registers, virtualization info, the boot modules, the
+/// TPM event log and the device tree.
+fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module], tpm: Option<&extra_bi::TpmEventLog>) -> usize {
     let regs = [
         fl4_arch_aarch64::mrs!("id_aa64isar0_el1"),
         fl4_arch_aarch64::mrs!("id_aa64isar1_el1"),
@@ -123,10 +123,42 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl
     };
     let src: &[u8] = if dtb_len != 0 { unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) } } else { &[] };
     let rsdp = if h.has_rsdp { Some(&h.rsdp[..]) } else { None };
-    match extra_bi::build(buf, rsdp, &regs, Some(&virt_info), mods, src) {
+    match extra_bi::build(buf, rsdp, &regs, Some(&virt_info), mods, tpm, src) {
         Some(len) => len,
         None => fail("extra BootInfo too large"),
     }
+}
+
+/// The loader's TPM event log, if it is one the kernel can hand over: page
+/// aligned, at most `MAX_TPM_LOG` bytes, inside free RAM (`usable`) and
+/// clear of the kernel region, the root task image and the boot modules.
+/// Anything else is ignored: a missing log never stops the boot.
+fn tpm_log(bi: &BootInfo, usable: &Ranges, n_mods: usize) -> Option<extra_bi::TpmEventLog> {
+    if bi.tpm_log_paddr == 0 {
+        return None;
+    }
+    let (start, size) = (bi.tpm_log_paddr, bi.tpm_log_size);
+    // The size is checked before it is rounded (no overflow).
+    let end = if size == 0 || size > fl4_bootinfo::MAX_TPM_LOG || start % PAGE != 0 {
+        None
+    } else {
+        start.checked_add(size.div_ceil(PAGE) * PAGE)
+    };
+    let Some(end) = end else {
+        kprintln!("FL4: TPM event log at {:#x} ({:#x} bytes) out of range: ignored", start, size);
+        return None;
+    };
+    let apart = |s: u64, e: u64| end <= s || e <= start;
+    let root = bi.root;
+    let clear = apart(bi.region_paddr, bi.region_paddr + bi.region_len)
+        && apart(root.p_start, root.p_end)
+        && bi.modules[..n_mods].iter().all(|m| apart(m.paddr & !(PAGE - 1), (m.paddr + m.size + PAGE - 1) & !(PAGE - 1)));
+    let in_ram = usable.r[..usable.n].iter().any(|r| r.start <= start && end <= r.end);
+    if !clear || !in_ram {
+        kprintln!("FL4: TPM event log at {:#x} overlaps boot memory or is not free RAM: ignored", start);
+        return None;
+    }
+    Some(extra_bi::TpmEventLog { paddr: start, size, flags: bi.tpm_log_flags })
 }
 
 fn has_option(bi: &BootInfo, opt: &[u8]) -> bool {
@@ -356,6 +388,12 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         let m = bi.modules[i];
         free.remove(m.paddr & !(PAGE - 1), (m.paddr + m.size + PAGE - 1) & !(PAGE - 1));
     }
+    // The TPM event log the loader copied: whole pages of free RAM clear
+    // of the kernel region, the root task and the modules, or none.
+    let tpm = tpm_log(bi, &usable, n_mods);
+    if let Some(t) = &tpm {
+        free.remove(t.paddr, t.paddr + t.size.div_ceil(PAGE) * PAGE);
+    }
     let mut dev = Ranges::new();
     dev.add(0, pa_top);
     for i in 0..usable.n {
@@ -384,6 +422,11 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         extra_mods += 1;
         kprintln!("FL4: boot module {}: {:#x} bytes at {:#x}", i, m.size, m.paddr);
     }
+    // Handed over the same way.
+    if let Some(t) = &tpm {
+        dev.add(t.paddr, t.paddr + t.size.div_ceil(PAGE) * PAGE);
+        kprintln!("FL4: TPM event log: {:#x} bytes at {:#x}", t.size, t.paddr);
+    }
 
     // The extra BootInfo, in memory taken from the free RAM.
     let dtb_len = if bi.dtb != 0 { hw::dtb_size(bi.dtb) } else { 0 };
@@ -399,7 +442,7 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     };
     free.remove(extra_pa, extra_pa + extra_size);
     let extra = unsafe { core::slice::from_raw_parts_mut(pptr(extra_pa) as *mut u8, extra_size as usize) };
-    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, &mods[..extra_mods]);
+    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, &mods[..extra_mods], tpm.as_ref());
     // The boot frames go after the image in user space (fl4-core
     // `root_layout`): all of them below its end.
     let root_v_end = root.v_start.checked_add(root.p_end - root.p_start);

@@ -247,7 +247,7 @@ theorem VsSFr.mid {σ σ' : State Unit} (h : VsSFr σ σ') :
     ∃ σm : State Unit, ArFr σ σm ∧ CnStep σm σ' := by
   refine ⟨{ σ' with kheap := fun p => kmid (σ.kheap p) (σ'.kheap p) }, ⟨fun p => ?_, h.cdt, h.orig, h.ct, h.idle,
     h.cons, h.time, h.csc, h.isc, h.repr, h.act, h.dt, h.rq, h.rel, congrArg (fun a => a.x64GlobalPml4) h.arch,
-    h.cdom⟩, ⟨⟨fun p => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl⟩⟩
+    h.cdom, congrArg (fun a => a.x64Plat) h.arch⟩, ⟨⟨fun p => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl⟩⟩
   · rcases h.kh p with e | ⟨a, a', h1, h2, ht⟩ | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
     · left; show kmid (σ.kheap p) (σ'.kheap p) = σ.kheap p; rw [e]; unfold kmid; split <;> rfl
     · right; refine ⟨a, a', h1, ?_, ht⟩; show kmid (σ.kheap p) (σ'.kheap p) = _; rw [h2]; rfl

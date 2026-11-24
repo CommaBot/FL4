@@ -83,7 +83,7 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   (`JAtZ.scCap`). -/
   hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   -- 1c: CSpace
   del : DelInv Z.th (L.mem s)
   ut : UtInv (L.mem s) Z.G

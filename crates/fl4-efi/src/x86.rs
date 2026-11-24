@@ -23,6 +23,13 @@ const TABLE_BYTES: u64 = 10 * PAGE;
 const INFO_BYTES: u64 = 4 * PAGE;
 // Match the kernel's mboot::MAX_MMAP after adjacent descriptors are merged.
 const MAX_MMAP: u64 = 128;
+/// FL4's Multiboot 2 tag for the TPM event log copy: physical address,
+/// size, flags (the kernel's mboot.rs).
+const MB2_TAG_TPM_EVENT_LOG: u32 = 0x464c_3401;
+/// The same for the confidential-computing event log.
+const MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402;
+/// A TDX guest's AP wakeup page (the kernel's mboot.rs): its address.
+const MB2_TAG_TDX_AP_PAGE: u32 = 0x464c_3403;
 
 fn alloc_low(bytes: u64) -> u64 {
     let mut address = TOP - 1;
@@ -42,6 +49,121 @@ core::arch::global_asm!(
     "fl4_handoff_end:",
 );
 
+/// A page below 4 GiB, executable in firmware's page tables as well as
+/// the loader's (AllocateMaxAddress, EfiLoaderCode).
+fn alloc_code_page() -> u64 {
+    let mut address = TOP - 1;
+    if (bs().allocate_pages)(1, 1, 1, &mut address) != SUCCESS {
+        fail("cannot allocate low boot trampoline");
+    }
+    address
+}
+
+// The same for firmware in five-level paging (a TD with a 52-bit GPA width).
+// CR4.LA57 changes only with paging off, from a 32-bit code segment, so this
+// leaves long mode and comes back on the kernel's four-level tables. What it
+// needs is in its own page, as the upper register halves do not survive.
+core::arch::global_asm!(
+    ".section .text",
+    ".code64",
+    "fl4_handoff_la57:",
+    // PCIDE and CET must be off to clear CR0.PG.
+    "movq %cr4, %rax",
+    "andq $~((1 << 17) | (1 << 23)), %rax",
+    "movq %rax, %cr4",
+    "lgdtq la57_gdt_ptr(%rip)",
+    "leaq fl4_handoff_la57(%rip), %rbx",
+    "ljmpl *la57_to_compat(%rip)",
+    ".code32",
+    "fl4_handoff_la57_compat:",
+    "movl $0x18, %eax",
+    "movl %eax, %ds",
+    "movl %eax, %es",
+    "movl %eax, %ss",
+    "movl %cr0, %eax",
+    "andl $0x7fffffff, %eax",
+    "movl %eax, %cr0",
+    "movl %cr4, %eax",
+    "andl $~(1 << 12), %eax",
+    "movl %eax, %cr4",
+    "movl (la57_cr3 - fl4_handoff_la57)(%ebx), %eax",
+    "movl %eax, %cr3",
+    "movl %cr0, %eax",
+    "orl $0x80000000, %eax",
+    "movl %eax, %cr0",
+    "ljmpl *(la57_to_long - fl4_handoff_la57)(%ebx)",
+    ".code64",
+    "fl4_handoff_la57_long:",
+    "movq la57_rdi(%rip), %rdi",
+    "movq la57_rsi(%rip), %rsi",
+    "movq la57_rdx(%rip), %rdx",
+    "movq la57_rcx(%rip), %rcx",
+    "movq la57_r8(%rip), %r8",
+    "movq la57_entry(%rip), %r10",
+    "jmp *%r10",
+    ".p2align 3",
+    "fl4_handoff_la57_gdt:", // accessed bits set: firmware may map it read-only
+    ".quad 0",
+    ".quad 0x00cf9b000000ffff", // 0x08 code, 32-bit
+    ".quad 0x00af9b000000ffff", // 0x10 code, 64-bit
+    ".quad 0x00cf93000000ffff", // 0x18 data
+    "fl4_handoff_la57_data:",
+    "la57_cr3: .quad 0",
+    "la57_rdi: .quad 0",
+    "la57_rsi: .quad 0",
+    "la57_rdx: .quad 0",
+    "la57_rcx: .quad 0",
+    "la57_r8: .quad 0",
+    "la57_entry: .quad 0",
+    "la57_to_compat: .long 0",
+    ".short 0x08, 0",
+    "la57_to_long: .long 0",
+    ".short 0x10, 0",
+    "la57_gdt_ptr: .short 4 * 8 - 1",
+    ".quad 0",
+    "fl4_handoff_la57_end:",
+    options(att_syntax),
+);
+
+/// The registers the kernel entry takes, and its address.
+struct Handoff {
+    cr3: u64,
+    rdi: u64,
+    rsi: u64,
+    rdx: u64,
+    rcx: u64,
+    r8: u64,
+    entry: u64,
+}
+
+/// Copy the five-level handoff to a page below 4 GiB and fill in its data.
+fn handoff_code_la57(h: &Handoff) -> u64 {
+    extern "C" {
+        static fl4_handoff_la57: u8;
+        static fl4_handoff_la57_compat: u8;
+        static fl4_handoff_la57_long: u8;
+        static fl4_handoff_la57_gdt: u8;
+        static fl4_handoff_la57_data: u8;
+        static fl4_handoff_la57_end: u8;
+    }
+    let start = core::ptr::addr_of!(fl4_handoff_la57) as u64;
+    let end = core::ptr::addr_of!(fl4_handoff_la57_end) as u64;
+    assert!(end - start <= PAGE);
+    let address = alloc_code_page();
+    write(address, unsafe { core::slice::from_raw_parts(start as *const u8, (end - start) as usize) });
+    let at = |sym: *const u8| address + (sym as u64 - start);
+    let data = at(core::ptr::addr_of!(fl4_handoff_la57_data));
+    for (i, v) in [h.cr3, h.rdi, h.rsi, h.rdx, h.rcx, h.r8, h.entry].into_iter().enumerate() {
+        write(data + 8 * i as u64, &v.to_le_bytes());
+    }
+    // After those seven words: the two far pointers' offsets, and the GDT
+    // pointer's base past its two limit bytes.
+    write(data + 56, &(at(core::ptr::addr_of!(fl4_handoff_la57_compat)) as u32).to_le_bytes());
+    write(data + 64, &(at(core::ptr::addr_of!(fl4_handoff_la57_long)) as u32).to_le_bytes());
+    write(data + 72 + 2, &at(core::ptr::addr_of!(fl4_handoff_la57_gdt)).to_le_bytes());
+    address
+}
+
 fn handoff_code() -> u64 {
     extern "C" {
         static fl4_handoff: u8;
@@ -49,11 +171,7 @@ fn handoff_code() -> u64 {
     }
     let start = core::ptr::addr_of!(fl4_handoff) as u64;
     let end = core::ptr::addr_of!(fl4_handoff_end) as u64;
-    let mut address = TOP - 1;
-    // AllocateMaxAddress, EfiLoaderCode: executable in both page tables.
-    if (bs().allocate_pages)(1, 1, 1, &mut address) != SUCCESS {
-        fail("cannot allocate low boot trampoline");
-    }
+    let address = alloc_code_page();
     write(address, unsafe {
         core::slice::from_raw_parts(start as *const u8, (end - start) as usize)
     });
@@ -109,6 +227,40 @@ fn sev() -> (u64, u64, u64) {
         fail("invalid SEV C-bit");
     }
     (1 << bit, cpuid_page, secrets_page)
+}
+
+/// An Intel TDX guest's shared-page bit, the top bit of its guest physical
+/// address width, or 0 outside a TD. CPUID leaf 21H comes from the TDX
+/// module in a TD; a non-TD forging it faults on TDCALL, which is no worse
+/// than the hypervisor refusing to run the guest.
+fn tdx_shared_mask() -> u64 {
+    use core::arch::x86_64::__cpuid_count as cpuid;
+    if cpuid(0, 0).eax < 0x21 {
+        return 0;
+    }
+    let l = cpuid(0x21, 0);
+    if (l.ebx, l.edx, l.ecx) != (u32::from_le_bytes(*b"Inte"), u32::from_le_bytes(*b"lTDX"), u32::from_le_bytes(*b"    ")) {
+        return 0;
+    }
+    let (status, rcx): (u64, u64);
+    unsafe {
+        asm!(
+            ".byte 0x66, 0x0f, 0x01, 0xcc", // TDCALL
+            inlateout("rax") 1u64 => status, // TDG.VP.INFO
+            lateout("rcx") rcx,
+            lateout("rdx") _,
+            lateout("r8") _,
+            lateout("r9") _,
+            lateout("r10") _,
+            lateout("r11") _,
+            options(nostack),
+        );
+    }
+    let gpaw = rcx & 0x3f;
+    if status != 0 || !matches!(gpaw, 48 | 52) {
+        fail("invalid TDX guest information");
+    }
+    1 << (gpaw - 1)
 }
 
 #[repr(C)]
@@ -238,23 +390,26 @@ fn handoff_failed(attempt: usize, message: &str) -> ! {
     }
 }
 
-fn tables(pa: u64, delta: u64, mask: u64, end: u64) {
+/// The handoff's page tables. `private` is SEV's C-bit, on everything the
+/// kernel runs from; `shared` is TDX's S-bit, on the shared window's leaves
+/// only (one of them is 0).
+fn tables(pa: u64, delta: u64, private: u64, shared: u64, end: u64) {
     let t = |i| pa + i * PAGE;
     let e = |i, slot, value: u64| write(t(i) + slot * 8, &value.to_le_bytes());
-    let ptr = |i| t(i) | mask | 3;
+    let ptr = |i| t(i) | private | 3;
     e(0, 0, ptr(1));
     e(0, 511, ptr(2));
-    if mask != 0 {
+    if private | shared != 0 {
         e(0, 510, ptr(9));
         for g in 0..4 {
-            e(9, g, (g << 30) | 0x83);
+            e(9, g, (g << 30) | shared | 0x83);
         }
     }
     for g in 0..4 {
         e(1, g, ptr(3 + g));
         e(2, g, ptr(3 + g));
         for j in 0..512 {
-            e(3 + g, j, ((g * 512 + j) * HUGE) | mask | 0x83);
+            e(3 + g, j, ((g * 512 + j) * HUGE) | private | 0x83);
         }
     }
     // The kernel's link-time physical offsets remain its high-half virtual
@@ -264,7 +419,7 @@ fn tables(pa: u64, delta: u64, mask: u64, end: u64) {
     e(2, 511, ptr(8));
     for (i, off) in (0..end).step_by(HUGE as usize).enumerate() {
         let slot = (KERNEL_OFFSET >> 21 & 511) + i as u64;
-        e(7 + slot / 512, slot % 512, (delta + off) | mask | 0x83);
+        e(7 + slot / 512, slot % 512, (delta + off) | private | 0x83);
     }
 }
 
@@ -296,18 +451,25 @@ fn long_mode_entry(kernel: &[u8]) -> Option<u64> {
 
 pub(super) type BootFile<'a> = (u64, u64, &'a [u8]);
 
-fn boot_files<'a>(li: &LoadedImage, opts: &'a Words) -> ([BootFile<'a>; 9], usize) {
+/// `measure`: this is a TD, whose RTMR[2] the files from the options extend.
+fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFile<'a>; 9], usize) {
     let mut files = [(0, 0, &[][..]); 9];
     let mut n = 1;
     for opt in opts.iter() {
         if let Some(path) = opt.strip_prefix(b"rootserver=") {
             let (pa, len) = read_file(li, path);
+            if measure {
+                ccel::measure_file(path, pa, len);
+            }
             files[0] = (pa, len, path);
         } else if let Some(path) = opt.strip_prefix(b"module=") {
             if n == files.len() {
                 fail("too many boot modules");
             }
             let (pa, len) = read_file(li, path);
+            if measure {
+                ccel::measure_file(path, pa, len);
+            }
             files[n] = (pa, len, path);
             n += 1;
         }
@@ -348,17 +510,23 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     }
     let li = unsafe { &*(li as *const LoadedImage) };
     let opts = options(li);
-    let (files, n) = boot_files(li, &opts);
+    // As in `boot`: only a guest that is not SEV can be a TD.
+    let measure = sev().0 == 0 && tdx_shared_mask() != 0;
+    let (files, n) = boot_files(li, &opts, measure);
     boot(image, embedded::KERNEL, &files[..n])
 }
 
 pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
     let cr4: u64;
     unsafe { asm!("mov {}, cr4", out(reg) cr4) };
-    if cr4 & (1 << 12) != 0 {
+    let (mask, cpuid, secrets) = sev();
+    let shared = if mask == 0 { tdx_shared_mask() } else { 0 };
+    // Only a TD goes back to four levels: its firmware picks five for a
+    // 52-bit GPA width, which four-level tables address just as well.
+    let la57 = cr4 & (1 << 12) != 0;
+    if la57 && shared == 0 {
         fail("firmware uses five-level paging");
     }
-    let (mask, cpuid, secrets) = sev();
     if kernel.len() < 64 || &kernel[..5] != b"\x7fELF\x02" || rd16(kernel, 18) != 62 {
         fail("no x86_64 kernel image built in");
     }
@@ -386,7 +554,14 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         .iter()
         .map(|&(_, len, _)| len.div_ceil(PAGE) * PAGE)
         .sum();
-    let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len;
+    // The TPM event log goes after the files, with room for the events
+    // ExitBootServices adds.
+    let tpm = tcg2::collect();
+    let tpm_cap = tpm.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
+    // The same for a TDX guest's RTMR log, independently of the TPM's.
+    let cc = if shared != 0 { ccel::collect() } else { None };
+    let cc_cap = cc.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
+    let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len + tpm_cap + cc_cap;
     let base = alloc_low(len + HUGE);
     let delta = base.div_ceil(HUGE) * HUGE;
     unsafe {
@@ -404,7 +579,7 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         );
     }
     let root = delta + end;
-    tables(root, delta, mask, end);
+    tables(root, delta, mask, shared, end);
     let mut info = Info {
         base: root + TABLE_BYTES,
         used: 8,
@@ -427,6 +602,14 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         info.module(dst, size, &name[..name.len().min(63)]);
         dst += size.div_ceil(PAGE) * PAGE;
     }
+    let tpm_dst = dst;
+    if let Some(t) = &tpm {
+        t.copy_main(tpm_dst);
+    }
+    let cc_dst = tpm_dst + tpm_cap;
+    if let Some(t) = &cc {
+        t.copy_main(cc_dst);
+    }
     let rsdp = config_table(ACPI_20);
     let (rsdp, kind, size) = if rsdp != 0 {
         (rsdp, 15, 36)
@@ -438,16 +621,51 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
             core::slice::from_raw_parts(rsdp as *const u8, size as usize)
         });
     }
-    // Not for SEV guests: the framebuffer is device memory whose shared or
-    // private status firmware does not state, and the kernel's console
-    // refuses it under SNP (fbcon::usable) as well.
-    if mask == 0 {
+    // Not for SEV or TDX guests: the framebuffer is device memory whose
+    // shared or private status firmware does not state, and the kernel's
+    // console refuses it under SNP and TDX (fbcon::usable) as well.
+    if mask | shared == 0 {
         if let Some(fb) = framebuffer() {
             write(info.tag(8, gop::LEN as u64), &fb);
         }
     }
-    let trampoline = handoff_code();
-    say!("fl4-efi: entering x86_64 kernel, SEV-SNP {}", cpuid != 0);
+    // Its size and flags are final after ExitBootServices (below).
+    let tpm_tag_pa = tpm.as_ref().map(|t| {
+        let (size, flags) = t.record();
+        let p = info.tag(MB2_TAG_TPM_EVENT_LOG, 24);
+        write(p, &tpm_dst.to_le_bytes());
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
+        p
+    });
+    let cc_tag_pa = cc.as_ref().map(|t| {
+        let (size, flags) = t.record();
+        let p = info.tag(MB2_TAG_CC_EVENT_LOG, 24);
+        write(p, &cc_dst.to_le_bytes());
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
+        p
+    });
+    // Firmware starts a TD's APs on its own page tables: the kernel's AP
+    // trampoline goes on a page they map executable.
+    if shared != 0 {
+        let page = alloc_code_page();
+        write(info.tag(MB2_TAG_TDX_AP_PAGE, 8), &page.to_le_bytes());
+    }
+    let trampoline = if la57 {
+        handoff_code_la57(&Handoff {
+            cr3: root,
+            rdi: MB_MAGIC,
+            rsi: info.base,
+            rdx: mask,
+            rcx: if cpuid != 0 { cpuid_copy } else { 0 },
+            r8: delta,
+            entry,
+        })
+    } else {
+        handoff_code()
+    };
+    say!("fl4-efi: entering x86_64 kernel, SEV-SNP {}, TDX {}", cpuid != 0, shared != 0);
     let (mut size, mut key, mut stride, mut version) = (0, 0, 0, 0);
     if (bs().get_memory_map)(
         &mut size,
@@ -488,6 +706,18 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         if attempt == 7 {
             handoff_failed(attempt, "ExitBootServices");
         }
+    }
+    // No boot services: firmware's identity map and the final events
+    // table (ACPI NVS) are still there.
+    if let (Some(t), Some(p)) = (&tpm, tpm_tag_pa) {
+        let (size, flags) = t.finish(tpm_dst);
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
+    }
+    if let (Some(t), Some(p)) = (&cc, cc_tag_pa) {
+        let (size, flags) = t.finish(cc_dst);
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
     }
     unsafe {
         asm!(

@@ -121,15 +121,15 @@ theorem Sched.SlotsApart.grow {T N C R : Set U64} {c : U64} {s : S} {σ : Fl4Spe
 
 /-- **`JKern` at the grown heap**: `th`'s objects stay; the scheduler-action
 word and core 0's debug-list head word lie outside the window. -/
-theorem JKern.grow {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit}
-    (h : JKern (L := L) H Cs D th s σ) (hT : ThX th th' A k w n us)
+theorem JKern.grow {Aa : Type} {arI : machine.Arch Aa} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+    (h : JKern (L := L) arI H Cs D th s σ) (hT : ThX th th' A k w n us)
     (hks : ∀ kd, thKindN n us = some kd → objSize kd ≤ k) (hk0 : 0 < k)
     (hpos : ∀ q kd, th q = some kd → 0 < objSize kd) (hP' : Placed th')
     (hact : ¬ (A ≤ (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val ∧
       (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val < A + w * k))
     (hdw : ¬ (A ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
       (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val < A + w * k)) :
-    JKern (L := L) H Cs D th' s σ := by
+    JKern (L := L) arI H Cs D th' s σ := by
   refine { h with
     orig := fun sl hs => AbsSlot.thMono hT hk0 hpos (h.orig sl hs)
     curT := hT.mono hk0 hpos h.curT

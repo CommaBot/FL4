@@ -453,6 +453,8 @@ def archDecodeInvocation (label : Data) (args : List Data) (_xSlot : CapRef) (ct
   | .ioPortCap f l => decodePortInvocation label args (.ioPortCap f l)
   | .ioPortControlCap => decodeIoportControlInvocation label args cte cap (extraCaps.map Prod.fst)
   | .pml4Cap _a _b => NonDetE.throwError .illegalOperation
+  -- FL4 extension (#68): decoded by `Ext/Tdx` (`fl4ArchDecodeInvocation`), never here.
+  | .tdxControlCap => NonDetE.throwError .illegalOperation
 
 end
 

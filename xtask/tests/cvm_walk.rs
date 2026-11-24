@@ -1,5 +1,6 @@
-//! The SEV-SNP user #VC handler's page walk (fl4-kernel snp_walk.rs, used
-//! by snp.rs `user_vc`) on host page tables. The kernel reads the tables and
+//! The SEV-SNP user #VC and TDX user #VE handlers' page walk (fl4-kernel
+//! cvm_walk.rs, used by snp.rs `user_vc` and tdx.rs `user_ve`) on host page
+//! tables. The kernel reads the tables and
 //! the faulting instruction's bytes through its physical window
 //! (`pptr(pa)`), which maps only [0, window_top): above it lie a hole up to
 //! 510 GiB, the kernel image's alias at [510 GiB, 510 GiB + 32 MiB), and
@@ -8,9 +9,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 #[allow(dead_code)]
-#[path = "../../crates/fl4-kernel/src/snp_walk.rs"]
-mod snp_walk;
-use snp_walk::{translate, Access};
+#[path = "../../crates/fl4-kernel/src/cvm_walk.rs"]
+mod cvm_walk;
+use cvm_walk::{translate, Access};
 
 const GIB: u64 = 1 << 30;
 const USER_TOP: u64 = 0x0000_7fff_ffff_ffff;
@@ -48,7 +49,7 @@ impl Mem {
         self.words.insert(tables[3] + ((va >> 12) & 511) * 8, leaf);
     }
     fn walk(&self, va: u64, access: Access) -> Option<u64> {
-        translate(va, access, 0x1000 | C_BIT, C_BIT, USER_TOP, self.window_top, |pa| self.read(pa))
+        translate(va, access, 0x1000 | C_BIT, C_BIT, 0, USER_TOP, self.window_top, |pa| self.read(pa))
     }
     /// What `user_vc`'s `fetch` does: the byte at the instruction's
     /// physical address, read through the window.
@@ -122,7 +123,7 @@ fn tables_above_the_window_are_not_read() {
     }
     // The root itself.
     let m = Mem::new(window_top);
-    assert_eq!(translate(CODE, Access::Execute, (20 * GIB) | C_BIT, C_BIT, USER_TOP, window_top, |pa| m.read(pa)), None);
+    assert_eq!(translate(CODE, Access::Execute, (20 * GIB) | C_BIT, C_BIT, 0, USER_TOP, window_top, |pa| m.read(pa)), None);
     assert!(m.outside.borrow().is_empty());
 }
 
@@ -149,17 +150,118 @@ fn mmio_above_the_window_still_translates() {
     assert!(m.outside.borrow().is_empty());
 }
 
-/// snp.rs walks through snp_walk with the window's top, and `user_vc`
-/// reads instruction bytes only at what an Execute walk returned.
+/// snp.rs walks through cvm_walk with the window's top, and `user_vc` and
+/// the MMIO emulation it shares with TDX read instruction bytes only at what
+/// an Execute walk returned.
 #[test]
 fn user_vc_uses_the_bounded_walk() {
     let snp = include_str!("../../crates/fl4-kernel/src/snp.rs");
-    assert!(snp.contains("crate::snp_walk::translate("));
+    let mmio = include_str!("../../crates/fl4-kernel/src/cvm_mmio.rs");
+    assert!(snp.contains("crate::cvm_walk::translate("));
     assert!(snp.contains("crate::paging::window_top(),"));
     let fetch = &snp[snp.find("let fetch = |off| {").expect("fetch")..];
     let fetch = &fetch[..fetch.find("};").unwrap()];
     assert!(fetch.contains("translate(f.rip.checked_add(off)?, Access::Execute)?"));
     assert_eq!(snp.matches("pptr(pa)").count(), 2, "pptr(pa) used outside the walk's reader and fetch");
+    let fetch = &mmio[mmio.find("let fetch = |off| {").expect("fetch")..];
+    let fetch = &fetch[..fetch.find("};").unwrap()];
+    assert!(fetch.contains("translate(rip.checked_add(off)?, Access::Execute)?"));
+    assert_eq!(mmio.matches("pptr(pa)").count(), 1, "pptr(pa) used outside the fetch");
     let paging = include_str!("../../crates/fl4-kernel/src/paging.rs");
     assert!(paging.contains("WINDOW_TOP.store(window_top, Ordering::Release);"));
+}
+
+// Intel TDX: the shared bit (S-bit) marks shared leaves, so private is the
+// absence of a bit, and no bit may appear on a table pointer.
+const S_BIT_48: u64 = 1 << 47;
+const S_BIT_52: u64 = 1 << 51;
+
+fn td_walk(m: &Mem, s_bit: u64, va: u64, access: Access) -> Option<u64> {
+    translate(va, access, 0x1000, 0, s_bit, USER_TOP, m.window_top, |pa| m.read(pa))
+}
+
+/// An instruction fetch needs a private leaf and MMIO a shared one, for
+/// both TDX address widths, and neither result carries the S-bit.
+#[test]
+fn tdx_fetches_need_private_leaves_and_mmio_needs_shared_ones() {
+    for s_bit in [S_BIT_48, S_BIT_52] {
+        let frame = 0x20_0000;
+        let mut m = Mem::new(16 * GIB);
+        m.map(TABLES, CODE, frame | P | U);
+        assert_eq!(td_walk(&m, s_bit, CODE + 5, Access::Execute), Some(frame + 5));
+        assert_eq!(td_walk(&m, s_bit, CODE + 5, Access::Read), None, "MMIO to a private page");
+        m.map(TABLES, CODE, frame | s_bit | P | W | U | NX);
+        assert_eq!(td_walk(&m, s_bit, CODE + 5, Access::Read), Some(frame + 5));
+        assert_eq!(td_walk(&m, s_bit, CODE + 5, Access::Write), Some(frame + 5));
+        m.map(TABLES, CODE, frame | s_bit | P | U);
+        assert_eq!(td_walk(&m, s_bit, CODE, Access::Execute), None, "fetch from a shared page");
+        assert_eq!(td_walk(&m, s_bit, CODE, Access::Write), None, "read-only");
+        assert!(m.outside.borrow().is_empty());
+    }
+}
+
+/// Large leaves follow the same rule, and their offset survives.
+#[test]
+fn tdx_large_leaves_keep_the_visibility_rule() {
+    let mut m = Mem::new(16 * GIB);
+    m.words.insert(TABLES[0], TABLES[1] | P | W | U);
+    m.words.insert(TABLES[1], TABLES[2] | P | W | U);
+    m.words.insert(TABLES[2], (2 * GIB) | S_BIT_52 | P | W | U | PS | NX);
+    assert_eq!(td_walk(&m, S_BIT_52, 0x1234, Access::Read), Some(2 * GIB + 0x1234));
+    assert_eq!(td_walk(&m, S_BIT_52, 0x1234, Access::Execute), None);
+    m.words.insert(TABLES[1], GIB | P | U | PS);
+    assert_eq!(td_walk(&m, S_BIT_52, 0x1234, Access::Execute), Some(GIB + 0x1234));
+    assert_eq!(td_walk(&m, S_BIT_52, 0x1234, Access::Read), None);
+}
+
+/// A table pointer with the S-bit would be a table in memory the VMM can
+/// write: the walk stops there, at every level.
+#[test]
+fn tdx_table_pointers_with_the_shared_bit_are_not_followed() {
+    for level in 0..3 {
+        let mut m = Mem::new(16 * GIB);
+        m.map(TABLES, CODE, 0x20_0000 | P | U);
+        let slot = TABLES[level] + ((CODE >> [39, 30, 21][level]) & 511) * 8;
+        let e = m.words[&slot];
+        m.words.insert(slot, e | S_BIT_52);
+        assert_eq!(td_walk(&m, S_BIT_52, CODE, Access::Execute), None, "level {level}");
+        assert_eq!(td_walk(&m, S_BIT_52, CODE, Access::Read), None, "level {level}");
+    }
+}
+
+/// Under SEV the walk is unchanged: the C-bit marks private leaves.
+#[test]
+fn sev_still_needs_the_c_bit_for_fetches_only() {
+    let mut m = Mem::new(16 * GIB);
+    m.map(TABLES, CODE, 0x20_0000 | C_BIT | P | U);
+    assert_eq!(m.walk(CODE, Access::Execute), Some(0x20_0000));
+    assert_eq!(m.walk(CODE, Access::Read), None);
+    m.map(TABLES, CODE, 0x20_0000 | P | U);
+    assert_eq!(m.walk(CODE, Access::Execute), None);
+    assert_eq!(m.walk(CODE, Access::Read), Some(0x20_0000));
+}
+
+/// A TDX fetch or table read stays in the window too.
+#[test]
+fn tdx_instruction_bytes_above_the_window_are_never_read() {
+    let window_top = 16 * GIB;
+    for frame in [window_top, 510 * GIB, 512 * GIB, S_BIT_52 - 0x1000] {
+        let mut m = Mem::new(window_top);
+        m.map(TABLES, CODE, frame | P | U);
+        assert_eq!(td_walk(&m, S_BIT_52, CODE, Access::Execute), None, "{frame:#x}");
+        assert!(m.outside.borrow().is_empty());
+    }
+}
+
+/// tdx.rs walks with both masks, from the core's record of the user's
+/// tables (the kernel's CR3 is loaded by then under the skim window), and
+/// never trusts the GPA in the #VE information.
+#[test]
+fn user_ve_uses_the_bounded_walk_and_not_the_vmm_gpa() {
+    let tdx = include_str!("../../crates/fl4-kernel/src/tdx.rs");
+    let walk = &tdx[tdx.find("fn translate(").expect("translate")..];
+    let walk = &walk[..walk.find("\n}\n").unwrap()];
+    assert!(walk.contains("percpu::get().cr3.get()") && walk.contains("cvm::shared_mask()") && walk.contains("paging::window_top()"));
+    assert!(!tdx.contains("info.gpa"), "the kernel must not act on VEINFO.GPA");
+    assert!(!tdx.contains("info.gla"), "the kernel must not act on VEINFO.GLA");
 }

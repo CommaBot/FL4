@@ -125,7 +125,7 @@ theorem XTopAt.addStepC {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
       ⟨fun i hi => by rw [hist]; exact hIrq.st i hi, fun i hi => by rw [hin]; exact hIrq.node i hi⟩,
       fun p hp => by rw [har]; exact hIo p hp, ?_, by rw [har]; exact hAr⟩,
       { hP with disj := fun x hx => ?_ }⟩
-    · unfold KRootRel globCr3 at hKr ⊢
+    · unfold KRootRel KRootW HugeRel globCr3 at hKr ⊢
       rw [har]; exact hKr
     · rcases oobj_unionC hSch hA hx with hx | ⟨sc, hsc, hb⟩
       · exact hP.disj x hx

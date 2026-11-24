@@ -311,14 +311,14 @@ theorem range_ap (q b : U64) (hfit : q.val + 4096 ≤ 2 ^ 64) :
   omega
 
 /-- **`JKern` with the pool's page in `H`.** -/
-theorem JKern.addP {th : TypedHeap} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit} {p : U64}
-    (K : JKern (L := L) H Cs D th s σ) (A : P1.AddOKP st H (· = p) (.other 12) Cs s) :
-    JKern (L := L) (hAddP H p) Cs D th s σ := by
+theorem JKern.addP {Aa : Type} {arI : machine.Arch Aa} {th : TypedHeap} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit} {p : U64}
+    (K : JKern (L := L) arI H Cs D th s σ) (A : P1.AddOKP st H (· = p) (.other 12) Cs s) :
+    JKern (L := L) arI (hAddP H p) Cs D th s σ := by
   have hp : H p = none := A.fresh p rfl
   refine ⟨K.orig, K.cur, K.curT, K.act, K.dwAl, K.dwObj, K.dwNe, K.head, K.gpm, K.ga, K.gf, heapOK_addP A K.heap,
     by rw [hAddP_ne (Ne.symm (A.nz p rfl))]; exact K.h0, fun q k hq hk => K.hks q k ((hAddP_iff hk hp).1 hq) hk,
     fun q z hq => ?_, fun q k hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs,
-    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0⟩
+    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0, K.tdx⟩
   · rcases hAddP_cases hq with ⟨rfl, e⟩ | ⟨-, hq⟩
     · cases e
       rcases A.ks _ rfl with e | e
@@ -971,8 +971,8 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     by_cases e : sl = (pd.bv, idxd)
     · right; rw [e]; exact hAd
     · left; rw [← horig sl e]; exact h
-  have hkern : JKern (L := L) (hAddP H p) Cs D Z.th s' σ' :=
-    (J.kern_keep hks hcpu hS' F.ct F.csc horig' F.gpml4 (fun _ _ h => F.arch h) hDbg).addP Ad'
+  have hkern : JKern (L := L) arI (hAddP H p) Cs D Z.th s' σ' :=
+    (J.kern_keep hks hcpu hS' F.ct F.csc horig' (by rw [F.gpml4, hMs.1.huge]) (fun _ _ h => F.arch h) hDbg).addP Ad'
   have hutc := J.mp_utc hh hpp hidx hsrc0 hnch hpd hld hnull (hDL.live _) hsrc hdst hcap hw hzero hcdt horig F.gpml4 hM' hDbg
   have hblk := J.mpBlkAfter Ad hHo hh hw
   have hJC : JCs (L := L) (Z.mp G' p) s' σ' :=

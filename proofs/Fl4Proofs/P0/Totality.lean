@@ -27,6 +27,10 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   vcpu_capability : ∀ a f, ar.vcpu_capability a f ⦃ _ => True ⦄
   vcpu_barrier : ∀ a, ar.vcpu_barrier a ⦃ _ => True ⦄
   invalidate_ept : ∀ a r m, ar.invalidate_ept a r m ⦃ _ => True ⦄
+  tdx_active : ∀ a, ar.tdx_active a ⦃ _ => True ⦄
+  tdx_report : ∀ a f d0 d1 d2 d3 d4 d5 d6 d7, ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄
+  tdx_extend_rtmr : ∀ a i d0 d1 d2 d3 d4 d5, ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄
+  tdx_get_quote : ∀ a f n, ar.tdx_get_quote a f n ⦃ _ => True ⦄
   now : ∀ a, ar.now a ⦃ _ => True ⦄
   set_deadline : ∀ a t, ar.set_deadline a t ⦃ _ => True ⦄
   us_to_ticks : ∀ a x, ar.us_to_ticks a x ⦃ _ => True ⦄
@@ -81,6 +85,10 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.vcpu_capability_spec (h : ArchTotal ar) a f : ar.vcpu_capability a f ⦃ _ => True ⦄ := h.vcpu_capability a f
 @[step] theorem ArchTotal.vcpu_barrier_spec (h : ArchTotal ar) a : ar.vcpu_barrier a ⦃ _ => True ⦄ := h.vcpu_barrier a
 @[step] theorem ArchTotal.invalidate_ept_spec (h : ArchTotal ar) a r m : ar.invalidate_ept a r m ⦃ _ => True ⦄ := h.invalidate_ept a r m
+@[step] theorem ArchTotal.tdx_active_spec (h : ArchTotal ar) a : ar.tdx_active a ⦃ _ => True ⦄ := h.tdx_active a
+@[step] theorem ArchTotal.tdx_report_spec (h : ArchTotal ar) a f d0 d1 d2 d3 d4 d5 d6 d7 : ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄ := h.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7
+@[step] theorem ArchTotal.tdx_extend_rtmr_spec (h : ArchTotal ar) a i d0 d1 d2 d3 d4 d5 : ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄ := h.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5
+@[step] theorem ArchTotal.tdx_get_quote_spec (h : ArchTotal ar) a f n : ar.tdx_get_quote a f n ⦃ _ => True ⦄ := h.tdx_get_quote a f n
 @[step] theorem ArchTotal.now_spec (h : ArchTotal ar) a : ar.now a ⦃ _ => True ⦄ := h.now a
 @[step] theorem ArchTotal.set_deadline_spec (h : ArchTotal ar) a t : ar.set_deadline a t ⦃ _ => True ⦄ := h.set_deadline a t
 @[step] theorem ArchTotal.us_to_ticks_spec (h : ArchTotal ar) a x : ar.us_to_ticks a x ⦃ _ => True ⦄ := h.us_to_ticks a x
@@ -195,6 +203,76 @@ elab "p0_ite_head" : tactic => withMainContext do
       evalTactic (← `(tactic| apply p0_if_bind <;> intro))
     else throwError "bind head is not an if"
   else throwError "head is not an if"
+open Lean Elab Tactic Meta in
+/-- One step of reduction of `e`: beta / a matcher on a constructor
+(`whnfCore`), else the matcher unfolded (default transparency) and then
+`whnfCore`: Fl4Core's matchers do not reduce by `whnfCore` alone. -/
+def p0RedStep (e : Expr) : MetaM (Option Expr) := do
+  let e1 ← whnfCore e
+  if e1 != e then return some e1
+  let fn := e.getAppFn
+  if let .const n _ := fn then
+    -- Aeneas's `let (x, y) := p` is `uncurry (fun x y => ..) p`: unfold it,
+    -- and the projections of a pair reduce.
+    if n.isStr && n.getString! == "uncurry" then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let e3 ← whnfCore e2
+        if e3 != e then return some e3
+    if (← isMatcher n) || (n.isStr && n.getString!.startsWith "match_") then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let mut e3 ← whnfCore e2
+        -- `Prod.casesOn` and the like: unfold to the recursor, which
+        -- `whnfCore` reduces on a constructor.
+        for _ in [0:3] do
+          if let .const n' _ := e3.getAppFn then
+            if n'.isStr && n'.getString! == "casesOn" then
+              if let some e4 ← withTransparency .default (unfoldDefinition? e3) then
+                e3 ← whnfCore e4
+        -- Only when it reduced to an alternative, not to a stuck recursor.
+        let stuck := match e3.getAppFn with
+          | .const n' _ => n'.isStr && (n'.getString! == "rec" || n'.getString! == "casesOn")
+          | _ => false
+        if e3 != e && !stuck then return some e3
+  return none
+
+open Lean Elab Tactic Meta in
+/-- Reduce (beta, matcher on a constructor) the program of a spec goal, or
+the first action of its leading bind: the `let (x, y) := (a, b)` that
+casing a pair leaves (#71's `?` chains). Fails if nothing changes. -/
+elab "p0_whnf_head" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let i := args.size - 2
+  let program := args[i]!
+  let program' ← match ← p0RedStep program with
+    | some p1 => pure p1
+    | none =>
+      if program.isAppOf ``Aeneas.Std.bind then do
+        let pargs := program.getAppArgs
+        let j := pargs.size - 2
+        let some m' ← p0RedStep pargs[j]! | throwError "p0_whnf_head: no change"
+        pure (mkAppN program.getAppFn (pargs.set! j m'))
+      else throwError "p0_whnf_head: no change"
+  let newT := mkAppN target.getAppFn (args.set! i program')
+  liftMetaTactic fun g => do return [← g.replaceTargetDefEq newT]
+open Lean Elab Tactic Meta in
+/-- `simp only [m]` for the matcher `m` heading the program of a spec goal
+or the first action of its leading bind (a `let (x, y) := (a, b)` left by
+casing a pair: its equation lemma reduces it). -/
+elab "p0_unfold_match" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let program := args[args.size - 2]!
+  let cands := [program] ++
+    (if program.isAppOf ``Aeneas.Std.bind then [program.getAppArgs[program.getAppNumArgs - 2]!] else [])
+  for e in cands do
+    if let .const n _ := e.getAppFn then
+      if (← isMatcher n) then
+        evalTactic (← `(tactic| simp only [$(mkIdent n):ident]))
+        return
+  throwError "p0_unfold_match: no matcher at the head"
 macro "p0_structural" : tactic => `(tactic| (
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;> p0_close))
 
@@ -205,6 +283,22 @@ macro "p0_data" : tactic => `(tactic| (
 /-- The fallback for large matches on literals, where `step*` times out in
 `whnf`: split the matches explicitly. -/
 macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | (simp only [bind_tc_ok, bind_ok]) | split | p0_cases_prod)) <;> p0_close))
+
+open Lean Elab Tactic Meta in
+/-- A spec goal whose program is `bind m k` with `m` headed by a matcher
+(#71's 24-case cap matches binding a `bool`): prove `m` total by splitting
+it alone, then go on with `k` on an abstract value, so the rest of the
+body is not copied into each case. -/
+elab "p0_bind_match" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let program := args[args.size - 2]!
+  unless program.isAppOf ``Aeneas.Std.bind do throwError "not a bind"
+  let m := program.getAppArgs[program.getAppNumArgs - 2]!
+  let .const n _ := m.getAppFn | throwError "no const head"
+  unless (← isMatcher n) do throwError "bind head is not a matcher"
+  evalTactic (← `(tactic| (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro _ _)))
 
 /-- The fallback for a match on the arguments with a call in each branch:
 split the outer matches, then step through each branch. -/

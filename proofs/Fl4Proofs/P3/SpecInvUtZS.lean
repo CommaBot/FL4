@@ -68,9 +68,22 @@ def FpuI (w : UView) : Fl4TcbInvocation → Prop
   | .fpuTransfer _ true frame => ∃ p c, w.2.1 p = some c ∧ FrameIn c frame
   | _ => True
 
+/-- #68: the `n` bytes at `frame` lie in the page of the page cap `c` (the TD
+module writes them: GetReport's TDREPORT, GetQuote's quote). -/
+def TdxFrameIn (c : Cap) (frame : Word) (n : Nat) : Prop :=
+  ∃ (dev : Bool) (R : VMRights) (mt : VMMapType) (sz : VMPageSize) (mp : Option (Asid × VSpaceRef)),
+    c = .archObjectCap (.pageCap dev frame R mt sz mp) ∧ n ≤ 2 ^ pageBitsForSize sz
+
+/-- #68: the decode's fact for the TDX frame writes: the frame lies in a cap of the view. -/
+def TdxI (w : UView) : Fl4TdxInvocation → Prop
+  | .getReport f _ => ∃ p c, w.2.1 p = some c ∧ TdxFrameIn c f 0x1000
+  | .extendRtmr _ _ => True
+  | .getQuote f len => ∃ p c, w.2.1 p = some c ∧ TdxFrameIn c f (unat len)
+
 /-- The decode's facts the hand-written performs need. -/
 def InvZ (w : UView) : Fl4Invocation → Prop
   | .invokeFl4TCB i => FpuI w i
+  | .invokeArchObject (.tdx i) => TdxI w i
   | _ => True
 
 theorem the_head {α : Type} [Nonempty α] {l : List α} (h : l ≠ []) : ∃ x ∈ l, the l[0]? = x := by
@@ -137,6 +150,79 @@ theorem okv_fl4TcbExt {w : UView} (l : Fl4TcbExtLabel) (args : List Data) (t : O
       | (unfold decodeFl4ConfigureSingleStepping; okz_auto)
       | (unfold decodeFl4SetTimer; okz_auto)
 
+theorem tdx_report_frame_in {c : Cap} {p : ObjRef} (h : tdxReportFrame c = some p) : TdxFrameIn c p 0x1000 := by
+  unfold tdxReportFrame at h
+  split at h
+  · split at h
+    · cases h
+      exact ⟨_, _, _, _, _, rfl, by simp [pageBitsForSize, pageBits]⟩
+    · cases h
+  · cases h
+
+theorem tdx_quote_frame_in {c : Cap} {p : ObjRef} {n : Nat} (h : tdxQuoteFrame c = some (p, n)) :
+    TdxFrameIn c p n := by
+  unfold tdxQuoteFrame at h
+  split at h
+  · split at h
+    · cases h
+      exact ⟨_, _, _, _, _, rfl, by simp [pageBitsForSize, pageBits]⟩
+    · cases h
+  · split at h
+    · cases h
+      exact ⟨_, _, _, _, _, rfl, by simp [pageBitsForSize, pageBits, ptTranslationBits]⟩
+    · cases h
+  · cases h
+
+theorem TdxFrameIn.mono {c : Cap} {p : ObjRef} {n m : Nat} (h : TdxFrameIn c p n) (hm : m ≤ n) : TdxFrameIn c p m := by
+  obtain ⟨d, R, mt, sz, mp, e, hn⟩ := h
+  exact ⟨d, R, mt, sz, mp, e, by omega⟩
+
+set_option maxHeartbeats 4000000 in
+/-- #68: the TDX decode's frames lie in caps of the view. -/
+theorem okv_decodeTdx {w : UView} (label : Data) (args : List Data) (ex : List (Cap × CslotPtr))
+    (hex : ∀ p ∈ ex, w.2.1 p.2 = some p.1) :
+    OkV w (TdxI w) (decodeTdxInvocation (Z := Unit) label args ex) := by
+  unfold decodeTdxInvocation NonDetE.unlessE
+  refine okv_bind_uk (fun v => by uk_auto) (fun plat => ?_)
+  dsimp only
+  split
+  · refine okv_returnOk_bind (okv_ite ?_ (okv_ite ?_ (okv_ite ?_ (okv_throw _))))
+    · unfold NonDetE.whenE
+      split
+      · exact okv_throw_bind _
+      rename_i h0
+      refine okv_returnOk_bind ?_
+      have hne : ex ≠ [] := fun e => h0 (Or.inr e)
+      obtain ⟨⟨c0, s0⟩, he0, he⟩ := the_head hne
+      rw [he]
+      dsimp only
+      split
+      · rename_i p hp
+        exact okv_returnOk ⟨s0, c0, hex _ he0, tdx_report_frame_in hp⟩
+      · exact okv_throw _
+    · unfold NonDetE.whenE
+      okz_auto
+    · unfold NonDetE.whenE
+      split
+      · exact okv_throw_bind _
+      rename_i h0
+      refine okv_returnOk_bind ?_
+      have hne : ex ≠ [] := fun e => h0 (Or.inr e)
+      obtain ⟨⟨c0, s0⟩, he0, he⟩ := the_head hne
+      rw [he]
+      dsimp only
+      split
+      · rename_i p n hp
+        split
+        · refine okv_returnOk_bind ?_
+          split
+          · rename_i hl
+            exact okv_returnOk_bind (okv_returnOk ⟨s0, c0, hex _ he0, (tdx_quote_frame_in hp).mono hl.2.2⟩)
+          · exact okv_throw_bind _
+        · exact okv_throw_bind _
+      · exact okv_throw _
+  · exact okv_throw_bind _
+
 set_option maxHeartbeats 8000000 in
 /-- **The decode's facts** (the ReadFPU frame). -/
 theorem okv_fl4Decode_z {w : UView} (fp : Bool) (label : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
@@ -152,6 +238,16 @@ theorem okv_fl4Decode_z {w : UView} (fp : Bool) (label : Data) (args : List Data
     · split
       · exact okv_liftME (P := InvZ w) (okv_fl4TcbExt _ _ _ _ _ hex)
       · exact okv_liftME (okv_triv fun _ => trivial)
+  | archObjectCap a =>
+    unfold fl4DecodeInvocation
+    refine okv_liftME (P := InvZ w) ?_
+    cases a with
+    | tdxControlCap =>
+      simp only [fl4ArchDecodeInvocation]
+      exact okv_liftME (okv_decodeTdx label args ex hex)
+    | _ =>
+      simp only [fl4ArchDecodeInvocation]
+      repeat' (first | exact okv_liftME (okv_triv fun _ => trivial) | (refine okv_ite ?_ ?_))
   | _ =>
     unfold fl4DecodeInvocation
     repeat' (first
@@ -260,11 +356,12 @@ theorem yk_archPerformInvocation {D : PgSet} {F : Set Nat} (ai : ArchInvocation)
 
 macro_rules | `(tactic| yk_leaf) => `(tactic| with_reducible exact yk_archPerformInvocation _)
 
-theorem yk_fl4ArchPerformInvocation {D : PgSet} {F : Set Nat} (fa : Fl4ArchInvocation) :
-    YKE D F (fl4ArchPerformInvocation (Z := Unit) fa) := by
-  cases fa <;> simp only [fl4ArchPerformInvocation] <;> yk_auto
-
-macro_rules | `(tactic| yk_leaf) => `(tactic| with_reducible exact yk_fl4ArchPerformInvocation _)
+/-- The arch performs but the TDX frame writes (`zr_tdx`). -/
+theorem yk_fl4ArchPerformInvocation {D : PgSet} {F : Set Nat} (fa : Fl4ArchInvocation)
+    (hT : ∀ i, fa ≠ .tdx i) : YKE D F (fl4ArchPerformInvocation (Z := Unit) fa) := by
+  cases fa with
+  | tdx i => exact absurd rfl (hT i)
+  | _ => simp only [fl4ArchPerformInvocation]; yk_auto
 
 theorem hu_setCap_bind_dead {U : UtSet} {β : Type} (cap : Cap) (sl : CslotPtr) {k : Unit → NonDet (State Unit) β}
     (hk : ∀ a, IKH (HU U) (k a))
@@ -345,6 +442,67 @@ theorem hu_fl4ArchPerformInvocation {U : UtSet} (fa : Fl4ArchInvocation) :
   cases fa <;> simp only [fl4ArchPerformInvocation] <;> hv_auto
 
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact hu_fl4ArchPerformInvocation _)
+
+/-! ## The TDX frame writes (#68) -/
+
+theorem mem_tdxFrameWrite {base : Word} {n : Nat} {ms : MachineState} {x : Unit × MachineState}
+    (hx : x ∈ (tdxFrameWrite base n ms).1) (a : Word) (hne : x.2.underlyingMemory a ≠ ms.underlyingMemory a) :
+    ∃ i < n, a = base + BitVec.ofNat 64 i := by
+  unfold tdxFrameWrite at hx
+  obtain ⟨y, hy, hx⟩ := hx
+  rw [Set.mem_singleton_iff.1 hy] at hx
+  obtain ⟨z, ⟨hz, rfl⟩, hx⟩ := hx
+  rw [Set.mem_singleton_iff.1 hx] at hne
+  by_contra hlt
+  exact hne (hz a hlt)
+
+/-- **The bytes of a TDX frame miss every free part** (ut4's `CapFreeV`). -/
+theorem tdx_bytes_free {σ : State Unit} (hC : CapFreeV (uV σ)) {p : CslotPtr} {c : Cap}
+    (hp : (uV σ).2.1 p = some c) {frame : Word} {n : Nat} (hF : TdxFrameIn c frame n) (a : Word)
+    (ha : ∃ i < n, a = frame + BitVec.ofNat 64 i) : a.toNat ∉ FU (HasU σ) := by
+  rintro ⟨b, m, f, ⟨p', cref, hc'⟩, hfa⟩
+  obtain ⟨dev, R, mt, sz, mp, rfl, hb⟩ := hF
+  have hu : (uV σ).2.1 (p', cref) = some (.untypedCap false b m f) := by
+    show SInvU.capAt σ (p', cref) = _; rw [capAt_capOpt]; exact hc'
+  obtain ⟨i, hi, rfl⟩ := ha
+  exact hC _ _ _ _ _ hu _ _ _ hp ⟨i, by omega, rfl⟩ hfa
+
+theorem tdxStatus_state {s : State Unit} {z : List Data × State Unit} (h : z ∈ (tdxStatus (Z := Unit) s).1) :
+    z.2 = s := by
+  unfold tdxStatus at h
+  obtain ⟨y, ⟨-, rfl⟩, h⟩ := h
+  rw [Set.mem_singleton_iff.1 h]
+
+set_option maxHeartbeats 4000000 in
+/-- **The TDX performs keep `ZR`**, the frames' bytes outside the free parts. -/
+theorem zr_tdx (i : Fl4TdxInvocation) (σ : State Unit) (hZ : ZR σ) (hC : CapFreeV (uV σ))
+    (hF : TdxI (uV σ) i) : ∀ y ∈ ((fl4ArchPerformInvocation (Z := Unit) (.tdx i)).run σ).1, ZR y.2 := by
+  have hS := zs_canon hZ
+  have hH : IKHE (HU (HasU σ)) (fl4ArchPerformInvocation (Z := Unit) (.tdx i)) := hu_fl4ArchPerformInvocation _
+  have hY : IKp (YP (PgOf σ) (FU (HasU σ))) σ ((fl4ArchPerformInvocation (Z := Unit) (.tdx i)).run) := by
+    cases i with
+    | extendRtmr _ _ =>
+      exact ikp_of_ik (by simp only [fl4ArchPerformInvocation, performTdxInvocation, tdxStatus]; yk_auto) σ
+    | getReport f d =>
+      obtain ⟨p, c, hp, hFc⟩ := hF
+      simp only [fl4ArchPerformInvocation, performTdxInvocation]
+      intro h y hy
+      obtain ⟨z, hz, rfl⟩ := mem_liftE' hy
+      obtain ⟨z1, hz1, hz⟩ := hz
+      rw [tdxStatus_state hz]
+      exact ikp_dmo_w σ (fun x hx a hne ha => absurd ha
+        (tdx_bytes_free hC hp hFc a (mem_tdxFrameWrite hx a hne))) h z1 hz1
+    | getQuote f l =>
+      obtain ⟨p, c, hp, hFc⟩ := hF
+      simp only [fl4ArchPerformInvocation, performTdxInvocation]
+      intro h y hy
+      obtain ⟨z, hz, rfl⟩ := mem_liftE' hy
+      obtain ⟨z1, hz1, hz⟩ := hz
+      rw [tdxStatus_state hz]
+      exact ikp_dmo_w σ (fun x hx a hne ha => absurd ha
+        (tdx_bytes_free hC hp hFc a (mem_tdxFrameWrite hx a hne))) h z1 hz1
+  intro y hy
+  exact ⟨HasU σ, PgOf σ, hS.1, hH σ hS.2.1 y hy, hY hS.2.2 y hy⟩
 
 end
 

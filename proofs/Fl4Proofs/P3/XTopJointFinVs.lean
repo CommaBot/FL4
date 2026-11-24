@@ -410,7 +410,7 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (F : ArFr σ σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    JKern (L := L) H Cs D Z.th s' σ' := by
+    JKern (L := L) arI H Cs D Z.th s' σ' := by
   have K := J.kern
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -439,7 +439,7 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.tdx.frame F.plat⟩
   rw [hna, hDbg]; exact K.head
 
 set_option maxHeartbeats 16000000 in

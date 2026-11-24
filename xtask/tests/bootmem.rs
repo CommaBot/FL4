@@ -208,3 +208,132 @@ fn ram_past_the_list_is_reported_lost() {
     full.remove(MIB, 2 * MIB);
     assert!(full.lost);
 }
+
+const UNACCEPTED: u32 = bootmem::UNACCEPTED;
+
+/// Only unaccepted entries count, in whole pages, clipped to the window.
+#[test]
+fn unaccepted_ranges_are_whole_pages_inside_the_window() {
+    let top = 4 << 30;
+    let r = bootmem::unaccepted(
+        [
+            (0, 2 * MIB, UNACCEPTED),
+            (16 * MIB, 16 * MIB, 1),
+            (64 * MIB + 1, 8 * MIB, UNACCEPTED),
+            (top - MIB, 4 * MIB, UNACCEPTED),
+            (top + MIB, MIB, UNACCEPTED),
+            (128 * MIB, MIB, 2),
+        ],
+        MIB,
+        top,
+    );
+    assert_eq!(list(&r), [(MIB, 2 * MIB), (64 * MIB + 4096, 72 * MIB), (top - MIB, top)]);
+    assert!(!r.lost);
+}
+
+/// Unaccepted memory the kernel did not accept stays out of RAM, and its
+/// removal keeps it out of device memory, up to the device top.
+#[test]
+fn unaccepted_memory_past_the_window_is_no_device_memory() {
+    let window = 4 << 30;
+    let entries = [(0x10_0000, 16 * MIB, 1), (window - MIB, 8 * MIB, UNACCEPTED)];
+    let ram = bootmem::ram(entries, MIB, window);
+    assert_eq!(list(&ram), [(MIB, 17 * MIB)]);
+    let mut dev = bootmem::device(&ram, TOP, []);
+    assert!(overlaps(&dev, window - MIB, window + 7 * MIB), "the map alone leaves it in device memory");
+    dev.remove(window - MIB, window + 7 * MIB);
+    assert!(!overlaps(&dev, window - MIB, window + 7 * MIB));
+}
+
+fn region(start: u64, end: u64) -> Region {
+    Region { start, end }
+}
+
+fn chunks(ranges: &[Region], chunk: u64) -> Vec<(u64, u64)> {
+    (0..).map_while(|i| bootmem::chunk_of(ranges, i, chunk)).collect()
+}
+
+/// The pieces cores take are exactly the ranges, cut at chunk multiples.
+#[test]
+fn accept_chunks_partition_the_ranges() {
+    let c = 64 * MIB;
+    let ranges = [region(MIB, 3 * MIB), region(60 * MIB, 200 * MIB), region(256 * MIB, 320 * MIB)];
+    assert_eq!(
+        chunks(&ranges, c),
+        [
+            (MIB, 3 * MIB),
+            (60 * MIB, 64 * MIB),
+            (64 * MIB, 128 * MIB),
+            (128 * MIB, 192 * MIB),
+            (192 * MIB, 200 * MIB),
+            (256 * MIB, 320 * MIB),
+        ]
+    );
+    let total: u64 = chunks(&ranges, c).iter().map(|(s, e)| e - s).sum();
+    assert_eq!(total, ranges.iter().map(|r| r.end - r.start).sum::<u64>());
+    assert_eq!(bootmem::chunk_of(&ranges, 6, c), None);
+    assert_eq!(bootmem::chunk_of(&ranges, u64::MAX, c), None);
+    assert_eq!(bootmem::chunk_of(&[], 0, c), None);
+    assert_eq!(chunks(&[region(5 * MIB, 5 * MIB), region(c, c + 1)], c), [(c, c + 1)]);
+}
+
+/// The MADT's mailbox address comes from the VMM: only a whole page of
+/// firmware's reserved, ACPI reclaim or NVS memory, inside the window, is
+/// used.
+#[test]
+fn the_wakeup_mailbox_must_be_a_firmware_page() {
+    let top = 4 << 30;
+    let map = [(0x10_0000, 16 * MIB, 1), (0x7f00_0000, 0x4000, 4), (0x7f80_0000, 0x1000, 2), (0x8000_0000, 0x1000, 3), (0x9000_0000, 0x4000, UNACCEPTED)];
+    assert!(bootmem::mailbox_ok(0x7f00_0000, top, map));
+    assert!(bootmem::mailbox_ok(0x7f00_3000, top, map));
+    assert!(bootmem::mailbox_ok(0x7f80_0000, top, map));
+    assert!(bootmem::mailbox_ok(0x8000_0000, top, map));
+    for bad in [
+        0,
+        0x7f00_0800,                // off a page
+        0x20_0000,                  // RAM
+        0x9000_1000,                // unaccepted RAM
+        0x7f00_4000,                // just past the entry
+        0x7f7f_f000,                // in a hole
+        u64::MAX & !0xfff,
+    ] {
+        assert!(!bootmem::mailbox_ok(bad, top, map), "{bad:#x}");
+    }
+    // Past the window the kernel cannot reach it.
+    assert!(!bootmem::mailbox_ok(0x7f00_0000, 0x7f00_0000, map));
+    assert!(bootmem::mailbox_ok(0x7f00_0000, 0x7f00_1000, map));
+}
+
+/// The count that lets idle cores stop taking pieces is exactly how many
+/// there are.
+#[test]
+fn the_chunk_count_is_the_number_of_pieces() {
+    let c = 64 * MIB;
+    for ranges in [
+        vec![],
+        vec![region(5 * MIB, 5 * MIB)],
+        vec![region(MIB, 3 * MIB)],
+        vec![region(0, c)],
+        vec![region(c - 1, c + 1)],
+        vec![region(MIB, 3 * MIB), region(60 * MIB, 200 * MIB), region(256 * MIB, 320 * MIB)],
+    ] {
+        let n = bootmem::chunk_count(&ranges, c);
+        assert_eq!(n, chunks(&ranges, c).len() as u64, "{ranges:?}");
+        assert_eq!(bootmem::chunk_of(&ranges, n, c), None);
+    }
+}
+
+#[test]
+fn the_memory_type_of_a_page_needs_one_entry_to_hold_it() {
+    let map = [(0x10_0000, 0x2000, 1), (0x10_2000, 0x1000, 4), (0x20_0000, 0x1800, 3)];
+    assert_eq!(bootmem::mmap_type_of(0x10_0000, map), Some(1));
+    assert_eq!(bootmem::mmap_type_of(0x10_1000, map), Some(1));
+    assert_eq!(bootmem::mmap_type_of(0x10_2000, map), Some(4));
+    assert_eq!(bootmem::mmap_type_of(0x20_0000, map), Some(3));
+    // Across two entries, past an entry's end, in a hole, at the top.
+    assert_eq!(bootmem::mmap_type_of(0x10_1800, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x20_1000, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x30_0000, map), None);
+    assert_eq!(bootmem::mmap_type_of(u64::MAX & !0xfff, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x10_0000, []), None);
+}

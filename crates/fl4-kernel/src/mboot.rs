@@ -16,6 +16,19 @@ const MODULE_NAME_LEN: usize = 64;
 const BOOT_MAP_TOP: u64 = 1 << 32;
 /// Multiboot 1 information up to the framebuffer type byte.
 const MB1_INFO_LEN: u64 = 110;
+/// FL4's Multiboot 2 tag for the UEFI TPM event log (fl4-efi x86.rs):
+/// physical address, size, flags, eight bytes each.
+pub const MB2_TAG_TPM_EVENT_LOG: u32 = 0x464c_3401;
+/// FL4's Multiboot 2 tag for the UEFI confidential-computing event log
+/// (fl4-efi ccel.rs): physical address, size, flags, eight bytes each.
+pub const MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402;
+/// FL4's Multiboot 2 tag for a TDX guest's AP wakeup page (fl4-efi x86.rs):
+/// the physical address of a page of loader code.
+pub const MB2_TAG_TDX_AP_PAGE: u32 = 0x464c_3403;
+/// The longest event log taken, TPM or CC (fl4-efi tcg2.rs `MAX_EVENT_LOG`).
+pub const MAX_TPM_LOG: u64 = 1 << 20;
+/// Where an event log may start: past the first MiB.
+const EVENT_LOG_MIN: u64 = 0x10_0000;
 
 /// Whether `[p, p + len)` lies in the boot mapping.
 fn inside(p: u64, len: u64) -> bool {
@@ -59,6 +72,21 @@ pub struct BootInfo {
     pub cmdline_len: u64,
     /// The framebuffer the boot loader set up, if any.
     pub fb: Option<Framebuffer>,
+    /// The TPM event log fl4-efi copied, if any.
+    pub tpm_log: Option<EventLog>,
+    /// The confidential-computing event log fl4-efi copied, if any.
+    pub cc_log: Option<EventLog>,
+    /// A TDX guest's AP wakeup page, if the loader made one.
+    pub tdx_ap_page: Option<u64>,
+}
+
+/// An event log in boot loader memory (seL4_TpmEventLog's and
+/// seL4_CcEventLog's fields).
+#[derive(Clone, Copy)]
+pub struct EventLog {
+    pub paddr: u64,
+    pub size: u64,
+    pub flags: u64,
 }
 
 /// seL4's `multiboot2_fb_t`.
@@ -168,8 +196,16 @@ pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
     }
 }
 
+/// An event log tag's fields, if it has a size in range and lies in the
+/// boot mapping above low memory, which the APs' boot code overwrites
+/// before the kernel copies the log (lib.rs).
+fn event_log(t: u64) -> Option<EventLog> {
+    let log = EventLog { paddr: rd64(t + 8), size: rd64(t + 16), flags: rd64(t + 24) };
+    (log.size > 0 && log.size <= MAX_TPM_LOG && log.paddr >= EVENT_LOG_MIN && inside(log.paddr, log.size)).then_some(log)
+}
+
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None, tpm_log: None, cc_log: None, tdx_ap_page: None };
     if magic == MB1_MAGIC {
         if !inside(info, MB1_INFO_LEN) {
             return None;
@@ -237,6 +273,24 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
             14 | 15 if size >= 8 + if ty == 14 { 20 } else { 36 } => {
                 if b.rsdp.is_none() || ty == 15 {
                     b.rsdp = Some(t + 8);
+                }
+            }
+            MB2_TAG_TPM_EVENT_LOG if size >= 32 => {
+                b.tpm_log = event_log(t);
+                if b.tpm_log.is_none() {
+                    crate::kprintln!("FL4: TPM event log tag out of range: ignored");
+                }
+            }
+            MB2_TAG_CC_EVENT_LOG if size >= 32 => {
+                b.cc_log = event_log(t);
+                if b.cc_log.is_none() {
+                    crate::kprintln!("FL4: CC event log tag out of range: ignored");
+                }
+            }
+            MB2_TAG_TDX_AP_PAGE if size >= 16 => {
+                let page = rd64(t + 8);
+                if page != 0 && page & 0xfff == 0 && inside(page, 4096) {
+                    b.tdx_ap_page = Some(page);
                 }
             }
             _ => {}

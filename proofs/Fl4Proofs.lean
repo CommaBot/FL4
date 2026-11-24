@@ -77,6 +77,7 @@ import Fl4Proofs.P1.QueueInvAll
 import Fl4Proofs.P1.QueueDecSc
 import Fl4Proofs.P1.QueueDecDom
 import Fl4Proofs.P1.QueueDecCnode
+import Fl4Proofs.P1.QueueDecTdx
 import Fl4Proofs.P1.QueueEntryGaps
 import Fl4Proofs.P1.QueueYield
 import Fl4Proofs.P1.QueueHeapDrop

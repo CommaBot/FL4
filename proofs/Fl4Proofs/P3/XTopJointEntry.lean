@@ -83,6 +83,7 @@ import Fl4Proofs.P3.UtDevReset
 import Fl4Proofs.P3.XTopJointFaultTmo
 import Fl4Proofs.P3.MpDirtyJ
 import Fl4Proofs.P3.BufJ
+import Fl4Proofs.P3.XTopJointTdx
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -671,6 +672,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Se
         argsU ci sl excaps buffer ct)
   | .IrqControl => True
   | .IoPortControl => True
+  | .TdxControl => True
   | .IrqHandler _ => True
   | .Domain => True
   | .SchedContext p sb =>
@@ -857,6 +859,11 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
+  case TdxControl =>
+    subst hLb
+    exact (decode_invocation_tdxJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl length buf ct hct argsU hlen
+      hargs extra excaps (ExtraOK.rel1 hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toPN arI
+      (specDec_noPreK (by trivial))
   case IoPortControl =>
     subst hLb
     have hex := ExtraOK.rel1 hPl hXO

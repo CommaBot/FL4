@@ -21,10 +21,21 @@ pub struct Info {
     pub n_ioapics: usize,
     /// The MADT lists more IOAPICs than `ioapics` holds.
     pub ioapics_lost: bool,
+    /// The firmware's AP wakeup mailbox (MADT Multiprocessor Wakeup
+    /// structure), how an Intel TDX guest starts its cores. Unvalidated:
+    /// the VMM writes these tables.
+    pub mp_wakeup_mailbox: Option<u64>,
+    /// The first such structure as the MADT has it, for the boot log:
+    /// (version, length, mailbox), the mailbox 0 if it is too short for one.
+    pub mp_wakeup_raw: Option<(u16, u64, u64)>,
 }
 
 fn rd8(p: u64) -> u8 {
     unsafe { core::ptr::read_volatile(pptr(p) as *const u8) }
+}
+
+fn rd16(p: u64) -> u16 {
+    unsafe { core::ptr::read_unaligned(pptr(p) as *const u16) }
 }
 
 fn rd32(p: u64) -> u32 {
@@ -108,7 +119,7 @@ pub fn init(given: Option<u64>, top: u64) -> Option<Info> {
         Some(p) if valid_rsdp_below(p, top) => p,
         _ => find_rsdp()?,
     };
-    let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0, ioapics_lost: false };
+    let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0, ioapics_lost: false, mp_wakeup_mailbox: None, mp_wakeup_raw: None };
     let v2 = rsdp_v2(rsdp, top);
     for i in 0..if v2 { RSDP_LEN } else { 20 } {
         info.rsdp[i] = rd8(rsdp + i as u64);
@@ -189,6 +200,19 @@ fn parse_madt(t: u64, top: u64, info: &mut Info) {
                 let flags = rd32(p + 8);
                 if flags & 1 != 0 {
                     add_cpu(info, rd32(p + 4));
+                }
+            }
+            // Type, length, mailbox version and reserved, then its address.
+            // As in Linux, any version with room for the address will do:
+            // later versions only add fields after it (a reset vector),
+            // which the kernel does not use.
+            16 if l >= 4 => {
+                let mailbox = if l >= 16 { rd64(p + 8) } else { 0 };
+                if info.mp_wakeup_raw.is_none() {
+                    info.mp_wakeup_raw = Some((rd16(p + 2), l, mailbox));
+                }
+                if l >= 16 && info.mp_wakeup_mailbox.is_none() {
+                    info.mp_wakeup_mailbox = Some(mailbox);
                 }
             }
             _ => {}

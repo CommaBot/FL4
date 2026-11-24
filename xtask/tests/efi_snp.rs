@@ -160,3 +160,35 @@ fn the_map_buffer_bounds_what_is_read() {
     assert!(x86.contains("x86_mmap::layout_ok(size, stride, capacity)"));
     assert!(x86.find("x86_mmap::layout_ok(size, stride, capacity)").unwrap() < x86.find("from_raw_parts(buffer as *const u8, size)").unwrap());
 }
+
+/// `EfiUnacceptedMemoryType` keeps a kind of its own: type 2 (reserved)
+/// would make it device memory, and type 1 RAM the kernel touches before
+/// accepting it.
+#[test]
+fn unaccepted_memory_is_neither_ram_nor_reserved() {
+    assert_eq!(x86_mmap::UNACCEPTED, 0x464c_3410);
+    assert_eq!(x86_mmap::kind(16, 0), x86_mmap::UNACCEPTED);
+    assert_eq!(x86_mmap::kind(16, 8), x86_mmap::UNACCEPTED);
+    for other in [0, 1, 2, 7, 9, 10, 11, 15, 17] {
+        assert_ne!(x86_mmap::kind(other, 0), x86_mmap::UNACCEPTED, "EFI type {other}");
+    }
+}
+
+#[test]
+fn adjacent_unaccepted_regions_merge_and_stay_apart_from_ram() {
+    let stride = 48;
+    let mut map = desc(stride, 7, 0x10_0000, 16);
+    map.extend(desc(stride, 16, 0x11_0000, 16));
+    map.extend(desc(stride, 16, 0x12_0000, 16));
+    map.extend(desc(stride, 7, 0x13_0000, 16));
+    let mut out = Vec::new();
+    x86_mmap::regions(&map, stride, 0, 0, |r| {
+        out.push(r);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        out,
+        [(0x10_0000, 0x1_0000, 1), (0x11_0000, 0x2_0000, x86_mmap::UNACCEPTED), (0x13_0000, 0x1_0000, 1)]
+    );
+}

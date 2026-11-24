@@ -273,6 +273,8 @@ def absCap : capability.Cap → Fl4Spec.Cap
   | .AsidPool p base => .archObjectCap (.asidPoolCap p.bv base.bv)
   | .IoPortControl => .archObjectCap .ioPortControlCap
   | .IoPort f l _ => .archObjectCap (.ioPortCap (BitVec.ofNat 16 f.val) (BitVec.ofNat 16 l.val))
+  -- #68: the FL4 extension cap of the spec (`Fl4Spec/Ext/Tdx`).
+  | .TdxControl => .archObjectCap .tdxControlCap
 
 /-- Field ranges under which `absCap` is faithful. Every cap `Cap::decode`
 produces satisfies the CNode bounds on radix and guard size
@@ -298,8 +300,8 @@ theorem CapRel.abs {c : capability.Cap} {a} (h : CapRel c a) : a = absCap c := h
 
 theorem CapRel.null_iff {c : capability.Cap} {a} (h : CapRel c a) :
     a = .nullCap ↔ c = .Null := by
-  obtain ⟨_, rfl⟩ := h
-  cases c <;> simp [absCap]
+  obtain ⟨hw, rfl⟩ := h
+  cases c <;> simp [absCap] <;> exact hw
 
 /-- `absCap` preserves being a CNode cap (`isCnodeCap`). -/
 theorem isCnodeCap_absCap (c : capability.Cap) :

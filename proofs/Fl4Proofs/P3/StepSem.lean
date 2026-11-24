@@ -36,9 +36,11 @@ open fl4_core Classical
 noncomputable section
 
 /-- The kernel-global words a kernel-state step may write: past the current
-domain and domain time words, not the kernel root, not the IRQ node's CTEs
+domain and domain time words, not the kernel root nor (#65) the `FEATURES`
+word (both written at boot only), not the IRQ node's CTEs
 (`ksb + 1248 .. ksb + 5344`, written by slot steps only). -/
-def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ K.val ≠ 48 ∧ b.val = kb.val + K.val ∧
+def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ (K.val ≠ 48 ∧ K.val ≠ 72) ∧
+  b.val = kb.val + K.val ∧
   (K.val < 1248 ∨ 5344 ≤ K.val)
 
 /-- The spec's kernel-state steps: only the interrupt states, the IRQ masks,
@@ -64,9 +66,11 @@ structure KsStep (σ σ' : Fl4Spec.State Unit) : Prop where
   asidT : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
   cr3 : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
+  /-- The platform record (#65 1 GiB pages, #68 TDX), written by no step. -/
+  huge : σ'.archState.x64Plat = σ.archState.x64Plat
 
 theorem KsStep.refl (σ : Fl4Spec.State Unit) : KsStep σ σ :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- A word of a slot of the typed heap. -/
 def InSlot (th : TypedHeap) (b : U64) : Prop := ∃ a, IsSlot th a ∧ a.val ≤ b.val ∧ b.val < a.val + 32
@@ -130,21 +134,30 @@ def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- The arch operations of the interrupt and IO port decodes: none, an
-IRQ's mask, an IOAPIC pin's (remapped) programming, a port access. -/
+/-- The TDCALLs of the TDX control cap's decode (#68): `tdx_report`,
+`tdx_extend_rtmr`, `tdx_get_quote`. -/
+def TdxArchStep (a a' : A) : Prop :=
+  (∃ p d0 d1 d2 d3 d4 d5 d6 d7 v, arI.tdx_report a p d0 d1 d2 d3 d4 d5 d6 d7 = ok (v, a')) ∨
+    (∃ i d0 d1 d2 d3 d4 d5 v, arI.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 = ok (v, a')) ∨
+    (∃ p n v, arI.tdx_get_quote a p n = ok (v, a'))
+
+/-- The arch operations of the interrupt, IO port and TDX decodes: none, an
+IRQ's mask, an IOAPIC pin's (remapped) programming, a port access, a TDCALL
+(`TdxArchStep`). -/
 def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
     (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a')) ∨
     (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a') ∨
-    (∃ irq, arI.irq_free a irq = ok a')
+    (∃ irq, arI.irq_free a irq = ok a') ∨ TdxArchStep arI a a'
 
 /-- The kernel-global words of the domain schedule a scheduler step may
 write: the domain time and index, the start and the table. -/
 def DomKW (kb b : U64) : Prop := ∃ K ∈ ([16, 24, 32, 192, 200, 208, 216] : List Nat), b.val = kb.val + K
 
 theorem domKW_val {kb b : U64} (h : DomKW kb b) :
-    kb.val + 16 ≤ b.val ∧ b.val ≤ kb.val + 216 ∧ b.val ≠ kb.val + 8 ∧ b.val ≠ kb.val + 48 := by
+    kb.val + 16 ≤ b.val ∧ b.val ≤ kb.val + 216 ∧ b.val ≠ kb.val + 8 ∧ b.val ≠ kb.val + 48 ∧
+      b.val ≠ kb.val + 72 := by
   obtain ⟨K, hK, e⟩ := h
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
   omega

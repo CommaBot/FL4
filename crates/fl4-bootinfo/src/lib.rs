@@ -12,7 +12,7 @@ pub mod elf;
 /// Where the kernel region is mapped.
 pub const KERNEL_VBASE: u64 = 0xffff_ffff_8000_0000;
 pub const MAGIC: u64 = 0x464c_345f_424f_4f54; // "FL4_BOOT"
-pub const VERSION: u64 = 1;
+pub const VERSION: u64 = 2;
 
 /// Everything the loader allocates (the kernel region, the root task, the
 /// boot modules) lies below this physical address: the reach of the
@@ -118,7 +118,17 @@ pub struct BootInfo {
     pub mmap: [MemRegion; MAX_MMAP],
     /// NUL-terminated kernel command line.
     pub cmdline: [u8; CMDLINE_LEN],
+    /// The UEFI TPM event log the loader copied (version 2): its physical
+    /// address (page aligned, 0 if none), exact length (at most
+    /// `MAX_TPM_LOG`) and flags (fl4_abi `tpm_event_log_flag`).
+    pub tpm_log_paddr: u64,
+    pub tpm_log_size: u64,
+    pub tpm_log_flags: u64,
 }
+
+/// The longest TPM event log the loader passes on (fl4-efi tcg2.rs
+/// `MAX_EVENT_LOG`).
+pub const MAX_TPM_LOG: u64 = 1 << 20;
 
 /// Where a flattened device tree's blocks are, from its 40-byte header
 /// (offsets from the blob's start, all inside its total size).

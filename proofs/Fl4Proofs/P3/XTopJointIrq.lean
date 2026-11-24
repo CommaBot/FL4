@@ -152,8 +152,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 theorem XTopAt.msAR {s : S} {a : A} {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ)
     (ms : Fl4Spec.MachineState) (a' : A) (hum : ms.underlyingMemory = σ.machineState.underlyingMemory)
     (hAR : AR a' σ.archState.x64CurrentCr3) : XTopAt (L := L) AR Z s a' { σ with machineState := ms } :=
-  hX.frameStep (P1.WritesIn.refl s (fun _ => False)) (fun _ h => h.elim) (fun _ h => h.elim) (fun _ h => h.elim) id
-    rfl rfl rfl rfl hum rfl rfl (hX.fin.1.1.1.spec_congr rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl)
+  hX.frameStep (P1.WritesIn.refl s (fun _ => False)) (fun _ h => h.elim) (fun _ h => h.elim) (fun _ h => h.elim) id id
+    rfl rfl rfl rfl hum rfl rfl rfl (hX.fin.1.1.1.spec_congr rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl)
     ⟨hX.fin.1.1.2.2.2.1.st, hX.fin.1.1.2.2.2.1.node⟩ hX.fin.1.1.2.2.2.2.1 hX.rel.2.2.2.1 hAR
 
 theorem irq_state_eq' (s : S) (irq : U64) :

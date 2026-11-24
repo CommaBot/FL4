@@ -116,6 +116,70 @@ pub fn ram(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u6
     ram
 }
 
+/// fl4-efi's memory map type for RAM a confidential guest has not yet
+/// accepted (UEFI's EfiUnacceptedMemoryType). It is neither usable RAM nor
+/// device memory: touching it before TDG.MEM.PAGE.ACCEPT faults.
+pub const UNACCEPTED: u32 = 0x464c_3410;
+
+/// The whole pages of each unaccepted memory map entry from `low` on and
+/// below `top`.
+pub fn unaccepted(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u64) -> Ranges {
+    let mut r = Ranges::new();
+    for (base, len, ty) in entries {
+        if ty != UNACCEPTED {
+            continue;
+        }
+        let Some(start) = base.max(low).checked_add(PAGE - 1) else { continue };
+        let end = base.saturating_add(len) & !(PAGE - 1);
+        r.add(start & !(PAGE - 1), end.min(top));
+    }
+    r
+}
+
+/// Piece `index` of `ranges` when each is cut at multiples of `chunk`, so
+/// that cores can take pieces by counting: None past the last.
+pub fn chunk_of(ranges: &[Region], index: u64, chunk: u64) -> Option<(u64, u64)> {
+    let mut left = index;
+    for r in ranges {
+        if r.start >= r.end {
+            continue;
+        }
+        let first = r.start / chunk;
+        let count = (r.end - 1) / chunk - first + 1;
+        if left < count {
+            let base = (first + left) * chunk;
+            return Some((base.max(r.start), (base + chunk).min(r.end)));
+        }
+        left -= count;
+    }
+    None
+}
+
+/// How many pieces `chunk_of` cuts `ranges` into.
+pub fn chunk_count(ranges: &[Region], chunk: u64) -> u64 {
+    ranges.iter().filter(|r| r.start < r.end).map(|r| (r.end - 1) / chunk - r.start / chunk + 1).sum()
+}
+
+/// The type of the memory map entry holding the whole page at `addr`.
+pub fn mmap_type_of(addr: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> Option<u32> {
+    let end = addr.checked_add(PAGE)?;
+    mmap.into_iter().find(|&(base, len, _)| base <= addr && end <= base.saturating_add(len)).map(|e| e.2)
+}
+
+/// Whether the AP wakeup mailbox page the MADT names is firmware's: inside
+/// the window, whole in one reserved (type 2), ACPI reclaim (3) or ACPI NVS
+/// (4) entry of the memory map. The VMM writes the MADT, and the kernel will
+/// write to this address and wait on it, so it must not be RAM or the
+/// kernel's own. None of these types is RAM to the kernel (`ram`), and
+/// fl4_boot keeps the page out of device memory.
+pub fn mailbox_ok(mailbox: u64, window_top: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> bool {
+    let Some(end) = mailbox.checked_add(PAGE) else { return false };
+    if mailbox == 0 || mailbox % PAGE != 0 || end > window_top {
+        return false;
+    }
+    mmap.into_iter().any(|(base, len, ty)| matches!(ty, 2 | 3 | 4) && base <= mailbox && end <= base.saturating_add(len))
+}
+
 /// What user space gets as device memory: everything below `top` that is
 /// neither RAM nor in one of the `reserved` ranges (the kernel's own image
 /// and boot modules, the local APIC, the IOAPICs), each widened to whole

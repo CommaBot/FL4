@@ -413,7 +413,14 @@ set_option hygiene false in
 /-- The page map's tail, from the frame size's match: the entry slot (a
 VSpace word), the restart, the cap's update and the entry's write. -/
 local macro "pmtail" : tactic => `(tactic| (
-  try simp only [bind_ok, uncurry_apply_pair]
+  try simp only [bind_ok, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte]
+  -- #65: a 1 GiB frame needs `huge_pages` (else IllegalOperation); every
+  -- size then rebinds `large` by a match on the size.
+  try (refine WP.spec_bind (P0.vspace.huge_pages.p0 st s hS) fun hp _ => ?_
+       split
+       swap
+       · errV)
+  try refine WP.spec_bind (Pₘ := fun _ => True) ((WP.spec_ok _).2 trivial) fun _ _ => ?_
   refine WP.spec_bind (vspace.page_entry_slot.vs Pd (WritesIn.refl _ _) hb _ _ _) fun r3 hr3 => ?_
   rcases r3 with v | e
   swap
@@ -438,6 +445,8 @@ local macro "pmpre" : tactic => `(tactic| (
        · errV
        simp only [irq_branch_ok, bind_ok])
     | (simp only [lift, bind_ok])
+    -- #65: the size's `huge` test (`if false = true` / `if true = true`).
+    | (simp only [Bool.false_eq_true, eq_self_iff_true, ↓reduceIte])
     | (refine WP.spec_bind (P0.capability.Rights.from_word.p0 _) fun _ _ => ?_)
     | (refine WP.spec_bind (P0.capability.mask_vm_rights.p0 _ _) fun _ _ => ?_)
     | (refine WP.spec_bind (P0.capability.FrameSize.bits.p0 _) fun _ _ => ?_)
@@ -467,9 +476,11 @@ theorem vspace.decode_page_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.A
     rcases o with _ | x
     · errV
     try dsimp only
-    split
+    -- #65: `split` on the grown body exceeds simp's step limit.
+    by_cases hl3 : len ≥ 3#u64
     swap
-    · errV
+    · rw [if_neg hl3]; errV
+    rw [if_pos hl3]
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun vaddr _ => ?_
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun _ _ => ?_
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun _ _ => ?_

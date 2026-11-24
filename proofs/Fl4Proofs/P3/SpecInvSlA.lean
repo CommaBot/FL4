@@ -94,6 +94,8 @@ theorem okv_fl4ArchNC {w : UView} (label : Data) (args : List Data) (xs : CapRef
   case pml4Cap p m =>
     simp only [fl4ArchDecodeInvocation]
     exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archNC label args xs cte _ ex hc hex))
+  case tdxControlCap =>
+    simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_triv fun _ => trivial)
   all_goals (simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_archNC label args xs cte _ ex hc hex))
 
 theorem okv_invANC {w : UView} (fp : Bool) (label : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)

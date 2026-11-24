@@ -52,6 +52,63 @@ noncomputable section
 section
 variable {A : Type} (arI : machine.Arch A)
 
+/-- **The TDX platform clause** (#68, `Fl4Spec/Ext/Tdx`): FL4's arch queries
+`tdx_active` and `dma_ram` answer the spec state's platform record
+(`σ.archState.x64Plat`, written by no spec step), at every arch state. A
+relation between the platform and the spec state, not a platform
+assumption: any platform whose two queries are total and do not depend on the
+arch state meets it by the choice of the record (`TdxRel.adjust`), as #65's
+`HugeRel` is met by the choice of `x64Plat.hugePages`. Carried by `JKern.tdx`. -/
+def TdxRel (σ : Fl4Spec.State Unit) : Prop :=
+  (∀ a, arI.tdx_active a = ok σ.archState.x64Plat.tdxActive) ∧
+    ∀ a (p n : U64), arI.dma_ram a p n = ok (σ.archState.x64Plat.tdxDmaRam p.bv n.val)
+
+variable {arI} in
+/-- `TdxRel` depends on the spec state's platform record only. -/
+theorem TdxRel.frame {σ σ' : Fl4Spec.State Unit} (h : TdxRel arI σ)
+    (hp : σ'.archState.x64Plat = σ.archState.x64Plat) : TdxRel arI σ' := by
+  unfold TdxRel at h ⊢; rw [hp]; exact h
+
+/-- **The two TDX queries are platform values**: total and the same at every
+arch state (every real platform: CPUID / the TD module, FL4's `cvm` table). -/
+def TdxTotal : Prop :=
+  (∃ b, ∀ a, arI.tdx_active a = ok b) ∧ ∀ p n : U64, ∃ v, ∀ a, arI.dma_ram a p n = ok v
+
+/-- The platform record of a spec state with the TDX fields read off FL4's
+queries (`hugePages` kept). -/
+noncomputable def tdxPlatOf (h : TdxTotal arI) (P : Fl4Spec.X64Platform) : Fl4Spec.X64Platform :=
+  { P with
+    tdxActive := Classical.choose h.1
+    tdxDmaRam := fun p n => if hn : n < 2 ^ 64 then
+      Classical.choose (h.2 ⟨p⟩ ⟨BitVec.ofNatLT n hn⟩) else false }
+
+/-- `σ` with its platform record replaced. -/
+def withPlat (σ : Fl4Spec.State Unit) (P : Fl4Spec.X64Platform) : Fl4Spec.State Unit :=
+  { σ with archState := { σ.archState with x64Plat := P } }
+
+/-- **Satisfiability of `TdxRel`** (lead review of tdx4): for every platform
+whose two TDX queries are total platform values (`TdxTotal`), every spec
+state, with its platform record's TDX fields set from the queries
+(`withPlat σ (tdxPlatOf …)`: every other field of the state, and the record's
+`hugePages`, unchanged), meets `TdxRel`. So the clause restricts the choice
+of the start state's record only, never the platform. -/
+theorem TdxRel.adjust (h : TdxTotal arI) (σ : Fl4Spec.State Unit) :
+    TdxRel arI (withPlat σ (tdxPlatOf arI h σ.archState.x64Plat)) := by
+  refine ⟨fun a => Classical.choose_spec h.1 a, fun a p n => ?_⟩
+  have key : ∀ q m : U64, q = p → m = n → arI.dma_ram a p n = ok (Classical.choose (h.2 q m)) := by
+    rintro q m rfl rfl; exact Classical.choose_spec (h.2 q m) a
+  have hlt : n.val < 2 ^ 64 := n.bv.isLt
+  show arI.dma_ram a p n = ok (if hn : n.val < 2 ^ 64 then
+    Classical.choose (h.2 ⟨p.bv⟩ ⟨BitVec.ofNatLT n.val hn⟩) else false)
+  rw [dif_pos hlt]
+  refine key _ _ rfl ?_
+  cases n with
+  | mk b => exact congrArg UScalar.mk (BitVec.eq_of_toNat_eq (by simp [UScalar.val]))
+
+/-- `withPlat` changes the platform record only. -/
+theorem withPlat_arch (σ : Fl4Spec.State Unit) (P : Fl4Spec.X64Platform) :
+    (withPlat σ P).archState = { σ.archState with x64Plat := P } := rfl
+
 /-- **The arch relation's interface** (`ARKeep` with `ARMask`, one premise). -/
 structure ARIface (AR : A → Fl4Spec.Cr3 → Prop) : Prop extends ARKeep arI AR where
   mask : ∀ a c a', AR a c → ArchIrqStep arI a a' → AR a' c
@@ -122,6 +179,11 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   /-- [carried] Core 0, the boot core, is among the cores (boot; `Cs` never
   shrinks). -/
   cs0 : 0#u64 ∈ Cs
+  /-- [carried] **The TDX platform clause** (#68, `TdxRel`): FL4's
+  `tdx_active` / `dma_ram` answer the spec's platform record. Set at the start
+  state by the choice of `σ.archState.x64Plat` (`TdxRel.adjust`); kept by
+  every step, since no spec step writes the record (`TdxRel.frame`). -/
+  tdx : TdxRel arI σ
 
 /-- **The joint extension** (INV-PLAN §4 G2; KENTRY-PLAN g2a): the facts
 carried with `JAtZ` as one sub-structure `JAtZ.ext`, so that a new fact adds
@@ -229,7 +291,7 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   (`JAtZ.scCap`). -/
   hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   -- 1c: CSpace
   del : DelInv Z.th (L.mem s)
   ut : UtInv (L.mem s) Z.G

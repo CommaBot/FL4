@@ -138,7 +138,7 @@ theorem TopSR.tcbStep {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHe
   obtain ⟨k, rfl, -⟩ := hT
   exact ⟨⟨SchedRel.tcbFrame hSch h, EpStateRel.tcbFrame hEp h, NtfnStateRel.tcbFrame hNt h,
     ⟨fun i hi => hIrq.st i hi, fun i hi => hIrq.node i hi⟩, fun p hp => hIo p hp,
-    by unfold KRootRel globCr3 at hKr ⊢; exact hKr, hAr⟩,
+    by unfold KRootRel KRootW HugeRel globCr3 at hKr ⊢; exact hKr, hAr⟩,
     ⟨hP.ep, hP.vs, hP.pt, hP.pl, fun x hx => hP.disj x (OObj.of_tcbStep h hx), hP.nodeE,
       hP.po, hP.ps, hP.pv, hP.vo, hP.sd, hP.tko⟩⟩
 

@@ -60,7 +60,7 @@ theorem insert_full_abs_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
   have hb : decide (Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) (absCap c)
       (decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC)))) =
       isPF (revOf (L.mem s) (cslotAddr (ps.bv, idxs))) srcC c (revF c srcC) := by
-    rw [hC.orig _ hAs]; exact sbp_eq srcC c _ hsh hself hes hk
+    rw [hC.orig _ hAs]; exact sbp_eq srcC c _ hsh hself hes hk hwf
   have hsib : ¬ Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) (absCap c)
       (decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC))) →
       ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs)) := by

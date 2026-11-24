@@ -839,6 +839,7 @@ theorem scke_fl4ArchPerform_nA (i : Fl4ArchInvocation) (h : ∀ x, i ≠ .spec (
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto; exact sck_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> sck_auto
 
 theorem scke_invokeIRQControl (i : Fl4IrqControlInvocation) :
     SVE (invokeFl4IrqControl (Z := Unit) i) := scke_invokeFl4IrqControl' i

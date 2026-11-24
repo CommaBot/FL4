@@ -144,7 +144,7 @@ set_option maxHeartbeats 4000000 in
 /-- The spec step's facts read neither the domain time nor the index. -/
 theorem SchS.ndF {σ σ' : Fl4Spec.State Unit} (h : SchS σ σ') (dt : BitVec 64) (di : Nat) :
     SchS (ndFSt σ dt di) σ' :=
-  ⟨⟨h.1.kh, h.1.um, h.1.cdt, h.1.orig, h.1.dl, h.1.dsi, h.1.io, h.1.gpml4, h.1.asid, h.1.ist, h.1.inode, h.1.isc⟩,
+  ⟨⟨h.1.kh, h.1.um, h.1.cdt, h.1.orig, h.1.dl, h.1.dsi, h.1.io, h.1.gpml4, h.1.huge, h.1.asid, h.1.ist, h.1.inode, h.1.isc⟩,
     ⟨h.2.kh, h.2.cdt, h.2.orig, h.2.dl, h.2.dsi, h.2.isc⟩⟩
 
 /-- **`JAtZ` at the fake state** (module docstring). -/

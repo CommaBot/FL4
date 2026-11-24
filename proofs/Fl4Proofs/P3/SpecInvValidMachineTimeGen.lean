@@ -620,6 +620,19 @@ theorem gk_domainSetStart (index : Nat) : GK (domainSetStart (Z := Unit) index) 
   unfold domainSetStart; gk_auto
 macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_domainSetStart)
 
+/-- #68: the TDX decode (`Ext/Tdx`). -/
+theorem gk_decodeTdxInvocation (label : Data) (args : List Data) (extraCaps : List (Cap × CslotPtr)) : GKE (decodeTdxInvocation (Z := Unit) label args extraCaps) := by
+  unfold decodeTdxInvocation; gk_auto
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_decodeTdxInvocation)
+
+/-- #68: the TDCALL (the frame write changes the memory only). -/
+theorem gk_performTdxInvocation (i : Fl4TdxInvocation) : GK (performTdxInvocation (Z := Unit) i) := by
+  cases i <;> unfold performTdxInvocation tdxStatus
+  · exact gk_bind (gk_doMachineOp (mt_of_mkf (mkf_tdxFrameWrite _ _))) fun _ => by gk_auto
+  · gk_auto
+  · exact gk_bind (gk_doMachineOp (mt_of_mkf (mkf_tdxFrameWrite _ _))) fun _ => by gk_auto
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_performTdxInvocation)
+
 theorem gk_fl4ArchDecodeInvocation (label : Data) (args : List Data) (xSlot : CapRef) (cte : CslotPtr) (cap : ArchCap) (extraCaps : List (Cap × CslotPtr)) : GKE (fl4ArchDecodeInvocation (Z := Unit) label args xSlot cte cap extraCaps) := by
   unfold fl4ArchDecodeInvocation; gk_auto
 macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_fl4ArchDecodeInvocation)

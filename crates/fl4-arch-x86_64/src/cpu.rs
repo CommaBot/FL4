@@ -3,6 +3,10 @@ use core::arch::asm;
 
 #[inline]
 pub fn outb(port: u16, v: u8) {
+    if crate::tdx::active() {
+        crate::tdx::io(port, 1, Some(u32::from(v)));
+        return;
+    }
     if crate::sev::snp::active() {
         crate::sev::snp::port(port, 1, false, u32::from(v));
         return;
@@ -12,6 +16,9 @@ pub fn outb(port: u16, v: u8) {
 
 #[inline]
 pub fn inb(port: u16) -> u8 {
+    if crate::tdx::active() {
+        return crate::tdx::io(port, 1, None) as u8;
+    }
     if crate::sev::snp::active() {
         return crate::sev::snp::port(port, 1, true, 0) as u8;
     }
@@ -22,6 +29,10 @@ pub fn inb(port: u16) -> u8 {
 
 #[inline]
 pub fn outw(port: u16, v: u16) {
+    if crate::tdx::active() {
+        crate::tdx::io(port, 2, Some(u32::from(v)));
+        return;
+    }
     if crate::sev::snp::active() {
         crate::sev::snp::port(port, 2, false, u32::from(v));
         return;
@@ -31,6 +42,9 @@ pub fn outw(port: u16, v: u16) {
 
 #[inline]
 pub fn inw(port: u16) -> u16 {
+    if crate::tdx::active() {
+        return crate::tdx::io(port, 2, None) as u16;
+    }
     if crate::sev::snp::active() {
         return crate::sev::snp::port(port, 2, true, 0) as u16;
     }
@@ -41,6 +55,10 @@ pub fn inw(port: u16) -> u16 {
 
 #[inline]
 pub fn outl(port: u16, v: u32) {
+    if crate::tdx::active() {
+        crate::tdx::io(port, 4, Some(u32::from(v)));
+        return;
+    }
     if crate::sev::snp::active() {
         crate::sev::snp::port(port, 4, false, u32::from(v));
         return;
@@ -50,6 +68,9 @@ pub fn outl(port: u16, v: u32) {
 
 #[inline]
 pub fn inl(port: u16) -> u32 {
+    if crate::tdx::active() {
+        return crate::tdx::io(port, 4, None) as u32;
+    }
     if crate::sev::snp::active() {
         return crate::sev::snp::port(port, 4, true, 0) as u32;
     }
@@ -69,17 +90,22 @@ pub struct Cpuid {
 #[inline]
 pub fn cpuid(leaf: u32, sub: u32) -> Cpuid {
     if let Some(r) = crate::sev::snp::cpuid(leaf, sub) { return r; }
+    // Other leaves the TDX module does not answer itself take #VE
+    // (fl4-kernel tdx.rs).
+    if crate::tdx::active() && crate::tdx::cpuid_is_vmm_leaf(leaf) {
+        return crate::tdx::cpuid(leaf, sub);
+    }
     let r = core::arch::x86_64::__cpuid_count(leaf, sub);
     Cpuid { eax: r.eax, ebx: r.ebx, ecx: r.ecx, edx: r.edx }
 }
 
 /// Serialize instruction fetch after a code patch. Under SNP CPUID takes
 /// #VC, which the kernel's `vc()` does not emulate (fl4-kernel/src/snp.rs),
-/// so SNP uses IRET instead: itself serializing, and not intercepted into
-/// #VC.
+/// and under TDX it can take #VE, so both use IRET instead: itself
+/// serializing, and not intercepted.
 #[inline]
 pub fn serialize_instructions() {
-    if crate::sev::snp::active() {
+    if crate::cvm::hardened() {
         return iret_to_self();
     }
     // The assembly also acts as a compiler memory barrier. LLVM reserves
@@ -150,6 +176,34 @@ pub fn max_paddr() -> u64 {
     let max_ext = cpuid(0x8000_0000, 0).eax;
     let eax = if max_ext >= 0x8000_0008 { cpuid(0x8000_0008, 0).eax } else { 0 };
     1 << phys_addr_bits(max_ext, eax)
+}
+
+/// CPUID.80000001H:EDX.Page1GB (bit 26): the core takes PS in a PDPTE.
+/// Without it that bit is reserved, and a walk through such an entry
+/// faults (SDM Vol. 3 §4.5.4).
+pub fn page_1g(leaf_8000_0001_edx: u32) -> bool {
+    leaf_8000_0001_edx & (1 << 26) != 0
+}
+
+/// The calling core takes 1 GiB pages (`page_1g`).
+pub fn has_1g_pages() -> bool {
+    page_1g(cpuid(0x8000_0001, 0).edx)
+}
+
+/// Whether a core can walk the boot core's tables and every table and
+/// entry the kernel writes: it takes 1 GiB pages (`core_1g`) if the boot
+/// core chose them (`huge`, for the kernel window and so for user
+/// mappings), and its own physical address top (`core_top`: MAXPHYADDR,
+/// below an SEV C-bit or a TDX S-bit) reaches `paddr_top`, the top of what the kernel
+/// maps or hands to user space (device memory included). A core that can
+/// do more is fine.
+pub fn paging_compatible(huge: bool, paddr_top: u64, core_1g: bool, core_top: u64) -> bool {
+    (core_1g || !huge) && core_top >= paddr_top
+}
+
+/// The calling core is `paging_compatible`.
+pub fn core_paging_supported(huge: bool, paddr_top: u64) -> bool {
+    paging_compatible(huge, paddr_top, has_1g_pages(), crate::cvm::gpa_top(max_paddr(), crate::cvm::private_mask() | crate::cvm::shared_mask()))
 }
 
 const CR4_VMXE: u64 = 1 << 13;
@@ -247,6 +301,10 @@ pub fn halt() {
 }
 
 pub fn halt_forever() -> ! {
+    // HLT would take #VE.
+    if crate::tdx::active() {
+        crate::tdx::halt_loop();
+    }
     loop {
         unsafe { asm!("cli; hlt", options(nomem, nostack)) }
     }

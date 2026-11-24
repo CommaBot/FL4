@@ -644,6 +644,8 @@ macro "map_tail" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 4095#u64) = 0#u64
   · have : ((a0 &&& 4095#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
+    -- #65: `large` is rebound by a match on the size.
+    apply ok_bind_spec
     refine WP.spec_bind (WP.spec_and (page_entry_slot_small s σ hPt hPP hp1 a0 hvU)
       (page_entry_slot_small_walk s p1 a0 hvU)) ?_
     rintro r3 ⟨⟨hsl, hse⟩, hwk⟩

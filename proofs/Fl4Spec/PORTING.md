@@ -235,6 +235,17 @@ Conventions of the ported base layer that later modules rely on.
   `timeoutMessage` (C `TIMEOUT_REPLY_MESSAGE`), `arch_cap_badge`,
   `reply_bits` (5), `parse_time_arg`, `words_from_time`; `ntfn_bits` is the
   MCS value 6, not X64's non-MCS 5.
+- **FL4 deviation, 1 GiB pages only with CPU support** (#65): `arch_state`
+  has an extra field `x64Plat` (the platform record `X64Platform`, set at
+  boot and never written after), whose `hugePages` is FL4's ks `FEATURES &
+  FEATURE_HUGE_PAGES` (from CPUID; `initArchState` sets it, the
+  configuration l4v models), and `createMappingEntries` of an
+  `X64HugePage` fails with `IllegalOperation` when it is clear, before the
+  PDPT slot lookup. That is C seL4 without `CONFIG_HUGE_PAGE`
+  (`decodeX86FrameInvocation`'s "Invalid Page type") and FL4's
+  `decode_page_map` (after the alignment check, before `page_entry_slot`);
+  l4v's spec is the `CONFIG_HUGE_PAGE` configuration (the flag set). The P3
+  relation: `HugeRel` (P3/VsRel), carried by `VsFrameHypsL.huge`.
 - **FL4 extension, 20-bit ASIDs** (DESIGN.md §3): `asid_high_len` is 11
   (2048 ASID pools) and `asid_len` 20; l4v has 3 and 12. `cr3_addr_mask`
   keeps the 12-bit PCID field (l4v writes `asid_bits` for it), and
@@ -366,6 +377,17 @@ details.
   `invokeFl4IrqControl`, with the invocations `Fl4IrqControlInvocation`.
 - **`Ext/VSpace`: l4h VSpace extensions** (PML4 flush, TestAndClearAccessed,
   DeriveSubframe), as separate decoders and invocations.
+- **`Ext/Tdx`: `seL4_X86_TdxControl`** (FL4 #68, Intel TDX attestation; no
+  seL4 counterpart). The arch cap `tdxControlCap` (X64/Structs; one arm in
+  each l4v function over arch caps, behaving as the ASID control cap: no
+  object, one region for all copies, derived unchanged, finalised with no
+  action) and its invocations GetReport / ExtendRTMR / GetQuote
+  (`decodeTdxInvocation`, FL4's checks in FL4's order;
+  `performTdxInvocation`, the TDCALL: a status word, any bytes written into
+  the frame; no kernel object changes). Whether the TD module is present and
+  whether a frame is shared with the VMM are the platform record's
+  `x64Plat.tdxActive` / `x64Plat.tdxDmaRam` (read from the state, written by
+  no operation); the status and the frame's bytes are nondeterministic.
 - **`Ext/Tcb`: FL4's TCB extensions**, modelled on FL4's Rust
   (`tcb.rs`): seL4's debug API (`TCBSetBreakpoint`, `TCBGetBreakpoint`,
   `TCBUnsetBreakpoint`, `TCBConfigureSingleStepping`; not in l4v), l4h's

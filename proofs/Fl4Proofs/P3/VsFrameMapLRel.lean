@@ -233,6 +233,8 @@ macro "map_tail_L" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 2097151#u64) = 0#u64
   · have : ((a0 &&& 2097151#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
+    -- #65: `large` is rebound by a match on the size.
+    apply ok_bind_spec
     refine WP.spec_bind (WP.spec_and (page_entry_slot_large s σ hPt hPP hp1 a0 hvU)
       (page_entry_slot_large_walk s p1 a0 hvU)) ?_
     rintro r3 ⟨⟨hsl, hse⟩, hwk⟩
@@ -640,6 +642,11 @@ theorem page_entry_slot_huge {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
         | pageDirectoryPDPTE _ _ _ => intro h; exact absurd hps (by simpa [eS] using h.2.1)
         | hugePagePDPTE a b c => intro; exact ⟨a, b, c, rfl⟩
 
+theorem huge_pages_eq (s : S) :
+    vspace.huge_pages st s = ok ((L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES) &&&
+      layout.ks.FEATURE_HUGE_PAGES) != 0#u64) := by
+  unfold vspace.huge_pages obj.ks_get; simp [L.ks_base_eq, L.read_eq, lift]
+
 set_option hygiene false in
 /-- The common part of both cases: from `check_vspace` on. -/
 macro "map_tail_H" : tactic => `(tactic| (
@@ -660,6 +667,24 @@ macro "map_tail_H" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 1073741823#u64) = 0#u64
   · have : ((a0 &&& 1073741823#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
+    -- #65: the size match binds `(fs, huge)`; a 1 GiB map needs the feature bit.
+    first
+      | rw [huge_pages_eq]
+      | (apply ok_bind_spec; try dsimp only; try simp only [↓reduceIte]; rw [huge_pages_eq])
+    apply ok_bind_spec
+    have hHg : HugeRel (L.mem s) (L.ksb s) σ := hH.huge s a σ hS
+    unfold HugeRel at hHg
+    by_cases hhb : ((L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES) &&&
+        layout.ks.FEATURE_HUGE_PAGES) != 0#u64) = true
+    rotate_left
+    · have hσh : σ.archState.x64Plat.hugePages = false := by rw [← hHg]; exact Bool.eq_false_iff.mpr hhb
+      simp only [hhb, Bool.false_eq_true, ↓reduceIte, error.illegal, bind_ok]
+      exact (WP.spec_ok _).2 (Or.inl ⟨_, .illegalOperation, rfl,
+        Or.inl (Or.inl (show SysErrRel (.Sys .IllegalOperation) .illegalOperation from trivial)),
+        hdec.trans (mapTailH_noHuge hf ((al30 a0).1 hal) hσh), rfl, rfl⟩)
+    have hσh : σ.archState.x64Plat.hugePages = true := by rw [← hHg]; exact hhb
+    simp only [hhb, ↓reduceIte]
+    apply ok_bind_spec
     refine WP.spec_bind (WP.spec_and (page_entry_slot_huge s σ hPt hPP hp1 a0 hvU)
       (page_entry_slot_huge_walk s p1 a0 hvU)) ?_
     rintro r3 ⟨⟨hsl, hse⟩, hwk⟩
@@ -672,14 +697,14 @@ macro "map_tail_H" : tactic => `(tactic| (
         simp only [Bind.bind, bind_ok]
         exact (WP.spec_ok _).2 (Or.inl ⟨_, .failedLookup false (.missingCapability n.val), rfl,
           Or.inl (Or.inl (by simp [SysErrRel, LookupFaultRel])),
-          hdec.trans (mapTailH_noSlot hf ((al30 a0).1 hal) hsp), rfl, rfl⟩)
+          hdec.trans (mapTailH_noSlot hf ((al30 a0).1 hal) hσh hsp), rfl, rfl⟩)
       · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
           core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
           core.convert.FromSame.from]
         simp only [Bind.bind, bind_ok]
         exact (WP.spec_ok _).2 (Or.inl ⟨_, .deleteFirst, rfl,
           Or.inl (Or.inl (show SysErrRel (.Sys .DeleteFirst) .deleteFirst from trivial)),
-          hdec.trans (mapTailH_used hf ((al30 a0).1 hal) hsp hg), rfl, rfl⟩)
+          hdec.trans (mapTailH_used hf ((al30 a0).1 hal) hσh hsp hg), rfl, rfl⟩)
     | Ok sl =>
       obtain ⟨hsp, q, hq, rfl, d, hgd, hd⟩ := hsl _ rfl
       simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, layout.paddr]
@@ -746,7 +771,7 @@ macro "map_tail_H" : tactic => `(tactic| (
       rintro ⟨s3, a3⟩ ⟨hr3, hnf, σ', hm', hPt3, hS3, hSt3, hSV3, hR3, -, -⟩
       have hbo : OutsideObjects th (peA q (vIdx a0 30)) := hPO _ ⟨q, Or.inr (Or.inl hq), _, vIdx_lt a0 30, rfl⟩
       simp only at hr3
-      refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTailH_ok hf ((al30 a0).1 hal) hsp hgd hd), ?_,
+      refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTailH_ok hf ((al30 a0).1 hal) hσh hsp hgd hd), ?_,
         hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_⟩)
       · unfold MapSpec mapInvH
         dsimp only

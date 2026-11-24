@@ -101,7 +101,7 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       L.mem s' x = L.mem s x := fun x hx h1 h2 => hw.mem_eq hx fun hb => by
     have := hfar x hb; have := (hu x hb).al; unfold P1.Aligned at *; omega
   refine hX.frameStepV hw (fun x hx => (hu x hx).vobj) (fun x hx hf => ?_) (fun x hx hf => ?_)
-    (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
+    (fun hx => ?_) (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · have hu' := hu x hx
     have hbal : x.val % 8 = 0 := hu'.al
@@ -120,6 +120,11 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       have := hf2 t ht; have := (hT t ht).align; omega
   · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := hfar _ hx
+    rw [hkv] at this; omega
+  · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := hfar _ hx
     rw [hkv] at this; omega
@@ -162,7 +167,7 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
     (hnd : ∀ c ∈ Cs, q.val + n.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.zr s q n) a σ := by
   set s1 := L.zr s q n with hs1
-  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
   have hq8 : q.val % 8 = 0 := hal
   let W : U64 → Prop := fun b => P1.Aligned b ∧ q.val ≤ b.val ∧ b.val < q.val + n.val

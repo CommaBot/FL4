@@ -200,7 +200,11 @@ theorem zr_fl4Perform (hG : PerfGapZ) (blk call don : Bool) (inv : Fl4Invocation
     exact zr_invokeIrqHandler i σ hZ hO x hx
   | invokeArchObject fa =>
     simp only [fl4PerformInvocation] at hy
-    exact ike_zr (fun _ => hu_fl4ArchPerformInvocation fa) (fun _ _ => yk_fl4ArchPerformInvocation fa) σ hZ y hy
+    cases fa with
+    | tdx i => exact zr_tdx i σ hZ hP.1.2.2.2.1 hI y hy
+    | _ =>
+      exact ike_zr (fun _ => hu_fl4ArchPerformInvocation _)
+        (fun _ _ => yk_fl4ArchPerformInvocation _ (fun _ h => by cases h)) σ hZ y hy
   | invokeTCB i =>
     simp only [fl4PerformInvocation] at hy
     exact zr_invokeTcb i σ hZ y hy

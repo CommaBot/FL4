@@ -58,6 +58,9 @@ theorem modelArch_mrKeepD {C : Type} (AR : Fl4Spec.MachineState → C → Prop) 
   set_vspace _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   dma_frame _ _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   irq_free _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
+  tdx_report _ _ _ _ _ _ _ _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
+  tdx_extend_rtmr _ _ _ _ _ _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
+  tdx_get_quote _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
 
 /-- **The spec's `setIrqState irqInactive` has the one outcome `setIrqSt`.** -/
 theorem setIrqInactive_out {irq : Fl4Spec.Irq} {σ : Fl4Spec.State Unit} {x : Unit × Fl4Spec.State Unit}

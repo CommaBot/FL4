@@ -1,6 +1,6 @@
 {
- "functions": 1076,
- "proved": 1076,
+ "functions": 1112,
+ "proved": 1112,
  "manual": [
   "boot.create_untypeds",
   "ept.flush_frame",
@@ -9,6 +9,7 @@
   "ept.lookup_slot_loop",
   "ept.unmap_table_loop",
   "interrupt.decode_irq_control",
+  "localinv.plan_with",
   "notification.send_signal",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
@@ -31,6 +32,7 @@
   "vcpu.write_state_from_frame_loop2",
   "vspace.lookup_pt_slot_loop"
  ],
+ "preconditions": {},
  "loops_automatic": [
   "boot.all_zero_loop",
   "boot.clear_dirty_loop",
@@ -62,6 +64,7 @@
   "ioport.set_mask_loop",
   "ipc.lookup_extra_caps_loop",
   "ipc.transfer_caps_loop",
+  "localinv.Plan.still_holds_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
   "notification.cancel_all_signals_loop",

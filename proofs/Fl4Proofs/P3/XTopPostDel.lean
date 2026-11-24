@@ -68,7 +68,7 @@ theorem post_irqX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : X
       (IoRel.irqWr hL hX.fin.1.1.2.2.2.2.1 hirq _ _ rfl)
       (hX.rel.2.2.2.1.frame (fun o ho => (DK4.irqSt hL.fit ha8 hirq interrupt.IRQ_INACTIVE).2 o ho) rfl rfl)
       (hAM _ _ _ (hAM _ _ _ hX.fin.1.1.2.2.2.2.2.2 (Or.inr (Or.inl ⟨irq, _, hm⟩)))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨irq, hf⟩)))))))
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨irq, hf⟩))))))))
   refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', ?_, hX'.rel.2.1, hw, by constructor <;> rfl, hX'⟩
   · obtain ⟨K, h1, h2, -, e⟩ := hb
     exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)

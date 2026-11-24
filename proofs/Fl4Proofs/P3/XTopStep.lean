@@ -151,7 +151,7 @@ theorem ostep_of_cnk {σ σ' : Fl4Spec.State Unit} (hcn : CnK σ σ') (hkc : Kee
     (by have e := congrArg Fl4Spec.AbstractState.interruptStates h; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.interruptIrqNode h; exact e),
     (by exact congrArg (fun a => a.archState.x64AllocatedIoPorts) h), (by exact congrArg (fun a => a.archState.x64GlobalPml4) h),
-    fun q hq => ?_⟩, (by have e := congrArg Fl4Spec.AbstractState.machineState h; exact e), (by have e := congrArg Fl4Spec.AbstractState.archState h; exact e)⟩
+    (by exact congrArg (fun a => a.archState.x64Plat) h), fun q hq => ?_⟩, (by have e := congrArg Fl4Spec.AbstractState.machineState h; exact e), (by have e := congrArg Fl4Spec.AbstractState.archState h; exact e)⟩
   rcases hkc q with e | ⟨r, cs, cs', h1, h2⟩
   · exact absurd e hq
   · exact ⟨Or.inr (Or.inr (Or.inl ⟨r, cs, h1⟩)), Or.inr (Or.inl ⟨r, cs', h2⟩)⟩
@@ -286,6 +286,10 @@ theorem not_ksW {kb b : U64} (h : b.val < kb.val + 24 ∨ kb.val + 13568 ≤ b.v
     b.val = kb.val + 48) : ¬ KsW kb b := by
   rintro ⟨K, h1, h2, h3, e⟩; omega
 
+/-- #65: the `FEATURES` word is no `KsW` word. -/
+theorem not_ksW72 {kb b : U64} (h : b.val = kb.val + 72) : ¬ KsW kb b := by
+  rintro ⟨K, h1, h2, h3, e⟩; omega
+
 theorem OObj.of_same {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {s s' : S}
     {σ σ' : Fl4Spec.State Unit} (hk : L.ksb s' = L.ksb s) (hkh : σ'.kheap = σ.kheap) {a : U64}
     (h : OObj st N T C E R B c s' σ' a) : OObj st N T C E R B c s σ a := by
@@ -306,11 +310,13 @@ theorem XTopAt.frameStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     (hWO : ∀ b, W b → OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b)
     (hWE : ∀ b, W b → ¬ Endp.EFoot Z.T Z.E Z.R Z.B b) (hWN : ∀ b, W b → ¬ Notif.NFoot Z.N Z.T b)
     (hWK : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT))
+    (hWF : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES))
     (hkh : σ'.kheap = σ.kheap) (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
     (hct : σ'.curThread = σ.curThread)
     (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
     (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hgh : σ'.archState.x64Plat = σ.archState.x64Plat)
     (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
     (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :
@@ -329,14 +335,21 @@ theorem XTopAt.frameStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     Notif.NtfnStateRel.frame hNt hSch.placed (fun b hb hf => hw.mem_eq hb fun h => hWN b h hf)
       ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl⟩⟩
   have hKr' : KRootRel (L.mem s') (L.ksb s') σ' := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
-    have hka := hP.vs.ksb_al
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+      have hka := hP.vs.ksb_al
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
+      exact hKr
+    · rw [hk]
+      have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+      have hka := hP.vs.ksb_al
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hw.mem_eq (by unfold P1.Aligned; rw [hfv]; omega) hWF) hgh
   have hvw : ∀ b, VsWrite Z.P (L.ksb s) b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (VsWrite.aligned hP.vs hb) (hvobj b (vsWrite_vobj hP.vs hb))
   have hSz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hkh
@@ -376,8 +389,8 @@ theorem XTopAt.ksStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
   have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
     rcases hc.ksOut t ht with h | h <;> omega
   refine hX.frameStep hw (fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩))
-    (fun b hb hf => not_ksW ?_ hb) (fun b hb hf => not_ksW ?_ hb) (not_ksW (Or.inr (Or.inr (Or.inr ?_))))
-    hO.kh hO.cdt hO.orig hO.ct hO.um hO.asidT hO.gpml4 ((hSch.ksW hw).ksStep hO) hIrq' hIo' hD' hAR'
+    (fun b hb hf => not_ksW ?_ hb) (fun b hb hf => not_ksW ?_ hb) (not_ksW (Or.inr (Or.inr (Or.inr ?_)))) (not_ksW72 ?_)
+    hO.kh hO.cdt hO.orig hO.ct hO.um hO.asidT hO.gpml4 hO.huge ((hSch.ksW hw).ksStep hO) hIrq' hIo' hD' hAR'
   · rcases hf with ⟨e, he, h | h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, ⟨h1, h2⟩ | h⟩ | ⟨wp, hwp, rfl⟩
     · rcases hKA.ep e he with h' | h' <;> omega
     · rcases hKA.ep e he with h' | h' <;> omega
@@ -402,6 +415,10 @@ theorem XTopAt.ksStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
     have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
     unfold layout.ks.KERNEL_ROOT
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+  · have hP := hX.fin.1.2
+    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+    unfold layout.ks.FEATURES
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
 
 /-! ## Scheduler steps -/
 
@@ -410,14 +427,15 @@ theorem schW_val {T : Set U64} {c : U64} {s : S} (hT : P1.TcbPlaced T) (hkf : (L
     {b : U64} (h : SchW (L := L) T c s b) :
     (∃ y ∈ T, b.val = y.val + 3480 ∨ b.val = y.val + 3488 ∨ b.val = y.val + 3592) ∨
     (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288) ∨
-    ((L.ksb s).val + 16 ≤ b.val ∧ b.val ≤ (L.ksb s).val + 216 ∧ b.val ≠ (L.ksb s).val + 48) := by
+    ((L.ksb s).val + 16 ≤ b.val ∧ b.val ≤ (L.ksb s).val + 216 ∧ b.val ≠ (L.ksb s).val + 48 ∧
+      b.val ≠ (L.ksb s).val + 72) := by
   rcases h with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
   · exact Or.inl ⟨y, hy, Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl)⟩
   · exact Or.inl ⟨y, hy, Or.inr (Or.inl (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
   · exact Or.inl ⟨y, hy, Or.inr (Or.inr (by rw [Notif.tfield_val (hT y hy) (by decide)]; rfl))⟩
   · exact Or.inr (Or.inl ⟨h.1, h.2.1⟩)
   · have := domKW_val h
-    exact Or.inr (Or.inr ⟨by omega, by omega, by omega⟩)
+    exact Or.inr (Or.inr ⟨by omega, by omega, by omega, by omega⟩)
 
 /-- A word of core `c`'s node is a `nodeAt` word. -/
 theorem node_word' {T : Set U64} {c : U64} {s : S} (hN : P1.NodePlaced st T s c) {b : U64}
@@ -468,8 +486,8 @@ theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
   have hnb : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
   have hnd := hc.node.disj
   have hk : L.ksb s' = L.ksb s := hw.1
-  refine hX.frameStep hw (fun b hb => ?_) (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_)
-    hK.kh hK.cdt hK.orig hK.ct (by rw [hK.ms]) (by rw [hK.arch]) (by rw [hK.arch]) hSch' ?_ ?_ ?_
+  refine hX.frameStep hw (fun b hb => ?_) (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) (fun hb => ?_)
+    hK.kh hK.cdt hK.orig hK.ct (by rw [hK.ms]) (by rw [hK.arch]) (by rw [hK.arch]) (by rw [hK.arch]) hSch' ?_ ?_ ?_
     (by rw [hK.arch]; exact hX.fin.1.1.2.2.2.2.2.2)
   · -- the words written are the other objects'
     rcases hb with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
@@ -519,6 +537,14 @@ theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
   · -- not the kernel root
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv
+    · rcases hko y hy with h' | h' <;> omega
+    · omega
+    · omega
+  · -- not the FEATURES word (#65)
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv
     · rcases hko y hy with h' | h' <;> omega

@@ -1010,6 +1010,10 @@ theorem perf_firstB (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw :
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact pce_post (by kf_auto) (by qv_auto2) (by sck_auto2) hs hb
+    | tdx i =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> unfold performTdxInvocation tdxStatus <;>
+        exact pce_post (by kf_auto) (by qv_auto2) (by sck_auto2) hs hb
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact pce_post (by kf_auto) (by qv_auto2) (by sck_auto2) hs hb

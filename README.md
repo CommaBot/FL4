@@ -24,7 +24,7 @@ first-class SMP and fine-grained locking. See [DESIGN.md](DESIGN.md).
 
 ## Tasks
 
-Development runs use QEMU. The AMD SEV guest test runs on a confidential VM.
+Development runs use QEMU. The AMD SEV guest test runs on a confidential VM. Intel TDX support has host tests only.
 
 ```
 cargo xtask run [--setup kvm|kvm-reduced|tcg]   # boot the standalone kernel
@@ -98,7 +98,7 @@ Copy `target/x86_64-unknown-uefi/release/fl4-efi.efi` to
 
 Like GRUB, the x86_64 loader passes the display firmware set up to the
 kernel as the Multiboot 2 framebuffer: the Graphics Output Protocol's
-current mode when it is 32-bit RGB, and not in SEV guests.
+current mode when it is 32-bit RGB, and not in SEV or TDX guests.
 
 An x86_64 EFI application can supply its own boot policy through the
 `fl4-efi` library. Use `with_firmware` for EFI services and pass its
@@ -118,6 +118,36 @@ SEV, use the SEV archive, the `SEV_CAPABLE` image tag and
 `--confidential-compute-type=SEV`. The serial log reports the shared-frame
 allocation and reuse checks and the NVMe Identify DMA result.
 [GCE confidential VM configuration](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/create-a-confidential-vm-instance)
+
+## Intel TDX guests
+
+FL4 runs as an Intel TDX guest (an L1 TD, TDX Module 1.5 and GHCI 1.5) on
+x86_64 through its UEFI loader, which detects the TD from CPUID leaf 21H and
+TDG.VP.INFO. RAM, page tables and boot modules are private. A page-table leaf
+for shared memory sets the top bit of the guest physical address width (48 or
+52), the mirror image of SEV's C-bit. Device untypeds, `RetypeShared` and
+`SEL4_BOOTINFO_HEADER_SHARED_DMA` work as they do under SEV. A private to
+shared transition zeroes, flushes and shoots down the page around MapGPA; the
+way back accepts the page and zeroes it again, whatever the VMM did to it.
+
+The kernel accepts firmware's unaccepted RAM on all cores at boot, starts
+secondary cores through the ACPI wakeup mailbox, and takes the TSC rate from
+CPUID leaf 15H. It requires #VE on pending private pages to be off, except in a
+debug TD. Kernel #VE handles only CPUID, the idle loop's HLT and the x2APIC and
+timer MSRs, and terminates the guest on anything else. User #VE emulates CPUID
+and the scalar MMIO accesses listed for SNP, after checking the access against
+the thread's page tables, never an address the VMM supplies.
+
+Root CNode slot `seL4_CapX86TdxControl` holds the attestation capability in a
+TD, and a null cap otherwise. Hand it to the task that does attestation with
+`seL4_CNode_Copy` or `seL4_CNode_Move`. It offers
+`seL4_X86_TdxControl_GetReport` (into a private 4 KiB frame),
+`seL4_X86_TdxControl_ExtendRTMR` and `seL4_X86_TdxControl_GetQuote` (on a
+`RetypeShared` frame). BootInfo records `SEL4_BOOTINFO_HEADER_TDX_INFO` and
+`SEL4_BOOTINFO_HEADER_CC_EVENT_LOG` give the TD's attributes and its RTMR event
+log. Files named by the loader's `rootserver=` and `module=` options are
+measured into RTMR[2]. Nested virtualization is outside the supported
+configuration.
 
 ## AArch64
 
@@ -151,7 +181,13 @@ implementations are grouped by subsystem under `src/arch/x86_64` and
 (default x86_64, or the `aarch64` feature). Each implementation contributes
 items to the same public modules, preserving the paths used by the backends
 and by the proof extractions (`proofs/Fl4Core` for x86_64,
-`proofs/Fl4CoreA64` for AArch64). Proofs currently cover x86_64.
+`proofs/Fl4CoreA64` for AArch64). P0 (no failure) covers both builds;
+P1 and P3 are about the x86_64 build, one serial kernel entry at a time.
+The existing P2 theorem is about the transactional runtime that was
+removed; nothing is proved yet about the serial gate and local paths
+that run SMP today (DESIGN.md §9). `cargo xtask gate` checks the x86_64
+extraction; the AArch64 one is extracted and checked on its own
+(`lake build Fl4ProofsA64`).
 
 ## x86 virtualization
 
@@ -232,7 +268,11 @@ FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 1 --setup k
 FL4_P0_STRICT=1 cargo xtask gate
 ```
 
-P0 checks totality for every extracted core function. For guest memory,
+P0 checks totality for every extracted core function. One theorem has a
+precondition (listed under `preconditions` in `status.json`): the
+FrameBatch loop `vspace.decode_frame_batch_loop` is total for entries of at
+most 3 words and at most 255 entries, which its only caller
+`vspace.decode_frame_batch` guarantees and its P0 theorem discharges. For guest memory,
 `guest_pte_roundtrip` proves that constructing a 4 KiB, 2 MiB or 1 GiB
 leaf, extracting its address and removing the visibility bits recovers the
 frame's aligned GPA. The store laws admit private and shared address masks.

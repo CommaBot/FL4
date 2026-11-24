@@ -38,7 +38,7 @@ def eraseA : Option KernelObject → Option KernelObject
 def archF (σ : State Unit) :=
   ((fun p => eraseA (σ.kheap p)), (fun p => (σ.kheap p).map aType), σ.cdt, σ.isOriginalCap, σ.curThread,
     σ.idleThread, σ.consumedTime, σ.curTime, σ.curSc, σ.reprogramTimer, σ.schedulerAction, σ.domainTime,
-    σ.readyQueues, σ.releaseQueue, σ.archState.x64GlobalPml4, σ.curDomain, σ.idleSc)
+    σ.readyQueues, σ.releaseQueue, (σ.archState.x64GlobalPml4, σ.archState.x64Plat), σ.curDomain, σ.idleSc)
 
 theorem archF_eq {σ σ' : State Unit} (h1 : ∀ q, eraseA (σ'.kheap q) = eraseA (σ.kheap q))
     (h2 : ∀ q, (σ'.kheap q).map aType = (σ.kheap q).map aType) (hc : σ'.cdt = σ.cdt)
@@ -47,10 +47,11 @@ theorem archF_eq {σ σ' : State Unit} (h1 : ∀ q, eraseA (σ'.kheap q) = erase
     (h8 : σ'.reprogramTimer = σ.reprogramTimer) (h9 : σ'.schedulerAction = σ.schedulerAction)
     (h10 : σ'.domainTime = σ.domainTime) (h11 : σ'.readyQueues = σ.readyQueues)
     (h12 : σ'.releaseQueue = σ.releaseQueue) (h13 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
-    (h14 : σ'.curDomain = σ.curDomain) (h15 : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
+    (h14 : σ'.curDomain = σ.curDomain) (h15 : σ'.idleSc = σ.idleSc := by first | rfl | assumption)
+    (h16 : σ'.archState.x64Plat = σ.archState.x64Plat := by first | rfl | assumption) :
     archF σ' = archF σ := by
   unfold archF
-  rw [funext h1, funext h2, hc, ho, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15]
+  rw [funext h1, funext h2, hc, ho, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16]
 
 theorem archF_upd {σ : State Unit} {p : ObjRef} {a0 a : ArchKernelObj} (hk : σ.kheap p = some (.archObj a0))
     (ht : aaType a0 = aaType a) :
@@ -114,6 +115,8 @@ structure ArFr (σ σ' : State Unit) : Prop where
   rel : σ'.releaseQueue = σ.releaseQueue
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
   cdom : σ'.curDomain = σ.curDomain
+  /-- The platform record (#65, #68). -/
+  plat : σ'.archState.x64Plat = σ.archState.x64Plat
 
 theorem eraseA_cases (o : Option KernelObject) :
     (eraseA o = o ∧ ∀ a, o ≠ some (.archObj a)) ∨ ∃ a, o = some (.archObj a) := by
@@ -125,8 +128,8 @@ theorem eraseA_cases (o : Option KernelObject) :
 
 theorem ArFr.of_eq {σ σ' : State Unit} (h : archF σ' = archF σ) : ArFr σ σ' := by
   simp only [archF, Prod.mk.injEq] at h
-  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdt, hrq, hrel, hgp, hcd, hisc⟩ := h
-  refine ⟨fun p => ?_, hc, ho, hct, hid, hcons, htime, hcsc, hisc, hrep, hact, hdt, hrq, hrel, hgp, hcd⟩
+  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdt, hrq, hrel, ⟨hgp, hpl⟩, hcd, hisc⟩ := h
+  refine ⟨fun p => ?_, hc, ho, hct, hid, hcons, htime, hcsc, hisc, hrep, hact, hdt, hrq, hrel, hgp, hcd, hpl⟩
   have e1 : eraseA (σ'.kheap p) = eraseA (σ.kheap p) := congrFun h1 p
   have e2 : (σ'.kheap p).map aType = (σ.kheap p).map aType := congrFun h2 p
   rcases eraseA_cases (σ.kheap p) with ⟨f1, -⟩ | ⟨a, g1⟩ <;>

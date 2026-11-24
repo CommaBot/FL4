@@ -31,6 +31,10 @@ enum seL4_RootCNodeCapSlots {
     seL4_NumInitialCaps         = 16
 };
 
+/* An Intel TDX guest's attestation control cap shares the slot of the SMC cap,
+ * which x86 does not have. It is a null cap outside a TDX guest. */
+#define seL4_CapX86TdxControl seL4_CapSMC
+
 /* Legacy code will have assumptions on the vspace root being a Page Directory
  * type, so for now we define one to the other */
 #define seL4_CapInitThreadPD seL4_CapInitThreadVSpace
@@ -111,6 +115,9 @@ typedef enum {
     SEL4_BOOTINFO_HEADER_SHARED_DMA         = 9, /* Header only. DMA requires RetypeShared frames. */
     SEL4_BOOTINFO_HEADER_X86_EXTRA_UNTYPEDS = 10, /* seL4_UntypedDesc[], slots follow untyped.end */
     SEL4_BOOTINFO_HEADER_AARCH64_VIRT_INFO  = 11, /* seL4_AArch64VirtInfo */
+    SEL4_BOOTINFO_HEADER_TPM_EVENT_LOG      = 12, /* seL4_TpmEventLog */
+    SEL4_BOOTINFO_HEADER_CC_EVENT_LOG       = 13, /* seL4_CcEventLog */
+    SEL4_BOOTINFO_HEADER_TDX_INFO           = 14, /* seL4_X86_TdxInfo */
     /* Add more IDs here, the two elements below must always be at the end. */
     SEL4_BOOTINFO_HEADER_NUM,
     SEL4_FORCE_LONG_ENUM(seL4_BootInfoID)
@@ -153,6 +160,38 @@ typedef struct seL4_AArch64VirtInfo {
     seL4_Word id_aa64dfr0_el1;
     seL4_Word id_aa64dfr1_el1;
 } seL4_AArch64VirtInfo;
+
+/* SEL4_BOOTINFO_HEADER_TPM_EVENT_LOG: the UEFI TPM event log, copied by the
+ * loader, in device untyped memory (retyping it does not clear it). */
+#define seL4_TpmEventLog_Truncated (1ul << 0)
+#define seL4_TpmEventLog_Tcg12     (1ul << 1)
+
+typedef struct seL4_TpmEventLog {
+    seL4_Word paddr; /* 4 KiB-aligned physical address (in device untypeds) */
+    seL4_Word size;  /* exact byte length of the finalized event log */
+    seL4_Word flags; /* bit 0 = truncated, bit 1 = tcg_1_2 (0 = TCG 2.0) */
+} seL4_TpmEventLog;
+
+/* SEL4_BOOTINFO_HEADER_CC_EVENT_LOG: the UEFI confidential-computing event
+ * log (RTMR measurements on Intel TDX), in the same format as the TPM log. */
+#define seL4_CcEventLog_Truncated (1ul << 0)
+#define seL4_CcEventLog_Tcg12     (1ul << 1)
+
+typedef struct seL4_CcEventLog {
+    seL4_Word paddr; /* 4 KiB-aligned physical address (in device untypeds) */
+    seL4_Word size;  /* exact byte length of the finalized event log */
+    seL4_Word flags; /* bit 0 = truncated, bit 1 = tcg_1_2 (0 = TCG 2.0) */
+} seL4_CcEventLog;
+
+/* SEL4_BOOTINFO_HEADER_TDX_INFO: facts about this Intel TDX guest, from
+ * TDG.VP.INFO and TDG.VM.RD. */
+typedef struct seL4_X86_TdxInfo {
+    seL4_Word gpaw;       /* guest physical address width: 48 or 52 */
+    seL4_Word attributes; /* TD attributes */
+    seL4_Word td_ctls;    /* TDCS.TD_CTLS, 0 if the TDX module has none */
+    seL4_Word num_vcpus;
+    seL4_Word max_vcpus;
+} seL4_X86_TdxInfo;
 
 SEL4_COMPILE_ASSERT(
     invalid_seL4_BootInfoHeader,

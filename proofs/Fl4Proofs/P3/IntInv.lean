@@ -89,7 +89,7 @@ theorem irqSlotOK_of_spec {s : S} {kb : U64} {σ : Fl4Spec.State Unit} (hL : Int
   unfold IrqSlotOK
   rw [capV_of_capAt hc]
   rcases hS _ ac hg with h | ⟨r, b, rs, h⟩
-  · left; rw [hca.abs] at h; exact absCap_eq_null.1 h
+  · left; rw [hca.abs] at h; exact (absCap_eq_null hca.1).1 h
   · right
     rw [hca.abs] at h
     cases c <;> simp [absCap] at h

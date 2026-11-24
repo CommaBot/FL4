@@ -121,8 +121,8 @@ theorem JAtZR.rootFr {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
       (fun p hp => by
         obtain ⟨f, hf, -⟩ := J.xtop.fin.2.1.pool p hp
         rw [hf]; exact (hk.ntcb (fun _ e => by cases e)).2 hf)
-  · have hR := J.xtop.fin.1.1.2.2.2.2.2.1
-    unfold KRootRel at hR ⊢
+  · have hR := J.xtop.fin.1.1.2.2.2.2.2.1.1
+    unfold KRootW at hR ⊢
     have e : core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT = ksW (L.ksb s) 48#u64 := by
       unfold layout.ks.KERNEL_ROOT; rfl
     rw [hks, e, hw.mem_eq (ksW_al hkf hka (by decide) (by decide)) (sfootN_kr hS J.nk hkf)]

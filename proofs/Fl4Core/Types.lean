@@ -49,7 +49,7 @@ inductive capability.FrameSize where
 | Huge : capability.FrameSize
 
 /-- [fl4_core::capability::Cap]
-    Source: 'crates/fl4-core/src/capability.rs', lines 47:0-72:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 47:0-74:1
     Visibility: public -/
 @[discriminant isize]
 inductive capability.Cap where
@@ -93,6 +93,7 @@ inductive capability.Cap where
 | AsidPool : Std.U64 → Std.U64 → capability.Cap
 | IoPortControl : capability.Cap
 | IoPort : Std.U64 → Std.U64 → Std.U64 → capability.Cap
+| TdxControl : capability.Cap
 
 /-- [fl4_core::boot::Region]
     Source: 'crates/fl4-core/src/boot.rs', lines 30:0-33:1
@@ -114,24 +115,8 @@ structure boot.Boot where
   extra_bytes : Std.U64
   ut_lost : Bool
 
-/-- [fl4_core::obj::Tcb]
-    Source: 'crates/fl4-core/src/obj.rs', lines 26:0-26:24
-    Visibility: public -/
-@[reducible]
-def obj.Tcb := Std.U64
-
-/-- [fl4_core::debug::Breakpoint]
-    Source: 'crates/fl4-core/src/arch/x86_64/debug.rs', lines 92:0-98:1
-    Visibility: public -/
-structure debug.Breakpoint where
-  vaddr : Std.U64
-  ty : Std.U64
-  size : Std.U64
-  rw : Std.U64
-  enabled : Bool
-
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-128:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-141:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -141,6 +126,13 @@ structure machine.Arch (Self : Type _) where
   vcpu_capability : Self → Std.U64 → Result Std.U64
   vcpu_barrier : Self → Result Self
   invalidate_ept : Self → Std.U64 → Std.U64 → Result Self
+  tdx_active : Self → Result Bool
+  tdx_report : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Std.U64
+    → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Result (Std.U64 ×
+    Self)
+  tdx_extend_rtmr : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 →
+    Std.U64 → Std.U64 → Std.U64 → Result (Std.U64 × Self)
+  tdx_get_quote : Self → Std.U64 → Std.U64 → Result (Std.U64 × Self)
   now : Self → Result (Std.U64 × Self)
   set_deadline : Self → Std.U64 → Result Self
   us_to_ticks : Self → Std.U64 → Result Std.U64
@@ -173,6 +165,22 @@ structure machine.Arch (Self : Type _) where
   putc : Self → Std.U64 → Result Self
   get_char : Self → Result (Std.U64 × Self)
   halt : Self → Result Self
+
+/-- [fl4_core::obj::Tcb]
+    Source: 'crates/fl4-core/src/obj.rs', lines 26:0-26:24
+    Visibility: public -/
+@[reducible]
+def obj.Tcb := Std.U64
+
+/-- [fl4_core::debug::Breakpoint]
+    Source: 'crates/fl4-core/src/arch/x86_64/debug.rs', lines 92:0-98:1
+    Visibility: public -/
+structure debug.Breakpoint where
+  vaddr : Std.U64
+  ty : Std.U64
+  size : Std.U64
+  rw : Std.U64
+  enabled : Bool
 
 /-- [fl4_core::error::LookupFault]
     Source: 'crates/fl4-core/src/error.rs', lines 6:0-11:1
@@ -286,7 +294,7 @@ def obj.Reply := Std.U64
 def obj.Ep := Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 449:0-458:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 462:0-471:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -308,7 +316,7 @@ def ept.slot.closure (S : Type _) := Unit
 def ept.root.closure (S : Type _) := Unit
 
 /-- [fl4_core::capability::Rights]
-    Source: 'crates/fl4-core/src/capability.rs', lines 272:0-277:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 277:0-282:1
     Visibility: public -/
 structure capability.Rights where
   write : Bool
@@ -317,13 +325,38 @@ structure capability.Rights where
   grant_reply : Bool
 
 /-- [fl4_core::vspace::VRoot]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 511:0-514:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 524:0-527:1 -/
 structure vspace.VRoot where
   pml4 : Std.U64
   asid : Std.U64
 
+/-- [fl4_core::vspace::Batch]
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 637:0-648:1 -/
+structure vspace.Batch where
+  root : Std.U64
+  asid : Std.U64
+  op : Std.U64
+  depth : Std.U64
+  map_rights : Std.U64
+  cap_rights : Std.U64
+  attr : Std.U64
+  defer_delete : Bool
+  cnode : capability.Cap
+  dest_cnode : capability.Cap
+
+/-- [fl4_core::cdt::Finalised]
+    Source: 'crates/fl4-core/src/cdt.rs', lines 233:0-236:1 -/
+structure cdt.Finalised where
+  success : Bool
+  cleanup : capability.Cap
+
+/-- [fl4_core::vspace::decode_frame_batch::{closure}]
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 660:72-660:124 -/
+@[reducible]
+def vspace.decode_frame_batch.closure (S : Type _) (A : Type _) := Unit
+
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 739:0-747:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1011:0-1019:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64
@@ -368,7 +401,7 @@ structure boot.Pick where
   start : Std.U64
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 467:0-479:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 468:0-480:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -383,7 +416,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 484:0-494:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 485:0-495:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64
@@ -395,11 +428,18 @@ structure boot.RootLayout where
   max_bits : Std.U64
   total : Std.U64
 
-/-- [fl4_core::cdt::Finalised]
-    Source: 'crates/fl4-core/src/cdt.rs', lines 233:0-236:1 -/
-structure cdt.Finalised where
-  success : Bool
-  cleanup : capability.Cap
+/-- [fl4_core::localinv::Plan]
+    Source: 'crates/fl4-core/src/localinv.rs', lines 47:0-59:1
+    Visibility: public -/
+structure localinv.Plan where
+  slot : obj.Slot
+  extra : Array obj.Slot 3#usize
+  locks : Array Std.U64 4#usize
+  n : Std.Usize
+  pte : Std.Usize
+  seen : Array (Std.U64 × Std.U64) 4#usize
+  nseen : Std.Usize
+  ok_words : Bool
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
     Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/

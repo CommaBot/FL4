@@ -17917,3 +17917,291 @@ New: `Vs.VsNamed.retypeGrow`, `vfh_vkey`.
 Stage 6: the vsReach consumers (C24 drop premise `JAtZ.vsReachMiss` etc.) read it at kernel-entry `JAtZ`
 states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top statements unchanged), then the
 `[J]` premise it replaces is dropped from the next top.
+
+## m75 (branch par/m75 in FL4-a64x, on int/j3 dbb1f942 + main) — re-extraction after #65/#67 DONE (x86 P0 1080/1080, P1/P3 4K/2M map fixed); #71 (main e35ed12b) re-extracted but NOT green: P0 has 5 open new functions, the 1 GiB map refinement needs a decision, and #71's FrameBatch label leaves the PML4 decode refinement; no premise added
+- **Merges.** 6fee5c79 = dbb1f942 + main 23baaf12 (#65, #67); 27317380 = + main e35ed12b (#69, #71). No conflicts.
+- **#65/#67 (committed, 1fcb75c8, 5c22feac).** x86 extraction (pvg-office-2): `vspace.decode_page_map` changed (a 1 GiB frame
+  without `FEATURE_HUGE_PAGES` is IllegalOperation; the size match binds `(fs, huge)` and rebinds `large`), new
+  `vspace.huge_pages`, `layout.ks.FEATURE_HUGE_PAGES`; nothing else. P0 1080/1080 (19 by hand): new
+  `vspace.decode_page_map.p0` (cases on the size, simp before stepping). P1 `vspace.decode_page_map.dec` and P3
+  `frame_map_rel` (4K) re-proved, same statements. P3 `frame_map_large_rel` (2M): same one-line fix (`apply ok_bind_spec`),
+  module builds, uncommitted (VsFrameMapLRel still fails at the huge theorem below).
+- **Decision needed (1 GiB map, #65).** `frame_map_huge_rel` (VsFrameMapLRel.lean:698) relates FL4's X86PageMap of a
+  huge frame to l4v's `decodePageInvocation` (Fl4Spec/Decode.lean:239), which has no such refusal. With the ks FEATURES bit
+  clear FL4 returns IllegalOperation where the spec maps, so the theorem is unprovable as stated: it needs either a premise
+  that the CPU takes 1 GiB pages (ks `FEATURES & FEATURE_HUGE_PAGES ≠ 0`, written only at boot; carried from the entry as a
+  boot fact), or an Fl4Spec extension (a state-level `hugePages` flag, the refusal after `checkVpAlignment`, related by
+  `SR`). C seL4 without CONFIG_HUGE_PAGE does `fail("Invalid Page type")` here (src/arch/x86/64/kernel/vspace.c:1527), so
+  l4v's model is the CONFIG_HUGE_PAGE configuration.
+- **#71 extraction (uncommitted, working tree).** x86 (pvg-office-2; the first run was SIGKILLed by memory pressure):
+  only `vspace.decode` changed (the `X86PML4FrameBatch` branch under `Cap::Pml4`); added `vspace.{decode_frame_batch(+_loop),
+  frame_batch_entry, batch_map, unmap_page_unflushed, small_page_entry, Batch.clone, frame_batch.*}`, `fastpath_vm.{vm_fault,
+  reply_recv_vm_found}`, `localinv.*` (Plan.*, plan, plan_with, …), `syscall.{handle_vm_fault_local,
+  handle_reply_recv_vm_local, handle_invocation_local}`, `obj.Slot.next_of_word`, `fl4_abi.label.X86PML4FrameBatch`.
+  AArch64: no existing function changed (#71's claim holds); the same localinv / fastpath_vm / syscall functions added.
+  New library externals (`Option` `?`: `Try.branch`, `FromResidual.from_residual`; `Result::ok`; x86 also `is_err`):
+  models added to Fl4Core/FunsExternal.lean (definitions, total). xtask's AArch64 check fails because the x86 template
+  lists `is_err` and the AArch64 one does not; Fl4CoreA64/FunsExternal.lean was written by the same transform by hand.
+  xtask needs to accept a superset (code change, not done).
+- **#71 P0 (x86, tokyo, stopped after round 12).** Open: `vspace.decode_frame_batch_loop` (`words * done` and `1 + …` are
+  checked arithmetic on the loop's own arguments: for arbitrary `words` the loop CAN fail, so its P0 as the generator states
+  it is false; reachable calls have `words ≤ 3`, `n ≤ 255`, so no reachable failure; needs either wrapping arithmetic in
+  Rust or a P0 statement with a precondition), and `vspace.decode_frame_batch`, `vspace.frame_batch_entry`,
+  `vspace.batch_map`, `localinv.plan_with` (every generated tactic fails; hand proofs not written yet). AArch64 P0 not run.
+- **Coverage (#71, no proof attempted, by instruction).** (a) `vspace.decode`'s new `X86PML4FrameBatch` branch is reached
+  from `kernel_entry` through `decode_invocation` on a PML4 cap: P3 `decode_invocation_pml4_thX` (VsThX.lean:501, used by
+  `decode_invocation_pml4JV`, XTopJointVsMap.lean:1095, and the tops through XTopJointEntry / XTopJointKEntry13P / 23P)
+  relates every non-Flush PML4 label to the spec's IllegalOperation (`fl4ArchDecodeInvocation`, Fl4Spec/Ext/Invocation.lean:128);
+  for the FrameBatch label FL4 now runs the batch, so this refinement (and every top through it) no longer covers FL4 there.
+  P1 `QueueDecVs` likewise has no invariant proof for the batch path. (b) `syscall.handle_vm_fault_local`,
+  `handle_reply_recv_vm_local`, `handle_invocation_local` (with `localinv.Plan`) are entered from fl4-sync beside the
+  serial gate, not from `kernel_entry`: no existing top covers them (as for `handle_syscall_local` / `handle_ioport_local`).
+- Commits: 6fee5c79 (merge), 1fcb75c8, 5c22feac, 27317380 (merge), this section.
+
+## m76 (branch par/m75 in FL4-a64x, on 4a0ae3df) — #71 P0 mostly done, not green; #65 hugePages spec change written but not built; FrameBatch gap and TDX (#68) not started; HANDOFF (agent context exhausted)
+- **Step 1.** `lake build Fl4Core Fl4CoreA64` green with m75's external models (FunsExternal.lean, both arches, unchanged by m76):
+  `Option`'s `?` = `Try.branch` (`some x ↦ Continue x`, `none ↦ Break none`) and `FromResidual.from_residual`
+  (`_ ↦ none`), `Result::ok` (`Ok x ↦ some x`, `Err _ ↦ none`); definitions, total, no axioms.
+- **P0 (commit e7d023f9; Auto.lean / status.json NOT regenerated).** Specs.lean (both): step specs for the three
+  models; x86 also `vspace.frame_batch.entry_words.spec` (≤ 3) and the FrameBatch `map_err` closure. With them the
+  generator proves `localinv.small_page_entry` (and on A64 everything but `plan_with`: last A64 run 1099 functions,
+  1098 proved, open `localinv.plan_with`). Manual.lean.in (x86): `vspace.batch_map` (✓ in gen_p0),
+  `vspace.decode_frame_batch_loop` (✓; **P0 with precondition** `words.val ≤ 3`, `n.val ≤ 255`, recorded by the
+  `-- P0 precondition:` line, which gen_p0.py now lists under `preconditions` in status.json; README says so),
+  `vspace.frame_batch_entry` and `localinv.plan_with` (✓ in scratch m76p0e.lean against an Auto with those
+  proofs as sorry, after the `p0_whnf_head` fix below), `vspace.decode_frame_batch` (**OPEN**). A64 Manual:
+  `localinv.plan_with`, same proof (untested since the fix).
+- **The stuck goals** were `let (x, y) := (a, b); …` whose head is Aeneas's `uncurry` (not a matcher: dsimp /
+  simp only [] / split / whnfCore do nothing). Totality.lean (both) `p0_whnf_head` unfolds `uncurry` (and a
+  matcher) at the head of the spec program or of its first bind action; `p0_unfold_match` is a fallback.
+- **decode_frame_batch.p0 OPEN:** with `p0_whnf_head` in the chain it no longer gets stuck on `let (root, _)`
+  but times out (whnf, 4M heartbeats; >8 min at 8M with the bind-of-match abstraction added): the two 24-case
+  cap matches (`cnode`, `dest_cnode`) duplicate the rest of the body (with the loop and the reply). Next: state
+  the tail after `let b1 ← match dest_cnode` as a separate lemma (or prove `@[step]` lemmas for
+  "`match c with … => ok bool` never fails" and use `refine WP.spec_bind` explicitly for each match, then `step`),
+  check in scratch (m76p0f.lean; build Auto first with `python3 m76sorry.py proofs/Fl4Proofs/P0/Auto.lean
+  vspace.decode_frame_batch` after gen_p0 has written it), then regenerate x86 + A64 (`bash m76-g.sh`).
+- **#65 hugePages (commit 6ed41d7d, NOT BUILT).** Fl4Spec: `ArchState.x64HugePages : Bool`; `createMappingEntries`
+  of an `X64HugePage` throws `illegalOperation` when it is clear, before the PDPT lookup (= FL4's order: alignment,
+  then `huge_pages`, then `page_entry_slot`); `initArchState` sets it; PORTING.md Deviations entry. Placing the
+  check in `createMappingEntries` leaves every 4K/2M proof definitionally unchanged. P3: `HugeRel m ksb σ` (VsRel.lean:
+  ks `FEATURES & FEATURE_HUGE_PAGES ≠ 0` = `σ.archState.x64HugePages`), field `VsFrameHypsL.huge : ∀ s a σ, SR s a σ →
+  HugeRel …` (VsFootW's `.foot` passes it), mapTailH_noSlot/_ok/_used take `hh : x64HugePages = true`,
+  new `mapTailH_noHuge`, `cme_huge_ok`/`cme_huge_no`, `runE_bind_congr`, `huge_pages_eq`, `map_tail_H` cases on the
+  bit. **Open:** `vsFrameHypsL_top` (VsTopInst.lean:80) must prove `huge` from `TopSR`, which does not carry it.
+  Plan: add `HugeRel` to `KRootRel` (VsTop.lean:91, "kernel words written at boot only") and fix its 14 producing
+  sites (UtEpXTop:228, XTopBuf:141, VsReplyTop:338/460, XTopStepT:141, XTopStep:331, VsTop:326, UtScAdd:128,
+  ReplyFailX:95, XTopTcbFpu:169, ScXSched:115, VsSubTop:197, IpcTopFrame:456, ScXStep:507; readers G7cRoot:106,
+  VsArch:322): FL4 side the same frame fact with offset 72 (FEATURES) beside 48 (KERNEL_ROOT); XTopAt.frameStep /
+  XTopTcbFpu's variant need a `hWF : ¬ W (ks+FEATURES)` beside `hWK` (≈12 callers); spec side: sites with `har`
+  (whole archState) are immediate, sites with only `gpml4` (KsStep / SchStep / step records, 49 occurrences of
+  `x64GlobalPml4 = …` in 51 files) need a parallel `x64HugePages` field. The ArchState field itself broke nothing
+  known yet (no full build run since).
+- **Not done:** full x86 build, `Fl4ProofsA64` build, axioms (axm76p0.lean / axm76a.lean written, untracked),
+  step 6 FrameBatch gap listing (`decode_invocation_pml4_thX`, VsThX.lean:501, via `decode_invocation_pml4_capX`:
+  FL4 runs the batch on label X86PML4FrameBatch where the spec says IllegalOperation; not touched, no premise),
+  lead's new item: merge main b47224c2 (#68 TDX; fetched into FL4-a64x as origin/main), re-extract, gen_p0, report
+  P1/P3 breakage from `Cap::TdxControl`.
+- Scripts (untracked, worktree root): m76-g.sh (gen_p0 both arches → m76back3), m76-cmd.sh (scratch files), m76-m.sh
+  (module builds), m76-e.sh / m76-f.sh, m76sorry.py, m76p0{,b,c,d,e,f}.lean scratch. tokyo mirror FL4-a64x: its
+  Auto.lean (x86) is a scratch variant with three proofs as sorry.
+- Commits: e7d023f9, 6ed41d7d, this section.
+
+## m77 (branch par/m75 in FL4-a64x, on fbc8d64f) — #71 P0 green (x86 1113/1113, A64 1099/1099); #65 hugePages threaded through `KRootRel` and built; full x86 build NOT green: the #71 FrameBatch gap breaks 6 proofs (listed below, no premise added); TDX (#68) not started (gated on a green build)
+- **P0 (commit 015a18c7).** `vspace.decode_frame_batch.p0`: Totality.lean (x86) `p0_bind_match` proves a bind whose first
+  action is a matcher (the two 24-case cap matches binding a `bool`) total by splitting the match alone; with it before
+  `step` the proof elaborates in ~40 s. gen_p0: x86 1113/1113 (24 by hand; `preconditions`:
+  `vspace.decode_frame_batch_loop`, `words ≤ 3`, `n ≤ 255`, discharged by `decode_frame_batch`), A64 1099/1099 (29 by hand,
+  `localinv.plan_with` included). The precondition comment moved inside the loop theorem: gen_p0 splits Manual.lean.in at
+  `theorem`, so the comment above it had been attributed to `frame_batch_entry`. `--render-only` adds `@[step]` to the two
+  constants `vspace.frame_batch.{DEFER_DELETE_FLUSH,DEFINED}.p0` where the full run does not (generator inconsistency,
+  harmless; the committed Auto.lean is the full run's).
+- **#65 hugePages (commit below).** `KRootRel m ksb σ := KRootW m ksb σ ∧ HugeRel m ksb σ` (VsTop; `KRootW` = the old
+  kernel-root equation). `feat_val` (ks+72), `HugeRel.frame`. Spec side: a `huge : x64HugePages` field in `OStep`
+  (VsMakePoolRel), `KsStep` (StepSem, last field), `SchStep` (ScXSched) and the conjunct in `SchKeep` (ScSchedSpec);
+  `frameStep` / `frameStepV` take `hWF : ¬ W (ks+FEATURES)` and `hgh`. FL4 side: `KsW` excludes K = 72 (`K ≠ 48 ∧ K ≠ 72`),
+  `not_ksW72`, `domKW_val` / `schW_val` carry `≠ ks+72`. Sites: the 14 `KRootRel` producers, the 2 readers (G7cRoot,
+  VsArch), 11 `frameStep(V)` callers (a copy of each hWK bullet for FEATURES), OStep/KsStep/SchStep producers (rfl /
+  `h.arch` / `.trans`), VsSubTop's explicit OStep tuple. `vsFrameHypsL_top.huge := hS.1.2.2.2.2.2.1.2`. VsFrameMapLRel
+  (m76): `rw [huge_pages_eq]` directly (simp had already reduced the size match), `Bool.eq_false_iff`; m76's
+  `runE_bind_congr` renamed `runE_bind_congrH` (clashed with `Sched.runE_bind_congr`). No top statement changed; the
+  `JReachU3.start` premise `JAtZ` now carries `HugeRel` (as it carries `KRootW`): a relation, satisfiable by choosing
+  σ's flag, not a CPU assumption.
+- **FrameBatch gap (#71, NOT fixed, no premise).** FL4's `vspace.decode` on a PML4 cap now runs
+  `decode_frame_batch` for label `X86PML4FrameBatch` (90). Broken, each exactly at that label's branch: P1
+  `QueueDecVs` (Pml4 case, the first `errV`: no DecPost proof of the batch), `MachKeepG4d.MKD.vspace_decode` (the batch
+  reaches `cdt.delete` via `frame_batch_entry`, not in the MKD walk), P3 `VsTopX.decode_invocation_pml4_capX`,
+  `VsDecTop.decode_invocation_pml4`, `VsThX.domFrame_pml4`, `VsDomF.decode_invocation_pml4D` (spec says IllegalOperation /
+  dom frame of the batch). With a scratch-only `sorry` in exactly those six branches (`m77scratch.py apply`, untracked,
+  never committed) everything else builds (see the build line in the report). These six need either the Fl4Spec
+  FrameBatch model (separate agent) or a lead-approved premise; ~373 modules (all tops) are downstream of them.
+- **Builds (tokyo mirror, m77-full9 / m77-ax1).** x86 `lake build` with the six scratch sorries: "Build completed
+  successfully (7209 jobs)"; without them it stops at the six branches above (QueueDecVs, MachKeepG4d, VsTopX, VsDecTop,
+  VsThX, VsDomF). `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)". Axioms (axm77.lean, untracked):
+  `frame_map_huge_rel`, `vsFrameHypsL_top`, `XTopAt.frameStep/ksStep/schedStep`, `TopSR.step`, all P0 lemmas of
+  axm76p0 / axm76a: [propext, Classical.choice, Quot.sound]. Every `kernel_entry_reach*` top but `kernel_entry_reachE3T`
+  shows `sorryAx` in the scratch build: the FrameBatch gap reaches 31 of the 32 tops. The tokyo mirror still holds the
+  scratch-sorry versions of those six files (the next sync from the worktree overwrites them).
+- **Not done:** TDX (#68) merge / re-extraction / P0 / breakage list (gated on a green build). Next: once the Fl4Spec
+  FrameBatch model lands (or the lead approves a `lbl ≠ X86PML4FrameBatch` premise), prove the six branches; for
+  MachKeepG4d the batch path needs an MKD lemma through `frame_batch_entry` → `cdt.delete` (not in the quiet walk).
+- Commits: 015a18c7 (P0), 367af0ca (hugePages), this section.
+
+## tdx (branch par/tdx in FL4-tdx, on par/m75 d139d550 + main b47224c2 = #68) — re-extracted (x86, A64); P0 green (x86 1126/1126, A64 1112/1112); P1 `tdx` family proved; P3 mechanical breaks fixed; TdxControl not modelled in Fl4Spec: 2 P3 lemmas need that decision (below); full x86 build otherwise green outside the six #71 FrameBatch branches; no premise added; FINDINGs below
+- **Merge / extraction (46e0a0ed).** b47224c2 merged as 8b0734a3; `cargo xtask extract` (x86, `--arch aarch64`) on tokyo with
+  `fl4-deps` (Aeneas 0d21a9e); FunsExternal unchanged. `gen_const_specs` + `gen_p0`: x86 1126/1126 (24 by hand), A64
+  1112/1112 (29 by hand), 0 sorry, no new hand proof: the four new default Arch methods are `ArchTotal` fields
+  (`tdx_active`, `tdx_report`, `tdx_extend_rtmr`, `tdx_get_quote`, both Totality.lean, with `@[step]` specs).
+- **P1.** `CapFam.tdx`, `capFam .TdxControl = .tdx`, `InvGaps.tdx`, discharged in the new **QueueDecTdx.lean**
+  (`decGap_tdx hA E`: `tdx.decode.dec` = `get_report` / `extend_rtmr` / `get_quote` keep `DecPost`: errors with the state
+  unchanged; else `restart_blk`, the arch's TDCALL by `ArchTotal`, `tdx.reply.bxi` = the ioport read reply path) in
+  `InvGaps2.gaps` / `InvGaps3.gaps` (so `InvGaps2/3/4` are unchanged: no new premise). QueueDelFin `fin_noop` takes
+  `TdxControl` (finalise returns `(Null, Null)`).
+- **P3: the abstraction (CapRel.lean).** `absCap .TdxControl := .nullCap` and **`CapWf .TdxControl := False`**: no related
+  state holds a TdxControl cap, so the refinement says nothing about TDX guests until Fl4Spec models the cap (lead
+  decision). Before #68 no such cap existed, so every existing statement keeps its meaning for every state it covered.
+  `StateRel.not_tdx` (CnodeRevoke) turns a related slot holding one into `False`.
+- **P3: mechanical fixes.** CapRel `null_iff`; Delete `absCap_eq_null` takes `CapWf c` (9 callers pass `hca.1`;
+  `recDelF_fin` from `TrivKind`); MdbSpec `srB_spec_self` / `sbp_eq` take `CapWf` of the new cap (4 callers pass `hwf`);
+  SoSpec `soB_iff_nf` (TdxControl cases from `ha`/`hb`); FinDefs `key_of_so`; DelFinStep `TrivFin` includes TdxControl;
+  ScDecodeSc (the two statement copies of `decode_bind`/`unbind_object`'s cap match get the TdxControl arm; `hwf`);
+  the decode dispatches (XTopJointEntry, XTopJointKEntry13P, 23P, 38) and the five `sched_params` SC-cap splits (ScTcb,
+  XTopJointMRTcb, MRTcbM, TcbSsp, XTopTcbSched) close the TdxControl case by `not_tdx`; `JPath`/`JPathM` get
+  `.TdxControl => True`; `QuietF .TdxControl := False` (its TDCALLs return an arch state no `MRKeepD` field covers);
+  DecodeTop `decode_invocation_refines` gets `hTdxControl` (one statement per cap type; no caller); XTopJointMachRel's
+  `modelArch` gets the four methods (defaults); Encode decode/encode/round trip (tag 24).
+- **Needs Fl4Spec TdxControl support (NOT fixed, no premise): P3/TcbCtl.lean `vfh_eq` (l.41) and `vfh_ep` (l.233).**
+  FL4's `valid_fault_handler TdxControl = false` while the spec's `validFaultHandler (absCap TdxControl) =
+  validFaultHandler nullCap = true`; `vfh_ep` concludes "endpoint" from a valid non-null handler. Both are stated for
+  every cap (no `CapWf`), `vfh_eq` is a simp rewrite in ~15 places (TcbCtl, ScTcb, XTopTcbSched, XTopJointTcbSsp,
+  XTopJointMRTcb(M), XTopJointTcbInstall) and `vfh_ep` is used in ~15 more (XTopJointFault*, NoFault, ...). Options: a
+  `CapWf c` premise (each caller has the cap's `CapRel` at hand, but the simp uses need a conditional rewrite), or the
+  Fl4Spec cap. With scratch sorries in exactly these two (tdxscratch.py, untracked, never committed) plus m77's six
+  FrameBatch ones, `lake build` (x86): "Build completed successfully (7211 jobs)", 8 `sorry` warnings (those 8).
+  Without them it stops at those 8 (TcbCtl and its downstream unbuilt). `lake build Fl4ProofsA64`: "Build completed
+  successfully (3609 jobs)". Axioms (axtdx2.lean): `decGap_tdx`, `tdx.decode.dec`, `InvGaps2/3.gaps`, `StateRel.not_tdx`,
+  `soB_iff_nf`, `sbp_eq`, P0 `tdx.decode.p0`, `boot.init_tdx_control.p0`: [propext, Classical.choice, Quot.sound].
+- **FINDINGs (Rust, #68).** (1) `tdx::decode` checks `tdx_active` only; the cap exists only when `init_tdx_control` ran
+  (TD guest), so OK, but the cap is copyable/movable and `same_region_as` makes all copies one region (objects.rs:125),
+  so a Revoke of any copy deletes all (as IRQControl in seL4). (2) On AArch64 `TdxControl` (tag 24) still decodes from
+  words and dispatches to `tdx::decode`; `tdx_active` is the default `false`, so every invocation is IllegalOperation.
+  (3) Not "no state write": each successful call sets the caller Restart then Running and writes MR0 / MessageInfo /
+  badge register (normal invocation reply), and the TDCALL writes a user frame (TDREPORT into the private frame,
+  quote into the shared one) — no kernel object changes, as described. (4) `init_tdx_control` reuses root slot
+  `SMC` (15) on x86.
+- Scripts (untracked): tdx-build.sh, tdx-ex.sh, m77scratch.py (copy), tdxscratch.py, axtdx.lean / axtdx2.lean.
+
+## tdx3 (branch par/tdx in FL4-tdx, on 9a934034) — lead decision on tdx's open item: **TdxControl modelled in Fl4Spec as an FL4 extension** (no scope premise); design note (written first), progress below
+
+### Design (spec)
+- **Cap** `ArchCap.tdxControlCap` (X64/Structs, last constructor; no object). Arms in the l4v-derived files, one each, as
+  the VT-x caps got: `archObjSize` 0, `archCapIsDevice` false, `aobjRef` none (Structs); `archDeriveCap` keeps it (FL4's
+  `derive_cap` `other => Ok(other)`), `archIsPhysical` false, `archSameRegionAs .tdxControlCap c' := c' = .tdxControlCap`
+  (FL4 objects.rs:125: all copies one region, as `asidControlCap`), `archFinaliseCap` the default `(null, null)` (FL4
+  `finalise_cap` → `(Null, Null)`), `sameAobjectAs` / `archIsCapRevocable` / `shouldBeArchParentOf` the defaults (FL4:
+  `same_object_as` = `same_region_as`, `is_cap_revocable` false) (VSpace); l4v's `archDecodeInvocation` arm
+  `IllegalOperation`, never reached (Decode). `validFaultHandler` (not an endpoint) is false, as FL4's.
+  So in every cap-generic function the TDX control cap behaves exactly as the ASID control cap.
+- **Invocation** `Fl4Spec/Ext/Tdx.lean` (new): labels 91/92/93 (`fl4TdxGetReportLabel` ..), `Fl4TdxInvocation`
+  (`getReport frame data` / `extendRtmr index data` / `getQuote frame len`), `decodeTdxInvocation label args extraCaps`
+  (FL4's checks in FL4's order: `tdxActive` else IllegalOperation; GetReport: `<8` words or no extra cap
+  TruncatedMessage, `tdxReportFrame` (RW non-device 4K) else InvalidCapability 1; ExtendRTMR: `<7` TruncatedMessage,
+  index > 3 InvalidArgument 0; GetQuote: `<1` or no extra cap TruncatedMessage, `tdxQuoteFrame` (RW device 4K/2M) and
+  `tdxDmaRam` else InvalidCapability 1, `tdxQuoteLenOk` else InvalidArgument 0; other label IllegalOperation),
+  `performTdxInvocation` (GetReport / GetQuote: `doMachineOp (tdxFrameWrite frame n)`, then `tdxStatus`; ExtendRTMR:
+  `tdxStatus`). Returns `[status]`: the shell's restart / `replyFromKernel (0, [w])` / Running is FL4's `TS_RESTART` +
+  `tdx::reply` (= `vspace::reply1`, same body). No kernel object, CSpace, CDT, page table or machine field but memory.
+- **[P] platform outputs, nondeterministic** (as `performTestAndClearAccessed`'s accessed bit): `tdxActive`,
+  `tdxDmaRam` (`NonDet.select univ` of a Bool), `tdxStatus` (any word), `tdxFrameWrite base n` (any bytes in
+  `[base, base+n)`, every other byte and machine field kept). FL4's values are always one of the spec's outcomes, so
+  the refinement needs no value premise (unlike `PortInVal`).
+- **Dispatch hook** (Ext/Invocation, an FL4-extension file): `import Fl4Spec.Ext.Tdx`, `Fl4ArchInvocation.tdx`, the
+  `.tdxControlCap` arm of `fl4ArchDecodeInvocation`, the `.tdx` arm of `fl4ArchPerformInvocation`.
+
+### Design (P3)
+- CapRel: `absCap .TdxControl := .archObjectCap .tdxControlCap`, `CapWf .TdxControl` = True (default); `StateRel.not_tdx`
+  removed; its 5 sched_params uses fall into the generic non-SC case, the 4 decode dispatches
+  (XTopJointEntry `decOK_J`, KEntry13P, KEntry23P, KEntry38) get the real TdxControl case.
+- FL4 side: the TDCALLs return a new arch state; as for `port_in` the arch operations get the existing [P] arch
+  obligations: `ArchIrqStep` gains a disjunct (`TdxArchStep`: one of `tdx_report` / `tdx_extend_rtmr` /
+  `tdx_get_quote`), so `ARMask` / `ARIface.mask` cover them; `MRKeepD` gains the three fields (TdxControl becomes a
+  quiet kind, `QuietF`). The model platform (defaults: `(U64::MAX, self)`) satisfies them.
+- Refinement: `decode_invocation_tdxJ` (`XCap … (JAt …) … .TdxControl …`): errors at the start's `JAtZ`; success =
+  `Steps.restart` + `Steps.arch` (the TDCALL) + the spec's outcome with memory unchanged and status = FL4's, then
+  `reply1` (`Vs.reply1_invT`, `jReplyHyp`), as XTopJointPortIn's `In` tail.
+- Spec-invariant families: the generated families unfold any `Fl4Spec` function (`ik_unfold`) and have generic
+  `doMachineOp` / `select` leaves, so the new decode / perform should go through where the generators' leaves suffice;
+  the machine-field families (MachFieldFam `MKF`, MTK) need one leaf `mkf_tdxFrameWrite`. To be listed from the build.
+
+### tdx4 (restart after tdx3 was killed; commits 2d073390, 5a600ce3, 0e48c934, 4da84be7, 8f987a9d, 2f3d8088) — DONE: TdxControl modelled and refined; full x86 build green outside the six #71 FrameBatch branches; no premise added on any top (two existing [P] bundles extended, below)
+- **Mirror cleanup.** tdx3's killed build left m77's six scratch sorries applied on the tokyo mirror; reverted from the
+  mirror root (`tdx4-run.sh` reverts any stale `M77SCRATCH` first and keeps an absolute-path EXIT trap); verified by
+  grep before every build. No stale lake process of tdx3 was running.
+- **Spec (as designed above, committed in 2d073390).** `ArchCap.tdxControlCap` with its arms in X64/Structs, X64/VSpace,
+  Decode (unreachable arm); `Fl4Spec/Ext/Tdx.lean`; dispatch hook in `Ext/Invocation`. Platform: `tdxActive` /
+  `tdxDmaRam` opaque [P] constants (the decode's errors must be its only outcome: `TopPostRMX`'s error clause is a
+  singleton `run`, so a nondeterministic decode error would need a framework change); status word and frame bytes
+  nondeterministic (`NonDet.select`).
+- **P3 abstraction.** `absCap .TdxControl := .archObjectCap .tdxControlCap`, `CapWf .TdxControl` = True,
+  `StateRel.not_tdx` removed (no uses left). `TcbCtl.vfh_eq` / `vfh_ep` build unchanged (no premise).
+- **[P] obligations (existing premise bundles extended, no new top premise):** `JointAt.ARIface` gains `tdx :
+  TdxPlat arI` (`tdx_active a = ok tdxActive`, `dma_ram a p n = ok (tdxDmaRam p.bv n.val)`, ∀ a; same shape as
+  `PPPlat.minBudget`); `StepSem.ArchIrqStep` gains `TdxArchStep` (the three TDCALLs, so `ARIface.mask` covers them);
+  `MachKeepD.MRKeepD` gains `tdx_report` / `tdx_extend_rtmr` / `tdx_get_quote` (TdxControl becomes `QuietF`,
+  `MKD.tdx_decode`); `modelArch_mrKeepD` proves the new fields for the model platform.
+- **Refinement.** `XTopJointTdx.decode_invocation_tdxJ` (`XCap … (JAt …) … .TdxControl …`, every label: errors at
+  the start's `JAtZ`, success = `Steps.restart` + `Steps.arch` (`TdxArchStep`) + `tdx_perform_out` (any status, memory
+  unchanged is a spec outcome) + `reply1`); used by `decOK_J` (XTopJointEntry) and `decOK_JM` (XTopJointKEntry13P),
+  23P, 38.
+- **Spec-invariant leaves added:** VsDomOps `dke_…` / SpecInvDomG `dle_…` / SpecGlobFK `gke_…` (tdx arm, unfold
+  `performTdxInvocation tdxStatus`), MachFieldFam `mkf_tdxFrameWrite` (+ mfk/mtk leaves), MachFieldFamI
+  `mtk_performTdxInvocation`, SpecInvValidMachineTimeGen `gk_decodeTdxInvocation` / `gk_performTdxInvocation`,
+  SpecInvValidIrqHandlersG an `hv_leaf` for the frame write, SpecInvSgD / SpecInvUtP1 / SpecInvSlA (`tdxControlCap`
+  arm: `okv_triv`), XTopJointMidRunS (tdx arm), PerformNil (`htdx`), XTopPostDel (8th `ArchIrqStep` disjunct).
+- **`DecodeTop.decode_invocation_refines`' `hTdxControl` kept**: that theorem is a dispatch with one hypothesis per
+  cap type (as `hIoPortControl`, `hIoPort`, …), no caller, and no arch premise from which a `DecOK` for the TDX cap
+  could be proved (`tdx_active` of an arbitrary arch); the real path is `decOK_J` above, which has no TDX premise.
+- **Builds and axioms (tokyo, LEAN_NUM_THREADS=1, 2f3d8088).** `lake build` (x86) with m77's six FrameBatch scratch
+  sorries applied (`m77scratch.py`, reverted after, verified by grep): "Build completed successfully (7215 jobs)".
+  `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)". `#print axioms` (axtdx4b.lean, untracked):
+  `vfh_eq`, `vfh_ep`, `decode_invocation_tdxJ`, `SInvUZ.zr_tdx`, `SInvUZ.okv_fl4Decode_z`, `MKD.tdx_decode`,
+  `SInvR.A13b.perfA_tdx`: [propext, Classical.choice, Quot.sound]; `tdx_perform_out`: none; `decOK_J`,
+  `kernel_entry_reach`, `kernel_entry_reachU10`, `kernel_entry_reachU2`: + `sorryAx`, from the #71 FrameBatch scratch
+  only (separate line). tdx3's `tdxscratch.py` stubs are gone (none needed).
+- **Open / for the lead:** (1) the `TdxPlat` field strengthens the existing `ARIface` premise with an ∀-arch-state
+  equation to opaque spec constants (`tdx_active`, `dma_ram`); a nondeterministic spec decode would avoid it but needs
+  `TopPostRMX`'s error clause relaxed from a singleton `run` to membership (all decode refinements). (2)
+  `decode_invocation_refines`' `hTdxControl` kept (see above). (3) The #71 FrameBatch branches remain (separate line).
+- Scripts (untracked): tdx4-run.sh (mirror wrapper: reverts stale scratch, absolute-path trap), axtdx4b.lean.
+
+### tdx5 (on 2b33b8b1) — lead review of tdx4's open point 1: the opaque platform constants replaced by a spec platform record (1 GiB precedent); no `kernel_entry_reach*` statement changed
+- **Where the values live.** X64/Structs `X64Platform` (`hugePages`, `tdxActive`, `tdxDmaRam : ObjRef → Nat → Bool`),
+  the arch state's field `x64Plat` (replaces m77's `x64HugePages`; no spec operation writes it; `initArchState`: huge
+  pages on, not a TD guest). `decodeTdxInvocation` reads it first (`NonDet.gets (·.archState.x64Plat)`), as
+  `createMappingEntries` reads `x64Plat.hugePages`. `Fl4Spec.tdxActive` / `Fl4Spec.tdxDmaRam` (opaque) removed.
+- **The relation.** JointAt `TdxRel arI σ := (∀ a, arI.tdx_active a = ok σ.archState.x64Plat.tdxActive) ∧ ∀ a p n,
+  arI.dma_ram a p n = ok (σ.archState.x64Plat.tdxDmaRam p.bv n.val)`, a new carried field `JKern.tdx` (so part of
+  `JAtZ`, i.e. of the start-state assumption, INV-PLAN A18 next to `HugeRel`). Kept by every step through
+  `TdxRel.frame` (it depends on `x64Plat` only): `KsStep.huge` now states `x64Plat` unchanged, `ArFr.plat` /
+  `archF` carry it, `JAtZ.kern_keep` takes it with the global PML4. `TdxPlat` removed from `ARIface` (no TDX field left).
+- **Satisfiability** (`TdxRel.adjust`): for `arI` with `TdxTotal arI` (both queries total and arch-state independent:
+  `∃ b, ∀ a, tdx_active a = ok b` and `∀ p n, ∃ v, ∀ a, dma_ram a p n = ok v`) and any spec state `σ`,
+  `TdxRel arI (withPlat σ (tdxPlatOf arI h σ.archState.x64Plat))`, where `withPlat` changes the record only and
+  `tdxPlatOf` keeps `hugePages`. So the clause restricts the choice of the start state's record, never the platform.
+- **Point 2** (`DecodeTop.decode_invocation_refines`' `hTdxControl`): kept as tdx4 said (caller-less dispatch, one
+  hypothesis per cap type; the real path `decOK_J` has no TDX premise).
+- **Callers fixed in tdx7** (sites the first build reached only after earlier errors): `JAtZ.kern_keep` /
+  `kern_keepC` / `JKern.keepH` / `JAtZR.kern_keep` now take the `(x64GlobalPml4, x64Plat)` pair — XTopJointRest (2),
+  XTopJointDel, XTopJointVsSub, XTopJointJAtZRA, XTopJointMakePool (`hMs.1.huge`), UtDevReset / UtResetJ (`rfl`),
+  UtCnRet, UtDevRet, UtDevUt, UtEpRet, UtPmRet, UtTcbRet, UtUtRet, UtScRet (`hgpP` from `hcnk.1` / `hA.arch`);
+  UtDropJ2 `dropKern`'s result `JKern … arI`; XTopJointVsMap's `ArFr` literal (17 fields); XTopJointTdx
+  `tdx_dec_gets` (explicit `run_bind_ok` / `run_liftE` arguments).
+- **Builds and axioms (tokyo, LEAN_NUM_THREADS=1, one lean at a time via leanq).** `lake build` (x86) with m77's six
+  FrameBatch scratch sorries applied (reverted after): "Build completed successfully (7215 jobs)", 0 errors. No
+  `sorry` in the committed sources (grep). `#print axioms` (axtdx4b.lean, untracked): `vfh_eq`, `vfh_ep`,
+  `decode_invocation_tdxJ`, `SInvUZ.zr_tdx`, `SInvUZ.okv_fl4Decode_z`, `MKD.tdx_decode`, `SInvR.A13b.perfA_tdx`,
+  `TdxRel.adjust`: [propext, Classical.choice, Quot.sound]; `tdx_perform_out`: none; `decOK_J`, `kernel_entry_reach`,
+  `kernel_entry_reachU10`, `kernel_entry_reachU2`: + `sorryAx`, from the #71 FrameBatch scratch only (separate line).
+  AArch64 (`lake build Fl4ProofsA64`): see the follow-up line below.
+- Scripts (untracked): tdx4-run.sh, tdx-build.sh (fake-sysroot leanq + disk/memory/swap/load guard), leanq,
+  leanq-root.sh, axtdx4b.lean.

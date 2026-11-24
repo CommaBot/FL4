@@ -304,7 +304,7 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wx Wp : S → A → Fl4S
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
-  have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  have hcan : absCap c ≠ .nullCap := fun h => hcn ((absCap_eq_null hca.1).1 h)
   have hcvx : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
   apply WP.spec_bind (fin_stepZ arI W Wx Rd Rz th hH.fin hH.wx hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)

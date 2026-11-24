@@ -5,10 +5,10 @@
 //! never executable; the image is mapped with 4 KiB pages, its code
 //! read-only, its read-only data read-only and not executable, and its
 //! data not executable.
-use fl4_arch_x86_64::sev;
+use fl4_arch_x86_64::cvm;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU64, Ordering};
-use fl4_arch_x86_64::cpu::{self, cpuid, write_cr3};
+use fl4_arch_x86_64::cpu::{self, write_cr3};
 use fl4_core::layout::{PADDR_TOP, PPTR_BASE};
 
 pub const KERNEL_OFFSET: u64 = cpu::KERNEL_OFFSET;
@@ -114,10 +114,6 @@ pub fn text_bounds() -> (u64, u64) {
     unsafe { (sym(&__text_start), sym(&__text_end)) }
 }
 
-pub fn has_huge_pages() -> bool {
-    cpuid(0x8000_0001, 0).edx & (1 << 26) != 0
-}
-
 /// Map the image's pages from virtual `start` to `end` with `flags` into
 /// `pd`, with page tables from `pts`.
 fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64, flags: u64) {
@@ -127,7 +123,7 @@ fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64,
     while off < end {
         let pd_i = (off >> 21) as usize;
         assert!(pd_i < IMAGE_PTS, "FL4: kernel image too large for its page tables");
-        pts[pd_i].0[((off >> 12) & 511) as usize] = (delta + off) | flags | sev::mask();
+        pts[pd_i].0[((off >> 12) & 511) as usize] = (delta + off) | flags | cvm::private_mask();
         pd.0[pd_i] = image_paddr(&pts[pd_i] as *const Table as u64) | P | RW;
         off += 4096;
     }
@@ -137,39 +133,44 @@ fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64,
 /// window (what fl4-core uses as the kernel root) and the top of the
 /// physical memory the window maps. With the skim window the window's
 /// mappings are not global, so none survives a switch to user tables.
-pub fn init(nx: bool, skim: bool, gpa_top: u64) -> (u64, u64) {
+/// `huge`: the window uses 1 GiB pages (the boot core takes them: its
+/// CPUID Page1GB, read once in `fl4_boot`); every other core must then take them too
+/// (smp.rs `fl4_ap_main`), and only then may native user mappings use
+/// them (fl4-core `ks::FEATURE_HUGE_PAGES`).
+pub fn init(nx: bool, skim: bool, gpa_top: u64, huge: bool) -> (u64, u64) {
     let t = unsafe { &mut *TABLES.0.get() };
     let nx_bit = if nx { NX } else { 0 };
     let wg = if skim { 0 } else { G };
-    let huge = has_huge_pages();
     let max = if huge { PADDR_TOP } else { (SMALL_WINDOW_GIB as u64) << 30 };
-    let mask = sev::mask();
+    let (private, shared) = (cvm::private_mask(), cvm::shared_mask());
+    let two_views = cvm::active();
     let window_top = max.min(gpa_top);
     let flags = P | RW | PS | wg | nx_bit;
     // SEV always encrypts page-table walks (including CR3). The C-bit on
-    // a leaf selects the data view. Keep the kernel window private and use
-    // a second supervisor-only, NX window for MMIO and DMA transitions.
-    // SNP additionally changes the RMP state before using the new alias.
+    // a leaf selects the data view; under TDX the S-bit does, and walks are
+    // private too. Keep the kernel window private and use a second
+    // supervisor-only, NX window for MMIO and DMA transitions. SNP and TDX
+    // additionally change the page state before using the new alias.
     let n = (window_top >> 30) as usize;
     for g in 0..n {
         let base = (g as u64) << 30;
         if huge {
-            t.pdpt.0[g] = base | flags | mask;
-            if mask != 0 { t.shared_pdpt.0[g] = base | flags; }
+            t.pdpt.0[g] = base | flags | private;
+            if two_views { t.shared_pdpt.0[g] = base | flags | shared; }
         } else {
             for j in 0..512 {
                 let e = base | ((j as u64) << 21) | flags;
-                t.pds[g].0[j] = e | mask;
-                if mask != 0 { t.shared_pds[g].0[j] = e; }
+                t.pds[g].0[j] = e | private;
+                if two_views { t.shared_pds[g].0[j] = e | shared; }
             }
             t.pdpt.0[g] = image_paddr(&t.pds[g] as *const Table as u64) | P | RW;
-            if mask != 0 {
+            if two_views {
                 t.shared_pdpt.0[g] = image_paddr(&t.shared_pds[g] as *const Table as u64) | P | RW;
             }
         }
     }
-    if mask != 0 {
-        t.pml4.0[sev::SHARED_SLOT] = image_paddr(&t.shared_pdpt as *const Table as u64) | P | RW;
+    if two_views {
+        t.pml4.0[cvm::SHARED_SLOT] = image_paddr(&t.shared_pdpt as *const Table as u64) | P | RW;
     }
     // The image, and nothing else, at KERNEL_OFFSET. (Its alias of all of
     // the low 2 GiB was writable and executable.)
@@ -209,13 +210,17 @@ pub fn root_paddr() -> u64 {
     image_paddr(&t.pml4 as *const Table as u64)
 }
 
-/// Physical address of the page table application processors start on.
-pub fn ap_boot_root() -> u64 {
+/// Physical address of the page table application processors start on:
+/// the kernel's mappings plus an identity map of the GiB holding `trampoline`
+/// (below 512 GiB), the page they run on while switching to it.
+pub fn ap_boot_root(trampoline: u64) -> u64 {
+    assert!(trampoline < 1 << 39);
     let t = unsafe { &mut *TABLES.0.get() };
+    let gib = trampoline >> 30;
     for (j, e) in t.ap_pd.0.iter_mut().enumerate() {
-        *e = ((j as u64) << 21) | P | RW | PS | sev::mask();
+        *e = (gib << 30) | ((j as u64) << 21) | P | RW | PS | cvm::private_mask();
     }
-    t.ap_pdpt.0[0] = image_paddr(&t.ap_pd as *const Table as u64) | P | RW;
+    t.ap_pdpt.0[gib as usize] = image_paddr(&t.ap_pd as *const Table as u64) | P | RW;
     t.ap_pml4.0[0] = image_paddr(&t.ap_pdpt as *const Table as u64) | P | RW;
     t.ap_pml4.0[511] = t.pml4.0[511];
     image_paddr(&t.ap_pml4 as *const Table as u64)

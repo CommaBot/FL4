@@ -233,6 +233,7 @@ theorem dle_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DLE (fl4ArchPerfo
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0; exact dl_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> dl_auto0
 
 theorem dl_threadSet' (f : Tcb → Tcb) (t : ObjRef) : DL (threadSet (Z := Unit) f t) := by
   unfold threadSet; dl_auto0

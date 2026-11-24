@@ -29,6 +29,12 @@ static RETPOLINE: AtomicBool = AtomicBool::new(false);
 #[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_SPEC_BUFFERS: AtomicU32 = AtomicU32::new(0);
 static NO_SMT: AtomicBool = AtomicBool::new(false);
+/// A hardware VM backend (VT-x or AMD-V) is active: set by `commit_vm`
+/// on the boot core before any AP starts.
+static VM_ENABLED: AtomicBool = AtomicBool::new(false);
+/// The boot core's plan parks SMT siblings in VM mode; `commit_vm` applies
+/// it only once a VM backend is known to be active.
+static BSP_VM_NO_SMT: AtomicBool = AtomicBool::new(false);
 static SKIM: AtomicBool = AtomicBool::new(false);
 static BOOT_VENDOR: AtomicU32 = AtomicU32::new(0);
 static BOOT_IBPB: AtomicBool = AtomicBool::new(false);
@@ -62,7 +68,7 @@ fn caps() -> Caps {
     let family = (one.eax >> 8) & 15;
     let model = (one.eax >> 4) & 15;
     let microcode = match vendor {
-        Vendor::Intel if one.ecx & (1 << 31) == 0 && arch & RDCL_NO != 0 => {
+        Vendor::Intel if one.ecx & (1 << 31) == 0 && arch & RDCL_NO != 0 && !crate::tdx::active() => {
             // IA32_BIOS_SIGN_ID is refreshed by CPUID.1 after clearing it.
             wrmsr(0x8b, 0);
             cpuid(1, 0);
@@ -160,6 +166,13 @@ fn ap_admissible(boot_skim: bool, ap_needs_skim: bool, boot_plan: bool, ap_plan:
     (boot_skim || !ap_needs_skim) && (ap_plan || !boot_plan)
 }
 
+/// VM-only SMT sibling parking applies only when a hardware VM backend
+/// is actually active (VT-x or AMD-V), not merely because `select`
+/// accepted the CPU's mitigation capabilities.
+fn effective_no_smt(plan: &Result<Plan, Rejected>, vm_enabled: bool) -> bool {
+    vm_enabled && matches!(plan, Ok(p) if p.no_smt)
+}
+
 /// Whether a core whose policy needs one thread per physical core
 /// (`needs_no_smt`) may join: an AP may not, once SMT siblings may have
 /// been started (`no_smt` still false); a stricter AP policy must not
@@ -234,6 +247,11 @@ pub fn init_core(bsp: bool) -> bool {
             }
         }
         wrmsr(0xc001_1029, de_cfg);
+        if zen4(&c) {
+            // Linux init_amd_zen4: fix shared-BTB SMT interaction on Zen 4
+            // (MSR_ZEN4_BP_CFG = 0xc001_102e, SHARED_BTB_FIX_BIT = bit 5).
+            wrmsr(0xc001_102e, rdmsr(0xc001_102e) | (1 << 5));
+        }
     }
     let plan = select(&c);
     let no_entry_ibpb = entry_without_ibpb(native_entry_without_ibpb(&c), &plan);
@@ -250,12 +268,16 @@ pub fn init_core(bsp: bool) -> bool {
     // A native-only boot keeps SMT siblings, with Safe RET too: STIBP
     // (which `native_safe_ret` requires, and `native_only` sets) isolates
     // them, as in Linux on Zen 3/4. Only VM-capable plans park them on
-    // SRSO-affected parts.
-    let needs_no_smt = match plan {
-        Ok(p) => p.no_smt,
-        Err(_) => false,
+    // SRSO-affected parts, and only once a VM backend is active: the boot
+    // core records its need here and `commit_vm` applies it after
+    // `vm::init(true)`, before any AP starts.
+    let needs_no_smt = if bsp {
+        BSP_VM_NO_SMT.store(matches!(plan, Ok(p) if p.no_smt), Ordering::Relaxed);
+        false
+    } else {
+        effective_no_smt(&plan, VM_ENABLED.load(Ordering::Acquire))
     };
-    let Some(needs_no_smt) = smt_admission(bsp, needs_no_smt, NO_SMT.load(Ordering::Relaxed)) else {
+    let Some(needs_no_smt) = smt_admission(bsp, needs_no_smt, NO_SMT.load(Ordering::Acquire)) else {
         return false;
     };
     let (entry, spec_ctrl, auto, disable_tsx) = if let Ok(p) = plan {
@@ -268,7 +290,10 @@ pub fn init_core(bsp: bool) -> bool {
         let n = native_only(&c, no_entry_ibpb);
         (n.entry, n.spec_ctrl, n.auto_ibrs, n.disable_tsx)
     };
-    if disable_tsx {
+    // A TD may not write these MSRs: the TDX module owns TSX, MCU and
+    // microcode state.
+    let tdx = crate::tdx::active();
+    if disable_tsx && !tdx {
         wrmsr(0x122, rdmsr(0x122) | 3);
     }
     // `native_only` enables STIBP on every core that can use Safe RET
@@ -284,7 +309,7 @@ pub fn init_core(bsp: bool) -> bool {
     }
     // VERW must not be disabled via FB_CLEAR_DIS. Also retain the
     // enumerated microcode mitigation for Gather Data Sampling.
-    if c.vendor == Vendor::Intel && c.arch & ((1 << 18) | GDS_CTRL) != 0 {
+    if !tdx && c.vendor == Vendor::Intel && c.arch & ((1 << 18) | GDS_CTRL) != 0 {
         let mut mcu = rdmsr(0x123);
         if c.arch & (1 << 18) != 0 {
             mcu &= !(1 << 3);
@@ -298,6 +323,19 @@ pub fn init_core(bsp: bool) -> bool {
     true
 }
 
+/// Finalize VM-dependent speculation policy on the boot core once
+/// hardware virtualization probing (`vm::init(true)`) has completed.
+/// Without an active VM backend, SMT siblings are retained just as on
+/// native-only boots.
+pub fn commit_vm(vm_enabled: bool) {
+    // NO_SMT first: a core that sees VM_ENABLED (Acquire) also sees it.
+    NO_SMT.store(
+        vm_enabled && BSP_VM_NO_SMT.load(Ordering::Relaxed),
+        Ordering::Release,
+    );
+    VM_ENABLED.store(vm_enabled, Ordering::Release);
+}
+
 pub(crate) fn vmexit() -> Option<u32> {
     percpu::get().spec_plan.get().map(|p| p.vmexit)
 }
@@ -305,7 +343,7 @@ pub fn skim() -> bool {
     SKIM.load(Ordering::Relaxed)
 }
 pub fn no_smt() -> bool {
-    NO_SMT.load(Ordering::Relaxed)
+    NO_SMT.load(Ordering::Acquire)
 }
 
 /// Low APIC-ID bits representing SMT siblings. Unknown topology under a
@@ -341,7 +379,8 @@ pub fn allow_ap(apic: u32, bsp: u32, shift: Option<u32>, no_smt: bool) -> bool {
     apic & mask == 0 && apic >> shift != bsp >> shift
 }
 
-pub struct Status(Option<Plan>, Option<Rejected>);
+/// The plan, the rejection, and whether a VM backend is active.
+pub struct Status(Option<Plan>, Option<Rejected>, bool);
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(e) = self.1 {
@@ -350,10 +389,12 @@ impl fmt::Display for Status {
         let Some(p) = self.0 else {
             return f.write_str("not initialized");
         };
-        f.write_str(if p.entry & IBPB != 0 {
-            "IBPB on kernel entry and VM exit"
-        } else {
-            "IBPB on VM exit"
+        let vm = self.2;
+        f.write_str(match (vm, p.entry & IBPB != 0) {
+            (true, true) => "IBPB on kernel entry and VM exit",
+            (true, false) => "IBPB on VM exit",
+            (false, true) => "IBPB on kernel entry (no VM)",
+            (false, false) => "native entry only (no VM)",
         })?;
         if p.auto_ibrs {
             f.write_str(", AutoIBRS")?;
@@ -365,13 +406,15 @@ impl fmt::Display for Status {
                 ", eIBRS"
             })?;
         }
-        if p.vmexit & RSB != 0 {
+        // Without a VM backend only the native entry actions apply.
+        let actions = if vm { p.vmexit } else { p.entry };
+        if actions & RSB != 0 {
             f.write_str(", RSB fill")?;
         }
-        if p.vmexit & PBRSB != 0 {
+        if actions & PBRSB != 0 {
             f.write_str(", PBRSB")?;
         }
-        if p.vmexit & BHB != 0 {
+        if actions & BHB != 0 {
             f.write_str(", BHB clear")?;
         }
         if p.spec_ctrl & (1 << 10) != 0 {
@@ -383,7 +426,7 @@ impl fmt::Display for Status {
         if p.spec_ctrl & 2 != 0 {
             f.write_str(", STIBP")?;
         }
-        if p.no_smt {
+        if vm && p.no_smt {
             f.write_str(", SMT siblings parked")?;
         }
         Ok(())
@@ -391,7 +434,7 @@ impl fmt::Display for Status {
 }
 pub fn describe() -> Status {
     let pc = percpu::get();
-    Status(pc.spec_plan.get(), pc.spec_rejected.get())
+    Status(pc.spec_plan.get(), pc.spec_rejected.get(), VM_ENABLED.load(Ordering::Acquire))
 }
 
 #[cfg(test)]
@@ -488,11 +531,67 @@ mod tests {
             no_smt: false,
             disable_tsx: false,
         };
-        assert_eq!(format!("{}", Status(Some(p), None)), "IBPB on VM exit, AutoIBRS");
+        assert_eq!(format!("{}", Status(Some(p), None, true)), "IBPB on VM exit, AutoIBRS");
         let p = Plan { entry: IBPB, ..p };
         assert_eq!(
-            format!("{}", Status(Some(p), None)),
+            format!("{}", Status(Some(p), None, true)),
             "IBPB on kernel entry and VM exit, AutoIBRS"
+        );
+    }
+
+    #[test]
+    fn vm_only_smt_parking_needs_an_active_vm_backend() {
+        let p = Plan {
+            entry: 0,
+            vmexit: IBPB,
+            buffers: true,
+            spec_ctrl: 2,
+            auto_ibrs: true,
+            no_smt: true,
+            disable_tsx: false,
+        };
+        assert!(!effective_no_smt(&Ok(p), false));
+        assert!(effective_no_smt(&Ok(p), true));
+        let p = Plan { no_smt: false, ..p };
+        assert!(!effective_no_smt(&Ok(p), true));
+        for vm in [false, true] {
+            for e in [Rejected::BufferMicrocode, Rejected::SrsoMicrocode, Rejected::Ibpb] {
+                assert!(!effective_no_smt(&Err(e), vm));
+            }
+        }
+        // With a VM backend a stricter AP is still refused beside a boot
+        // core that kept siblings (audit r11); without one it is admitted.
+        let p = Plan { no_smt: true, ..p };
+        assert_eq!(smt_admission(false, effective_no_smt(&Ok(p), true), false), None);
+        assert_eq!(smt_admission(false, effective_no_smt(&Ok(p), false), false), Some(false));
+    }
+
+    #[test]
+    fn status_reports_smt_parking_and_vm_exits_only_with_a_vm_backend() {
+        extern crate std;
+        use std::format;
+        let p = Plan {
+            entry: RSB,
+            vmexit: IBPB | RSB | BHB,
+            buffers: true,
+            spec_ctrl: 2,
+            auto_ibrs: true,
+            no_smt: true,
+            disable_tsx: false,
+        };
+        assert_eq!(
+            format!("{}", Status(Some(p), None, true)),
+            "IBPB on VM exit, AutoIBRS, RSB fill, BHB clear, VERW, STIBP, SMT siblings parked"
+        );
+        let s = format!("{}", Status(Some(p), None, false));
+        assert_eq!(s, "native entry only (no VM), AutoIBRS, RSB fill, VERW, STIBP");
+        assert!(!s.contains("SMT siblings parked") && !s.contains("VM exit"));
+        let p = Plan { entry: IBPB | PBRSB, ..p };
+        let s = format!("{}", Status(Some(p), None, false));
+        assert_eq!(s, "IBPB on kernel entry (no VM), AutoIBRS, PBRSB, VERW, STIBP");
+        assert_eq!(
+            format!("{}", Status(None, Some(Rejected::Ibpb), false)),
+            format!("incomplete: {}", Rejected::Ibpb.describe())
         );
     }
 

@@ -285,7 +285,7 @@ theorem JAtZ.emptyJRD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have h3 : Fl4Spec.setCap (Z := Unit) .nullCap (q.bv, idx) (emptySlotCdtState σ (q.bv, idx)) =
       ({((), setCnodeSlot (emptySlotCdtState σ (q.bv, idx)) q.bv idx.length cs idx .nullCap)}, False) :=
     setCap_cnode (σ := emptySlotCdtState σ (q.bv, idx)) .nullCap hkq hwf rfl
-  have he := emptySlot_eq hg (fun h => hcn (absCap_eq_null.1 h)) h3
+  have he := emptySlot_eq hg (fun h => hcn ((absCap_eq_null hca.1).1 h)) h3
   rw [he] at hes
   have e2 := mem_singleton_snd hes
   simp only at e2
@@ -367,7 +367,7 @@ theorem JAtZ.emptyJRTD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
       (emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) =
       ({((), setTcbSlot (emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) p.bv tcb i .nullCap)}, False) :=
     setCap_tcb (σ := emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) .nullCap hk hi
-  have he := emptySlot_eq hg (fun h => hcn0 (absCap_eq_null.1 h)) h3
+  have he := emptySlot_eq hg (fun h => hcn0 ((absCap_eq_null hca.1).1 h)) h3
   rw [he] at hes
   have e2 := mem_singleton_snd hes
   simp only at e2

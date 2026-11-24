@@ -452,14 +452,19 @@ theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W :
       by rw [hksb]; exact hP.tko⟩
   · rw [hksb]; exact Vs.IrqRel.ksFrame h.irq hkf hka hks hist hinode
   · rw [hksb]; exact Vs.IoRel.ksFrame h.io hkf hka hks (by rw [har])
-  · have hkr := h.kr
-    unfold Vs.KRootRel Vs.globCr3 at hkr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hks _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)
-      (by rw [hkv]; omega), har]
-    exact hkr
+  · rw [hksb]
+    refine ⟨?_, ?_⟩
+    · have hkr := h.kr.1
+      unfold Vs.KRootW Vs.globCr3 at hkr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hks _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)
+        (by rw [hkv]; omega), har]
+      exact hkr
+    · have hfv := Vs.feat_val hkf
+      exact Vs.HugeRel.frame h.kr.2 (hks _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega)
+        (by rw [hfv]; omega) (by rw [hfv]; omega)) (by rw [har])
   · rw [hksb]; exact h.ksT
   · rw [hksb]; exact h.ksE
   · rw [hksb]; exact h.ksR

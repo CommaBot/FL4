@@ -240,3 +240,98 @@ fn multiboot2_maps_past_the_limit_are_reported() {
     let boot = parse(mboot::MB2_MAGIC, &mb2_with_mmap(&entries[..mboot::MAX_MMAP]));
     assert!(!boot.mmap_lost);
 }
+
+/// Multiboot 2 information with an mmap tag and an FL4 TPM event log tag
+/// (fl4-efi x86.rs) of `size` bytes giving (paddr, size, flags).
+fn mb2_with_tpm(size: u32, paddr: u64, log_size: u64, flags: u64) -> Vec<u8> {
+    let mut memory = vec![0u8; 8 + 40 + 40 + 8];
+    let total = memory.len() as u32;
+    words(&mut memory, 0, &[total, 0]);
+    mb2_mmap(&mut memory, 8);
+    words(&mut memory, 48, &[mboot::MB2_TAG_TPM_EVENT_LOG, size]);
+    memory[56..64].copy_from_slice(&paddr.to_le_bytes());
+    memory[64..72].copy_from_slice(&log_size.to_le_bytes());
+    memory[72..80].copy_from_slice(&flags.to_le_bytes());
+    words(&mut memory, 88, &[0, 8]);
+    memory
+}
+
+#[test]
+fn multiboot2_tpm_event_log_tag_is_read() {
+    assert_eq!(mboot::MB2_TAG_TPM_EVENT_LOG, 0x464c_3401);
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with_tpm(32, 0x7f00_0000, 0x1234, 1));
+    let t = boot.tpm_log.expect("TPM event log");
+    assert_eq!((t.paddr, t.size, t.flags), (0x7f00_0000, 0x1234, 1));
+    // The largest log, ending exactly at 4 GiB.
+    let top = (1u64 << 32) - mboot::MAX_TPM_LOG;
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with_tpm(32, top, mboot::MAX_TPM_LOG, 2));
+    assert_eq!(boot.tpm_log.map(|t| (t.paddr, t.size, t.flags)), Some((top, mboot::MAX_TPM_LOG, 2)));
+    // Without the tag there is no log.
+    let boot = parse(mboot::MB2_MAGIC, &mb2_without_tpm());
+    assert!(boot.tpm_log.is_none());
+}
+
+fn mb2_without_tpm() -> Vec<u8> {
+    mb2_with_mmap(&[(0x10_0000, 0x10_0000, 1)])
+}
+
+/// A tag too short for its fields, an empty or oversized log, one in low
+/// memory or one past the boot mapping is ignored, and the boot goes on.
+#[test]
+fn multiboot2_tpm_event_log_out_of_range_is_ignored() {
+    for (size, paddr, log_size) in [
+        (24, 0x7f00_0000, 0x1000),
+        (32, 0x7f00_0000, 0),
+        (32, 0x7f00_0000, mboot::MAX_TPM_LOG + 1),
+        (32, 0x8_0000, 0x1000),
+        (32, 0xffff_f000, 0x2000),
+        (32, 1 << 32, 0x1000),
+        (32, u64::MAX - 0xfff, 0x1000),
+        (32, 0x7f00_0000, u64::MAX),
+    ] {
+        let boot = parse(mboot::MB2_MAGIC, &mb2_with_tpm(size, paddr, log_size, 0));
+        assert!(boot.tpm_log.is_none(), "tag {size} at {paddr:#x} of {log_size:#x}");
+        assert_eq!(boot.n_mmap, 1);
+    }
+}
+
+/// Multiboot 2 information with an mmap tag and one more tag of `kind`
+/// whose 8-byte fields follow its header.
+fn mb2_with(kind: u32, fields: &[u64]) -> Vec<u8> {
+    let mut memory = mb2_without_tpm();
+    let total = u32::from_le_bytes(memory[0..4].try_into().unwrap()) as usize;
+    // Replace the end tag.
+    let at = total - 8;
+    let size = 8 + 8 * fields.len();
+    memory.resize(at + size + 8, 0);
+    words(&mut memory, at, &[kind, size as u32]);
+    for (i, f) in fields.iter().enumerate() {
+        memory[at + 8 + 8 * i..][..8].copy_from_slice(&f.to_le_bytes());
+    }
+    words(&mut memory, at + size, &[0, 8]);
+    words(&mut memory, 0, &[(at + size + 8) as u32]);
+    memory
+}
+
+#[test]
+fn multiboot2_cc_event_log_tag_is_read_apart_from_the_tpm_log() {
+    assert_eq!(mboot::MB2_TAG_CC_EVENT_LOG, 0x464c_3402);
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_CC_EVENT_LOG, &[0x7f00_0000, 0x1234, 1]));
+    assert_eq!(boot.cc_log.map(|t| (t.paddr, t.size, t.flags)), Some((0x7f00_0000, 0x1234, 1)));
+    assert!(boot.tpm_log.is_none());
+    for (paddr, size) in [(0x7f00_0000, 0), (0x7f00_0000, mboot::MAX_TPM_LOG + 1), (0x8000, 0x10), ((1 << 32) - 8, 0x10)] {
+        let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_CC_EVENT_LOG, &[paddr, size, 0]));
+        assert!(boot.cc_log.is_none(), "{paddr:#x} {size:#x}");
+    }
+}
+
+#[test]
+fn multiboot2_tdx_ap_page_tag_must_be_a_page_in_the_boot_mapping() {
+    assert_eq!(mboot::MB2_TAG_TDX_AP_PAGE, 0x464c_3403);
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_TDX_AP_PAGE, &[0x7e00_0000]));
+    assert_eq!(boot.tdx_ap_page, Some(0x7e00_0000));
+    for page in [0, 0x7e00_0800, 1 << 32] {
+        let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_TDX_AP_PAGE, &[page]));
+        assert_eq!(boot.tdx_ap_page, None, "{page:#x}");
+    }
+}

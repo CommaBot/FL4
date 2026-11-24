@@ -225,6 +225,8 @@ fn an_application_processor_must_match_the_boot_core() {
         vhe: false,
         vmid16: false,
         vgic_lrs: 0,
+        virt: false,
+        vgic_vtr: 0,
     };
     assert!(ap_caps::ap_matches(&bsp, &bsp));
     assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
@@ -279,6 +281,59 @@ fn an_application_processor_must_match_the_boot_core() {
     let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
     assert!(!ap_caps::ap_matches(&plain, &bsp));
     assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+/// With guests (`virt_ready`), a core must give guests the boot core's
+/// VGIC as the VCPU ABI reports it, the whole capped type register: not
+/// only the list register count, but the priority and preemption bits too
+/// (the active-priority registers each core saves). Without guests (EL1,
+/// or EL2 with `novirt` or no usable VGIC) the type register is not
+/// compared, so nothing is refused that was not before.
+#[test]
+fn with_guests_an_application_processor_must_give_them_the_boot_cores_vgic() {
+    // ICH_VTR_EL2: PRIbits 5 (field 4), PREbits 5 (field 4), A3V, 4 list
+    // registers (field 3).
+    const VTR: u64 = (4 << 29) | (4 << 26) | (1 << 21) | 3;
+    const PRE6: u64 = (VTR & !(7 << 26)) | (5 << 26);
+    const PRI6: u64 = (VTR & !(7 << 29)) | (5 << 29);
+    const NO_A3V: u64 = VTR & !(1 << 21);
+    let el1 = ap_caps::Caps {
+        asid16: true,
+        hw_af: true,
+        pan: true,
+        pa_bits: 40,
+        cntfrq: 62_500_000,
+        el2: false,
+        vhe: false,
+        vmid16: false,
+        vgic_lrs: 0,
+        virt: false,
+        vgic_vtr: 0,
+    };
+    for (vhe, vmid16) in [(true, true), (false, false)] {
+        let host = ap_caps::Caps { el2: true, vhe, vmid16, vgic_lrs: 4, vgic_vtr: VTR, ..el1 };
+        // novirt, or no usable VGIC: as before, only the list register count.
+        for vtr in [VTR, PRE6, PRI6, NO_A3V, 0] {
+            assert!(ap_caps::ap_matches(&host, &ap_caps::Caps { vgic_vtr: vtr, ..host }), "native {vtr:#x}");
+        }
+        assert!(!ap_caps::ap_matches(&host, &ap_caps::Caps { vgic_lrs: 3, ..host }));
+        // Guests: the whole register.
+        let guests = ap_caps::Caps { virt: true, ..host };
+        assert!(ap_caps::ap_matches(&guests, &guests));
+        assert!(ap_caps::ap_matches(&guests, &ap_caps::Caps { pa_bits: 48, ..guests }));
+        for ap in [
+            ap_caps::Caps { vgic_vtr: PRE6, ..guests },
+            ap_caps::Caps { vgic_vtr: PRI6, ..guests },
+            ap_caps::Caps { vgic_vtr: NO_A3V, ..guests },
+            ap_caps::Caps { vgic_vtr: (VTR & !0x1f) | 2, vgic_lrs: 3, ..guests },
+            ap_caps::Caps { vgic_vtr: 0, ..guests },
+            ap_caps::Caps { virt: false, ..guests },
+        ] {
+            assert!(!ap_caps::ap_matches(&guests, &ap), "guests {ap:?}");
+        }
+    }
+    // EL1: no VGIC at all.
+    assert!(ap_caps::ap_matches(&el1, &el1));
 }
 
 #[test]
@@ -652,6 +707,35 @@ fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
     for l in &branch[take..] {
         let uses_t = l.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.')).any(|w| w.starts_with("t."));
         assert!(!uses_t, "fl4_entry touches the interrupted thread after take_irq: {}", l.trim());
+    }
+}
+
+/// Before a thread running a VM (`ARMVCPURun`) goes back to its guest,
+/// `exit` checks its bound notification (`fl4_core::vcpu::check`), which
+/// other cores signal, unbind and delete under the serial gate: on several
+/// cores it takes the gate first when it does not hold it (after a local
+/// path), then starts over with the thread current then, and checks before
+/// it gives the gate up. Nothing reads the notification after `unlock`.
+#[test]
+fn a_running_vm_checks_its_notification_under_the_gate() {
+    let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
+    let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap().trim()).filter(|l| !l.is_empty()).collect();
+    let start = code.iter().position(|l| *l == "pub fn exit() -> ! {").expect("exit");
+    let end = start + code[start..].iter().position(|l| *l == "unsafe { fl4_restore_user(ct.0 + tl::REGS) }").expect("end of exit");
+    let body = &code[start..=end];
+    let at = |f: &dyn Fn(&str) -> bool, what: &str| body.iter().position(|l| f(l)).unwrap_or_else(|| panic!("{what} missing from exit"));
+    let ct = at(&|l| l.contains("sched::cur_thread(s)"), "the current thread");
+    // Not holding the gate with a thread running a VM: take it, start over.
+    let cond = at(&|l| l.contains("TS_RUNNING_VM") && l.contains("vspace_stale"), "the gate condition");
+    assert!(body[..cond].iter().any(|l| l.contains("gate_held")), "the condition is about holding the gate");
+    let lock = cond + body[cond..].iter().position(|l| l.contains("lock()")).expect("lock");
+    assert!(body[lock + 1].contains("continue"), "starts over after taking the gate");
+    let check = at(&|l| l.contains("vcpu::check(") && l.contains("ct)"), "the check");
+    let unlock = at(&|l| l.contains("unlock()"), "unlock");
+    assert!(ct < cond && lock < check && check < unlock, "the check runs with the gate held, before it is given up");
+    assert_eq!(body.iter().filter(|l| l.contains("sched::cur_thread(")).count(), 1, "one current thread per pass");
+    for l in &body[unlock..] {
+        assert!(!l.contains("bound_ntfn") && !l.contains("NTFN_") && !l.contains("vcpu::check"), "exit reads the notification outside the gate: {l}");
     }
 }
 
@@ -1490,89 +1574,100 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
             fl4_bootinfo::Module { paddr: 0x4000_0000 + m as u64 * 0x10_0000, size: 0x1234 + m as u64, name }
         })
         .collect();
-    for has_rsdp in [false, true] {
-        for n_mods in [0, 1, 3, fl4_bootinfo::MAX_MODULES] {
-            for dtb_len in [0usize, 40, 41, 44, 45, 48, 0x1000, 0x1003, 0x1004, 0x1_0000] {
-                let what = format!("rsdp {has_rsdp} mods {n_mods} dtb {dtb_len:#x}");
-                let mut dtb: Vec<u8> = (0..dtb_len).map(|i| not_poison(i, 7)).collect();
-                if dtb_len >= 8 {
-                    dtb[..4].copy_from_slice(&0xd00d_feedu32.to_be_bytes());
-                    dtb[4..8].copy_from_slice(&0x0002_0000u32.to_be_bytes());
-                }
-                // The kernel's size for it (lib.rs `extra_size`).
-                let size = 4096 + ((dtb_len + 16 + 4096) & !4095);
-                let mut buf = vec![0xaau8; size];
-                let mods = &all_mods[..n_mods];
-                let vi = extra_bi::VirtInfo {
-                    flags: 0x7,
-                    ipa_bits: 40,
-                    gic_version: 3,
-                    vgic_vtr: 0x9000_0003,
-                    gicv_paddr: 0x804_0000,
-                    gicv_size: 0x1_0000,
-                    midr_el1: 0x410f_d083,
-                    ctr_el0: 0x8444_c004,
-                    id_aa64mmfr0_el1: 0x10_1122,
-                    id_aa64mmfr1_el1: 0x220,
-                    id_aa64mmfr2_el1: 0x10,
-                    id_aa64dfr0_el1: 0x1030_5106,
-                    id_aa64dfr1_el1: 0,
-                };
-                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, &dtb).expect(&what);
-                assert_eq!(len % 8, 0, "{what}");
-                assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
-                let recs = bi_records(&buf, len);
-                let mut want = vec![];
-                if has_rsdp {
-                    want.push(id::X86_ACPI_RSDP);
-                }
-                want.push(id::AARCH64_ID_REGS);
-                want.push(id::AARCH64_VIRT_INFO);
-                if n_mods != 0 {
-                    want.push(id::X86_BOOT_MODULES);
-                }
-                if dtb_len != 0 {
-                    want.push(id::FDT);
-                }
-                if recs.last().unwrap().0 == id::PADDING {
-                    want.push(id::PADDING);
-                }
-                assert_eq!(recs.iter().map(|r| r.0).collect::<Vec<_>>(), want, "{what}");
-                for &(rid, at, l) in &recs {
-                    let body = &buf[at + 16..at + l];
-                    match rid {
-                        id::X86_ACPI_RSDP => assert_eq!(body, &rsdp[..], "{what}"),
-                        id::AARCH64_ID_REGS => {
-                            let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
-                            assert_eq!(got, regs, "{what}");
-                        }
-                        id::AARCH64_VIRT_INFO => {
-                            assert_eq!(l, 16 + 13 * 8, "{what}");
-                            let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
-                            assert_eq!(got, vi.to_words(), "{what}");
-                        }
-                        id::X86_BOOT_MODULES => {
-                            assert_eq!(l, 16 + 8 + 80 * n_mods, "{what}");
-                            assert_eq!(u64::from_le_bytes(body[..8].try_into().unwrap()), n_mods as u64);
-                            for (m, e) in mods.iter().zip(body[8..].chunks(80)) {
-                                assert_eq!(u64::from_le_bytes(e[..8].try_into().unwrap()), m.paddr);
-                                assert_eq!(u64::from_le_bytes(e[8..16].try_into().unwrap()), m.size);
-                                assert_eq!(&e[16..], &m.name[..]);
+    let tpm = extra_bi::TpmEventLog { paddr: 0x4800_0000, size: 0x1_2345, flags: 1 };
+    for has_tpm in [false, true] {
+        for has_rsdp in [false, true] {
+            for n_mods in [0, 1, 3, fl4_bootinfo::MAX_MODULES] {
+                for dtb_len in [0usize, 40, 41, 44, 45, 48, 0x1000, 0x1003, 0x1004, 0x1_0000] {
+                    let what = format!("tpm {has_tpm} rsdp {has_rsdp} mods {n_mods} dtb {dtb_len:#x}");
+                    let mut dtb: Vec<u8> = (0..dtb_len).map(|i| not_poison(i, 7)).collect();
+                    if dtb_len >= 8 {
+                        dtb[..4].copy_from_slice(&0xd00d_feedu32.to_be_bytes());
+                        dtb[4..8].copy_from_slice(&0x0002_0000u32.to_be_bytes());
+                    }
+                    // The kernel's size for it (lib.rs `extra_size`).
+                    let size = 4096 + ((dtb_len + 16 + 4096) & !4095);
+                    let mut buf = vec![0xaau8; size];
+                    let mods = &all_mods[..n_mods];
+                    let vi = extra_bi::VirtInfo {
+                        flags: 0x7,
+                        ipa_bits: 40,
+                        gic_version: 3,
+                        vgic_vtr: 0x9000_0003,
+                        gicv_paddr: 0x804_0000,
+                        gicv_size: 0x1_0000,
+                        midr_el1: 0x410f_d083,
+                        ctr_el0: 0x8444_c004,
+                        id_aa64mmfr0_el1: 0x10_1122,
+                        id_aa64mmfr1_el1: 0x220,
+                        id_aa64mmfr2_el1: 0x10,
+                        id_aa64dfr0_el1: 0x1030_5106,
+                        id_aa64dfr1_el1: 0,
+                    };
+                    let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, has_tpm.then_some(&tpm), &dtb).expect(&what);
+                    assert_eq!(len % 8, 0, "{what}");
+                    assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
+                    let recs = bi_records(&buf, len);
+                    let mut want = vec![];
+                    if has_rsdp {
+                        want.push(id::X86_ACPI_RSDP);
+                    }
+                    want.push(id::AARCH64_ID_REGS);
+                    want.push(id::AARCH64_VIRT_INFO);
+                    if n_mods != 0 {
+                        want.push(id::X86_BOOT_MODULES);
+                    }
+                    if has_tpm {
+                        want.push(id::TPM_EVENT_LOG);
+                    }
+                    if dtb_len != 0 {
+                        want.push(id::FDT);
+                    }
+                    if recs.last().unwrap().0 == id::PADDING {
+                        want.push(id::PADDING);
+                    }
+                    assert_eq!(recs.iter().map(|r| r.0).collect::<Vec<_>>(), want, "{what}");
+                    for &(rid, at, l) in &recs {
+                        let body = &buf[at + 16..at + l];
+                        match rid {
+                            id::X86_ACPI_RSDP => assert_eq!(body, &rsdp[..], "{what}"),
+                            id::AARCH64_ID_REGS => {
+                                let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                                assert_eq!(got, regs, "{what}");
                             }
+                            id::AARCH64_VIRT_INFO => {
+                                assert_eq!(l, 16 + 13 * 8, "{what}");
+                                let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                                assert_eq!(got, vi.to_words(), "{what}");
+                            }
+                            id::X86_BOOT_MODULES => {
+                                assert_eq!(l, 16 + 8 + 80 * n_mods, "{what}");
+                                assert_eq!(u64::from_le_bytes(body[..8].try_into().unwrap()), n_mods as u64);
+                                for (m, e) in mods.iter().zip(body[8..].chunks(80)) {
+                                    assert_eq!(u64::from_le_bytes(e[..8].try_into().unwrap()), m.paddr);
+                                    assert_eq!(u64::from_le_bytes(e[8..16].try_into().unwrap()), m.size);
+                                    assert_eq!(&e[16..], &m.name[..]);
+                                }
+                            }
+                            id::FDT => {
+                                assert_eq!(l, 16 + dtb_len.div_ceil(8) * 8, "{what}");
+                                let total = u32::from_be_bytes(body[4..8].try_into().unwrap()) as usize;
+                                assert_eq!(total, dtb_len, "{what}: FDT totalsize");
+                                assert_eq!(&body[..4], &dtb[..4]);
+                                assert_eq!(&body[8..dtb_len], &dtb[8..], "{what}");
+                                assert!(body[dtb_len..].iter().all(|&b| b == 0), "{what}");
+                            }
+                            id::TPM_EVENT_LOG => {
+                                assert_eq!(l, 40, "{what}");
+                                let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                                assert_eq!(got, [tpm.paddr, tpm.size, tpm.flags], "{what}");
+                            }
+                            id::PADDING => {
+                                assert!(l < 24, "{what}");
+                                assert!(body.iter().all(|&b| b == 0), "{what}");
+                            }
+                            _ => panic!("{what}: record {rid}"),
                         }
-                        id::FDT => {
-                            assert_eq!(l, 16 + dtb_len.div_ceil(8) * 8, "{what}");
-                            let total = u32::from_be_bytes(body[4..8].try_into().unwrap()) as usize;
-                            assert_eq!(total, dtb_len, "{what}: FDT totalsize");
-                            assert_eq!(&body[..4], &dtb[..4]);
-                            assert_eq!(&body[8..dtb_len], &dtb[8..], "{what}");
-                            assert!(body[dtb_len..].iter().all(|&b| b == 0), "{what}");
-                        }
-                        id::PADDING => {
-                            assert!(l < 24, "{what}");
-                            assert!(body.iter().all(|&b| b == 0), "{what}");
-                        }
-                        _ => panic!("{what}: record {rid}"),
                     }
                 }
             }
@@ -1580,7 +1675,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
     }
     // Too small a buffer is refused, not overrun.
     let mut small = [0u8; 64];
-    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, None, &[], &[]), None);
+    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, None, &[], None, &[]), None);
     let mut small = vec![0u8; 4096];
-    assert_eq!(extra_bi::build(&mut small, None, &regs, None, &[], &[1u8; 4096]), None);
+    assert_eq!(extra_bi::build(&mut small, None, &regs, None, &[], None, &[1u8; 4096]), None);
 }

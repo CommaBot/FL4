@@ -597,7 +597,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl (DXKeep.of_dbg hKd hTd)
   have hJC := J.jcs_slot hM' hMO' hFI' hUK F.ksz hDel
   -- `JKern`
-  have hkern : JKern (L := L) H Cs D Z.th s' σ' := by
+  have hkern : JKern (L := L) arI H Cs D Z.th s' σ' := by
     have K := J.kern
     have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hkb
     obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -627,7 +627,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
       by rw [hkb]; exact K.ksbFit, by rw [hkb]; exact K.ksbAl, by rw [hkb, hcpu]; exact K.nodeFit,
       by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-      K.csLt, K.cs0⟩
+      K.csLt, K.cs0, K.tdx.frame (by rw [F.arch])⟩
     rw [hna, hDbg]; exact K.head
   have hutc := J.vsx_utcX hpc hidx hXa hW hVR1 (fun i h => by rw [F.arch]; exact h) hUt F.cdt F.orig
     (by rw [F.arch]) hDbg
@@ -946,7 +946,7 @@ theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     obtain ⟨⟨⟨hSch, hEp, hNt, -⟩, -⟩, -⟩ := id hFin
     exact ⟨hFin, ⟨hPl, hCR', hFI', hD, by rw [hks']; exact hMO', hIA, hSA⟩, IpcRel.of hNt hEp (sched_sc hSch), hE⟩
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J1.arFrS
-    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
+    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
 
 end
 

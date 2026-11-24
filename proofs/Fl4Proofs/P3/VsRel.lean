@@ -66,6 +66,12 @@ structure VsRel (P : Set U64) (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State 
   pool : ∀ p ∈ P, ∃ f, σ.kheap p.bv = some (.archObj (.asidPool f)) ∧
     ∀ lo : U64, lo.val < 512 → f (Fl4Spec.ucast 9 lo.bv) = optRef (m (peA p lo))
 
+/-- FL4 (#65): the ks `FEATURES` bit `FEATURE_HUGE_PAGES` (written at boot
+only) is the spec's `x64Plat.hugePages`. -/
+def HugeRel (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
+  ((m (core.num.U64.wrapping_add ksb layout.ks.FEATURES) &&& layout.ks.FEATURE_HUGE_PAGES) != 0#u64) =
+    σ.archState.x64Plat.hugePages
+
 /-! ## Indices -/
 
 theorem hi_bv (asid i : U64) (hi : i.val = asid.val >>> 9) :

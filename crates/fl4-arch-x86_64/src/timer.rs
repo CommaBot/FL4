@@ -96,6 +96,19 @@ fn reported_tsc_khz(
     }
 }
 
+/// A TDX guest's TSC rate: CPUID 15H, which the TDX module fixes, and
+/// nothing the VMM controls (leaf 40000010H, the PIT).
+fn tdx_tsc_khz(read: impl Fn(u32, u32) -> Cpuid) -> Option<u64> {
+    if !is_intel(&read) || read(0, 0).eax < 0x15 {
+        return None;
+    }
+    let l = read(0x15, 0);
+    if l.eax == 0 || l.ebx == 0 || l.ecx == 0 {
+        return None;
+    }
+    Some(l.ecx as u64 * l.ebx as u64 / l.eax as u64 / 1000)
+}
+
 /// TSC ticks in 20 ms of PIT time: the median of five measurements.
 fn pit_tsc_per_run() -> u64 {
     let mut runs = [0u64; RUNS];
@@ -110,13 +123,28 @@ fn pit_tsc_per_run() -> u64 {
 
 /// Calibrate and arm the timer on the boot core, delivering `vector`.
 pub fn init(vector: u32) {
-    pit::quiet_channel0();
+    let tdx = crate::tdx::active();
+    if !tdx {
+        pit::quiet_channel0();
+    }
     let deadline = has_tsc_deadline();
     DEADLINE.store(deadline, Ordering::Relaxed);
-    let (khz, src) = reported_tsc_khz(cpuid, || {
-        let mhz = crate::kvm_clock::tsc_mhz();
-        (mhz != 0).then_some(u64::from(mhz) * 1000)
-    }).unwrap_or_else(|| (pit_tsc_per_run() / (CALIBRATE_US / 1000), Source::Pit));
+    let (khz, src) = if tdx {
+        // The VMM must not be able to change how the guest measures time.
+        match tdx_tsc_khz(cpuid) {
+            Some(k) => (k, Source::Cpuid),
+            None => {
+                let max = cpuid(0, 0).eax;
+                let l = if max >= 0x15 { cpuid(0x15, 0) } else { Cpuid { eax: 0, ebx: 0, ecx: 0, edx: 0 } };
+                crate::tdx::terminate_with(9, format_args!("no TDX CPUID 15H TSC rate max={:#x} eax={:#x} ebx={:#x} ecx={:#x}", max, l.eax, l.ebx, l.ecx))
+            }
+        }
+    } else {
+        reported_tsc_khz(cpuid, || {
+            let mhz = crate::kvm_clock::tsc_mhz();
+            (mhz != 0).then_some(u64::from(mhz) * 1000)
+        }).unwrap_or_else(|| (pit_tsc_per_run() / (CALIBRATE_US / 1000), Source::Pit))
+    };
     let mhz = (khz + 500) / 1000;
     TSC_MHZ.store(if mhz == 0 { 1 } else { mhz }, Ordering::Relaxed);
     SOURCE.store(src as u8, Ordering::Relaxed);
@@ -275,6 +303,42 @@ mod tests {
             _ => gce_cpuid(leaf, sub),
         };
         assert_eq!(reported_tsc_khz(hypervisor, || None), Some((3_000_000, Source::Hypervisor)));
+    }
+
+    /// A TD's CPUID 15H is the TDX module's, so it decides even though the
+    /// hypervisor bit is set: not pvclock or the VMM's leaf 40000010H.
+    #[test]
+    fn tdx_takes_the_tsc_rate_from_leaf_15_only() {
+        let td = |leaf, sub| match leaf {
+            0x15 => Cpuid { eax: 1, ebx: 80, ecx: 25_000_000, edx: 0 },
+            0x4000_0000 | 0x4000_0010 => panic!("asked the VMM"),
+            _ => gce_cpuid(leaf, sub),
+        };
+        assert_eq!(tdx_tsc_khz(td), Some(2_000_000));
+        // No usable leaf 15H: no rate, rather than one from leaf 16H.
+        for zero in 0..3 {
+            let bad = move |leaf, sub| match leaf {
+                0x15 => {
+                    let mut r = [1, 80, 25_000_000];
+                    r[zero] = 0;
+                    Cpuid { eax: r[0], ebx: r[1], ecx: r[2], edx: 0 }
+                }
+                _ => td(leaf, sub),
+            };
+            assert_eq!(tdx_tsc_khz(bad), None);
+        }
+        let old = |leaf, sub| {
+            let mut r = gce_cpuid(leaf, sub);
+            if leaf == 0 { r.eax = 0x14; }
+            r
+        };
+        assert_eq!(tdx_tsc_khz(old), None);
+        let amd = |leaf, sub| {
+            let mut r = td(leaf, sub);
+            if leaf == 0 { r.ebx = 0x6874_7541; }
+            r
+        };
+        assert_eq!(tdx_tsc_khz(amd), None);
     }
 
     /// Audit F4: an application processor without TSC-deadline mode is

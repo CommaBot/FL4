@@ -69,6 +69,8 @@ pub enum Cap {
     AsidPool { ptr: u64, asid_base: u64 },
     IoPortControl,
     IoPort { first: u64, last: u64, vcpu: u64 },
+    /// Intel TDX attestation (`crate::tdx`): only in a TDX guest's root CNode.
+    TdxControl,
 }
 
 const PTR_MASK: u64 = 0x0000_ffff_ffff_ffff;
@@ -162,6 +164,7 @@ impl Cap {
             23 => Cap::Ept { ptr: p, level: (w0 >> 53) & 0x3f, mapped: bit(w0, 48), asid: unpack_asid(w0, 49, w1), vaddr: w1 & PTR_MASK },
             20 => Cap::IoPortControl,
             21 => Cap::IoPort { first: w1 & 0xffff, last: (w1 >> 16) & 0xffff, vcpu: if w0 & PTR_MASK == 0 { 0 } else { p } },
+            24 => Cap::TdxControl,
             _ => Cap::Null,
         }
     }
@@ -218,6 +221,7 @@ impl Cap {
             Cap::Ept { ptr, level, mapped, asid, vaddr } => (tag(23) | pack_ptr(ptr) | b(mapped, 48) | asid_high(asid, 49) | ((level & 0x3f) << 53), ((asid & 0xffff) << 48) | (vaddr & PTR_MASK)),
             Cap::IoPortControl => (tag(20), 0),
             Cap::IoPort { first, last, vcpu } => (tag(21) | pack_ptr(vcpu), (first & 0xffff) | ((last & 0xffff) << 16)),
+            Cap::TdxControl => (tag(24), 0),
         }
     }
 
@@ -240,6 +244,7 @@ impl Cap {
                 | Cap::Ept { .. }
                 | Cap::IoPortControl
                 | Cap::IoPort { .. }
+                | Cap::TdxControl
         )
     }
 

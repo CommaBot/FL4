@@ -14,6 +14,11 @@ fn rd64(b: &[u8], o: usize) -> u64 {
     u64::from_le_bytes(b[o..o + 8].try_into().unwrap())
 }
 
+/// FL4's Multiboot 2 memory type for `EfiUnacceptedMemoryType` (16): RAM a
+/// confidential guest must accept before touching it. Neither usable RAM
+/// nor reserved memory, which the kernel would hand out as device memory.
+pub const UNACCEPTED: u32 = 0x464c_3410;
+
 /// Conventional and reclaimable boot-services pages are free. Keep
 /// firmware RAM distinguishable from device apertures for encrypted guests.
 pub fn kind(ty: u32, attributes: u64) -> u32 {
@@ -22,6 +27,7 @@ pub fn kind(ty: u32, attributes: u64) -> u32 {
         9 => 3,
         5 | 6 | 10 | 14 | 15 => 4,
         0 if attributes & 8 != 0 => 4,
+        16 => UNACCEPTED,
         _ => 2,
     }
 }

@@ -293,6 +293,7 @@ theorem gke_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : GKE (fl4ArchPerfo
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; gk_auto; exact gk_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; gk_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; gk_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> gk_auto
 
 
 /-! ## `DK`: `suspend` keeps the domain schedule -/
