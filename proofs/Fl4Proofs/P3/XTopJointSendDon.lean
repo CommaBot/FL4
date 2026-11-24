@@ -702,7 +702,7 @@ tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_recv_eqDon`. The
 caller is current, resumed (`hres`), not idle (`hti`) and in no ready queue
 (`hnq`, JEntryAt's `ctnq`). -/
 theorem JAtZ.sendDonJ (hAT : P0.ArchTotal arI)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     (hres : σ.schedulerAction = .resumeCurThread) (hti : σ.curThread ≠ σ.idleThread)
@@ -1270,7 +1270,7 @@ theorem JAtZ.sendDonJ (hAT : P0.ArchTotal arI)
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 /-- **The sends to a waiting receiver `JAtZ.sendRecvJ0` covers**: no call,
 no donation (`can_donate` false, or the head receiver has an SC), the sender

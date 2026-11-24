@@ -291,7 +291,7 @@ def ResetJPostD (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
 set_option maxHeartbeats 16000000 in
 /-- **FL4's `reset_untyped` of a used device cap at `J`** (module
 docstring). -/
-theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hrcb : Fl4Spec.resetChunkBits = 16) (hres : σ.schedulerAction ≠ .chooseNewThread)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -439,7 +439,7 @@ theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 set_option maxHeartbeats 8000000 in
 /-- **The retype with the reset of a used device cap at `J`** (module
 docstring; UtRetResetJ's `JAtZ.utResetJ` for a device cap). -/
-theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -667,7 +667,7 @@ line"): the no-reset retype and the reset of an unused cap by UtDevUt's
 admits only untypeds and frames for a device cap, `RetCtx.device`). Premises:
 `DevApart`, `DevFreeT`, `DevGpm` [J]; the reset's `resetChunkBits = 16` [P]
 and `VsReachMiss` [J] at the restart's state (as the RAM reset). -/
-theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))

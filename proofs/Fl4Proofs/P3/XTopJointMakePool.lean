@@ -754,6 +754,9 @@ theorem JAtZ.mp_sfree {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
 /-- `Z` with the new MDB ghost and the pool added (the sets after `MakePool`). -/
 abbrev XSets.mp (Z : XSets) (G' : MdbGhost) (p : U64) : XSets := { Z with G := G', P := insert p Z.P }
 
+/-- (f6) `Z.mp` keeps `vx`. -/
+instance VxE.mp {Z : XSets} [h : VxE Z] {G' : MdbGhost} {p : U64} : VxE (Z.mp G' p) := ⟨h.eq⟩
+
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` after `MakePool` when its region is clean** (module docstring),
 from the restart's state `s`: FL4 writes the `MpW` words (slots, the
@@ -1186,7 +1189,7 @@ at `TopSR` (`MpPlacedHyp` and the region facts from `JAtZ`,
 `JAtZ.mpStepJ` from the restart's `JAtZ` (`JAtZ.restartJ`), with the domain
 schedule (`domFrame_asid_control`). -/
 theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hcl : MpClean (L := L) Z H D s) (hsp : MpSpecClean (L := L) Z s σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
@@ -1229,7 +1232,7 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
       (fun _ _ _ _ => trivial) vsMpHyps_top hX.fin.1 hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.vs hX.fin.1.2.pt
       hX.fin.1.2.vo hX.fin.1.2.po hX.fin.1.2.pv lbl slbl hlM length buf ct hct hcur htcb J.kern.act hrun args hlen hargs
       extra excaps hext' (X := fun s' a' σ' => DomRel (L.mem s') (L.ksb s') σ' → JAt (L := L) arI AR s' a' σ')
-      (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J⟩) ?_ slot blk call don fp ci sl buffer) (fun _ _ _ h => h))
+      (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) ?_ slot blk call don fp ci sl buffer) (fun _ _ _ h => h))
     (domFrame_asid_control arI Z.th s ar σ Z.G hCR hFI J.ut hMO hX.fin.1 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlM length
       buf ct hct hcur htcb J.kern.act hrun args hlen hargs extra excaps hext' hUK slot blk call don fp ci sl buffer)
     (okAll_specDec_asidControl fp slbl (args.map UScalar.bv) ci sl excaps buffer) hDR (fun _ _ _ hx hd => hx hd))
@@ -1303,13 +1306,13 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   have hcap1 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s1) y := fun y hy h1 h2 => by rw [hcap y hy h1 h2, hSS.capV hy]
   exact ⟨_, _, Cs, Ac1, Lst1, D1, J1.mpStepJ hh hTh hHo Ad hspec1 hpp hidx hsrc1 hnch1 hpd hld hnull1 hDL1 hX'
-    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hp0 hcap1 (hDI J.del) hU'⟩
+    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hp0 hcap1 (hDI J.del) hU', inferInstance⟩
 
 /-- **The ASID control cap at `JAt`** (XTopJointEntry's dispatch): the
 clean case proved (`decode_invocation_asid_controlJC`), the dirty one asked
 (`JAsidCPath.dirty` [W]). -/
 theorem decode_invocation_asid_controlJM (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
       Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)

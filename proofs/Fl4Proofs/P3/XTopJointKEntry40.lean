@@ -142,7 +142,7 @@ labels by XTopJointMRTcbM, every other non-VT-x label by `XCapP.mrG` on
 `decode_invocation_threadJ_stepM` (FL4 `MKD.decode_thread_nonins`, spec
 `perfF_tcbN`). -/
 theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hFl : FlagsRel Z.T (L.mem s) σ) (hfnz : FrNZ Z.th (L.mem s))
     (lbl length : U64) (p : U64)
@@ -181,7 +181,7 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have hJ0M : JAtM (L := L) arI AR MR s ar σ := ⟨hJ0, hmv.1⟩
   have hX := decode_invocation_threadJ_stepM arI s ar σ J hni hARI hT hFl hfnz lbl length p blk call don fp buf extra ct
     hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc
@@ -308,7 +308,7 @@ set_option maxHeartbeats 8000000 in
 cap at every label but SetEPTRoot by `decode_invocation_threadJ_stepMM`
 (the front-end facts as `jPreDecHyp_of18U`), the rest by `JDecMRLK LoudT`. -/
 theorem jDecMRL2_ofT [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
     (hR3 : JDecMRLK (L := L) arI LoudT AR MR Z H Cs D s ar σ ct) :
@@ -419,7 +419,7 @@ docstring): an Untyped cap retyping a native type by
 `decode_invocation_untypedJMM` (the front-end facts as `jPreDecHyp_of14U`),
 its no-reset runs by `jUtRetHypDMM_of`; the VT-x decodes by `hVx`. -/
 theorem jDecMRLK_ofU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
     (hVx : JDecMRLK (L := L) arI VtxK AR MR Z H Cs D s ar σ ct)
@@ -475,7 +475,7 @@ set_option maxHeartbeats 4000000 in
 module docstring): the invoking and mid syscalls by the `…M` layer, the
 receiving ones and `Yield` by g4b's keeps (`JDispMR.of_keep`). -/
 theorem dispatch_all13PUNM3 [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c) (hK : KDispHyps13PU (L := L) arI AR MR Z H Cs D s a σ n c)
     (hDL : ∀ ct, sched.cur_thread st s = ok ct → (JDecMRLK (L := L) arI VtxK AR MR Z H Cs D s a σ ct ∧ JUtResetHyp (L := L) arI AR MR Z H Cs D s a σ ct))
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hN : NativeScope σ)
@@ -529,7 +529,7 @@ set_option maxHeartbeats 16000000 in
 (`MR` at the chosen outcome, `JDecMRL2` [W] for the loud cap kinds). -/
 theorem kernel_entryJ13PUGMD3 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hNS0 : NativeScope σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
@@ -602,14 +602,14 @@ theorem kernel_entryJ13PUGMD3 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     exact JAtZ.budgetOkB (σ0 := faultIPSt σ σ.curThread x) J0 hni0 hBu (SInv.ns_fl4SyscallFaultIP σ.curThread σ hNS0 _ hF) hAK hA
       hnd hmrt hmb hmax htu
   refine WP.spec_bind (WP.spec_and (spec_and_eq hBud fun _ h => h) (budget_ok_mr hM hMK hA hR _)) ?_
   rintro ⟨b, s2, a1⟩ ⟨⟨⟨hTr, hFa⟩, hbeq⟩, hMRb⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -646,7 +646,7 @@ theorem kernel_entryJ13PUGMD3 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨hDMp, hdeq⟩
     obtain ⟨y, hy, ⟨hy1, hR, hJ, hMy⟩ | ⟨hy1, hQ⟩⟩ := hDMp
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -687,7 +687,7 @@ kinds' decode with `MR`, at the dispatch states). Every other premise as
 J36 / J37. -/
 theorem kernel_entryJ40 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ)
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -790,7 +790,7 @@ theorem kernel_entry_reachMD3 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachM (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invM hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invM hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDL hFin hFast => ?_⟩
   have hE := kernel_entryJ40 (MR := MR) s a σ J hct hR hX n c hn hflag hK hDL hFin hARI hA hnd hM hKD hIo hIoa hPA hIA
     hmrt hmb hT hmax htu hRef hPI hFast

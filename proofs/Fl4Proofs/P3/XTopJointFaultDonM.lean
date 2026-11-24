@@ -452,7 +452,7 @@ XTopJointPushDon's `JAtZ.pushDonJ`; the receiver `Running` by XTopJointStsI's
 `JAtZ.stsIJ` (released: the caller's SC, `Inv.rd`), the tail
 `JAtZ.sendTailJ`; the spec's outcome `sendIpc_call_eq` with
 `replyPush_don_eq`/`pd_eq`. -/
-theorem JAtZ.sendFaultPDJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.sendFaultPDJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrn : Fl4Spec.runnable xt.tcbState = true) {cf : Fl4Spec.ObjRef} {rp : Bool} {lf : Fl4Spec.LookupFailure}
     (hft : xt.tcbFault = some (.capFault cf rp lf)) (hct : σ.curThread = t.bv)
@@ -1042,7 +1042,7 @@ theorem JAtZ.sendFaultPDJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec, h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec, h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **`handle_fault` with an endpoint handler and a waiting receiver at `J`,
@@ -1052,7 +1052,7 @@ with or without a receive buffer** (module docstring): XTopJointFaultEp's
 reply right or no reply object: the sender `Inactive`), `JAtZ.sendFaultPJ`
 (the reply pushed, no donation: `can_donate` false or the receiver with an
 SC), `JAtZ.sendFaultPDJ` (the reply pushed and the sender's SC donated). -/
-theorem JAtZ.faultRecvJM2 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.faultRecvJM2 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : MidE σ) (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {ptr bdg : U64} {sd rv g gr : Bool}
@@ -1186,17 +1186,17 @@ theorem JAtZ.faultRecvJM2 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
       (decide (Fl4Spec.Rights.allowGrantReply ∈ rightsOf sd rv g gr)) (decide (x.tcbSchedContext ≠ none)) ct.bv
       ptr.bv (updK σ ct.bv (.tcb { x with tcbFault := some f' }))).1 := by
     rw [rights_grant, rights_grantReply, ← hdon]; exact hz
-  obtain ⟨Z', H', Cs', Ac', Lst', D', J'⟩ := hJ
+  obtain ⟨Z', H', Cs', Ac', Lst', D', J', _⟩ := hJ
   exact ⟨((), z.2), handleFault_ep_mem hk hfh _ hz',
     ⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-    ⟨_, _, _, _, _, _, J'⟩⟩
+    ⟨_, _, _, _, _, _, J', inferInstance⟩⟩
 
 
 set_option maxHeartbeats 4000000 in
 /-- **`handle_fault` at a switch mid state in every case** (module
 docstring; `JAtZ.faultHypJZ`'s case split, the waiting receiver by
 `JAtZ.faultRecvJM`). -/
-theorem JAtZ.faultHypJZM3 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidE σ)
+theorem JAtZ.faultHypJZM3 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
@@ -1224,8 +1224,8 @@ theorem JAtZ.faultHypJZM3 (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     simp only [List.map_cons] at hq
     subst hq
     refine WP.spec_mono (J.faultRecvJM2 hAT hni hsw hct hnq hc1 hke hf) ?_
-    rintro r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩
-    exact ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+    rintro r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩
+    exact ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   | idleEP =>
     exact J.faultBlockJM hni hsw hct hnq hc1 (fun xe h => by rw [hke] at h; cases h; trivial) hf
   | sendEP q =>

@@ -31,7 +31,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`update_timestamp; check_budget` at an entry state** (module
 docstring). -/
 theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
-    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) (hni0 : Entered σ0) (hBu : KBudgetB arI a σ0)
+    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) [VxE Z] (hni0 : Entered σ0) (hBu : KBudgetB arI a σ0)
     (hNS0 : NativeScope σ0) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -40,7 +40,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     (do let (s1, a1) ← sched.update_timestamp st arI s a; sched.check_budget st arI s1 a1) ⦃ r =>
       ∃ z ∈ ((Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudget) σ0).1, z.1 = r.1 ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
   have hnow := hBu.now
   have hS := J0.xtop.fin.1.1.1
   have hR := J0.xtop.fin.1.1.2.2.1
@@ -73,14 +73,14 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
   have hFalse : sched.check_budget st arI s1 a1 ⦃ r => r.1 = false →
       ∃ z ∈ (Fl4Spec.checkBudget (Z := Unit) σ1).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
     by_cases hnt : NoTmoSend σ1
     · refine WP.spec_mono (Hh.checkBudgetF hA hCH hni1 hnsw1 (hmrt a1) (hmb a1) hnt) ?_
       rintro ⟨rb, s2, a2⟩ hB hf
       obtain ⟨ea, σ2, hcb, -, Lst2, J2⟩ := hB hf
       simp only at ea J2
       subst ea
-      exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2⟩
+      exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2, inferInstance⟩
     have hnq1 : ∀ d q, σ1.curThread ∉ σ1.readyQueues d q := by
       rcases hBu.tmo with hnt0 | hnq0
       · exact absurd (hnt0.of_eq ekh ect ecs) hnt
@@ -102,7 +102,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
         hth hper hkl) ?_
       rintro r hB hf
       obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
-      exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩
+      exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩
     · have hcb : ∀ xe, σ1.kheap p = some (.endpoint xe) → Endp.CanBlock false xe := fun xe h => by
         cases xe with
         | idleEP => trivial
@@ -111,13 +111,13 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
       refine WP.spec_mono (Hh.checkBudgetT hA hCH hni1 hres1 hnq1 (hmrt a1) (hmb a1) hkt hrr hth hper hcb) ?_
       rintro r hB hf
       obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
-      exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩
+      exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩
   refine WP.spec_mono (WP.spec_and (check_budgetT hA s1 a1 σ1 hS1 hscC hact (hmb a1)) hFalse) ?_
   rintro ⟨rb, s2, a2⟩ ⟨hT, hF⟩
   cases rb with
   | false =>
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hF rfl
-    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J'⟩
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hF rfl
+    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J', inferInstance⟩
   | true =>
     obtain ⟨e, hb, hsuf⟩ := hT rfl
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj e
@@ -126,7 +126,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     have hOw : CurOwnW Z.T Z.C σ1 := Or.inl (curOwn_of_curInv hS1 hI1 hC1)
     obtain ⟨-, hJ⟩ := hJ1 σ1.machineState _ hum1 id
     obtain ⟨Ac', Lst', D', J'⟩ := hJ hOK hOw
-    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J'⟩
+    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J', inferInstance⟩
 
 end
 
@@ -153,7 +153,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
     (hM : MachPlat arI MR) (hK : MRKeep arI MR)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hN : NativeScope σ) (hR : MR a σ.machineState)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hN : NativeScope σ) (hR : MR a σ.machineState)
     (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (hw256 : w.val < 256) (h126 : w.val ≠ 126)
     (h127 : w.val ≠ 127) :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
@@ -179,11 +179,11 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
         σ.interruptStates i = .irqInactive ∨
           ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ∧
             MR r.2 z.2.machineState ⦄ := by
-    rintro s1 a1 z hz ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1⟩ hm1
+    rintro s1 a1 z hz ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ hm1
     refine WP.spec_bind (WP.spec_and (hIP.ackAR a1 w _ J1.xtop.fin.1.1.2.2.2.2.2.2) (hM.ack a1 w _ hm1)) ?_
     rintro a2 ⟨hA2, hM2⟩
     obtain ⟨Lst2, J2⟩ := J1.msArJ z.2.machineState a2 rfl (fun _ => hA2)
-    exact (WP.spec_ok _).2 (Or.inr ⟨z, hz, ⟨Z1, H1, Cs1, Ac1, Lst2, D1, J2⟩, hM2⟩)
+    exact (WP.spec_ok _).2 (Or.inr ⟨z, hz, ⟨Z1, H1, Cs1, Ac1, Lst2, D1, J2, inferInstance⟩, hM2⟩)
   unfold interrupt.handle_interrupt
   rw [irq_max_eq]
   simp only [bind_ok]
@@ -200,7 +200,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
     simp only [bind_ok]
     have hA1 : AR a1 σ.archState.x64CurrentCr3 := hARI.mask _ _ _ hARa (Or.inr (Or.inl ⟨w, true, ha1⟩))
     obtain ⟨Lst1, J1⟩ := J.msArJ (maskMs σ i true).machineState a1 rfl (fun _ => hA1)
-    exact hack s a1 _ (mem_hi_big hgt σ) ⟨Z, H, Cs, Ac, Lst1, D, J1⟩ hm1
+    exact hack s a1 _ (mem_hi_big hgt σ) ⟨Z, H, Cs, Ac, Lst1, D, J1, inferInstance⟩ hm1
   · rw [if_neg hbig]
     have hw : w.val ≤ 125 := by
       have : ¬ 127 < w.val := hbig
@@ -256,21 +256,21 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
             σ.interruptStates i = .irqInactive ∨
               ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ∧
                 MR r.2 z.2.machineState ⦄ := by
-        rintro s3 a2 σ1 h1' ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1⟩ hm2
+        rintro s3 a2 σ1 h1' ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ hm2
         obtain ⟨a3, ha3⟩ := maskIrq_total arI hAT a2 w true
         have hm3 := hmaskM a2 a3 σ1 hm2 ha3
         rw [ha3]
         simp only [bind_ok, WP.spec_ok]
         have hA3 := hARI.mask _ _ _ J1.xtop.fin.1.1.2.2.2.2.2.2 (Or.inr (Or.inl ⟨w, true, ha3⟩))
         obtain ⟨Lst3, J3⟩ := J1.msArJ (maskMs σ1 i true).machineState a3 rfl (fun _ => hA3)
-        exact Or.inr ⟨((), maskMs σ1 i true), mem_hi_signal hle hsig hgc h1', ⟨Z1, H1, Cs1, Ac1, Lst3, D1, J3⟩,
+        exact Or.inr ⟨((), maskMs σ1 i true), mem_hi_signal hle hsig hgc h1', ⟨Z1, H1, Cs1, Ac1, Lst3, D1, J3, inferInstance⟩,
           hm3⟩
       have hnone : ∀ (hP : ¬ (Fl4Spec.isNtfnCap ac ∧ Fl4Spec.AllowSend ∈ Fl4Spec.capRights ac)),
           (do let a3 ← arI.mask_irq a w true; ok (s, a3)) ⦃ r =>
             σ.interruptStates i = .irqInactive ∨
               ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ∧
                 MR r.2 z.2.machineState ⦄ :=
-        fun hP => hmask s a σ (mem_when_false hP _ σ) ⟨Z, H, Cs, Ac, Lst, D, J⟩ hR
+        fun hP => hmask s a σ (mem_when_false hP _ σ) ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ hR
       cases c with
       | Notification p b sd rv =>
         cases sd with
@@ -294,7 +294,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
           rintro ⟨s2, a2⟩ ⟨⟨σ', V', Ac', Lst'', D', hsp, -, J'⟩, hm2⟩
           have hmem : ((), σ') ∈ (Fl4Spec.sendSignal (Z := Unit) p.bv b.bv σ).1 := by rw [hsp]; rfl
           have hmF := MachF.mfk_sendSignal' p.bv b.bv σ _ hmem
-          exact hmask s2 a2 σ' (hwhen σ' hmem) ⟨_, H, Cs, Ac', Lst'', D', J'⟩ (msF_mr hM hm2 hmF)
+          exact hmask s2 a2 σ' (hwhen σ' hmem) ⟨_, H, Cs, Ac', Lst'', D', J', inferInstance⟩ (msF_mr hM hm2 hmF)
       | _ =>
         simp only [bind_ok]
         exact hnone (by rw [hac]; simp [absCap, Fl4Spec.isNtfnCap])
@@ -310,7 +310,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
       have J2 := J.reprogramJ
       obtain ⟨Ac3, Lst3, D3, J3⟩ := J2.armedJ (L.cpu_wr _ _ _) 0#u64
       try simp only [WP.spec_ok]
-      exact Or.inr ⟨_, mem_hi_timer hle htm, ⟨Z, H, Cs, Ac3, Lst3, D3, J3⟩, hR⟩
+      exact Or.inr ⟨_, mem_hi_timer hle htm, ⟨Z, H, Cs, Ac3, Lst3, D3, J3, inferInstance⟩, hR⟩
     rw [if_neg h2]
     by_cases h3 : v = 3#u64
     · -- an IPI state on a line other than the IPI lines: reserved, nothing
@@ -320,7 +320,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
       rw [irq_resched_eq]
       have hne : ¬ w = 127#u64 := fun e => h127 (by rw [e]; rfl)
       simp only [bind_ok, hne, ↓reduceIte, WP.spec_ok]
-      exact Or.inr ⟨_, mem_hi_reserved hle hres, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hR⟩
+      exact Or.inr ⟨_, mem_hi_reserved hle hres, ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hR⟩
     rw [if_neg h3]
     by_cases h0 : v = 0#u64
     · -- an inactive line: the spec fails
@@ -331,7 +331,7 @@ theorem JAtZ.handleIrqJIM (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
     · have hres : σ.interruptStates i = .irqReserved := by
         rw [hst]; unfold irqSt; simp [h0, h1, h2]
       simp only [h0, ↓reduceIte, bind_ok, WP.spec_ok]
-      exact Or.inr ⟨_, mem_hi_reserved hle hres, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hR⟩
+      exact Or.inr ⟨_, mem_hi_reserved hle hres, ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hR⟩
 
 end
 
@@ -433,7 +433,7 @@ the platform bundle [P] of the syscall top, and `hFin`, the finish bundle
 `hFin`). -/
 theorem jEvRef_irq {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     {w : U64} (hI : IrqHw AR MR a a' σ w)
     (hFin : ∀ x ∈ ((Fl4Spec.NonDetE.handleE (Fl4Spec.fl4HandleEvent (Z := Unit) true .interrupt)
         (fun _ => Fl4Spec.withoutPreemption Fl4Spec.preemptionPath)).run σ).1,
@@ -468,7 +468,7 @@ theorem jEvRef_irq {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → Li
   rw [handle_interrupt_entry_eq]
   refine WP.spec_bind (spec_and_eq (WP.spec_and (J0'.utCheckB hni hBu hNS hARI.toARKeep hA hnd hmrt hmb hmax htu)
     (ut_cb_mr hM hMK hA hI.mr s)) fun _ h => h) ?_
-  rintro ⟨b, s2, a2⟩ ⟨⟨⟨z, hz, -, Z2, Ac2, Lst2, D2, J2⟩, hM2⟩, heq1⟩
+  rintro ⟨b, s2, a2⟩ ⟨⟨⟨z, hz, -, Z2, Ac2, Lst2, D2, J2, _⟩, hM2⟩, heq1⟩
   -- the spec state after the budget check, then after the IRQ read
   have hE := Sched.updateTimeStamp_eq' hnd (doMachineOp_single (getCurrentTime_eq σ.machineState))
   have hz0 := hz
@@ -505,7 +505,7 @@ theorem jEvRef_irq {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → Li
   refine WP.spec_bind (spec_and_eq (J3.handleIrqJIM hARI hA hIA hM hMK hmb hN3 hR3 w i hwi hI.lt hI.n126 hI.n127)
     fun _ h => h) ?_
   rintro ⟨s3, a3⟩ ⟨hP, heq2⟩
-  rcases hP with hin | ⟨z', hz', ⟨Z3, H3, Cs3, Ac3, Lst4, D3, J4⟩, hM3⟩
+  rcases hP with hin | ⟨z', hz', ⟨Z3, H3, Cs3, Ac3, Lst4, D3, J4, _⟩, hM3⟩
   · exact absurd hin hact3
   have hEv := mem_irqEv hz hga hz'
   have hx := mem_handleE_ok (h := fun _ => Fl4Spec.withoutPreemption (Z := Unit) Fl4Spec.preemptionPath) hEv
@@ -547,7 +547,7 @@ def JFltHyp (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState �
     (true, σb) ∈ (specBudget σ).1 → syscall.budget_ok st arI s a = ok (true, s1, a1) →
     JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s1 a1 σb → MR a1 σb.machineState →
     B s1 a1 ⦃ r => ∃ z ∈ (G σb).1, (∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac'' : Set U64) (Lst'' : U64 → List U64)
-      (D'' : Set U64), JAtZR (L := L) arI AR Z' H' Cs' Ac'' Lst'' D'' r.1 r.2 z.2) ∧ MR r.2 z.2.machineState ⦄
+      (D'' : Set U64), JAtZR (L := L) arI AR Z' H' Cs' Ac'' Lst'' D'' r.1 r.2 z.2 ∧ VxE Z') ∧ MR r.2 z.2.machineState ⦄
 
 open Fl4Proofs.P3.SInv Fl4Proofs.P3.SInvF in
 set_option maxHeartbeats 16000000 in
@@ -560,7 +560,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
     (hsc : ∀ c, ev ≠ .syscallEvent c) (hin : ev ≠ .interrupt)
     {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hB : JFltHyp (L := L) arI AR MR Z H Cs B G s a σ)
     (hFin : ∀ x ∈ ((Fl4Spec.NonDetE.handleE (Fl4Spec.fl4HandleEvent (Z := Unit) true ev)
         (fun _ => Fl4Spec.withoutPreemption Fl4Spec.preemptionPath)).run σ).1,
@@ -594,9 +594,9 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
       ((.ok (), y) : Except Unit Unit × Fl4Spec.State Unit) ∈ ((Fl4Spec.handleEvent (Z := Unit) ev).run σ).1 →
       KFrontF2 (st := st) arI B s a s2 a2 →
       (∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s2 a2 y) → MR a2 y.machineState →
+        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s2 a2 y ∧ VxE Z') → MR a2 y.machineState →
       syscall.finish st arI s2 a2 ⦃ r => ∃ σ', EvOut false ev σ σ' ∧ RJM (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-    rintro s2 a2 y hE hfr ⟨Z', H', Cs', Ac', Lst', D', J'⟩ hMy
+    rintro s2 a2 y hE hfr ⟨Z', H', Cs', Ac', Lst', D', J', _⟩ hMy
     have hE' : ((.ok (), y) : Except Unit Unit × Fl4Spec.State Unit) ∈
         ((Fl4Spec.fl4HandleEvent (Z := Unit) true ev).run σ).1 := by
       rw [Fl4Spec.fl4HandleEvent_other true ev hsc]; exact hE
@@ -609,7 +609,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
   rintro ⟨b, s1, a1⟩ ⟨⟨⟨hTr, hFa⟩, hM1⟩, heq⟩
   cases b with
   | false =>
-    obtain ⟨⟨b', σb⟩, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨⟨b', σb⟩, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     simp only at hz1; subst hz1
     have hMb := (budget_mr_at hM hnd hz hM1 hS.1.1.vim).1
     have hE : ((.ok (), σb) : Except Unit Unit × Fl4Spec.State Unit) ∈ ((Fl4Spec.handleEvent (Z := Unit) ev).run σ).1 := by
@@ -621,7 +621,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
     show (do let (s2, a2) ← (if false = true then B s1 a1 else ok (s1, a1)); syscall.finish st arI s2 a2) ⦃ _ ⦄
     rw [if_neg (by decide)]
     simp only [bind_ok]
-    exact fin s1 a1 σb hE hfr ⟨Z', H, Cs, Ac', Lst', D', J'.toR⟩ hMb
+    exact fin s1 a1 σb hE hfr ⟨Z', H, Cs, Ac', Lst', D', J'.toR, inferInstance⟩ hMb
   | true =>
     obtain ⟨σb, he, -, -, -, -, -, -, -, Ac', Lst', D', J'⟩ := hTr rfl
     have hb : (true, σb) ∈ (specBudget σ).1 := by unfold specBudget; rw [he]; exact Set.mem_singleton _
@@ -648,7 +648,7 @@ agreement: FL4 sends `number` / `code` unmasked; the x86 vector and error
 code are below those bounds). -/
 theorem jEvRef_user {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (n c : U64)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hB : JFltHyp (L := L) arI AR MR Z H Cs
       (fun s1 a1 => do let t ← sched.cur_thread st s1; faults.handle_fault st arI s1 a1 t (.UserException n c))
@@ -678,7 +678,7 @@ spec's (`handleVmFault`'s machine fault address and error register, caught by
 spec's reads is part of that premise. -/
 theorem jEvRef_vmf {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (ad c : U64) (ft : Fl4Spec.VMFaultType)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hB : JFltHyp (L := L) arI AR MR Z H Cs
       (fun s1 a1 => do
@@ -758,7 +758,7 @@ steps** (module docstring): `irq` is the interrupt entry run at the arch state
 inductive JReachE2 : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → MR a σ.machineState → JReachE2 s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → MR a σ.machineState → JReachE2 s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReachE2 s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -780,7 +780,7 @@ variable {arI AR MR}
 theorem JReachE.toE2 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE (L := L) arI AR MR s a σ) :
     JReachE2 (L := L) arI AR MR s a σ := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact JReachE2.start J hX hR
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact JReachE2.start J hvx hX hR
   | @step s a σ s' a' σ' n c _ hct hn hv hy hRJ ih => exact JReachE2.step n c ih hct hn hv hy hRJ
   | @event s a σ s' a' σ' e fip ev _ hK hev _ hv hO hRJ ih => exact JReachE2.event e fip ev ih hK hev hv hO hRJ
 
@@ -788,9 +788,9 @@ theorem JReachE.toE2 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE (L :
 theorem jreach_invE2 (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JReachE2 (L := L) arI AR MR s a σ) :
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) ∧ SInvX σ ∧ MR a σ.machineState := by
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact ⟨⟨_, _, _, _, _, _, J⟩, hX, hR⟩
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, hvx⟩, hX, hR⟩
   | @step s a σ s' a' σ' n c _ hct _ _ hy hRJ ih => exact ⟨hRJ.1.2, kentry_sinvX hnd c ih.2.1 hct _ hy, hRJ.2⟩
   | @irq s a a1 σ s' a' σ' w _ _ _ hO hRJ ih =>
     exact ⟨hRJ.1.2, kcall_sinvX hnd true .interrupt ih.2.1 (fun h => absurd rfl h) _ hO, hRJ.2⟩
@@ -865,7 +865,7 @@ theorem kernel_entry_reachE2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         e.run st arI s a ⦃ r => ∃ σ', EvOut fip ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE2 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invE2 hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invE2 hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDM hFin hFast => ?_,
     fun w a1 hct hI hFin => ?_, fun n c hct hB hFin => ?_, fun ad c ft hct hB hFin => ?_,
     fun e fip ev hK hev hE => ?_⟩

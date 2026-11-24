@@ -205,7 +205,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- **FL4's success tail for an empty result at `J`** (module docstring). -/
-theorem JAtZ.flTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hcur : σ.curThread = ct.bv)
+theorem JAtZ.flTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hcur : σ.curThread = ct.bv)
     (call : Bool) :
     flTail (st := st) ct call s a ⦃ res => res.1 = .Ok () ∧
       ∃ z ∈ (specTail call ct.bv [] σ).1, RelTopM (L := L) res.2.1 z.2 ∧ JAt (L := L) arI AR res.2.1 res.2.2 z.2 ⦄ := by
@@ -232,7 +232,7 @@ theorem JAtZ.flTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
       refine WP.spec_bind (J.runJ hct hk hrs) ?_
       rintro s2 ⟨Lst', D', J2⟩
       refine (WP.spec_ok _).2 ⟨rfl, ((), stsAct (updK σ ct.bv (.tcb { x with tcbState := .running })) ct.bv), ?_,
-        J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+        J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
       rw [Notif.setThreadState_eq .running hk]; exact Set.mem_singleton _
     · simp only [↓reduceIte]
       have J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a (MrS σ ct.bv x (Endp.ipcBufOf true x) []) := by
@@ -253,8 +253,8 @@ theorem JAtZ.flTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
         simp only [↓reduceIte]
         rw [Notif.setThreadState_eq .running hkN]; exact Set.mem_singleton _
       have hJ := h5 _ hz
-      obtain ⟨Z5, H5, Cs5, Ac5, Lst5, D5, J5⟩ := hJ
-      refine (WP.spec_ok _).2 ⟨rfl, _, ?_, J5.xtop.relTop, Z5, H5, Cs5, Ac5, Lst5, D5, J5⟩
+      obtain ⟨Z5, H5, Cs5, Ac5, Lst5, D5, J5, _⟩ := hJ
+      refine (WP.spec_ok _).2 ⟨rfl, _, ?_, J5.xtop.relTop, Z5, H5, Cs5, Ac5, Lst5, D5, J5, inferInstance⟩
       rw [Notif.setThreadState_eq .running hkN]; exact Set.mem_singleton _
   · rw [if_neg hr]
     have hrs : x.tcbState ≠ .restart := by
@@ -263,12 +263,12 @@ theorem JAtZ.flTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
       apply UScalar.eq_of_val_eq
       show (L.mem s (P1.stA ct)).val = _
       rw [hss, h]; unfold sched.TS_RESTART; rfl
-    refine (WP.spec_ok _).2 ⟨rfl, ((), σ), ?_, J.xtop.relTop, Z, H, Cs, Ac, Lst, D, J⟩
+    refine (WP.spec_ok _).2 ⟨rfl, ((), σ), ?_, J.xtop.relTop, Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
     rw [specTail_nil hk call, if_neg hrs]; exact Set.mem_singleton _
 
 set_option maxHeartbeats 64000000 in
 /-- **FL4's `reply_error` at `J`** (module docstring). -/
-theorem JAtZ.replyErrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.replyErrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (hcur : σ.curThread = ct.bv) (e : error.SysError) (e' : Fl4Spec.SyscallError)
     (he : ErrRel (.Sys e) e') :
     syscall.reply_error st s ct e ⦃ s2 =>
@@ -319,9 +319,9 @@ theorem JAtZ.replyErrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
         JAt (L := L) arI AR s2 a (replyErrState σ ct.bv x (Fl4Spec.msgFromSyscallError e').1
           (Fl4Spec.msgFromSyscallError e').2) ⦄ by
     refine WP.spec_mono hsuf ?_
-    rintro s2 ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩
+    rintro s2 ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2, _⟩
     refine ⟨((), replyErrState σ ct.bv x (Fl4Spec.msgFromSyscallError e').1 (Fl4Spec.msgFromSyscallError e').2),
-      ?_, J2.xtop.relTop, Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩
+      ?_, J2.xtop.relTop, Z2, H2, Cs2, Ac2, Lst2, D2, J2, inferInstance⟩
     rw [hspec]; exact Set.mem_singleton _
   refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec s ct layout.reg.BADGE 0#u64) ?_
   rintro s1 rfl
@@ -384,7 +384,7 @@ theorem JAtZ.replyErrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       apply BitVec.eq_of_toNat_eq; simp only [Fl4Spec.natToLen, BitVec.toNat_ofNat, UScalar.bv_toNat, hlen, mrLen]; omega
     unfold replyErrState
     simp only [hb]
-    rw [← hvd]; exact ⟨_, _, _, _, _, _, J4⟩
+    rw [← hvd]; exact ⟨_, _, _, _, _, _, J4, inferInstance⟩
   | some p =>
     have hbs : buf = some p := hb
     rw [hbs] at J3 hlen hkM
@@ -446,12 +446,12 @@ theorem JAtZ.replyErrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       simp [Fl4Spec.natToLen, core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, hlen, mrLen]
     unfold replyErrState
     simp only [hb]
-    rw [← hvd]; exact ⟨_, _, _, _, _, _, J5⟩
+    rw [← hvd]; exact ⟨_, _, _, _, _, _, J5, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The error reply at `J`** (`ReplyHypMX.fail`'s program, module
 docstring). -/
-theorem JAtZ.replyFailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.replyFailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (hcur : σ.curThread = ct.bv) (is_call : Bool) (e : error.SysError) (e' : Fl4Spec.SyscallError)
     (he : ErrRel (.Sys e) e') :
     ((if is_call then do
@@ -464,7 +464,7 @@ theorem JAtZ.replyFailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
         RelTopM (L := L) res.2.1 z.2 ∧ JAt (L := L) arI AR res.2.1 res.2.2 z.2 ⦄ := by
   cases is_call
   · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨trivial, ((), σ), ?_, J.xtop.relTop, Z, H, Cs, Ac, Lst, D, J⟩
+    refine ⟨trivial, ((), σ), ?_, J.xtop.relTop, Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
     rw [Endp.nd_when_false (by simp)]; exact Set.mem_singleton _
   simp only [↓reduceIte]
   refine WP.spec_bind (J.replyErrJ hcur e e' he) ?_

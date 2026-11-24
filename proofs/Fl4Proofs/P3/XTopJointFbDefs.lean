@@ -206,7 +206,7 @@ def FbMidJ (σ : Fl4Spec.State Unit) (th0 : TypedHeap) (ct buf : U64) (args : Li
     (τ : Fl4Spec.State Unit) : Prop :=
   (∃ (Z1 : XSets) (H1 : P1.Heap) (Cs1 Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
     Z1.th = th0 ∧ ct ∈ Z1.T ∧ (buf ≠ 0#u64 → ∃ sp, BufMap Z1.B buf sp) ∧
-    JAtZ (L := L) arI AR Z1 H1 Cs1 Ac1 Lst1 D1 x a τ ∧ LiveDN (L := L) Z1.th H1 Cs1 Z1.G x τ) ∧
+    JAtZ (L := L) arI AR Z1 H1 Cs1 Ac1 Lst1 D1 x a τ ∧ LiveDN (L := L) Z1.th H1 Cs1 Z1.G x τ ∧ VxE Z1) ∧
   (∀ (i : U64) v, args[i.val]? = some v → msg.syscall_arg st x ct buf i = ok v) ∧
   FbKeep σ τ ∧ Vs.NoSwitch τ ∧ SpecGlob τ ∧ PPR0 τ
 
@@ -220,12 +220,12 @@ theorem FbMidJ.step {σ : Fl4Spec.State Unit} {th0 : TypedHeap} {ct buf : U64} {
     (hth : Z1.th = th0) (hct : ct ∈ Z1.T) (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z1.B buf sp)
     (hargs : ∀ (i : U64) v, args[i.val]? = some v → msg.syscall_arg st x ct buf i = ok v)
     (hK : FbKeep σ τ)
-    (J2 : JAtZ (L := L) arI AR Z2 H2 Cs2 Ac2 Lst2 D2 x' a' τ')
+    (J2 : JAtZ (L := L) arI AR Z2 H2 Cs2 Ac2 Lst2 D2 x' a' τ') [VxE Z2]
     (hth2 : Z2.th = Z1.th) (hT2 : Z2.T = Z1.T) (hB2 : Z2.B = Z1.B)
     (hF : FbFootK (L := L) Z1 x x') (hK' : FbKeep τ τ')
     (hLv2 : LiveDN (L := L) Z2.th H2 Cs2 Z2.G x' τ') (hns : Vs.NoSwitch τ') (hsg : SpecGlob τ') (hp0 : PPR0 τ') :
     FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x' a' τ' := by
-  refine ⟨⟨Z2, H2, Cs2, Ac2, Lst2, D2, hth2.trans hth, hT2 ▸ hct, fun h => hB2 ▸ hbm h, J2, hLv2⟩, ?_,
+  refine ⟨⟨Z2, H2, Cs2, Ac2, Lst2, D2, hth2.trans hth, hT2 ▸ hct, fun h => hB2 ▸ hbm h, J2, hLv2, inferInstance⟩, ?_,
     hK.trans hK', hns, hsg, hp0⟩
   intro i v hv
   rw [← hargs i v hv]

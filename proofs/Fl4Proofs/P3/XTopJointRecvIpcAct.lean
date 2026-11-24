@@ -182,7 +182,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`receive_ipc` with an active bound notification at `J`** (module
 docstring): the current thread, resumed. -/
 theorem JAtZ.recvIpcActJ (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt0 : σ.kheap t.bv = some (.tcb xt))
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -262,7 +262,7 @@ theorem JAtZ.recvIpcActJ (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.
     (by rw [← hbound]; exact hbz) hst (complete_signal_cur_eq (arI := arI) (a := a) ht0 hst h0 hcw))
   have hspecI := receiveIpc_active b rights blk (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hke hk hact
   rw [hspecI, completeSignal_cur hkt hk hact hscc hks hct hcn hnt, heqI, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 
 end

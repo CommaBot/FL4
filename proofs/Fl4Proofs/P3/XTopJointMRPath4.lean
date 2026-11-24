@@ -22,7 +22,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJI` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hcov : PPCovI σ)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hcov : PPCovI σ)
     (hAT : P0.ArchTotal arI)
     (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hR : MR a σ.machineState) (hV : ValidIrqMasks σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
@@ -150,14 +150,14 @@ theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
         · rw [← hk, ← hcs]; exact hy
       · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs.symm⟩, fun y m hy => h2 y m (by rw [← hk, ← hcs]; exact hy)⟩
     obtain ⟨Lst', J'⟩ := Hh2.toJ hO hOw
-    exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, rfl, fun hN => hN⟩
+    exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, ⟨Z, H, Cs, Ac, Lst', D, J', inferInstance⟩, rfl, fun hN => hN⟩
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJA` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
@@ -201,7 +201,7 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
@@ -209,7 +209,7 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJR` with `MR` and `ValidIrqMasks` after (module docstring). -/
 theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -254,7 +254,7 @@ theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩

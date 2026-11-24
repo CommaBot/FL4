@@ -199,7 +199,7 @@ theorem JHole.chargeBudgetUJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S
 set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` at a hole without `CurInv`, current thread not
 schedulable, current SC active** (module docstring). -/
-theorem JHole.mcsPPJU {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJU [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -250,7 +250,7 @@ theorem JHole.mcsPPJU {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
   have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
     rw [hs.consumed]; exact h1
   exact ⟨σ', fun y hy => mem_pp_charge hsch hga (by rw [h1']; rfl) hy,
-    fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, Z, H, Cs, Ac, Lst', D, J'⟩
+    fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
 
 variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with
@@ -259,7 +259,7 @@ variable (arI) in
 receivers (l4v `handle_timeout`'s `send_fault_ipc` to a waiting receiver,
 `charge_budget`/`end_timeslice` with `can_timeout_fault`). -/
 def JPreemptRestHypM (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ →
     CurInv σ → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
@@ -278,7 +278,7 @@ theorem hPre_ofZM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg⟩ :=
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg⟩ :=
     jAtPre_holeL hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
@@ -287,7 +287,7 @@ theorem hPre_ofZM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
   by_cases hC : CurInv σ1
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
       (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC
       fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
   · have hsch : Fl4Spec.schedulable σ1.curThread σ1 = false := by
@@ -300,7 +300,7 @@ theorem hPre_ofZM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPZL` with `JPreemptRestHypM`** (kp14). -/
 theorem dispatch_invokeJPZM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -319,7 +319,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJEPZL` with `JPreemptRestHypM`** (kp14; against
 `fl4HandleEvent true`'s branch). -/
 theorem dispatch_invokeJEPZM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)

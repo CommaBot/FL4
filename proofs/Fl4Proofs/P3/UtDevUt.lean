@@ -152,7 +152,7 @@ set_option maxHeartbeats 16000000 in
 `JAtZ` state** (module docstring; UtUtRet's `JAtZ.utUtBodyJ` with the
 source's facts from `DevApart` / `DevFreeT`, as UtDevRet's
 `JAtZ.utDevBodyJ`): `UtBodyPostD`. -/
-theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -599,7 +599,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF'⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF', inferInstance⟩
 
 
 set_option maxHeartbeats 4000000 in
@@ -609,7 +609,7 @@ as UtEpRet's `JAtZ.utEpJ`): from `JAtZ` at the decode with `DevApart` and
 frames (types 9, 10, 11) without a reset, or with the reset of an unused cap
 (free index 0: FL4's and the spec's resets do nothing, `retype_reset_unused`,
 `invokeUntyped_reset_unused`), end in `UtRetPostJ`. -/
-theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))

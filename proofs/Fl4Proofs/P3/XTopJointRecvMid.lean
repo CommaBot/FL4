@@ -135,7 +135,7 @@ set_option maxHeartbeats 16000000 in
 current thread at a mid state (`MidE`: resumed or a switch to another
 thread pending). -/
 theorem JAtZ.recvSigActiveJM (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidE σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0) (blk : Bool) (cb : Fl4Spec.Badge)
@@ -207,7 +207,7 @@ theorem JAtZ.recvSigActiveJM (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4S
   have hct : σ.curSc ≠ t.bv := fun e => by rw [e, hkt] at hks; cases hks
   have hcn : σ.curSc ≠ n.bv := fun e => by rw [e, hk] at hks; cases hks
   rw [hspec, specRecvTail_cur hkt2' hscc (y := ys) (m := ms) (by simp [updK, hct, hcn, hks]), heq, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 
 end

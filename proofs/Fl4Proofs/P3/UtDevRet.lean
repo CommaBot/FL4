@@ -130,12 +130,13 @@ variable (arI) in
 at the same sets and heap. -/
 def JAtD (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ ∧
+      VxE Z
 
 theorem JAtD.jAt {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAtD (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -⟩ := h
-  exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -, _⟩ := h
+  exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 variable (arI) in
 /-- **`UtBodyPost` with `JAtD` after.** -/
@@ -163,7 +164,7 @@ docstring; UtEpRet's `JAtZ.utEpBodyJ` for a device source and frame types
 at the same sets). The source's facts from `DevApart` / `DevFreeT` instead
 of `JAtZ.utc` / `SpecFree` / `JCovD.ks`; its range in one canonical half
 with a nonzero base (`DevApart`'s `CanonR`). -/
-theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -904,7 +905,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF'⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF', inferInstance⟩
 
 
 end

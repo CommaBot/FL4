@@ -197,7 +197,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): `jat_scheduleFRF` without `σ.domainTime ≠ 0`. -/
 theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -356,14 +356,14 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
-  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
+  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
     RunW.scAndTimer (hr3 J1.curRun) he3⟩
 
 /-- **`jat_scheduleFR2` with `SignalJHyp` reduced to the waking signals**
 (`signalJHyp_of`, as `jat_scheduleSRF`). -/
 theorem jat_scheduleSR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -393,7 +393,7 @@ set_option maxHeartbeats 4000000 in
 case, `ArchNdF` [P]. -/
 theorem jat_finishJ2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -424,7 +424,7 @@ theorem jat_finishJ2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   unfold syscall.finish_old
   refine WP.spec_bind (jat_scheduleSR2 s a σ J hd hnd hAT hVt hW hmb hA hAN hFO hsni hsend hT hTail) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1⟩, -, hcr⟩
-  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
+  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1, inferInstance⟩)) ?_
   rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2, hnv⟩
   refine ⟨?_, J2.cur_not_vm hnv⟩
   have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by

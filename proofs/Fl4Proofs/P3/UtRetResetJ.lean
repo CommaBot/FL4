@@ -264,7 +264,7 @@ range of the cap's free part, FL4's retype without a reset ends in
 def UtBodyHyp (AR : A → Fl4Spec.Cr3 → Prop) (pp : U64) (idx : List Bool) (p sb nt us dest off win : U64)
     (t : Fl4Spec.ApiObjectType) (r : Nat) (fiv : U64) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → Entered σ →
+    (σ : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → [VxE Z] → Entered σ →
     ∀ rs, Z.th pp = some (.cnode rs) → idx.length = rs →
     ∀ fi : U64, capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false) → Z.c = 0#u64 →
     ∀ reset : Bool, RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv → fiv = fi →
@@ -283,47 +283,47 @@ theorem utEp_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64
     {r : Nat} {fiv : U64}
     (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU hZ0 hKN =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU hZ0 hKN =>
     J.utEpBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU hZ0 hKN
 
 /-- UtScRet's `JAtZ.utScBodyJ` as `UtBodyHyp` (SCs). -/
 theorem utSc_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64} (hnt : nt.val = 5) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
     J.utScBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
 /-- UtUtRet's `JAtZ.utUtBodyJ` as `UtBodyHyp` (untypeds). -/
 theorem utUt_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64} (hnt : nt.val = 0) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
     J.utUtBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
 /-- UtPmRet's `JAtZ.utPmBodyJ` as `UtBodyHyp` (PML4s). -/
 theorem utPm_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64} (hnt : nt.val = 8) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
     J.utPmBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
 /-- UtTcbRet's `JAtZ.utTcbBodyJ` as `UtBodyHyp` (TCBs). -/
 theorem utTcb_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64} (hnt : nt.val = 1) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
     J.utTcbBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
 /-- UtCnRet's `JAtZ.utCnBodyJ` as `UtBodyHyp` (CNodes). -/
 theorem utCn_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64} (hnt : nt.val = 4) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
-  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
+  fun _ _ _ _ _ _ _ _ _ J _ hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU _ _ =>
     J.utCnBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
 set_option maxHeartbeats 8000000 in
 /-- **The retype with a reset at `J`** (module docstring). -/
-theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -584,7 +584,7 @@ types by `JAtZ.utResetJ` with their bodies (`utEp_bodyHyp`, `utUt_bodyHyp`,
 `utSc_bodyHyp`, `utPm_bodyHyp`, `utCn_bodyHyp`, `utTcb_bodyHyp`), the rest `JUtRetHypR2` [W]. Premises of the
 reset: `PPPlat`, `resetChunkBits = 16` [P], `hRd0` [J], `VsReachMiss` [J] at
 the restart's state (no extra roots), `ArchFitHyp`/`RegionUnrefJ` [J]. -/
-theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))

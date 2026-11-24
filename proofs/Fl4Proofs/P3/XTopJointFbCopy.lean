@@ -41,7 +41,7 @@ theorem fb_entry_copyJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (h
       FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
   unfold FbEntryPost
   obtain ⟨p1, as1, op, depth, a1, cr, a2, dd, cn, dcn⟩ := bt
-  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := id hM
+  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv, hvx1⟩, hargs, hK, hns, hsg, hp0⟩ := id hM
   have hbop : b.op = .copyMap := C.hopC.1 hopC
   have hX := J.xtop
   obtain ⟨-, hCR, -, -, -, -, -⟩ := id hX.rel

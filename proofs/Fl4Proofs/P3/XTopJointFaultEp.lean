@@ -359,7 +359,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 64000000 in
 /-- **`handle_fault` with an endpoint handler and no waiting receiver at
 `J`** (module docstring). -/
-theorem JAtZ.faultBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+theorem JAtZ.faultBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {ptr bdg : U64} {sd rv g gr : Bool}
     (hep : capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok (.Endpoint ptr bdg sd rv g gr))
@@ -667,7 +667,7 @@ theorem JAtZ.faultBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni 
   have J' := J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 (J.zD_diffE hpE)
   exact ⟨⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-    ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J'⟩⟩
+    ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J', inferInstance⟩⟩
 
 end
 

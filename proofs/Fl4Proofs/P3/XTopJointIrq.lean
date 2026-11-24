@@ -417,7 +417,7 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
     (hSig : JIrqSigHyp (L := L) arI AR) :
     JIrqHyp (L := L) arI AR := by
   intro s a σ w i hJ hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJ hARI hAT hIP hmb hNS
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -427,13 +427,13 @@ theorem jIrqHyp_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hSig : JIrqSigHyp (L := L) arI AR) :
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
-    JHoleAt (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
+    JHoleAtV (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
     w.val ≠ 126 → w.val ≠ 127 →
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
   intro s a σ w i hJ hN hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   exact Hh.handleIrqJN hARI hAT hIP hmb hN
     (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
@@ -442,14 +442,14 @@ variable (arI) in
 preemption path at the `JHoleAt` states outside `PPCov ∨ PPCovT` where no
 thread is `RunningVM` (that case is the scope premise `hNS` [S]). -/
 def JPreemptRestHypN (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     ¬ (PPCov σ ∨ PPCovT σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
 
 theorem jPreemptRestHyp_of
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     (h : JPreemptRestHypN (L := L) arI AR) : JPreemptRestHyp (L := L) arI AR :=
-  fun s a σ hJ hc => h s a σ hJ (hNS s a σ hJ) hc
+  fun s a σ hJ hc => h s a σ hJ (hNS s a σ hJ.hole) hc
 
 /-- **`invoke_afterJ`'s `hPre` without `JIrqHyp`** (module docstring). -/
 theorem hPre_ofI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
@@ -467,7 +467,7 @@ theorem hPre_ofI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJP` without `JIrqHyp`**. -/
 theorem dispatch_invokeJPI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -485,7 +485,7 @@ theorem dispatch_invokeJPI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJEP` without `JIrqHyp`**. -/
 theorem dispatch_invokeJEPI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)

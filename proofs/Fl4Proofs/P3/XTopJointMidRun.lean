@@ -100,8 +100,8 @@ theorem HIPostMXP.mid {AR : A → Fl4Spec.Cr3 → Prop} {σ : Fl4Spec.State Unit
   · have hJ : JAt (L := L) arI AR res.2.1 res.2.2 y.2 :=
       ifP_X (X := JAt (L := L) arI AR) (XP := JAtPre (L := L) arI AR) (by rw [h1]; intro e; cases e) hX
     have hC := hM hE y hy h2
-    obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
-    exact Or.inl ⟨h1, h2, hR, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hC, curRun_ne_idle hC J.act.2⟩
+    obtain ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := hJ
+    exact Or.inl ⟨h1, h2, hR, ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hC, curRun_ne_idle hC J.act.2⟩
   · rw [h1, if_pos rfl] at hX
     exact Or.inr ⟨h1, h2, hR, hX⟩
 
@@ -110,7 +110,7 @@ invocation** (`first_phase`, neither blocking nor calling) with the mid state
 `JMid` at `Ok`, from `JMidRunHyp` [W]. -/
 theorem handle_invocation_midJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (can_donate : Bool) (cptr : U64)
     (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
     (mi : Fl4Spec.MessageInfo) (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))

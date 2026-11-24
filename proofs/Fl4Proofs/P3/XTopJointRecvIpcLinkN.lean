@@ -297,7 +297,7 @@ set_option maxHeartbeats 4000000 in
 `MidN` state outside the two donations** (module docstring). -/
 theorem jRecvIpcLinkN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (q : U64) (g' : Bool) (rc' : Fl4Spec.Cap)
     (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x)) (hcr : CapRel (.Reply q g') rc')

@@ -21,7 +21,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 /-- **m67's `RRPreAt5` from the joint relation** (module docstring). -/
-theorem JAtZ.rrPre5At {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.rrPre5At {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -40,7 +40,7 @@ theorem JAtZ.rrPre5At {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
 set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ33F` without `hRP5`** (module docstring). -/
 theorem kernel_entryJ33H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (n : I64) (c : Fl4Spec.Syscall)
@@ -71,7 +71,7 @@ theorem kernel_entryJ33H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
 set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ34F` without `hRP5`** (module docstring). -/
 theorem kernel_entryJ34H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (n : I64) (c : Fl4Spec.Syscall)
@@ -102,7 +102,7 @@ theorem kernel_entryJ34H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
 set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ34FW` without `hRP5`: no ReplyRecv read left** (module docstring). -/
 theorem kernel_entryJ34HW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hSW : SInvR.B8w.SInvW σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (n : I64) (c : Fl4Spec.Syscall)

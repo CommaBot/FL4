@@ -46,7 +46,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 /-- **`P1.VmFaultOK` at a `JAtZ` entry state** (module docstring). -/
-theorem JAtZ.vmFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.vmFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hOff : OffReady σ)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
@@ -69,7 +69,7 @@ set_option maxHeartbeats 4000000 in
 fault type with a restart instance (m69 / m70's `JAtZ.rrPreAt` / `rrPre5At`
 through the `…G` lemmas). -/
 theorem JAtZ.rrPreAtG {ty : U64} [P1.HfrRestart st arI ty] {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -151,8 +151,8 @@ theorem kernel_entry_reachU15Vm [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI
             RJ (L := L) arI AR r.2.1 r.2.2 σ' ∧ SInvX σ' ∧ MR r.2.2 σ'.machineState ∧
             SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ SInvUZ.UtPgR σ' ∧
             JReachU15 (L := L) arI AR MR r.2.1 r.2.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, -, -, hR, -, -, hSys, -, -, hVm, -, -⟩ :=
-    kernel_entry_reachU15 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, -, -, hR, -, -, hSys, -, -, hVm, -, -⟩ :=
+    kernel_entry_reachU15V arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, fun ad c ft hct hV hFin => ?_, fun c found hct hn hflag hK hDec hFin hfd => ?_⟩
   · exact P1.vm_local_triple arI hSX hA
       (J.vmFaultOK (hX.entered hct) hR hX.sb hX.ctQ hX.offReady hARI hA hnd hM (fun a => hT.mrt a)

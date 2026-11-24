@@ -435,7 +435,7 @@ set_option maxHeartbeats 16000000 in
 `ms` (the caller `Restart`), `JAt` at the spec's success tail with data
 (`specTail_data`). -/
 theorem JAtZ.replyTailJ {σ0 : Fl4Spec.State Unit} {ct : U64} {x0 : Fl4Spec.Tcb} {ms : List Fl4Spec.Word}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a (MrS σ0 ct.bv x0 (Endp.ipcBufOf true x0) ms))
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a (MrS σ0 ct.bv x0 (Endp.ipcBufOf true x0) ms)) [VxE Z]
     (hct : ct ∈ Z.T) (hk0 : σ0.kheap ct.bv = some (.tcb x0)) (hrs : x0.tcbState = .restart)
     (hlen : ms.length ≤ Fl4Spec.msgMaxLength)
     (hfr : ∀ p, Endp.ipcBufOf true x0 = some p → ∀ z ∈ Endp.mrPairs ms,
@@ -455,7 +455,7 @@ theorem JAtZ.replyTailJ {σ0 : Fl4Spec.State Unit} {ct : U64} {x0 : Fl4Spec.Tcb}
     rintro s5 ⟨Lst', D', J5⟩ z hz
     rw [specTail_data hk0 hrs ms hlen hfr] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J5⟩
+    exact ⟨_, _, _, _, _, _, J5, inferInstance⟩
   unfold tcb.reply_words
   refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec s ct layout.reg.BADGE 0#u64) ?_
   rintro s1 rfl

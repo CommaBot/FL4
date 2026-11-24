@@ -383,7 +383,7 @@ FL4 `hLF : LargeFrOK Z.G (L.mem s)` [J].
 Every other premise is `kernel_entryJ37`'s. -/
 theorem kernel_entryJ36E [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ) (hI : SInvIR σ) (hFl : FlagsRel Z.T (L.mem s) σ)
     (hLF : LargeFrOK Z.G (L.mem s))
     (n : I64) (c : Fl4Spec.Syscall)
@@ -435,7 +435,7 @@ from `JAtZ ∧ SInvX ∧ SInvIR ∧ MR`; `step` along `RJM` (what
 inductive JReachI : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → SInvIR σ → MR a σ.machineState → JReachI s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → SInvIR σ → MR a σ.machineState → JReachI s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReachI s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -449,17 +449,17 @@ variable {arI AR MR}
 theorem JReachI.toM {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachI (L := L) arI AR MR s a σ) :
     JReachM (L := L) arI AR MR s a σ := by
   induction h with
-  | start J hX _ hR => exact JReachM.start J hX hR
+  | start J hvx hX _ hR => exact JReachM.start J hvx hX hR
   | step n c _ hct hn hv hy hRJ _ ih => exact JReachM.step n c ih hct hn hv hy hRJ
 
 /-- **The invariant**: every `JReachI` state carries `JAtZ`, `SInvX`, `SInvIR`, `MR`. -/
 theorem jreach_invI (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JReachI (L := L) arI AR MR s a σ) :
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) ∧ SInvX σ ∧ SInvIR σ ∧ MR a σ.machineState := by
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ SInvIR σ ∧ MR a σ.machineState := by
   have hI : SInvIR σ := by
     cases h with
-    | start _ _ hI _ => exact hI
+    | start _ _ _ hI _ => exact hI
     | step _ _ _ _ _ _ _ _ hI => exact hI
   obtain ⟨hJ, hX, hR⟩ := jreach_invM hnd h.toM
   exact ⟨hJ, hX, hI, hR⟩
@@ -505,7 +505,7 @@ theorem kernel_entry_reachI [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           (SInvIR σ' → JReachI (L := L) arI AR MR r.1 r.2 σ') ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hI, hR⟩ := jreach_invI hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hI, hR⟩ := jreach_invI hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hI, hR, fun n c hct hn hFl hLF hflag hK hDM hFin hFast => ?_⟩
   have hE := kernel_entryJ36E (MR := MR) s a σ J hct hR hX hI hFl hLF n c hn hflag hK hDM hFin hARI hA hnd hM hKD hPA
     hIA hmrt hmb hT hmax htu hRef hPI hFast

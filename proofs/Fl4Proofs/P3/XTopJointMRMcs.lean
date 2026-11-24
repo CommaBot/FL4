@@ -34,7 +34,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- **`mcsPPJZ` for a non-schedulable current thread, with `MR` after**
 (module docstring). -/
-theorem JHole.mcsPPJZM_ns {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJZM_ns [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -90,7 +90,7 @@ theorem JHole.mcsPPJZM_ns {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {
     have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
       rw [hs.consumed]; exact h1
     have hs' : Fl4Spec.schedulable σ.curThread σ = false := hsch
-    refine ⟨σ', ?_, ?_, ⟨Z, H, Cs, Ac, Lst', D, J'⟩,
+    refine ⟨σ', ?_, ?_, ⟨Z, H, Cs, Ac, Lst', D, J', inferInstance⟩,
       hM.mfKeep hMR (Sched.MFA.of_eq (Sched.mf_chargeBudgetF _) h1')⟩
     · exact fun y hy => mem_pp_charge hs' hga (by rw [h1']; rfl) hy
     · exact fun hy => fail_pp_charge hs' hga (by rw [h1']; rfl) hy
@@ -99,7 +99,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The preemption path from a covered hole with a non-schedulable current
 thread under `MachPlat`** (module docstring). -/
 theorem JHole.afterInvJZJM_ns {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -136,7 +136,7 @@ theorem jAtPreM_hole (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s0 : S) (a0 : A)
       (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ ∧
         MR a σ.machineState ∧ ValidMachineTime σ := by
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, -, -, hR, hV⟩, hpp, hσ⟩ := h
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, -, hR, hV⟩, hpp, hσ⟩ := h
   have h := J.ppJHM hAK hA hnd hM hPA hR hV
   rw [hpp, WP.spec_ok] at h
   obtain ⟨s1, Ac1, Lst1, Hh, hR', hV'⟩ := h rfl σ hσ

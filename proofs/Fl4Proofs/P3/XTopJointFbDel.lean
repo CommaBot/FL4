@@ -44,7 +44,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
     (hw0 : w0.bv = w.1) (hw1 : w1.bv = w.2.1) (hw2 : w2.bv = w.2.2) (df : Bool) :
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
       FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ∧ CnSlotsKept (L := L) th0 x r.2.1 ⦄ := by
-  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := hM
+  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv, hvx1⟩, hargs, hK, hns, hsg, hp0⟩ := hM
   subst hth
   have hbop : b.op = .delete := by
     cases e : b.op
@@ -53,7 +53,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
     · rfl
   obtain ⟨hR, hV, -, -, -⟩ := J.xtop.rel.2.1
   have hM0 : FbMidJ (L := L) (AR := AR) arI σ Z1.th ct buf args x a τ :=
-    ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, rfl, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩
+    ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, rfl, hct, hbm, J, hLv, hvx1⟩, hargs, hK, hns, hsg, hp0⟩
   unfold vspace.frame_batch_entry
   rw [if_neg hopC, if_neg hopR]
   rw [show cspace.lookup_target_slot st x bt.cnode w0 bt.depth =

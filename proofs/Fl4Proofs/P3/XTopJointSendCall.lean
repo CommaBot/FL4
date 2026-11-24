@@ -467,7 +467,7 @@ reply unlink, then the caller `Inactive` on `IRel` (its queue bits clear by
 release queue, `CurInv.notRel`), the receiver `Running`, `JAtZ` by
 `JAtZ.wake_postCI` (the spec's two state changes swapped, `ciSt_swap`), the
 tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_callInactive_eq`. -/
-theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     (hres : σ.schedulerAction = .resumeCurThread) (hti : σ.curThread ≠ σ.idleThread)
@@ -920,7 +920,7 @@ theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 end
 

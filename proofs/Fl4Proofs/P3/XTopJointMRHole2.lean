@@ -92,7 +92,7 @@ set_option maxHeartbeats 4000000 in
 and `ValidIrqMasks`** (module docstring): continuing with the invariant
 again, or preempted at a `JAtPreMV` state. -/
 theorem JAtZ.ppJDMV {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hPA : PPPlatA arI AR)
     (hR : MR a σ.machineState) (hV : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hns : Vs.NoSwitch σ)
     (hRd : PPR0 σ) :
@@ -109,7 +109,7 @@ theorem JAtZ.ppJDMV {s : S} {a : A} {σ : Fl4Spec.State Unit}
   · rcases hcase with ⟨rfl, hm0⟩ | ⟨rfl, hm⟩
     · obtain ⟨hJ0, hp'⟩ := hJ' rfl
       exact Or.inl ⟨rfl, hm0, hJ0, hp', Vs.ake_preemptionPoint'.noSwitch hm0 hns⟩
-    · exact Or.inr ⟨rfl, hm, s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hns, hRd, hR, hV, hVI⟩, hr, hm⟩
+    · exact Or.inr ⟨rfl, hm, s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hns, hRd, hR, hV, hVI⟩, hr, hm⟩
   · rcases hcase with ⟨-, hm0⟩ | ⟨-, hm⟩
     · exact vim_pp hm0 hVI
     · exact vim_pp hm hVI

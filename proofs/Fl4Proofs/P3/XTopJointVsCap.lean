@@ -71,7 +71,7 @@ theorem XCap.jatR {Z' : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl l
     {slbl : Fl4Spec.Data} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
     {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
     (h : XCap (L := L) arI (FinXR (L := L) AR Z') s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl
-      excaps buffer ct) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+      excaps buffer ct) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hR : JPostHyp (L := L) arI AR s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps
       buffer ct :=

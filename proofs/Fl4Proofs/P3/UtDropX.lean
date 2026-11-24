@@ -42,6 +42,9 @@ abbrev XSets.dropV (Z : XSets) (rl rh : Nat) (m : U64 → U64) : XSets :=
     L2 := pr2 rl rh m Z.L2 Z.L1
     L1 := pr1 rl rh Z.L1 }
 
+/-- (f6) `Z.dropV` keeps `vx`. -/
+instance VxE.dropV {Z : XSets} [h : VxE Z] {rl rh : Nat} {m : U64 → U64} : VxE (Z.dropV rl rh m) := ⟨h.eq⟩
+
 section Mono
 variable {th : TypedHeap} {lo hi : Nat}
 

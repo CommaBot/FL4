@@ -72,17 +72,18 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → 
 /-- **`JAtZ`, `LiveDN` and `ZNoBlk` at their own ghosts.** -/
 def JAtZLB (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ ∧ ZNoBlk Z.th (L.mem s) (L.ksb s)
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ LiveDN (L := L) Z.th H Cs Z.G s σ ∧ ZNoBlk Z.th (L.mem s) (L.ksb s) ∧
+      VxE Z
 
 theorem JAtZLB.toL {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtZLB (L := L) arI AR s a σ) :
     JAtL (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J, hL, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J, hL⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, J, hL, _, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J, hL, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A CancelBadgedSends's outcome at `JAtL`** (XTopJointCbs's `cn_cancel_topJ`;
 module docstring). -/
 theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv) (hQ : ∀ e, EpQPre σ e)
     (hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv)
@@ -98,7 +99,7 @@ theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
   cases r with
   | Err e =>
     obtain ⟨rfl, e', h1, h2⟩ := hq
-    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩⟩
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩⟩
   | Ok u =>
     obtain ⟨inv, hrun, σ1, hst, p, b, rfl, ⟨sl, hsl, hcV⟩, s2, hs2, h0, h1⟩ := hq
     obtain ⟨htcb, x, hk⟩ := J.xtop.curTcb hcur
@@ -133,7 +134,7 @@ theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
             (absCap (.Endpoint p 0#u64 true true true true)))).run σ1).1 := by rw [hrun0]; rfl
       exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ1),
         mem_bindE_ok hx (Set.mem_singleton _), ⟨_, _, Or.inl ⟨rfl, rfl⟩, J1.xtop.rel.1, J1.xtop.rel.2.1,
-          J1.xtop.rel.2.2.1, J1.xtop.rel.2.2.2.1, J1.xtop.rel.2.2.2.2.1⟩, ⟨_, H, Cs, Ac1, Lst1, D1, J1, hL1⟩⟩
+          J1.xtop.rel.2.2.1, J1.xtop.rel.2.2.2.1, J1.xtop.rel.2.2.2.2.1⟩, ⟨_, H, Cs, Ac1, Lst1, D1, J1, hL1, inferInstance⟩⟩
     · have hcb := h1 hb
       have he : p ∈ (Z.mv G1 V1).E := hE p b sl hsl hcV
       have hpre : EpQPre σ1 p.bv := by rw [hσ1]; exact epQPre_restart hk (hQ _) hsw
@@ -153,13 +154,13 @@ theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
         exact mem_liftE (x := ((), σ3)) hm3
       exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ3),
         mem_bindE_ok hx (Set.mem_singleton _), ⟨_, _, Or.inl ⟨rfl, rfl⟩, J3.xtop.rel.1, J3.xtop.rel.2.1,
-          J3.xtop.rel.2.2.1, J3.xtop.rel.2.2.2.1, J3.xtop.rel.2.2.2.2.1⟩, ⟨_, H, Cs, Ac1, Lst1, D3, J3, hL3⟩⟩
+          J3.xtop.rel.2.2.1, J3.xtop.rel.2.2.2.1, J3.xtop.rel.2.2.2.2.1⟩, ⟨_, H, Cs, Ac1, Lst1, D3, J3, hL3, inferInstance⟩⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The CNode CancelBadgedSends label at `JAtL`** (XTopJointCbs's
 `decode_invocation_cnode_cancelJ`, `cn_cancel_topJL`). -/
 theorem decode_invocation_cnode_cancelJL (hAM : ARMask arI AR) (s : S)
-    (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeCancelBadgedSends)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -189,7 +190,7 @@ theorem decode_invocation_cnode_cancelJL (hAM : ARMask arI AR) (s : S)
       fun res h => cn_cancel_topJL arI hAM J hLv hZB hC hcur hQ hsw hE h
   · simp only [↓reduceIte]
     rw [WP.spec_ok]
-    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩⟩
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩⟩
 
 /-- **The CNode cap's invalid labels at any post holding at the decode's
 state** (XTopJointCbs's `decode_invocation_cnode_illegalJ`). -/
@@ -235,7 +236,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The CNode cap, every label, `JAtL` after** (XTopJointMRCnode's
 `decode_invocation_cnodeJ_stepsLM` with the liveness; module docstring). -/
 theorem decode_invocation_cnodeJ_stepsLML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hJDP : JDelParts (L := L) arI AR Z.th)
     (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
@@ -269,9 +270,9 @@ theorem decode_invocation_cnodeJ_stepsLML [Fl4Proofs.P1.PlainStore st] (s : S) (
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct
     exact (XCap.imp arI (decode_invocation_cnode_copyXS arI s ar σ hX (J.curRun.run hni)
-      (X := JAtZLB (L := L) arI AR) ⟨Z, H, Cs, Ac, Lst, D, J, hLv, hZB⟩
+      (X := JAtZLB (L := L) arI AR) ⟨Z, H, Cs, Ac, Lst, D, J, hLv, hZB, inferInstance⟩
       (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', hZ'⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-        ⟨_, H, Cs, Ac', Lst', D', J', hL', hZ'⟩)
+        ⟨_, H, Cs, Ac', Lst', D', J', hL', hZ', inferInstance⟩)
       (fun _ _ _ h => let ⟨Z', _, _, _, _, _, J', _⟩ := h; ⟨Z', J'.xtop⟩) lbl hcp slbl hlbl
       length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
       excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer)
@@ -289,7 +290,7 @@ theorem decode_invocation_cnodeJ_stepsLML [Fl4Proofs.P1.PlainStore st] (s : S) (
         (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
   by_cases hlo : lbl.val < 25 ∨ 32 < lbl.val
-  · exact (decode_invocation_cnode_illegalXG arI (X := JAtL (L := L) arI AR) s ar σ ⟨Z, H, Cs, Ac, Lst, D, J, hLv⟩
+  · exact (decode_invocation_cnode_illegalXG arI (X := JAtL (L := L) arI AR) s ar σ ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
       lbl hlo slbl hlbl length buf ct hct _ p r gs g extra excaps
       (cslotAddr sl) blk call don fp ci sl buffer).toPN arI (cnode_noPre_of hlbl (by omega))
   have h27 : lbl.val = 27 := by omega

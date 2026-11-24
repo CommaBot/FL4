@@ -212,7 +212,7 @@ The dispatch state of the real run carries `JAtZ` (the prefix of
 `kernel_entryJ13PUN`): after the entry's own `NEXT_IP` read and `FAULT_IP`
 write and a passing `budget_ok`, `JAtZ` holds at the ghosts `Z.mv Z.G V0`, `H`,
 `Cs`, its spec state with the kheap of `faultIPSt σ`. -/
-theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -263,7 +263,7 @@ theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
 set_option maxHeartbeats 4000000 in
 /-- **`P1.FastFaultOK` at a `JAtZ` entry state** (module docstring): no
 premise beyond what `JReachE4` / `JReachU` carry. -/
-theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -361,8 +361,8 @@ theorem kernel_entry_reachE5 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE4 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachE4 (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachE4V (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ
     (fun _ _ => offReady_faultIPSt hX.offReady) hARI hA hnd hM hmrt hmb hmax htu n) hFin
@@ -449,8 +449,8 @@ theorem kernel_entry_reachUH2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ (SpecUtZ σ' → JReachU (L := L) arI AR MR r.1 r.2 σ') ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachUH hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachUHV hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr,
     fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ

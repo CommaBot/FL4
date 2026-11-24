@@ -47,7 +47,7 @@ docstring): `jat_finishJRP` at `P := NativeScope`: along the fired timers by
 `schedule` by `ns_schedule` (`hvm`). -/
 theorem jat_finishJRN {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hN : NativeScope σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hN : NativeScope σ)
     (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
@@ -94,7 +94,7 @@ theorem kPreFinHypJI_ofN {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit}
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     KPreFinHypJI (L := L) arI AR c σ := by
   intro σ1 hPA r hQ
-  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hQ
+  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hQ
   obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
   have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
     mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
@@ -112,7 +112,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 theorem invoke_afterJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (call bl don : Bool)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
@@ -158,7 +158,7 @@ theorem invoke_afterJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
 
 set_option maxHeartbeats 4000000 in
 theorem dispatch_invokeJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -198,7 +198,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 theorem mid_invRecvJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (rg : U64) (sr : Fl4Spec.Register) (cr : Bool)
     (hrg : regIdx sr = rg)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -265,7 +265,7 @@ theorem mid_invRecvJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
 
 set_option maxHeartbeats 4000000 in
 theorem dispatch_midJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (c : Fl4Spec.Syscall) (rg : U64)
     (sr : Fl4Spec.Register) (cr : Bool) (hn : MidSysR number c rg sr cr)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -301,7 +301,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The invoking dispatches ending in `PPQJI` under `MachPlat`**
 (`dispatch_invokeJAll` with mr3's `hPre_ofZQIM`; no `PPPlat`/`IrqPlat`). -/
 theorem dispatch_invokeJAllMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -323,7 +323,7 @@ set_option maxHeartbeats 4000000 in
 `KDispHyps13PU`; the mid receive leaves narrowed as `KDispHyps15M.to14M` …
 `to9M`). -/
 theorem dispatch_all13PUN [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c) (hK : KDispHyps13PU (L := L) arI AR MR Z H Cs D s a σ n c)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hN : NativeScope σ)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
@@ -357,14 +357,14 @@ set_option maxHeartbeats 16000000 in
 /-- **`kernel_entryJ13PB` on `KDispHyps13PU`** (module docstring). -/
 theorem kernel_entryJ13PUN [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hNS0 : NativeScope σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps13PU (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -424,14 +424,14 @@ theorem kernel_entryJ13PUN [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     exact JAtZ.budgetOkB (σ0 := faultIPSt σ σ.curThread x) J0 hni0 hBu (SInv.ns_fl4SyscallFaultIP σ.curThread σ hNS0 _ hF) hAK hA
       hnd hmrt hmb hmax htu
   refine WP.spec_bind (WP.spec_and hBud (budget_ok_mr hM hMK hA hR _)) ?_
   rintro ⟨b, s2, a1⟩ ⟨⟨hTr, hFa⟩, hMRb⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -461,7 +461,7 @@ theorem kernel_entryJ13PUN [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
     refine WP.spec_bind (dispatch_all13PUN s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hMRσb hVIσb hNSb hARI hA hnd hM hMK hPA hIA hmrt hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -491,7 +491,7 @@ set_option maxHeartbeats 4000000 in
 `SInvA.ns` at the entry state. Premises as J27 otherwise. -/
 theorem kernel_entryJ28 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -499,7 +499,7 @@ theorem kernel_entryJ28 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsKV27 (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

@@ -200,7 +200,7 @@ theorem JAtZ.recvCov_ofW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
 set_option maxHeartbeats 8000000 in
 /-- **The blocking receive with a bound notification lending the thread its
 SC at `J`** (module docstring). -/
-theorem JAtZ.recvIpcRetJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcRetJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))

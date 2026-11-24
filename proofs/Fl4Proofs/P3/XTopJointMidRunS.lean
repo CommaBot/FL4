@@ -678,7 +678,7 @@ theorem JAtZ.midEntry {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
 current thread's no-fault fact [J], `JEntryAt.cnf`'s). -/
 theorem handle_invocation_midJP [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (can_donate : Bool) (cptr : U64)
     (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
     (mi : Fl4Spec.MessageInfo) (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))

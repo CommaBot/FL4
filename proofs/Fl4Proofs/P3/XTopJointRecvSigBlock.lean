@@ -753,7 +753,7 @@ set_option maxHeartbeats 16000000 in
 `t`, resumed and in no ready queue, blocks receiving on the idle or waiting
 notification `n`, covered by a cap (`hcov`), whose SC is not the current SC
 (`hnr`; otherwise `maybe_return_sched_context` gives it back). -/
-theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -898,7 +898,7 @@ theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
     (J.rbw_dbgKeep hRB) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) (J.zD_diffN hn)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
 
 
 end

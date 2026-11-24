@@ -786,13 +786,13 @@ entry's sets, VsTopX's `VsJPost`): the caller's restart at `J`
 and the action word pinned by `XTopAt` at both states, the spec keeping the
 TCBs' states and the action; the other slots' words by `SlotFoot`), then
 `JAtZ.vsStepJ`. -/
-theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPost (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G s ar σ s' a' σ') : JAt (L := L) arI AR s' a' σ' := by
   rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hTI, hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO'⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
@@ -912,7 +912,7 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc hvn
-  exact ⟨Z, H, Cs, Ac1, Lst1, D1, J'⟩
+  exact ⟨Z, H, Cs, Ac1, Lst1, D1, J', inferInstance⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -920,12 +920,12 @@ set_option maxHeartbeats 8000000 in
 at `J` (`JAtZ.restartJ`, the same FL4 and spec states by determinism), then
 the flush, an arch step keeping FL4's store (XTopJointFpu's `JAtZ.arFrS`:
 the spec's machine state only). -/
-theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ') (hV : VsJFlush (L := L) Z.th Z.G s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
   rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨ct', σ1, ms, hct', hs, hst, rfl, hCR', hFI', hMO'⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have e : ct = ct' := eq_of_ok_eq (hct.symm.trans hct')
   subst e
   obtain ⟨s1, σ1', -, -, hst1, -, -, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
@@ -946,7 +946,7 @@ theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     obtain ⟨⟨⟨hSch, hEp, hNt, -⟩, -⟩, -⟩ := id hFin
     exact ⟨hFin, ⟨hPl, hCR', hFI', hD, by rw [hks']; exact hMO', hIA, hSA⟩, IpcRel.of hNt hEp (sched_sc hSch), hE⟩
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J1.arFrS
-    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
+    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX', inferInstance⟩
 
 end
 
@@ -961,7 +961,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- **A page table cap at `JAt`** (`decode_invocation_page_table_thX`). -/
 theorem decode_invocation_page_tableJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
@@ -991,7 +991,7 @@ theorem decode_invocation_page_tableJV (s : S) (ar : A) (σ : Fl4Spec.State Unit
 set_option maxHeartbeats 4000000 in
 /-- **A page directory cap at `JAt`** (`decode_invocation_page_directory_thX`). -/
 theorem decode_invocation_page_directoryJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageDirectoryMap →
@@ -1024,7 +1024,7 @@ theorem decode_invocation_page_directoryJV (s : S) (ar : A) (σ : Fl4Spec.State 
 set_option maxHeartbeats 4000000 in
 /-- **A PDPT cap at `JAt`** (`decode_invocation_pdpt_thX`). -/
 theorem decode_invocation_pdptJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
@@ -1054,7 +1054,7 @@ theorem decode_invocation_pdptJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
 set_option maxHeartbeats 4000000 in
 /-- **An ASID pool cap at `JAt`** (`decode_invocation_asid_pool_thX`). -/
 theorem decode_invocation_asid_poolJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
@@ -1089,7 +1089,7 @@ set_option maxHeartbeats 4000000 in
 with XTopJointStep's `JPostHyp` [W] (`decode_invocation_frame_thX`; `hno` [J]
 as there). -/
 theorem decode_invocation_frameJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress →
@@ -1132,7 +1132,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A PML4 cap at `JAt`**, every label but FrameBatch (`decode_invocation_pml4_thX`; the ASID
 invalidation total by `ArchTotal`; with the batch: XTopJointVsFb's `decode_invocation_pml4JV`). -/
 theorem decode_invocation_pml4JVn (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)

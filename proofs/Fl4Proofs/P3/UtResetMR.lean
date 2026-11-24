@@ -128,7 +128,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`JAtZ.reset_loopJM` with `MR` at the done exit** (module docstring): the chunk loop, from offset `o`
 (a multiple of the chunk; the region zero above `o` plus a chunk; the spec's
 chunks `o / 2^16, .., 0` left, `RContX`). -/
-theorem JAtZ.reset_loopJMM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+theorem JAtZ.reset_loopJMM [VxE Z] (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hM : MachPlat arI MR) (hPA : PPPlatA arI AR) (hrcb : Fl4Spec.resetChunkBits = 16)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb kb : U64} (hTh : restrictTh Z.th p.val (p.val + 2 ^ sb.val) = Z.th)
@@ -298,7 +298,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ.reset_untypedJM` ending in `ResetJPostMM`** (module docstring). -/
-theorem JAtZ.reset_untypedJMM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reset_untypedJMM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hMP : MachPlat arI MR) (hPA : PPPlatA arI AR)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hc0 : Z.c = 0#u64) (hR0 : PPR0 σ)
     (hres : σ.schedulerAction ≠ .chooseNewThread)
@@ -472,7 +472,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ.utResetJM` ending in `UtRetPostJMM`** (module docstring). -/
-theorem JAtZ.utResetJMM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utResetJMM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -818,7 +818,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`JUtResetMR` for a RAM untyped cap** (module docstring): the facts
 `JAtZ.jUtRetHypM` takes, every native object type's body (`UtBodyHyp`) by its
 proof, the run by `JAtZ.utResetJMM`. -/
-theorem JAtZ.jUtResetMRM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtResetMRM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
@@ -864,7 +864,7 @@ set_option maxHeartbeats 4000000 in
 `MR` (`MKD.reset_untyped_dev` at the restart's state, `MKD.untyped_retype_nr`)
 and the spec keeping `msFT` (`NoPre.msAt_retypeDev`), by `UtRetPostJM.mrK`. -/
 theorem JAtZ.jUtResetMRDev {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))

@@ -187,7 +187,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 8000000 in
 /-- **The TDCALL's tail at `JAt`** (module docstring). -/
 theorem tdxTail_jat [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv) (call : Bool) (v : U64) (a1 : A) (hop : TdxArchStep arI ar a1)
     (inv : Fl4Spec.Fl4TdxInvocation) :
     (do
@@ -241,12 +241,13 @@ theorem tdxTail_jat [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} {
     hI3.2.2.2.1, hI3.2.2.1, by rw [hks3]; exact hXy.rel.2.2.2.2.2.1, hXy.rel.2.2.2.2.2.2.mono hz3⟩,
     IpcRel.of hI3.2.2.2.2.1.1.2.2.1 hI3.2.2.2.2.1.1.2.1 (sched_sc hSch), hXy.esa.mono hks3 hz3⟩
   refine ⟨[v.bv], σ1, hmem, w, hw, hI3.relTop, ?_⟩
+  haveI : VxE Z' := VxE.mv (Z := Z) (G := G') (V := V')
   exact hRep Z' H Cs Ac' Lst' D' s1 a1 σ1 rfl J' ct _ call v hcurY.symm hkY rfl s3 w heq hw hXT
 
 set_option maxHeartbeats 16000000 in
 /-- **The TDX control cap at `JAt`, every label** (module docstring). -/
 theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (lbl length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -257,7 +258,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot .TdxControl blk call don fp buf extra lbl.bv
       (args.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨hcur, -⟩ := J.curEq hct
   have hC := J.curRun.run hni
   obtain ⟨htcb, x, hk⟩ := J.xtop.curTcb hcur

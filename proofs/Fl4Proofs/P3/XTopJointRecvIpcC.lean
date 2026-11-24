@@ -49,7 +49,7 @@ set_option maxHeartbeats 16000000 in
 docstring): the current thread at a mid state (`MidC`: a reschedule pending with `CurInv`; was `MidE`: resumed or a switch
 to another thread pending), as `JAtZ.recvSigActiveJM`. -/
 theorem JAtZ.recvIpcActJC (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidC σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt0 : σ.kheap t.bv = some (.tcb xt))
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -129,7 +129,7 @@ theorem JAtZ.recvIpcActJC (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec
     (by rw [← hbound]; exact hbz) hst (complete_signal_cur_eq (arI := arI) (a := a) ht0 hst h0 hcw))
   have hspecI := receiveIpc_active b rights blk (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hke hk hact
   rw [hspecI, completeSignal_cur hkt hk hact hscc hks hct hcn hnt, heqI, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 set_option maxHeartbeats 16000000 in
 set_option maxHeartbeats 16000000 in
@@ -142,7 +142,7 @@ thread, covered by the cap (`hcovR`); `hred`, `hsp`: FL4's and the spec's
 `receive_ipc` reduce to the wait (no bound notification: `receive_ipc_block_red`,
 `receiveIpc_noSend`; a bound idle or waiting one: XTopJointRecvIpcBound), stated
 for any FL4 program `m` reducing to the wait. -/
-theorem JAtZ.recvIpcBlockJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -343,11 +343,11 @@ theorem JAtZ.recvIpcBlockJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · exact h1
       · exact ⟨h1, fun e' => by rw [Set.mem_singleton_iff.1 e', J.zH.2.2.1 rv (hrv h0).1] at hT; cases hT⟩)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
 
 /-- **The blocking receive at `J` under a pending reschedule (with `CurInv`)**, no bound
 notification: `JAtZ.recvIpcBlockJGC`. -/
-theorem JAtZ.recvIpcBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -374,7 +374,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The blocking receive with a bound idle or waiting notification at `J`**
 (module docstring): the notification's SC is not the thread's (`hnr`); at a
 mid state with a pending reschedule (with `CurInv`) (`MidC`, as `JAtZ.recvIpcBlockJGC`). -/
-theorem JAtZ.recvIpcBlockNJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockNJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -430,7 +430,7 @@ theorem JAtZ.recvIpcBlockNJGC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 set_option maxHeartbeats 8000000 in
 /-- **The blocking receive with a bound notification lending the thread its
 SC at `J`** (module docstring). -/
-theorem JAtZ.recvIpcRetJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcRetJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -522,7 +522,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The blocking receive from a waiting sender with a bound notification
 lending the receiver its SC at `J`** (module docstring), the sender as in
 XTopJointRecvSendF's `SendOK`. -/
-theorem JAtZ.recvSendRetJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -620,7 +620,7 @@ reply, the receiver's bound notification lending it its SC, at `J`** (module
 docstring): XTopJointRecvSendRet's route, then XTopJointRecvSendP's
 `JAtZ.recvSendPJG` / `JAtZ.recvSendFPJG` at the state after
 `maybe_return_sc` (a reschedule pending, the receiver without an SC). -/
-theorem JAtZ.recvSendRetPJC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPJC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -743,7 +743,7 @@ passive-server call; module docstring): XTopJointRecvSendRP's route, then
 `maybe_return_sc` (a reschedule pending, the receiver without an SC, the
 current SC the notification's, now bound to no thread): the push donates the
 sender's SC to the receiver. -/
-theorem JAtZ.recvSendRetPDJC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPDJC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -874,7 +874,7 @@ docstring): XTopJointRecvSendRP's route, then `JAtZ.recvSendFPTJ` (a reply
 pushed) or `JAtZ.recvSendFTJ` at the state after `maybe_return_sc`. -/
 theorem JAtZ.recvSendRetTJC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidC σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -994,7 +994,7 @@ theorem JAtZ.recvSendRetTJC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToU
 /-- **`receive_ipc` from the head sender pushing a reply under a pending
 reschedule, the receiver with an SC** (`PushOK`; module docstring). -/
 theorem JAtZ.recvSendP0XC (hAT : P0.ArchTotal arI)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1025,7 +1025,7 @@ a pending reschedule** (`TmoOK`; module docstring): XTopJointRecvSendT's
 resumed `JAtZ.recvSendFPTJ` for the push. -/
 theorem JAtZ.recvSendT0XC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1059,7 +1059,7 @@ theorem JAtZ.recvSendT0XC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs 
 
 set_option maxHeartbeats 4000000 in
 /-- **`IpcDoneM`'s receives at a reschedule mid state (`MidC`)** (module docstring). -/
-theorem jRecvIpcDoneC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+theorem jRecvIpcDoneC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -1080,8 +1080,8 @@ theorem jRecvIpcDoneC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs 
     obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ x hkn
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
     exact WP.spec_mono (J.recvIpcActJC hAT ht hcur hni hnq hkt hn hkn hbn hact true hke b sd true g gr hra b.bv
-      (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ =>
-        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ =>
+        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · obtain ⟨-, hbn, hns, hrr⟩ := hcb
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
     have hI := J.xtop.irelK J.ks J.buf
@@ -1129,14 +1129,14 @@ theorem jRecvIpcDoneC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs 
       · exact Or.inl hb0
       · exact Or.inr ⟨n0, xn, hbn0, hkn, hna, fun _ => hnr0 xt n0 xn hkt hbn0 hkn⟩
     exact WP.spec_mono (J.recvSendJ0X ht hkt hrun hbN hcur he hke' hks b sd true g gr hra hok b.bv
-      (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ =>
-        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ =>
+        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`IpcDoneM2`'s receives at a reschedule mid state (`MidC`)** (module docstring). -/
 theorem jRecvIpcDoneC2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -1174,20 +1174,20 @@ theorem jRecvIpcDoneC2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
       · exact (J.rp.align rv hr).2.1
     obtain ⟨-, hcovR⟩ := J.recvCov_of he hHd hHr hra
     exact WP.spec_mono (J.recvSendP0XC hAT ht hkt hrun (hbn xt hkt) hcur hni.1 hnq (hA hkt) he hke' hks b sd true g gr hra
-      (hcovR hrv0) hok b.bv (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ =>
-        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      (hcovR hrv0) hok b.bv (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ =>
+        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · obtain ⟨hbn, sd0, q, xs, hke', hks, hok⟩ := hcT
     obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
     subst hsde
     exact WP.spec_mono (J.recvSendT0XC hAT hmax htu ht hkt hrun (hbn xt hkt) hcur hni.1 hnq (hA hkt) he hke' hks
       b sd true g gr hra (J.recvCov_of he hHd hHr hra).2 hok b.bv (rightsOf sd true g gr))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`IpcDoneM3`'s receives at a reschedule mid state (`MidC`)** (module docstring). -/
 theorem jRecvIpcDoneC3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -1209,7 +1209,7 @@ theorem jRecvIpcDoneC3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
   suffices hRJ : endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ from
-    WP.spec_mono hRJ fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+    WP.spec_mono hRJ fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   rcases hD with ⟨⟨-, ⟨xt, n0, xn, hkt, hbn, hkn, hna⟩, hns, hrr⟩, hL⟩ | ⟨hun, ⟨hcs, hL⟩ | hcr | ⟨hL, hcT⟩⟩
   · obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
@@ -1255,7 +1255,7 @@ theorem jRecvIpcDoneC3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
 (module docstring). -/
 theorem jRecvIpcUC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)

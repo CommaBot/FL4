@@ -65,7 +65,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`IpcDoneM2`'s receives at a switch mid state** (module docstring). -/
 theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -100,14 +100,14 @@ theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
       · exact (J.rp.align rv hr).2.1
     obtain ⟨-, hcovR⟩ := J.recvCov_of he hHd hHr hra
     exact WP.spec_mono (J.recvSendP0XM hAT ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks b sd true g gr hra
-      (hcovR hrv0) hok b.bv (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ =>
-        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      (hcovR hrv0) hok b.bv (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ =>
+        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · obtain ⟨hbn, sd0, q, xs, hke', hks, hok⟩ := hcT
     obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
     subst hsde
     exact WP.spec_mono (J.recvSendT0XM hAT hmax htu ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks
       b sd true g gr hra (J.recvCov_of he hHd hHr hra).2 hok b.bv (rightsOf sd true g gr))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
 
 end
 
@@ -144,7 +144,7 @@ def JMidLeavesHyp4 (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (σ
     (∀ x, y.2.kheap y.2.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler) →
     ∀ (s1 : S) (a1 : A), RelTopM (L := L) s1 y.2 → CurRun y.2 → y.2.curThread ≠ y.2.idleThread →
     ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a1 y.2 → ∀ ct, sched.cur_thread st s1 = ok ct →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a1 y.2 → [VxE Z] → ∀ ct, sched.cur_thread st s1 = ok ct →
         JRecvLeavesRN4 (L := L) arI AR Z.th ct s1 a1 y.2
 
 end
@@ -159,7 +159,7 @@ theorem JRecvLeavesRN4.toRN3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksTo
     {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hni1 : σ.curThread ≠ σ.idleThread) (hrun : CurRun σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hsc : σ.schedulerAction ≠ .switchThread σ.curThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (h : JRecvLeavesRN4 (L := L) arI AR Z.th ct s a σ) : JRecvLeavesRN3 (L := L) arI AR Z.th ct s a σ where
@@ -184,7 +184,7 @@ theorem jMidLeavesHyp_of4 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs 
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     {cptr : Fl4Spec.CapRef} {σ : Fl4Spec.State Unit}
     (hL : JMidLeavesHyp4 (L := L) arI AR cptr σ) : JMidLeavesHyp3 (L := L) arI AR cptr σ := by
-  intro y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J ct hct
+  intro y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J _ ct hct
   exact (hL y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J ct hct).toRN3 hAT hmax (htu a1) J hct hni1
     hrun ha hsw hnq
 
@@ -228,13 +228,13 @@ with `KDispHyps13M` (mid: entry facts, `JMidPerfHypQ` [W], `JMidVfhHyp` [J],
 `JMidLeavesHyp4` [W]) for `KDispHyps12M` (module docstring). -/
 theorem kernel_entryJ13M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps13M (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

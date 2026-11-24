@@ -2119,7 +2119,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): `jat_scheduleFRF` without `σ.domainTime ≠ 0`. -/
 theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -2278,7 +2278,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
-  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC')⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
+  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC'), inferInstance⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
     RunW.scAndTimer (hr3 J1.curRun) he3⟩
 
 
@@ -2286,7 +2286,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 (`signalJHyp_ofZR`, as `jat_scheduleSRF`), at the states satisfying `P` (g3b). -/
 theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -2315,7 +2315,7 @@ theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 (`jat_scheduleSR2ZRP` at `P := True`, the pre-g3b statement). -/
 theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,

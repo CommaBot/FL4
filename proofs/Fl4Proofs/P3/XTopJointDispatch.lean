@@ -143,7 +143,7 @@ def JPathAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : 
 `handle_invocation_refinesJ` from `JAtZ`, `JEntryGlob`, `JEntryAt` and the
 path premise at the front end's values. -/
 theorem handle_invocation_entryJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -178,7 +178,7 @@ set_option maxHeartbeats 4000000 in
 register's word; the preemption path (`after_invocation` of `Err`) from
 every related `JAtPre` state to `Q` is the premise `hPre` (plan item 7). -/
 theorem invoke_afterJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (call bl don : Bool)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
@@ -260,7 +260,7 @@ faults (`JAtZ.faultHypJZ`, with the receive flag) proved from `JAtZ`; the
 two receive leaves named (`JRecvIpcHyp`, `JRecvSigHyp` [W]). `hni`, `hnq`,
 `hvfh`: JEntryAt's `ni`, `ctnq`, `vfh` at the receive's state. -/
 theorem handle_recvJ (hAT : P0.ArchTotal arI) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (blocking canReply : Bool)
@@ -308,7 +308,7 @@ against `handleSend true`, `handleSend false`, `handleCall` with FL4's
 dispatcher (`DispInv`), the preemption path the premise `hPre`
 (`invoke_afterJ`). -/
 theorem dispatch_invokeJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -349,7 +349,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_syscall` for the receiving syscalls at `J`** (`handle_recvJ`):
 against `handleRecv bl cr` (the spec's `withoutPreemption` of it). -/
 theorem dispatch_recvJ (hAT : P0.ArchTotal arI) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
@@ -414,7 +414,7 @@ theorem fl4HandleSyscall_recv (rep bl cr : Bool) :
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJ` against `fl4HandleEvent true`'s branch.** -/
 theorem dispatch_invokeJE [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -433,7 +433,7 @@ set_option maxHeartbeats 4000000 in
 outcome `.ok ()`). -/
 theorem dispatch_recvJE (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)

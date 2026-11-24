@@ -41,14 +41,14 @@ set_option maxHeartbeats 16000000 in
 step by budtr's `JAtZ.budgetOkB` (every timeout-handler endpoint state). -/
 theorem kernel_entryJ13PB [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps13P (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -112,14 +112,14 @@ theorem kernel_entryJ13PB [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     exact JAtZ.budgetOkB (σ0 := faultIPSt σ σ.curThread x) J0 hni0 hBu (hNSR _ _ _ _ _ _ _ _ _ J0.toR) hAK hA
       hnd hmrt hmb hmax htu
   refine WP.spec_bind (WP.spec_and hBud (budget_ok_mr hM hMK hA hR _)) ?_
   rintro ⟨b, s2, a1⟩ ⟨⟨hTr, hFa⟩, hMRb⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -148,7 +148,7 @@ theorem kernel_entryJ13PB [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     refine WP.spec_bind (dispatch_all13P s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hMRσb hVIσb hARI hA hnd hM hMK hPA hIA hmrt hNS hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -170,7 +170,7 @@ theorem kernel_entryJ13PB [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
 composition of the conversions of the wrappers J14P…J21P. -/
 theorem KDispHypsKV21.to13P [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ σ0 : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : KDispHypsKV21 (L := L) arI AR MR Z H Cs D s a σ n c) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (h : KDispHypsKV21 (L := L) arI AR MR Z H Cs D s a σ n c) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hBA : BudgetAt σ0 σ true) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
@@ -189,14 +189,14 @@ docstring): the budget premise `tmo` is `NoTmoSend ∨ ct_not_in_q` [J] (true in
 reachable states) instead of `KBudget.tmo` (false in reachable states). -/
 theorem kernel_entryJ22P [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsKV21 (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

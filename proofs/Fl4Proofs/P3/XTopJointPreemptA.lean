@@ -39,7 +39,7 @@ set_option maxHeartbeats 16000000 in
 timeout handler on an idle or sending endpoint, a reschedule pending or
 not** (module docstring). -/
 theorem JHole.mcsPPJA {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
@@ -77,7 +77,7 @@ theorem JHole.mcsPPJA {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
   cases r
   · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
     exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-      Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩
+      Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩
   · exact absurd (hT rfl).2.2 hnsuf
 
 variable (arI) in
@@ -89,7 +89,7 @@ queued current thread excluded by `PPR0`'s `CtNQ`, XTopJointPreemptQ). Left: kp5
 → `send_fault_ipc` → `send_ipc` to a receiver waiting on the handler's
 endpoint, for the current thread inside `charge_budget` (a `JTH` state). -/
 def JPreemptRestHypC (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ →
     CurInv σ → Fl4Spec.schedulable σ.curThread σ = true →
     ¬ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →

@@ -161,7 +161,7 @@ VsThX's `domFrame_asid_control`). Premises: `ArchFitHyp` and
 restart's state for a childless pool-sized RAM untyped's region, at the
 tables the slots' caps ask (`Vs.NeedR`, as `JUtPath.vsReach`). -/
 theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
@@ -396,12 +396,12 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
       exact ⟨y', r, gs, g, isSlot_restrict_off hPl hN hy' (by rw [h2sb]; exact hns y' hy'G),
         by rw [hSS1.capV hy']; exact hc⟩
     exact ⟨_, _, Cs, Ac1, Lst1, D1, Jd.mpStepJ hh hTh hE.2.1 Ad hspecd hppd hidx hcap1 hnchd hpdd hld hnull1 hDLd hX'
-      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hRg.p0 hcap' (hDI Jd.del) hU'⟩
+      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hRg.p0 hcap' (hDI Jd.del) hU', inferInstance⟩
   have hD := decode_invocation_asid_controlXP arI Z.th hPl s ar σ Z.G hCR hFI J.ut hMO vsMpHyps_top hX.fin.1
     hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.vs hX.fin.1.2.pt hX.fin.1.2.vo hX.fin.1.2.po hX.fin.1.2.pv lbl slbl hlM length
     buf ct hct hcur htcb J.kern.act hrun args hlen hargs extra excaps (Q := fun s' => P1.WritesIn st s s' W)
     (X := fun s' a' σ' => DomRel (L.mem s') (L.ksb s') σ' → JAt (L := L) arI AR s' a' σ') hext'
-    (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J⟩) slot blk call don fp ci sl buffer
+    (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) slot blk call don fp ci sl buffer
   -- the domain schedule (VsThX's `domFrame_asid_control`)
   have hS := hX.fin.1
   have hF : DomFrame (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl

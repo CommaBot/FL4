@@ -43,7 +43,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 8000000 in
 /-- **The blocking receive with a bound notification lending the thread its
 SC at `J`** (module docstring). -/
-theorem JAtZ.recvIpcRetJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcRetJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -145,7 +145,7 @@ set_option maxHeartbeats 8000000 in
 /-- **The blocking receive from a waiting sender with a bound notification
 lending the receiver its SC at `J`** (module docstring), the sender as in
 XTopJointRecvSendF's `SendOK`. -/
-theorem JAtZ.recvSendRetJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -244,7 +244,7 @@ reply, the receiver's bound notification lending it its SC, at `J`** (module
 docstring): XTopJointRecvSendRet's route, then XTopJointRecvSendP's
 `JAtZ.recvSendPJG` / `JAtZ.recvSendFPJG` at the state after
 `maybe_return_sc` (a reschedule pending, the receiver without an SC). -/
-theorem JAtZ.recvSendRetPJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -368,7 +368,7 @@ passive-server call; module docstring): XTopJointRecvSendRP's route, then
 `maybe_return_sc` (a reschedule pending, the receiver without an SC, the
 current SC the notification's, now bound to no thread): the push donates the
 sender's SC to the receiver. -/
-theorem JAtZ.recvSendRetPDJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPDJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -500,7 +500,7 @@ docstring): XTopJointRecvSendRP's route, then `JAtZ.recvSendFPTJ` (a reply
 pushed) or `JAtZ.recvSendFTJ` at the state after `maybe_return_sc`. -/
 theorem JAtZ.recvSendRetTJM (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))

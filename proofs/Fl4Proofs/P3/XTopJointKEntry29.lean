@@ -51,7 +51,7 @@ IRQ-slot / handler facts), plus `hE : EpQAll σ` [J] (l4v `valid_ep` with
 `kcall_epQAll` carry it). -/
 theorem kernel_entryJ29 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -59,7 +59,7 @@ theorem kernel_entryJ29 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsKV27b (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -123,7 +123,7 @@ theorem kPreFinAtG {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit} {r : S × A}
       ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, ∃ σ',
         ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) z.2).1 ∧
         RJ (L := L) arI AR r'.1 r'.2 σ' ⦄ := by
-  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hQ
+  obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hQ
   obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
   have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
     mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
@@ -137,7 +137,7 @@ set_option maxHeartbeats 16000000 in
 `hFin` at `KFrontF` states** (module docstring); same body. -/
 theorem kernel_entryJ13PUG [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hNS0 : NativeScope σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
@@ -205,14 +205,14 @@ theorem kernel_entryJ13PUG [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     exact JAtZ.budgetOkB (σ0 := faultIPSt σ σ.curThread x) J0 hni0 hBu (SInv.ns_fl4SyscallFaultIP σ.curThread σ hNS0 _ hF) hAK hA
       hnd hmrt hmb hmax htu
   refine WP.spec_bind (WP.spec_and (spec_and_eq hBud fun _ h => h) (budget_ok_mr hM hMK hA hR _)) ?_
   rintro ⟨b, s2, a1⟩ ⟨⟨⟨hTr, hFa⟩, hbeq⟩, hMRb⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -244,7 +244,7 @@ theorem kernel_entryJ13PUG [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
       (hK σb hBA V0 _ _ _ s2 a1 ⟨ct, v, hct, hbeq⟩ J') hMRσb hVIσb hNSb hARI hA hnd hM hMK hPA hIA hmrt hmax htu)
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩, hdeq⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
@@ -282,7 +282,7 @@ write and a passing `budget_ok`); `hFin` at the front-end outcomes only at FL4
 states `KFrontF`. Every other premise as J29. -/
 theorem kernel_entryJ29G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -318,10 +318,10 @@ theorem kernel_entryJ29G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
 
 /-- **J29G's premises are weaker than J29's**: the re-scoped `hK` / `hFin` are
 instances of J29's (so J29 is a corollary; the converse is the point of J29G). -/
-theorem kernel_entryJ29_of_G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
+theorem kernel_entryJ29_of_G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} [VxE Z] {H : P1.Heap}
     {Cs : Set U64} {σ : Fl4Spec.State Unit} {s : S} {a : A} {n : I64} {c : Fl4Spec.Syscall}
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsKV27b (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

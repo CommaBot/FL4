@@ -416,7 +416,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` at `J` with a null or free reply** (the former `jRecvIpcHyp_of`'s
 case split, every waiting-sender case proved). -/
 theorem jRecvIpcU_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
     (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x))
@@ -602,7 +602,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): FL4's and the spec's `cancel_ipc` of that thread
 (`JAtZ.cancelLinkJ`), then `jRecvIpcU_of` at the state after. -/
 theorem jRecvIpcLink_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) (p b : U64) (sd g gr : Bool) (q : U64) (g' : Bool) (rc' : Fl4Spec.Cap)
     (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x)) (hcr : CapRel (.Reply q g') rc')
@@ -658,7 +658,7 @@ theorem jRecvIpcLink_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = 
 /-- **`JRecvIpcHyp`** (`jRecvIpcU_of` for a null or free
 reply, `jRecvIpcLink_of` for a linked one). -/
 theorem jRecvIpcHypL_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) : JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ := by
   intro p b sd g gr rc rc' hpE hrc hHd hHr
@@ -675,7 +675,7 @@ set_option maxHeartbeats 4000000 in
 timeout-fault transfer). -/
 theorem dispatch_recvJL (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)

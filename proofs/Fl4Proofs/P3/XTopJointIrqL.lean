@@ -75,7 +75,7 @@ theorem irqDelOKJL [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.S
 set_option maxHeartbeats 4000000 in
 /-- **`JAt` after an IRQ handler invocation's run** (module docstring). -/
 theorem IrqSteps.jat [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hsg : SpecGlob σ) (hP0 : PPR0 σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (h : IrqSteps (L := L) arI Z.th s ar σ s' a' σ') : JAt (L := L) arI AR s' a' σ' := by
   rcases h with h | ⟨ct, s2, σ1, sl, p, b, w, r, s3, a3, σ3, hct, hs2, hst, -, hA, -, hk, hd, hm, h2⟩
@@ -99,7 +99,7 @@ theorem IrqSteps.jat [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} 
 set_option maxHeartbeats 4000000 in
 /-- **An IRQ handler cap, `JAt` after** (module docstring). -/
 theorem decode_invocation_irq_handlerJL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
@@ -120,7 +120,7 @@ theorem decode_invocation_irq_handlerJL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
   exact decode_invocation_irq_handlerXSD arI Z.th hX.rel.1 s ar σ Z.G J.dstate J.intL
     hX.fin.1.1.2.2.2.1 lbl slbl hlbl ct hct hcur (hX.curTcb hcur).1 J.kern.act (maskIrq_total arI hT) irq hirq hok
     (irqDelOKJL arI J hni hsg hP0 hLv hct irq hirq) (irqDelDKJ arI (jStepHyps arI) J hni hsg hct irq hirq)
-    extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
     (fun _ _ _ h => IrqSteps.jat arI hARI.toMask J hni hsg hP0 hLv h) (fun _ _ _ h => JAt.xtop arI h)
     length (cslotAddr sl) buf blk call don fp args ci sl buffer
 

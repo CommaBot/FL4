@@ -81,6 +81,10 @@ theorem winSet_bd {A k w : Nat} {q : U64} (h : q ∈ winSet A k w) :
 def XSets.addW (Z : XSets) (nt : U64) (G' : MdbGhost) (W : Set U64) : XSets :=
   if nt.val = 2 then { Z with G := G', E := Z.E ∪ W } else { Z with G := G', N := Z.N ∪ W }
 
+/-- (f6) `Z.addW` keeps `vx`. -/
+instance VxE.addW {Z : XSets} [h : VxE Z] {nt : U64} {G' : MdbGhost} {W : Set U64} :
+    VxE (Z.addW nt G' W) := ⟨by unfold XSets.addW; split <;> exact h.eq⟩
+
 /-- An object of an SC's type has the SC's size (an SC of that size, or a
 malformed CNode of the same garbage size). -/
 theorem objBits_of_aType_sc {ko : Fl4Spec.KernelObject} {y : Fl4Spec.SchedContext} {n : Nat}

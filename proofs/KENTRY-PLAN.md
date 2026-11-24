@@ -19113,3 +19113,136 @@ states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top st
   itself under the FrameBatch scratch (the stubs sit below U15's chain; nothing of pf1 adds one).
 - Open as in pf1b/pf1c: the decline tops (P3 `JReachU15` Arch transfer under `ClockLater` [P]),
   `handle_syscall_local` / `handle_ioport_local` / `handle_invocation_local` accepted cases.
+
+## f6 (branch par/f6 from f7a4e47f = int/j4 = PR #66 head, top of record `kernel_entry_reachU28`) — F1 stage 6: first STOPPED at the design check ((1)–(5): `Z.vx = ∅` cannot be pinned in place without growing the VT-x [scope] premises' `JAt`); lead chose option (a); **DONE in (6): `JAt` carries `VxE Z`, new top `kernel_entry_reachU29` = U28 without C17 / C23; full build green; no [J] / [W] premise left**
+
+### (1) What the discharge needs
+`JAtZ.vsReachAsidC` / `JAtZ.vsReachMissR` (VsNamedJ) give C17 (`JAsidCPathU28.vsReach`) and C23
+(`JUtPathMU28.vsReach`) verbatim from `Vs.VsNamed Z.th (L.mem s) (L.ksb s)` at the dispatch `JAtZ`
+(`hni`, `hct` available as in `KDispHypsKVU28.toU27`). At the dispatch state the top gives
+`J' : JAtZ (Z.mv Z.G V') …`, so `J'.carry.vsNamed` needs `(Z.mv Z.G V').vx = Z.vx = ∅`, where `Z` is the
+top's existential, produced by `jreach_invU` / `jreach_invE4` from the `JReachU3` induction: the `start`
+constructor's `JAtZ` (any `Z`) or a step's exit `RJM` = `RelTopM ∧ JAt ∧ MR` with
+`JAt s a σ := ∃ Z H Cs Ac Lst D, JAtZ …` (JointAt:332). So `Z.vx = ∅` (equivalently `VsNamed`, via
+`JAtZ.vxSet`) has to hold for the `Z` of *every* kernel exit.
+
+### (2) Why it cannot be pinned in place (the blocker)
+Some kernel exits are not produced by our proofs but by the tops' own **[scope] premises** (VT-x), whose
+conclusion is `JAt` with a `Z` chosen by whoever supplies the premise:
+- `JUtPathMU28.vtx` / `JDevPathU28.vtx : … → JVtxScope …` (U28:41, :62; `JVtxScope` = `XCapP (JAt …) (JAtPre …)`,
+  XTopJointEntry:449), consumed at XTopJointEntry:1051/1065;
+- the syscall clause's `… → JDecMRLK arI VtxK AR MR (Z.mv Z.G V') …` (U28:212; `JDecMRLK` concludes
+  `XCapP (JAtM …) (JAtPreMV …)`, KEntry40:279, `JAtM := JAt ∧ MR`, KEntry38:57).
+After such a syscall the exit's `JAtZ` (and so the next entry's `Z`, through `RJ`/`JReachU3.step`) can have
+any `vx`; nothing in `JAtZ` relates `vx` to the state (the field is a pure ghost: `{Z with vx := {0}}` is a
+legitimate `JAtZ` whenever `JAtZ Z` is), so `VsNamed` at the next entry is not derivable. Any in-place carry
+(pinning `vx = ∅` or `VsNamed` in `JAt`, `RJ` or `JReachU3`) changes the meaning of those [scope] premises
+(their obligation becomes "the VT-x op returns with `VsNamed`"), i.e. weakens every existing top U9..U28,
+which the stage's rules forbid. A state-based guard instead of `vx` (e.g. `vsNamed : PoolT → …`) was checked
+and does not work: the deletion window's `VsPend` (Rd3) needs `VsNamed` before the window opens, which a
+state guard cannot give to the generic step lemmas.
+
+### (3) Size of the in-place route even if the lead accepts the [scope] change
+`JAt` is the dispatch currency: 307 theorem statements take a generic-`Z` `JAtZ` and mention `JAt`/`RJ`/`RJM`
+(script count over Fl4Proofs), ~120 anonymous packers `⟨_, _, _, _, _, _, J'⟩` / `⟨Z', …, J'⟩`, ~70
+destructurers `obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩`. Each producer must get `Z.vx = ∅` from its input
+(the outputs are at `Z.mv …` / `{Z with …}`, so `vx` is kept definitionally, but the input is generic):
+a hypothesis threaded through every leaf and caller, plus `JReachU3.start` with `Z.vx = ∅` (boot `VsNamed`,
+a start-state fact as `BndS` / `JPlaced`). Estimate XL (several sessions of build-fix rounds).
+
+### (4) Options for the lead
+(a) In-place: `JAt := ∃ …, JAtZ … ∧ Z.vx = ∅` (+ start), accepting that the VT-x [scope] premises
+    (`JVtxScope`, `JVtxScopeM`, `JDecMRLK VtxK`) then also ask `VsNamed` at their outcomes; XL threading as (3).
+(b) New top family whose [scope] premises conclude a `vx`-pinned `JAtV` (new statement text for the scope
+    premises only; the [J] C17/C23 gone). Same threading for the native leaves; old tops untouched.
+(c) Keep C17 / C23 as the last [J] of U28 (true at real states; derivable only modulo the VT-x scope).
+
+### (5) Builds
+None (no Lean change).
+
+### (6) f6b: lead decision = option (a); implemented — new top **`kernel_entry_reachU29`**
+- **Encoding.** JointAt: `class VxE (Z : XSets) : Prop` (`eq : Z.vx = ∅`) with instances `VxE.ofMk` (a structure
+  literal whose `vx` is `VxV`), `VxV.ofE`, `VxE.mv` (and in their files `VxE.keep`, `VxE.dropV`, `VxE.mp`, `VxE.addW`),
+  so `Z.mv …` / `{Z with …}` / retype and drop sets get it from the input's instance with no threading in proofs.
+  **`JAt s a σ := ∃ Z H Cs Ac Lst D, JAtZ … ∧ VxE Z`** (in place; `RJ`, `RJM`, `JAtM`, `JAtPre*` inherit it).
+  `JAtZ` unchanged (the deletion window keeps its `{Z with vx := E}` states).
+- The other ghost-existential wrappers that flow into `JAt` carry it too: `JAtS`, `RJR`, `JAtR`, `JAtL`, `JAtZLB`,
+  `JAtD`, `JAtPreMVL`, the written-out `∃ Z …, JAtZ(R)` posts (jreach_inv*, `DispPostR`, the `∃ (Z' …) (Ac' …)
+  (Lst' …) (D' …), JAtZ Z' H Cs …` posts of the budget / fault / SC steps) and the preemption path's
+  `JHoleAtV` (new; = old `JHoleAt` ∧ `VxE`; `JHoleAtT` likewise). `JHoleAt` itself is unchanged: it is the
+  antecedent of the `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` hypotheses, which `signalRestJHyp_of_ns` applies at
+  `JAtZ` states without `VxE`; `JHoleAtV.hole` converts.
+- Every `JReach*` inductive's `start` takes `VxE Z` (the boot state's `JAtZ` must have `vx = ∅`, i.e. `VsNamed`
+  at boot — a start-state fact like `BndS` / `JPlaced`); `JReachU13.start` / `JReachU15.start` take `hvx`.
+  `jreach_invU(2,3)` end in `∧ VxE Z`.
+- Generic lemmas: an instance binder `[VxE Z]` on every lemma that packs `JAt` (or one of the wrappers) from a
+  `JAtZ`/`JHole`/`JTH` binder, and on their callers (scripted closure; ~600 binders). Hypothesis defs quantifying a
+  `JAtZ` whose conclusion is `JAt`-level take `[VxE Z] →` after the `JAtZ` binder: `JReplyHyp`, `RunTmoP`,
+  `UtBodyHyp`, `JMidLeavesHyp*` (17), `JDelHypLM`, `JDelHypLML` (the deletion loop's preemption exit is a kernel
+  exit: the loop's base `Z` has `VxE`; `delHypsJLM(L)`, `jPreemptHypLM(L)`, `tcbInsWM_wjl` take it). Window
+  states (`WJLx`, `finVsJb`'s pool case) never need it.
+- **V-chain**: each top `kernel_entry_reachUn` (U2, U2F, U3, U3L, U4, U7, U9, U10, U8, U11, U12, U15, U17–U21,
+  U25–U28) gets a twin `kernel_entry_reachUnV` (same statement with `VxE Z ∧` before the `JAtZ` conjunct, same
+  proof calling the previous `…V`); the original top is now proved from its twin by dropping `VxE`. Statement texts
+  of all existing tops unchanged.
+- **U29** (P3/XTopJointKEntryU29): `JUtPathMU29` = `JUtPathMU28` without `vsReach`; the AsidControl case of
+  `JPathMEU29` is `True`; `KDispHypsKVU29.toU28 J' hni` fills C23 by `JAtZ.vsReachMissR J'.vsNamedE` and C17 by
+  `JAtZ.vsReachAsidC J'.vsNamedE` (new `JAtZ.vsNamedE : [VxE Z] → VsNamed`, VsNamedJ), the instance at
+  `Z.mv Z.G V'` from `kernel_entry_reachU28V`'s `VxE Z`.
+- Also: V-twins `kernel_entry_reachUV` (for UH), `kernel_entry_reachUHV` (for UH2), `kernel_entry_reachE4V` (for E5):
+  those older tops call `JAtZ.rrPre5At` / `JAtZ.fastFaultOK`, which go through the budget step whose `false`
+  branch is a kernel exit (`∃ Z', JAtZ Z' ∧ VxE Z'`). The internal `kernel_entryJ*` (old 13P…29 line) dispatch
+  premises `∀ Z' …, JAtZ Z' … → KDispHyps…` take `[VxE Z'] →` (their lambdas get it by implicit lambda).
+- **Build state (afkprover mirror FL4-f6, full builds f6-b1…b27, each a fix round)**: b21 reached 7391/7395;
+  b27 (commit 134cf2e7) stopped at XTopJointKEntryFF (E5/UH2: fixed in 21fab969) and U2's V-twin obtain (fixed).
+  The station then hit its pids limit and was restarted (mirror cold).
+- **f6-b28 (cold, SEED=A, commit 7aaf04df's tree): `Build completed successfully (7395 jobs)`, ERRORS 0, SORRY 0.**
+  f6-ax1 (`AX=axf6.lean`, proofs/axf6.lean, untracked): `kernel_entry_reachU29`, `U28`, `U28V`, `U27`, `U21`, `U2`,
+  `UH2`, `kernel_entry_reachE5`, `KDispHypsKVU29.toU28`, `JAtZ.vsNamedE`, `JAtZ.vsReachMissR`, `JAtZ.vsReachAsidC`:
+  all `[propext, Classical.choice, Quot.sound]`.
+- No `maxHeartbeats` above 8000000 added (the V-twins copy their originals' 8000000); no sorry / admit / axiom /
+  native_decide / bv_decide.
+- **Premises of U29**: [J] none, [W] none (C17 / C23 were the last [J]; U28's [P] / [scope] premises unchanged).
+- **Internal statement changes** (meaning changes in place, no top text changed): `JAt` (+`VxE Z`), so `RJ`, `RJM`,
+  `JAtM`, `JAtPre*` and `JReachU17` / every `JReach*` (start takes `VxE Z`: VsNamed at boot) and, through `JAt`, the
+  VT-x [scope] premises' outcome obligation (as decided); `JAtS`, `RJR`, `JAtR`, `JAtL`, `JAtZLB`, `JAtD`,
+  `JAtPreMVL`, `JHoleAtT`, `DispPostR`, jreach_inv* conclusions (+`VxE`); new `JHoleAtV`; hypothesis defs
+  `JReplyHyp`, `RunTmoP`, `UtBodyHyp`, `JMidLeavesHyp*`, `JDelHypLM(L)` and the internal `kernel_entryJ*` dispatch
+  premises (+`[VxE Z]`); ~600 lemma signatures (+ instance binder).
+
+## int5 (branch int/j5 in FL4-int5, from int/j4 f7a4e47f) — par/tdx, par/pf1, par/fb3 and int/j4 84bf3266 (f6) merged; full build green, no sorry; axioms standard; no top statement changed, no premise added
+- **Merges** (one `--no-ff` merge each): 7922ffeb par/tdx (e92d1c7b; brings m75–m77 re-extraction + #68 TDX),
+  1953029e par/pf1 (013d8637; brings fb3a–h + fastpath_vm), 72d0e15e par/fb3 (d41e0350), then int/j4 84bf3266
+  (F1 stage 6 / `VxE`, U29) as a fourth merge (this commit).
+- **Builds (afkprover, mirror FL4-int5)**: int5-tdx-b3 (SCR=1 m77scratch, the six #71 FrameBatch stubs only): ERRORS 0,
+  SORRY 6; int5-pf1-b3 (SCR=1 pf1scratch, the four cba1820b stubs only): ERRORS 0, SORRY 4; int5-fb3-b3 (no scratch,
+  after a cold restart of the station): 7471 jobs, ERRORS 0, SORRY 0; int5-j4-b2 (no scratch, `AX=axint5.lean`):
+  "Build completed successfully (7473 jobs)", ERRORS 0, SORRY 0; axint5.lean (untracked, worktree root: axint4's 150
+  prints + fb3/pf1/tdx key lemmas + every `kernel_entry_reach*` incl. U29 and the f6 V-twins + `JAtZ.vsNamedE` + the
+  int5-changed lemmas): 251 `depends on axioms` lines, all within [propext, Classical.choice, Quot.sound]
+  (5 P1 TRB/DelShape lemmas use a subset), `tdx_perform_out` none.
+- **Resolutions (tdx)**: DelDef `fin_stepZ` with int/j4's `Wx`/`hH.wx` and tdx's `absCap_eq_null hca.1`;
+  VsFrameMapRel/LRel: #65 size match (`ok_bind_spec`, `huge_pages_eq`, `hσh`) with F1 stage 5's
+  `page_entry_slot_*_walk` / `MapLeafF` (huge: 4th `?_`).
+- **Resolutions (pf1)**: TDX and FrameBatch arms side by side (Ext/Invocation, PerformNil `okAll_specDec_arch` with
+  `htdx` and `hfb`, SpecInvDomG (`dle_fl4ArchPerformInvocation` at the file end with the `tdx` arm), SpecInvUtZS
+  (`yk_performFrameBatch` + tdx's `hT` form), SgD/SlA/UtP1/Rd*/ValidIrqHandlersG/ValidMachineTimeGen/MachFieldFamI/
+  ChooseB/MidRunQ/MidRunS). `Vs.crF` := (…, idleThread, x64Plat) (pf1-lineage's 5th component, tdx's record) so
+  G7eRoot's `RootFr` keeps `HugeRel` (`sfootN_feat`). P1 FastFault `fastFaultG` gets the `TdxControl` arm of the
+  re-extracted `fastpath.fault`. SpecInvDvS (int/j4 s26): new `hd_performFrameBatch`, `ob_performFrameBatch`.
+- **Resolutions (fb3)**: `batch_map_{small,large,huge}_rel` / `batch_map_rel` export `MapLeafF` (walk facts,
+  `store_flush_shape*`), `JAtZ.batchMapJX` passes `hvn` by `VsNamed.ofMapLeafF`; `unmap_unflushed_rel` exports
+  `ArchShr`, `JAtZ.fbDeferStepJ` passes `hvn` by `VsNamed.ofUnmapLeafF`; `JAtZ.fbInsJ` passes `insDJ`'s `hkr`/`hnt`;
+  `JAtZ.fbDelFrameJN` on the window framework (`rdTrivJLX`, `RdLX`, `fin_stepZ` with `WJL.x`, `empty_stepWR'` with
+  `WJLx`/`hWn`), `finFrameSS` with `finVsJb`'s `hfinP`; `decOK_JMM` reads the PML4 ASID facts by `VsCapsW.at`;
+  `mrKeepD_true` gets the tdx fields; `fbFlushJ` the `ArFr.plat` field; `FbKeep.of_fbUF` the `archF` pair.
+- **Resolutions (f6)**: `[VxE Z]` on `tdxTail_jat`, `decode_invocation_tdxJ` (haveI `VxE.mv` for `JReplyHyp`),
+  `JAtZ.fbRegsJ` (post `∧ VxE Z'`), `JAtZ.fbTailJ`, `fb_loopI` (post `∧ VxE Z1`), `fb_loopJ`,
+  `decode_invocation_pml4_fbJV(M)`, `decode_invocation_pml4JV`, `decode_invocation_pml4JVn`, `JAtZ.vmFaultOK`,
+  `JAtZ.rrPreAtG`; `FbMidJ` carries `VxE Z1`, `FbMidJ.step` takes `[VxE Z2]`; JAt packers `⟨…, J, inferInstance⟩`;
+  `kernel_entry_reachU15Vm`'s proof uses `kernel_entry_reachU15V`.
+- **Internal statement changes** (no top): `crF`; `unmap_unflushed_rel` (+`ArchShr`); `batch_map_*_rel` (+`MapLeafF`);
+  `FbMidJ` (+`VxE`), `FbMidJ.step`, `fb_loopI`, `fbRegsJ` and the `[VxE Z]` binders above.
+- **Findings**: none of a false invariant. Note: tdx's re-extraction adds `axiom` declarations only in the unimported
+  `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
+- Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).

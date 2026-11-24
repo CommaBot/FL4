@@ -802,14 +802,14 @@ theorem Steps.jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : 
     (hJ : JStepHyps (L := L) arI AR th) {s s' : S} {a a' : A}
     {σ σ' : Fl4Spec.State Unit} (h : Steps (L := L) arI th s a σ s' a' σ') {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (hth : Z.th = th)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hZ : ZNoBlk Z.th (L.mem s) (L.ksb s)) :
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hZ : ZNoBlk Z.th (L.mem s) (L.ksb s)) :
     JAt (L := L) arI AR s' a' σ' :=
   let ⟨_, _, Ac', Lst', D', J', _⟩ := Steps.jatZ arI hAM hJ h hth J hZ
-  ⟨_, H, Cs, Ac', Lst', D', J'⟩
+  ⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩
 
 theorem JAt.xtop {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAt (L := L) arI AR s a σ) : XTop (L := L) AR s a σ :=
-  let ⟨Z, _, _, _, _, _, J⟩ := h
+  let ⟨Z, _, _, _, _, _, J, _⟩ := h
   ⟨Z, J.xtop⟩
 
 /-! ## The `Steps`-producing cap leaves, `JAt` after -/
@@ -848,7 +848,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The IRQ control cap, `JAt` after** (`decode_invocation_irq_controlJAt`'s
 premises and `JStepHyps` [W]). -/
 theorem decode_invocation_irq_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
@@ -871,7 +871,7 @@ theorem decode_invocation_irq_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.State
   obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_irq_controlXS arI Z.th s ar σ Z.G J.intL hHA lbl slbl hlbl hrm length
     buf ct hct args hlen hargs hcur J.kern.act hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA
-    (maskIrq_total arI hT) hAR rfl rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    (maskIrq_total arI hT) hAR rfl rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
     (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB) (fun _ _ _ h => JAt.xtop arI h)
     blk call don fp ci buffer
 
@@ -879,7 +879,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The IO port control cap, `JAt` after**
 (`decode_invocation_ioport_controlJAt`'s premises and `JStepHyps` [W]). -/
 theorem decode_invocation_ioport_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (hPA : IoPortsAlloc (L.mem s) (L.ksb s) Z.G)
@@ -900,7 +900,7 @@ theorem decode_invocation_ioport_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.St
   obtain ⟨hcur, -⟩ := J.curEq hct
   exact decode_invocation_ioport_controlXS arI Z.th s ar σ Z.G J.ioLay hPA lbl slbl hlbl length
     buf ct hct args hlen hargs hcur J.kern.act hact3 extra x0 hx0 excaps hex hps hls hsrcC rfl rfl hX (J.curRun.run hni) _
-    ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB)
+    ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB)
     (fun _ _ _ h => JAt.xtop arI h) blk call don fp ci buffer
 
 /-! ## The other cap leaves: the per-op named premise -/
@@ -928,14 +928,14 @@ def JPostHyp (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec.St
     SpecOut (specDec fp slbl args ci sl c excaps buffer) blk call don ct s r σ σ' → XTop (L := L) AR r.2.1 r.2.2 σ' →
     ¬ (r.2.1 = s ∧ r.2.2 = ar ∧ σ' = σ) → JAt (L := L) arI AR r.2.1 r.2.2 σ' ⦄
 
-theorem jat_of_post {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem jat_of_post {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     {P : Fl4Spec.State Unit → Prop} {r : core.result.Result Unit error.Exc × S × A}
     (hr : ∀ σ', P σ' → XTop (L := L) AR r.2.1 r.2.2 σ' → ¬ (r.2.1 = s ∧ r.2.2 = ar ∧ σ' = σ) →
       JAt (L := L) arI AR r.2.1 r.2.2 σ')
     {σ' : Fl4Spec.State Unit} (hP : P σ') (hX : XTop (L := L) AR r.2.1 r.2.2 σ') : JAt (L := L) arI AR r.2.1 r.2.2 σ' := by
   by_cases e : r.2.1 = s ∧ r.2.2 = ar ∧ σ' = σ
   · obtain ⟨e1, e2, e3⟩ := e
-    rw [e1, e2, e3]; exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    rw [e1, e2, e3]; exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   · exact hr σ' hP hX e
 
 /-- **`XCap` at `XTop` gives it at `JAt`** with the per-op premise
@@ -945,7 +945,7 @@ theorem XCap.jat {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl length slot : U
     {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
     {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
     (h : XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps
-      buffer ct) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+      buffer ct) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hR : JPostHyp (L := L) arI AR s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot c blk call don fp buf extra slbl args ci sl excaps
       buffer ct := by
@@ -969,7 +969,7 @@ steps (`decode_invocation_domainXS`, `DomSetHyp`/`DomResHyp` from `XTopAt`,
 `ActReady` from `Inv`), `Steps.jat` with `JStepHyps`; the kernel-state
 words' placement as `decode_invocation_domainXT`'s. -/
 theorem decode_invocation_domainJ_step (hcfg : DomConfig) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hksO : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → OutsideObjects Z.th (ksW (L.ksb s) o))
@@ -992,7 +992,7 @@ theorem decode_invocation_domainJ_step (hcfg : DomConfig) (s : S) (ar : A) (σ :
   exact decode_invocation_domainXS arI hcfg Z.th hX.rel.1 s ar σ Z.G hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 ct hct
     hcur (hX.curTcb hcur).1 J.kern.act hkf hP.vs.ksb_al hksO hactK lbl slbl hlbl length buf args hlen hargs extra x0
     hx0 excs hex (domSetHyp_of hX J.thT hC hA hcur) (domResHyp_of hX J.ks J.thT hC hA hcur)
-    (domStallHyp_of arI hX.fin.1.1.1 J.thT) hC ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB) (fun _ _ _ h => JAt.xtop arI h)
+    (domStallHyp_of arI hX.fin.1.1.1 J.thT) hC ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J hZB) (fun _ _ _ h => JAt.xtop arI h)
     slot blk call don fp ci sl buffer
 
 end

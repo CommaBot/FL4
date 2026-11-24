@@ -39,7 +39,7 @@ def DispPostR (AR : A → Fl4Spec.Cr3 → Prop) (Q : Fl4Spec.State Unit → S ×
     (σ : Fl4Spec.State Unit) (r : S × A) : Prop :=
   ∃ y ∈ (m.run σ).1,
     (y.1 = .ok () ∧ RelTopM (L := L) r.1 y.2 ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
-      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 y.2) ∨
+      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 y.2 ∧ VxE Z) ∨
     (y.1 = .error () ∧ Q y.2 r)
 
 /-- **The dispatch premises, `mid` [W] ending in `DispPostR` with `PPQC`**
@@ -76,8 +76,8 @@ variable {arI}
 
 theorem JAt.toRE {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAt (L := L) arI AR s a σ) : ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
-      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toR⟩
+      (Lst : U64 → List U64) (D : Set U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z :=
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toR, inferInstance⟩
 
 theorem DispPost.toR {AR : A → Fl4Spec.Cr3 → Prop} {Q : Fl4Spec.State Unit → S × A → Prop}
     {m : Fl4Spec.PMonad Unit Unit} {σ : Fl4Spec.State Unit} {r : S × A}
@@ -89,7 +89,7 @@ set_option maxHeartbeats 4000000 in
 `DispPostR` with `PPQC` (module docstring). -/
 theorem dispatch_allR [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c) (hK : KDispHypsR (L := L) arI AR Z H Cs D s a σ n c)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -131,7 +131,7 @@ theorem kPreFinHypC_of {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit}
     KPreFinHypC (L := L) arI AR c σ := by
   intro σ1 hPA r hQ
   by_cases hJ : ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, JAt (L := L) arI AR r.1 r.2 z.2
-  · obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hJ
+  · obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm, _⟩ := hJ
     obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
     have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
       mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
@@ -148,13 +148,13 @@ with `KDispHypsR` and `KPreFinRestHypC` [W] (module docstring): the IRQ
 case of the preemption path is closed for the covered holes. -/
 theorem kernel_entryJ6 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsR (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -219,24 +219,24 @@ theorem kernel_entryJ6 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → 
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     rcases hBu.tmo with hnt | ⟨hnq, xt, hkt, hrr, p, bd, rr, hth, hper, hcb⟩
     · exact WP.spec_mono (WP.spec_and (J0.budgetOkJ hAK hA hnd hBu.now hBu.cur hBu.off hmb)
         (J0.budgetOkF hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnt)) fun r ⟨h1, h2⟩ => ⟨h1, fun hf => by
           obtain ⟨σ', he, Ac', Lst', D', J'⟩ := h2 hf
-          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J'⟩
+          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J', inferInstance⟩
           unfold specBudget faultIPSt
           rw [he]; exact Set.mem_singleton _⟩
     · exact WP.spec_mono (WP.spec_and (J0.budgetOkJ hAK hA hnd hBu.now hBu.cur hBu.off hmb)
         (J0.budgetOkT hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnq hkt hrr hth hper hcb)) fun r ⟨h1, h2⟩ =>
           ⟨h1, fun hf => by
             obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := h2 hf
-            exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩⟩
+            exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩⟩
   refine WP.spec_bind hBud ?_
   rintro ⟨b, s2, a1⟩ ⟨hTr, hFa⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -263,7 +263,7 @@ theorem kernel_entryJ6 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → 
     refine WP.spec_bind (dispatch_allR s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hRest hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=

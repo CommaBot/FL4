@@ -115,7 +115,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`receive_ipc` with an active bound notification at a `MidN` state
 without a donation** (module docstring). -/
 theorem JAtZ.recvIpcActJN (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt0 : σ.kheap t.bv = some (.tcb xt))
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -202,7 +202,7 @@ theorem JAtZ.recvIpcActJN (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec
     (by rw [← hbound]; exact hbz) hst (complete_signal_eqN (arI := arI) (a := a) ht0 hst h0 hrd))
   have hspecI := receiveIpc_active b rights blk (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hke hk hact
   rw [hspecI, completeSignal_noSc hkt hk hact hsc0 hnt hsd, heqI, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` with a null or free reply at a `MidN` state outside the
@@ -210,7 +210,7 @@ two donations** (module docstring). -/
 theorem jRecvIpcUN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidN σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -242,7 +242,7 @@ theorem jRecvIpcUN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.
   suffices hRJ : endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ from
-    WP.spec_mono hRJ fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+    WP.spec_mono hRJ fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   rcases hD with ((hca | hcb | ⟨hcn, hnr0⟩ | ⟨hun', hcs, hnr0⟩) | ⟨hun', hcp | hcT⟩) | hR
   · obtain ⟨⟨xt, n0, x, b0, hkt, hbn, hkn, hact⟩, hrr⟩ := hca
     obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ x hkn

@@ -87,7 +87,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` with an inactive current SC, from any `JHole`**
 (module docstring). -/
 theorem JHole.mcsPPJI {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hcov : PPCovI σ) :
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hcov : PPCovI σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
@@ -208,7 +208,7 @@ theorem JHole.mcsPPJI {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
       · rw [← hk, ← hcs]; exact hy
     · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs.symm⟩, fun y m hy => h2 y m (by rw [← hk, ← hcs]; exact hy)⟩
   obtain ⟨Lst', J'⟩ := Hh2.toJ hO hOw
-  exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, Z, H, Cs, Ac, Lst', D, J'⟩
+  exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`after_invocation (Err _)` from an `mcs_preemption_point` with `JAt`
@@ -223,7 +223,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQZ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   unfold syscall.after_invocation
   refine WP.spec_bind hmcs ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J'⟩
+  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J', _⟩
   have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (WP.spec_and (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) (hIP.noIpi a1)) ?_
   rintro ⟨w, a2⟩ ⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩
@@ -239,7 +239,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [e]
     simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
     refine (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst2, D', J2⟩⟩⟩
+      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩⟩⟩
   · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
       cases irq with
       | none => exact absurd (hnone.2 rfl) hw
@@ -251,7 +251,7 @@ theorem afterInv_of_mcs {s : S} {a : A} {σ : Fl4Spec.State Unit}
       ok (false, s2, a3)) ⦃ _ ⦄
     rw [e]
     simp only [↓reduceIte]
-    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst2, D', J2⟩ hwi hmask h126 h127) ?_
+    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩ hwi hmask h126 h127) ?_
     rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩⟩
@@ -260,7 +260,7 @@ variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI`** [W] (module
 docstring; `JPreemptRestHypN` narrowed by the inactive-SC branch). -/
 def JPreemptRestHypI (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
 
@@ -279,21 +279,21 @@ theorem hPre_ofZI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩ := jAtPre_holeT hARI.toARKeep hA hnd hP h
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩ := jAtPre_holeT hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
       (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPZ` with `JPreemptRestHypI`**. -/
 theorem dispatch_invokeJPZI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -312,7 +312,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJEPZ` with `JPreemptRestHypI`** (against
 `fl4HandleEvent true`'s branch). -/
 theorem dispatch_invokeJEPZI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -336,7 +336,7 @@ Left: no `CurInv` with a schedulable thread or an active current SC (l4v
 Unbind of the own SC or a rebind, kp8 (b')), and kp5 (i) (an endpoint
 timeout handler with waiting receivers). -/
 def JPreemptRestHypJ (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAtV (L := L) arI AR s a σ → NativeScope σ →
     σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
 
@@ -354,21 +354,21 @@ theorem hPre_ofZJ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
       JAtPre (L := L) arI AR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns⟩ := jAtPre_holeTN hARI.toARKeep hA hnd hP h
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns⟩ := jAtPre_holeTN hARI.toARKeep hA hnd hP h
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
       fun _ h => h.2.toPPQ
   by_cases hi : PPCovI σ1
   · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
       (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
         fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPZI` with `JPreemptRestHypJ`** (kp10). -/
 theorem dispatch_invokeJPZJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -387,7 +387,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJEPZI` with `JPreemptRestHypJ`** (kp10; against
 `fl4HandleEvent true`'s branch). -/
 theorem dispatch_invokeJEPZJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)

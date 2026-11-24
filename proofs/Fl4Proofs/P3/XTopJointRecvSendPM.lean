@@ -56,7 +56,7 @@ set_option maxHeartbeats 64000000 in
 has the grant or grant-reply right, the receiver passes a reply object
 (covered, `hcovR`), at a resumed entry; for any FL4 program `m` reducing to
 the endpoint-state switch. -/
-theorem JAtZ.recvSendFPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendFPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -602,7 +602,7 @@ theorem JAtZ.recvSendFPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inr (by rw [hft]; simp)) hPS
-  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6⟩
+  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6, inferInstance⟩
 
 
 set_option maxHeartbeats 64000000 in
@@ -610,7 +610,7 @@ set_option maxHeartbeats 64000000 in
 `J`** (module docstring; XTopJointRecvSend's `JAtZ.recvSendJG` up to the
 transfer, its intermediate `JAtZ` `Jy` at `σy`): the grant or grant-reply
 right, a reply object (covered, `hcovR`), at a resumed entry. -/
-theorem JAtZ.recvSendPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1129,7 +1129,7 @@ theorem JAtZ.recvSendPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inl hcl) hPS
-  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6⟩
+  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6, inferInstance⟩
 
 
 
@@ -1141,7 +1141,7 @@ has the grant or grant-reply right, the receiver passes a reply object
 the endpoint-state switch. -/
 theorem JAtZ.recvSendFPTJM (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1718,13 +1718,13 @@ theorem JAtZ.recvSendFPTJM (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs
     rw [hpush, heqP]
   have hspec := receiveIpc_sendPushT_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inr (by rw [hft]; simp)) (by rw [hft]; rfl) hPS
-  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6⟩
+  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6, inferInstance⟩
 
 /-- **`receive_ipc` from the head sender pushing a reply at a switch mid
 state** (`PushOK`; module docstring), the receiver as in
 XTopJointRecvSendP's `JAtZ.recvSendP0X`. -/
 theorem JAtZ.recvSendP0XM (hAT : P0.ArchTotal arI)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1754,7 +1754,7 @@ switch mid state** (`TmoOK`; module docstring): XTopJointRecvSendT's
 `JAtZ.recvSendT0X` with `JAtZ.recvSendFPTJM` for the push. -/
 theorem JAtZ.recvSendT0XM (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧

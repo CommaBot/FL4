@@ -816,7 +816,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`DeriveSubframe` on a frame cap at `J`** (VsDecFrame's
 `decode_invocation_frame_dsX` with `derive_subframeJ`). -/
 theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl) (hl : lbl = fl4_abi.label.X86PageDeriveSubframe)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
@@ -880,7 +880,7 @@ theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     subst hinv
     rw [Fl4Proofs.P3.nd_bind_one hst] at hrun
     rw [dsPerf_state hrun hy, h1a]
-    exact ⟨_, H, Cs, Ac', Lst', D', J'⟩
+    exact ⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A native frame cap at `JAt`, no per-op premise** (XTopJointVsReply's
@@ -888,7 +888,7 @@ set_option maxHeartbeats 4000000 in
 `decode_invocation_frame_dsJ`: VsTopX's `decode_invocation_frame_capXR`'s
 outcome at `JAt` from `DsJPost`, then VsThX's `DecOKMX.toXD`). -/
 theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress →
@@ -931,7 +931,7 @@ theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
         rcases hq with ⟨e, h1, h2, h3, -⟩ | ⟨inv, h1, σ1, h2, y, hy, h3, -⟩
         · refine Or.inl ⟨e, h1, h2, h3, ?_⟩
           obtain ⟨e1, e2⟩ := hP2 ⟨e, h1⟩
-          rw [e1, e2]; exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+          rw [e1, e2]; exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
         · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, h3, hP1 inv h1 σ1 h2 y hy⟩
       exact Or.inl (DecOKMX.toXD arI hJ
         (domFrame_frame arI Z.th s ar σ Z.G hCR hFI J.ut hMO hA hX.fin.1 hX.fin.2.2.2.1 hX.fin.2.1 hX.fin.2.2.1 hVC

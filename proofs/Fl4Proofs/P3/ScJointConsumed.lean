@@ -85,7 +85,7 @@ set_option maxHeartbeats 16000000 in
 /-- **Consumed's reply at `J`** (module docstring): `ScReplyJ` for the
 Consumed label. -/
 theorem sc_consumedReplyJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (hAT : P0.ArchTotal arI)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
@@ -190,7 +190,7 @@ theorem sc_consumedReplyJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst he1'))
   rw [specTail_of_restart hku rfl, nd_bind_one hrf, Notif.setThreadState_eq .running hk2] at htail
   obtain ⟨-, rfl⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 htail)
-  exact ⟨_, _, _, _, _, _, J4⟩
+  exact ⟨_, _, _, _, _, _, J4, inferInstance⟩
 
 end
 

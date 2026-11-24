@@ -57,7 +57,7 @@ set_option maxHeartbeats 4000000 in
 `CurRunW` at `σ'`. -/
 theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
     (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -150,7 +150,7 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, P1.dbgKeep_schedW J1.blk J1.kern.ksbFit hkw⟩
   obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
-  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D1, J'⟩, hC',
+  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩, ⟨V1, Ac, Lst', D1, J'⟩, hC',
     RunW.scAndTimer (hr3 J1.curRun) he3⟩
 
 
@@ -158,7 +158,7 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 (`signalJHyp_of`, as `jat_scheduleS`). -/
 theorem jat_scheduleSRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
     (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -193,7 +193,7 @@ DESIGN §9; the ported `activateThread` has no `RunningVM` branch, seL4's C
 one has; Fl4Spec is not changed, lead decision D2). -/
 theorem jat_finishJF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
     (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -219,7 +219,7 @@ theorem jat_finishJF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   unfold syscall.finish_old
   refine WP.spec_bind (jat_scheduleSRF s a σ J hd hnd hAT hVt hW hmb hA hFO hsni hsend hT hTail) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1⟩, -, hcr⟩
-  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
+  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1, inferInstance⟩)) ?_
   rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2, hnv⟩
   refine ⟨?_, J2.cur_not_vm hnv⟩
   have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by

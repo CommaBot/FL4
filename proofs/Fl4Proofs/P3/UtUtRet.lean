@@ -244,7 +244,7 @@ them as in `ins_utcG` (the new MDB slots miss every childless untyped
 region, `hlv`, from the destination's liveness). -/
 theorem JAtZ.ret_utcU {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} {d0 : Bool} (hxs : AbsSlot Z.th xs)
     (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 d0)
     (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 d0) (hfi : fi0.val ≤ fi1.val)
@@ -358,7 +358,7 @@ theorem JAtZ.ret_utcU {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
 set_option maxHeartbeats 16000000 in
 /-- **The body of `JAtZ.utUtJ`: the retype of untypeds without a reset from
 a `JAtZ` state** (handoff/utj.md Round 13; as UtEpRet's `JAtZ.utEpBodyJ`). -/
-theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -774,7 +774,7 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of untypeds at `J`** (module docstring; one core,
@@ -783,7 +783,7 @@ arguments (`RetCtx`, no reset: the source cap has a child), the source a
 CNode slot's RAM untyped cap, FL4's restart and `untyped::retype` of
 untypeds end in `UtRetPostJ` (done, `JAt` after at the same sets but the
 MDB ghost). -/
-theorem JAtZ.utUtJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utUtJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
