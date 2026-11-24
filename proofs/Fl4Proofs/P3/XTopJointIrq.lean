@@ -397,7 +397,7 @@ theorem JHole.handleIrqJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z]
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ)
     (hSig : ¬ (OffOK σ ∧ CurOwnW Z.T Z.C σ) → ∀ (w n badge : U64) (r : Bool),
       w.val < 128 → capAt (L.mem s) (nodeA (L.ksb s) w) = ok (.Notification n badge true r) →
       notification.send_signal st arI s a n badge ⦃ r' =>
