@@ -44,6 +44,25 @@ Premises (all named, nothing else):
 
 ## Remaining plan: discharging `BodyOK` (handoff; not yet written)
 
+**Blocked as stated** (`P2/SafeGap.lean`, proved counterexample): with the
+present `Safe`, `BodyOK` does not follow from `PathObl` v3 + `DecOnce` +
+`Deciders`. `Safe.rds` checks each continuation `k v` against the *start*
+memory (the racy word still at its old value), while `dec_alt` certifies writes
+in the alternative state where the racy word *holds* `v`; a racy value that
+moves the racy word to the gate (impossible for another core beside the gate,
+but explored by `∀ v`) separates the two (`body_not_safe`, with
+`town_deciders`). Before steps 2–4, `Safe` must be re-stated so that its
+conditions are asked at every memory reachable from `μ` by `Foreign` writes
+(reads returning that memory's value), or `PathObl`'s per-write check must be
+made against the start-memory world. Further findings for the translation:
+reads must be aligned and `ReadSet` / class-tracked words aligned (`Alt` is
+over all addresses, `LawfulStore.mem_wr` only over aligned ones); a racy
+*user* read also needs every entry with other user values to satisfy `Pre`
+with the same sets (`acc` holds only at `Pre` states); `PathObl.aligned` over
+`InRange` (every byte address) forces any `zero` / `clear_free` range to at
+most one byte, so the translation should exclude them; totality (`P0`'s
+`<fn>.p0`) is needed to apply `acc` / `dec_alt` to the oracle Arch's runs.
+
 Goal: `BodyOK` from, per local path, `PathObl` v3 (`PathObl.lean`) for every
 Arch instance, `IsProg` [P], `DecOnce` [W], and the glue's `Pre` [P]. Steps:
 

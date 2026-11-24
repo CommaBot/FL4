@@ -168,6 +168,7 @@ import Fl4Proofs.P2.PathObl
 import Fl4Proofs.P2.PathBridge
 import Fl4Proofs.P2.OwnMap
 import Fl4Proofs.P2.SerialSafe
+import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
