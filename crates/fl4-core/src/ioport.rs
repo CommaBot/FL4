@@ -141,18 +141,26 @@ fn is_port_in(lbl: u64) -> bool {
 }
 
 /// Whether thread `t`'s invocation of `cptr` with `info` is an I/O port
-/// access that `decode` would carry out: the cap is an IoPort, there are
-/// arguments enough and the port is in its range. Reads only.
+/// access that `decode` would carry out: the cap is an IoPort, found with
+/// no bits left, there are arguments enough and the port is in its range.
+/// Reads only.
 pub fn invocation_ok<S: Store>(s: &S, t: crate::obj::Tcb, cptr: u64, info: crate::msginfo::MessageInfo) -> bool {
     let size = port_size(info.label);
     if size == 0 {
         return false;
     }
     let (first, last) = match cspace::lookup_slot(s, t, cptr) {
-        Ok(r) => match r.slot.cap(s) {
-            Cap::IoPort { first, last, .. } => (first, last),
-            _ => return false,
-        },
+        Ok(r) => {
+            // With bits left the lookup has read this slot already: beside
+            // the gate a second read may find another cap in it.
+            if r.bits_left != 0 {
+                return false;
+            }
+            match r.slot.cap(s) {
+                Cap::IoPort { first, last, .. } => (first, last),
+                _ => return false,
+            }
+        }
         Err(_) => return false,
     };
     let buf = msg::lookup_ipc_buffer(s, false, t);

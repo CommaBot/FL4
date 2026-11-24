@@ -206,7 +206,9 @@ pub fn reply_recv_found<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, rptr: u
     // keeps a ready head ready and its amount no smaller, so this holds
     // after it exactly when before.
     let usc = Sc(u.sc(s));
-    if usc.is_null() || !sporadic::ready(s, usc) || !sporadic::sufficient(s, a, usc, 0) || !schedulable_here(s, u) {
+    // schedulable_here first: another core may be writing the refills of a
+    // thread that is not on this one.
+    if usc.is_null() || !schedulable_here(s, u) || !sporadic::ready(s, usc) || !sporadic::sufficient(s, a, usc, 0) {
         return false;
     }
     let ntfn = Ntfn(t.bound_ntfn(s));
@@ -239,8 +241,10 @@ pub fn reply_recv_found<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, rptr: u
     // handle_invocation: not a Call
     t.set_state(s, sched::TS_RUNNING);
     // receive_ipc, nothing to take: wait_for_sender on the idle endpoint
-    t.set_state(s, sched::TS_BLOCKED_ON_RECV);
+    // BLOCK_OBJ before STATE: a queued STATE is owned by the lock of the
+    // endpoint BLOCK_OBJ names, so it must already be this one.
     t.set_block_obj(s, ep_ptr);
+    t.set_state(s, sched::TS_BLOCKED_ON_RECV);
     t.set_reply_obj(s, r.0);
     r.set_tcb(s, t.0);
     t.set_ep_next(s, 0);
