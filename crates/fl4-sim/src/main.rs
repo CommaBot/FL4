@@ -13,7 +13,7 @@
 //! host CPU at a time.
 //!
 //! Usage: fl4-sim [--seeds N] [--first S] [--cores C] [--steps K] [--conc]
-//!        [--pct D] [--tso] [--scenario ep|ntfn|guest] [--fastpath-diff] [--suite] [--jobs J]
+//!        [--pct D] [--tso] [--scenario ep|ntfn|guest|timer] [--fastpath-diff] [--suite] [--jobs J]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -146,6 +146,10 @@ struct Conc {
     /// (`fl4_core::localinv`): the one local path that may invalidate TLB
     /// entries (`SimArch::local_tlb`).
     local_tlb: Vec<AtomicBool>,
+    /// Per core, while it runs a kernel timer interrupt's local path
+    /// (`fl4_sync::local_timer_irq`): the one local path that ends an
+    /// interrupt, the timer's (`SimArch::ack_irq`).
+    local_timer: Vec<AtomicBool>,
     /// x86-TSO (DESIGN.md §10): per core, the stores not yet visible to
     /// other cores, oldest first. Off unless `--tso`.
     tso: bool,
@@ -223,11 +227,12 @@ const SPIN_LIMIT: u64 = 2_000_000;
 static FASTPATH_DIFF: AtomicBool = AtomicBool::new(false);
 static FASTPATH_COUNTS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 
-/// The local paths beside the gate that PR #71 added, as tried (serially
-/// under `--fastpath-diff`, or beside the gate with `--conc`) and as run:
-/// frame-cap invocations (`fl4_core::localinv`), VM faults
-/// (`fastpath_vm::vm_fault`) and ReplyRecv answering one
-/// (`fastpath_vm::reply_recv_vm_found`, run only).
+/// The local paths beside the gate that PR #71 and issue #94 added, as
+/// tried (serially under `--fastpath-diff`, or beside the gate with
+/// `--conc`) and as run: frame-cap invocations (`fl4_core::localinv`), VM
+/// faults (`fastpath_vm::vm_fault`) and ReplyRecv answering one
+/// (`fastpath_vm::reply_recv_vm_found`, run only), `TCB_SetTimer` and kernel
+/// timer interrupts (`fl4_core::localtimer`).
 #[derive(Default, Clone, Copy, Debug)]
 struct LocalCounts {
     inv_tried: u64,
@@ -239,9 +244,208 @@ struct LocalCounts {
     /// (`--conc`): of a page, of an address space.
     tlb_page: u64,
     tlb_asid: u64,
+    /// `TCB_SetTimer`: tried, run; of those run, disarming (deadline 0)
+    /// and re-arming a timer armed in this core's tree.
+    set_timer_tried: u64,
+    set_timer_ran: u64,
+    set_timer_disarm: u64,
+    set_timer_rearm: u64,
+    /// Kernel timer interrupts: tried, run; of those run, what they did
+    /// (`TimerCase`), and how many switched from the idle thread to a
+    /// thread or from one thread to another.
+    timer_irq_tried: u64,
+    timer_irq_ran: u64,
+    timer_irq_noop: u64,
+    timer_irq_rr: u64,
+    timer_irq_fire_unbound: u64,
+    timer_irq_fire_active: u64,
+    timer_irq_fire_set_active: u64,
+    timer_irq_fire_wake_recv: u64,
+    timer_irq_fire_wake_ntfn: u64,
+    timer_irq_idle_wake: u64,
+    timer_irq_switch: u64,
 }
 
-static LOCAL_COUNTS: Mutex<LocalCounts> = Mutex::new(LocalCounts { inv_tried: 0, inv_ran: 0, vm_fault_tried: 0, vm_fault_ran: 0, vm_reply_ran: 0, tlb_page: 0, tlb_asid: 0 });
+impl LocalCounts {
+    const ZERO: LocalCounts = LocalCounts {
+        inv_tried: 0,
+        inv_ran: 0,
+        vm_fault_tried: 0,
+        vm_fault_ran: 0,
+        vm_reply_ran: 0,
+        tlb_page: 0,
+        tlb_asid: 0,
+        set_timer_tried: 0,
+        set_timer_ran: 0,
+        set_timer_disarm: 0,
+        set_timer_rearm: 0,
+        timer_irq_tried: 0,
+        timer_irq_ran: 0,
+        timer_irq_noop: 0,
+        timer_irq_rr: 0,
+        timer_irq_fire_unbound: 0,
+        timer_irq_fire_active: 0,
+        timer_irq_fire_set_active: 0,
+        timer_irq_fire_wake_recv: 0,
+        timer_irq_fire_wake_ntfn: 0,
+        timer_irq_idle_wake: 0,
+        timer_irq_switch: 0,
+    };
+
+    /// Every count by name, for the runs' output and a campaign's totals.
+    fn fields(&mut self) -> [(&'static str, &mut u64); 22] {
+        [
+            ("inv_tried", &mut self.inv_tried),
+            ("inv_ran", &mut self.inv_ran),
+            ("vm_fault_tried", &mut self.vm_fault_tried),
+            ("vm_fault_ran", &mut self.vm_fault_ran),
+            ("vm_reply_ran", &mut self.vm_reply_ran),
+            ("tlb_page", &mut self.tlb_page),
+            ("tlb_asid", &mut self.tlb_asid),
+            ("set_timer_tried", &mut self.set_timer_tried),
+            ("set_timer_ran", &mut self.set_timer_ran),
+            ("set_timer_disarm", &mut self.set_timer_disarm),
+            ("set_timer_rearm", &mut self.set_timer_rearm),
+            ("timer_irq_tried", &mut self.timer_irq_tried),
+            ("timer_irq_ran", &mut self.timer_irq_ran),
+            ("timer_irq_noop", &mut self.timer_irq_noop),
+            ("timer_irq_rr", &mut self.timer_irq_rr),
+            ("timer_irq_fire_unbound", &mut self.timer_irq_fire_unbound),
+            ("timer_irq_fire_active", &mut self.timer_irq_fire_active),
+            ("timer_irq_fire_set_active", &mut self.timer_irq_fire_set_active),
+            ("timer_irq_fire_wake_recv", &mut self.timer_irq_fire_wake_recv),
+            ("timer_irq_fire_wake_ntfn", &mut self.timer_irq_fire_wake_ntfn),
+            ("timer_irq_idle_wake", &mut self.timer_irq_idle_wake),
+            ("timer_irq_switch", &mut self.timer_irq_switch),
+        ]
+    }
+
+    /// `name=value` pairs, as a run prints them (`LOCAL_COUNTS_TAG`).
+    fn line(mut self) -> String {
+        self.fields().iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(" ")
+    }
+
+    /// Add the counts of a run's output line (`line`).
+    fn add_line(&mut self, l: &str) {
+        for kv in l.split_whitespace() {
+            let Some((k, v)) = kv.split_once('=') else { continue };
+            let Ok(v) = v.parse::<u64>() else { continue };
+            for (name, f) in self.fields() {
+                if name == k {
+                    *f += v;
+                }
+            }
+        }
+    }
+
+    /// Count a timer interrupt's local attempt that ran (`ran`) as `case`.
+    fn timer_irq(&mut self, ran: bool, case: Option<TimerCase>) {
+        self.timer_irq_tried += 1;
+        if !ran {
+            return;
+        }
+        self.timer_irq_ran += 1;
+        let Some(c) = case else { return };
+        match c.kind {
+            TimerKind::Noop => self.timer_irq_noop += 1,
+            TimerKind::RoundRobin => self.timer_irq_rr += 1,
+            TimerKind::FireUnbound => self.timer_irq_fire_unbound += 1,
+            TimerKind::FireActive => self.timer_irq_fire_active += 1,
+            TimerKind::FireSetActive => self.timer_irq_fire_set_active += 1,
+            TimerKind::FireWakeRecv => self.timer_irq_fire_wake_recv += 1,
+            TimerKind::FireWakeNtfn => self.timer_irq_fire_wake_ntfn += 1,
+        }
+        self.timer_irq_idle_wake += c.idle_wake as u64;
+        self.timer_irq_switch += c.switch as u64;
+    }
+}
+
+static LOCAL_COUNTS: Mutex<LocalCounts> = Mutex::new(LocalCounts::ZERO);
+
+/// What starts a run's line of `LocalCounts`.
+const LOCAL_COUNTS_TAG: &str = "local path counts: ";
+
+/// What a kernel timer interrupt's local path did (for `LocalCounts`):
+/// read before it runs, once it holds its locks (`TimerSnap`), and after.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum TimerKind {
+    /// Neither a budget expiry nor a due timer.
+    Noop,
+    /// A round-robin budget ran out; the thread goes on.
+    RoundRobin,
+    /// A timer fired: of a thread with no bound notification, or
+    /// signalling one that was active (badges ORed), idle with its thread
+    /// not waiting (made active), idle with its thread in `Recv` (woken,
+    /// `cancel_ipc`), or waiting (its waiter woken).
+    FireUnbound,
+    FireActive,
+    FireSetActive,
+    FireWakeRecv,
+    FireWakeNtfn,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TimerCase {
+    kind: TimerKind,
+    idle_wake: bool,
+    switch: bool,
+}
+
+/// The state a timer interrupt's local path starts from, as `TimerCase`
+/// needs it.
+#[derive(Clone, Copy)]
+struct TimerSnap {
+    ct: u64,
+    idle: u64,
+    tm: u64,
+    ntfn_state: Option<u64>,
+    bound_state: u64,
+    csc: u64,
+    rr: bool,
+}
+
+impl TimerSnap {
+    /// Read without scheduling points, as `footprint`.
+    fn take(s: &SimStore) -> TimerSnap {
+        let s = SimStore { conc: None, ..s.clone() };
+        let cpu = s.cpu;
+        let tm = Tcb(node_get(&s, cpu, node::TIMER_MIN));
+        let n = if tm.is_null() { 0 } else { tm.bound_ntfn(&s) };
+        let csc = fl4_core::obj::Sc(node_get(&s, cpu, node::CUR_SC));
+        TimerSnap {
+            ct: node_get(&s, cpu, node::CUR_THREAD),
+            idle: node_get(&s, cpu, node::IDLE_THREAD),
+            tm: tm.0,
+            ntfn_state: (n != 0).then(|| fl4_core::obj::Ntfn(n).state(&s)),
+            bound_state: if n == 0 { 0 } else { Tcb(fl4_core::obj::Ntfn(n).bound_tcb(&s)).state(&s) },
+            csc: csc.0,
+            rr: csc.0 != node_get(&s, cpu, node::IDLE_SC) && csc.period(&s) == 0,
+        }
+    }
+
+    /// What the local path that started from this did, read after it ran.
+    fn case(&self, s: &SimStore) -> TimerCase {
+        let s = s.peek();
+        let ct = node_get(&s, s.cpu, node::CUR_THREAD);
+        let fired = self.tm != 0 && Tcb(self.tm).timer_deadline(&s) == 0;
+        let kind = if fired {
+            match self.ntfn_state {
+                None => TimerKind::FireUnbound,
+                Some(fl4_core::obj::NTFN_ACTIVE) => TimerKind::FireActive,
+                Some(fl4_core::obj::NTFN_WAITING) => TimerKind::FireWakeNtfn,
+                Some(_) if self.bound_state == sched::TS_BLOCKED_ON_RECV => TimerKind::FireWakeRecv,
+                Some(_) => TimerKind::FireSetActive,
+            }
+        } else if self.rr && fl4_core::sporadic::tail(&s, fl4_core::obj::Sc(self.csc)).amount == 0 {
+            // `charge_budget` empties a round-robin tail, which the commit
+            // of a budget not run out fills.
+            TimerKind::RoundRobin
+        } else {
+            TimerKind::Noop
+        };
+        TimerCase { kind, idle_wake: self.ct == self.idle && ct != self.idle, switch: ct != self.ct }
+    }
+}
 
 /// A local syscall path ran on the objects `held` (`fl4_sync::local_syscall`'s
 /// `observe`): whether it is a ReplyRecv answering a VM fault, which holds
@@ -289,6 +493,7 @@ impl Conc {
             out_of_steps: AtomicU64::new(0),
             footprint: (0..n).map(|_| Mutex::new(None)).collect(),
             local_tlb: (0..n).map(|_| AtomicBool::new(false)).collect(),
+            local_timer: (0..n).map(|_| AtomicBool::new(false)).collect(),
             tso,
             sb: (0..n).map(|_| Mutex::new(StoreBuffer::default())).collect(),
         }
@@ -409,9 +614,18 @@ struct SimStore {
     ks_base: u64,
     cpu: u64,
     conc: Option<Arc<Conc>>,
+    /// Reads are no scheduling points (`peek`).
+    peek: bool,
 }
 
 impl SimStore {
+    /// This store, read without scheduling points but, under x86-TSO, with
+    /// this core's own buffered stores: what the core itself now sees, for
+    /// the counts of what a local path did (`TimerSnap::case`).
+    fn peek(&self) -> SimStore {
+        SimStore { peek: true, ..self.clone() }
+    }
+
     fn pause(&self) {
         if let Some(c) = &self.conc {
             c.pause(self.cpu);
@@ -569,7 +783,9 @@ impl lock::Mem for SimStore {
 
 impl Store for SimStore {
     fn read(&self, addr: u64) -> u64 {
-        self.pause();
+        if !self.peek {
+            self.pause();
+        }
         self.mem_get(addr)
     }
     fn read_pair(&self, addr: u64) -> (u64, u64) {
@@ -599,6 +815,8 @@ impl Store for SimStore {
     }
 }
 
+/// An `Arch` call with an effect on the machine, as `Machine::effects`
+/// records them.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Effect {
     Deadline(u64),
@@ -606,8 +824,12 @@ enum Effect {
     Putc(u8),
     /// An I/O port write: port, size, value.
     PortOut(u64, u64, u64),
-    /// End of interrupt: the in-service interrupt is done.
-    Ack,
+    /// End of interrupt `irq`, which must be the one in service.
+    Ack(u64),
+    /// An address space loaded: root and ASID.
+    SetVSpace(u64, u64),
+    /// The clock read, and what it gave.
+    Now(u64),
 }
 
 /// Per-core machine state.
@@ -637,6 +859,10 @@ struct Machine {
     tdx: bool,
     /// The frames TDG.MR.REPORT wrote.
     tdx_reports: Vec<u64>,
+    /// `--fastpath-diff`, while one entry is checked: the `Arch` calls with
+    /// an effect it made, in order (`SimArch::apply`), which its local or
+    /// fast path and the general path must make alike (`Sim::diff_general`).
+    effects: Option<Vec<Effect>>,
 }
 
 #[derive(Clone)]
@@ -672,25 +898,30 @@ impl SimArch {
         local
     }
 
-    fn raise(&self, cpu: u64, irq: u64) {
-        let mut m = self.m.lock().unwrap();
-        m.cores[cpu as usize].pending[(irq / 64) as usize] |= 1 << (irq % 64);
-    }
-
     fn apply(&self, e: Effect) {
+        let cpu = self.cpu as usize;
+        let mut m = self.m.lock().unwrap();
+        if let Some(log) = &mut m.effects {
+            log.push(e);
+        }
         match e {
-            Effect::Deadline(t) => self.m.lock().unwrap().cores[self.cpu as usize].deadline = t,
+            Effect::Deadline(t) => m.cores[cpu].deadline = t,
             Effect::Reschedule(mask) => {
-                let n = self.m.lock().unwrap().cores.len() as u64;
-                for c in 0..n {
-                    if mask & (1 << c) != 0 && c != self.cpu {
-                        self.raise(c, irq::RESCHEDULE_IPI);
+                for c in 0..m.cores.len() {
+                    if mask & (1 << c) != 0 && c != cpu {
+                        m.cores[c].pending[(irq::RESCHEDULE_IPI / 64) as usize] |= 1 << (irq::RESCHEDULE_IPI % 64);
                     }
                 }
             }
-            Effect::Putc(b) => self.m.lock().unwrap().console.push(b),
-            Effect::PortOut(p, n, v) => self.m.lock().unwrap().ports.push((p, n, v)),
-            Effect::Ack => self.m.lock().unwrap().cores[self.cpu as usize].in_service = None,
+            Effect::Putc(b) => m.console.push(b),
+            Effect::PortOut(p, n, v) => m.ports.push((p, n, v)),
+            Effect::Ack(irq) => {
+                // Exactly the interrupt in service, once.
+                let got = m.cores[cpu].in_service.take();
+                assert_eq!(got, Some(irq), "core {cpu} ended interrupt {irq} with {got:?} in service");
+            }
+            Effect::SetVSpace(root, asid) => m.cores[cpu].vspace = (root, asid),
+            Effect::Now(_) => unreachable!("SimArch::now records its reads"),
         }
     }
 }
@@ -714,7 +945,11 @@ impl Arch for SimArch {
         // charges the running SC dozens of budgets at once.
         let d = if m.rng.below(4000) == 0 { 2_000_000 * TICKS_PER_US } else { 1 + m.rng.below(50) };
         m.now += d;
-        m.now
+        let now = m.now;
+        if let Some(log) = &mut m.effects {
+            log.push(Effect::Now(now));
+        }
+        now
     }
     fn set_deadline(&mut self, ticks: u64) {
         self.apply(Effect::Deadline(ticks));
@@ -753,12 +988,16 @@ impl Arch for SimArch {
     fn mask_irq(&mut self, _irq: u64, _mask: bool) {
         self.gate_only("mask_irq");
     }
-    fn ack_irq(&mut self, _irq: u64) {
-        self.gate_only("ack_irq");
-        self.apply(Effect::Ack);
+    fn ack_irq(&mut self, irq: u64) {
+        // A kernel timer interrupt's local path ends its own interrupt.
+        let local_timer = irq == irq::TIMER && self.conc.as_ref().is_some_and(|c| c.local_timer[self.cpu as usize].load(Ordering::SeqCst));
+        if !local_timer {
+            self.gate_only("ack_irq");
+        }
+        self.apply(Effect::Ack(irq));
     }
     fn set_vspace(&mut self, root: u64, asid: u64) {
-        self.m.lock().unwrap().cores[self.cpu as usize].vspace = (root, asid);
+        self.apply(Effect::SetVSpace(root, asid));
     }
     // The simulator has no TLBs: it checks who invalidates them.
     fn invalidate_page(&mut self, _asid: u64, _vaddr: u64) {
@@ -812,7 +1051,7 @@ impl Arch for SimArch {
             // Entries run one at a time: the target services the stall at
             // once, on the gate holder's behalf.
             None => {
-                let mut s = SimStore { mem: self.mem.clone(), ks_base: self.ks_base, cpu, conc: None };
+                let mut s = SimStore { mem: self.mem.clone(), ks_base: self.ks_base, cpu, conc: None, peek: false };
                 let mut a = SimArch { cpu, ..self.clone() };
                 fl4_core::smp::stall(&mut s, &mut a);
                 fl4_core::smp::send_pending(&mut s, &mut a);
@@ -916,17 +1155,30 @@ static STATS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 /// The footprint oracle (DESIGN.md §10): the memory a local path beside
 /// the gate on core `cpu` may write, as (address, bytes): the core's
 /// node state, threads on the core and their IPC buffers, scheduling
-/// contexts on the core, and the objects it holds (`locked`, endpoints
-/// 16 bytes long), with the queue links of the threads queued on a
-/// locked endpoint, which belong to the queue. Read without scheduling
-/// points, once the path holds its locks (`fl4_sync::local_syscall`'s
-/// `observe`).
+/// contexts on the core, the timer links of the threads in the core's
+/// timer tree, and the objects it holds (`locked`: endpoints 16 bytes
+/// long, notifications 64), with the queue links of the threads queued on
+/// a locked endpoint or waiting notification, which belong to the queue.
+/// Of a thread on the core, not the queue links while it is blocked on an
+/// endpoint or notification (they belong to that object's queue), nor its
+/// timer fields while it is armed in another core's tree (`fl4_core::localtimer`'s
+/// Timer ownership: that core's). Read without scheduling points, once
+/// the path holds its locks (`fl4_sync::local_syscall`'s `observe`).
 fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<(u64, u64)> {
     let s = SimStore { conc: None, ..s.clone() };
     let mut v = vec![(fl4_core::obj::node_base(&s, cpu), node::SIZE)];
+    // TIMER_LEFT, _RIGHT, _PARENT and _HEIGHT, adjacent, after
+    // TIMER_DEADLINE and _BADGE; EP_NEXT and EP_PREV, adjacent.
+    const _: () = assert!(tl::TIMER_HEIGHT == tl::TIMER_LEFT + 24 && tl::TIMER_LEFT == tl::TIMER_DEADLINE + 16);
+    const _: () = assert!(tl::EP_PREV == tl::EP_NEXT + 8);
+    let tree: HashSet<u64> = timer_tree(&s, cpu).into_iter().collect();
+    for &u in &tree {
+        v.push((u + tl::TIMER_LEFT, 32));
+    }
     for &(o, n) in locked.iter().filter(|o| o.0 != 0) {
         v.push((o, n));
-        if n == 16 {
+        let queue = n == 16 || (n == 64 && fl4_core::obj::Ntfn(o).state(&s) == fl4_core::obj::NTFN_WAITING);
+        if queue {
             let mut t = s.read(o);
             let mut fuel = 10_000;
             while t != 0 && fuel > 0 {
@@ -944,7 +1196,15 @@ fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<
             let tt = Tcb(t);
             scs.push(tt.sc(&s));
             if tt.affinity(&s) == cpu {
-                v.push((t, 1 << fl4_abi::consts::bits::TCB));
+                let mut holes = Vec::new();
+                if tt.timer_deadline(&s) != 0 && !tree.contains(&t) {
+                    holes.push((t + tl::TIMER_DEADLINE, 48));
+                }
+                let st = tt.state(&s);
+                if st == sched::TS_BLOCKED_ON_SEND || st == sched::TS_BLOCKED_ON_RECV || st == sched::TS_BLOCKED_ON_NTFN {
+                    holes.push((t + tl::EP_NEXT, 16));
+                }
+                push_except(&mut v, (t, 1 << fl4_abi::consts::bits::TCB), &mut holes);
                 let buf = fl4_core::msg::lookup_ipc_buffer(&s, true, tt);
                 if buf != 0 {
                     v.push((buf, 1 << fl4_abi::consts::bits::IPC_BUFFER));
@@ -960,6 +1220,38 @@ fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<
         }
     }
     v
+}
+
+/// Region `r`, as (address, bytes), without the regions `holes` (inside
+/// it, not overlapping), into `v`.
+fn push_except(v: &mut Vec<(u64, u64)>, r: (u64, u64), holes: &mut [(u64, u64)]) {
+    holes.sort();
+    let mut at = r.0;
+    for &(h, n) in holes.iter() {
+        assert!(h >= at && h + n <= r.0 + r.1, "footprint: hole {h:#x}+{n} outside {:#x}+{}", r.0, r.1);
+        if h > at {
+            v.push((at, h - at));
+        }
+        at = h + n;
+    }
+    if at < r.0 + r.1 {
+        v.push((at, r.0 + r.1 - at));
+    }
+}
+
+/// The nodes of core `cpu`'s timer tree, from its root (at most 100 000).
+fn timer_tree(s: &SimStore, cpu: u64) -> Vec<u64> {
+    let mut out = Vec::new();
+    let mut stack = vec![node_get(s, cpu, node::TIMER_ROOT)];
+    while let Some(u) = stack.pop() {
+        if u == 0 || out.len() >= 100_000 {
+            continue;
+        }
+        out.push(u);
+        stack.push(Tcb(u).timer_left(s));
+        stack.push(Tcb(u).timer_right(s));
+    }
+    out
 }
 
 /// The footprint oracle: every word the local path for `what` (a syscall,
@@ -1051,8 +1343,14 @@ struct Sim {
     /// `--scenario guest`: l4h vCPUs, each a handler thread waiting in
     /// ReplyRecv on an endpoint and a thread with trapSyscalls faulting to
     /// it, both on one core: (handler, trapping thread, endpoint slot,
-    /// handler's reply slot).
-    guest: Vec<(Tcb, Tcb, u64, u64)>,
+    /// handler's reply slot, handler's TCB slot).
+    guest: Vec<(Tcb, Tcb, u64, u64, u64)>,
+    /// `--scenario timer`: every worker with a notification bound, which
+    /// its TCB timer signals, and a reply object of its own.
+    timer: Vec<TimerWorker>,
+    /// `--scenario timer`: an endpoint per core, which its workers wait on
+    /// in `Recv` (woken by their timers through `cancel_ipc`) and send to.
+    timer_eps: Vec<u64>,
     /// `first_untyped`'s last answer: (slot, size).
     big_ut: Cell<(u64, u64)>,
     /// Empty root CNode slots for copies of frame caps, each with a small
@@ -1065,6 +1363,16 @@ struct Sim {
 
 fn pptr(p: u64) -> u64 {
     p + PPTR_BASE
+}
+
+/// A `--scenario timer` worker: its TCB and its root CNode slots (TCB,
+/// bound notification, reply object).
+#[derive(Clone, Copy)]
+struct TimerWorker {
+    tcb: Tcb,
+    slot: u64,
+    ntfn: u64,
+    reply: u64,
 }
 
 /// How many `Sim::frame_slots`.
@@ -1098,11 +1406,12 @@ impl Sim {
             halted: false,
             tdx: false,
             tdx_reports: Vec::new(),
+            effects: None,
             rng: Rng(seed_rng(seed)),
         }));
-        let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, conc: None };
+        let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, conc: None, peek: false };
         let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
-        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0, port: 0, guest: Vec::new(), big_ut: Cell::new((0, 0)), frame_slots: Vec::new() }
+        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0, port: 0, guest: Vec::new(), timer: Vec::new(), timer_eps: Vec::new(), big_ut: Cell::new((0, 0)), frame_slots: Vec::new() }
     }
 
     /// Run the kernel part of an entry: directly, or (concurrent mode)
@@ -1255,6 +1564,25 @@ impl Sim {
 
     /// Run a syscall as the current thread of `cpu`.
     fn syscall(&mut self, cpu: u64, number: i64, cptr: u64, info: u64, mrs: [u64; 4]) {
+        self.load_syscall(cpu, number, cptr, info, mrs);
+        if FASTPATH_DIFF.load(Ordering::Relaxed) && self.s.conc.is_none() {
+            return self.diff_syscall(number);
+        }
+        // A frame-cap invocation: not a trapped syscall, and by its label
+        // (as fl4_sync::local_syscall chooses `local_invocation`). The flags
+        // are read without a scheduling point: only a stall, under the
+        // gate, changes them, and this core's stores are drained.
+        let t = sched::cur_thread(&self.s);
+        let flags = t.flags(&SimStore { conc: None, ..self.s.clone() });
+        let trap = flags & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
+        let inv = !trap && number == sc::SysCall && fl4_core::localinv::is_local_label(info >> 12);
+        let set_timer = !trap && number == sc::SysCall && info >> 12 == label::TCBSetTimer;
+        self.enter_syscall(number, inv, set_timer);
+    }
+
+    /// The current thread of `cpu` executes a syscall instruction: its
+    /// registers as the kernel entry saves them.
+    fn load_syscall(&mut self, cpu: u64, number: i64, cptr: u64, info: u64, mrs: [u64; 4]) {
         self.on(cpu);
         let t = sched::cur_thread(&self.s);
         if TRACE.load(Ordering::Relaxed) {
@@ -1281,17 +1609,34 @@ impl Sim {
         t.set_reg(&mut self.s, reg::RDX, number as u64);
         let ip = t.reg(&self.s, reg::NEXT_IP);
         t.set_reg(&mut self.s, reg::NEXT_IP, ip.wrapping_add(2));
-        if FASTPATH_DIFF.load(Ordering::Relaxed) && self.s.conc.is_none() {
-            return self.diff_syscall(number);
+    }
+
+    /// The thread a `TCB_SetTimer` of the current thread names, as the
+    /// workload addresses caps (a root CNode slot), and its deadline then:
+    /// for `LocalCounts`. Read without scheduling points.
+    fn set_timer_target(&self) -> (Tcb, u64) {
+        let s = SimStore { conc: None, ..self.s.clone() };
+        let t = sched::cur_thread(&s);
+        match fl4_core::cspace::lookup_slot(&s, t, t.reg(&s, reg::CAP)) {
+            Ok(r) => match r.slot.cap(&s) {
+                Cap::Thread { ptr } => (Tcb(ptr), Tcb(ptr).timer_deadline(&s)),
+                _ => (Tcb(0), 0),
+            },
+            Err(_) => (Tcb(0), 0),
         }
-        // A frame-cap invocation: not a trapped syscall, and by its label
-        // (as fl4_sync::local_syscall chooses `local_invocation`). The flags
-        // are read without a scheduling point: only a stall, under the
-        // gate, changes them, and this core's stores are drained.
-        let flags = t.flags(&SimStore { conc: None, ..self.s.clone() });
-        let trap = flags & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
-        let inv = !trap && number == sc::SysCall && fl4_core::localinv::is_local_label(info >> 12);
-        self.enter_syscall(number, inv);
+    }
+
+    /// Count a `TCB_SetTimer`'s local attempt: it ran (`ran`), with the
+    /// deadline of `target` `d_old` before.
+    fn count_set_timer(&self, ran: bool, target: Tcb, d_old: u64) {
+        let s = self.s.peek();
+        let mut c = LOCAL_COUNTS.lock().unwrap();
+        c.set_timer_tried += 1;
+        if ran {
+            c.set_timer_ran += 1;
+            c.set_timer_disarm += (target.timer_deadline(&s) == 0) as u64;
+            c.set_timer_rearm += (d_old != 0) as u64;
+        }
     }
 
     /// A VM fault (a page fault, error code `code`, at `addr`) of the
@@ -1357,7 +1702,7 @@ impl Sim {
     /// same memory and machine state.
     fn diff_vm_fault(&mut self, addr: u64, code: u64) {
         let mem = self.s.mem.clone();
-        let m0 = self.a.m.lock().unwrap().clone();
+        let m0 = self.start_diff();
         let cpu = self.s.cpu;
         let ncores = self.ncores;
         let time0 = node_get(&self.s, cpu, node::CUR_TIME);
@@ -1386,8 +1731,8 @@ impl Sim {
     /// A syscall's kernel entry, as the kernel makes it (fl4_sync::
     /// run_syscall); serially, `handle_syscall`. `inv`: a frame-cap
     /// invocation (`localinv`), whose local path may invalidate TLB
-    /// entries.
-    fn enter_syscall(&mut self, number: i64, inv: bool) {
+    /// entries. `set_timer`: a `TCB_SetTimer`, by its label.
+    fn enter_syscall(&mut self, number: i64, inv: bool, set_timer: bool) {
         let Some(conc) = self.s.conc.clone() else {
             return syscall::handle_syscall(&mut self.s, &mut self.a, number);
         };
@@ -1399,15 +1744,21 @@ impl Sim {
         // The local path, under the footprint oracle. The footprint is
         // read once the path holds its locks: its core is active and its
         // objects locked, so nothing it reads changes meanwhile.
+        let me = &*self;
         let local = |s: &mut SimStore, a: &mut SimArch| {
             let mut vm_reply = false;
             let what = format!("syscall {number}");
+            // (Read once the core is active: its timer tree is its own.)
+            let (target, d_old) = if set_timer { me.set_timer_target() } else { (Tcb(0), 0) };
             let ran = under_footprint(&conc, ncores, cpu as u64, &what, inv, |observe| {
                 fl4_sync::local_syscall(s, a, &m, number, |s, held| {
                     vm_reply = replies_to_vm_fault(s, held);
                     observe(s, held)
                 })
             });
+            if set_timer {
+                me.count_set_timer(ran, target, d_old);
+            }
             let mut c = LOCAL_COUNTS.lock().unwrap();
             c.inv_tried += inv as u64;
             c.inv_ran += (inv && ran) as u64;
@@ -1418,17 +1769,89 @@ impl Sim {
         self.leave_kernel(&conc);
     }
 
+    /// A kernel timer interrupt `irq` the core has accepted, as the kernel
+    /// takes it (fl4_sync::run_timer_irq, its local path under the
+    /// footprint oracle); serially, `handle_interrupt_entry`.
+    fn enter_timer_irq(&mut self, irq: u64) {
+        let Some(conc) = self.s.conc.clone() else {
+            return syscall::handle_interrupt_entry(&mut self.s, &mut self.a, irq);
+        };
+        let cpu = self.s.cpu as usize;
+        conc.in_kernel[cpu].store(true, Ordering::SeqCst);
+        let env = SimEnv { s: self.s.clone(), a: self.a.clone(), conc: conc.clone() };
+        let m = self.s.clone();
+        let ncores = self.ncores;
+        let local = |s: &mut SimStore, a: &mut SimArch| {
+            let mut snap = None;
+            conc.local_timer[cpu].store(true, Ordering::SeqCst);
+            let ran = under_footprint(&conc, ncores, cpu as u64, "a timer interrupt", false, |observe| {
+                fl4_sync::local_timer_irq(s, a, &m, irq, |s, held| {
+                    snap = Some(TimerSnap::take(s));
+                    observe(s, held)
+                })
+            });
+            conc.local_timer[cpu].store(false, Ordering::SeqCst);
+            let case = snap.filter(|_| ran).map(|p| p.case(s));
+            LOCAL_COUNTS.lock().unwrap().timer_irq(ran, case);
+            ran
+        };
+        fl4_sync::run_timer_irq(&env, &GATE, local, |s, a| syscall::handle_interrupt_entry(s, a, irq));
+        self.leave_kernel(&conc);
+    }
+
+    /// `--fastpath-diff` for a kernel timer interrupt `irq` the core has
+    /// accepted: its local path (`fl4_sync::local_timer_irq`, under the
+    /// footprint oracle) and, if it declined, `handle_interrupt_entry`, as
+    /// a core taking it beside the gate does; undone, then
+    /// `handle_interrupt_entry` alone; both must end in the same memory
+    /// and machine state. Returns whether the local path ran.
+    fn diff_timer_irq(&mut self, irq: u64) -> bool {
+        let mem = self.s.mem.clone();
+        let m0 = self.start_diff();
+        let cpu = self.s.cpu;
+        let ncores = self.ncores;
+        let time0 = node_get(&self.s, cpu, node::CUR_TIME);
+        let mut allowed = None;
+        let mut snap = None;
+        let locks = SimStore { conc: None, ..self.s.clone() };
+        mem.start_log();
+        let ran_local = fl4_sync::local_timer_irq(&mut self.s, &mut self.a, &locks, irq, |s, held| {
+            snap = Some(TimerSnap::take(s));
+            allowed = Some(footprint(s, ncores, cpu, held))
+        });
+        // A local attempt that declined after reading the clock.
+        let read_clock = !ran_local && node_get(&self.s, cpu, node::CUR_TIME) != time0;
+        if !ran_local {
+            syscall::handle_interrupt_entry(&mut self.s, &mut self.a, irq);
+        }
+        let fast_log = mem.take_log();
+        if ran_local {
+            check_footprint(cpu, "a timer interrupt", allowed.as_ref().unwrap(), fast_log.iter().map(|&(i, _)| PPTR_BASE + i as u64 * 8));
+        }
+        let case = snap.filter(|_| ran_local).map(|p| p.case(&self.s));
+        LOCAL_COUNTS.lock().unwrap().timer_irq(ran_local, case);
+        let what = format!("timer interrupt {irq} (locally: {ran_local}, {case:?})");
+        self.diff_general(&what, m0, fast_log, read_clock, |s, a| syscall::handle_interrupt_entry(s, a, irq));
+        ran_local
+    }
+
     /// `--fastpath-diff` (serial runs): the syscall through `handle_syscall`
     /// (or the local fast path first), undone, then through the general
     /// path; every word either wrote and the machine state (time, RNG,
     /// deadlines, effects, address space) must end the same.
     fn diff_syscall(&mut self, number: i64) {
-        let mem = self.s.mem.clone();
-        let m0 = self.a.m.lock().unwrap().clone();
         // Every other syscall as a core entering without the gate makes it
         // (fl4_sync::run_syscall): the local fast path, then all of
         // `handle_syscall` if it declined.
         let local = FASTPATH_COUNTS.lock().unwrap().0 % 2 == 0;
+        self.diff_syscall_with(number, local);
+    }
+
+    /// `diff_syscall`, trying the local path first if `local` (and the
+    /// syscall is a candidate); whether it ran.
+    fn diff_syscall_with(&mut self, number: i64, local: bool) -> bool {
+        let mem = self.s.mem.clone();
+        let m0 = self.start_diff();
         let t = sched::cur_thread(&self.s);
         let trap = t.flags(&self.s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
         // The syscalls fl4_sync::run_syscall tries a local path for: a
@@ -1437,7 +1860,9 @@ impl Sim {
         let lbl = fl4_core::msg::msg_info(&self.s, t).label;
         let port = !trap && (number == sc::SysCall || number == sc::SysSend) && fl4_core::ioport::is_port_label(lbl);
         let local_inv = !trap && number == sc::SysCall && fl4_core::localinv::is_local_label(lbl);
-        let try_local = local && (trap || number == sc::SysReplyRecv || port || local_inv);
+        let set_timer = !trap && number == sc::SysCall && lbl == label::TCBSetTimer;
+        let try_local = local && (trap || number == sc::SysReplyRecv || port || local_inv || set_timer);
+        let (target, d_old) = if set_timer { self.set_timer_target() } else { (Tcb(0), 0) };
         let cpu = self.s.cpu;
         let ncores = self.ncores;
         let time0 = node_get(&self.s, cpu, node::CUR_TIME);
@@ -1457,6 +1882,9 @@ impl Sim {
         if ran_local {
             check_footprint(cpu, &format!("syscall {number}"), allowed.as_ref().unwrap(), fast_log.iter().map(|&(i, _)| PPTR_BASE + i as u64 * 8));
         }
+        if set_timer && try_local {
+            self.count_set_timer(ran_local, target, d_old);
+        }
         {
             let mut c = LOCAL_COUNTS.lock().unwrap();
             c.inv_tried += (local_inv && try_local) as u64;
@@ -1470,6 +1898,16 @@ impl Sim {
         }
         let what = format!("syscall {number} (fast path ran: {fast}, locally: {ran_local})");
         self.diff_general(&what, m0, fast_log, read_clock, |s, a| syscall::handle_syscall_general(s, a, number));
+        ran_local
+    }
+
+    /// The first half of a `--fastpath-diff` check: record the entry's
+    /// `Arch` effects from here (`Machine::effects`); the machine state it
+    /// starts from.
+    fn start_diff(&mut self) -> Machine {
+        let mut m = self.a.m.lock().unwrap();
+        m.effects = Some(Vec::new());
+        m.clone()
     }
 
     /// The second half of a `--fastpath-diff` check: the entry `what` ran
@@ -1510,7 +1948,13 @@ impl Sim {
             })
             .collect();
         bad.sort();
-        let m_general = self.a.m.lock().unwrap().clone();
+        let m_general = {
+            let mut m = self.a.m.lock().unwrap();
+            let g = m.clone();
+            m.effects = None;
+            g
+        };
+        // `Machine` includes the effects each made, in order.
         if !bad.is_empty() || m_fast != m_general {
             for (a, o, g, f) in &bad {
                 println!("  {a:#x}: was {o:#x}, general {g:#x}, fast {f:#x}");
@@ -1662,9 +2106,71 @@ impl Sim {
             self.after("guest trapSyscalls");
             self.invoke(0, k, label::TCBBindNotification, &[], &[ntfns[i]]);
             self.after("guest notification");
-            let g = (cap(self, k), cap(self, u), ep, reply);
+            let g = (cap(self, k), cap(self, u), ep, reply, k);
             self.guest.push(g);
         }
+    }
+
+    /// `--scenario timer`: each worker gets a notification bound and a
+    /// reply object of its own, each core an endpoint; half the workers'
+    /// SCs become round-robin with budgets of 40 to 80 us, which run out
+    /// under load (the timer interrupt's round-robin case).
+    fn setup_timer(&mut self) {
+        let tcbs = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
+        let scs = self.objs_of(|c| matches!(c, Cap::SchedContext { .. }));
+        let n = tcbs.len() as u64;
+        let retype = |sim: &mut Sim, ty: u64, count: u64| {
+            let ut = sim.first_untyped();
+            let dest = sim.next_slot;
+            sim.setup_invoke(ut, label::UntypedRetype, &[ty, 0, rs::InitThreadCNode, 0, dest, count], &[rs::InitThreadCNode]);
+            sim.after("timer retype");
+            sim.next_slot += count;
+            for i in 0..count {
+                assert!(!Slot::index(sim.root_cnode(), dest + i).cap(&sim.s).is_null(), "setup: timer scenario retype failed");
+            }
+            dest
+        };
+        let ntfn0 = retype(self, ot::Notification, n);
+        let reply0 = retype(self, ot::Reply, n);
+        let ncores = self.ncores;
+        let ep0 = retype(self, ot::Endpoint, ncores);
+        self.timer_eps = (0..ncores).map(|c| ep0 + c).collect();
+        let cap = |sim: &Sim, i: u64| Tcb(Slot::index(sim.root_cnode(), i).cap(&sim.s).ptr());
+        for (k, &t) in tcbs.iter().enumerate() {
+            let k = k as u64;
+            self.setup_invoke(t, label::TCBBindNotification, &[], &[ntfn0 + k]);
+            self.after("timer notification");
+            assert_eq!(cap(self, t).bound_ntfn(&self.s), Slot::index(self.root_cnode(), ntfn0 + k).cap(&self.s).ptr(), "setup: TCB_BindNotification failed");
+            self.timer.push(TimerWorker { tcb: cap(self, t), slot: t, ntfn: ntfn0 + k, reply: reply0 + k });
+        }
+        for (k, &scap) in scs.iter().enumerate() {
+            if k % 2 == 0 {
+                // In microseconds, as SchedControl_ConfigureFlags takes them.
+                let budget = 40 + 20 * (k as u64 % 3);
+                let ctrl = self.sched_control(k as u64 % self.ncores);
+                self.setup_invoke(ctrl, label::SchedControlConfigureFlags, &[budget, budget, 0, k as u64, 0], &[scap]);
+                self.after("timer round-robin SC");
+                let sc = fl4_core::obj::Sc(Slot::index(self.root_cnode(), scap).cap(&self.s).ptr());
+                let head = fl4_core::sporadic::head(&self.s, sc).amount;
+                assert!(sc.period(&self.s) == 0 && head == budget * TICKS_PER_US, "setup: round-robin SC of {budget} us has period {} and a head refill of {head} ticks", sc.period(&self.s));
+            }
+        }
+    }
+
+    /// The root task's invocation during setup (on core 0), made again
+    /// while the kernel restarted it rather than ran it: its budget ran
+    /// out at the entry (`check_budget_restart` rewinds it to the syscall,
+    /// `NEXT_IP` to `FAULT_IP`).
+    fn setup_invoke(&mut self, cptr: u64, lbl: u64, args: &[u64], extra_caps: &[u64]) {
+        for _ in 0..8 {
+            self.invoke(0, cptr, lbl, args, extra_caps);
+            let t = sched::cur_thread(&self.s);
+            let restarted = self.is_root(t) && t.reg(&self.s, reg::NEXT_IP) == t.reg(&self.s, reg::FAULT_IP);
+            if !restarted {
+                return;
+            }
+        }
+        panic!("setup: the root task's invocation {lbl} was restarted 8 times");
     }
 
     fn sched_control(&self, core: u64) -> u64 {
@@ -1747,6 +2253,9 @@ impl Sim {
         if !self.frame_slots.is_empty() && self.a.m.lock().unwrap().rng.below(4) == 0 {
             return self.frame_turn(cpu);
         }
+        if self.a.m.lock().unwrap().rng.below(10) == 0 {
+            return self.root_timer_turn(cpu);
+        }
         if self.port != 0 && self.a.m.lock().unwrap().rng.below(8) == 0 {
             // An I/O port access (fl4_core::syscall::handle_ioport_local),
             // sometimes out of the cap's range or with too few arguments.
@@ -1826,6 +2335,120 @@ impl Sim {
         }
     }
 
+    /// A deadline in ticks for soon: within 200 us.
+    fn soon(&self) -> u64 {
+        let mut m = self.a.m.lock().unwrap();
+        let now = m.now;
+        now + 1 + m.rng.below(200 * TICKS_PER_US)
+    }
+
+    /// A deadline of any kind: soon, now or in the past (which the kernel
+    /// fires at once), much later, or 0 (disarm).
+    fn random_deadline(&self) -> u64 {
+        let k = self.a.m.lock().unwrap().rng.below(8);
+        match k {
+            0 => 0,
+            1 => {
+                let mut m = self.a.m.lock().unwrap();
+                let now = m.now;
+                now.saturating_sub(m.rng.below(1000))
+            }
+            2 => self.a.m.lock().unwrap().now + 100_000 * TICKS_PER_US,
+            _ => self.soon(),
+        }
+    }
+
+    /// `TCB_SetTimer(deadline, badge)` on the TCB in root CNode slot
+    /// `target`, by the current thread of `cpu`.
+    fn set_timer(&mut self, cpu: u64, target: u64, deadline: u64, badge: u64) {
+        self.invoke(cpu, target, label::TCBSetTimer, &[deadline, badge], &[]);
+    }
+
+    /// The root task's timer work: a TCB timer on its own thread (which
+    /// has no notification bound) or a worker's, mostly of another core;
+    /// with `--scenario timer`, also moving a worker to another core while
+    /// its timer stays in the old core's tree (SchedControl_ConfigureFlags
+    /// migrates the thread its SC is bound to), with a round-robin budget
+    /// or a sporadic one, and binding a worker's notification again (after
+    /// the focus deleted it).
+    fn root_timer_turn(&mut self, cpu: u64) {
+        let (k, i) = {
+            let r = &mut self.a.m.lock().unwrap().rng;
+            (r.below(8), r.next())
+        };
+        if !self.timer.is_empty() && k == 0 {
+            let scs = self.objs_of(|c| matches!(c, Cap::SchedContext { .. }));
+            if scs.is_empty() {
+                return;
+            }
+            let (core, rr, extra) = {
+                let r = &mut self.a.m.lock().unwrap().rng;
+                (r.below(self.ncores), r.below(2) == 0, r.below(3))
+            };
+            let ctrl = self.sched_control(core);
+            // In microseconds, as SchedControl_ConfigureFlags takes them.
+            let (budget, period) = if rr { (60, 60) } else { (300, 1000) };
+            return self.invoke(cpu, ctrl, label::SchedControlConfigureFlags, &[budget, period, extra, i % 64, 0], &[scs[i as usize % scs.len()]]);
+        }
+        if !self.timer.is_empty() && k == 1 {
+            let w = self.timer[i as usize % self.timer.len()];
+            return self.invoke(cpu, w.slot, label::TCBBindNotification, &[], &[w.ntfn]);
+        }
+        let d = self.random_deadline();
+        if k < 4 {
+            return self.set_timer(cpu, rs::InitThreadTCB, d, i);
+        }
+        let tcbs = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
+        let target = if tcbs.is_empty() || k == 4 { self.reset_child } else { tcbs[i as usize % tcbs.len()] };
+        self.set_timer(cpu, target, d, i)
+    }
+
+    /// `--scenario timer`: a worker arms its own timer, or another
+    /// thread's (another core's too), disarms or sets one in the past, and
+    /// waits for its timer on its bound notification (`Wait`) or in `Recv`
+    /// on its core's endpoint (with its reply object or none), polls its
+    /// notification, or sends to an endpoint, so that timers fire on
+    /// running, idle and waiting cores, and signal notifications idle,
+    /// active and waited on. False to make a random syscall instead.
+    fn timer_turn(&mut self, cpu: u64, w: TimerWorker) -> bool {
+        let (pick, j, e, badge) = {
+            let r = &mut self.a.m.lock().unwrap().rng;
+            (r.below(100), r.next(), r.next(), r.below(1 << 20))
+        };
+        let armed = w.tcb.timer_deadline(&SimStore { conc: None, ..self.s.clone() }) != 0;
+        let ep = self.timer_eps[(e % self.timer_eps.len() as u64) as usize];
+        let own_ep = self.timer_eps[(cpu % self.timer_eps.len() as u64) as usize];
+        match pick {
+            0..=24 => {
+                let d = self.soon();
+                self.set_timer(cpu, w.slot, d, badge)
+            }
+            25..=31 => {
+                let o = self.timer[(j % self.timer.len() as u64) as usize];
+                let d = self.random_deadline();
+                self.set_timer(cpu, o.slot, d, badge)
+            }
+            32..=35 => {
+                let d = if j % 2 == 0 { 0 } else { self.a.m.lock().unwrap().now };
+                self.set_timer(cpu, w.slot, d, badge)
+            }
+            36..=70 if !armed => {
+                let d = self.soon();
+                self.set_timer(cpu, w.slot, d, badge)
+            }
+            36..=55 => self.syscall(cpu, sc::SysWait, w.ntfn, 0, [0; 4]),
+            56..=65 => {
+                w.tcb.set_reg(&mut self.s, reg::REPLY, w.reply);
+                self.syscall(cpu, sc::SysRecv, own_ep, 0, [0; 4])
+            }
+            66..=70 => self.syscall(cpu, sc::SysWait, own_ep, 0, [0; 4]),
+            71..=77 => self.syscall(cpu, sc::SysNBWait, w.ntfn, 0, [0; 4]),
+            78..=83 => self.syscall(cpu, sc::SysNBSend, ep, 0, [badge, 0, 0, 0]),
+            _ => return false,
+        }
+        true
+    }
+
     fn is_root(&self, t: Tcb) -> bool {
         name_of(&self.s, t) == "rootserver"
     }
@@ -1837,7 +2460,7 @@ impl Sim {
             return self.root_turn(cpu);
         }
         let ct = sched::cur_thread(&self.s);
-        if let Some(&(k, u, ep, reply)) = self.guest.iter().find(|g| g.0 == ct || g.1 == ct) {
+        if let Some(&(k, u, ep, reply, k_slot)) = self.guest.iter().find(|g| g.0 == ct || g.1 == ct) {
             let (pick, n, len, lbl, mrs) = {
                 let mut g = self.a.m.lock().unwrap();
                 let r = &mut g.rng;
@@ -1849,6 +2472,13 @@ impl Sim {
                 ct.set_reg(&mut self.s, reg::REPLY, reply);
                 return self.syscall(cpu, sc::SysReplyRecv, ep, (lbl << 12) | len, mrs);
             }
+            if ct == k && mrs[1] < 8 {
+                // Arm its own timer, as a VMM does for its guest's: it
+                // fires while the handler waits in ReplyRecv, and its
+                // bound notification wakes it there (`cancel_ipc`).
+                let d = self.soon();
+                return self.set_timer(cpu, k_slot, d, mrs[3]);
+            }
             if ct == u && (pick == 7 || pick == 8) {
                 // A page fault (l4h: a guest page not mapped yet), at a
                 // user address, user mode, any of the other error bits.
@@ -1858,6 +2488,21 @@ impl Sim {
             if ct == u && pick < 7 {
                 // Any number: with trapSyscalls each one faults.
                 return self.syscall(cpu, n - 200, 0, len, mrs);
+            }
+        }
+        if let Some(w) = self.timer.iter().copied().find(|w| w.tcb == ct) {
+            if self.timer_turn(cpu, w) {
+                return;
+            }
+        }
+        // A TCB timer: the thread's own or another's, on this core or not,
+        // for soon, the past, much later, or disarmed.
+        if self.a.m.lock().unwrap().rng.below(20) == 0 {
+            let tcbs = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
+            if !tcbs.is_empty() {
+                let i = self.a.m.lock().unwrap().rng.below(tcbs.len() as u64) as usize;
+                let d = self.random_deadline();
+                return self.set_timer(cpu, tcbs[i], d, i as u64);
             }
         }
         // Another core's frame-cap copy deleted under it, beside the gate.
@@ -1959,7 +2604,13 @@ impl Sim {
             if TRACE.load(Ordering::Relaxed) {
                 println!("  core {cpu} irq {pending}");
             }
-            self.enter(true, |s, a| syscall::handle_interrupt_entry(s, a, pending));
+            if pending == irq::TIMER && FASTPATH_DIFF.load(Ordering::Relaxed) && self.s.conc.is_none() {
+                self.diff_timer_irq(pending);
+            } else if pending == irq::TIMER {
+                self.enter_timer_irq(pending);
+            } else {
+                self.enter(true, |s, a| syscall::handle_interrupt_entry(s, a, pending));
+            }
             self.after("interrupt");
             return;
         }
@@ -1991,6 +2642,7 @@ impl Sim {
         q.check(what);
         q.check_cdt(what, &slots);
         q.check_queues(what);
+        q.check_timers(what);
         q.check_refills(what, &slots);
         let s = &q.s;
         q.s.mem.watch.lock().unwrap().live = slots.into_iter().filter(|sl| !(sl.cap(s).is_null() && sl.prev(s).is_null() && sl.next(s).is_null())).map(|sl| sl.0).collect();
@@ -2231,6 +2883,68 @@ impl Sim {
         }
     }
 
+    /// Deadline timers (fl4-core timer.rs): each core's tree is a red-black
+    /// search tree by deadline, well linked, of threads armed for that core
+    /// (`TIMER_HEIGHT >> 8`), with its earliest as `TIMER_MIN`; every armed
+    /// thread is in its core's tree and every disarmed one in none, with
+    /// its timer fields clear.
+    fn check_timers(&self, what: &str) {
+        let s = &self.s;
+        let red = |t: Tcb| t.timer_height(s) & 1 != 0;
+        let mut in_tree = HashSet::new();
+        for c in 0..self.ncores {
+            let root = Tcb(node_get(s, c, node::TIMER_ROOT));
+            let min = node_get(s, c, node::TIMER_MIN);
+            if root.is_null() {
+                assert_eq!(min, 0, "{what}: core {c}'s empty timer tree has a minimum");
+                continue;
+            }
+            assert_eq!(root.timer_parent(s), 0, "{what}: core {c}'s timer tree root has a parent");
+            assert!(!red(root), "{what}: core {c}'s timer tree root is red");
+            // (node, lower bound, upper bound): an in-order walk would
+            // give the deadlines in order.
+            let mut black_height = None;
+            let mut stack = vec![(root, 0u64, u64::MAX, 0u64)];
+            let mut leftmost = root;
+            let mut n = 0;
+            while leftmost.timer_left(s) != 0 && n < 100_000 {
+                leftmost = Tcb(leftmost.timer_left(s));
+                n += 1;
+            }
+            assert_eq!(min, leftmost.0, "{what}: core {c}'s TIMER_MIN is not its timer tree's earliest");
+            while let Some((t, lo, hi, blacks)) = stack.pop() {
+                assert!(in_tree.insert(t.0), "{what}: thread {:#x} is twice in the timer trees", t.0);
+                assert!(in_tree.len() < 100_000, "{what}: timer trees do not end");
+                let d = t.timer_deadline(s);
+                assert!(d != 0, "{what}: disarmed thread {:#x} in core {c}'s timer tree", t.0);
+                assert!(lo <= d && d <= hi, "{what}: core {c}'s timer tree is out of order at {:#x}", t.0);
+                assert_eq!(t.timer_height(s) >> 8, c, "{what}: thread {:#x} in core {c}'s timer tree is marked for core {}", t.0, t.timer_height(s) >> 8);
+                let blacks = blacks + !red(t) as u64;
+                for (child, lo, hi) in [(Tcb(t.timer_left(s)), lo, d), (Tcb(t.timer_right(s)), d, hi)] {
+                    if child.is_null() {
+                        match black_height {
+                            None => black_height = Some(blacks),
+                            Some(b) => assert_eq!(b, blacks, "{what}: core {c}'s timer tree has paths of different black heights"),
+                        }
+                        continue;
+                    }
+                    assert_eq!(child.timer_parent(s), t.0, "{what}: core {c}'s timer tree badly linked at {:#x}", child.0);
+                    assert!(!(red(t) && red(child)), "{what}: core {c}'s timer tree has a red child of a red node at {:#x}", child.0);
+                    stack.push((child, lo, hi, blacks));
+                }
+            }
+        }
+        for t in self.threads() {
+            if t.timer_deadline(s) != 0 {
+                assert!(in_tree.contains(&t.0), "{what}: armed thread {:#x} is in no timer tree", t.0);
+            } else {
+                assert!(!in_tree.contains(&t.0), "{what}: disarmed thread {:#x} is in a timer tree", t.0);
+                let links = [t.timer_left(s), t.timer_right(s), t.timer_parent(s), t.timer_height(s)];
+                assert_eq!(links, [0; 4], "{what}: disarmed thread {:#x} keeps timer links", t.0);
+            }
+        }
+    }
+
     /// Endpoint and notification queues hold exactly threads blocked on
     /// them; release queues are in ready-time order.
     fn check_queues(&self, what: &str) {
@@ -2388,6 +3102,12 @@ fn run_one(mut sim: Sim, seed: u64, ncores: u64, steps: u64, verbose: bool, conc
             sim.setup_guest();
             None
         }
+        // A worker's bound notification, deleted (unbinding it) and made
+        // again (the root task binds it again) while its timer fires.
+        Some("timer") => {
+            sim.setup_timer();
+            sim.timer.first().map(|w| (w.ntfn, ot::Notification))
+        }
         Some(other) => panic!("unknown scenario {other}"),
         None => None,
     };
@@ -2488,9 +3208,10 @@ fn run_one(mut sim: Sim, seed: u64, ncores: u64, steps: u64, verbose: bool, conc
     if FASTPATH_DIFF.load(Ordering::Relaxed) || (concurrent && ncores > 1) {
         let c = *LOCAL_COUNTS.lock().unwrap();
         println!(
-            "seed {seed}: local paths: frame-cap invocations {}/{}, VM faults {}/{}, VM fault replies {} (run/tried); their TLB invalidations: page {}, address space {}",
-            c.inv_ran, c.inv_tried, c.vm_fault_ran, c.vm_fault_tried, c.vm_reply_ran, c.tlb_page, c.tlb_asid
+            "seed {seed}: local paths: frame-cap invocations {}/{}, VM faults {}/{}, VM fault replies {}, TCB_SetTimer {}/{}, timer interrupts {}/{} (run/tried); their TLB invalidations: page {}, address space {}",
+            c.inv_ran, c.inv_tried, c.vm_fault_ran, c.vm_fault_tried, c.vm_reply_ran, c.set_timer_ran, c.set_timer_tried, c.timer_irq_ran, c.timer_irq_tried, c.tlb_page, c.tlb_asid
         );
+        println!("{LOCAL_COUNTS_TAG}{}", c.line());
     }
 }
 
@@ -2827,6 +3548,43 @@ impl Campaign {
             + &self.scenario.as_ref().map_or(String::new(), |s| format!(", scenario {s}"))
             + if self.diff { ", fast paths checked against the general path" } else { "" };
         println!("fl4-sim: {} seeds, {} cores, {} steps each, {mode}{extra}: {failed} failed", self.seeds, self.cores, self.steps);
+        // The local paths the runs took, summed over them.
+        let mut total = LocalCounts::ZERO;
+        let mut any = false;
+        for o in outcomes {
+            for l in o.stdout.lines() {
+                if let Some(rest) = l.strip_prefix(LOCAL_COUNTS_TAG) {
+                    total.add_line(rest);
+                    any = true;
+                }
+            }
+        }
+        if any {
+            let t = total;
+            println!(
+                "fl4-sim:   local paths (run/tried): TCB_SetTimer {}/{} (disarm {}, re-arm {}); timer interrupts {}/{} (no-op {}, round-robin {}, fired: unbound {}, active {}, set active {}, woke Recv {}, woke Wait {}; from idle {}, switched {}); frame-cap invocations {}/{}; VM faults {}/{}, replies {}",
+                t.set_timer_ran,
+                t.set_timer_tried,
+                t.set_timer_disarm,
+                t.set_timer_rearm,
+                t.timer_irq_ran,
+                t.timer_irq_tried,
+                t.timer_irq_noop,
+                t.timer_irq_rr,
+                t.timer_irq_fire_unbound,
+                t.timer_irq_fire_active,
+                t.timer_irq_fire_set_active,
+                t.timer_irq_fire_wake_recv,
+                t.timer_irq_fire_wake_ntfn,
+                t.timer_irq_idle_wake,
+                t.timer_irq_switch,
+                t.inv_ran,
+                t.inv_tried,
+                t.vm_fault_ran,
+                t.vm_fault_tried,
+                t.vm_reply_ran
+            );
+        }
         failed
     }
 }
@@ -2921,6 +3679,13 @@ fn main() {
             c(20000, true, None, false, Some("guest"), quarter),
             c(20000, true, Some(3), false, Some("guest"), quarter),
             c(20000, false, None, true, Some("guest"), quarter),
+            // The kernel timer interrupt and TCB_SetTimer beside the gate
+            // (fl4_core::localtimer): checked against the general path, and on
+            // every core at once.
+            Campaign { diff: true, ..c(20000, false, None, false, Some("timer"), quarter) },
+            c(20000, true, None, false, Some("timer"), quarter),
+            c(20000, true, Some(3), false, Some("timer"), quarter),
+            c(20000, false, None, true, Some("timer"), quarter),
         ]
     } else {
         vec![Campaign { diff: args.iter().any(|a| a == "--fastpath-diff"), ..c(steps, conc, pct, tso, scenario.as_deref(), seeds) }]
@@ -3181,5 +3946,309 @@ mod tests {
         let (sim, r) = boot_with(230, &fake, 20);
         assert!(r.is_ok());
         assert_eq!(bi_word(&sim, 0), 20);
+    }
+
+    // ---- the timer local paths (fl4_core::localtimer) --------------------------
+
+    /// A new object of type `ty` in the first empty root CNode slot.
+    fn retype(sim: &mut Sim, ty: u64) -> u64 {
+        let (ut, dest) = (sim.first_untyped(), sim.first_empty());
+        sim.invoke(0, ut, label::UntypedRetype, &[ty, 0, rs::InitThreadCNode, 0, dest, 1], &[rs::InitThreadCNode]);
+        assert!(!sim.root_cnode_slot(dest).is_null(), "retype of type {ty}");
+        dest
+    }
+
+    fn now(sim: &Sim) -> u64 {
+        sim.a.m.lock().unwrap().now
+    }
+
+    /// Time passes on the machine by `ticks`.
+    fn wait(sim: &mut Sim, ticks: u64) {
+        sim.a.m.lock().unwrap().now += ticks;
+    }
+
+    /// The root task's `TCB_SetTimer(deadline, badge)` on the thread in
+    /// `slot`, through its local path first and checked against the general
+    /// path (`diff_syscall_with`): whether the local path ran.
+    fn local_set_timer(sim: &mut Sim, slot: u64, deadline: u64, badge: u64) -> bool {
+        sim.load_syscall(0, sc::SysCall, slot, (label::TCBSetTimer << 12) | 2, [deadline, badge, 0, 0]);
+        let ran = sim.diff_syscall_with(sc::SysCall, true);
+        assert_eq!(reply_label(sim), 0, "TCB_SetTimer failed");
+        ran
+    }
+
+    /// Core `cpu` takes its timer interrupt: through its local path first,
+    /// checked against the general path (`diff_timer_irq`); whether the
+    /// local path ran. Its end of interrupt is checked.
+    fn local_timer_irq(sim: &mut Sim, cpu: u64) -> bool {
+        sim.on(cpu);
+        sim.a.m.lock().unwrap().cores[cpu as usize].in_service = Some(irq::TIMER);
+        let ran = sim.diff_timer_irq(irq::TIMER);
+        assert_eq!(sim.a.m.lock().unwrap().cores[cpu as usize].in_service, None, "the timer interrupt was not acknowledged");
+        sim.after("timer interrupt");
+        ran
+    }
+
+    /// A thread (not started) whose SC is on core `core`, so it is that
+    /// core's (`migrate_tcb`): its root CNode slot.
+    fn thread_on(sim: &mut Sim, core: u64) -> u64 {
+        let t = retype(sim, ot::Tcb);
+        let dest = sim.first_empty();
+        let ut = sim.first_untyped();
+        sim.invoke(0, ut, label::UntypedRetype, &[ot::SchedContext, bits::MIN_SCHED_CONTEXT, rs::InitThreadCNode, 0, dest, 1], &[rs::InitThreadCNode]);
+        let ctrl = sim.sched_control(core);
+        sim.invoke(0, ctrl, label::SchedControlConfigureFlags, &[1000, 1000, 0, 0, 0], &[dest]);
+        sim.invoke(0, dest, label::SchedContextBind, &[], &[t]);
+        assert_eq!(tcb_of(sim, t).affinity(&sim.s), core);
+        t
+    }
+
+    fn tcb_of(sim: &Sim, slot: u64) -> Tcb {
+        Tcb(sim.root_cnode_slot(slot).ptr())
+    }
+
+    /// `TCB_SetTimer` beside the gate: arming, re-arming in this core's tree,
+    /// disarming; declined (and then run by the general path) for a deadline
+    /// already past and for a thread of another core.
+    #[test]
+    fn set_timer_runs_locally_on_this_cores_threads_only() {
+        let mut sim = booted(2);
+        let root = root_thread(&sim);
+        let t = now(&sim) + 500 * TICKS_PER_US;
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, t, 7));
+        assert_eq!((root.timer_deadline(&sim.s), root.timer_badge(&sim.s)), (t, 7));
+        assert_eq!(node_get(&sim.s, 0, node::TIMER_MIN), root.0);
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, t + 100, 8), "re-arming in this core's tree");
+        assert_eq!(root.timer_deadline(&sim.s), t + 100);
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, 0, 0), "disarming");
+        assert_eq!((root.timer_deadline(&sim.s), node_get(&sim.s, 0, node::TIMER_ROOT)), (0, 0));
+        // A deadline already past fires at once, in the general path.
+        assert!(!local_set_timer(&mut sim, rs::InitThreadTCB, 1, 9));
+        assert_eq!(root.timer_deadline(&sim.s), 0);
+        // Another core's thread, armed by the general path in this core's
+        // tree, whatever its affinity (timer::insert).
+        let other = thread_on(&mut sim, 1);
+        let ot_ = tcb_of(&sim, other);
+        assert!(!local_set_timer(&mut sim, other, t, 1));
+        assert_eq!((ot_.timer_deadline(&sim.s), ot_.timer_height(&sim.s) >> 8), (t, 0));
+        // This core's thread, disarmed or armed here.
+        let mine = thread_on(&mut sim, 0);
+        assert!(local_set_timer(&mut sim, mine, t + 5, 2));
+        assert!(local_set_timer(&mut sim, mine, t - 5, 3));
+        assert_eq!(node_get(&sim.s, 0, node::TIMER_MIN), tcb_of(&sim, mine).0);
+        sim.after("set timer");
+    }
+
+    /// The kernel timer interrupt beside the gate: nothing due, a timer of
+    /// a thread with no notification, signalling an idle notification
+    /// (made active) and an active one (badges ORed), a round-robin budget
+    /// run out, a waiter woken on an idle core; declined when a budget runs
+    /// out and a timer is due at once, and for a timer of another core's
+    /// thread in this core's tree.
+    #[test]
+    fn timer_interrupt_runs_locally_in_its_cases() {
+        use fl4_core::obj::{Ntfn, NTFN_ACTIVE};
+        let mut sim = booted(2);
+        let root = root_thread(&sim);
+        assert!(local_timer_irq(&mut sim, 0), "nothing due");
+        // A timer of a thread without a notification.
+        let d = now(&sim) + 50 * TICKS_PER_US;
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, d, 1));
+        wait(&mut sim, 60 * TICKS_PER_US);
+        assert!(local_timer_irq(&mut sim, 0), "an unbound timer");
+        assert_eq!(root.timer_deadline(&sim.s), 0);
+        // With a notification bound: idle, then active.
+        let n = retype(&mut sim, ot::Notification);
+        sim.invoke(0, rs::InitThreadTCB, label::TCBBindNotification, &[], &[n]);
+        let ntfn = Ntfn(sim.root_cnode_slot(n).ptr());
+        assert_eq!(root.bound_ntfn(&sim.s), ntfn.0);
+        for (badge, want) in [(1, 1), (6, 7)] {
+            let d = now(&sim) + 50 * TICKS_PER_US;
+            assert!(local_set_timer(&mut sim, rs::InitThreadTCB, d, badge));
+            wait(&mut sim, 60 * TICKS_PER_US);
+            assert!(local_timer_irq(&mut sim, 0), "signal with badge {badge}");
+            assert_eq!((ntfn.state(&sim.s), ntfn.badge(&sim.s)), (NTFN_ACTIVE, want));
+        }
+        sim.syscall(0, sc::SysNBWait, n, 0, [0; 4]);
+        // The root task's round-robin budget runs out.
+        let budget = fl4_core::sporadic::head(&sim.s, fl4_core::obj::Sc(root.sc(&sim.s))).amount;
+        assert_eq!(fl4_core::obj::Sc(root.sc(&sim.s)).period(&sim.s), 0, "the root task's SC is round-robin");
+        wait(&mut sim, budget + 1);
+        assert!(local_timer_irq(&mut sim, 0), "a round-robin budget run out");
+        assert_eq!(sched::cur_thread(&sim.s).0, root.0);
+        // Both at once: declined.
+        let d = now(&sim) + 50 * TICKS_PER_US;
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, d, 1));
+        let budget = fl4_core::sporadic::head(&sim.s, fl4_core::obj::Sc(root.sc(&sim.s))).amount;
+        wait(&mut sim, budget + 1);
+        assert!(!local_timer_irq(&mut sim, 0), "a budget and a timer at once");
+        assert_eq!(root.timer_deadline(&sim.s), 0, "the general path fired it");
+        sim.syscall(0, sc::SysNBWait, n, 0, [0; 4]);
+        // The root task waits for its timer; its core idles; the timer
+        // wakes it.
+        let d = now(&sim) + 50 * TICKS_PER_US;
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, d, 5));
+        sim.syscall(0, sc::SysWait, n, 0, [0; 4]);
+        assert_eq!(sched::cur_thread(&sim.s).0, sched::idle_thread(&sim.s).0, "the root task waits");
+        wait(&mut sim, 60 * TICKS_PER_US);
+        assert!(local_timer_irq(&mut sim, 0), "a waiter woken from idle");
+        assert_eq!(sched::cur_thread(&sim.s).0, root.0);
+        assert_eq!(root.reg(&sim.s, reg::BADGE), 5);
+        // A thread of core 1 armed in core 0's tree: core 0 does not fire
+        // it beside the gate.
+        let other = thread_on(&mut sim, 1);
+        let d = now(&sim) + 50 * TICKS_PER_US;
+        assert!(!local_set_timer(&mut sim, other, d, 1));
+        wait(&mut sim, 60 * TICKS_PER_US);
+        assert!(!local_timer_irq(&mut sim, 0), "another core's thread");
+        assert_eq!(tcb_of(&sim, other).timer_deadline(&sim.s), 0, "the general path fired it");
+    }
+
+    /// A timer wakes its thread from `Recv` on an endpoint (with its reply
+    /// object): `cancel_ipc`, under the locks of the notification, the
+    /// endpoint and the reply object.
+    #[test]
+    fn timer_interrupt_wakes_a_thread_in_recv() {
+        let mut sim = booted(2);
+        let root = root_thread(&sim);
+        let n = retype(&mut sim, ot::Notification);
+        let ep = retype(&mut sim, ot::Endpoint);
+        let r = retype(&mut sim, ot::Reply);
+        sim.invoke(0, rs::InitThreadTCB, label::TCBBindNotification, &[], &[n]);
+        let d = now(&sim) + 50 * TICKS_PER_US;
+        assert!(local_set_timer(&mut sim, rs::InitThreadTCB, d, 3));
+        root.set_reg(&mut sim.s, reg::REPLY, r);
+        sim.syscall(0, sc::SysRecv, ep, 0, [0; 4]);
+        assert_eq!(root.state(&sim.s), sched::TS_BLOCKED_ON_RECV);
+        assert_eq!(root.reply_obj(&sim.s), sim.root_cnode_slot(r).ptr());
+        wait(&mut sim, 60 * TICKS_PER_US);
+        assert!(local_timer_irq(&mut sim, 0));
+        assert_eq!((sched::cur_thread(&sim.s).0, root.state(&sim.s), root.reg(&sim.s, reg::BADGE)), (root.0, sched::TS_RUNNING, 3));
+        assert_eq!(fl4_core::obj::Reply(sim.root_cnode_slot(r).ptr()).tcb(&sim.s), 0, "the reply object is unlinked");
+        assert_eq!(sim.s.read(sim.root_cnode_slot(ep).ptr()), 0, "the endpoint's queue is empty");
+    }
+
+    /// Whether `footprint` lets a local path write the word at `a`.
+    fn allows(f: &[(u64, u64)], a: u64) -> bool {
+        f.iter().any(|&(s, n)| a >= s && a < s + n)
+    }
+
+    /// The footprint gives a thread's timer fields to the core that owns
+    /// them (`fl4_core::localtimer`'s Timer ownership): a thread of core 1 armed
+    /// in core 0's tree has its links written by core 0 only, and its
+    /// deadline and badge by neither (core 0 fires it only under the gate);
+    /// core 1 writes none of its timer fields, though the rest of the
+    /// thread is core 1's.
+    #[test]
+    fn footprint_gives_timer_fields_to_their_owner() {
+        let mut sim = booted(2);
+        let other = thread_on(&mut sim, 1);
+        let x = tcb_of(&sim, other);
+        let d = now(&sim) + 500 * TICKS_PER_US;
+        assert!(!local_set_timer(&mut sim, other, d, 1));
+        assert_eq!((x.timer_deadline(&sim.s), x.timer_height(&sim.s) >> 8), (d, 0), "armed in core 0's tree");
+        let (f0, f1) = (footprint(&sim.s, 2, 0, &[]), footprint(&sim.s, 2, 1, &[]));
+        for off in [tl::TIMER_LEFT, tl::TIMER_RIGHT, tl::TIMER_PARENT, tl::TIMER_HEIGHT] {
+            assert!(allows(&f0, x.0 + off), "core 0 owns the links of its tree's nodes");
+        }
+        for off in [tl::TIMER_DEADLINE, tl::TIMER_BADGE] {
+            assert!(!allows(&f0, x.0 + off), "core 0 writes another core's thread's deadline");
+        }
+        for off in [tl::TIMER_DEADLINE, tl::TIMER_BADGE, tl::TIMER_LEFT, tl::TIMER_RIGHT, tl::TIMER_PARENT, tl::TIMER_HEIGHT] {
+            assert!(!allows(&f1, x.0 + off), "core 1 writes a timer of core 0's tree");
+        }
+        assert!(allows(&f1, x.0 + tl::STATE) && !allows(&f0, x.0 + tl::STATE));
+        // Disarmed, the timer fields are its own core's again.
+        assert!(!local_set_timer(&mut sim, other, 0, 0));
+        assert!(allows(&footprint(&sim.s, 2, 1, &[]), x.0 + tl::TIMER_DEADLINE));
+    }
+
+    /// A thread of the core blocked on an endpoint or a notification has
+    /// its queue links in the footprint only with that object locked.
+    #[test]
+    fn footprint_gives_queue_links_to_the_locked_queue() {
+        for (ty, n, bytes) in [(ot::Endpoint, sc::SysWait, 16), (ot::Notification, sc::SysWait, 64)] {
+            let mut sim = booted(2);
+            let root = root_thread(&sim);
+            let o = retype(&mut sim, ty);
+            let ptr = sim.root_cnode_slot(o).ptr();
+            sim.syscall(0, n, o, 0, [0; 4]);
+            assert!(sched::is_blocked(&sim.s, root), "the root task waits on object type {ty}");
+            let f = footprint(&sim.s, 2, 0, &[]);
+            assert!(!allows(&f, root.0 + tl::EP_NEXT) && !allows(&f, root.0 + tl::EP_PREV), "queue links without the lock");
+            assert!(allows(&f, root.0 + tl::STATE));
+            let f = footprint(&sim.s, 2, 0, &[(ptr, bytes)]);
+            assert!(allows(&f, root.0 + tl::EP_NEXT) && allows(&f, root.0 + tl::EP_PREV), "queue links with the lock");
+        }
+    }
+
+    /// An end of interrupt must end the interrupt in service, once.
+    #[test]
+    #[should_panic(expected = "ended interrupt")]
+    fn a_second_end_of_interrupt_fails() {
+        let mut sim = booted(1);
+        sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+        sim.a.ack_irq(irq::TIMER);
+        sim.a.ack_irq(irq::TIMER);
+    }
+
+    #[test]
+    #[should_panic(expected = "ended interrupt")]
+    fn ending_another_interrupt_fails() {
+        let mut sim = booted(1);
+        sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+        sim.a.ack_irq(irq::RESCHEDULE_IPI);
+    }
+
+    /// `--fastpath-diff` compares the `Arch` effects in order: the same
+    /// calls in another order fail the check.
+    #[test]
+    fn the_fast_path_check_compares_arch_effects_in_order() {
+        let run = |general_first: bool| {
+            let mut sim = booted(1);
+            let m0 = sim.start_diff();
+            sim.s.mem.start_log();
+            sim.a.set_deadline(5);
+            sim.a.set_vspace(1, 2);
+            let fast_log = sim.s.mem.take_log();
+            sim.diff_general("effects", m0, fast_log, false, |_, a| {
+                if general_first {
+                    a.set_vspace(1, 2);
+                    a.set_deadline(5);
+                } else {
+                    a.set_deadline(5);
+                    a.set_vspace(1, 2);
+                }
+            });
+            assert_eq!(sim.a.m.lock().unwrap().effects, None, "the log stops after the check");
+        };
+        run(false);
+        assert!(std::panic::catch_unwind(move || run(true)).is_err(), "the effects in another order passed");
+    }
+
+    /// Clock reads are effects too: reading the clock before or after the
+    /// end of interrupt makes a different run.
+    #[test]
+    fn the_fast_path_check_orders_clock_reads() {
+        let run = |general_swapped: bool| {
+            let mut sim = booted(1);
+            sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+            let m0 = sim.start_diff();
+            sim.s.mem.start_log();
+            let _ = sim.a.now();
+            sim.a.ack_irq(irq::TIMER);
+            let fast_log = sim.s.mem.take_log();
+            sim.diff_general("clock", m0, fast_log, false, |_, a| {
+                if general_swapped {
+                    a.ack_irq(irq::TIMER);
+                    let _ = a.now();
+                } else {
+                    let _ = a.now();
+                    a.ack_irq(irq::TIMER);
+                }
+            });
+        };
+        run(false);
+        assert!(std::panic::catch_unwind(move || run(true)).is_err(), "a clock read in another order passed");
     }
 }

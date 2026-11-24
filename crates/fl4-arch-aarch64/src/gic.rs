@@ -1,6 +1,11 @@
 //! The GIC, version 2 or 3 as found at boot (ACPI MADT or the device
-//! tree). All interrupts share one priority; the kernel takes them one at
-//! a time with interrupts masked except in the idle loop. GICv3: every
+//! tree). All interrupts share one priority but two of each core's: its
+//! remote-call SGI, then its kernel timer, come before the rest (`PRIO`),
+//! and above `TIMER_PMR`, the mask under which the timer's local path
+//! acknowledges (`ack_timer_only`, fl4-kernel-aarch64 entry.rs): that
+//! acknowledge returns the timer or that SGI, never another interrupt.
+//! The kernel takes interrupts one at a time with interrupts masked except
+//! in the idle loop. GICv3: every
 //! interrupt is group 1. GICv2: group 0 where GICD_IGROUPR is writable (a
 //! GIC with one security state, or its Secure view), with
 //! GICC_CTLR.AckCtl set so GICC_IAR acknowledges any group 1 interrupt
@@ -11,7 +16,12 @@ use crate::{cpu, gic_layout, percpu};
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const SPURIOUS: u64 = 1023;
-const PRIO: u32 = 0xa0;
+use crate::gic_layout::{PMR_OPEN, PRIO, REMOTE_PRIO, TIMER_PMR, TIMER_PRIO};
+
+/// Every core started found its GIC to keep the priorities and the mask
+/// `ack_timer_only` relies on (`init_cpu`'s check). Cleared, for good, by
+/// the first core that does not: no core then acknowledges beside the gate.
+static TIMER_ONLY: AtomicBool = AtomicBool::new(true);
 
 static VERSION: AtomicU64 = AtomicU64::new(0);
 static GICD: AtomicU64 = AtomicU64::new(0);
@@ -356,7 +366,7 @@ pub fn init_cpu(gicr: u64) {
         if sre & 1 != 0 {
             GICV3_SRE.store(true, Ordering::Relaxed);
         }
-        msr_s("s3_0_c4_c6_0", 0xff);
+        msr_s("s3_0_c4_c6_0", PMR_OPEN as u64);
         msr_s("s3_0_c12_c12_3", 0);
         msr_s("s3_0_c12_c12_4", 0);
         msr_s("s3_0_c12_c12_7", 1);
@@ -377,7 +387,7 @@ pub fn init_cpu(gicr: u64) {
         // This interface's number: the banked targets of an SGI.
         percpu::set_gic_cpu(gic_layout::v2_interface(rd(d + GICD_ITARGETSR)));
         let c = GICC.load(Ordering::Relaxed);
-        wr(c + GICC_PMR, 0xff);
+        wr(c + GICC_PMR, PMR_OPEN);
         wr(c + GICC_BPR, 0);
         wr(c + GICC_CTLR, gic_layout::V2_GICC_CTLR);
         if cpu::has_el2() {
@@ -397,9 +407,105 @@ pub fn init_cpu(gicr: u64) {
     use fl4_core::layout::irq;
     let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
     let timer_id = crate::timer::timer_irq_id();
+    // GICv3: whether the priority registers and the priority mask store
+    // priorities alike (`gic_layout::v3_same_priority_view`): read back,
+    // a Non-secure shifted register and an unshifted mask look alike. The
+    // probe goes to the timer's priority, which is disabled until below.
+    let view_ok = version() != 3 || {
+        let ctlr: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_0_c12_c12_4", out(reg) ctlr) };
+        let pribits = (((ctlr >> 8) & 0x7) + 1) as u32;
+        // GICD_CTLR.DS, which reads as 0 in the Non-secure view of a GIC
+        // with two security states.
+        let ds = rd(gicd() + GICD_CTLR) & (1 << 6) != 0;
+        let probe = crate::gic_layout::v3_view_probe(pribits);
+        set_priority(bank, timer_id, probe);
+        let prio_probe = priority(bank, timer_id);
+        set_pmr(probe);
+        let pmr_probe = pmr();
+        set_pmr(PMR_OPEN);
+        crate::gic_layout::v3_same_priority_view(ds, pribits, prio_probe, pmr_probe)
+    };
+    set_priority(bank, irq::REMOTE_CALL_ID, REMOTE_PRIO);
+    set_priority(bank, timer_id, TIMER_PRIO);
+    // What the GIC (or the hypervisor's emulation of it) kept, as it reads
+    // back: the two priorities, one left at PRIO, and the mask. Read back
+    // in one view (`view_ok`), they compare as the GIC compares them.
+    let remote = priority(bank, irq::REMOTE_CALL_ID);
+    let timer = priority(bank, timer_id);
+    let other = priority(bank, irq::RESCHEDULE_ID);
+    set_pmr(TIMER_PMR);
+    let mask = pmr();
+    set_pmr(PMR_OPEN);
+    if !view_ok || !crate::gic_layout::timer_only_ok(remote, timer, mask, other) {
+        TIMER_ONLY.store(false, Ordering::Release);
+    }
     wr(bank + GICD_ISENABLER,
        (1 << timer_id) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
     cpu::dsb_sy();
+}
+
+/// The priority of banked interrupt `id` in `bank` (`set_priority`), as it
+/// reads back.
+fn priority(bank: u64, id: u64) -> u32 {
+    (rd(bank + GICD_IPRIORITYR + (id & !3)) >> ((id & 3) * 8)) & 0xff
+}
+
+/// Set this core's priority mask (ICC_PMR_EL1, GICC_PMR), effective for
+/// the acknowledge that follows.
+fn set_pmr(v: u32) {
+    if version() == 3 {
+        msr_s("s3_0_c4_c6_0", v as u64);
+        cpu::isb();
+    } else {
+        let c = GICC.load(Ordering::Relaxed);
+        wr(c + GICC_PMR, v);
+        let _ = rd(c + GICC_PMR);
+        cpu::dsb_sy();
+    }
+}
+
+/// This core's priority mask as it reads back.
+fn pmr() -> u32 {
+    if version() == 3 {
+        let v: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_0_c4_c6_0", out(reg) v) };
+        (v & 0xff) as u32
+    } else {
+        rd(GICC.load(Ordering::Relaxed) + GICC_PMR) & 0xff
+    }
+}
+
+/// Whether `ack_timer_only` may be used: every core's GIC checked out at
+/// `init_cpu`.
+pub fn can_ack_timer_only() -> bool {
+    TIMER_ONLY.load(Ordering::Acquire)
+}
+
+/// Acknowledge the highest pending interrupt above `TIMER_PMR`: the
+/// kernel timer or the remote-call SGI (`init_cpu`), or `SPURIOUS` if
+/// neither is pending (the timer may have stopped asserting since it was
+/// found pending). Every other interrupt stays pending, for the serial
+/// path to acknowledge under the gate (fl4-kernel-aarch64
+/// `take_irq_under_gate`), the mask being open again on return.
+pub fn ack_timer_only() -> u64 {
+    set_pmr(TIMER_PMR);
+    let raw = ack();
+    set_pmr(PMR_OPEN);
+    raw
+}
+
+/// Set the priority of banked interrupt `id` (an SGI or PPI) in `bank`,
+/// the redistributor's SGI frame or the distributor: a byte of a 32-bit
+/// GICD_IPRIORITYR, read, changed and written back (word accesses, which
+/// every GIC takes; a Non-secure view reads back what it stored shifted
+/// back, `gic_layout::readback_ns`, so a read, change and write keeps the
+/// other bytes).
+fn set_priority(bank: u64, id: u64, prio: u32) {
+    let at = bank + GICD_IPRIORITYR + (id & !3);
+    let shift = (id & 3) * 8;
+    let v = (rd(at) & !(0xff << shift)) | (prio << shift);
+    wr(at, v);
 }
 
 /// GICv3: whether the calling core can send SGIs to Aff0 16 and more

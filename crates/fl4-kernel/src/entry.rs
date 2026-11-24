@@ -486,7 +486,9 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
                     service_remote();
                 }
                 apic::ack_stray(v);
-                if irq {
+                if v == TIMER_VECTOR as u64 {
+                    timer_irq(v - VEC_IRQ_MIN, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
+                } else if irq {
                     run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
                 }
                 exit();
@@ -605,10 +607,30 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
         let error = f.error;
         let local = |s: &mut PhysStore, a: &mut PhysArch| fl4_sync::local_vm_fault(s, a, &Phys, cr2, error, |_, _| {});
         fl4_sync::run_vm_fault(&KernelEnv, &GATE, local, body);
+    } else if v == TIMER_VECTOR as u64 {
+        timer_irq(v - VEC_IRQ_MIN, body);
     } else {
         run_entry(irq, body);
     }
     exit()
+}
+
+/// The kernel timer interrupt `irq`, accepted from user code or the idle
+/// loop: its local path beside the serial gate, else `body` under it
+/// (`fl4_sync::run_timer_irq`). With the hardware debug API, a thread the
+/// local path switched to may hold a user trap that `exit` must deliver
+/// (`check_user_trap`): a stalled thread, back in a ready queue.
+#[inline(always)]
+fn timer_irq(irq: u64, body: impl FnMut(&mut PhysStore, &mut PhysArch)) {
+    let local = |s: &mut PhysStore, a: &mut PhysArch| {
+        let before = sched::cur_thread(s);
+        let ran = fl4_sync::local_timer_irq(s, a, &Phys, irq, |_, _| {});
+        if ran && fl4_abi::config::HARDWARE_DEBUG_API && sched::cur_thread(s) != before {
+            percpu::get().check_user_trap.set(true);
+        }
+        ran
+    };
+    fl4_sync::run_timer_irq(&KernelEnv, &GATE, local, body);
 }
 
 #[inline(always)]
