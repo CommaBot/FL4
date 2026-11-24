@@ -46,7 +46,9 @@ that the extracted `smp.migrate_tcb` sets the affinity
 the current thread's (`CurScCore.of`, and at the current core from P1's
 `EntryInv`: `EntryInv.cur_sc_core`).
 
-**Premises** (`OwnJ`, all [J]): (1), (2) and `CurScOf` at every kernel entry.
+**Premises** (`OwnJ`, all [J]): (1), (2), `CurScOf` and `curT` at every kernel
+entry (`P2/InvKeep.lean` discharges them for declined local entries and
+reduces accepted local paths to their footprint obligation).
 Their preservation by every kernel entry is not proved here (the P1 entry
 proofs carry no frame for `AFFINITY`/`CORE` to compose with). A further point
 for (1) and `CurScOf` at *other* cores: `remote_tcb_stall` runs `smp::stall`
@@ -99,7 +101,8 @@ def CurScCore (st : machine.Store S) [L : LawfulStore st] (Cs : Set U64) (s : S)
   ∀ c ∈ Cs, L.mem s (scCoreA (curSc st s c)) = c
 
 /-- **[J] The core-placement premises at a kernel entry** (or between
-entries): (2) `AffSc`, (1) `CurAff` and `CurScOf`. Why they hold (module
+entries): (2) `AffSc`, (1) `CurAff`, `CurScOf` and every core's current
+thread a TCB. Why they hold (module
 docstring): `AFFINITY` is written only by `migrate_tcb`, which every SC bind,
 donation and core change runs towards the SC's core; `schedule()`, which ends
 every serial entry, makes current only this core's threads (ready queues are
@@ -113,6 +116,8 @@ structure OwnJ (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (s :
   affSc : AffSc st T s
   curAff : CurAff st Cs s
   curScOf : CurScOf st Cs s
+  /-- Every core's current thread is a TCB (P1's `SchedQueuesInvX.curT`, at every core). -/
+  curT : ∀ c ∈ Cs, curTh st s c ∈ T
 
 /-! ## (3) from (1), (2) -/
 
@@ -122,8 +127,8 @@ theorem CurScCore.of {s : S} (hT : ∀ c ∈ Cs, curTh st s c ∈ T) (h2 : AffSc
   obtain ⟨h0, e⟩ := h3 c hc
   rw [e, h2 _ (hT c hc) h0, h1 c hc]
 
-theorem OwnJ.curScCore {s : S} (h : OwnJ st T Cs s) (hT : ∀ c ∈ Cs, curTh st s c ∈ T) : CurScCore st Cs s :=
-  CurScCore.of hT h.affSc h.curAff h.curScOf
+theorem OwnJ.curScCore {s : S} (h : OwnJ st T Cs s) : CurScCore st Cs s :=
+  CurScCore.of h.curT h.affSc h.curAff h.curScOf
 
 /-- **(3)** at the current core from P1's `EntryInv`, given (2) and (1) there,
 when the current thread has an SC. -/
