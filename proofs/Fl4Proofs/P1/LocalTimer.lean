@@ -450,7 +450,6 @@ theorem set_timer_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : 
   · rw [if_pos cn] at h; simp at h
   rw [if_neg cn] at h
   have hn : n = fl4_abi.syscall.SysCall := by simp only [bne_iff_ne, ne_eq, not_not] at cn; exact cn
-  subst hn
   obtain ⟨i, -, h⟩ := bind_eq_ok h
   by_cases c1 : (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS != 0#u64) = true
   · rw [if_pos c1] at h; simp at h
@@ -706,6 +705,7 @@ theorem set_timer_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : 
     rw [earg1]; simp only [bind_ok]
     rw [erc]; simp only [bind_ok]
     rw [es4]; simp only [bind_ok]
+  rw [hn]
   unfold syscall.handle_syscall syscall.syscall
   rw [et]; simp only [bind_ok]
   rw [enx]; simp only [lift, bind_ok]
