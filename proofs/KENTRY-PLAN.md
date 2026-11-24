@@ -19676,3 +19676,13 @@ None (no Lean change).
   (from `JAtZ.bufOK`), `JAtZ.bufU_outside : b ∈ BufU Z σ → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b`
   (from `JAtZ.bufU_out`), and `JAtZ.bufFact_of_footDBU` (the buffer fact at any state `s'` with
   `WritesIn s s' (KWB ∨ DbgW ∨ BufU Z σ)` from `J` at `s`: every state inside the fire loop / `schedule`).
+- **Builds** (afkprover, mirror FL4-a6f, keys `a6f-b1..b10`): unstubbed `MODE=mod MODS="Fl4Proofs.P1.IbKeepHolds
+  Fl4Proofs.P1.QueueTimerR Fl4Proofs.P1.QueueFoot"` → 0 errors, 0 sorry (`a6f-b10`; this covers QueueFoot, QueueFinal,
+  QueueFootD, QueueFootS and the core's QueueSignal/QueueFire at int/j6 24b24b04). `#print axioms` of `ibKeep_holds`,
+  `send_signal.tinvFK`, `send_signal.ibFr`, `BufKeep.of_blkDBU`, `BufFact.keep`, `FootB.of_foot`, `TF.footB`,
+  `donate.kwCB`: propext / Classical.choice / Quot.sound. With an untracked stub (`a6fscratch.py`, SCRS) of int/j6
+  24b24b04's own failing proofs (EntryFin `sigXG_holds` — `hU.bufW` does not exist; MachKeep/MachKeepF
+  `notification_send_signal`; SchedIdx `sched.schedule.sfi`; ScSchTailP1 `jat_scheduleT2`; QueueDecVcpu
+  `vcpu.decode.msr`), `FastFaultInv`, `LocalInv` (the `ibA`/`sbA` move) and **`QueueEntryGaps4` (which uses
+  `ibKeep_holds hA`)** build (`a6f-b8`). **`P3/BufKeepJ` is not yet checked**: it sits downstream of further int/j6 P3
+  breakage (ScFireJ 611–633, `fireJ` against the new `fire`/`schedule` statements), the core line's P3 work.
