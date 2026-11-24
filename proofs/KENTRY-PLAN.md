@@ -17918,7 +17918,7 @@ Stage 6: the vsReach consumers (C24 drop premise `JAtZ.vsReachMiss` etc.) read i
 states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top statements unchanged), then the
 `[J]` premise it replaces is dropped from the next top.
 
-## f6 (branch par/f6 from f7a4e47f = int/j4 = PR #66 head, top of record `kernel_entry_reachU28`) — F1 stage 6 (discharge C17 / C23 `vsReach` via `JCarry.vsNamed`) STOPPED at the design check: **`Z.vx = ∅` cannot be pinned at `JReachU17` states in place**; lead decision needed; no Lean change, no build slot used, no new top, no FINDING of a false premise
+## f6 (branch par/f6 from f7a4e47f = int/j4 = PR #66 head, top of record `kernel_entry_reachU28`) — F1 stage 6: first STOPPED at the design check ((1)–(5): `Z.vx = ∅` cannot be pinned in place without growing the VT-x [scope] premises' `JAt`); lead chose option (a); **DONE in (6): `JAt` carries `VxE Z`, new top `kernel_entry_reachU29` = U28 without C17 / C23; full build green; no [J] / [W] premise left**
 
 ### (1) What the discharge needs
 `JAtZ.vsReachAsidC` / `JAtZ.vsReachMissR` (VsNamedJ) give C17 (`JAsidCPathU28.vsReach`) and C23
@@ -17999,5 +17999,17 @@ None (no Lean change).
   premises `∀ Z' …, JAtZ Z' … → KDispHyps…` take `[VxE Z'] →` (their lambdas get it by implicit lambda).
 - **Build state (afkprover mirror FL4-f6, full builds f6-b1…b27, each a fix round)**: b21 reached 7391/7395;
   b27 (commit 134cf2e7) stopped at XTopJointKEntryFF (E5/UH2: fixed in 21fab969) and U2's V-twin obtain (fixed).
-  The station then hit its pids limit (coordinator: container restart pending; rerun with SEED=A, cold).
-  Next: full build of the current par/f6 head; then `AX=axf6.lean`.
+  The station then hit its pids limit and was restarted (mirror cold).
+- **f6-b28 (cold, SEED=A, commit 7aaf04df's tree): `Build completed successfully (7395 jobs)`, ERRORS 0, SORRY 0.**
+  f6-ax1 (`AX=axf6.lean`, proofs/axf6.lean, untracked): `kernel_entry_reachU29`, `U28`, `U28V`, `U27`, `U21`, `U2`,
+  `UH2`, `kernel_entry_reachE5`, `KDispHypsKVU29.toU28`, `JAtZ.vsNamedE`, `JAtZ.vsReachMissR`, `JAtZ.vsReachAsidC`:
+  all `[propext, Classical.choice, Quot.sound]`.
+- No `maxHeartbeats` above 8000000 added (the V-twins copy their originals' 8000000); no sorry / admit / axiom /
+  native_decide / bv_decide.
+- **Premises of U29**: [J] none, [W] none (C17 / C23 were the last [J]; U28's [P] / [scope] premises unchanged).
+- **Internal statement changes** (meaning changes in place, no top text changed): `JAt` (+`VxE Z`), so `RJ`, `RJM`,
+  `JAtM`, `JAtPre*` and `JReachU17` / every `JReach*` (start takes `VxE Z`: VsNamed at boot) and, through `JAt`, the
+  VT-x [scope] premises' outcome obligation (as decided); `JAtS`, `RJR`, `JAtR`, `JAtL`, `JAtZLB`, `JAtD`,
+  `JAtPreMVL`, `JHoleAtT`, `DispPostR`, jreach_inv* conclusions (+`VxE`); new `JHoleAtV`; hypothesis defs
+  `JReplyHyp`, `RunTmoP`, `UtBodyHyp`, `JMidLeavesHyp*`, `JDelHypLM(L)` and the internal `kernel_entryJ*` dispatch
+  premises (+`[VxE Z]`); ~600 lemma signatures (+ instance binder).
