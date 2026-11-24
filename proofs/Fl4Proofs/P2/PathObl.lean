@@ -64,11 +64,14 @@ Arch calls are not memory and are outside the model (`Serial.lean`, Scope).
 
 ## The bridge (proved in `P2/PathBridge.lean`)
 
-* `IsProg f p` [P]: the extracted body is the tree `p : SProg` of its
+* `IsProg f p` [P], one schema premise for all bodies (stated and justified
+  once in `PathBridge.lean`): the extracted body is the tree `p : SProg` of its
   Store-trait calls (`interp st p = f st` for every store instance). True by
   construction for a function generic over `Store` (Rust generics, and Aeneas
   threads the state only through the trait methods); not provable inside Lean
   in general (it is a free theorem).
+* The store state type is `S : Type` (every store the kernel and the proofs
+  instantiate is).
 * From `IsProg f p` and `PathObl.access`: the projection (the guarded run is the
   real run) and `PathWithin`: every access of the sequential run of `p` lies in
   `ReadSet` / `WriteSet`, which with `read_own` / `write_own` / `move` is
@@ -87,7 +90,7 @@ open Fl4Proofs.P2.Serial (Owner)
 noncomputable section
 open Classical
 
-variable {S : Type _}
+variable {S : Type}
 
 /-- Word `b` lies in `[a, a + n)`. -/
 def InRange (a n b : U64) : Prop := a.val ≤ b.val ∧ b.val < a.val + n.val
@@ -190,7 +193,7 @@ the fl4-sync glue holds and the global ownership map `own`; the core is
 * `read_own` / `write_own`: those sets lie in what the core and its locks
   own (reads: or the gate);
 * `move`: the run moves owners only between owners the path holds. -/
-structure PathObl {A X : Type _} (st : machine.Store S) [L : LawfulStore st]
+structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     (f : machine.Store S → S → A → Result (X × S × A))
     (own : (U64 → U64) → U64 → Owner U64 U64) (Locks : S → U64 → Prop) (Pre : S → Prop)
     (ReadSet WriteSet : S → U64 → Prop) : Prop where
