@@ -326,7 +326,9 @@ theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
         step as ⟨done2, hd2⟩
         try simp only [WP.spec_ok]
         try dsimp only
-        refine ⟨⟨⟨τ1, hM1, by omega, ?_⟩, hmr1⟩, by omega⟩
+        first
+          | refine ⟨⟨⟨τ1, hM1, by omega, ?_⟩, hmr1⟩, by omega⟩
+          | refine ⟨⟨τ1, hM1, by omega, ?_⟩, hmr1, by omega⟩
         intro y hy
         apply hpre
         rw [hbe] at hy ⊢
