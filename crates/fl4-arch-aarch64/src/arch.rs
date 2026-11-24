@@ -117,7 +117,10 @@ impl Arch for PhysArch {
         crate::mmu::switch(root, asid)
     }
     // Until the broadcast invalidation completes another core may still use
-    // the old translation; the entry holds the serial gate meanwhile.
+    // the old translation; the entry holds the serial gate meanwhile, or, a
+    // local path's unmap or remap (`fl4_core::localinv`), the lock on the
+    // page-table entry. It writes no kernel state, so it may run beside
+    // the gate.
     fn invalidate_page(&mut self, asid: u64, vaddr: u64) {
         crate::mmu::invalidate_page(asid, vaddr);
     }
@@ -237,6 +240,7 @@ impl Arch for PhysArch {
     fn set_high_vspace(&mut self, root: u64, ttbr0_asid: u64) {
         crate::mmu::switch_high(root, ttbr0_asid)
     }
+    // As `invalidate_page`, for every ASID (a local path's unmap too).
     fn invalidate_high_page(&mut self, vaddr: u64) {
         crate::mmu::invalidate_high_page(vaddr)
     }
