@@ -754,7 +754,8 @@ theorem no_overlap {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
   obtain ⟨H, I⟩ := greach_inv h0 h
   exact I.clo
 
-/-- **Every execution is a serial one** (DESIGN §9, P2 (3)): in every reachable
+/-- **Every execution is a serial one** (DESIGN §9, P2 (3); speculative reads
+in the serial order may return any value, see `serializable_reach`): in every reachable
 state, running the completed entries one after another (serial entries in the
 order they ran under the gate, local paths in the order they finished) from
 the initial memory can give a memory `H` that the current memory equals on
@@ -781,7 +782,18 @@ theorem reach_greach {s0 s : Cfg A V C L} (hfp : FootprintOK s0) (h : Reach s0 s
   | step _ hs ih => exact .step ih (hfp _ ih _) hs
 
 /-- `serializable_quiescent` for every execution, under the footprint premise
-`FootprintOK` [W]. -/
+`FootprintOK` [W].
+
+**What "serial" means here.** `RunAll` runs each entry by `Run`, its
+sequential meaning, in which a speculative read (`Prog.rds`, a local path's
+read of a word it does not hold: an unlocked CSpace walk, a plan read before
+its locks) may return *any* value, not the value memory held at that point of
+the serial order. So this theorem alone says: memory is what running the
+entries one after another produces, for *some* values of their speculative
+reads. That such a run is one of the entry's real serial runs (it declines,
+writing only what the general path repeats, or does what the general path
+does) is the per-path refinement obligation (P2 obligation (2), stated in
+`PathObl.lean`), which must hold for every value of those reads. -/
 theorem serializable_reach {s0 s : Cfg A V C L} (h0 : Init s0) (hfp : FootprintOK s0)
     (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem :=
   serializable_quiescent h0 (reach_greach hfp h) hq
