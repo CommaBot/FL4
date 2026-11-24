@@ -5,7 +5,7 @@ P1's transfer footprint `XferW` (`P1/QueueXferFoot.lean`) admits every word
 of every SC (`InSC`). The real transfer writes exactly one kind of SC word:
 a timeout-fault message resets the faulting SC's `CONSUMED`
 (`schedcontext.update_consumed`). This module re-runs P1's `XSF` steps with
-the narrower footprint `XferWC` (SC words replaced by `CONSUMED` words, `ConsW`)
+the narrower footprint `XferWC` (SC words replaced by `CONSUMED` words, `XferConsW`)
 and proves `xferFootOKC_of`: `XferFootOKC` (P1's `XferFootOK` with `XferWC`)
 from the same `XferHyps`/`XferKG` as P1's `xferFootOK_of`. The lemma bodies
 are P1's, over `XSFC` (`XSF` with `XferWC`); P1's statements are unchanged.
@@ -18,11 +18,11 @@ namespace Fl4Proofs.P1
 open fl4_core Fl4Proofs.P0.Consts
 
 /-- The SCs' `CONSUMED` words. -/
-def ConsW (Scs : Set U64) (b : U64) : Prop := ∃ c ∈ Scs, b = core.num.U64.wrapping_add c layout.sc.CONSUMED
+def XferConsW (Scs : Set U64) (b : U64) : Prop := ∃ c ∈ Scs, b = core.num.U64.wrapping_add c layout.sc.CONSUMED
 
 /-- `XferW` with only `CONSUMED` among SC words. -/
 def XferWC (T U Ω Sg Scs : Set U64) (k b : U64) : Prop :=
-  XferFoot T U b ∨ (CapW T Ω Sg b ∧ KG k b) ∨ ConsW Scs b
+  XferFoot T U b ∨ (CapW T Ω Sg b ∧ KG k b) ∨ XferConsW Scs b
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
@@ -34,7 +34,7 @@ def XSFC (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : He
     (R : U64 → List U64) (s0 s : S) : Prop :=
   XI st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s ∧
     (XferFr st T Rp s0 s ∧ WritesIn st s0 s (XferWC T U Ω Sg Scs (L.ksb s0)) ∧ RS s0 s ∧
-      ∀ s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (fun b => XferRegW T U b ∨ ConsW Scs b) →
+      ∀ s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (fun b => XferRegW T U b ∨ XferConsW Scs b) →
         RS s0 s2)
 
 variable {U X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {RS : S → S → Prop} {P3Ok : S → Prop}
@@ -88,7 +88,7 @@ theorem XSFC.consumed {s0 s : S} {c v : U64} (h : XSFC st T Cs Ω H Sg Rp Scs Nt
     XSFC st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 (L.wr s (core.num.U64.wrapping_add c layout.sc.CONSUMED) v) := by
   have h' := XS.consumed (v := v) h.xs hc
   have hal := (consW_in h.1.2.2.1.1 hc).1
-  have hin : ConsW Scs (core.num.U64.wrapping_add c layout.sc.CONSUMED) := ⟨c, hc, rfl⟩
+  have hin : XferConsW Scs (core.num.U64.wrapping_add c layout.sc.CONSUMED) := ⟨c, hc, rfl⟩
   exact ⟨h'.1, h'.2.1, (h.2.2.1.trans (writesIn_wr (v := v) hal)).mono (fun b hb =>
     hb.elim id fun e => Or.inr (Or.inr (e ▸ hin))),
     h.2.2.2.2 _ _ h.rs ((writesIn_wr (v := v) hal).mono fun b e => Or.inr (e ▸ hin)), h.2.2.2.2⟩
