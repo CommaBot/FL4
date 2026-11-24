@@ -19271,3 +19271,8 @@ None (no Lean change).
   own inputs (`curThread ≠ idle`, `NativeSys n c`, the flag fact, the `KDispHypsKVU29` / `JDecMRLK` / `KFinAtR13`
   families), `handle_ioport_local s a n ⦃ r => r.1 = true → ⟨U29's syscall postcondition at (r.2.1, r.2.2)⟩ ⦄`.
   Premises added vs U29: none; inputs added: none (`BXI` is `J.bxi`).
+- **Builds (afkprover, mirror FL4-lci, SEED=FL4-int5):** lci-m1 one Lean error (bullet structure of the number split,
+  fixed with `on_goal`); lci-m2 `FastIoLocal` + `XTopJointKEntryU29I` green (commit 67cd19f4); lci-full1 FULL build
+  `AX=axlci.lean` (untracked): "Build completed successfully (7477 jobs)", ERRORS 0, SORRY 0;
+  `kernel_entry_reachU29I`, `kernel_entry_reachU29`, `ioport_local_triple`, `ioport_local_same`, `syscall_inv_same`,
+  `prefix_cur_keep`: [propext, Classical.choice, Quot.sound].
