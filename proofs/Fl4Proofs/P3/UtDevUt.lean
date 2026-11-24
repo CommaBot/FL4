@@ -596,7 +596,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF'⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF', inferInstance⟩
 
 
 set_option maxHeartbeats 4000000 in

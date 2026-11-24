@@ -62,7 +62,7 @@ theorem JAtZ.rgClear_drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl 
 
 set_option maxHeartbeats 16000000 in
 /-- **FL4's `reset_untyped` at `J`** (module docstring). -/
-theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hc0 : Z.c = 0#u64) (hR0 : PPR0 σ)
     (hres : σ.schedulerAction ≠ .chooseNewThread)

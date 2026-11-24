@@ -1189,7 +1189,7 @@ def RunTmoP (AR : A → Fl4Spec.Cr3 → Prop) (Z0 : XSets) (EC : Fl4Spec.Endpoin
 /-- `RunTmoP` for an idle or sending handler endpoint: XTopJointSendBlockG's
 `JAtZ.runTmoJ`. -/
 theorem runTmoP_idle (Z0 : XSets) : RunTmoP (L := L) arI AR Z0 (Endp.CanBlock false) :=
-  fun _ _ _ _ _ _ _ _ _ _ J _ _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hth hcb ts hrun hts v hv hB =>
+  fun _ _ _ _ _ _ _ _ _ _ J _ _ _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hth hcb ts hrun hts v hv hB =>
     WP.spec_mono (J.runTmoJ ht htD hk hrs htc hsc hxsc hky hya hth hcb ts hrun hts v hv hB) fun _ ⟨h1, h2, h3⟩ =>
       ⟨h1, h2, fun b => WP.spec_mono (h3 b) fun _ ⟨z, hz, _, _, J'⟩ => ⟨z, hz, _, _, _, _, _, _, J', inferInstance⟩⟩
 
