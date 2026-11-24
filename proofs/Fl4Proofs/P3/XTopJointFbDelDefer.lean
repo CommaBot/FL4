@@ -39,18 +39,19 @@ theorem vsSFr_defer {τ τu : State Unit} {pc : ObjRef} {r : Nat} {cs : CnodeCon
       rfl, rfl, rfl, rfl⟩
     · by_cases e : o = pc
       · subst e
-        exact Or.inr (Or.inr (Or.inl ⟨r, cs, _, hkc, by simp [setCnodeSlot]⟩))
+        exact Or.inr (Or.inr (Or.inl ⟨r, cs, Function.update cs idx (some nc), hkc, by simp [setCnodeSlot]⟩))
       · exact Or.inl (by simp [setCnodeSlot, e])
     · by_cases e : o = pc
       · subst e; simp [setCnodeSlot, hkc, aType, hwf, hwf']
       · simp [setCnodeSlot, e]
   · have hpq : pc ≠ q := fun e => by subst e; simp [Notif.updK] at hkc
-    have hkc0 : τ.kheap pc = some (.cnode r cs) := by simpa [Notif.updK, hpq] using hkc
+    have hkc0 : τ.kheap pc = some (.cnode r cs) := by
+      rw [Notif.updK_kheap, Function.update_of_ne hpq] at hkc; exact hkc
     refine ⟨fun o => ?_, fun o => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
     · by_cases e : o = pc
       · subst e
-        exact Or.inr (Or.inr (Or.inl ⟨r, cs, _, hkc0, by simp [setCnodeSlot]⟩))
+        exact Or.inr (Or.inr (Or.inl ⟨r, cs, Function.update cs idx (some nc), hkc0, by simp [setCnodeSlot]⟩))
       · by_cases e2 : o = q
         · subst e2
           exact Or.inr (Or.inl ⟨ao, ao', hq, by simp [setCnodeSlot, Notif.updK, e], ht⟩)
@@ -80,7 +81,8 @@ theorem capPage_defer {τ τu : State Unit} {pc : ObjRef} {r : Nat} {cs : CnodeC
   rcases hshape with rfl | ⟨q, ao, ao', hq, -, -, rfl⟩
   · exact Vs.capPage_set hkc hwf hidx nc hnc (fun _ _ => rfl)
   · have hpq : pc ≠ q := fun e => by subst e; simp [Notif.updK] at hkc
-    have hkc0 : τ.kheap pc = some (.cnode r cs) := by simpa [Notif.updK, hpq] using hkc
+    have hkc0 : τ.kheap pc = some (.cnode r cs) := by
+      rw [Notif.updK_kheap, Function.update_of_ne hpq] at hkc; exact hkc
     refine Vs.capPage_set hkc0 hwf hidx nc hnc (fun o cref => ?_)
     by_cases e : o = pc
     · subst e; simp [setCnodeSlot, Notif.updK]
@@ -143,6 +145,7 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
     ⟨⟨hS, P1.WritesIn.refl _ _⟩, hSt, hSV, hR, hPt⟩ sz root va p hr1 hvu
   rw [hu, WP.spec_ok] at h1
   obtain ⟨τu, hmu, hshape, ⟨hSu, hStu, hSVu, hRu, hPtu⟩, hksu, hKu, hWu⟩ := h1
+  dsimp only at hmu hSu hStu hSVu hRu hPtu hksu hWu
   -- the cleared cap's `set_cap`
   obtain ⟨cs, hkc, hwf, -⟩ := hSt.cnode pc _ hpc
   have hkcu : τu.kheap pc.bv = some (.cnode idx.length cs) := by
@@ -177,7 +180,7 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
   have hx0 : cslotAddr (pc.bv, idx) = slotOf pc (blVal 0 idx) := slotAddr_ofBl pc idx
   have hks5 : L.ksb s' = L.ksb sU := by rw [hs5]; simp
   have hks' : L.ksb s' = L.ksb s := hks5.trans hksu
-  have hWs : WritesIn st sU s' (SlotW Z.th) := by
+  have hWs : P1.WritesIn st sU s' (SlotW Z.th) := by
     refine ⟨by rw [hs5]; simp, by rw [hs5]; simp, fun b hb hn => ?_⟩
     obtain ⟨h1, h2⟩ := ne_slot_words hS.2.pl hxs hn
     exact hfr5 b hb (by rw [hx0]; exact h1) (by rw [hx0]; exact h2)
@@ -193,7 +196,7 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
       have : q.bv ≠ pc.bv := kheap_ne hg hkcu (fun _ h1 h2 => by subst h1; cases h2)
       simp [hσ', setCnodeSlot, this]
     rw [hks5]; rw [hksu] at hRu ⊢
-    exact hRu.frame (by rw [← hksu]; exact hfrV) rfl hpools
+    exact hRu.frame hfrV rfl hpools
   have hPt' : PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') σ' := by
     refine hPtu.frame (fun b hb => ?_) (fun q hq => ?_)
     · obtain ⟨h1, h2⟩ := ne_slot_words hS.2.pl hxs (hS.2.ps b hb)
@@ -206,7 +209,10 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
     (SlotFoot.of_writes hS.2.pl hWu (fun b hb => hS.2.po b hb) _).trans hF5
   have hLk : VsLike (capV (L.mem s') (cslotAddr (pc.bv, idx))) c := by
     rw [hcv5]
-    exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => ⟨fun e => by cases e, h.2.1, fun e => by cases e⟩⟩
+    refine ⟨⟨rfl, rfl, rfl, rfl⟩, fun P L4 L3 L2 L1 h => ?_⟩
+    rw [hcf] at h
+    simp only [VCapOK] at h ⊢
+    exact ⟨fun e => absurd e (by decide), h.2.1, fun e => absurd e (by decide)⟩
   have hnu0 : isUt c = false := rfl
   obtain ⟨hCR', hFI', hMO'⟩ := crelM_after hCR hFI hMO hc hSt' hSV' hSF hLk hK hnu0
   obtain ⟨hTS', hW0⟩ := id hSRq
@@ -295,17 +301,6 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
     by_cases e : y = cslotAddr (pc.bv, idx)
     · rw [e, hcv0]; exact LSim.of_shape hLk.1.1
     · rw [hcap y hy e]; exact LSim.rfl' _
-  have h0 : ∃ a0, capOpt (τ.kheap pc.bv) idx = some a0 ∧ IsPageCap a0 := by
-    obtain ⟨cS, aS, hcS, hcaS, hgS⟩ := hSt.slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl
-      (by simpa [hidx] using hpc)
-  have J' := J.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv0]; exact hLk.1.1) (by rw [hcv0]; exact hLk.1.2.1)
-    (by rw [hcv0]; exact hnu0) (by rw [hcv0]; exact hLk.1.2.2.2)
-    (fun y hy => ⟨(hSF y hy).1, (hSF y hy).2.1⟩) hvc
-  have hsim : ∀ y, IsSlot Z.th y → LSim (capV (L.mem s') y) (capV (L.mem s) y) := by
-    intro y hy
-    by_cases e : y = cslotAddr (pc.bv, idx)
-    · rw [e, hcv0]; exact LSim.of_shape hLk.1.1
-    · rw [hcap y hy e]; exact LSim.rfl' _
   have h0 : ∃ a0, capOpt (τ.kheap pc.bv) idx = some a0 ∧ IsPageCap a0 :=
     ⟨aS, (getCap_set_iff τ pc.bv idx aS).1 (congrArg Prod.fst hgS), by rw [hcaS.abs]; trivial⟩
   -- the liveness facts
@@ -319,7 +314,7 @@ theorem JAtZ.fbDeferStepJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap}
   have hCSK : CnSlotsKept (L := L) Z.th s s' := by
     intro y hy p' r' gs' g' hy'
     by_cases e : y = cslotAddr (pc.bv, idx)
-    · rw [e, hcv0] at hy'; cases hy'
+    · rw [e, hcv0, hcf] at hy'; cases hy'
     · rw [hcap y hy e]; exact hy'
   have hum : σ'.machineState.underlyingMemory = τ.machineState.underlyingMemory := by
     rcases hshape with e | ⟨q, ao, ao', -, -, -, e⟩ <;> rw [hσ', e] <;> rfl
@@ -363,11 +358,10 @@ theorem JAtZ.fbDelDeferJ [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap} 
   rintro ⟨r0, s2, a2⟩ ⟨hr0, τ1, G', V', Ac', Lst', D', hd, J2, hLv2, hns2, hsg2, hp02, hks2, hCK2⟩
   obtain ⟨c9, a9, hc9, hca9, hg9⟩ := (J1.xtop.rel.2.1.1).slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl hpc
   rw [hc1] at hc9; cases eq_of_ok_eq hc9
-  have hcap9 : SInvU.capAt τs (pc.bv, idx) = some (.archObjectCap (.pageCap false p.bv (vmRightsOf rt) .vmNoMap
-      (frameSizeOf sz) none)) := by
-    rw [SInvG.sg_capAt]
-    rw [← hca9.abs]
-    exact (getCap_set_iff τs pc.bv idx _).1 (congrArg Prod.fst hg9)
+  have hac9 : a9 = absCap (.Frame p sz rt false false false 0#u64 0#u64) := hca9.abs
+  subst hac9
+  have hcap9 := (SInvU.getCap_capAt (show (absCap (.Frame p sz rt false false false 0#u64 0#u64), τs) ∈
+    (Fl4Spec.getCap (Z := Unit) (pc.bv, idx) τs).1 by rw [hg9]; exact Set.mem_singleton _)).2
   obtain ⟨hK2, hum2⟩ := fbKeep_capDelete_frame hcap9 hd
   exact ⟨hr0, τu, τs, τ1, G', V', Ac', Lst', D', hmu, hms, hd, J2, hLv2, hns2, hsg2, hp02, hks2.trans hks1,
     hK1.trans hK2, hum2.trans hum1, hCK1.trans hCK2⟩
