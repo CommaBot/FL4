@@ -43,82 +43,19 @@ Premises (all named, nothing else):
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
 
 `Deciders` (and `DecidersOK`) and `MoveLocal` are not needed here; they are kept for the
-`BodyOK` bridge, which compares owners across memories differing on words the
+`BodyOK` bridge (`SafeCert`), which compares owners across memories differing on words the
 core does not hold.
 
-## Remaining plan: discharging `BodyOK` (handoff; not yet written)
+## Discharging `BodyOK`
 
-Decided findings for the translation: reads aligned and `ReadSet` /
-class-tracked words aligned, `Pre` and the sets independent of user words (a
-separate per-path structure `PathSide` beside `PathObl`); `zero` /
-`clear_free` excluded syntactically from the local paths' trees (with
-`PathObl.aligned` over every byte of a range they could only clear one byte);
-totality from P0's `<fn>.p0`. Step 4's per-write check: a write's `MoveV` is
+Done from the per-path obligations in `P2/SafeCert.lean` (certificates for
+`Prog`) and `P2/E2E.lean` (the translation, the certificates from `PathObl`, the
+top theorems). Why the write check needs `MoveLocal`: a write's `MoveV` is
 needed at the reached memory, where a word the path already read racily may
 since have been changed by another core, while `dec_alt` certifies it in the
-alternative state holding the read values; the two differ only on words the
-core may not read (non-`PO`) in the reached memory. `Deciders` alone does
-**not** carry the check across (`P2/MoveGap.lean`: two racy words, read at
-different times, decide together in the alternative an owner no real memory
-shows; the real write is not `Allowed`). With `MoveLocal` (the owners a
-write moves are decided by words of the writer's owner and the gate's; proved
-for `OwnMap.own`, `OwnMap.moveLocal`) it does: `moveV_transfer`.
-
-**Status (p2e2).** Step 4 is proved at the level of `Prog` in `P2/SafeCert.lean`:
-`safe_of_acc` (the run reading the real memory passes with no racy read) and
-`safe_of_dec` (the run reading every memory `Adm`issible for the real one —
-equal where the core may read, same class on class-tracked words — passes,
-each racy word read once), both from `Deciders` + `MoveLocal`, through the
-invariant that the core's readable words keep their owners up to held moves
-and unreadable ones stay unreadable (`freach_po`, `write_po`). Step 1 can be
-dropped: the translation can evaluate Arch calls on the actual instance and
-Arch state at entry (their results do not depend on memory, and `PathObl` is
-for every instance and Arch value), so no choice node or oracle is needed.
-Remaining: the translation `tr` and the two certificates from `PathObl` (the
-declined one by realizing, for each admissible `ν`, an alternative entry state
-with the finitely many racy words of the `ν`-run written by `LawfulStore.wr`),
-user words (see step 5), the glue's `start` premise, and the top theorems.
-
-Goal: `BodyOK` from, per local path, `PathObl` v3 (`PathObl.lean`) for every
-Arch instance, `IsProg` [P], `DecOnce` [W], and the glue's `Pre` [P]. Steps:
-
-1. **Choice node.** Add `Serial.Prog.ch (k : Option (V ⊕ Bool) → Prog)` (Arch
-   results; `PathObl.AV` maps `u x ↦ some (inl x)`, `b x ↦ some (inr x)`,
-   `none ↦ none`); `Run.ch` (any value), `Step.ch` (any value), `Allowed` True,
-   `inv_ch` as `inv_rds`, `Within.ch`, `Safe.ch` (∀ values), `Glue` unchanged,
-   `Safe.foreign`/`sinv_step`/`allowed_of_sinv` cases as for `rds`.
-2. **Translation** `tr : SProg X → Serial.Prog U64 U64 U64` (new module, e.g.
-   `P2/E2E.lean`), parameters fixed at body start: `R` (= `ReadSet s`), `User`,
-   `ko`, `cls`, the core `c`, `ksb`, `masks`; carries the set `Wd` of words the
-   body has written and a cache of pure Arch queries since the last
-   state-changing call. A read of `a`: `rd` if `R a ∧ ¬ User a` or `a ∈ Wd`;
-   else `rdc a (fun u w => cls a u = cls a w)` if `¬ User a` and `ko a` is
-   gate or `core c`; else `rds`. `rdp` as two reads (`a`, `a + 8` wrapping).
-   `wr`: dropped for a user word, else `wr` (and add to `Wd`). `zero` / `clr`:
-   `wr 0` on each aligned word of the range. `ksb`/`cpu`/`masks`: the
-   constants. `arch op k`: a pure query (`Self → Result _` methods) already in
-   the cache reuses its value; otherwise `ch`, updating the cache (a
-   state-changing call empties it). `ret`/`err`: `done`.
-3. **Realizability.** For each branch of `tr p` (values at `rds`/`rdc`/`ch`
-   nodes): an alternative entry state `s*` = `s` with each racy word set to
-   its branch value (via `LawfulStore.wr`; `DecOnce` and the `Wd` rule make each
-   racy word read once, before any write of it), and an oracle Arch instance
-   (state: a list of per-segment answer functions `ArchCall → AV`; a pure query
-   answers from the head, a state-changing call answers from the head and pops)
-   whose `interp` run follows the branch.
-4. **Safety of every branch.** Let `R0` be the run from `(s, oracle)`. If it
-   accepts, `acc` (instance: the oracle) makes all its reads `ReadSet`, so the
-   branch has no racy nodes and is `R0`: `Within` gives `rd` permission
-   (`read_own`), `wr` holding (`write_own`), `StepOK` (`move`) gives `MoveV` and
-   the class condition. If it declines, `dec_alt` at `s*` gives: the branch
-   declines, writes only `DecSet s` (held, `write_own`), and `StepOK` at every
-   write. Along the run, `PO`/held sets stay those of the entry (`MoveV`
-   preserves them), and `μ` tracks `L.mem` on kernel words (`aligned` +
-   `LawfulStore.mem_wr`).
-5. Store hypotheses to name: `MasksWr` [P] (`frame_masks` unchanged by `wr`;
-   true of `PlainStore`, where it is constant) for `Alt.masks` of `s*`;
-   `OwnUserFree` [W] (`own`, `cls`, `ko` do not depend on user words; true of
-   `OwnMap`, whose regions are kernel objects) since `μ` is stale on user words.
+alternative state holding the read values; `Deciders` alone does not carry it
+across (`P2/MoveGap.lean`), `MoveLocal` does (`moveV_transfer`; proved for
+`OwnMap.own`).
 -/
 import Fl4Proofs.P2.Serial
 
