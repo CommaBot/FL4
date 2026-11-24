@@ -204,7 +204,7 @@ theorem kernel_entry_reachU2V [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ JReachU2 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, hvx⟩ := jreach_invU hnd hJ.toU
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hvx⟩ := jreach_invU hnd hJ.toU
   have hZ := hJ.zr
   have hIO : SpecIoP σ ∧ SInvIo.IoNoOverlap σ := ⟨hI.ioP, hI.ioN⟩
   refine ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, (SInvUZ.zr_iff.1 hZ).2,

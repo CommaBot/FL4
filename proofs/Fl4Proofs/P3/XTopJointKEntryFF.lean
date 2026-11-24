@@ -361,8 +361,8 @@ theorem kernel_entry_reachE5 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE4 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachE4 (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachE4V (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ
     (fun _ _ => offReady_faultIPSt hX.offReady) hARI hA hnd hM hmrt hmb hmax htu n) hFin
@@ -449,8 +449,8 @@ theorem kernel_entry_reachUH2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ (SpecUtZ σ' → JReachU (L := L) arI AR MR r.1 r.2 σ') ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachUH hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachUHV hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr,
     fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ
