@@ -24,7 +24,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {R W : U64 → Prop}
 
 /-- `v` is null or in `K`. -/
-def Kz (K : U64 → Prop) (v : U64) : Prop := v = 0#u64 ∨ K v
+abbrev Kz (K : U64 → Prop) (v : U64) : Prop := v = 0#u64 ∨ K v
 
 /-- The tree words: the timer fields (`TIMER_DEADLINE ..= TIMER_HEIGHT`) of the keys `K` and the node
 words of core `c` (addresses at the entry state `s0`). -/
@@ -268,12 +268,13 @@ theorem ge_set_red (C : TC st T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {x 
 
 /-- The leaf rules for the tree code, then the composition rules. Side conditions by assumption (or the
 null handle). -/
-macro "tg_side" : tactic => `(tactic| first | assumption | exact Or.inl rfl)
+macro "tg_side" : tactic => `(tactic| first | assumption | exact Or.inl rfl | exact Or.inr (by assumption))
 macro "tg_step" : tactic => `(tactic| with_reducible first
   | with_reducible apply GE.bind_assoc
   | with_reducible apply GE.bind_ok
   | with_reducible apply GE.bind_ite
   | with_reducible apply GE.uncurry
+  | with_reducible apply GE.bind_uncurry
   | (refine GE.bind (ge_left (by assumption) (by assumption) (by tg_side)) (fun _ _ => ?_))
   | (refine GE.bind (ge_right (by assumption) (by assumption) (by tg_side)) (fun _ _ => ?_))
   | (refine GE.bind (ge_parent (by assumption) (by assumption) (by tg_side)) (fun _ _ => ?_))

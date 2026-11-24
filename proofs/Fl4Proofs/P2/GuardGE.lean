@@ -87,6 +87,15 @@ def LoopPost {α β : Type} (I : α → Prop) (μ : α → Nat) (Q : β → Prop
 
 namespace GE
 
+theorem bind_uncurry {α β γ δ : Type} {f f' : α → β → Result γ} {a : α} {b : β} {k k' : γ → Result δ}
+    {Q : δ → Prop} (h : GE (Std.bind (f' a b) k') (Std.bind (f a b) k) Q) :
+    GE (Std.bind (Aeneas.Std.uncurry f' (a, b)) k') (Std.bind (Aeneas.Std.uncurry f (a, b)) k) Q := by
+  rw [uncurry_apply_pair, uncurry_apply_pair]; exact h
+
+end GE
+
+namespace GE
+
 /-- Along a loop: an invariant `I` of the real loop states, kept by the real body's `cont` steps with a
 decreasing measure `μ`; its `done` values satisfy `Q`. -/
 theorem loop {α β : Type} {body body' : α → Result (ControlFlow α β)} (I : α → Prop) (μ : α → Nat)
@@ -132,6 +141,7 @@ macro "ge_step" : tactic => `(tactic| with_reducible first
   | with_reducible apply GE.bind_ok
   | with_reducible apply GE.bind_ite
   | with_reducible apply GE.uncurry
+  | with_reducible apply GE.bind_uncurry
   | (with_reducible refine GE.ite (fun _ => ?_) (fun _ => ?_))
   | (with_reducible refine GE.ret ?_)
   | (with_reducible refine GE.bind (GE.refl _) (fun _ _ => ?_)))
