@@ -2639,3 +2639,72 @@ fn tcr_sets_tbi0_and_with_pauth_tbid0() {
     assert!(boot.contains(".equ TCR_LO,          0xb5103510"));
     assert_eq!(0xb510_3510u64 & (1 << 22), 0);
 }
+
+/// The kernel timer's acknowledge beside the gate (gic.rs `ack_timer_only`)
+/// relies on the remote-call SGI and the timer being above `TIMER_PMR` and
+/// every other interrupt at or below it, in whatever the GIC stores: every
+/// implemented priority width (4 to 8 bits; a GICv3 has at least 5, a
+/// GICv2 at least 4), in a Secure, single-security or GICv3 view and in a
+/// GICv2's Non-secure view, where the mask is stored the same way.
+#[test]
+fn timer_priorities_stay_above_the_mask_in_every_view() {
+    use gic_layout::{stored, stored_ns, timer_only_ok, PRIO, REMOTE_PRIO, TIMER_PMR, TIMER_PRIO};
+    for bits in 4..=8 {
+        for view in [stored, stored_ns] {
+            let (r, t, m, o) = (view(REMOTE_PRIO, bits), view(TIMER_PRIO, bits), view(TIMER_PMR, bits), view(PRIO, bits));
+            assert!(r < t && t < m && m < o, "{bits} bits: {r:#x} {t:#x} {m:#x} {o:#x}");
+            assert!(timer_only_ok(r, t, m, o), "{bits} bits");
+            // The open mask masks none of them.
+            assert!(o < view(gic_layout::PMR_OPEN, bits), "{bits} bits");
+        }
+    }
+    // A GIC that kept no difference (all at one priority) fails the check.
+    assert!(!timer_only_ok(0xa0, 0xa0, 0x80, 0xa0));
+    assert!(!timer_only_ok(0x40, 0x60, 0xf0, 0xa0));
+    assert_eq!(stored_ns(0x60, 4), 0xb0);
+    assert_eq!(stored_ns(0x80, 4), 0xc0);
+}
+
+/// The race `ack_timer_only` closes: the timer is the highest pending
+/// interrupt when the entry looks (GICC_HPPIR, ICC_HPPIR1_EL1), then stops
+/// asserting before the acknowledge, with an LPI pending. Without the mask
+/// the acknowledge would take the LPI beside the gate; under `TIMER_PMR` it
+/// takes nothing, and the LPI stays pending for the serial path.
+#[test]
+fn the_timer_only_acknowledge_never_takes_an_lpi() {
+    use gic_layout::{acknowledge, PMR_OPEN, PRIO, REMOTE_PRIO, TIMER_PMR, TIMER_PRIO};
+    const TIMER: u64 = 27;
+    const LPI: u64 = 8192;
+    const SPI: u64 = 40;
+    const REMOTE_CALL: u64 = 0;
+    let before = [(TIMER, TIMER_PRIO), (LPI, PRIO), (SPI, PRIO)];
+    assert_eq!(acknowledge(PMR_OPEN, &before), TIMER, "the timer is the highest pending");
+    let after = [(LPI, PRIO), (SPI, PRIO)];
+    assert_eq!(acknowledge(PMR_OPEN, &after[..1]), LPI, "an open mask would take the LPI");
+    assert_eq!(acknowledge(PMR_OPEN, &after), SPI, "or an SPI");
+    assert_eq!(acknowledge(TIMER_PMR, &after), 1023, "the timer-only mask takes nothing");
+    assert_eq!(acknowledge(TIMER_PMR, &before), TIMER);
+    // The remote-call SGI comes first, and is above the mask too.
+    let with_call = [(LPI, PRIO), (TIMER, TIMER_PRIO), (REMOTE_CALL, REMOTE_PRIO)];
+    assert_eq!(acknowledge(TIMER_PMR, &with_call), REMOTE_CALL);
+    assert_eq!(acknowledge(TIMER_PMR, &with_call[..2]), TIMER);
+}
+
+/// The kernel timer's local path (`timer_irq_local_or_serial`) acknowledges
+/// only under the timer-only mask (`gic::ack_timer_only`), never with a
+/// plain `gic::ack()`, and is entered only where `init_cpu`'s check passed
+/// (`gic::can_ack_timer_only`).
+#[test]
+fn the_timer_local_path_acknowledges_only_under_the_mask() {
+    let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
+    let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap()).collect();
+    let start = code.iter().position(|l| l.contains("fn timer_irq_local_or_serial(")).expect("timer_irq_local_or_serial");
+    let end = start + code[start..].iter().position(|l| l.contains("let body =")).expect("its serial body");
+    let local = &code[start..end];
+    assert!(local.iter().any(|l| l.contains("gic::ack_timer_only()")), "the local path acknowledges under the mask");
+    assert!(!local.iter().any(|l| l.contains("gic::ack()")), "the local path acknowledges with an open mask");
+    let calls: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial();")).collect();
+    assert_eq!(calls.len(), 2, "fl4_entry and fl4_kernel_irq");
+    let guards = code.iter().filter(|l| l.contains("gic::can_ack_timer_only()")).count();
+    assert_eq!(guards, 2, "both entries check can_ack_timer_only");
+}

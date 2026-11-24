@@ -265,6 +265,57 @@ pub fn add_redistributors(ranges: &mut [(u64, u64)], n: &mut usize, base: u64, l
     true
 }
 
+/// Interrupt priorities (lower is more urgent) and the priority mask the
+/// kernel timer's acknowledge beside the serial gate uses (gic.rs
+/// `ack_timer_only`): each core's remote-call SGI, then its kernel timer,
+/// are above the mask; every other interrupt (SPIs, LPIs, other SGIs and
+/// PPIs) is at `PRIO`, at or below it. The values differ in their upper
+/// three bits, so they keep their order in every view: any implemented
+/// width (`stored`) and a GICv2's Non-secure view (`stored_ns`).
+pub const REMOTE_PRIO: u32 = 0x40;
+pub const TIMER_PRIO: u32 = 0x60;
+pub const TIMER_PMR: u32 = 0x80;
+pub const PRIO: u32 = 0xa0;
+/// The priority mask that masks nothing.
+pub const PMR_OPEN: u32 = 0xff;
+
+/// What a priority field (or priority mask) with `bits` implemented bits
+/// (4 to 8: the upper ones) holds after `p` is written in its Secure view,
+/// a GIC with one security state, or GICv3 group 1.
+pub fn stored(p: u32, bits: u32) -> u32 {
+    let bits = bits.clamp(1, 8);
+    p & (0xffu32 << (8 - bits)) & 0xff
+}
+
+/// What it holds after a GICv2 Non-secure write of `p`: `(p >> 1) | 0x80`
+/// (GIC architecture v2, "Software views of interrupt priority").
+pub fn stored_ns(p: u32, bits: u32) -> u32 {
+    stored((p >> 1) | 0x80, bits)
+}
+
+/// Whether the priorities read back from the GIC (the remote-call SGI's,
+/// the kernel timer's, an interrupt left at `PRIO`), and the mask read
+/// back after `TIMER_PMR` was written, let `ack_timer_only` acknowledge
+/// the timer and the remote-call SGI and nothing else: both strictly
+/// above the mask (an interrupt is signalled only above it), the other at
+/// or below.
+pub fn timer_only_ok(remote: u32, timer: u32, mask: u32, other: u32) -> bool {
+    remote < mask && timer < mask && mask <= other
+}
+
+/// A GIC's acknowledge (GICC_IAR, ICC_IAR1_EL1) under priority mask
+/// `pmr`, for host tests: the most urgent of the `pending` (ID, priority)
+/// pairs strictly above the mask (the lowest ID among equals), or 1023.
+pub fn acknowledge(pmr: u32, pending: &[(u64, u32)]) -> u64 {
+    let mut best: Option<(u64, u32)> = None;
+    for &(id, p) in pending {
+        if p < pmr && best.is_none_or(|(bid, bp)| p < bp || (p == bp && id < bid)) {
+            best = Some((id, p));
+        }
+    }
+    best.map_or(1023, |(id, _)| id)
+}
+
 /// The interrupt ID in an acknowledge value: GICv3's whole value (its
 /// INTIDs reach past 1023: extended SPIs and PPIs, LPIs), GICv2's low ten
 /// bits (an SGI's source core is above them).

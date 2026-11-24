@@ -238,28 +238,32 @@ fn classify_irq_under_gate(raw: u64) -> Option<TakenIrq> {
 /// beside the serial gate, else the serial path (`fl4_sync::run_timer_irq`).
 ///
 /// Unlike `take_irq_under_gate`, the local path acknowledges an interrupt
-/// beside the gate, and only the timer: the GIC gives the timer a higher
-/// priority than every interrupt but the remote-call SGI (gic.rs
-/// `init_cpu`), so while it is pending the acknowledge returns it (or that
-/// SGI, which needs only its end here: the remote call it rang for has been
-/// serviced, as a call is made only by the gate holder, and the gate was
-/// open). Never an LPI, whose handler a serial entry may be moving to
-/// another device (`take_irq_under_gate`). An interrupt the local path
+/// beside the gate, and only the timer: under the priority mask of
+/// `gic::ack_timer_only`, which only the timer and the remote-call SGI are
+/// above (gic.rs `init_cpu`, which checks the GIC keeps them so: callers
+/// check `gic::can_ack_timer_only`), the acknowledge returns one of them or
+/// nothing, even if the timer stopped asserting after it was found
+/// pending. Never an LPI, whose handler a serial entry may be moving to
+/// another device (`take_irq_under_gate`). The remote-call SGI needs only
+/// its end here: the call it rang for has been serviced, as a call is made
+/// only by the gate holder and the gate was open. A timer the local path
 /// acknowledged and did not handle is handled by the serial path.
 fn timer_irq_local_or_serial() {
     let tid = timer::timer_irq_id();
     let timer_irq = irq::of(tid, percpu::cpu_index() as u64);
     // The local path acknowledged the timer and declined it; or (not
-    // expected: the timer is level-triggered and stays pending until
-    // quiesced) acknowledged another interrupt.
+    // expected: nothing else is above the mask) acknowledged another
+    // interrupt.
     let taken_timer = core::cell::Cell::new(false);
     let taken_raw = core::cell::Cell::new(None);
     let local = |s: &mut PhysStore, a: &mut PhysArch| {
         if gic::highest_pending() != tid {
             return false;
         }
-        let raw = gic::ack();
+        let raw = gic::ack_timer_only();
         if gic::is_spurious(raw) {
+            // Nothing above the mask is pending any more: whatever is,
+            // the core takes again on its way out.
             return true;
         }
         let id = gic::raw_id(raw);
@@ -464,7 +468,7 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
                 vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
             }
         };
-        if v == 0 && smp::multi() && gic::highest_pending() == timer::timer_irq_id() {
+        if v == 0 && smp::multi() && gic::can_ack_timer_only() && gic::highest_pending() == timer::timer_irq_id() {
             // The kernel timer of a native thread: first beside the gate.
             timer_irq_local_or_serial();
         } else {
@@ -597,7 +601,7 @@ fn dispatch_handler<S: Store>(s: &mut S, a: &mut PhysArch, ec: u64, esr: u64, fa
 #[no_mangle]
 extern "C" fn fl4_kernel_irq() -> ! {
     percpu::get().idle.set(false);
-    if smp::multi() && gic::highest_pending() == timer::timer_irq_id() {
+    if smp::multi() && gic::can_ack_timer_only() && gic::highest_pending() == timer::timer_irq_id() {
         timer_irq_local_or_serial();
         exit()
     }

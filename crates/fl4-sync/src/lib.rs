@@ -528,19 +528,70 @@ fn local_invocation<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: 
     done
 }
 
-/// A `TCB_SetTimer` beside the gate (`timer::handle_set_timer_local`). It
-/// writes this core's state, the caller, the target thread and the timer
-/// tree of this core, all of them this core's alone while the gate is
-/// open (`timer`'s Timer ownership): nothing to lock.
+/// `cspace::lookup_slot` of `cptr` in the CSpace of thread `t`, locking
+/// each slot (`lock::try_lock_object`) before reading it: other cores'
+/// frame-cap invocations write slots of a shared CSpace beside the gate,
+/// under those locks (`local_invocation`). The slot found, with every
+/// slot read locked in `held`; None if a lock is taken, the lookup fails,
+/// or it needs more than `lock::MAX_HELD` levels. (The root, `t`'s CTable
+/// slot, is no CNode's: only the gate's entries write it.)
 #[inline(always)]
-fn local_set_timer<S: fl4_core::machine::Store, A: fl4_core::machine::Arch>(
+fn lookup_slot_locked<S: fl4_core::machine::Store, M: Mem>(
+    s: &S,
+    m: &M,
+    t: fl4_core::obj::Tcb,
+    cptr: u64,
+    held: &mut lock::Held,
+) -> Option<fl4_core::obj::Slot> {
+    use fl4_core::capability::Cap;
+    let mut cap = t.slot(fl4_core::layout::tcb::SLOT_CTABLE).cap(s);
+    let mut bits = fl4_core::cspace::WORD_BITS;
+    for _ in 0..lock::MAX_HELD {
+        let (slot, rest) = timer::cspace_step(cap, cptr, bits)?;
+        if !lock_object(m, slot.0, held) {
+            return None;
+        }
+        let next = slot.cap(s);
+        match next {
+            Cap::CNode { .. } if rest != 0 => {
+                cap = next;
+                bits = rest;
+            }
+            _ => return Some(slot),
+        }
+    }
+    None
+}
+
+/// A `TCB_SetTimer` beside the gate (`timer::handle_set_timer_local`), on
+/// the thread its capability register names, found with the slots of its
+/// lookup locked (`lookup_slot_locked`) and kept locked while it runs. It
+/// writes no slot; it writes this core's state, the caller, the target
+/// thread and the timer tree of this core, all of them this core's alone
+/// while the gate is open (`timer`'s Timer ownership): `observe` sees no
+/// object.
+#[inline(always)]
+fn local_set_timer<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
     s: &mut S,
     a: &mut A,
+    m: &M,
     number: i64,
     observe: impl FnOnce(&S, &[(u64, u64)]),
 ) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let cptr = t.reg(s, fl4_core::layout::reg::CAP);
+    let mut held = lock::Held::new();
+    let target = match lookup_slot_locked(s, m, t, cptr, &mut held).map(|slot| slot.cap(s)) {
+        Some(fl4_core::capability::Cap::Thread { ptr }) => fl4_core::obj::Tcb(ptr),
+        _ => {
+            lock::unlock_held(m, &mut held);
+            return false;
+        }
+    };
     observe(s, &[]);
-    timer::handle_set_timer_local(s, a, number)
+    let done = timer::handle_set_timer_local(s, a, number, target);
+    lock::unlock_held(m, &mut held);
+    done
 }
 
 const _: () = assert!(timer::MAX_TIMER_LOCKS <= lock::MAX_HELD);
@@ -672,7 +723,7 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
     } else if number == fl4_abi::syscall::SysCall
         && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::TCBSetTimer
     {
-        return local_set_timer(s, a, number, observe);
+        return local_set_timer(s, a, m, number, observe);
     } else {
         // An I/O port access writes only the caller and this core's
         // state: nothing to lock.
@@ -949,5 +1000,91 @@ mod tests {
             assert!(!in_tree(&s, 0, n + i, 42));
         }
         assert!(found >= timer::TREE_VISITS / 2 && found < n, "{found} of {n} found within the bounds");
+    }
+
+    /// A CSpace: root CNode `R` (radix 4, a 56-bit guard of 0), whose slot 1
+    /// holds CNode `C` (radix 2, a 2-bit guard of 1, resolving the last 4
+    /// bits), slot 2 a thread (found with bits left), slot 3 a CNode that
+    /// resolves more bits than are left, slot 4 one that resolves none;
+    /// `C`'s slots threads and nothing. Thread `T` has `R` as its CSpace.
+    fn cspace() -> (MapStore, fl4_core::obj::Tcb) {
+        use fl4_core::capability::Cap;
+        use fl4_core::obj::Slot;
+        let mut s = MapStore { m: std::collections::HashMap::new(), cpu: 0, reads: Default::default() };
+        let (r, c, d, e) = (0x30_0000_0000u64, 0x31_0000_0000u64, 0x32_0000_0000u64, 0x33_0000_0000u64);
+        let t = thread(1000);
+        t.slot(fl4_core::layout::tcb::SLOT_CTABLE).set_cap(&mut s, Cap::CNode { ptr: r, radix: 4, guard_size: 56, guard: 0 });
+        Slot::index(r, 1).set_cap(&mut s, Cap::CNode { ptr: c, radix: 2, guard_size: 2, guard: 1 });
+        Slot::index(r, 2).set_cap(&mut s, Cap::Thread { ptr: thread(1).0 });
+        Slot::index(r, 3).set_cap(&mut s, Cap::CNode { ptr: d, radix: 4, guard_size: 1, guard: 0 });
+        Slot::index(r, 4).set_cap(&mut s, Cap::CNode { ptr: e, radix: 0, guard_size: 0, guard: 0 });
+        Slot::index(c, 0).set_cap(&mut s, Cap::Thread { ptr: thread(2).0 });
+        Slot::index(c, 3).set_cap(&mut s, Cap::Thread { ptr: thread(3).0 });
+        (s, t)
+    }
+
+    /// `lookup_slot_locked`, one level at a time through `timer::cspace_step`,
+    /// finds the slot `cspace::lookup_slot` finds, and fails where it fails
+    /// (guard and depth mismatches, a CNode resolving no bits, not a CNode),
+    /// on one level and two; it reads only slots it has locked.
+    #[test]
+    fn locked_lookup_finds_what_lookup_slot_finds() {
+        let (s, t) = cspace();
+        let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut found = 0;
+        for i in 0..4000u64 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            // Mostly the guard of 0 above the low 8 bits; sometimes not.
+            let cptr = if i % 8 == 0 { x } else { x & 0xff };
+            let mut held = lock::Held::new();
+            let got = lookup_slot(&s, t, cptr, &mut held);
+            let want = fl4_core::cspace::lookup_slot(&s, t, cptr).ok().map(|r| r.slot.0);
+            assert_eq!(got, want, "cptr {cptr:#x}");
+            found += got.is_some() as u64;
+            lock::unlock_held(&Atomics, &mut held);
+        }
+        assert!(found > 1000, "{found} lookups found a slot");
+    }
+
+    /// `lookup_slot_locked` and `cspace::lookup_slot` on the CSpace of
+    /// `t`; checks that every slot word read was locked first.
+    fn lookup_slot(s: &MapStore, t: fl4_core::obj::Tcb, cptr: u64, held: &mut lock::Held) -> Option<u64> {
+        s.reads.borrow_mut().clear();
+        let got = lookup_slot_locked(s, &Atomics, t, cptr, held).map(|sl| sl.0);
+        let reads: std::vec::Vec<u64> = s.reads.borrow().clone();
+        for a in reads {
+            let ctable = t.slot(fl4_core::layout::tcb::SLOT_CTABLE).0;
+            if a >= 0x30_0000_0000 && a < 0x40_0000_0000 {
+                let slot = a & !31;
+                let mut other = lock::Held::new();
+                assert!(!lock::try_lock_object(&Atomics, slot, &mut other), "slot {slot:#x} read unlocked");
+            } else {
+                assert!(a >= ctable && a < ctable + 32, "read {a:#x} outside the lookup");
+            }
+        }
+        got
+    }
+
+    /// A slot another core holds (a frame-cap invocation writing it) is
+    /// not read: the lookup gives up, and finds it once it is free.
+    #[test]
+    fn locked_lookup_declines_on_a_slot_another_core_holds() {
+        let (s, t) = cspace();
+        let terminal = fl4_core::obj::Slot::index(0x31_0000_0000, 3).0;
+        // Root slot 1 (C), then C's slot 3: 0b0001 << 4 | 0b01 << 2 | 3.
+        let cptr = (1 << 4) | (1 << 2) | 3;
+        let mut other = lock::Held::new();
+        assert!(lock::try_lock_object(&Atomics, terminal, &mut other));
+        let mut held = lock::Held::new();
+        s.reads.borrow_mut().clear();
+        assert!(lookup_slot_locked(&s, &Atomics, t, cptr, &mut held).is_none());
+        assert!(s.reads.borrow().iter().all(|&a| a & !31 != terminal), "read the held slot");
+        lock::unlock_held(&Atomics, &mut held);
+        lock::unlock_held(&Atomics, &mut other);
+        let got = lookup_slot_locked(&s, &Atomics, t, cptr, &mut held);
+        assert!(matches!(got.map(|sl| sl.cap(&s)), Some(fl4_core::capability::Cap::Thread { ptr }) if ptr == thread(3).0));
+        lock::unlock_held(&Atomics, &mut held);
     }
 }

@@ -815,6 +815,8 @@ impl Store for SimStore {
     }
 }
 
+/// An `Arch` call with an effect on the machine, as `Machine::effects`
+/// records them.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Effect {
     Deadline(u64),
@@ -822,8 +824,10 @@ enum Effect {
     Putc(u8),
     /// An I/O port write: port, size, value.
     PortOut(u64, u64, u64),
-    /// End of interrupt: the in-service interrupt is done.
-    Ack,
+    /// End of interrupt `irq`, which must be the one in service.
+    Ack(u64),
+    /// An address space loaded: root and ASID.
+    SetVSpace(u64, u64),
 }
 
 /// Per-core machine state.
@@ -853,6 +857,10 @@ struct Machine {
     tdx: bool,
     /// The frames TDG.MR.REPORT wrote.
     tdx_reports: Vec<u64>,
+    /// `--fastpath-diff`, while one entry is checked: the `Arch` calls with
+    /// an effect it made, in order (`SimArch::apply`), which its local or
+    /// fast path and the general path must make alike (`Sim::diff_general`).
+    effects: Option<Vec<Effect>>,
 }
 
 #[derive(Clone)]
@@ -888,25 +896,29 @@ impl SimArch {
         local
     }
 
-    fn raise(&self, cpu: u64, irq: u64) {
-        let mut m = self.m.lock().unwrap();
-        m.cores[cpu as usize].pending[(irq / 64) as usize] |= 1 << (irq % 64);
-    }
-
     fn apply(&self, e: Effect) {
+        let cpu = self.cpu as usize;
+        let mut m = self.m.lock().unwrap();
+        if let Some(log) = &mut m.effects {
+            log.push(e);
+        }
         match e {
-            Effect::Deadline(t) => self.m.lock().unwrap().cores[self.cpu as usize].deadline = t,
+            Effect::Deadline(t) => m.cores[cpu].deadline = t,
             Effect::Reschedule(mask) => {
-                let n = self.m.lock().unwrap().cores.len() as u64;
-                for c in 0..n {
-                    if mask & (1 << c) != 0 && c != self.cpu {
-                        self.raise(c, irq::RESCHEDULE_IPI);
+                for c in 0..m.cores.len() {
+                    if mask & (1 << c) != 0 && c != cpu {
+                        m.cores[c].pending[(irq::RESCHEDULE_IPI / 64) as usize] |= 1 << (irq::RESCHEDULE_IPI % 64);
                     }
                 }
             }
-            Effect::Putc(b) => self.m.lock().unwrap().console.push(b),
-            Effect::PortOut(p, n, v) => self.m.lock().unwrap().ports.push((p, n, v)),
-            Effect::Ack => self.m.lock().unwrap().cores[self.cpu as usize].in_service = None,
+            Effect::Putc(b) => m.console.push(b),
+            Effect::PortOut(p, n, v) => m.ports.push((p, n, v)),
+            Effect::Ack(irq) => {
+                // Exactly the interrupt in service, once.
+                let got = m.cores[cpu].in_service.take();
+                assert_eq!(got, Some(irq), "core {cpu} ended interrupt {irq} with {got:?} in service");
+            }
+            Effect::SetVSpace(root, asid) => m.cores[cpu].vspace = (root, asid),
         }
     }
 }
@@ -975,10 +987,10 @@ impl Arch for SimArch {
         if !local_timer {
             self.gate_only("ack_irq");
         }
-        self.apply(Effect::Ack);
+        self.apply(Effect::Ack(irq));
     }
     fn set_vspace(&mut self, root: u64, asid: u64) {
-        self.m.lock().unwrap().cores[self.cpu as usize].vspace = (root, asid);
+        self.apply(Effect::SetVSpace(root, asid));
     }
     // The simulator has no TLBs: it checks who invalidates them.
     fn invalidate_page(&mut self, _asid: u64, _vaddr: u64) {
@@ -1137,18 +1149,23 @@ static STATS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 /// the gate on core `cpu` may write, as (address, bytes): the core's
 /// node state, threads on the core and their IPC buffers, scheduling
 /// contexts on the core, the timer links of the threads in the core's
-/// timer tree (`fl4_sync::timer`'s Timer ownership), and the objects it
-/// holds (`locked`: endpoints 16 bytes long, notifications 64), with the
-/// queue links of the threads queued on a locked endpoint or waiting
-/// notification, which belong to the queue. Read without scheduling
-/// points, once the path holds its locks (`fl4_sync::local_syscall`'s
-/// `observe`).
+/// timer tree, and the objects it holds (`locked`: endpoints 16 bytes
+/// long, notifications 64), with the queue links of the threads queued on
+/// a locked endpoint or waiting notification, which belong to the queue.
+/// Of a thread on the core, not the queue links while it is blocked on an
+/// endpoint or notification (they belong to that object's queue), nor its
+/// timer fields while it is armed in another core's tree (`fl4_sync::timer`'s
+/// Timer ownership: that core's). Read without scheduling points, once
+/// the path holds its locks (`fl4_sync::local_syscall`'s `observe`).
 fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<(u64, u64)> {
     let s = SimStore { conc: None, ..s.clone() };
     let mut v = vec![(fl4_core::obj::node_base(&s, cpu), node::SIZE)];
-    // TIMER_LEFT, _RIGHT, _PARENT and _HEIGHT, adjacent.
-    const _: () = assert!(tl::TIMER_HEIGHT == tl::TIMER_LEFT + 24);
-    for u in timer_tree(&s, cpu) {
+    // TIMER_LEFT, _RIGHT, _PARENT and _HEIGHT, adjacent, after
+    // TIMER_DEADLINE and _BADGE; EP_NEXT and EP_PREV, adjacent.
+    const _: () = assert!(tl::TIMER_HEIGHT == tl::TIMER_LEFT + 24 && tl::TIMER_LEFT == tl::TIMER_DEADLINE + 16);
+    const _: () = assert!(tl::EP_PREV == tl::EP_NEXT + 8);
+    let tree: HashSet<u64> = timer_tree(&s, cpu).into_iter().collect();
+    for &u in &tree {
         v.push((u + tl::TIMER_LEFT, 32));
     }
     for &(o, n) in locked.iter().filter(|o| o.0 != 0) {
@@ -1172,7 +1189,15 @@ fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<
             let tt = Tcb(t);
             scs.push(tt.sc(&s));
             if tt.affinity(&s) == cpu {
-                v.push((t, 1 << fl4_abi::consts::bits::TCB));
+                let mut holes = Vec::new();
+                if tt.timer_deadline(&s) != 0 && !tree.contains(&t) {
+                    holes.push((t + tl::TIMER_DEADLINE, 48));
+                }
+                let st = tt.state(&s);
+                if st == sched::TS_BLOCKED_ON_SEND || st == sched::TS_BLOCKED_ON_RECV || st == sched::TS_BLOCKED_ON_NTFN {
+                    holes.push((t + tl::EP_NEXT, 16));
+                }
+                push_except(&mut v, (t, 1 << fl4_abi::consts::bits::TCB), &mut holes);
                 let buf = fl4_core::msg::lookup_ipc_buffer(&s, true, tt);
                 if buf != 0 {
                     v.push((buf, 1 << fl4_abi::consts::bits::IPC_BUFFER));
@@ -1188,6 +1213,23 @@ fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<
         }
     }
     v
+}
+
+/// Region `r`, as (address, bytes), without the regions `holes` (inside
+/// it, not overlapping), into `v`.
+fn push_except(v: &mut Vec<(u64, u64)>, r: (u64, u64), holes: &mut [(u64, u64)]) {
+    holes.sort();
+    let mut at = r.0;
+    for &(h, n) in holes.iter() {
+        assert!(h >= at && h + n <= r.0 + r.1, "footprint: hole {h:#x}+{n} outside {:#x}+{}", r.0, r.1);
+        if h > at {
+            v.push((at, h - at));
+        }
+        at = h + n;
+    }
+    if at < r.0 + r.1 {
+        v.push((at, r.0 + r.1 - at));
+    }
 }
 
 /// The nodes of core `cpu`'s timer tree, from its root (at most 100 000).
@@ -1357,6 +1399,7 @@ impl Sim {
             halted: false,
             tdx: false,
             tdx_reports: Vec::new(),
+            effects: None,
             rng: Rng(seed_rng(seed)),
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, conc: None, peek: false };
@@ -1652,7 +1695,7 @@ impl Sim {
     /// same memory and machine state.
     fn diff_vm_fault(&mut self, addr: u64, code: u64) {
         let mem = self.s.mem.clone();
-        let m0 = self.a.m.lock().unwrap().clone();
+        let m0 = self.start_diff();
         let cpu = self.s.cpu;
         let ncores = self.ncores;
         let time0 = node_get(&self.s, cpu, node::CUR_TIME);
@@ -1757,7 +1800,7 @@ impl Sim {
     /// and machine state. Returns whether the local path ran.
     fn diff_timer_irq(&mut self, irq: u64) -> bool {
         let mem = self.s.mem.clone();
-        let m0 = self.a.m.lock().unwrap().clone();
+        let m0 = self.start_diff();
         let cpu = self.s.cpu;
         let ncores = self.ncores;
         let time0 = node_get(&self.s, cpu, node::CUR_TIME);
@@ -1801,7 +1844,7 @@ impl Sim {
     /// syscall is a candidate); whether it ran.
     fn diff_syscall_with(&mut self, number: i64, local: bool) -> bool {
         let mem = self.s.mem.clone();
-        let m0 = self.a.m.lock().unwrap().clone();
+        let m0 = self.start_diff();
         let t = sched::cur_thread(&self.s);
         let trap = t.flags(&self.s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
         // The syscalls fl4_sync::run_syscall tries a local path for: a
@@ -1851,6 +1894,15 @@ impl Sim {
         ran_local
     }
 
+    /// The first half of a `--fastpath-diff` check: record the entry's
+    /// `Arch` effects from here (`Machine::effects`); the machine state it
+    /// starts from.
+    fn start_diff(&mut self) -> Machine {
+        let mut m = self.a.m.lock().unwrap();
+        m.effects = Some(Vec::new());
+        m.clone()
+    }
+
     /// The second half of a `--fastpath-diff` check: the entry `what` ran
     /// from machine state `m0` and wrote `fast_log` (and read the clock
     /// once more, `read_clock`, in a local attempt that declined); undo
@@ -1889,7 +1941,13 @@ impl Sim {
             })
             .collect();
         bad.sort();
-        let m_general = self.a.m.lock().unwrap().clone();
+        let m_general = {
+            let mut m = self.a.m.lock().unwrap();
+            let g = m.clone();
+            m.effects = None;
+            g
+        };
+        // `Machine` includes the effects each made, in order.
         if !bad.is_empty() || m_fast != m_general {
             for (a, o, g, f) in &bad {
                 println!("  {a:#x}: was {o:#x}, general {g:#x}, fast {f:#x}");
@@ -2057,7 +2115,7 @@ impl Sim {
         let retype = |sim: &mut Sim, ty: u64, count: u64| {
             let ut = sim.first_untyped();
             let dest = sim.next_slot;
-            sim.invoke(0, ut, label::UntypedRetype, &[ty, 0, rs::InitThreadCNode, 0, dest, count], &[rs::InitThreadCNode]);
+            sim.setup_invoke(ut, label::UntypedRetype, &[ty, 0, rs::InitThreadCNode, 0, dest, count], &[rs::InitThreadCNode]);
             sim.after("timer retype");
             sim.next_slot += count;
             for i in 0..count {
@@ -2073,19 +2131,39 @@ impl Sim {
         let cap = |sim: &Sim, i: u64| Tcb(Slot::index(sim.root_cnode(), i).cap(&sim.s).ptr());
         for (k, &t) in tcbs.iter().enumerate() {
             let k = k as u64;
-            self.invoke(0, t, label::TCBBindNotification, &[], &[ntfn0 + k]);
+            self.setup_invoke(t, label::TCBBindNotification, &[], &[ntfn0 + k]);
             self.after("timer notification");
             assert_eq!(cap(self, t).bound_ntfn(&self.s), Slot::index(self.root_cnode(), ntfn0 + k).cap(&self.s).ptr(), "setup: TCB_BindNotification failed");
             self.timer.push(TimerWorker { tcb: cap(self, t), slot: t, ntfn: ntfn0 + k, reply: reply0 + k });
         }
         for (k, &scap) in scs.iter().enumerate() {
             if k % 2 == 0 {
-                let budget = (40 + 20 * (k as u64 % 3)) * TICKS_PER_US;
+                // In microseconds, as SchedControl_ConfigureFlags takes them.
+                let budget = 40 + 20 * (k as u64 % 3);
                 let ctrl = self.sched_control(k as u64 % self.ncores);
-                self.invoke(0, ctrl, label::SchedControlConfigureFlags, &[budget, budget, 0, k as u64, 0], &[scap]);
+                self.setup_invoke(ctrl, label::SchedControlConfigureFlags, &[budget, budget, 0, k as u64, 0], &[scap]);
                 self.after("timer round-robin SC");
+                let sc = fl4_core::obj::Sc(Slot::index(self.root_cnode(), scap).cap(&self.s).ptr());
+                let head = fl4_core::sporadic::head(&self.s, sc).amount;
+                assert!(sc.period(&self.s) == 0 && head == budget * TICKS_PER_US, "setup: round-robin SC of {budget} us has period {} and a head refill of {head} ticks", sc.period(&self.s));
             }
         }
+    }
+
+    /// The root task's invocation during setup (on core 0), made again
+    /// while the kernel restarted it rather than ran it: its budget ran
+    /// out at the entry (`check_budget_restart` rewinds it to the syscall,
+    /// `NEXT_IP` to `FAULT_IP`).
+    fn setup_invoke(&mut self, cptr: u64, lbl: u64, args: &[u64], extra_caps: &[u64]) {
+        for _ in 0..8 {
+            self.invoke(0, cptr, lbl, args, extra_caps);
+            let t = sched::cur_thread(&self.s);
+            let restarted = self.is_root(t) && t.reg(&self.s, reg::NEXT_IP) == t.reg(&self.s, reg::FAULT_IP);
+            if !restarted {
+                return;
+            }
+        }
+        panic!("setup: the root task's invocation {lbl} was restarted 8 times");
     }
 
     fn sched_control(&self, core: u64) -> u64 {
@@ -2301,7 +2379,8 @@ impl Sim {
                 (r.below(self.ncores), r.below(2) == 0, r.below(3))
             };
             let ctrl = self.sched_control(core);
-            let (budget, period) = if rr { (5000, 5000) } else { (300 * TICKS_PER_US, 1000 * TICKS_PER_US) };
+            // In microseconds, as SchedControl_ConfigureFlags takes them.
+            let (budget, period) = if rr { (60, 60) } else { (300, 1000) };
             return self.invoke(cpu, ctrl, label::SchedControlConfigureFlags, &[budget, period, extra, i % 64, 0], &[scs[i as usize % scs.len()]]);
         }
         if !self.timer.is_empty() && k == 1 {
@@ -3911,7 +3990,7 @@ mod tests {
         let ut = sim.first_untyped();
         sim.invoke(0, ut, label::UntypedRetype, &[ot::SchedContext, bits::MIN_SCHED_CONTEXT, rs::InitThreadCNode, 0, dest, 1], &[rs::InitThreadCNode]);
         let ctrl = sim.sched_control(core);
-        sim.invoke(0, ctrl, label::SchedControlConfigureFlags, &[1000 * TICKS_PER_US, 1000 * TICKS_PER_US, 0, 0, 0], &[dest]);
+        sim.invoke(0, ctrl, label::SchedControlConfigureFlags, &[1000, 1000, 0, 0, 0], &[dest]);
         sim.invoke(0, dest, label::SchedContextBind, &[], &[t]);
         assert_eq!(tcb_of(sim, t).affinity(&sim.s), core);
         t
@@ -4040,5 +4119,103 @@ mod tests {
         assert_eq!((sched::cur_thread(&sim.s).0, root.state(&sim.s), root.reg(&sim.s, reg::BADGE)), (root.0, sched::TS_RUNNING, 3));
         assert_eq!(fl4_core::obj::Reply(sim.root_cnode_slot(r).ptr()).tcb(&sim.s), 0, "the reply object is unlinked");
         assert_eq!(sim.s.read(sim.root_cnode_slot(ep).ptr()), 0, "the endpoint's queue is empty");
+    }
+
+    /// Whether `footprint` lets a local path write the word at `a`.
+    fn allows(f: &[(u64, u64)], a: u64) -> bool {
+        f.iter().any(|&(s, n)| a >= s && a < s + n)
+    }
+
+    /// The footprint gives a thread's timer fields to the core that owns
+    /// them (`fl4_sync::timer`'s Timer ownership): a thread of core 1 armed
+    /// in core 0's tree has its links written by core 0 only, and its
+    /// deadline and badge by neither (core 0 fires it only under the gate);
+    /// core 1 writes none of its timer fields, though the rest of the
+    /// thread is core 1's.
+    #[test]
+    fn footprint_gives_timer_fields_to_their_owner() {
+        let mut sim = booted(2);
+        let other = thread_on(&mut sim, 1);
+        let x = tcb_of(&sim, other);
+        let d = now(&sim) + 500 * TICKS_PER_US;
+        assert!(!local_set_timer(&mut sim, other, d, 1));
+        assert_eq!((x.timer_deadline(&sim.s), x.timer_height(&sim.s) >> 8), (d, 0), "armed in core 0's tree");
+        let (f0, f1) = (footprint(&sim.s, 2, 0, &[]), footprint(&sim.s, 2, 1, &[]));
+        for off in [tl::TIMER_LEFT, tl::TIMER_RIGHT, tl::TIMER_PARENT, tl::TIMER_HEIGHT] {
+            assert!(allows(&f0, x.0 + off), "core 0 owns the links of its tree's nodes");
+        }
+        for off in [tl::TIMER_DEADLINE, tl::TIMER_BADGE] {
+            assert!(!allows(&f0, x.0 + off), "core 0 writes another core's thread's deadline");
+        }
+        for off in [tl::TIMER_DEADLINE, tl::TIMER_BADGE, tl::TIMER_LEFT, tl::TIMER_RIGHT, tl::TIMER_PARENT, tl::TIMER_HEIGHT] {
+            assert!(!allows(&f1, x.0 + off), "core 1 writes a timer of core 0's tree");
+        }
+        assert!(allows(&f1, x.0 + tl::STATE) && !allows(&f0, x.0 + tl::STATE));
+        // Disarmed, the timer fields are its own core's again.
+        assert!(!local_set_timer(&mut sim, other, 0, 0));
+        assert!(allows(&footprint(&sim.s, 2, 1, &[]), x.0 + tl::TIMER_DEADLINE));
+    }
+
+    /// A thread of the core blocked on an endpoint or a notification has
+    /// its queue links in the footprint only with that object locked.
+    #[test]
+    fn footprint_gives_queue_links_to_the_locked_queue() {
+        for (ty, n, bytes) in [(ot::Endpoint, sc::SysWait, 16), (ot::Notification, sc::SysWait, 64)] {
+            let mut sim = booted(2);
+            let root = root_thread(&sim);
+            let o = retype(&mut sim, ty);
+            let ptr = sim.root_cnode_slot(o).ptr();
+            sim.syscall(0, n, o, 0, [0; 4]);
+            assert!(sched::is_blocked(&sim.s, root), "the root task waits on object type {ty}");
+            let f = footprint(&sim.s, 2, 0, &[]);
+            assert!(!allows(&f, root.0 + tl::EP_NEXT) && !allows(&f, root.0 + tl::EP_PREV), "queue links without the lock");
+            assert!(allows(&f, root.0 + tl::STATE));
+            let f = footprint(&sim.s, 2, 0, &[(ptr, bytes)]);
+            assert!(allows(&f, root.0 + tl::EP_NEXT) && allows(&f, root.0 + tl::EP_PREV), "queue links with the lock");
+        }
+    }
+
+    /// An end of interrupt must end the interrupt in service, once.
+    #[test]
+    #[should_panic(expected = "ended interrupt")]
+    fn a_second_end_of_interrupt_fails() {
+        let mut sim = booted(1);
+        sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+        sim.a.ack_irq(irq::TIMER);
+        sim.a.ack_irq(irq::TIMER);
+    }
+
+    #[test]
+    #[should_panic(expected = "ended interrupt")]
+    fn ending_another_interrupt_fails() {
+        let mut sim = booted(1);
+        sim.a.m.lock().unwrap().cores[0].in_service = Some(irq::TIMER);
+        sim.a.ack_irq(irq::RESCHEDULE_IPI);
+    }
+
+    /// `--fastpath-diff` compares the `Arch` effects in order: the same
+    /// calls in another order fail the check.
+    #[test]
+    fn the_fast_path_check_compares_arch_effects_in_order() {
+        let run = |general_first: bool| {
+            let mut sim = booted(1);
+            let m0 = sim.start_diff();
+            sim.s.mem.start_log();
+            sim.a.set_deadline(5);
+            sim.a.set_vspace(1, 2);
+            let fast_log = sim.s.mem.take_log();
+            sim.diff_general("effects", m0, fast_log, false, |_, a| {
+                if general_first {
+                    a.set_vspace(1, 2);
+                    a.set_deadline(5);
+                } else {
+                    a.set_deadline(5);
+                    a.set_vspace(1, 2);
+                }
+            });
+            assert_eq!(sim.a.m.lock().unwrap().effects, None, "the log stops after the check");
+        };
+        run(false);
+        assert!(std::panic::catch_unwind(move || run(true)).is_err(), "the effects in another order passed");
     }
 }
