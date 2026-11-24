@@ -545,6 +545,7 @@ import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointFbDefs
 import Fl4Proofs.P3.XTopJointFbMapRel
+import Fl4Proofs.P3.VsFbUnmapU
 import Fl4Proofs.P3.XTopJointFbMapJ
 import Fl4Proofs.P3.XTopJointFbMapJL
 import Fl4Proofs.P3.XTopJointFbRemap

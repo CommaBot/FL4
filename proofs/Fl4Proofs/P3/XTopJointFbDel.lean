@@ -139,7 +139,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
               .vmVSpaceMap ∧ false = false ∧ bt.asid.bv = b.asid := ⟨by rw [hdd]; exact k1, rfl, rfl, hba.symm⟩
         have hu' := hu
         cases b2 <;> simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, hs] <;> fbj_red <;>
-        refine WP.spec_bind (JAtZ.fbDelDeferJ arI J hDP hT hnd hARI hLv hns hsg hp0 hAs hc hfv hu hs) ?_ <;>
+        refine WP.spec_bind (JAtZ.fbDelDeferJ arI J hDP hT hnd hARI hLv hns hsg hp0 hAs ⟨pp, hpp1, hpp⟩ hc hfv hu hs) ?_ <;>
         rintro ⟨r1, s4, a4⟩ ⟨hr1, τu, τs, τ1, G', V', Ac', Lst', D', hu1, hs1, hd1, J', hLv', hns', hsg', hp0', hkb,
           hK', hum', hCK⟩ <;>
         fbj_red <;>
