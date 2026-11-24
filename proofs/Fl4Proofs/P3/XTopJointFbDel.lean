@@ -143,7 +143,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
         rintro ⟨r1, s4, a4⟩ ⟨hr1, τu, τs, τ1, G', V', Ac', Lst', D', hu1, hs1, hd1, J', hLv', hns', hsg', hp0', hkb,
           hK', hum'⟩ <;>
         fbj_red <;>
-        refine (WP.spec_ok _).2 ⟨τ1, FbMidJ.step arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
+        refine (WP.spec_ok _).2 ⟨τ1, FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
           (FbFootK.of_rel arI J J' rfl rfl hK' hum') hK' hLv' hns' hsg' hp0', Or.inl ⟨hr1, _,
           fbEntry_del_frameD hbop hlkm hgm hdf (by rw [C.hbv]; exact hu1) hs1 hd1, by simp⟩⟩
       all_goals
@@ -167,7 +167,7 @@ theorem fb_entry_delJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT
               obtain ⟨rfl, rfl⟩ := hm
               exact hnot ⟨by rw [← hdd]; exact h1, rfl, rfl, h3, P1.eq_of_bv (h4.trans hba)⟩
             · simp at h2
-        exact (WP.spec_ok _).2 ⟨σ', FbMidJ.step arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
+        exact (WP.spec_ok _).2 ⟨σ', FbMidJ.step (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1) arI C.hal rfl hct hbm hargs hK J' rfl rfl rfl
           (FbFootK.of_rel arI J J' rfl rfl hK' hum') hK' hLv' hns' hsg' hp0', Or.inl ⟨hr1, false,
           fbEntry_del_frame hbop hlkm hgm hndP hd, by simp⟩⟩
 
