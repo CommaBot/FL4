@@ -82,7 +82,7 @@ theorem JAtZ.scUnbindJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextUnbind sc.bv) σ0 = ({([], σ')}, False) ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' res.2.1 res.2.2 σ' ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' res.2.1 res.2.2 σ' ∧ VxE Z' ⦄ := by
   obtain ⟨s1, σ1, x, -, he0, -, hcur, -, hns, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   rw [hs1]; simp only [bind_ok]
   have hp0 : sc ≠ 0#u64 := J1.c0 sc hsc
@@ -96,7 +96,7 @@ theorem JAtZ.scUnbindJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   refine WP.spec_bind (JAtZ.unbindReplyJ arI J3 hsc hp0) ?_
   rintro s4 ⟨σ4, he4, V4, Ac4, Lst4, D4, J4⟩
   rw [WP.spec_ok]
-  refine ⟨rfl, σ1, σ4, by rw [← hcur]; exact he0, ?_, _, Ac4, Lst4, D4, J4⟩
+  refine ⟨rfl, σ1, σ4, by rw [← hcur]; exact he0, ?_, _, Ac4, Lst4, D4, J4, inferInstance⟩
   show (Fl4Spec.schedContextUnbindAllTcbs sc.bv >>= _) σ1 = _
   rw [nd_bind_one he2, nd_bind_one he3, nd_bind_one he4]; rfl
 
@@ -179,7 +179,7 @@ theorem decode_invocation_sched_context_unbindJ (s : S) (a : A) (σ : Fl4Spec.St
       ({(.ok (.invokeSchedContextUnbind sc.bv), σ)}, False) := by
     rw [hpre, wE_neg (fun h => he ((bv_optRef_some hct0).1 (hx.tcb ▸ h)))]; rfl
   refine WP.spec_mono (JAtZ.scUnbindJ J hni hct hsc hpi) ?_
-  rintro r ⟨h1, σ0, σ', he0, he1, Z', Ac', Lst', D', J'⟩
+  rintro r ⟨h1, σ0, σ', he0, he1, Z', Ac', Lst', D', J', _⟩
   obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J'.xtop.rel
   exact Or.inr ⟨.invokeSchedContext (.invokeSchedContextUnbind sc.bv), DecOut.of_eq (run_liftME_ok hrun), σ0,
     by rw [hcur]; exact he0, (.ok [], σ'),

@@ -383,7 +383,7 @@ theorem JAtZ.utCheckBI {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     (do let (s1, a1) ← sched.update_timestamp st arI s a; sched.check_budget st arI s1 a1) ⦃ r =>
       ∃ z ∈ ((Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudget) σ0).1, z.1 = r.1 ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
   have hnow := hBu.now
   have hS := J0.xtop.fin.1.1.1
   have hR := J0.xtop.fin.1.1.2.2.1
@@ -416,19 +416,19 @@ theorem JAtZ.utCheckBI {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
   have hFalse : sched.check_budget st arI s1 a1 ⦃ r => r.1 = false →
       ∃ z ∈ (Fl4Spec.checkBudget (Z := Unit) σ1).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
     refine WP.spec_mono (Hh.checkBudgetFI hA hCH hid1 hnsw1 (hmrt a1) (hmb a1)) ?_
     rintro ⟨rb, s2, a2⟩ hB hf
     obtain ⟨ea, σ2, hcb, -, Lst2, J2⟩ := hB hf
     simp only at ea J2
     subst ea
-    exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2⟩
+    exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2, inferInstance⟩
   refine WP.spec_mono (WP.spec_and (check_budgetT hA s1 a1 σ1 hS1 hscC hact (hmb a1)) hFalse) ?_
   rintro ⟨rb, s2, a2⟩ ⟨hT, hF⟩
   cases rb with
   | false =>
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hF rfl
-    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J'⟩
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hF rfl
+    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J', inferInstance⟩
   | true =>
     obtain ⟨e, hb, hsuf⟩ := hT rfl
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj e
@@ -437,7 +437,7 @@ theorem JAtZ.utCheckBI {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     have hOw : CurOwnW Z.T Z.C σ1 := Or.inl (curOwn_of_curInv hS1 hI1 hC1)
     obtain ⟨-, hJ⟩ := hJ1 σ1.machineState _ hum1 id
     obtain ⟨Ac', Lst', D', J'⟩ := hJ hOK hOw
-    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J'⟩
+    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J', inferInstance⟩
 
 
 end

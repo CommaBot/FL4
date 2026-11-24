@@ -577,7 +577,7 @@ theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] 
       Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, Fl4Spec.wordsFromTime c)) σu =
         ({((), σ4)}, False) ∧ ∃ y, σ4.kheap ct.bv = some (.tcb y) ∧ y.tcbState = .restart ∧
       ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s4 a σ4 ∧ Z'.T = Z.T ⦄ := by
+        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s4 a σ4 ∧ Z'.T = Z.T ∧ VxE Z' ⦄ := by
     cases call
     · unfold schedcontext.set_consumed
       refine WP.spec_bind (J3.updConsumedJ hAT hmax htu hsc hct) ?_
@@ -585,16 +585,16 @@ theorem JAtZ.yieldToJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] 
       simp only [Bool.false_eq_true, ↓reduceIte]
       rw [hv] at he4
       obtain ⟨-, rfl⟩ := Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst he4))
-      refine (WP.spec_ok _).2 ⟨σu, ?_, _, hku, hrs1, _, Ac3, Lst3, D3, J4, rfl⟩
+      refine (WP.spec_ok _).2 ⟨σu, ?_, _, hku, hrs1, _, Ac3, Lst3, D3, J4, rfl, inferInstance⟩
       unfold Fl4Spec.NonDet.when; rw [ite_eq_right (by simp)]; rfl
     · refine WP.spec_mono (J3.setConsumedJ hAT hmax htu hsc hct) ?_
       rintro s4 ⟨σ4, he4, -, V4, J4⟩
       obtain ⟨v', w', he4'⟩ := Sched.setConsumed_shape hks3 hkc3
       have eσ4 := the_result he4' he4
-      refine ⟨σ4, ?_, Endp.replyTcb xc1 w', by rw [eσ4]; simp [updK], hrs1, _, Ac3, Lst3, D3, J4, rfl⟩
+      refine ⟨σ4, ?_, Endp.replyTcb xc1 w', by rw [eσ4]; simp [updK], hrs1, _, Ac3, Lst3, D3, J4, rfl, inferInstance⟩
       unfold Fl4Spec.NonDet.when; rw [ite_eq_left rfl, ← hsetc]; exact he4
   refine WP.spec_bind hSC ?_
-  rintro s4 ⟨σ4, hrf, y, hk4, hrs4, Z4, Ac4, Lst4, D4, J4, hZ4⟩
+  rintro s4 ⟨σ4, hrf, y, hk4, hrs4, Z4, Ac4, Lst4, D4, J4, hZ4, _⟩
   have hct4 : ct ∈ Z4.T := by rw [hZ4]; exact hct
   refine WP.spec_bind (J4.runJ hct4 hk4 hrs4) ?_
   rintro s5 ⟨Lst5, D5, J5⟩

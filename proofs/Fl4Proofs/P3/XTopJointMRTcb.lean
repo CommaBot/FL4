@@ -1461,11 +1461,11 @@ theorem ssp_tailJM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec
   -- the outcome
   have fin : ∀ (s5 : S) (a5 : A) (σc : Fl4Spec.State Unit), ((), σc) ∈ (scStep p.bv sco σb).1 →
       (∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s5 a5 σc) →
+        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s5 a5 σc ∧ VxE Z') →
       (ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a5) :
         Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
         TopPostDMXP (L := L) (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res ⦄ := by
-    rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J'⟩
+    rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J', _⟩
     rw [WP.spec_ok]
     refine TopPostDMX.toPne (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩,
       J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
@@ -1510,7 +1510,7 @@ theorem ssp_tailJM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec
     simp only [Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (J4.unbindTcbJ hpT hi4C hkb (by rw [hxbsc, hi4c]) (fun u e => absurd e (hnsb u)) hidb) ?_
     rintro s5 ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
-    refine fin s5 a1 σc ?_ ⟨_, Ac5, Lst5, D5, J5⟩
+    refine fin s5 a1 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
     show _ ∈ ((Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext p.bv >>= fun o =>
       Fl4Spec.NonDet.assertOpt o >>= fun c => Fl4Spec.schedContextUnbindTcb c) σb).1
     rw [nd_bind_one (Endp.getTcbObjRef_eq _ hkb), hxbsc]
@@ -1564,7 +1564,7 @@ theorem ssp_tailJM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec
       hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)) ?_
     rintro ⟨s5, a5⟩ ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
     try simp only [uncurry_apply_pair]
-    refine fin s5 a5 σc ?_ ⟨_, Ac5, Lst5, D5, J5⟩
+    refine fin s5 a5 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
     show _ ∈ (Fl4Spec.schedContextBindTcb (Z := Unit) scv.bv p.bv σb).1
     rw [hsc]; exact Set.mem_singleton _
 

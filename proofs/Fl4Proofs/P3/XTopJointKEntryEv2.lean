@@ -40,7 +40,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     (do let (s1, a1) ← sched.update_timestamp st arI s a; sched.check_budget st arI s1 a1) ⦃ r =>
       ∃ z ∈ ((Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudget) σ0).1, z.1 = r.1 ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
   have hnow := hBu.now
   have hS := J0.xtop.fin.1.1.1
   have hR := J0.xtop.fin.1.1.2.2.1
@@ -73,14 +73,14 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
   have hFalse : sched.check_budget st arI s1 a1 ⦃ r => r.1 = false →
       ∃ z ∈ (Fl4Spec.checkBudget (Z := Unit) σ1).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄ := by
     by_cases hnt : NoTmoSend σ1
     · refine WP.spec_mono (Hh.checkBudgetF hA hCH hni1 hnsw1 (hmrt a1) (hmb a1) hnt) ?_
       rintro ⟨rb, s2, a2⟩ hB hf
       obtain ⟨ea, σ2, hcb, -, Lst2, J2⟩ := hB hf
       simp only at ea J2
       subst ea
-      exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2⟩
+      exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2, inferInstance⟩
     have hnq1 : ∀ d q, σ1.curThread ∉ σ1.readyQueues d q := by
       rcases hBu.tmo with hnt0 | hnq0
       · exact absurd (hnt0.of_eq ekh ect ecs) hnt
@@ -102,7 +102,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
         hth hper hkl) ?_
       rintro r hB hf
       obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
-      exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩
+      exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩
     · have hcb : ∀ xe, σ1.kheap p = some (.endpoint xe) → Endp.CanBlock false xe := fun xe h => by
         cases xe with
         | idleEP => trivial
@@ -111,13 +111,13 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
       refine WP.spec_mono (Hh.checkBudgetT hA hCH hni1 hres1 hnq1 (hmrt a1) (hmb a1) hkt hrr hth hper hcb) ?_
       rintro r hB hf
       obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
-      exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩
+      exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩
   refine WP.spec_mono (WP.spec_and (check_budgetT hA s1 a1 σ1 hS1 hscC hact (hmb a1)) hFalse) ?_
   rintro ⟨rb, s2, a2⟩ ⟨hT, hF⟩
   cases rb with
   | false =>
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hF rfl
-    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J'⟩
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hF rfl
+    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J', inferInstance⟩
   | true =>
     obtain ⟨e, hb, hsuf⟩ := hT rfl
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj e
@@ -126,7 +126,7 @@ theorem JAtZ.utCheckB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
     have hOw : CurOwnW Z.T Z.C σ1 := Or.inl (curOwn_of_curInv hS1 hI1 hC1)
     obtain ⟨-, hJ⟩ := hJ1 σ1.machineState _ hum1 id
     obtain ⟨Ac', Lst', D', J'⟩ := hJ hOK hOw
-    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J'⟩
+    exact ⟨(true, σ1), hsp0 _ (by rw [checkBudget_suff hnd hb]; exact Set.mem_singleton _), rfl, Z, Ac', Lst', D', J', inferInstance⟩
 
 end
 
@@ -547,7 +547,7 @@ def JFltHyp (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState �
     (true, σb) ∈ (specBudget σ).1 → syscall.budget_ok st arI s a = ok (true, s1, a1) →
     JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s1 a1 σb → MR a1 σb.machineState →
     B s1 a1 ⦃ r => ∃ z ∈ (G σb).1, (∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac'' : Set U64) (Lst'' : U64 → List U64)
-      (D'' : Set U64), JAtZR (L := L) arI AR Z' H' Cs' Ac'' Lst'' D'' r.1 r.2 z.2) ∧ MR r.2 z.2.machineState ⦄
+      (D'' : Set U64), JAtZR (L := L) arI AR Z' H' Cs' Ac'' Lst'' D'' r.1 r.2 z.2 ∧ VxE Z') ∧ MR r.2 z.2.machineState ⦄
 
 open Fl4Proofs.P3.SInv Fl4Proofs.P3.SInvF in
 set_option maxHeartbeats 16000000 in
@@ -594,7 +594,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
       ((.ok (), y) : Except Unit Unit × Fl4Spec.State Unit) ∈ ((Fl4Spec.handleEvent (Z := Unit) ev).run σ).1 →
       KFrontF2 (st := st) arI B s a s2 a2 →
       (∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s2 a2 y) → MR a2 y.machineState →
+        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s2 a2 y ∧ VxE Z') → MR a2 y.machineState →
       syscall.finish st arI s2 a2 ⦃ r => ∃ σ', EvOut false ev σ σ' ∧ RJM (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
     rintro s2 a2 y hE hfr ⟨Z', H', Cs', Ac', Lst', D', J', _⟩ hMy
     have hE' : ((.ok (), y) : Except Unit Unit × Fl4Spec.State Unit) ∈
@@ -609,7 +609,7 @@ theorem jEvRef_flt {ev : Fl4Spec.Event} {G : Fl4Spec.SMonad Unit Unit} {B : S �
   rintro ⟨b, s1, a1⟩ ⟨⟨⟨hTr, hFa⟩, hM1⟩, heq⟩
   cases b with
   | false =>
-    obtain ⟨⟨b', σb⟩, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨⟨b', σb⟩, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     simp only at hz1; subst hz1
     have hMb := (budget_mr_at hM hnd hz hM1 hS.1.1.vim).1
     have hE : ((.ok (), σb) : Except Unit Unit × Fl4Spec.State Unit) ∈ ((Fl4Spec.handleEvent (Z := Unit) ev).run σ).1 := by
