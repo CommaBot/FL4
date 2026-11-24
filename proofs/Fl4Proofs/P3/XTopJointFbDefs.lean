@@ -240,6 +240,27 @@ theorem FbMidJ.step {σ : Fl4Spec.State Unit} {th0 : TypedHeap} {ct buf : U64} {
       omega
     exact hF.2 _ (hsp _ (by rw [hi1]; omega))
 
+/-- **The slots holding a CNode cap keep it** (KENTRY-PLAN fb3l): a batch entry writes only a
+frame cap's slot, an empty slot or a deleted frame cap's slot (and MDB links), so the batch's two
+root CNode caps stay held in slots (COPY_MAP's insert needs `DestCap` of the CNodes its lookups
+reach, the root's own CNode included). -/
+def CnSlotsKept (th0 : TypedHeap) (s s' : S) : Prop :=
+  ∀ y, IsSlot th0 y → ∀ p r gs g, capV (L.mem s) y = .CNode p r gs g → capV (L.mem s') y = .CNode p r gs g
+
+theorem CnSlotsKept.refl (th0 : TypedHeap) (s : S) : CnSlotsKept (L := L) th0 s s := fun _ _ _ _ _ _ h => h
+
+theorem CnSlotsKept.trans {th0 : TypedHeap} {s1 s2 s3 : S} (h1 : CnSlotsKept (L := L) th0 s1 s2)
+    (h2 : CnSlotsKept (L := L) th0 s2 s3) : CnSlotsKept (L := L) th0 s1 s3 :=
+  fun y hy p r gs g h => h2 y hy p r gs g (h1 y hy p r gs g h)
+
+/-- A cap held in a slot of `th0`, kept across `CnSlotsKept` when it is a CNode cap. -/
+theorem CnSlotsKept.held {th0 : TypedHeap} {s s' : S} (h : CnSlotsKept (L := L) th0 s s') {c : capability.Cap}
+    (hc : ∃ a b d e, c = .CNode a b d e) (hy : ∃ y, IsSlot th0 y ∧ capV (L.mem s) y = c) :
+    ∃ y, IsSlot th0 y ∧ capV (L.mem s') y = c := by
+  obtain ⟨a, b, d, e, rfl⟩ := hc
+  obtain ⟨y, hy1, hy2⟩ := hy
+  exact ⟨y, hy1, h y hy1 a b d e hy2⟩
+
 /-- A failing entry's code as the loop computes it, against the spec's. -/
 def FbErrOK (b : Fl4Spec.Fl4FrameBatchInvocation) (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data)
     (τ τ1 : Fl4Spec.State Unit) : error.Exc → Prop
