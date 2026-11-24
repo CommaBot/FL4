@@ -441,11 +441,19 @@ theorem msg.set_mr.blk (s : S) {t buf i v : U64} (hi : i.val < 3) (h : BlkOK st 
 theorem spec_true_imp {α : Type _} {m : Result α} {Q : α → Prop} (hq : ∀ x, Q x) (h : m ⦃ fun _ => True ⦄) :
     m ⦃ Q ⦄ := WP.spec_mono h fun x _ => hq x
 
-/-- (int6) A message-register write of a TCB is an `XferFoot` write: a user
-register, or a word of its IPC buffer (user words `U`, `BufOK`). -/
-theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (ht : t ∈ T) (hta : TcbAddr t) (hb : BufOK U buf)
+/-- (int6) The words `vcpu.report` writes before the final state change: the
+thread's register words (TCB+256..3328) and the user words `U`. -/
+def RepW (t : U64) (U : Set U64) (b : U64) : Prop :=
+  (∃ K : U64, 256 ≤ K.val ∧ K.val < 3328 ∧ K.val % 8 = 0 ∧ b = core.num.U64.wrapping_add t K) ∨ b ∈ U
+
+theorem RepW.xfer {U : Set U64} {t b : U64} (ht : t ∈ T) (h : RepW t U b) : XferFoot T U b :=
+  h.elim (fun ⟨K, _, h2, h3, e⟩ => Or.inl ⟨t, ht, K, h2, h3, e⟩) Or.inr
+
+/-- (int6) A message-register write of a TCB: a user register, or a word of
+its IPC buffer (user words `U`, `BufOK`). -/
+theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (hta : TcbAddr t) (hb : BufOK U buf)
     (hU : UserOK st T Cs Ω H U s) (hi : i.val < 127) :
-    msg.set_mr st s t buf i v ⦃ r => WritesIn st s r.2 (XferFoot T U) ⦄ := by
+    msg.set_mr st s t buf i v ⦃ r => WritesIn st s r.2 (RepW t U) ⦄ := by
   unfold msg.set_mr
   split
   · have hreg : msg.msg_register i ⦃ r => r.val < 384 ⦄ := by
@@ -460,7 +468,7 @@ theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (ht : t ∈ T) (ht
     subst e
     simp only [lift, bind_ok]
     exact (WP.spec_ok _).2 ((writesIn_wr (field_aligned hta (by omega) (by omega))).mono fun b e =>
-      Or.inl ⟨t, ht, K, by omega, by omega, e⟩)
+      Or.inl ⟨K, by omega, by omega, by omega, e⟩)
   · split
     · rename_i hne
       have h0 : buf ≠ 0#u64 := by simpa using hne
@@ -468,7 +476,7 @@ theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (ht : t ∈ T) (ht
       have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
       have hu := hb h0 _ hi1
-      refine WP.spec_bind (Pₘ := fun s1 => WritesIn st s s1 (XferFoot T U)) ?_ fun s1 h1 => (WP.spec_ok _).2 h1
+      refine WP.spec_bind (Pₘ := fun s1 => WritesIn st s s1 (RepW t U)) ?_ fun s1 h1 => (WP.spec_ok _).2 h1
       unfold msg.buf_set
       simp only [lift, bind_ok]
       refine WP.spec_mono (LawfulStore.write_spec s _ v) fun s' e => ?_
@@ -476,15 +484,28 @@ theorem msg.set_mr.xw {U : Set U64} (s : S) {t buf i v : U64} (ht : t ∈ T) (ht
       exact (writesIn_wr (hU _ hu).1.1).mono fun b e => Or.inr (e ▸ hu)
     · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
 
-/-- An `XferFoot` step of the report keeps `BlkOK`, the thread's state word
-and the accumulated `XferFoot` frame. -/
+/-- The report's `RepW` words keep the timer words (`TmFr`). -/
+theorem RepW.tmfr {U : Set U64} {s s1 : S} {t : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hU : UserOK st T Cs Ω H U s) (ht : t ∈ T) (w : WritesIn st s s1 (RepW t U)) : TmFr st T Cs Nt s s1 := by
+  obtain ⟨⟨Q, R, h0⟩, -, hX, -, hSg⟩ := h
+  have hT := h0.tcbs
+  have hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n) := fun n hn => h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)
+  refine TmFr.of_writes hT h0.nodes hX.1 w fun b hb => ?_
+  rcases hb with ⟨K, h1, h2, h3, rfl⟩ | hu
+  · exact notTmW_field hT h0.nodes hΩ ht (by omega) (Or.inl (by omega))
+  · exact notTmW_omega hT h0.nodes (hU b hu).1 fun n hn e =>
+      (hU b hu).2.1 (by rw [UScalar.eq_of_val_eq e]; exact hSg.sub _ (hX.1.ntB n hn).2)
+
+/-- A `RepW` step of the report keeps `BlkOK`, the thread's state word and
+the accumulated `RepW` frame. -/
 theorem xw_step {U : Set U64} {s s1 s2 : S} {t : U64} (h1 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1)
-    (st1 : L.mem s1 (stA t) = sched.TS_RUNNING_VM) (w1 : WritesIn st s s1 (XferFoot T U))
-    (hU1 : UserOK st T Cs Ω H U s1) (w : WritesIn st s1 s2 (XferFoot T U)) (ht : t ∈ T) :
+    (st1 : L.mem s1 (stA t) = sched.TS_RUNNING_VM) (w1 : WritesIn st s s1 (RepW t U))
+    (hU1 : UserOK st T Cs Ω H U s1) (w : WritesIn st s1 s2 (RepW t U)) (ht : t ∈ T) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s2 ∧ L.mem s2 (stA t) = sched.TS_RUNNING_VM ∧
-      WritesIn st s s2 (XferFoot T U) := by
+      WritesIn st s s2 (RepW t U) := by
   obtain ⟨⟨Q, R, q⟩, hB, hX, hS, hSg⟩ := h1
-  obtain ⟨q2, hB2, hX2, hS2, hSg2, -, -, -, -, f, -⟩ := xfer_all q hB hX hS hSg hU1 w
+  obtain ⟨q2, hB2, hX2, hS2, hSg2, -, -, -, -, f, -⟩ :=
+    xfer_all q hB hX hS hSg hU1 (w.mono fun _ hb => RepW.xfer ht hb)
   refine ⟨⟨⟨Q, R, q2⟩, hB2, hX2, hS2, hSg2⟩, ?_, (w1.trans w).mono fun _ hb => hb.elim id id⟩
   rw [stA_eq, f t ht _ (by simp) (by simp) (by simp), ← stA_eq]; exact st1
 
@@ -492,7 +513,7 @@ theorem xw_step {U : Set U64} {s s1 s2 : S} {t : U64} (h1 : BlkOK st T Cs Ω H S
 without a pending exit** (`signal_completes`: the thread has no VCPU or one
 with `PENDING = 0`): its writes before the final state change are its user
 registers and, for a full-state caller (#80), words of its IPC buffer (user
-words `U`, `BufOK` of the buffer it looks up), all `XferFoot` words; then
+words `U`, `BufOK` of the buffer it looks up), the `RepW` words; then
 `set_thread_state TS_RUNNING`. -/
 theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
@@ -501,16 +522,16 @@ theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
       L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
     (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => ∃ s1, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧
-      L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧ WritesIn st s s1 (XferFoot T U) ∧
+      L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧ WritesIn st s s1 (RepW t U) ∧
       sched.set_thread_state st s1 t sched.TS_RUNNING = ok s' ⦄ := by
   have hS0 : P0.StoreTotal st := L.total
   have hT : TcbPlaced T := h.1.choose_spec.choose_spec.tcbs
   refine vcpu.report.gen (Bok := BufOK U) (vOk := fun _ => False)
     (P := fun s1 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧ L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧
-      WritesIn st s s1 (XferFoot T U)) hA ⟨?_, ?_, fun _ _ _ hv => hv.elim⟩ ?_ ⟨h, hvm, WritesIn.refl _ _⟩
+      WritesIn st s s1 (RepW t U)) hA ⟨?_, ?_, fun _ _ _ hv => hv.elim⟩ ?_ ⟨h, hvm, WritesIn.refl _ _⟩
     hbuf (fun h0 hp => absurd (hc h0) hp)
   · rintro s1 b i v hb ⟨h1, st1, w1⟩ hi
-    exact WP.spec_mono (msg.set_mr.xw s1 ht (hT t ht) hb (hU.ksb w1.1) (by omega)) fun r w =>
+    exact WP.spec_mono (msg.set_mr.xw s1 (hT t ht) hb (hU.ksb w1.1) (by omega)) fun r w =>
       xw_step h1 st1 w1 (hU.ksb w1.1) w ht
   · rintro s1 r v ⟨h1, st1, w1⟩ hr
     have hr' : r.val < 384 := by
@@ -520,7 +541,7 @@ theorem vcpu.report.xf {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
     obtain ⟨K, hK, e⟩ := hs2
     subst e
     exact xw_step h1 st1 w1 (hU.ksb w1.1) ((writesIn_wr (field_aligned (hT t ht) (by omega) (by omega))).mono
-      fun b e => Or.inl ⟨t, ht, K, by omega, by omega, e⟩) ht
+      fun b e => Or.inl ⟨K, by omega, by omega, by omega, e⟩) ht
   · intro s1 h1
     exact WP.spec_mono (spec_eq' (Fl4Proofs.P0.sched.set_thread_state.p0 _ _ _ _ hS0)) fun s' hs' =>
       ⟨s1, h1.1, h1.2.1, h1.2.2, hs'.1⟩
@@ -838,6 +859,95 @@ theorem notification.send_signal.tinv {U : Set U64} {A : Type _} {ar : machine.A
       obtain ⟨b1, tm1⟩ := ntfn_badge_all (v := i ||| badge)
         (⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) hn
       exact (WP.spec_ok _).2 (hI.of_tmfr b1 tm1)
+
+
+/-! ## (int6) The IPC-buffer placement and the words `lookup_ipc_buffer` reads -/
+
+/-- A TCB's `IPC_BUFFER` field (TCB+3512). -/
+def ibWordA (t : U64) : U64 := core.num.U64.wrapping_add t 3512#u64
+/-- A TCB's IPC-buffer cap slot (its first word; the second is at +8). -/
+def sbWordA (t : U64) : U64 :=
+  core.num.U64.wrapping_add t (core.num.U64.wrapping_mul layout.tcb.SLOT_BUFFER layout.cte.SIZE)
+
+/-- The three words `lookup_ipc_buffer` reads of a TCB `t` (its `IPC_BUFFER`
+field, its buffer cap slot's two words) are the same at `s'` as at `s`. -/
+def IbSame (s s' : S) (t : U64) : Prop :=
+  L.mem s' (ibWordA t) = L.mem s (ibWordA t) ∧ L.mem s' (sbWordA t) = L.mem s (sbWordA t) ∧
+    L.mem s' (core.num.U64.wrapping_add (sbWordA t) 8#u64) = L.mem s (core.num.U64.wrapping_add (sbWordA t) 8#u64)
+
+/-- **The buffer-lookup frame**: the key-space base kept and `IbSame` for
+every TCB of `T` (what `timer::fire`'s loop keeps, `IbKeep`). -/
+def IbFr (T : Set U64) (s s' : S) : Prop := L.ksb s' = L.ksb s ∧ ∀ t ∈ T, IbSame (L := L) s s' t
+
+theorem IbFr.refl (s : S) : IbFr (L := L) T s s := ⟨rfl, fun _ _ => ⟨rfl, rfl, rfl⟩⟩
+
+theorem IbFr.trans {s₁ s₂ s₃ : S} (h₁ : IbFr (L := L) T s₁ s₂) (h₂ : IbFr (L := L) T s₂ s₃) :
+    IbFr (L := L) T s₁ s₃ :=
+  ⟨h₂.1.trans h₁.1, fun t ht => ⟨(h₂.2 t ht).1.trans (h₁.2 t ht).1, (h₂.2 t ht).2.1.trans (h₁.2 t ht).2.1,
+    (h₂.2 t ht).2.2.trans (h₁.2 t ht).2.2⟩⟩
+
+theorem sbWordA_eq (t : U64) : sbWordA t = core.num.U64.wrapping_add t 64#u64 := by
+  apply UScalar.eq_of_val_eq
+  unfold sbWordA layout.tcb.SLOT_BUFFER layout.cte.SIZE
+  simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]
+
+theorem sbWordA8_eq (t : U64) :
+    core.num.U64.wrapping_add (sbWordA t) 8#u64 = core.num.U64.wrapping_add t 72#u64 := by
+  apply UScalar.eq_of_val_eq
+  rw [sbWordA_eq]
+  simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]
+  omega
+
+/-- A `KeepT0` frame (a thread's state change) keeps the buffer-lookup words. -/
+theorem IbFr.of_keepT {Cs Rp Scs Nt : Set U64} {t : U64} {s s' : S} (hT : TcbPlaced T)
+    (k : KeepT0 st T Cs Rp Scs Nt t s s') : IbFr (L := L) T s s' := by
+  refine ⟨k.ksb, fun y hy => ⟨?_, ?_, ?_⟩⟩
+  · exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
+  · rw [sbWordA_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
+  · rw [sbWordA8_eq]; exact k.fld y hy _ (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)
+
+theorem ib_eq_of_spec {α : Type _} {m : Result α} {y : α} (h : m ⦃ r => r = y ⦄) : m = ok y := by
+  revert h; cases m <;> simp [WP.spec_vis, WP.spec_div, WP.spec_ok]
+
+theorem ipc_buffer_word (s : S) (t : obj.Tcb) : obj.Tcb.ipc_buffer st t s = ok (L.mem s (ibWordA t)) := by
+  apply ib_eq_of_spec; unfold obj.Tcb.ipc_buffer; step*; simp_all [ibWordA]
+
+/-- `lookup_ipc_buffer` reads only the three `IbSame` words. -/
+theorem lookup_ipc_buffer_same {s s' : S} {t : U64} (h : IbSame (L := L) s s' t) :
+    msg.lookup_ipc_buffer st s' true t = msg.lookup_ipc_buffer st s true t := by
+  obtain ⟨h1, h2, h3⟩ := h
+  unfold msg.lookup_ipc_buffer
+  rw [ipc_buffer_word, ipc_buffer_word, h1]
+  have hs : obj.Tcb.slot t layout.tcb.SLOT_BUFFER = ok (sbWordA t) := by simp [obj.Tcb.slot, lift, sbWordA]
+  rw [hs]; simp only [bind_ok]
+  have hc : obj.Slot.cap st (sbWordA t) s' = obj.Slot.cap st (sbWordA t) s := by
+    unfold obj.Slot.cap; rw [L.read_pair_eq, L.read_pair_eq, h2, h3]
+  rw [hc]
+
+/-- **The IPC-buffer placement at `s`** (int6): the user words `U` lie
+outside the kernel objects (`UserOK`) and every TCB's IPC buffer is in `U`
+(`BufOK`); what `send_signal` needs since #80 / #85. -/
+def BufAt (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (U : Set U64) (s : S) : Prop :=
+  UserOK st T Cs Ω H U s ∧ ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄
+
+/-- `BufAt` along the buffer-lookup frame. -/
+theorem BufAt.of_fr {U : Set U64} {s s' : S} (h : BufAt st T Cs Ω H U s) (f : IbFr (L := L) T s s') :
+    BufAt st T Cs Ω H U s' :=
+  ⟨h.1.ksb f.1, fun y hy => by rw [lookup_ipc_buffer_same (f.2 y hy)]; exact h.2 y hy⟩
+
+/-- **[deferred, int6 → par/a6f: discharged by `ibKeep_holds`] The steps of
+`timer::fire`'s loop keep the buffer-lookup frame** (`IbFr`): `timer.remove`
+of a TCB, `send_signal` of a notification of `Nt` (with the placement
+`send_signal.tinv` needs), and the current node's `REPROGRAM` write. A P1
+lemma (as `TmoXG`), not a premise of any top. -/
+def IbKeep (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) : Prop :=
+  ∀ (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac U : Set U64),
+    (∀ (s : S) (t : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
+      timer.remove st s t ⦃ s' => IbFr (L := L) T s s' ⦄) ∧
+    (∀ (s : S) (a : A) (n bd : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s → n ∈ Nt → H n = some .ntfn →
+      BufAt st T Cs Ω H U s → notification.send_signal st ar s a n bd ⦃ s' _ => IbFr (L := L) T s s' ⦄) ∧
+    (∀ (s : S) (v : U64), TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      IbFr (L := L) T s (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) v))
 
 
 /-! ## Binding a notification to a TCB (`BOUND_TCB` / `BOUND_NTFN` writes) -/

@@ -95,7 +95,7 @@ theorem kernel_entry.entry_of4G {A : Type _} {ar : machine.Arch A} {Adm : PSets 
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry_of3 hA (tmoXG_holds hA) (fun σ h' => by
+  kernel_entry.entry_of3 hA (tmoXG_holds hA) (ibKeep_holds hA) (fun σ h' => by
     obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, hNt⟩ := GF σ h'
     exact ⟨P, C, G.gaps3 hA h' C Pd Pt P.xfer, hNt⟩) hσ s a hP h
 

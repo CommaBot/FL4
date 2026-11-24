@@ -66,67 +66,27 @@ theorem msg.set_mr.tm (s : S) {t buf i v : U64} (hi : i.val < 3) (h : BlkOK st T
   exact (WP.spec_ok _).2 h1
 
 set_option maxHeartbeats 4000000 in
-/-- `vcpu.report.blk` with the timer frame. -/
-theorem vcpu.report.tm {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (t badge : U64)
-    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
+/-- `vcpu.report.blk` with the timer frame (int6: from `vcpu.report.xf`). -/
+theorem vcpu.report.tm {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
+    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
     (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
-      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64) :
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
+    (hU : UserOK st T Cs Ω H U s) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
     vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       L.mem s' (stA t) = sched.TS_RUNNING ∧ TmFr st T Cs Nt s s' ⦄ := by
-  have hS0 : P0.StoreTotal st := L.total
-  unfold vcpu.report vcpu.bound
-  step as ⟨o, ho⟩
-  simp only [lift, bind_ok]
-  refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
-  subst ho
-  refine WP.spec_bind (Pₘ := fun p => p = false) ?_ fun pending hp => ?_
-  · split
-    · rename_i hv
-      unfold vcpu.get
-      simp only [lift, bind_ok]
-      refine WP.spec_bind (LawfulStore.read_spec s _) fun i ei => ?_
-      have hv0 : v ≠ 0#u64 := by simpa using hv
-      have : i = 0#u64 := by rw [ei, ev]; exact hc (by rw [← ev]; exact hv0)
-      exact (WP.spec_ok _).2 (by simp [this])
-    · exact (WP.spec_ok _).2 rfl
-  subst hp
-  refine WP.spec_bind (Fl4Proofs.P0.msg.lookup_ipc_buffer.p0 st s true t hS0) fun b _ => ?_
-  rw [if_neg Bool.false_ne_true]
-  refine WP.spec_bind (hA.virtualization a) fun i _ => ?_
-  refine WP.spec_bind (Pₘ := fun _ => True) ?_ ?_
-  · repeat' (first
-      | exact (WP.spec_ok _).2 trivial
-      | exact Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ hS0
-      | exact Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ hS0
-      | split
-      | (step as ⟨_, _⟩)
-      | refine WP.spec_bind (Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ hS0) fun _ _ => ?_
-      | refine WP.spec_bind (Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ hS0) fun _ _ => ?_)
-  rintro ⟨ip, ctl, intr⟩ -
-  try dsimp only
-  refine WP.spec_bind (msg.set_mr.tm s (by simp) h ht) ?_
-  rintro ⟨_, s1⟩ ⟨h1, e1, f1⟩
-  try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (msg.set_mr.tm s1 (by simp) h1 ht) ?_
-  rintro ⟨_, s2⟩ ⟨h2, e2, f2⟩
-  try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (msg.set_mr.tm s2 (by simp) h2 ht) ?_
-  rintro ⟨_, s3⟩ ⟨h3, e3, f3⟩
-  try simp only [uncurry_apply_pair]
-  refine WP.spec_bind (obj.Tcb.set_reg.tm s3 (by simp [layout.reg.MSG_INFO, layout.reg.RSI]) h3 ht)
-    fun s4 ⟨h4, e4, f4⟩ => ?_
-  refine WP.spec_bind (obj.Tcb.set_reg.tm s4 (by simp [layout.reg.BADGE, layout.reg.RDI]) h4 ht)
-    fun s5 ⟨h5, e5, f5⟩ => ?_
+  refine WP.spec_mono (vcpu.report.xf hA s a t badge h ht hvm hc hU hbuf) ?_
+  rintro s' ⟨s5, h5, st5, w5, e⟩
+  have tm5 := RepW.tmfr h hU ht w5
   obtain ⟨⟨Q5, R5, q5⟩, hB5, hX5, hS5, hSg5⟩ := h5
-  have st5 : L.mem s5 (stA t) = sched.TS_RUNNING_VM := by rw [e5, e4, e3, e2, e1, hvm]
-  refine WP.spec_mono (sts_all s5 t _ Q5 R5 q5 hB5 hX5 hS5 hSg5 ht not_blocked_running running_ne
+  have hst := sts_all s5 t _ Q5 R5 q5 hB5 hX5 hS5 hSg5 ht not_blocked_running running_ne
     (Or.inr (by rw [st5]; exact not_blocked_vm))
     (hX5.noref (q5.tcbs t ht) (by rw [st5]; exact runnable_ne_reply (Or.inr (Or.inr rfl)))
       (by rw [st5]; exact runnable_ne_recv (Or.inr (Or.inr rfl))))
-    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩) ?_
-  rintro s6 ⟨q6, hB6, hX6, hS6, hSg6, st6, k6⟩
-  exact ⟨⟨⟨Q5, R5, q6.congrX empty_congr⟩, hB6, hX6, hS6, hSg6⟩, st6,
-    f1.trans (f2.trans (f3.trans (f4.trans (f5.trans (TmFr.of_keepT k6)))))⟩
+    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩
+  rw [e, WP.spec_ok] at hst
+  obtain ⟨q6, hB6, hX6, hS6, hSg6, st6, k6⟩ := hst
+  exact ⟨⟨⟨Q5, R5, q6.congrX empty_congr⟩, hB6, hX6, hS6, hSg6⟩, st6, tm5.trans (TmFr.of_keepT k6)⟩
 
 /-- `remote_tcb_stall` writes at most the current core's `IPI_PENDING` word. -/
 theorem smp.remote_tcb_stall.tm {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
@@ -255,9 +215,10 @@ theorem notification.set_active.tm (s : S) (n badge : U64) (h : TInv st T Cs Ω 
 
 /-- **`send_signal` leaves the timer words alone** (`TmFr`), with `TInv` kept (as
 `notification.send_signal.tinv`). -/
-theorem notification.send_signal.tm {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+theorem notification.send_signal.tm {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
-    (hH : H n = some .ntfn) :
+    (hH : H n = some .ntfn) (hU : UserOK st T Cs Ω H U s)
+    (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       TmFr st T Cs Nt s s' ⦄ := by
   have hI := h
@@ -272,11 +233,29 @@ theorem notification.send_signal.tm {A : Type _} {ar : machine.Arch A} (hA : P0.
     have sa := notification.set_active.tm s n badge hI hn hH hst0
     step with obj.Ntfn.bound_tcb.val as ⟨i, ei⟩
     step with obj.Tcb.is_null.spec as ⟨b, eb⟩
-    refine sig_if _ _ _ _ (fun hb => ?_) (fun hb => ?_)
-    · rw [if_pos hb]
+    -- the notification made active, then (#85) a `TS_RUNNING_VM` thread kicked (no write)
+    have OLD : (do
+        let s1 ← notification.set_active st s n badge
+        if b = true then ok (s1, a)
+        else do
+          let i2 ← obj.Tcb.state st i s1
+          if i2 = sched.TS_RUNNING_VM then notification.kick_guest st ar s1 a i else ok (s1, a))
+        ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ TmFr st T Cs Nt s s' ⦄ := by
+      refine WP.spec_bind sa fun s1 h1 => ?_
+      refine sig_if _ _ _ _ (fun _ => (WP.spec_ok _).2 h1) (fun _ => ?_)
+      step with obj.Tcb.state.spec
+      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => (WP.spec_ok _).2 h1)
+      refine WP.spec_mono (notification.kick_guest.same hA s1 a i) fun r hr => ?_
+      obtain ⟨s', a'⟩ := r
+      simp only at hr
+      subst hr
+      exact h1
+    by_cases hb : b = true
+    · rw [if_pos hb, if_pos hb]
       refine WP.spec_bind sa fun s1 h1 => ?_
       rw [if_pos hb]
       exact (WP.spec_ok _).2 h1
+    rw [if_neg hb]
     have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
     have hiT : i ∈ T := by
       rcases hNb n hn with e | e
@@ -317,32 +296,13 @@ theorem notification.send_signal.tm {A : Type _} {ar : machine.Arch A} (hA : P0.
       rintro ⟨s', a'⟩ ⟨hb', tm'⟩
       have tm := (TmFr.of_keepT k1).trans ((TmFr.of_keepT k2).trans tm')
       exact ⟨hI.of_tmfr hb' tm, tm⟩
-    · -- not receiving: #63's same-core `RunningVM` completion, else active
-      have OLD : (do
-          let s1 ← notification.set_active st s n badge
-          if b = true then ok (s1, a)
-          else do
-            let i2 ← obj.Tcb.state st i s1
-            if i2 = sched.TS_RUNNING_VM then smp.remote_tcb_stall st ar s1 a i else ok (s1, a))
-          ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ TmFr st T Cs Nt s s' ⦄ := by
-        refine WP.spec_bind sa fun s1 ⟨h1, tm1⟩ => ?_
-        rw [if_neg hb]
-        step with obj.Tcb.state.spec
-        split
-        · obtain ⟨⟨Q1, R1, hq1⟩, hb1, hx1, hs1, hg1⟩ := h1
-          exact WP.spec_mono (WP.spec_and (smp.remote_tcb_stall.all hA s1 a i hq1 hb1 hx1 hs1 hg1)
-            (smp.remote_tcb_stall.tm (Nt := Nt) hA s1 a i hq1 hx1 hg1))
-            fun r ⟨⟨hq2, hb2, hx2, hs2, hg2, _⟩, tm2⟩ => ⟨⟨⟨Q1, R1, hq2⟩, hb2, hx2, hs2, hg2⟩, tm1.trans tm2⟩
-        · exact (WP.spec_ok _).2 ⟨h1, tm1⟩
+    · -- not receiving: (#63 / #85) the `RunningVM` completion, else active (and kicked)
       rw [if_neg hb]
       refine sig_if _ _ _ _ (fun hvm => ?_) (fun _ => OLD)
-      step with obj.Tcb.affinity.spec as ⟨i2, _hi2⟩
-      step with LawfulStore.cur_cpu_spec as ⟨i3, _hi3⟩
-      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => OLD)
       refine WP.spec_bind (vcpu.signal_completes.blk s i) fun b1 hb1 => ?_
       refine sig_if _ _ _ _ (fun hb1t => ?_) (fun _ => OLD)
       have hvmS : L.mem s (stA i) = sched.TS_RUNNING_VM := by rw [← ei1]; exact hvm
-      refine WP.spec_bind (vcpu.report.tm hA s a i badge hI hiT hvmS (hb1 hb1t)) ?_
+      refine WP.spec_bind (vcpu.report.tm hA s a i badge hI hiT hvmS (hb1 hb1t) hU (hbuf i hiT)) ?_
       rintro s1 ⟨h1, st1, tm1⟩
       refine WP.spec_mono (signal_vm.tm hA s1 a i n h1 hiT hn st1) ?_
       rintro ⟨s', a'⟩ ⟨hb', tm'⟩
@@ -399,12 +359,13 @@ theorem notification.send_signal.tm {A : Type _} {ar : machine.Arch A} (hA : P0.
 
 /-- **`SigTimerFrame` from `TInv`**: on a `TInv` state, signalling a notification of `Nt` keeps `TInv` and
 the timer words (`TAgree`) and the key-space base. -/
-theorem notification.send_signal.tagree {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+theorem notification.send_signal.tagree {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
-    (hH : H n = some .ntfn) :
+    (hH : H n = some .ntfn) (hU : UserOK st T Cs Ω H U s)
+    (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄) :
     notification.send_signal st ar s a n badge ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       TAgree st T Cs s s' ∧ L.ksb s' = L.ksb s ⦄ :=
-  WP.spec_mono (notification.send_signal.tm hA s a n badge h hn hH) fun r hr => by
+  WP.spec_mono (notification.send_signal.tm hA s a n badge h hn hH hU hbuf) fun r hr => by
     obtain ⟨s', a'⟩ := r
     exact ⟨hr.1, TAgree.of_tmfr hr.2, hr.2.1⟩
 
@@ -415,15 +376,19 @@ theorem TInv.fireInv {s : S} (hR : TimerRB st T Cs s) (h : TInv st T Cs Ω H Sg 
   exact ⟨hR, h0.nodes, h0.cur⟩
 
 /-- **`fire`'s loop keeps `TimerRB` and `TInv`** (no premise on `send_signal`). -/
-theorem timer.fire_loop.rb' {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64) (hR : TimerRB st T Cs s)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+theorem timer.fire_loop.rb' {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (now i : U64) (hR : TimerRB st T Cs s)
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
     timer.fire_loop st ar s a now i ⦃ s' _ => TimerRB st T Cs s' ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hT : TcbPlaced T := by obtain ⟨⟨Q, R, h0⟩, -⟩ := h; exact h0.tcbs
+  obtain ⟨IKr, IKs, IKp⟩ := IK T Cs Ω H Sg Rp Scs Nt Z Ac U
   unfold timer.fire_loop
+  refine WP.spec_mono (P := fun r : S × A => (TimerRB st T Cs r.1 ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ∧
+    IbFr (L := L) T s r.1) ?_ fun r hr => hr.1
   apply loop.spec_decr_nat (measure := fun x => 32 - x.2.2.val)
-    (inv := fun x => TimerRB st T Cs x.1 ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1)
-  · rintro ⟨s1, a1, i1⟩ ⟨hR1, hI1⟩
+    (inv := fun x => (TimerRB st T Cs x.1 ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac x.1) ∧ IbFr (L := L) T s x.1)
+  · rintro ⟨s1, a1, i1⟩ ⟨⟨hR1, hI1⟩, f1⟩
+    try simp only at f1
     try simp only
     have h1 : FireInv st T Cs s1 := hI1.fireInv hR1
     unfold timer.fire_loop.body
@@ -435,7 +400,7 @@ theorem timer.fire_loop.rb' {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
       step with obj.node_get.spec as ⟨t, et⟩
       step with obj.Tcb.is_null.spec as ⟨b, eb⟩
       split
-      · exact (WP.spec_ok _).2 ⟨hR1, hI1⟩
+      · exact (WP.spec_ok _).2 ⟨⟨hR1, hI1⟩, f1⟩
       rename_i hb
       have ht0 : t ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
       have htT : t ∈ T := by
@@ -446,23 +411,27 @@ theorem timer.fire_loop.rb' {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
         · exact e
       step with obj.Tcb.timer_deadline.val as ⟨d, ed⟩
       split
-      · exact (WP.spec_ok _).2 ⟨hR1, hI1⟩
+      · exact (WP.spec_ok _).2 ⟨⟨hR1, hI1⟩, f1⟩
       step with obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
-      refine WP.spec_bind (WP.spec_and (timer.remove.rb s1 t hT htT h1.1 h1.2.1) (timer.remove.tinv s1 t hI1 htT))
-        fun s2 h2 => ?_
-      obtain ⟨⟨hR2, -, -, -⟩, hI2⟩ := h2
+      refine WP.spec_bind (WP.spec_and (WP.spec_and (timer.remove.rb s1 t hT htT h1.1 h1.2.1)
+        (timer.remove.tinv s1 t hI1 htT)) (IKr s1 t hI1 htT)) fun s2 h2 => ?_
+      obtain ⟨⟨⟨hR2, -, -, -⟩, hI2⟩, g2⟩ := h2
+      have f12 := f1.trans g2
       step with obj.Tcb.bound_ntfn.val as ⟨n, en⟩
-      refine WP.spec_bind (Pₘ := fun r : S × A => TimerRB st T Cs r.1 ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1)
-        ?_ ?_
+      refine WP.spec_bind (Pₘ := fun r : S × A => (TimerRB st T Cs r.1 ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ∧
+        IbFr (L := L) T s r.1) ?_ ?_
       · split
         · rename_i hn0
           have hn0' : L.mem s2 (boundA t) ≠ 0#u64 := by rw [← en]; exact bne_ne hn0
           have hn : n ∈ Nt := by rw [en]; exact hI2.2.2.1.2.2.bnd t htT hn0'
-          exact WP.spec_mono (notification.send_signal.tagree hA s2 a1 n bd hI2 hn (hNt n hn)) fun r hr => by
+          have hb2 := hBA.of_fr f12
+          exact WP.spec_mono (WP.spec_and (notification.send_signal.tagree hA s2 a1 n bd hI2 hn (hNt n hn) hb2.1 hb2.2)
+            (IKs s2 a1 n bd hI2 hn (hNt n hn) hb2)) fun r hr => by
             obtain ⟨s', a'⟩ := r
-            exact ⟨hR2.congr hr.2.1, hr.1⟩
-        · exact (WP.spec_ok _).2 ⟨hR2, hI2⟩
-      rintro ⟨s3, a3⟩ ⟨hR3, hI3⟩
+            simp only [WP.uncurry'_pair] at hr
+            exact ⟨⟨hR2.congr hr.1.2.1, hr.1.1⟩, f12.trans hr.2⟩
+        · exact (WP.spec_ok _).2 ⟨⟨hR2, hI2⟩, f12⟩
+      rintro ⟨s3, a3⟩ ⟨⟨hR3, hI3⟩, f3⟩
       try simp only [WP.uncurry'_pair]
       step with LawfulStore.cur_cpu_spec as ⟨c3, ec3⟩
       step with obj.node_set.spec as ⟨s4, es4⟩
@@ -470,20 +439,21 @@ theorem timer.fire_loop.rb' {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
       have hlt : 32 - i4.val < 32 - i1.val := by omega
       try simp only [WP.spec_ok]
       subst es4 ec3
-      exact ⟨(FireInv.reprogram (v := 1#u64) hT (hI3.fireInv hR3)).1, reprogram.tinv hI3, hlt⟩
-    · exact (WP.spec_ok _).2 ⟨hR1, hI1⟩
-  · exact ⟨hR, h⟩
+      exact ⟨⟨⟨(FireInv.reprogram (v := 1#u64) hT (hI3.fireInv hR3)).1, reprogram.tinv hI3⟩,
+        f3.trans (IKp s3 1#u64 hI3)⟩, hlt⟩
+    · exact (WP.spec_ok _).2 ⟨⟨hR1, hI1⟩, f1⟩
+  · exact ⟨⟨hR, h⟩, IbFr.refl s⟩
 
 /-- **`timer::fire` keeps `TimerRB`** (stage 8, fire part) together with `TInv`; unlike `timer.fire.rb` no
 premise on `send_signal` (its timer frame is `notification.send_signal.tagree`). -/
-theorem timer.fire.rb' {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (hR : TimerRB st T Cs s)
-    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+theorem timer.fire.rb' {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A) (hR : TimerRB st T Cs s)
+    (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs Ω H U s) :
     timer.fire st ar s a ⦃ s' _ => TimerRB st T Cs s' ∧ TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold timer.fire
   refine WP.spec_bind (L.cur_cpu_spec s) fun c _ => ?_
   refine WP.spec_bind (obj.node_get.spec s c _) fun now _ => ?_
-  exact timer.fire_loop.rb' hA hNt s a now 0#u64 hR h
+  exact timer.fire_loop.rb' hA IK hNt s a now 0#u64 hR h hBA
 
 end
 

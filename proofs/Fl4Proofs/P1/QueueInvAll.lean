@@ -353,7 +353,10 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
     try dsimp only
     split
     · obtain ⟨hn, hH⟩ := hcap.2.1 _ _ _ _ rfl
-      refine WP.spec_mono (ntfn_signal.blkF hA s a _ p b h.blk hct hrun hn hH) ?_
+      have hBA : BufAt st T Cs Ω H U s := by
+        obtain ⟨Q, R, x0⟩ := BXI.xs h hU
+        exact ⟨hU, fun y hy => E.buf _ _ _ _ s y he.xg x0.1 hy⟩
+      refine WP.spec_mono (ntfn_signal.blkF hA s a _ p b h.blk hct hrun hn hH hBA) ?_
       rintro ⟨r, s', a'⟩ hr
       simp only [WP.uncurry'_pair] at hr ⊢
       exact ⟨Ac, BlkOK.bxi hr.2.1, fun e => by rw [hr.1] at e; cases e⟩
@@ -579,13 +582,16 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
       (fun σ' h' Ac s h => (PF σ' h').blkU Ac s h)
       (fun σ' h' => (PF σ' h').xfer) (fun σ' h' => (PF σ' h').errG) hflt s a call blk don fp cptr he h hcA hcsc)
     P.blkU P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
-    P.vmchk
+    P.vmchk (fun Ac s hG h => by
+      obtain ⟨-, hU⟩ := P.blkU Ac s h
+      obtain ⟨Q, R, x0⟩ := BXI.xs h hU
+      exact ⟨hU, fun y hy => P.xfer.buf _ _ _ _ s y hG x0.1 hy⟩)
 
 /-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry
 ends over some admissible tuple. -/
 theorem kernel_entry.entry_of {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (TX : TmoXG st ar)
+    (TX : TmoXG st ar) (IK : IbKeep st ar)
     (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
       InvGaps st ar Adm σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ ∀ n ∈ σ.Nt, σ.H n = some .ntfn)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
@@ -594,7 +600,7 @@ theorem kernel_entry.entry_of {A : Type _} {ar : machine.Arch A} {Adm : PSets �
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry hA TX (fun σ h' => ⟨EntryHyps.of_gaps hA h' (fun σ'' h'' => (GF σ'' h'').1) (GF σ h').1
+  kernel_entry.entry hA TX IK (fun σ h' => ⟨EntryHyps.of_gaps hA h' (fun σ'' h'' => (GF σ'' h'').1) (GF σ h').1
     (GF σ h').2.1, (GF σ h').2.2⟩) hσ s a hP h
 
 end

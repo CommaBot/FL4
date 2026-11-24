@@ -19537,3 +19537,29 @@ None (no Lean change).
 - **FINDINGs.** (1) closed upstream by #96 (A64 extracts, 0 sorry). (2) `xtask extract --arch aarch64` exits 1 on
   `a64_funs_external`'s template equality (x86 has `Result.is_err`, A64 does not); tooling only, no kernel bug.
   No kernel behaviour bug found.
+
+### int6 core (route A, owner's choice) — interfaces for par/a6f and par/a6x (exact statements in P1/QueueSignal, P1/QueueEntry)
+- **Placement carrier** (QueueSignal): `BufAt st T Cs Ω H U s := UserOK st T Cs Ω H U s ∧ ∀ y ∈ T,
+  msg.lookup_ipc_buffer st s true y ⦃ BufOK U ⦄` (`BufOK` moved here from QueueXfer). `send_signal.tinv` /
+  `.tinvF` / `.tm` / `.tagree` take `(hU : UserOK … U s) (hbuf : ∀ y ∈ T, lookup ⦃ BufOK U ⦄)` at the signal's
+  state; `vcpu.report.xf`: report = `RepW t U` writes (the thread's register words TCB+256..3328, user words `U`)
+  then `set_thread_state TS_RUNNING`. Footprints widened: `FootU` / `FootDU` (QueueFootS) = `Foot` / `FootD` ∪ `U`;
+  `send_signal.tinvF`, `timer.fire.tinvF/.kw`, `sched.schedule.sfoot/.kw` now end in `FootDU … (EH H) U`.
+- **a6f (gap 1) — what the core expects**: the buffer-lookup frame `IbFr T s s' := L.ksb s' = L.ksb s ∧ ∀ t ∈ T,
+  IbSame s s' t`, `IbSame` = `ibWordA t` (TCB+3512), `sbWordA t` (the buffer cap slot) and `sbWordA t + 8` unchanged;
+  `BufAt.of_fr`, `IbFr.of_keepT` (any `KeepT0`), `lookup_ipc_buffer_same` are proved. The deferred Prop
+  **`IbKeep st ar`** (QueueSignal; as `TmoXG`, a P1 lemma not a premise of any top) asks, for any sets and `U`:
+  (1) `TInv s → t ∈ T → timer.remove st s t ⦃ IbFr T s ⦄`, (2) `TInv s → n ∈ Nt → H n = ntfn → BufAt … U s →
+  send_signal ⦃ s' _ => IbFr T s s' ⦄`, (3) `TInv s → IbFr T s (L.wr s (L.nodeAt s (L.cpu s) REPROGRAM) v)`.
+  Please provide **`theorem ibKeep_holds {A} {ar : machine.Arch A} (hA : P0.ArchTotal ar) : IbKeep st ar`** in a
+  P1 module that `QueueEntryGaps4` can import (it is used there: `kernel_entry.entry_of3 hA (tmoXG_holds hA)
+  (ibKeep_holds hA)`), and the P3 helpers giving `BufAt` at a `JAtZ` state (from `JAtZ.bufOK`, `JAtZ.bufU_out`).
+  `IK : IbKeep st ar` is threaded where `TX : TmoXG` is (QueueEntry chain, `kernel_entry.entry_of`/`_of2`/`_of3`)
+  and into `timer.fire_loop.tinv/.tinvF/.rb'`, `timer.fire.*`, `sched.schedule.tinv/.entry/.sfoot/.kw`.
+- **a6x (gap 2) — what the core expects**: `syscall.finish.entry` now takes `(IK : IbKeep st ar)` and
+  `(hG : XG st T Cs Ω H Sg Scs Z P3Ok s)` at the finish state (`EntryHyps0.bufAt`, new field filled in
+  `EntryHyps.of_gaps` from `P3Place.xfer.buf` + `P3Place.blkU`, turns it into `BufAt`). Its four callers in
+  QueueEntry have the hole **`xg_a6x`** where that `XG` must come from: `unknown_syscall_fault_old.entry` (after
+  the fault path / a failed budget check), `set_tls_base_self.entry` (after the TLS write / a failed budget
+  check), `handle_syscall_old.entry` (over `σ3` after the dispatch), `handle_interrupt_entry.entry` (after
+  `handle_interrupt`). Local builds stub them (`proofs/scratch/int6scratch.py`, untracked, SCRS=…).
