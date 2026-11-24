@@ -173,7 +173,14 @@ theorem sni_shape {s : S} {a : A} {r : S × A} (h : sched.set_next_interrupt st 
   · split at h
     · have h' : (s, a) = r := by simpa using h
       subst h'; exact Or.inl rfl
-    · exact Or.inr ⟨_, by rw [node_set_tail h, e1]⟩
+    · split at h
+      · obtain ⟨t1, -, h⟩ := bind_ok_inv h
+        obtain ⟨b1, -, h⟩ := bind_ok_inv h
+        split at h
+        · have h' : (s, a) = r := by simpa using h
+          subst h'; exact Or.inl rfl
+        · exact Or.inr ⟨_, by rw [node_set_tail h, e1]⟩
+      · exact Or.inr ⟨_, by rw [node_set_tail h, e1]⟩
   · exact Or.inr ⟨_, by rw [node_set_tail h, e1]⟩
 
 /-- `send_pending` writes at most the current node's `IPI_PENDING` word. -/

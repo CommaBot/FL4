@@ -77,6 +77,7 @@ theorem MKD.sched_schedule_choose_new_thread {s : S} {a : A}  (h : AR a c₀) :
     sched.schedule_choose_new_thread st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold sched.schedule_choose_new_thread; mkd_walk
 
+set_option maxHeartbeats 4000000 in
 theorem MKD.sched_set_next_interrupt {s : S} {a : A}  (h : AR a c₀) :
     sched.set_next_interrupt st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold sched.set_next_interrupt; mkd_walk

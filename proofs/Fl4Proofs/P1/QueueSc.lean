@@ -425,15 +425,29 @@ theorem sched.set_next_interrupt.fp {A : Type _} {ar : machine.Arch A} (hA : P0.
     rw [i1_post]
     exact (writesIn_wr (nodeAt_aligned hN' (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED]))).mono
       fun b hb => hb ▸ hB
+  have fin : (do
+      let s1 ← obj.node_set st s i1 layout.node.ARMED deadline1
+      let a1 ← ar.set_deadline a deadline1
+      ok (s1, a1)) ⦃ s' _ => WritesIn st s s' B ⦄ := by
+    step with obj.node_set.spec as ⟨s1, s1_post⟩
+    step with P0.ArchTotal.set_deadline_spec hA as ⟨a1, _⟩
+    rw [s1_post]; exact w _
+  -- #99: an earlier pending deadline is kept except for the idle thread
   split
   · split
     · simp only [WP.spec_ok, WP.uncurry'_pair]; exact WritesIn.refl _ _
-    · step with obj.node_set.spec as ⟨s1, s1_post⟩
-      step with P0.ArchTotal.set_deadline_spec hA as ⟨a1, _⟩
-      rw [s1_post]; exact w _
-  · step with obj.node_set.spec as ⟨s1, s1_post⟩
-    step with P0.ArchTotal.set_deadline_spec hA as ⟨a1, _⟩
-    rw [s1_post]; exact w _
+    · split
+      · refine WP.spec_bind (Pₘ := fun _ => True) (by
+          unfold sched.idle_thread; rw [L.cur_cpu_eq]; simp only [bind_ok]
+          exact WP.spec_bind (obj.node_get.spec s _ _) fun _ _ => (WP.spec_ok _).2 trivial) fun t1 _ => ?_
+        refine WP.spec_bind (Pₘ := fun _ => True) (by
+          unfold core.cmp.PartialEq.ne.trait_default core.cmp.PartialEq.ne.default
+          simp [obj.Tcb.Insts.CoreCmpPartialEqTcb.eq]) fun b1 _ => ?_
+        split
+        · simp only [WP.spec_ok, WP.uncurry'_pair]; exact WritesIn.refl _ _
+        · exact fin
+      · exact fin
+  · exact fin
 
 theorem sched.set_next_interrupt.free {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hcur : L.cpu s ∈ Cs) (hN' : NodePlaced st T s (L.cpu s)) :
