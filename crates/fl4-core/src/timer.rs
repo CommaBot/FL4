@@ -310,8 +310,9 @@ pub fn remove<S: Store>(s: &mut S, t: Tcb) {
     set_parent(s, t, 0);
     set_left(s, t, 0);
     set_right(s, t, 0);
-    t.set_timer_height(s, 0);
+    // DEADLINE before HEIGHT: while armed, the core in HEIGHT owns t's timer.
     t.set_timer_deadline(s, 0);
+    t.set_timer_height(s, 0);
 }
 
 /// Arm `t`'s timer for `deadline` with `badge`, replacing any earlier
@@ -346,12 +347,13 @@ pub fn insert<S: Store>(s: &mut S, t: Tcb, deadline: u64, badge: u64) {
     } else {
         set_right(s, p, t.0);
     }
+    // HEIGHT before DEADLINE: once armed, the core in HEIGHT owns t's timer.
+    t.set_timer_height(s, (cpu << 8) | RED);
     t.set_timer_deadline(s, deadline);
     t.set_timer_badge(s, badge);
     set_parent(s, t, p.0);
     set_left(s, t, 0);
     set_right(s, t, 0);
-    t.set_timer_height(s, (cpu << 8) | RED);
     insert_fixup(s, cpu, t);
     if first {
         node_set(s, cpu, node::TIMER_MIN, t.0);
