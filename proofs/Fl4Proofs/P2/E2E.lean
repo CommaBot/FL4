@@ -171,7 +171,8 @@ alternatives cover `Serial`'s per-read ones; for user words, module docstring.
 no state, so no store instance can count reads, and `IsProg` (an extensional
 equality) does not distinguish a body that reads a word twice from one that
 keeps the first value. `p` must be the body's own tree of trait calls, as
-`IsProg` [P] intends: to be checked against the extracted text. -/
+`IsProg` [P] intends: to be checked against the extracted text
+(`P2/ReadGap.lean`: a body with both kinds of tree). -/
 def ReadOnce (st : machine.Store S) [LawfulStore st] (ar : machine.Arch A) (p : SProg X)
     (cls : U64 → U64 → U64) (ko : U64 → ClsOwner U64) (User : U64 → Prop) (Pre : S → Prop)
     (RS : S → U64 → Prop) : Prop :=
@@ -701,7 +702,11 @@ aligned kernel words, and `q` is the body's run from there. Justification:
 fl4-sync's glue (`local_syscall`, `local_vm_fault`, `run_timer_irq`, trusted)
 calls the body on the one physical memory with its own core's Arch state, after
 taking `Locks` and checking what `Pre` states. User words are left out: `Serial`
-does not model user threads' writes. -/
+does not model user threads' writes. The body's program depends on `σ` and `a`
+only through which reads are `rd` / `rdc` / `rds` (ghost: all three step alike)
+and the core's constants and Arch answers; `Serial` lets a core arm any program,
+so an execution is modelled with the program annotated for the `σ` at which its
+body starts (what its glue's other branches start does not matter). -/
 def StartAt (P : LocalPath own cls ko User) (c : U64) (hs : U64 → Prop) (μ : U64 → U64)
     (q : SP) : Prop :=
   ∃ (σ : P.S) (a : P.A), P.Pre σ ∧ P.L.cpu σ = c ∧ P.Locks σ = hs ∧

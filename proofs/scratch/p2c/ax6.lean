@@ -1,6 +1,4 @@
-import Fl4Proofs.P2.E2E
-#print axioms Fl4Proofs.P2.Serial.safe_of_runs
-#print axioms Fl4Proofs.P2.E2E.body_safe
-#print axioms Fl4Proofs.P2.E2E.serializable_paths
-#print axioms Fl4Proofs.P2.E2E.ownDep
+import Fl4Proofs.P2.ReadGap
 #print axioms Fl4Proofs.P2.E2E.serializable_e2e
+#print axioms Fl4Proofs.P2.ReadGap.isProg_pOnce
+#print axioms Fl4Proofs.P2.ReadGap.not_once_pTwice
