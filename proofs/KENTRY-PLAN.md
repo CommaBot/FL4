@@ -19304,3 +19304,8 @@ None (no Lean change).
   would decode at an arbitrary slot (no FL4 bug: fl4-sync never passes one).
 - Builds (afkprover, mirror FL4-lcv, SEED=FL4-int5): lcv-b1…b5 `MODE=mod Fl4Proofs.P1.LocalInv` (b5 green, ERRORS 0,
   commit 51189aaa); lcv-b6 `Fl4Proofs.P3.XTopJointKEntryInvL`: 7378 jobs, ERRORS 0, SORRY 0.
+- **Full build** lcv-full1 (`MODE=build AX=axlcv.lean`, tree of 0aaef44d): "Build completed successfully (7477 jobs)",
+  ERRORS 0, SORRY 0. Axioms (axlcv.lean, untracked at the worktree root): `kernel_entry_reachU29V`, `kernel_entry_reachU29`,
+  `kernel_entry_reachU15Vm`, `JAtZ.sbufOK`, `JAtZ.bufWordG`, `JAtZ.bufWord`, `inv_local_same`, `inv_local_triple`,
+  `plan_fields`, `plan_with_kp`, `lec_keep`, `lookup_slot_keep`, `inv_prefix`, `lookup_buf_agreeB`, `lookup_buf_agree`:
+  all `[propext, Classical.choice, Quot.sound]`. No `kernel_entry_reach*` statement changed; no premise added to any top.
