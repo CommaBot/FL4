@@ -32,16 +32,37 @@ fn decode_set_pac_keys<S: Store, A: Arch>(s: &mut S, a: &mut A, target: Tcb, c: 
         return illegal();
     }
     restart_caller(s);
-    let mut i = 0;
-    while i < 10 {
-        let k = arg(s, c, i + 1);
-        s.write(target.0.wrapping_add(tl::PAC_KEYS).wrapping_add(i * 8), k);
-        i += 1;
-    }
+    // Read every key word before writing any: the reads (the caller's
+    // message registers and IPC buffer) never touch the target's PAC
+    // words.
+    let keys: [u64; 10] = [
+        arg(s, c, 1),
+        arg(s, c, 2),
+        arg(s, c, 3),
+        arg(s, c, 4),
+        arg(s, c, 5),
+        arg(s, c, 6),
+        arg(s, c, 7),
+        arg(s, c, 8),
+        arg(s, c, 9),
+        arg(s, c, 10),
+    ];
+    write_pac_keys(s, target, keys);
     s.write(target.0.wrapping_add(tl::PAC_FLAGS), flags);
     let epoch = a.next_pac_epoch();
     s.write(target.0.wrapping_add(tl::PAC_EPOCH), epoch);
     Ok(())
+}
+
+/// Store the ten PAC key words in `target`. Kept apart from
+/// `decode_set_pac_keys` so that no `Ctx` borrow is live across the loop,
+/// which Aeneas cannot join.
+fn write_pac_keys<S: Store>(s: &mut S, target: Tcb, keys: [u64; 10]) {
+    let mut i = 0;
+    while i < 10 {
+        s.write(target.0.wrapping_add(tl::PAC_KEYS).wrapping_add(i * 8), keys[i as usize]);
+        i += 1;
+    }
 }
 
 /// `TCBSetHighVSpace(high_vspace)`: bind a copy of an assigned
