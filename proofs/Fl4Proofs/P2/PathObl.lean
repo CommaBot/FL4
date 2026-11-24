@@ -34,7 +34,7 @@ than the store, the state and the Arch value fixed; result `(x, s', a')`) gives
 * `dec_alt`: if the run at `s` declines, then from every **alternative** state
   `s'` (`Alt`: same `cpu`, `ksb`, `frame_masks`; equal on `ReadSet s`; and, on
   the words outside it that the path may read by class (`ko` gate or this
-  core), the same value class) and any Arch value, the run also declines,
+  core), the same value class) and the **same** Arch value, the run also declines,
   writes only `DecSet s`, and passes the per-write check below. This is where
   a declined run's racy reads are covered: the values another core may leave
   in a word are exactly those of its class (a CNode slot's `CAP0`: Null or
@@ -255,11 +255,15 @@ structure PathObl {A X : Type} (st : machine.Store S) [L : LawfulStore st]
     (ReadSet WriteSet DecSet : S → U64 → Prop) : Prop where
   acc : ∀ s a r, Pre s → f st s a = ok r → Acc r.1 →
     f (guard st (ReadSet s) (WriteSet s)) s a = ok r
+  /-- Declines are stable under racy memory, the Arch value fixed: sound since
+  the Arch state is per core and other cores' (`Foreign`) steps touch only
+  memory, so along a local path the Arch answers are fixed by the core's own
+  Arch state; only speculative reads of memory vary. -/
   dec_alt : ∀ s a r, Pre s → f st s a = ok r → ¬ Acc r.1 →
-    ∀ s' a' r', Alt st (ReadSet s) cls ko User s s' → f st s' a' = ok r' →
-      ¬ Acc r'.1 ∧ f (guard st (fun _ => True) (DecSet s)) s' a' = ok r' ∧
+    ∀ s' r', Alt st (ReadSet s) cls ko User s s' → f st s' a = ok r' →
+      ¬ Acc r'.1 ∧ f (guard st (fun _ => True) (DecSet s)) s' a = ok r' ∧
       f (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y)))
-        s' a' = ok r'
+        s' a = ok r'
   read_own : ∀ s x, Pre s → ReadSet s x → ¬ User x → RPerm own (L.cpu s) (Locks s) (L.mem s) x
   write_own : ∀ s x, Pre s → (WriteSet s x ∨ DecSet s x) → ¬ User x →
     WPerm own (L.cpu s) (Locks s) (L.mem s) x
@@ -276,7 +280,7 @@ theorem PathObl.dec {A X : Type} {st : machine.Store S} [L : LawfulStore st]
     {RS WS DS : S → U64 → Prop} (O : PathObl st f Acc own cls ko User Locks Pre RS WS DS)
     {s : S} {a : A} {r : X × S × A} (hpre : Pre s) (h : f st s a = ok r) (hdec : ¬ Acc r.1) :
     f (guard st (fun _ => True) (DS s)) s a = ok r :=
-  (O.dec_alt s a r hpre h hdec s a r (Alt.refl s) h).2.1
+  (O.dec_alt s a r hpre h hdec s r (Alt.refl s) h).2.1
 
 /-! ## A Store- and Arch-generic body as a tree of trait calls -/
 
