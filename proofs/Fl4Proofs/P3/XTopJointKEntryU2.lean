@@ -103,7 +103,7 @@ variable {arI AR MR}
 theorem JReachU2.zr {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachU2 (L := L) arI AR MR s a σ) :
     SInvUZ.ZR σ := by
   induction h with
-  | start _ _ hI _ hP => exact zr_of_utz hI.utZ hP
+  | start _ _ _ hI _ hP => exact zr_of_utz hI.utZ hP
   | step n c _ _ _ _ _ _ hU hP _ => exact zr_of_utz hU hP
   | irq w _ _ _ hO _ ih => exact zr_evOut ih (fun _ h => by cases h) hO
   | user n c _ _ _ _ hO _ ih => exact zr_evOut ih (fun _ h => by cases h) hO

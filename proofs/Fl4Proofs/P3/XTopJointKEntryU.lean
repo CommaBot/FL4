@@ -420,7 +420,7 @@ theorem JReachU.toE4 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachU (L :
 theorem JReachU.sinv {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachU (L := L) arI AR MR s a σ) :
     SInvIP σ := by
   induction h with
-  | start _ _ hI _ => exact hI
+  | start _ _ _ hI _ => exact hI
   | step n c _ _ _ _ hy _ hU ih =>
     obtain ⟨h1, h2⟩ := SInvIo.kentry_ioi ⟨ih.ioP, ih.ioN⟩ _ hy
     exact ⟨h1, h2, hU⟩

@@ -490,7 +490,7 @@ theorem jEvRef_irqI {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → L
   rw [handle_interrupt_entry_eq]
   refine WP.spec_bind (spec_and_eq (WP.spec_and (J0'.utCheckBI hres hid hBu hARI.toARKeep hA hnd hmrt hmb hmax htu)
     (ut_cb_mr hM hMK hA hI.mr s)) fun _ h => h) ?_
-  rintro ⟨b, s2, a2⟩ ⟨⟨⟨z, hz, -, Z2, Ac2, Lst2, D2, J2⟩, hM2⟩, heq1⟩
+  rintro ⟨b, s2, a2⟩ ⟨⟨⟨z, hz, -, Z2, Ac2, Lst2, D2, J2, _⟩, hM2⟩, heq1⟩
   -- the spec state after the budget check, then after the IRQ read
   have hE := Sched.updateTimeStamp_eq' hnd (doMachineOp_single (getCurrentTime_eq σ.machineState))
   have hz0 := hz

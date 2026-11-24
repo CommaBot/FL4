@@ -459,7 +459,7 @@ theorem jreach_invI (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ SInvIR σ ∧ MR a σ.machineState := by
   have hI : SInvIR σ := by
     cases h with
-    | start _ _ hI _ => exact hI
+    | start _ _ _ hI _ => exact hI
     | step _ _ _ _ _ _ _ _ hI => exact hI
   obtain ⟨hJ, hX, hR⟩ := jreach_invM hnd h.toM
   exact ⟨hJ, hX, hI, hR⟩
