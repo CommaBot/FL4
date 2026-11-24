@@ -17993,3 +17993,11 @@ None (no Lean change).
   `JPathMEU29` is `True`; `KDispHypsKVU29.toU28 J' hni` fills C23 by `JAtZ.vsReachMissR J'.vsNamedE` and C17 by
   `JAtZ.vsReachAsidC J'.vsNamedE` (new `JAtZ.vsNamedE : [VxE Z] → VsNamed`, VsNamedJ), the instance at
   `Z.mv Z.G V'` from `kernel_entry_reachU28V`'s `VxE Z`.
+- Also: V-twins `kernel_entry_reachUV` (for UH), `kernel_entry_reachUHV` (for UH2), `kernel_entry_reachE4V` (for E5):
+  those older tops call `JAtZ.rrPre5At` / `JAtZ.fastFaultOK`, which go through the budget step whose `false`
+  branch is a kernel exit (`∃ Z', JAtZ Z' ∧ VxE Z'`). The internal `kernel_entryJ*` (old 13P…29 line) dispatch
+  premises `∀ Z' …, JAtZ Z' … → KDispHyps…` take `[VxE Z'] →` (their lambdas get it by implicit lambda).
+- **Build state (afkprover mirror FL4-f6, full builds f6-b1…b27, each a fix round)**: b21 reached 7391/7395;
+  b27 (commit 134cf2e7) stopped at XTopJointKEntryFF (E5/UH2: fixed in 21fab969) and U2's V-twin obtain (fixed).
+  The station then hit its pids limit (coordinator: container restart pending; rerun with SEED=A, cold).
+  Next: full build of the current par/f6 head; then `AX=axf6.lean`.
