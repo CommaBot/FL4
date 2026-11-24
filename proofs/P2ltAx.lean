@@ -1,6 +1,8 @@
 import Fl4Proofs.P2.FootTimerGEIns
 import Fl4Proofs.P2.FootTimerSetG
 import Fl4Proofs.P2.FootTimerSetAcc
+import Fl4Proofs.P2.MoveTimer
+import Fl4Proofs.P2.FootTimerSetOwn
 open Fl4Proofs.P2
 #print axioms in_core_timer_tree_access
 #print axioms ge_remove
@@ -15,3 +17,6 @@ open Fl4Proofs.P2
 #print axioms Fl4Proofs.P2.timer_due.guard
 #print axioms Fl4Proofs.P2.sched_quiet.guard
 #print axioms Fl4Proofs.P2.set_timer_acc
+#print axioms Fl4Proofs.P2.MoveTimer.set_height_zero_mguard_fails
+#print axioms Fl4Proofs.P2.MoveTimer.set_deadline_mguard_fails
+#print axioms Fl4Proofs.P2.set_timer_acc_own

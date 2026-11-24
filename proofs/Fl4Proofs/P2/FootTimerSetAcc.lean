@@ -104,9 +104,10 @@ set_option maxHeartbeats 32000000 in
 /-- **An accepted `TCB_SetTimer` local path on the guarded store** (module docstring). -/
 theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     {target : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htg : target ∈ T)
-    (gRd : ∀ w, Aligned w → StRd st T Z s target w → R w) (gWr : ∀ w, Aligned w → StWr st T Z s target w → W w)
-    (hD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
-    (hD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (gRd : StOk st Scs s target → ∀ w, Aligned w → StRd st T Z s target w → R w)
+    (gWr : StOk st Scs s target → ∀ w, Aligned w → StWr st T Z s target w → W w)
+    (hD1 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hD2 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
     (h : localtimer.handle_set_timer_local st ar s a n target = ok (true, s', a')) :
     localtimer.handle_set_timer_local (guard st R W) ar s a n target = ok (true, s', a') := by
   have h0 := hI.1.choose_spec.choose_spec
@@ -494,6 +495,19 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
   simp only [Prod.mk.injEq] at e9
   obtain ⟨rfl, rfl⟩ := e9
   -- the guarded store: what it admits
+  have hok : StOk st Scs s target :=
+    { aff := by rw [etc]; exact haff
+      run := by
+        rw [etc]
+        have e' := ei2
+        rw [eq_of_spec_fd (obj.Tcb.state.spec (L := L) s t)] at e'
+        rw [ok_inj_ff e']; exact hrun
+      csc := hcs, core := by rw [ecsc']; exact hcore
+      taff := haffg, town := hown }
+  replace gRd := gRd hok
+  replace gWr := gWr hok
+  replace hD1 := hD1 hok
+  replace hD2 := hD2 hok
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
     gRd _ (nodeAt_aligned hN h1 h2) (Or.inl (Or.inr ⟨o, h1, h2, rfl⟩))
   have nW : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → W (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
@@ -512,9 +526,9 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     rw [e]; exact cW K (by omega) (by omega) (by omega)
   have scR : ∀ b, InSC csc (Z csc) b → Aligned b → R b := fun b hb ha =>
     gRd _ ha (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact hb)))))))
-  have scW : ∀ b, InSC csc (Z csc) b → Aligned b → W b := fun b hb ha =>
-    gWr _ ha (Or.inr (Or.inr (by rw [ecsc']; exact hb)))
-  have hSc : ScAcc R W csc (Z csc) := ⟨scR, fun b hb ha => scW b hb.inSC ha, scW _ hcq.2.2.1.1 hcq.2.2.1.2⟩
+  have hSc : ScAcc R W csc (Z csc) := ⟨scR, fun b hb ha =>
+    gWr _ ha (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact hb)))),
+    gWr _ hcq.2.2.1.2 (Or.inr (Or.inr (Or.inr (by rw [ecsc']))))⟩
   have rSt : R (stA t) := by rw [stA_eq]; exact cR _ (by simp) (by simp) (by simp) (by simp)
   have rSc : R (scA t) := cR _ (by simp) (by simp) (by simp) (by simp)
   have rIq : R (inqA t) := cR _ (by simp) (by simp) (by simp) (by simp)

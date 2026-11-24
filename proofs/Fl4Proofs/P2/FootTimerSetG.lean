@@ -260,10 +260,21 @@ def StRd (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → 
           (Z (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))) w))
 
 /-- The words an accepted `TCB_SetTimer` local path writes: `TW` of `StKeys`, the caller's registers and
-state, the current SC. -/
+state, the current SC's ring and `CONSUMED`. -/
 def StWr (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (target w : U64) :
     Prop :=
-  TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerRegW (L.curW s) w ∨ InSC (L.cscW s) (Z (L.cscW s)) w
+  TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerRegW (L.curW s) w ∨ InRing (L.cscW s) (Z (L.cscW s)) w ∨
+    w = core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED
+
+/-- What an accepted `TCB_SetTimer` local path checked at its entry state: the caller (running) and the current SC
+are on this core; the target is, and is disarmed or armed in this core's tree. -/
+structure StOk (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (s : S) (target : U64) : Prop where
+  aff : L.mem s (affA (L.curW s)) = L.cpu s
+  run : L.mem s (stA (L.curW s)) = sched.TS_RUNNING
+  csc : L.cscW s ∈ Scs
+  core : L.mem s (scCoreA (L.cscW s)) = L.cpu s
+  taff : L.mem s (affA target) = L.cpu s
+  town : L.mem s (tdA target) = 0#u64 ∨ (L.mem s (thA target)).val >>> 8 = (L.cpu s).val
 
 end
 
