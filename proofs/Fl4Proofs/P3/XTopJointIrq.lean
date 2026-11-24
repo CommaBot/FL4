@@ -449,7 +449,7 @@ def JPreemptRestHypN (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
 theorem jPreemptRestHyp_of
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     (h : JPreemptRestHypN (L := L) arI AR) : JPreemptRestHyp (L := L) arI AR :=
-  fun s a σ hJ hc => h s a σ hJ (hNS s a σ hJ) hc
+  fun s a σ hJ hc => h s a σ hJ (hNS s a σ hJ.hole) hc
 
 /-- **`invoke_afterJ`'s `hPre` without `JIrqHyp`** (module docstring). -/
 theorem hPre_ofI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
