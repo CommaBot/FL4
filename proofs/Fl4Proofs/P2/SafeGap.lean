@@ -1,7 +1,7 @@
 /-
 P2: **why `SerialSafe.Safe` is stated over `Foreign`-reachable memories**: with
 its first version (v1, kept here as `Safe1`, its speculative-read and write
-rules) `BodyOK` does not follow from the per-path obligations; with v2 the same
+rules) `SafeStep.start` does not follow from the per-path obligations; with v2 the same
 body is `Safe` (`body_safe_v2`).
 
 `Safe1` checks a body in the **start-memory world**: at a
@@ -28,11 +28,11 @@ lock `()`, held by `d`, so `c` holds only `core c`):
   `move` likewise; `DecOnce` (one racy read), alignment, no user words.
 * `Safe` from the start memory `z = a = 0` fails (`body_not_safe`): in the
   branch `v = 1`, writing `a := 1` with `z` still 0 moves `a` to `lock ()`,
-  not held by `c`. So `BodyOK` is false at a reachable state (`c` arms and
+  not held by `c`. So `SafeStep.start` is false at a reachable state (`c` arms and
   enters with `d` holding the lock), while every real execution is `Allowed`:
   `d` cannot make `z = 1` beside the gate (that would move `z` to the gate).
 
-Consequence: `BodyOK` with `Safe1` cannot be discharged from
+Consequence: `SafeStep.start` with `Safe1` cannot be discharged from
 `PathObl` v3 + `DecOnce` + `Deciders`. A fix must check the continuation in the
 worlds the interleaving can actually reach, e.g. a `Safe` whose premises are
 required at every memory reachable from `μ` by `Foreign` writes (then

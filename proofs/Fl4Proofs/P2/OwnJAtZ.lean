@@ -1,6 +1,6 @@
 /-
 P2: **`LayP` (hence `RegionOK`, `UserOK`) from the joint invariant `JAtZ`**:
-the two [J] premises of `E2E.GlueStart` for the layout the joint invariant's
+the two [J] premises of `E2E.Fl4Step.ser` for the layout the joint invariant's
 ghosts give (`layoutJ`): the typed heap `H`, the kernel-state base, the slots of
 `Z.th`, and as user memory the words of `Z.B` (every word of every non-device
 user frame, `JAtZ.fcov`; the IPC buffers are among them).

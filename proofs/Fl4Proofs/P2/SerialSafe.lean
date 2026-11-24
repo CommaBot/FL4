@@ -1,8 +1,8 @@
 /-
 P2 (DESIGN.md §9): **the footprint premise of `Serial` from per-path safety**.
 
-`Serial.serializable_reach` assumes `FootprintOK` [W]: every local-path step of
-every execution is `Allowed`. This module derives it from properties of each
+`Serial.serializable` is about executions whose local-path steps are all
+`Allowed`. This module derives that from properties of each
 local path taken one at a time, at the moment its body starts, so that the
 per-path obligations of `PathObl.lean` can discharge it.
 
@@ -24,29 +24,34 @@ before. (v1 of `Safe` asked every speculative-read continuation to be safe
 from the *unchanged* memory, which `PathObl` cannot discharge:
 `P2/SafeGap.lean`, where v2 holds, `body_safe_v2`.)
 
+Executions: `Step.arm` arms *any* program and a serial step installs *any* ghost
+maps, so a condition on "every state reachable from `s0`" fails for every `s0`
+with an idle core (it can arm a body that writes another core's words). What the
+kernel guarantees is asked of the steps of the execution instead: `SafeRun` is an
+execution each of whose steps is a `SafeStep`.
+
 Theorems:
-* `footprintOK_of_safe`: `ArmGlue`, `BodyOK` give `FootprintOK`.
-* `serializable_safe`: hence `Serial.serializable_reach` without the
-  `FootprintOK` premise: every execution that reaches a state with no local
+* `safeRun_greach`: every step of a `SafeRun` is `Allowed`.
+* `serializable_safe`: a `SafeRun` that reaches a state with no local
   path in progress equals running its completed entries one after another.
-  As there: in that serial order a speculative read may return **any** value,
+  As in `Serial`: in that serial order a speculative read may return **any** value,
   not the value memory held at that point; that the result is a real serial
   run of the entry is the per-path refinement obligation (`PathObl.lean`).
 
-Premises (all named, nothing else):
-* `ArmGlue s0` [W]: every program a core arms is glue (`Glue`) up to `start`.
-  True of the model of fl4-sync's `run_syscall` / `run_vm_fault` /
-  `run_timer_irq` local attempts; stated, not derived from the Rust.
-* `BodyOK s0` [W]: when a body starts, it is `Safe` from the current memory and
-  the core's locks. To be discharged from `PathObl` + `IsProg` per path (the
-  bridge), with the glue's guarantee that it starts a body only in a state
+What `SafeStep` asks (nothing else is assumed):
+* `arm` [P]: an armed program is `PureGlue` (speculative reads and lock attempts
+  up to `start`): the shape of fl4-sync's `run_syscall` / `run_vm_fault` /
+  `run_timer_irq` local attempts, read off the Rust (trusted).
+* `start` [W]: when a body starts, it is `Safe` from the current memory and
+  the core's locks. Discharged from `PathObl` + `IsProg` per path (`E2E.lean`),
+  with the glue's guarantee that it starts a body only in a state
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
 
-`Deciders` (and `DecidersOK`), `MoveLocal` and `MoveHeld` are not needed here; they are for the
-`BodyOK` bridge (`SafeCert`), which compares owners across memories differing on words the
+`Deciders`, `MoveLocal` and `MoveHeld` are not needed here; they are for the
+`start` bridge (`SafeCert`), which compares owners across memories differing on words the
 core does not hold.
 
-## Discharging `BodyOK`
+## Discharging `start`
 
 Done from the per-path obligations in `P2/SafeCert.lean` (certificates for
 `Prog`) and `P2/E2E.lean` (the translation, the certificates from `PathObl`, the
@@ -310,18 +315,38 @@ def SInv (s : Cfg A V C L) : Prop :=
   ∀ d p0 q W, s.ph d = .loc p0 q W →
     Glue s.cls s.ko d q ∨ Safe s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem q
 
-/-- **Premise** [W]: every program a core arms is glue up to its body. -/
-def ArmGlue (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p, s.ph c = .arm p → Glue s.cls s.ko c p
+/-- **Pure glue**: speculative reads and lock attempts up to the `start` of a
+body. `Glue` whatever the classes. -/
+inductive PureGlue : Prog A V L → Prop
+  | done : PureGlue .done
+  | rds {a : A} {k : V → Prog A V L} : (∀ v, PureGlue (k v)) → PureGlue (.rds a k)
+  | lock {l : L} {k : Bool → Prog A V L} : (∀ b, PureGlue (k b)) → PureGlue (.lock l k)
+  | start (k : Prog A V L) : PureGlue (.start k)
 
-/-- **Premise** [W]: a body is `Safe` from the memory and locks when it starts
-(per path, from `PathObl` and the glue's `Pre` [P]). -/
-def BodyOK (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
+theorem PureGlue.glue {p : Prog A V L} (h : PureGlue p) (cls : A → V → V)
+    (ko : A → ClsOwner C) (c : C) : Glue cls ko c p := by
+  induction h with
+  | done => exact .done
+  | rds _ ih => exact .rds ih
+  | lock _ ih => exact .lock ih
+  | start k => exact .start k
+
+/-- Every armed program is pure glue. -/
+def ArmInv (s : Cfg A V C L) : Prop := ∀ c p, s.ph c = .arm p → PureGlue p
+
+/-- **What is asked of a step** of core `c` from `s` to `s'`: a program it arms is
+pure glue [P]; a body it starts is `Safe` from the memory and locks at that
+point [W] (per path, from `PathObl` and the glue's `Pre` [P]). -/
+structure SafeStep (s : Cfg A V C L) (c : C) (s' : Cfg A V C L) : Prop where
+  arm : ∀ p, s'.ph c = .arm p → PureGlue p
+  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W →
     Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem k
 
-/-- **Premise** [W]: every ownership map of the execution satisfies `Deciders`. -/
-def DecidersOK (s0 : Cfg A V C L) : Prop := ∀ s, GReach s0 s → Deciders s.own
+/-- An execution whose steps are `SafeStep`s. -/
+inductive SafeRun (s0 : Cfg A V C L) : Cfg A V C L → Prop
+  | refl : SafeRun s0 s0
+  | step {s s' : Cfg A V C L} {c : C} :
+      SafeRun s0 s → Step s c s' → SafeStep s c s' → SafeRun s0 s'
 
 theorem allowed_of_sinv {s : Cfg A V C L} (I : SInv s) (c : C) : Allowed s c := by
   cases hph : s.ph c with
@@ -375,7 +400,8 @@ theorem sinv_keep {s : Cfg A V C L} {d : C} {own' : (A → V) → A → Owner C 
       (fun l => (hlk l).symm) h)
 
 theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0 s)
-    (hA : ArmGlue s0) (hB : BodyOK s0) (I : SInv s)
+    (hA : ArmInv s) (hB : ∀ p0 k W, s.ph c = .loc p0 (.start k) W →
+      Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem k) (I : SInv s)
     (hal : Allowed s c) (hst : Step s c s') : SInv s' := by
   intro d p0 q W hd
   cases hst with
@@ -393,7 +419,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     have hd' : Function.update s.ph c (.loc p p ∅) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      exact Or.inl (hA s hr d _ hc)
+      exact Or.inl ((hA d _ hc).glue _ _ _)
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @rd p1 a k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
@@ -428,7 +454,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     have hd' : Function.update s.ph c (.loc p1 k W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      exact Or.inr (hB s hr d _ _ _ hc)
+      exact Or.inr (hB _ _ _ hc)
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @wr p1 a v k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 k (insert a W1)) d = .loc p0 q W := hd
@@ -503,19 +529,29 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     · rw [Function.update_of_ne hdc] at hd'
       exact absurd (by rw [hd']; trivial) (no_overlap h0 hr hg d)
 
-theorem sinv_greach {s0 s : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0) (hB : BodyOK s0)
-    (h : GReach s0 s) : SInv s := by
+theorem step_ph_other {s s' : Cfg A V C L} {c d : C} (hst : Step s c s') (hdc : d ≠ c) :
+    s'.ph d = s.ph d := by
+  cases hst <;> first | rfl | exact Function.update_of_ne hdc _ _
+
+theorem armInv_step {s s' : Cfg A V C L} {c : C} (I : ArmInv s) (hst : Step s c s')
+    (h : SafeStep s c s') : ArmInv s' := by
+  intro d p hd
+  by_cases hdc : d = c
+  · subst hdc; exact h.arm p hd
+  · rw [step_ph_other hst hdc] at hd; exact I d p hd
+
+/-- **Every step of a `SafeRun` is `Allowed`**, from a state with no local path in
+progress and only pure glue armed. -/
+theorem safeRun_greach {s0 s : Cfg A V C L} (h0 : Init s0) (hA0 : ArmInv s0)
+    (h : SafeRun s0 s) : GReach s0 s ∧ SInv s ∧ ArmInv s := by
   induction h with
-  | refl => intro d p0 q W hd; exact absurd (by rw [hd]; trivial) (h0.2 d)
-  | step hr hal hst ih => exact sinv_step h0 hr hA hB ih hal hst
+  | refl => exact ⟨.refl, fun d p0 q W hd => absurd (by rw [hd]; trivial) (h0.2 d), hA0⟩
+  | @step s s' c _ hst hok ih =>
+    obtain ⟨hr, hS, hA⟩ := ih
+    have hal := allowed_of_sinv hS c
+    exact ⟨.step hr hal hst, sinv_step h0 hr hA hok.start hS hal hst, armInv_step hA hst hok⟩
 
-/-- **The footprint premise from per-path safety.** -/
-theorem footprintOK_of_safe {s0 : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0)
-    (hB : BodyOK s0) : FootprintOK s0 :=
-  fun _ hs c => allowed_of_sinv (sinv_greach h0 hA hB hs) c
-
-/-- **Every execution is a serial one**, from per-path safety (`ArmGlue`,
-`BodyOK`, both [W]) instead of `FootprintOK`: in every reachable
+/-- **Every `SafeRun` is a serial one**: where it reaches a
 state with no local path in progress, memory is what running the completed
 entries one after another, in completion order, produces from the initial
 memory. **In that serial order a speculative read may return any value**, not
@@ -523,10 +559,9 @@ the value memory held at that point: this theorem alone does not say each
 entry's run is one of its real serial runs; that is the per-path refinement
 obligation (P2 (2), `PathObl.lean`), which must hold for every value of those
 reads. -/
-theorem serializable_safe {s0 s : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0)
-    (hB : BodyOK s0) (h : Reach s0 s) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_reach h0 (footprintOK_of_safe h0 hA hB) h hq
+theorem serializable_safe {s0 s : Cfg A V C L} (h0 : Init s0) (hA0 : ArmInv s0)
+    (h : SafeRun s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem :=
+  serializable_quiescent h0 (safeRun_greach h0 hA0 h).1 hq
 
 end
 
