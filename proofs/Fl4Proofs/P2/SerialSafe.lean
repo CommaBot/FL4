@@ -42,7 +42,7 @@ Premises (all named, nothing else):
   bridge), with the glue's guarantee that it starts a body only in a state
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
 
-`Deciders` (and `DecidersOK`) and `MoveLocal` are not needed here; they are kept for the
+`Deciders` (and `DecidersOK`), `MoveLocal` and `MoveHeld` are not needed here; they are for the
 `BodyOK` bridge (`SafeCert`), which compares owners across memories differing on words the
 core does not hold.
 
@@ -50,12 +50,12 @@ core does not hold.
 
 Done from the per-path obligations in `P2/SafeCert.lean` (certificates for
 `Prog`) and `P2/E2E.lean` (the translation, the certificates from `PathObl`, the
-top theorems). Why the write check needs `MoveLocal`: a write's `MoveV` is
+top theorems). Why the write check needs `MoveHeld`: a write's `MoveV` is
 needed at the reached memory, where a word the path already read racily may
 since have been changed by another core, while `dec_alt` certifies it in the
 alternative state holding the read values; `Deciders` alone does not carry it
-across (`P2/MoveGap.lean`), `MoveLocal` does (`moveV_transfer`; proved for
-`OwnMap.own`).
+across (`P2/MoveGap.lean`), `MoveHeld` does (`moveV_transfer`; proved for
+`OwnMap.own`; `Deciders` and `MoveLocal` together imply it).
 -/
 import Fl4Proofs.P2.Serial
 
@@ -178,8 +178,8 @@ theorem not_PO_of_held {lk : L → Option C} {e d : C} (hed : e ≠ d) {o : Owne
     | gate => exact h
   · subst hg; exact h
 
-/-- **`MoveLocal`** (a hypothesis on the abstract ownership map, proved for
-`OwnMap.own` from its layout facts `RegionOK`: `OwnMap.moveLocal`): which owner a write moves a word to is
+/-- **`MoveLocal`** (a hypothesis on the abstract ownership map; with
+`Deciders` it gives `MoveHeld`, which is what the bridge uses): which owner a write moves a word to is
 decided by words of the written word's (non-gate) owner and the gate's only.
 Two memories agreeing on those words give every word of that owner the same
 owner after the same write. Needed beside `Deciders` to carry a per-write
@@ -190,37 +190,54 @@ def MoveLocal (own : (A → V) → A → Owner C L) : Prop :=
     (∀ y, own m y = own m a ∨ own m y = .gate → m' y = m y) →
     own (Function.update m a v) x = own (Function.update m' a v) x
 
-/-- **Transfer of the per-write check.** If the real memory `μ` and an
-alternative `μ'` differ only on words the core may not read in `μ`, a write of
-a held word passing `MoveV` in `μ'` passes it in `μ`. -/
-theorem moveV_transfer {own : (A → V) → A → Owner C L} (hD : Deciders own)
-    (hL : MoveLocal own) {c : C} {hs : L → Prop} {μ μ' : A → V} {a : A} {v : V}
-    (hdiff : ∀ y, μ' y ≠ μ y → ¬ PO c hs (own μ y)) (ha : HeldV c hs (own μ a))
-    (hM : MoveV own c hs μ' (Function.update μ' a v)) :
-    MoveV own c hs μ (Function.update μ a v) := by
+/-- **`MoveHeld`** (a hypothesis on the abstract ownership map, proved for
+`OwnMap.own`: `OwnMap.moveHeld`): the words that decide the effect of a *held*
+write on owners are the writer's to read. If core `c` (locks `hs`) holds `a` in
+`m`, `m'` agrees with `m` on the words `c` may read in `m`, and writing `a`
+changes the owner of `x` in `m`, then `x` has the same owners in `m'`, before
+and after the write. Weaker than `Deciders` with `MoveLocal`
+(`moveHeld_of_local`): a word deciding an owner need not have that owner (a
+thread's `STATE` is its home core's and decides whether its queue links are a
+lock's); what matters is that whoever may write it sees the words that decide
+with it. -/
+def MoveHeld (own : (A → V) → A → Owner C L) : Prop :=
+  ∀ (c : C) (hs : L → Prop) (m m' : A → V) (a : A) (v : V) (x : A), HeldV c hs (own m a) →
+    (∀ y, PO c hs (own m y) → m' y = m y) → own (Function.update m a v) x ≠ own m x →
+    own m' x = own m x ∧ own (Function.update m' a v) x = own (Function.update m a v) x
+
+/-- `Deciders` and `MoveLocal` give `MoveHeld`. -/
+theorem moveHeld_of_local {own : (A → V) → A → Owner C L} (hD : Deciders own)
+    (hL : MoveLocal own) : MoveHeld own := by
+  intro c hs μ μ' a v x ha hagr hx
   have hag : ∀ y, own μ y = own μ a ∨ own μ y = .gate → μ' y = μ y := by
     intro y hy
-    by_contra hne
-    apply hdiff y hne
+    apply hagr y
     rcases hy with hy | hy
     · left; rw [hy]; exact ha
     · exact Or.inr hy
   have hga : own μ a ≠ .gate := heldV_ne_gate ha
-  intro x hx
   have hxa : own μ x = own μ a := by
     rcases hD μ a v x hx with h | h
     · exact h.symm
     · exact absurd h hga
   have h1 := hL μ μ' a v x hga hxa hag
-  have h0 : own μ x = own μ' x := by
-    have h := hL μ μ' a (μ a) x hga hxa hag
-    rw [Function.update_eq_self, ← hag a (Or.inl rfl), Function.update_eq_self] at h
-    exact h
-  have hx' : own (Function.update μ' a v) x ≠ own μ' x := by rw [← h1, ← h0]; exact hx
-  obtain ⟨p1, p2⟩ := hM x hx'
-  refine ⟨?_, ?_⟩
-  · rw [h0]; exact p1
-  · rw [h1]; exact p2
+  have h := hL μ μ' a (μ a) x hga hxa hag
+  rw [Function.update_eq_self, ← hag a (Or.inl rfl), Function.update_eq_self] at h
+  exact ⟨h.symm, h1.symm⟩
+
+/-- **Transfer of the per-write check.** If the real memory `μ` and an
+alternative `μ'` differ only on words the core may not read in `μ`, a write of
+a held word passing `MoveV` in `μ'` passes it in `μ`. -/
+theorem moveV_transfer {own : (A → V) → A → Owner C L} (hL : MoveHeld own)
+    {c : C} {hs : L → Prop} {μ μ' : A → V} {a : A} {v : V}
+    (hdiff : ∀ y, μ' y ≠ μ y → ¬ PO c hs (own μ y)) (ha : HeldV c hs (own μ a))
+    (hM : MoveV own c hs μ' (Function.update μ' a v)) :
+    MoveV own c hs μ (Function.update μ a v) := by
+  intro x hx
+  obtain ⟨h0, h1⟩ := hL c hs μ μ' a v x ha
+    (fun y hy => by by_contra hne; exact hdiff y hne hy) hx
+  have hx' : own (Function.update μ' a v) x ≠ own μ' x := by rw [h0, h1]; exact hx
+  rw [← h0, ← h1]; exact hM x hx'
 
 theorem foreign_congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
     {c : C} {hs hs' : L → Prop} (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {b : A} {v : V}

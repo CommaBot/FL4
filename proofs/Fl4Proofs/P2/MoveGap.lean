@@ -36,8 +36,8 @@ The toy (words `a`, `b1`, `b2`; cores `c = false`, `d = true`; no locks):
   gate's.
 
 Consequence: `BodyOK` cannot be discharged from `PathObl` v3 + `DecOnce` +
-`Deciders`. With `SerialSafe.MoveLocal` [J] (true of `OwnMap.own`:
-`OwnMap.moveLocal`) the per-write check transfers from `μ*` to `μ`
+`Deciders`. With `SerialSafe.MoveHeld` (proved for `OwnMap.own`:
+`OwnMap.moveHeld`; `Deciders` and `MoveLocal` imply it) the per-write check transfers from `μ*` to `μ`
 (`SerialSafe.moveV_transfer`), since `μ` and `μ*` differ only on words the core
 may not read in `μ`.
 -/

@@ -49,7 +49,7 @@ Of `serializable_paths` (generic ownership map):
   `ReadOnce` [W] (it subsumes `DecOnce` and `NoZero`), totality (`<fn>.p0`,
   from a total Arch instance), `MasksWr` [P];
 * `StartAt` [P] for every started body (below);
-* `Deciders`, `MoveLocal`, `OwnDep`: hypotheses on the ownership map,
+* `MoveHeld`, `OwnDep`: hypotheses on the ownership map,
   discharged for `OwnMap.own`.
 
 Of `serializable_e2e`: the same with `own := OwnMap.own K`; `RegionOK` [J] and
@@ -62,7 +62,7 @@ open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2E
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P2.PathObl
-open Fl4Proofs.P2.Serial (Owner ClsOwner Prog HeldV PO MoveV Safe Deciders MoveLocal AltRun Adm
+open Fl4Proofs.P2.Serial (Owner ClsOwner Prog HeldV PO MoveV Safe MoveHeld AltRun Adm
   Diff RInv WrOK)
 
 noncomputable section
@@ -531,7 +531,7 @@ variable {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → 
 /-- **A body is `Safe` when it starts**, from its per-path obligations: the
 real store's state `σ` satisfies `Pre` and agrees with the model's memory `μ`
 on aligned kernel words. -/
-theorem body_safe (hD : Deciders own) (hL : MoveLocal own) (hO : OwnDep own User)
+theorem body_safe (hL : MoveHeld own) (hO : OwnDep own User)
     (hp : IsProg F p) (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS)
     (hN : ReadOnce st ar p cls ko User Pre RS) (hT : ∀ s a, ∃ r, F ar st s a = ok r)
@@ -553,7 +553,7 @@ theorem body_safe (hD : Deciders own) (hL : MoveLocal own) (hO : OwnDep own User
       · exact Or.inl (heldBy_iff.mp h)
       · exact Or.inr h
     · exact Or.inl (hH x hx)
-  refine Fl4Proofs.P2.Serial.safe_of_runs hD hL (Rp := RpOf (RS σ) User Hp) (Hp := Hp) _ ∅ μ
+  refine Fl4Proofs.P2.Serial.safe_of_runs hL (Rp := RpOf (RS σ) User Hp) (Hp := Hp) _ ∅ μ
     (fun _ => none) ⟨fun ν hν => ?_, fun y u hu => (by cases hu), fun y u hu => (by cases hu),
       fun y u hu => (by cases hu), hRI⟩
   have hνR : ∀ x, ¬ User x → RS σ x → ν x = μ x := fun x hu hr => hν.1 x (hRI.2 x (Or.inl ⟨hu, hr⟩))
@@ -712,29 +712,29 @@ def StartAt (P : LocalPath own cls ko User) (c : U64) (hs : U64 → Prop) (μ : 
   ∃ (σ : P.S) (a : P.A), P.Pre σ ∧ P.L.cpu σ = c ∧ P.Locks σ = hs ∧
     (∀ x, Aligned x → ¬ User x → P.L.mem σ x = μ x) ∧ q = P.body σ a
 
-theorem LocalPath.safe (P : LocalPath own cls ko User) (hD : Deciders own) (hL : MoveLocal own)
+theorem LocalPath.safe (P : LocalPath own cls ko User) (hL : MoveHeld own)
     (hO : OwnDep own User) {c : U64} {hs : U64 → Prop} {μ : U64 → U64} {q : SP}
     (h : StartAt P c hs μ q) : Safe own cls ko c hs μ q := by
   obtain ⟨σ, a, hpre, rfl, rfl, hμ, rfl⟩ := h
   let _ := P.L
-  exact body_safe hD hL hO P.isProg P.obl P.side P.once P.total P.masks hpre hμ
+  exact body_safe hL hO P.isProg P.obl P.side P.once P.total P.masks hpre hμ
 
 end top
 
 open Fl4Proofs.P2.Serial in
 /-- **Every execution is a serial one**, from the per-path obligations, for any
-ownership map: where a body starts, the map satisfies `Deciders`, `MoveLocal`,
+ownership map: where a body starts, the map satisfies `MoveHeld`,
 `OwnDep`, and the body is a `LocalPath` started by the glue (`StartAt` [P]);
 `ArmGlue` [W]. As in `serializable_safe`, a speculative read may return any
 value in the serial order. -/
 theorem serializable_paths {s0 s : Cfg U64 U64 U64 U64} (h0 : Init s0) (hA : ArmGlue s0)
     (hS : ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
-      ∃ User, Deciders s.own ∧ MoveLocal s.own ∧ OwnDep s.own User ∧
+      ∃ User, MoveHeld s.own ∧ OwnDep s.own User ∧
         ∃ P : LocalPath s.own s.cls s.ko User, StartAt P c (fun l => s.lk l = some c) s.mem k)
     (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem := by
   refine serializable_safe h0 hA (fun s hs c p0 k W hph => ?_) h hq
-  obtain ⟨User, hD, hL, hO, P, hP⟩ := hS s hs c p0 k W hph
-  exact P.safe hD hL hO hP
+  obtain ⟨User, hL, hO, P, hP⟩ := hS s hs c p0 k W hph
+  exact P.safe hL hO hP
 
 /-! ## `OwnMap` -/
 
@@ -820,7 +820,7 @@ theorem serializable_e2e {ι : Type}
   refine serializable_safe h0 hA (fun s hs c p0 k W hph => ?_) h hq
   obtain ⟨K, hK, hU, i, e1, e2, e3, hP⟩ := hS s hs c p0 k W hph
   rw [e1, e2, e3]
-  exact (LP i K s.mem hK hU).safe (OwnMap.deciders hK) (OwnMap.moveLocal hK) (ownDep hK hU) hP
+  exact (LP i K s.mem hK hU).safe (OwnMap.moveHeld hK) (ownDep hK hU) hP
 
 end
 end Fl4Proofs.P2.E2E

@@ -18,7 +18,7 @@ gives only at the entry state, take the real memory.
 `μ` on the words `c` may read, of the same class on the class-tracked words)
 there is a check memory `κ` with `Diff μ κ` such that the run passes, `q` is
 `Safe` from `μ`. It needs `Rp` words readable and `Hp` words held at the start
-(`RInv`), and the ownership map's `Deciders` and `MoveLocal`. The invariant
+(`RInv`), and the ownership map's `MoveHeld`. The invariant
 behind it: along the real interleaving (another core's `Foreign` writes and the
 body's own `MoveV` writes), the words `c` may read keep their owners up to
 moves between held owners, and those it may not read stay unreadable
@@ -245,7 +245,7 @@ theorem DInv.read {Rp Hp : A → Prop} {P : Set A} {μ : A → V} {π : A → Op
 
 /-- **`Safe` from sequential runs**: the run reading every admissible memory passes, for
 some check memory differing from the real one only on unreadable words. -/
-theorem safe_of_runs (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Prop}
+theorem safe_of_runs (hL : MoveHeld own) {Rp Hp : A → Prop}
     (q : Prog A V L) :
     ∀ (P : Set A) (μ : A → V) (π : A → Option V), DInv own cls ko c hs Rp Hp P q μ π →
       Safe own cls ko c hs μ q := by
@@ -289,7 +289,7 @@ theorem safe_of_runs (hD : Deciders own) (hL : MoveLocal own) {Rp Hp : A → Pro
       obtain ⟨hHp, ⟨hM, hcl⟩, _⟩ := h0
       have ha := I'.rinv.1 a hHp
       have ea : κ a = μ' a := hd.eq_of_po (Or.inl ha)
-      refine ⟨ha, moveV_transfer hD hL hd ha hM, ?_⟩
+      refine ⟨ha, moveV_transfer hL hd ha hM, ?_⟩
       rw [← ea]; exact hcl
     refine .wr (fun μ' hR => (go μ' hR).1) (fun μ' hR => (go μ' hR).2.1)
       (fun μ' hR => (go μ' hR).2.2) (fun μ' hR => ?_)
