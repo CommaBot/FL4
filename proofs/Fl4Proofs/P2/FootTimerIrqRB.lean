@@ -1,13 +1,13 @@
 /-
 # P2: the round-robin case's walk: the state after `check_budget`
 
-`rrw_keep`: the round-robin writes (`RrW`, relative to the entry state `X`) keep this core's node words below 120
+`rrw_keep`: the round-robin writes (`RrWT`, relative to the entry state `X`) keep this core's node words below 120
 other than 16, 40, 56 and 80, every TCB word other than the sched links and the queue word, and every `Ω` word
 outside the current SC's ring and `CONSUMED`.
 
 `rr_cb_state`: at a state `s1` with the P1 invariant (`BXI`) where `round_robin_ok` accepted the current thread
 and SC at the current time and the budget is insufficient, `check_budget` is the round-robin `charge_budget` run
-(`check_budget_ins`, `charge_budget_rr_run` with `rr_tail_F` for its `F`); it writes only `RrW`
+(`check_budget_ins`, `charge_budget_rr_run` with `rr_tail_F` for its `F`); it writes only `RrWT`
 (`rr_run_writes`), leaves the action `CHOOSE_NEW`, the current thread schedulable (`is_schedulable_rel`) and
 queued, and alone in its ready queue, whose priority is the highest marked one (`highest_prio_app` after
 `append`, carried by `highest_prio_agree` across the action and `REPROGRAM` writes); the bitmap stays well formed
@@ -29,7 +29,7 @@ theorem rrw_keep {T Cs Ω Xs : Set U64} {H : Heap} {Q : U64 → U64 → List U64
     {X Y : S} {ct csc : U64} {z : Nat}
     (h : SchedQueuesInvX st T Cs Ω H Xs X Q Rq) (hct : ct ∈ T)
     (hΩ : ∀ b, Aligned b → (InRing csc z b ∨ b = core.num.U64.wrapping_add csc layout.sc.CONSUMED) → b ∈ Ω)
-    (w : WritesIn st X Y (RrW st T X ct csc z)) :
+    (w : WritesIn st X Y (RrWT st T X ct csc z)) :
     (∀ o : U64, o.val < 120 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 40 → o.val ≠ 56 → o.val ≠ 80 →
       L.mem Y (L.nodeAt X (L.cpu X) o) = L.mem X (L.nodeAt X (L.cpu X) o)) ∧
     (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3480 → K.val ≠ 3488 → K.val ≠ 3592 →
@@ -86,7 +86,7 @@ theorem rr_cb_state {A : Type} (ar : machine.Arch A) {s1 s2 : S} {a1 a2 : A} {x 
     (hAc : L.cscW s1 ∈ Ac) (hact : L.actionW s1 = sched.ACTION_RESUME_CURRENT)
     (hins : ∀ c, sched.consumed st s1 = ok c → sporadic.sufficient st ar s1 a1 (L.cscW s1) c = ok false)
     (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2)) :
-    a2 = a1 ∧ WritesIn st s1 s2 (RrW st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) ∧
+    a2 = a1 ∧ WritesIn st s1 s2 (RrWT st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) ∧
       L.actionW s2 = sched.ACTION_CHOOSE_NEW ∧ sched.is_schedulable st s2 (L.curW s1) = ok true ∧
       (L.mem s2 (inqA (L.curW s1)) &&& sched.Q_QUEUED) ≠ 0#u64 ∧
       sched.highest_prio st s2 0#u64 = ok (L.mem s1 (prioA (L.curW s1))) ∧ L.l1W s2 (L.cpu s1) ≠ 0#u64 ∧

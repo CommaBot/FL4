@@ -4,12 +4,12 @@
 `is_schedulable_rel`: `is_schedulable` reads of the queue word only its `Q_RELEASE` bit (P1
 `is_schedulable_congr` with that weaker premise), so `append`'s setting of `Q_QUEUED` keeps it (P1 `or_qq_qr`).
 
-`RrW`: the words the round-robin `charge_budget` run (`charge_budget_rr_run`: the ring merge, the node's
+`RrWT`: the words the round-robin `charge_budget` run (`charge_budget_rr_run`: the ring merge, the node's
 `CONSUMED`, `append` of the current thread, the action, `set_reprogram`) and the timer handler write, relative to
 the entry state `X`: the current SC's ring and `CONSUMED`, this core's node words at 16, 40, 56, 80 and from 120 up
 (ready queues and bitmap), the current thread's queue word and the sched links of any thread.
 
-`rr_run_writes`: the run writes only `RrW`, sets the current thread's `Q_QUEUED` bit (P1 `sched.append.foot`) and
+`rr_run_writes`: the run writes only `RrWT`, sets the current thread's `Q_QUEUED` bit (P1 `sched.append.foot`) and
 leaves the action `CHOOSE_NEW`.
 
 No named premises.
@@ -52,7 +52,7 @@ theorem is_schedulable_rel {s s' : S} {t : U64}
   · rfl
 
 /-- The words the round-robin `charge_budget` run and the timer handler write (module docstring). -/
-def RrW (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (X : S) (ct csc : U64) (z : Nat) (b : U64) :
+def RrWT (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (X : S) (ct csc : U64) (z : Nat) (b : U64) :
     Prop :=
   InRing csc z b ∨ b = core.num.U64.wrapping_add csc layout.sc.CONSUMED ∨
     L.NodeOf X (L.cpu X) (fun o => o = 16 ∨ o = 40 ∨ o = 56 ∨ o = 80 ∨ 120 ≤ o) b ∨ b = inqA ct ∨
@@ -89,7 +89,7 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
     (F3 : RRTail st ar T R W s3 a) (ea : sched.append st s3 (L.curW s3) = ok s4)
     (e6 : sched.set_reprogram st
       (L.wr s4 (L.nodeAt s4 (L.cpu s4) layout.node.SCHED_ACTION) sched.ACTION_CHOOSE_NEW) = ok Y) :
-    WritesIn st s1 Y (RrW st T s1 (L.curW s3) (L.cscW s1) z) ∧
+    WritesIn st s1 Y (RrWT st T s1 (L.curW s3) (L.cscW s1) z) ∧
       L.mem Y (inqA (L.curW s3)) =
         (if (L.mem s3 (inqA (L.curW s3)) &&& sched.Q_QUEUED) ≠ 0#u64 then L.mem s3 (inqA (L.curW s3))
           else L.mem s3 (inqA (L.curW s3)) ||| sched.Q_QUEUED) ∧
@@ -102,12 +102,12 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
   rw [w2.2.1, nodeAt_of_ksb w2.1] at e3'
   have aC : Aligned (L.nodeAt s1 (L.cpu s1) layout.node.CONSUMED) :=
     nodeAt_aligned hN (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])
-  have w2' : WritesIn st s1 s2 (RrW st T s1 (L.curW s3) (L.cscW s1) z) :=
+  have w2' : WritesIn st s1 s2 (RrWT st T s1 (L.curW s3) (L.cscW s1) z) :=
     w2.mono fun b hb => by
       rcases hb with hb | hb
       · exact Or.inl hb
       · exact Or.inr (Or.inl hb)
-  have w3 : WritesIn st s2 s3 (RrW st T s1 (L.curW s3) (L.cscW s1) z) := by
+  have w3 : WritesIn st s2 s3 (RrWT st T s1 (L.curW s3) (L.cscW s1) z) := by
     rw [e3']
     exact (writesIn_wr aC).mono fun b hb => Or.inr (Or.inr (Or.inl ⟨layout.node.CONSUMED,
       by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], hb⟩))
@@ -119,7 +119,7 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
   have hN3' : NodePlaced st T s3 (L.mem s3 (affA (L.curW s3))) := by rw [F3.aff]; exact F3.hN
   obtain ⟨wa, hinq⟩ := PathObl.post_of_ok
     (sched.append.foot (L := L) s3 (L.curW s3) xs F3.hT F3.ct F3.prio hN3' F3.hN (by rw [F3.aff]; exact hr) hq) ea
-  have w4 : WritesIn st s3 s4 (RrW st T s1 (L.curW s3) (L.cscW s1) z) := wa.mono fun b hb => by
+  have w4 : WritesIn st s3 s4 (RrWT st T s1 (L.curW s3) (L.cscW s1) z) := wa.mono fun b hb => by
     rcases hb with ⟨y, hy, hb⟩ | ⟨o, ho, h1, h2, rfl⟩ | rfl | ⟨o, ho, h1, h2, rfl⟩
     · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨y, ?_, hb⟩)))
       rcases List.mem_cons.1 hy with rfl | hy
@@ -143,7 +143,7 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
   have aR : Aligned (L.nodeAt s1 (L.cpu s1) layout.node.REPROGRAM) :=
     nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])
   have w5 : WritesIn st s4 (L.wr s4 (L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) sched.ACTION_CHOOSE_NEW)
-      (RrW st T s1 (L.curW s3) (L.cscW s1) z) :=
+      (RrWT st T s1 (L.curW s3) (L.cscW s1) z) :=
     (writesIn_wr aA).mono fun b hb => Or.inr (Or.inr (Or.inl ⟨layout.node.SCHED_ACTION,
       Or.inl act_val, by rw [act_val]; omega, by rw [act_val], hb⟩))
   have e6' : Y = L.wr (L.wr s4 (L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) sched.ACTION_CHOOSE_NEW)
@@ -154,7 +154,7 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
     unfold LawfulStore.nodeA
     rw [LawfulStore.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _), c4, nodeAt_of_ksb k4]
   have w6 : WritesIn st (L.wr s4 (L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) sched.ACTION_CHOOSE_NEW) Y
-      (RrW st T s1 (L.curW s3) (L.cscW s1) z) := by
+      (RrWT st T s1 (L.curW s3) (L.cscW s1) z) := by
     rw [e6']
     exact (writesIn_wr aR).mono fun b hb => Or.inr (Or.inr (Or.inl ⟨layout.node.REPROGRAM,
       Or.inr (Or.inr (Or.inl (by simp [layout.node.REPROGRAM]))), by simp [layout.node.REPROGRAM],

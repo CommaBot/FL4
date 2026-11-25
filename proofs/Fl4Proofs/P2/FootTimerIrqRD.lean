@@ -1,7 +1,7 @@
 /-
 # P2: the round-robin case's walk: nothing due at the `schedule` state, and the switch back
 
-`rr_nodue`, `rr_rel`: the round-robin writes (`RrW`) keep "no timer due" (`NoDueT`: the node's `TIMER_MIN` and the
+`rr_nodue`, `rr_rel`: the round-robin writes (`RrWT`) keep "no timer due" (`NoDueT`: the node's `TIMER_MIN` and the
 earliest thread's deadline are not written) and "no release due" (`RelNone`: the release head, its SC word and
 the current time are not written; the head's SC is either the current SC, impossible since `round_robin_ok`
 found the current SC's head refill ready while `RelNone` says the release head's is not, or disjoint from it,
@@ -33,7 +33,7 @@ theorem rr_nodue {T Cs Ω Xs : Set U64} {H : Heap} {Q : U64 → U64 → List U64
     (h : SchedQueuesInvX st T Cs Ω H Xs X Q Rq) (hct : ct ∈ T)
     (hΩ : ∀ b, Aligned b → (InRing csc z b ∨ b = core.num.U64.wrapping_add csc layout.sc.CONSUMED) → b ∈ Ω)
     (hm : Tz T (L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN)))
-    (w : WritesIn st X Y (RrW st T X ct csc z)) (hd : NoDueT st X now) : NoDueT st Y now := by
+    (w : WritesIn st X Y (RrWT st T X ct csc z)) (hd : NoDueT st X now) : NoDueT st Y now := by
   obtain ⟨kN, kT, -⟩ := rrw_keep h hct hΩ w
   unfold NoDueT at hd ⊢
   have eA : L.nodeAt Y (L.cpu Y) layout.node.TIMER_MIN = L.nodeAt X (L.cpu X) layout.node.TIMER_MIN := by
@@ -62,7 +62,7 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
 /-- **`RelNone` across the round-robin writes** (module docstring). -/
 theorem rr_rel {X Y : S} {ct : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X) (hct : ct ∈ T)
     (htime : (L.refill X (L.cscW X) (L.rhead X (L.cscW X))).time ≤ L.curTime X)
-    (w : WritesIn st X Y (RrW st T X ct (L.cscW X) (Z (L.cscW X)))) (h : RelNone st X) : RelNone st Y := by
+    (w : WritesIn st X Y (RrWT st T X ct (L.cscW X) (Z (L.cscW X)))) (h : RelNone st X) : RelNone st Y := by
   obtain ⟨⟨Q, R, hq⟩, hB, hX, -, hS⟩ := hI
   have hT := hq.tcbs
   have hcC := hq.cur

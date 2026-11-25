@@ -25,6 +25,12 @@ import Fl4Proofs.P2.FootTimerIrqRe
 import Fl4Proofs.P2.FootTimerFireQ
 import Fl4Proofs.P2.FootTimerFireW
 import Fl4Proofs.P2.FootTimerFireSig
+import Fl4Proofs.P2.FootTimerFireRq
+import Fl4Proofs.P2.FootTimerFireC
+import Fl4Proofs.P2.FootTimerFireSch
+import Fl4Proofs.P2.FootTimerFireNx
+import Fl4Proofs.P2.FootTimerFireLk
+import Fl4Proofs.P2.FootTimerFireT
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -152,3 +158,18 @@ import Fl4Proofs.P2.FootTimerFireSig
 #print axioms Fl4Proofs.P2.send_signal_wait
 #print axioms Fl4Proofs.P2.notification.set_active.guard
 #print axioms Fl4Proofs.P2.notification.send_signal.guardF
+#print axioms Fl4Proofs.P2.removeF_kc
+#print axioms Fl4Proofs.P2.tq_prepend_empty
+#print axioms Fl4Proofs.P2.tq_prepend_ne
+#print axioms Fl4Proofs.P2.sched.dequeue.guardG
+#print axioms Fl4Proofs.P2.sched.enqueue.guard_local
+#print axioms Fl4Proofs.P2.recv_ne_send
+#print axioms Fl4Proofs.P2.ipc.cancel_ipc.guard_recv
+#print axioms Fl4Proofs.P2.schedule_sw_eq
+#print axioms Fl4Proofs.P2.sched.awaken.guard_fire
+#print axioms Fl4Proofs.P2.sched.schedule.guard_sw
+#print axioms Fl4Proofs.P2.fire_ok_loop_eq
+#print axioms Fl4Proofs.P2.fire_body_stop
+#print axioms Fl4Proofs.P2.fire_body_done
+#print axioms Fl4Proofs.P2.timer.fire.guard_one
+#print axioms Fl4Proofs.P2.fire_body_one
