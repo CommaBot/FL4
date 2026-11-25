@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqAcc
 import Fl4Proofs.P2.FootTimerSetMv
 import Fl4Proofs.P2.FootTimerIrqH
 import Fl4Proofs.P2.FootTimerIrqW
@@ -23,3 +24,8 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.activate_fp
 #print axioms Fl4Proofs.P2.irq_quiet_foot
 #print axioms Fl4Proofs.P2.irq_replay
+#print axioms Fl4Proofs.P2.vcpu.check.guard_nvm
+#print axioms Fl4Proofs.P2.activate_thread.gw
+#print axioms Fl4Proofs.P2.irq_quiet_pre
+#print axioms Fl4Proofs.P2.irq_accG_quiet_walk
+#print axioms Fl4Proofs.P2.irq_accG_quiet
