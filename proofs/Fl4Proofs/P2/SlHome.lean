@@ -225,6 +225,28 @@ theorem lp_alt {T : Set U64} (hA : P0.ArchTotal ar) {Q : U64 → Prop} (hQ : ∀
 variable {K : KLayout} {Locks : S → U64 → Prop} {m0 : U64 → U64} {n : I64} {found : U64 × U64}
   {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
 
+/-- A gate-owned aligned word is in the read set. -/
+theorem slRS_of_gate {s : S} {x : U64} (ha : Aligned x) (hg : own K (L.mem s) x = .gate) :
+    SlRS (st := st) K Locks s x :=
+  ⟨ha, Or.inr (Or.inr hg)⟩
+
+/-- A gate-owned word is not a prefix word (prefix words are writable, `PreAcc`). -/
+theorem not_slDS_of_gate {s : S} {x : U64}
+    (hp : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
+    (hg : own K (L.mem s) x = .gate) : ¬ SlDS (L := L) s x := fun hx => by
+  have h := (SlDS.ws hp hx).2
+  unfold WPerm at h
+  rw [hg] at h
+  exact h
+
+/-- **`SlThrIn.af` from the ownership map**: a placed TCB's `AFFINITY` word (aligned) is
+gate-owned (`RegionOK` [J]), so it is in the read set and not a prefix word. -/
+theorem af_of_tcb (hK : RegionOK K) {s : S} {d : U64}
+    (hp : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
+    (ht : K.heap d = some .tcb) (ha : Aligned (affA d)) :
+    SlRS (st := st) K Locks s (affA d) ∧ ¬ SlDS (L := L) s (affA d) :=
+  ⟨slRS_of_gate ha (own_aff_gate hK ht _), not_slDS_of_gate hp (own_aff_gate hK ht _)⟩
+
 /-- The trap arm's receiver, read at the prefix state, is the decided thread. -/
 theorem slThr_hd_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
     (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hcT : L.curW s ∈ T)
