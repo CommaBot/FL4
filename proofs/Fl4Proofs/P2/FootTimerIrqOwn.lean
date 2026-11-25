@@ -50,6 +50,90 @@ theorem rperm_none {lk : U64 → Prop} {m : U64 → U64} {x : U64} (h : region K
     RPerm (own K) c lk m x :=
   Or.inr (by unfold GateOnly; simp only [own, h])
 
+/-- **What `plan_objects` / `timer_due` read of the earliest armed thread is readable** (`TmWords`; no
+`current_ok` needed): its `AFFINITY` / `BOUND_NTFN` (the gate's), its timer words (this core's tree's), and once it is
+this core's its `STATE`, `BLOCK_OBJ`, `REPLY_OBJ` (its home core's) and its bound notification's words. -/
+theorem tmw_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s) {lk : U64 → Prop} {w : U64}
+    (hne : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64)
+    (hw : TmWords st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) w) :
+    RPerm (own K) (L.cpu s) lk (L.mem s) w := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced T := h0.tcbs
+  have gate : ∀ {x k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → GateField k.val →
+      RPerm (own K) (L.cpu s) lk (L.mem s) (core.num.U64.wrapping_add x k) := fun hx h1 h2 hg =>
+    Or.inr (by
+      have e := hL.own_tcb hT (L.mem s) hx h1 h2
+      unfold fld at e
+      unfold GateOnly; rw [e, tcbOwner, if_pos hg])
+  have home : ∀ {x k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → L.mem s (affA x) = L.cpu s →
+      ¬ TimerField k.val → ¬ GField k.val →
+      RPerm (own K) (L.cpu s) lk (L.mem s) (core.num.U64.wrapping_add x k) := @fun x k hx h1 h2 ha hti hg => by
+    have e := hL.own_tcb hT (L.mem s) hx h1 h2
+    unfold fld at e
+    unfold RPerm GateOnly
+    rw [e]
+    unfold tcbOwner
+    by_cases hga : GateField k.val
+    · rw [if_pos hga]; exact Or.inr rfl
+    · rw [if_neg hga, if_neg hti, if_neg hg]; exact Or.inl ha
+  obtain ⟨q1, harm⟩ := tmin_facts (BXI.blk hI) h0.cur hne
+  rcases hw with ⟨k, hk, rfl⟩ | ⟨hh, ⟨k, hk, rfl⟩ | ⟨hb, rfl | rfl⟩⟩
+  · rcases hk with hk | hk | hk | hk
+    · exact gate q1 (by omega) (by omega) (by unfold GateField; omega)
+    rotate_left 2
+    · exact gate q1 (by omega) (by omega) (by unfold GateField; omega)
+    all_goals
+      have e := hL.own_tcb hT (L.mem s) q1 (k := k) (by omega) (by omega)
+      unfold fld at e
+      refine Or.inl ?_
+      rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
+        if_pos (show TimerField k.val by unfold TimerField; omega), tOwner,
+        if_pos (show (L.mem s (fld (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) oTIMER_DEADLINE)).val ≠ 0
+          from fun h => harm.1 (UScalar.eq_of_val_eq h))]
+      have e2 := harm.2
+      rw [Nat.shiftRight_eq_div_pow] at e2
+      exact MoveTimer.treeCore_of (c := L.cpu s) e2
+  · have ha : L.mem s (affA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) = L.cpu s := by
+      have e := hh.1
+      rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) s _)] at e
+      exact ok_inj_ff e
+    exact home q1 (by omega) (by omega) ha (by unfold TimerField; omega) (by unfold GField; omega)
+  all_goals
+    have ha : L.mem s (affA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) = L.cpu s := by
+      have e := hh.1
+      rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) s _)] at e
+      exact ok_inj_ff e
+    have hNt := hI.2.2.1.2.2.bnd _ q1 hb
+    have hbt := hI.2.2.1.2.2.bs.tb _ q1 hb
+    obtain ⟨p1, p2⟩ := hI.2.2.1.1.ntP _ hNt
+    have nown : ∀ k : U64, k.val < 64 →
+        own K (L.mem s) (core.num.U64.wrapping_add
+          (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) k) =
+        ntfnOwner K (L.mem s) (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) k.val := by
+      intro k hk
+      simp only [own, hY.ntw _ hNt k hk]
+      rw [ntfn_word_val p1 p2 hk, Nat.add_sub_cancel_left]
+  · have e := nown layout.ntfn.TAIL_STATE (by simp [layout.ntfn.TAIL_STATE])
+    have eB : L.mem s (fld (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) 24#u64) =
+        L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) := by
+      have eA : fld (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) 24#u64 =
+          ntfnBtA (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) := by
+        unfold fld ntfnBtA layout.ntfn.BOUND_TCB
+        rfl
+      rw [eA]; exact hbt
+    have ht : K.heap (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) = some .tcb :=
+      hK.tcbOf _ _ (hL.tcb _ q1 3328#u64 (by simp) (by simp))
+    have hv : layout.ntfn.TAIL_STATE.val = 8 := by simp [layout.ntfn.TAIL_STATE]
+    refine Or.inl ?_
+    rw [e, hv, ntfnOwner, if_neg (by omega), eB, if_pos ht]
+    exact ha
+  · have e := nown layout.ntfn.BOUND_TCB (by simp [layout.ntfn.BOUND_TCB])
+    have hv : layout.ntfn.BOUND_TCB.val = 24 := by simp [layout.ntfn.BOUND_TCB]
+    refine Or.inr ?_
+    unfold GateOnly
+    rw [e, hv, ntfnOwner, if_pos rfl]
+
 /-- **Every word of `IrqRd` is readable** at an accepted run's entry (module docstring). -/
 theorem irq_rd_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s)
@@ -92,62 +176,7 @@ theorem irq_rd_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H 
     exact gate r1 (by simp) (by simp) (by simp [GateField])
   · obtain ⟨r1, r2, r3, r4, -⟩ := rel_facts hI hne
     exact scw r4 h (by rw [hAff _ r1 r3, r2])
-  · obtain ⟨q1, harm⟩ := tmin_facts (BXI.blk hI) h0.cur hne
-    rcases hw with ⟨k, hk, rfl⟩ | ⟨hh, ⟨k, hk, rfl⟩ | ⟨hb, rfl | rfl⟩⟩
-    · rcases hk with hk | hk | hk | hk
-      · exact gate q1 (by omega) (by omega) (by unfold GateField; omega)
-      rotate_left 2
-      · exact gate q1 (by omega) (by omega) (by unfold GateField; omega)
-      all_goals
-        have e := hL.own_tcb hT (L.mem s) q1 (k := k) (by omega) (by omega)
-        unfold fld at e
-        refine Or.inl ?_
-        rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
-          if_pos (show TimerField k.val by unfold TimerField; omega), tOwner,
-          if_pos (show (L.mem s (fld (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) oTIMER_DEADLINE)).val ≠ 0
-            from fun h => harm.1 (UScalar.eq_of_val_eq h))]
-        have e2 := harm.2
-        rw [Nat.shiftRight_eq_div_pow] at e2
-        exact MoveTimer.treeCore_of (c := L.cpu s) e2
-    · have ha : L.mem s (affA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) = L.cpu s := by
-        have e := hh.1
-        rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) s _)] at e
-        exact ok_inj_ff e
-      exact home q1 (by omega) (by omega) ha (by unfold TimerField; omega) (by unfold GField; omega)
-    all_goals
-      have ha : L.mem s (affA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) = L.cpu s := by
-        have e := hh.1
-        rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) s _)] at e
-        exact ok_inj_ff e
-      have hNt := hI.2.2.1.2.2.bnd _ q1 hb
-      have hbt := hI.2.2.1.2.2.bs.tb _ q1 hb
-      obtain ⟨p1, p2⟩ := hI.2.2.1.1.ntP _ hNt
-      have nown : ∀ k : U64, k.val < 64 →
-          own K (L.mem s) (core.num.U64.wrapping_add
-            (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) k) =
-          ntfnOwner K (L.mem s) (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) k.val := by
-        intro k hk
-        simp only [own, hY.ntw _ hNt k hk]
-        rw [ntfn_word_val p1 p2 hk, Nat.add_sub_cancel_left]
-    · have e := nown layout.ntfn.TAIL_STATE (by simp [layout.ntfn.TAIL_STATE])
-      have eB : L.mem s (fld (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) 24#u64) =
-          L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) := by
-        have eA : fld (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) 24#u64 =
-            ntfnBtA (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) := by
-          unfold fld ntfnBtA layout.ntfn.BOUND_TCB
-          rfl
-        rw [eA]; exact hbt
-      have ht : K.heap (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) = some .tcb :=
-        hK.tcbOf _ _ (hL.tcb _ q1 3328#u64 (by simp) (by simp))
-      have hv : layout.ntfn.TAIL_STATE.val = 8 := by simp [layout.ntfn.TAIL_STATE]
-      refine Or.inl ?_
-      rw [e, hv, ntfnOwner, if_neg (by omega), eB, if_pos ht]
-      exact ha
-    · have e := nown layout.ntfn.BOUND_TCB (by simp [layout.ntfn.BOUND_TCB])
-      have hv : layout.ntfn.BOUND_TCB.val = 24 := by simp [layout.ntfn.BOUND_TCB]
-      refine Or.inr ?_
-      unfold GateOnly
-      rw [e, hv, ntfnOwner, if_pos rfl]
+  · exact tmw_own hK hI hL hY hne hw
   · obtain ⟨p, hr, hts, hlt⟩ := hY.cs k hk hk32
     refine Or.inr ?_
     unfold GateOnly

@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqDec
 import Fl4Proofs.P2.FootTimerIrqOwn
 import Fl4Proofs.P2.FootTimerIrqLP
 import Fl4Proofs.P2.FootTimerIrqRG
@@ -108,3 +109,7 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.irq_rd_own
 #print axioms Fl4Proofs.P2.irq_wr_own
 #print axioms Fl4Proofs.P2.irq_acc_own
+#print axioms Fl4Proofs.P2.tmw_own
+#print axioms Fl4Proofs.P2.may_run_here.guardC
+#print axioms Fl4Proofs.P2.current_ok.guardC
+#print axioms Fl4Proofs.P2.irq_dec_guard
