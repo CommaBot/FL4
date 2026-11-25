@@ -12,7 +12,7 @@ No named premises.
 import Fl4Proofs.P2.FootTimerSet
 import Fl4Proofs.P2.FootTimerAccLoop
 import Fl4Proofs.P2.FootTimerGEIns
-import Fl4Proofs.P2.AccessIoFin
+import Fl4Proofs.P2.FootTimerFin
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2
@@ -207,18 +207,18 @@ theorem sched.schedule.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a :
   have sa := hNd layout.node.SCHED_ACTION (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
   have hac : sched.action st s = ok sched.ACTION_RESUME_CURRENT := by
     rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
-  have es : sched.schedule st ar s a = PathObl.schedRes st ar s a :=
-    PathObl.schedule_res_eq st ar s a (awaken_none ar s a hT hRel) hac
+  have es : sched.schedule st ar s a = PathObl.LT.schedRes st ar s a :=
+    PathObl.LT.schedule_res_eq st ar s a (awaken_none ar s a hT hRel) hac
   have haw : sched.awaken gS ar s a = ok (s, a) := by
     unfold sched.awaken
     rw [timer.fire.guard_nodue ar s a ct.1 tm.1 hd hT]
     simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
     rw [sched.awaken_loop.guard_nodue s _ rh.1 h2 ct.1 hRel]
     simp only [bind_ok, bind_tc_ok]
-  have eg : sched.schedule gS ar s a = PathObl.schedRes gS ar s a :=
-    PathObl.schedule_res_eq _ ar s a haw (by rw [PathObl.sched.action.guard s sa.1]; exact hac)
+  have eg : sched.schedule gS ar s a = PathObl.LT.schedRes gS ar s a :=
+    PathObl.LT.schedule_res_eq _ ar s a haw (by rw [PathObl.sched.action.guard s sa.1]; exact hac)
   rw [eg, es]
-  exact PathObl.schedRes.guard ar s a hNd hsw hfr
+  exact PathObl.LT.schedRes.guard ar s a hNd hsw hfr
 
 end
 

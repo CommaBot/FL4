@@ -826,7 +826,7 @@ theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr
     rw [e1s]; exact PathObl.nd_wr _ _ _ _
   have gact : sched.activate_thread gS ar s7 a2 = sched.activate_thread st ar s7 a2 :=
     activate_thread.g_run ar s7 a2 hcur7 hy7 (nrm s7 e7N) rYt rSt hst7
-  have gvc := PathObl.vcpu.check.guard_running (gS := gS) ar s7 a2 t rSt hst7
+  have gvc := PathObl.LT.vcpu.check.guard_running (gS := gS) ar s7 a2 t rSt hst7
   have ndR : ∀ (Y : S), (∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o) → ∀ o : U64, o.val < 4288 →
       o.val % 8 = 0 → R (L.nodeAt Y (L.cpu Y) o) := fun Y e o h1 h2 => by rw [e]; exact nR o h1 h2
   have gcnsv : sched.consumed gS s2 = sched.consumed st s2 :=
