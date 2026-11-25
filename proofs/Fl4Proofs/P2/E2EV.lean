@@ -16,8 +16,9 @@ module states the same chain for `OwnMapV.ownV` (rule 7) and adds the hardware's
   serial run of the completed entries (hardware writes included) in completion order. Same shape as
   `serializable_e2e`, which stays as it is.
 * **Lifting the existing paths** (`LocalPath.liftV`, `PathsV.ofPaths`): every `LocalPath` for `own` is one
-  for `ownV` once it reads no VCPU word at a gate-only read (`NoVcpuRd` [W], per path; a word it reads under
-  a held owner, or writes, is never a VCPU word, as `own` gives those to the gate). `move` / `dec_alt`'s
+  for `ownV` once its `ReadSet` has no non-binding VCPU word (`NoVcpuRd` [W], per path, gen 5: `VData`; a
+  binding word is the gate's under both maps; a word it writes, or reads under a held owner, is never a VCPU
+  word, as `own` gives those to the gate). A maximal `own` read set fails `NoVcpuRd` (`E2EVTop`). `move` / `dec_alt`'s
   per-write checks lift for every step (`OwnMapV.stepOKV_of_stepOK`: rule 7's owners depend on no memory
   word), through `IsProg` and `interp_mguard_mono`.
 
@@ -109,10 +110,27 @@ end mono
 section lift
 variable {K : KLayoutV} {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop}
 
-/-- **`NoVcpuRd`** [W] (per path): no word the path reads (`ReadSet`, kernel words) is a VCPU word. True of
-every non-VM local path: they read only their own core's, threads', objects' and the gate's words. -/
+/-- The **non-binding words of the VCPUs** (rule 7's `lock v` words, the ones the hardware and the local VM
+paths write). -/
+def VData (K : KLayoutV) (x : U64) : Prop := ∃ v, InVcpu K v x ∧ ¬ VcpuGate (x.val - v.val)
+
+/-- A read permitted by `own` is one by `ownV` unless the word is a non-binding VCPU word (a binding word is the
+gate's under both maps). -/
+theorem rpermV_of_own_nd (hK : RegionOKV K) {m : U64 → U64} {x c : U64} {lk : U64 → Prop} (hx : ¬ VData K x)
+    (h : PathObl.RPerm (OwnMap.own K.toKLayout) c lk m x) : PathObl.RPerm (ownV K) c lk m x := by
+  by_cases hv : ∃ w, InVcpu K w x
+  · obtain ⟨w, hw⟩ := hv
+    have hg : VcpuGate (x.val - w.val) := by
+      by_contra hn; exact hx ⟨w, hw, hn⟩
+    right; unfold PathObl.GateOnly; rw [ownV_on hK hw]; simp only [vcpuOwner, if_pos hg]
+  · exact rpermV_of_own hv h
+
+/-- **`NoVcpuRd`** [W] (per path; gen 5: only the non-binding words): no word in the path's `ReadSet` (kernel
+words) is a non-binding VCPU word. **Not** true of a path whose `ReadSet` is a maximal `own` set (`MaxR`,
+`IoRS`, `SlRS`: every `own`-gate-only word, so every aligned VCPU word): `E2EVTop.not_noVcpuRd`. Such a path
+has to be rebuilt with its read set cut to `¬ VData` (`E2EVTop.rsV`), for which this holds by definition. -/
 def NoVcpuRd (K : KLayoutV) (P : LocalPath (OwnMap.own K.toKLayout) cls ko User) : Prop :=
-  ∀ s x, P.Pre s → P.RS s x → ¬ User x → ¬ ∃ v, InVcpu K v x
+  ∀ s x, P.Pre s → P.RS s x → ¬ User x → ¬ VData K x
 
 /-- **A local path for `own` is one for `ownV`**, given `NoVcpuRd`. -/
 def LocalPath.liftV (hK : RegionOKV K) (P : LocalPath (OwnMap.own K.toKLayout) cls ko User)
@@ -150,7 +168,7 @@ def LocalPath.liftV (hK : RegionOKV K) (P : LocalPath (OwnMap.own K.toKLayout) c
       dec_alt := fun s a r hp h hd s' r' hA h' => by
         obtain ⟨h1, h2, h3⟩ := P.obl.dec_alt s a r hp h hd s' r' hA h'
         exact ⟨h1, h2, mono _ _ _ _ _ _ h3⟩
-      read_own := fun s x hp hr hu => rpermV_of_own (hN s x hp hr hu) (P.obl.read_own s x hp hr hu)
+      read_own := fun s x hp hr hu => rpermV_of_own_nd hK (hN s x hp hr hu) (P.obl.read_own s x hp hr hu)
       write_own := fun s x hp hw hu => wpermV_of_own' hK (P.obl.write_own s x hp hw hu)
       aligned := P.obl.aligned
       move := fun s a r hp h => mono _ _ _ _ _ _ (P.obl.move s a r hp h) }
