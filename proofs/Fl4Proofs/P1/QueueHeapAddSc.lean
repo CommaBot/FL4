@@ -139,7 +139,7 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     refine ⟨hO.rp, fun c hc => ?_, fun r hr b ha h1 h2 => fS (hO.rpW r hr b ha h1 h2), fun c hc b ha hin => ?_,
       fun c hc => ?_, fun c hc c' hc' hne => ?_, fun r hr c hc => ?_, fun c hc => ?_, fun n hn => fS (hO.ntW n hn),
       hO.ntRp, fun n hn c hc => ?_, hO.ntAl, hO.ntP, fun n hn => ⟨fS (hO.ntB n hn).1, fS (hO.ntB n hn).2⟩,
-      hO.ntORp, fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, hO.nt0, hO.rp0⟩
+      hO.ntORp, fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, hO.nt0, hO.rp0, fun c hc => ?_⟩
     · rcases (SS c).1 hc with hc | hc
       · rw [A.scBits_old hc]; exact hO.sc c hc
       · rw [A.scBits_new hc]
@@ -198,6 +198,9 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     · rcases (SS c).1 hc with hc | hc
       · exact fS (hO.mxW c hc)
       · exact fM c hc
+    · rcases (SS c).1 hc with hc | hc
+      · exact hO.sc0 c hc
+      · exact A.nz c hc
   have rinv : ReplyInv st H.tcbs H.replies (H.add N (.sc z)).scs s := by
     obtain ⟨⟨r1, r2, r3, r4, r5, r6, r7⟩, r8⟩ := hX.2.1
     refine ⟨⟨r1, r2, fun r hr h0' => ?_, r4, r5, fun c hc h0' => ?_, fun c hc e => ?_⟩, r8⟩

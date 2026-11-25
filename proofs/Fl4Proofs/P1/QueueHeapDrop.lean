@@ -272,7 +272,7 @@ theorem ObjsOK.drop (P : DropOK st H D Cs s)
     fun n hn r hr => h.ntRp n (N hn).1 r (R hr).1, fun n hn c hc => ?_, fun n hn => h.ntAl n (N hn).1,
     fun n hn => h.ntP n (N hn).1, fun n hn => ?_, fun n hn r hr => h.ntORp n (N hn).1 r (R hr).1,
     fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun n hn => h.nt0 n (N hn).1,
-    fun r hr => h.rp0 r (R hr).1⟩
+    fun r hr => h.rp0 r (R hr).1, fun c hc => h.sc0 c (C hc).1⟩
   · rw [Heap.scBits_drop (C hc).2]; exact h.sc c (C hc).1
   · exact P.rpFrame (R hr).1 (R hr).2 (h.rpW r (R hr).1 b ha h1 h2) h1 h2
   · rw [Heap.scBits_drop (C hc).2] at hin

@@ -33,7 +33,7 @@ variable {T Cs Ω Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 /-- `ObjsOK` does not depend on the state. -/
 theorem ObjsOK.any {s s' : S} (h : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω Sg Rp Scs Nt Z s' :=
   ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl, h.ntP, h.ntB,
-    h.ntORp, h.ntOSc, h.snW, h.syW, h.mxW, h.nt0, h.rp0⟩
+    h.ntORp, h.ntOSc, h.snW, h.syW, h.mxW, h.nt0, h.rp0, h.sc0⟩
 
 /-- `d`'s register words (below the state word). -/
 def RegWd (Ω : Set U64) (d : U64) (b : U64) : Prop :=
