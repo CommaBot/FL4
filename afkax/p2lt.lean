@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRF
 import Fl4Proofs.P2.FootTimerIrqRW
 import Fl4Proofs.P2.FootTimerIrqRM
 import Fl4Proofs.P2.FootTimerIrqRT
@@ -74,3 +75,5 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.cbRR_head
 #print axioms Fl4Proofs.P2.rr_wr_out
 #print axioms Fl4Proofs.P2.rr_sufficient
+#print axioms Fl4Proofs.P2.rr_queue
+#print axioms Fl4Proofs.P2.rr_tail_F
