@@ -48,6 +48,7 @@ import Fl4Proofs.P2.FootTimerFirePk
 import Fl4Proofs.P2.FootTimerFireRs
 import Fl4Proofs.P2.FootTimerFireWf
 import Fl4Proofs.P2.FootTimerFireWr
+import Fl4Proofs.P2.FootTimerFireWp
 import Fl4Proofs.P2.FootTimerFireWa
 import Fl4Proofs.P2.FootTimerFireWe
 #print axioms Fl4Proofs.P2.set_timer_accG
