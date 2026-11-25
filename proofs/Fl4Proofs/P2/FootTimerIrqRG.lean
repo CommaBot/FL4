@@ -240,7 +240,7 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
     rw [ks_word_val hN ho] at this
     omega
   obtain ⟨Qq, Rq, h1⟩ := hB1.1
-  have kY : ∀ Y, WritesIn st s1 Y (RrW st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) →
+  have kY : ∀ Y, WritesIn st s1 Y (RrWT st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) →
       (∀ o : U64, o.val < 120 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 40 → o.val ≠ 56 → o.val ≠ 80 → o.val ≠ 48 →
         L.mem Y (L.nodeAt s (L.cpu s) o) = L.mem s (L.nodeAt s (L.cpu s) o)) ∧
       (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3480 → K.val ≠ 3488 → K.val ≠ 3592 →
@@ -256,11 +256,11 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
       exact htcb1 hy q1 q2
     · rw [kΩ b hb n1' n2']
       exact agΩ1 b hb
-  have kS : ∀ Y, WritesIn st s1 Y (RrW st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) → ∀ b ∈ Ω,
+  have kS : ∀ Y, WritesIn st s1 Y (RrWT st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) → ∀ b ∈ Ω,
       ¬ InSC (L.cscW s) (Z (L.cscW s)) b → L.mem Y b = L.mem s b := fun Y wY b hb hn =>
     (kY Y wY).2.2 b hb (fun hr => hn hr.inSC) (fun e => hn (by rw [e]; exact hcq.2.2.1.1))
   -- the SCs other than the current one, the release head's SC
-  have wfO : ∀ Y, WritesIn st s1 Y (RrW st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) → ∀ c ∈ Scs,
+  have wfO : ∀ Y, WritesIn st s1 Y (RrWT st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) → ∀ c ∈ Scs,
       c ≠ L.cscW s → L.rmax Y c = L.rmax s c ∧ (c ∈ Ac → RefillsWF st Y c (Z c)) := by
     intro Y wY c hc hne
     have hd := hO.scDisj c hc _ hcs hne
@@ -270,7 +270,7 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
         (fun e => by rw [e] at hin; unfold InSC at hin; rw [hcv, hcv'] at hin; omega)
     have hqc := scq_of hO hS hc
     exact ⟨kc _ hqc.2.2.2.2 hqc.2.2.2.1, fun hac => (hS.wf hc hac).agree kc⟩
-  have rhY : ∀ Y, WritesIn st s1 Y (RrW st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) →
+  have rhY : ∀ Y, WritesIn st s1 Y (RrWT st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) →
       RefillsWF st Y (L.cscW s) (Z (L.cscW s)) →
       L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) ≠ 0#u64 →
       L.mem Y (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))) =
@@ -324,7 +324,7 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
   obtain ⟨⟨Xc, ac⟩, ecn, esr⟩ := bind_eq_ok esc
   have esr' : PathObl.LT.schedRes st ar Xc ac = ok (s4, a4) := esr
   obtain ⟨wC, curC⟩ := rr_choose hA hT hcT hN3 hcur3 hd03 hp0 hl13 hhp3 pr3 haff3 hq3 hH3 hE3 ecn
-  have wXc : WritesIn st s1 Xc (RrW st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) :=
+  have wXc : WritesIn st s1 Xc (RrWT st T s1 (L.curW s) (L.cscW s) (Z (L.cscW s))) :=
     w13.trans1 (wC.mono fun b hb => by
       rcases hb with ⟨o, ho, ho1, ho2, e⟩ | e | e | e
       · have ho' : 128 ≤ o.val := ho

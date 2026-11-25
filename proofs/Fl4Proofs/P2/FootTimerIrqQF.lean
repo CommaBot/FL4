@@ -74,17 +74,17 @@ theorem schedule_tcb_cases {X Y : S} {t : U64} (h : sched.schedule_tcb st X t = 
 
 /-- The words `activate_thread` may write for the current thread `t` (yielding to no SC): `NEXT_IP` (register
 14), the state, and the action. -/
-def ActW (st : machine.Store S) [L : LawfulStore st] (s0 : S) (t b : U64) : Prop :=
+def ActWT (st : machine.Store S) [L : LawfulStore st] (s0 : S) (t b : U64) : Prop :=
   b = core.num.U64.wrapping_add t 368#u64 ∨ b = stA t ∨ b = L.nodeAt s0 (L.cpu s0) layout.node.SCHED_ACTION
 
 variable {A : Type _} (ar : machine.Arch A)
 
-/-- **`activate_thread` of a current thread yielding to no SC** writes only `ActW`; afterwards its state is
+/-- **`activate_thread` of a current thread yielding to no SC** writes only `ActWT`; afterwards its state is
 `Running` or unchanged. -/
 theorem activate_fp {X Y : S} {a a' : A} {t : U64} (hT : TcbPlaced T) (ht : t ∈ T)
     (hN : NodePlaced st T X (L.cpu X)) (hct : L.curW X = t) (hy : L.mem X (yieldA t) = 0#u64)
     (h : sched.activate_thread st ar X a = ok (Y, a')) :
-    WritesIn st X Y (ActW st X t) ∧
+    WritesIn st X Y (ActWT st X t) ∧
       (L.mem Y (stA t) = sched.TS_RUNNING ∨ L.mem Y (stA t) = L.mem X (stA t)) := by
   have ht' := hT t ht
   unfold sched.activate_thread at h

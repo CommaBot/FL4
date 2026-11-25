@@ -61,7 +61,7 @@ theorem rrX_nodeAt (s : S) (v n o : U64) :
     L.nodeAt (rrX (L := L) s v n) (L.cpu (rrX (L := L) s v n)) o = L.nodeAt s (L.cpu s) o := by
   rw [rrX_cpu, nodeAt_of_ksb (rrX_ksb s v n)]
 
-theorem fip_eq (hc : TcbAddr (L.curW s)) :
+theorem fip_eqV (hc : TcbAddr (L.curW s)) :
     ∃ k : U64, k.val = 392 ∧ regA (L.curW s) layout.reg.FAULT_IP = core.num.U64.wrapping_add (L.curW s) k := by
   obtain ⟨k, hk, e⟩ := regA_eq hc (r := layout.reg.FAULT_IP) (by simp [layout.reg.FAULT_IP])
   exact ⟨k, by rw [hk]; simp [layout.reg.FAULT_IP], e⟩
@@ -70,7 +70,7 @@ theorem fip_eq (hc : TcbAddr (L.curW s)) :
 theorem rrX_mem (hN : NodePlaced st T s (L.cpu s)) (hc : TcbAddr (L.curW s)) (v n : U64) {b : U64}
     (hb : Aligned b) (h0 : b ≠ regA (L.curW s) layout.reg.FAULT_IP) (h1 : b ≠ ctA (L := L) s)
     (h2 : b ≠ cnA (L := L) s) : L.mem (rrX (L := L) s v n) b = L.mem s b := by
-  obtain ⟨k, hk, e⟩ := fip_eq (L := L) hc
+  obtain ⟨k, hk, e⟩ := fip_eqV (L := L) hc
   have aF : Aligned (regA (L.curW s) layout.reg.FAULT_IP) := by
     rw [e]; exact field_aligned hc (by omega) (by omega)
   have hN1 : NodePlaced st T (L.wr s (regA (L.curW s) layout.reg.FAULT_IP) v)
@@ -84,7 +84,7 @@ theorem rrX_mem (hN : NodePlaced st T s (L.cpu s)) (hc : TcbAddr (L.curW s)) (v 
 theorem rrX_tcb (hN : NodePlaced st T s (L.cpu s)) (hT : TcbPlaced T) (hcT : L.curW s ∈ T) (v n : U64)
     {y Kx : U64} (hy : y ∈ T) (hK : Kx.val < 4096) (h8 : Kx.val % 8 = 0) (hne : y = L.curW s → Kx.val ≠ 392) :
     L.mem (rrX (L := L) s v n) (core.num.U64.wrapping_add y Kx) = L.mem s (core.num.U64.wrapping_add y Kx) := by
-  obtain ⟨k, hk, e⟩ := fip_eq (L := L) (hT _ hcT)
+  obtain ⟨k, hk, e⟩ := fip_eqV (L := L) (hT _ hcT)
   refine rrX_mem hN (hT _ hcT) v n (field_aligned (hT y hy) hK h8) ?_
     (fun e' => node_ne_field hN (by simp [layout.node.CUR_TIME]) hy (hT y hy) hK e'.symm)
     (fun e' => node_ne_field hN (by simp [layout.node.CONSUMED]) hy (hT y hy) hK e'.symm)
@@ -96,7 +96,7 @@ theorem rrX_node (hN : NodePlaced st T s (L.cpu s)) (hc : TcbAddr (L.curW s)) (h
     {o : U64} (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h1 : o.val ≠ layout.node.CUR_TIME.val)
     (h2 : o.val ≠ layout.node.CONSUMED.val) :
     L.mem (rrX (L := L) s v n) (L.nodeAt s (L.cpu s) o) = L.mem s (L.nodeAt s (L.cpu s) o) := by
-  obtain ⟨k, hk, e⟩ := fip_eq (L := L) hc
+  obtain ⟨k, hk, e⟩ := fip_eqV (L := L) hc
   refine rrX_mem hN hc v n (nodeAt_aligned hN ho h8) ?_ (nodeAt_ne hN ho (by simp [layout.node.CUR_TIME]) h1)
     (nodeAt_ne hN ho (by simp [layout.node.CONSUMED]) h2)
   rw [e]; exact node_ne_field hN ho hcT hc (by omega)
@@ -105,7 +105,7 @@ theorem rrX_node (hN : NodePlaced st T s (L.cpu s)) (hc : TcbAddr (L.curW s)) (h
 theorem rrX_out (hN : NodePlaced st T s (L.cpu s)) (hc : TcbAddr (L.curW s)) (hcT : L.curW s ∈ T)
     (hcC : L.cpu s ∈ Cs) (v n : U64) {b : U64} (hb : OutsideObjs st T Cs s b) :
     L.mem (rrX (L := L) s v n) b = L.mem s b := by
-  obtain ⟨k, hk, e⟩ := fip_eq (L := L) hc
+  obtain ⟨k, hk, e⟩ := fip_eqV (L := L) hc
   refine rrX_mem hN hc v n hb.1 ?_
     (fun e' => out_ne_node (o := layout.node.CUR_TIME) hb hcC hN (by simp [layout.node.CUR_TIME]) (by rw [e']))
     (fun e' => out_ne_node (o := layout.node.CONSUMED) hb hcC hN (by simp [layout.node.CONSUMED]) (by rw [e']))

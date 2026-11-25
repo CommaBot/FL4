@@ -842,7 +842,7 @@ theorem rr_alt_not_acc (hA : P0.ArchTotal ar) {rptr ep : U64}
   obtain ⟨⟨s2, a1⟩, eu, h⟩ := bind_eq_ok h
   obtain ⟨⟨x2, a1'⟩, eu', h'⟩ := bind_eq_ok h'
   simp only [uncurry_apply_pair] at h h'
-  obtain ⟨k, hk, ek⟩ := fip_eq (L := L) P.tA
+  obtain ⟨k, hk, ek⟩ := fip_eqV (L := L) P.tA
   have aF : Aligned (regA (L.curW s) layout.reg.FAULT_IP) := by
     rw [ek]; exact field_aligned P.tA (by omega) (by omega)
   have G0 := G.wr (fun _ hb => hb.1) (a := regA (L.curW s) layout.reg.FAULT_IP) (v := v) aF
@@ -927,7 +927,7 @@ theorem rr_dec_tr (hA : P0.ArchTotal ar) {rptr ep : U64}
     (by simp [layout.node.CONSUMED])).1
   have hcur : L.curW x = L.curW s := by
     unfold LawfulStore.curW; rw [G.node]; exact G.m _ nC
-  obtain ⟨k, hk, ek⟩ := fip_eq (L := L) P.tA
+  obtain ⟨k, hk, ek⟩ := fip_eqV (L := L) P.tA
   have aF : Aligned (regA (L.curW s) layout.reg.FAULT_IP) := by
     rw [ek]; exact field_aligned P.tA (by omega) (by omega)
   refine rr_local_guard_dec (gS := PathObl.guard st R'' (IoDS (st := st) s))

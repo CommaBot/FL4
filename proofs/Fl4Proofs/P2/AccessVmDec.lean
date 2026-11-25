@@ -436,7 +436,7 @@ theorem vmFDec_of {s1 x1 : S} {R'' : U64 → Prop} (D : VmDF st K T Locks s s1)
   refine ⟨nd1, dt1, cd1, bm1, tm1, rh1, fun sl hsl => ⟨hRR _ (D.sl sl hsl).1, hRR _ (D.sl sl hsl).2⟩, ?_⟩
   intro sl ptr b x y g gr hsl hcap
   obtain ⟨r0, r8⟩ := D.sl sl hsl
-  rw [cap_congr G1 r0 r8] at hcap
+  rw [cap_congr_ag G1 r0 r8] at hcap
   obtain ⟨rts, rhd, hHT⟩ := D.ep sl ptr b x y g gr hsl hcap
   refine ⟨hRR _ rts, hRR _ rhd, fun hst d hd => ?_⟩
   have hst1 : L.epState s1 ptr = obj.EP_RECV := by
@@ -471,7 +471,7 @@ theorem vm_chk_back {s1 x1 : S} (D : VmDF st K T Locks s s1)
     (C : FaultChecks st x1 (L.curW s) ptr badge dest r) : FaultChecks st s1 (L.curW s) ptr badge dest r := by
   obtain ⟨hA, ⟨sl, x, y, g, gr, hS, hcap, hg⟩, hep, hh, hrep, hr0, hhe, ⟨d, p, hd, hp, hhi⟩⟩ := C
   obtain ⟨r0, r8⟩ := D.sl sl hS
-  rw [cap_congr G1 r0 r8] at hcap
+  rw [cap_congr_ag G1 r0 r8] at hcap
   obtain ⟨rts, rhd, hHT⟩ := D.ep sl ptr badge x y g gr hS hcap
   have eep : obj.Ep.state st ptr x1 = obj.Ep.state st ptr s1 := by
     rw [eq_of_spec_fd (obj.Ep.state.spec (L := L) x1 ptr), eq_of_spec_fd (obj.Ep.state.spec (L := L) s1 ptr)]

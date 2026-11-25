@@ -134,7 +134,7 @@ theorem lib_congr (h : Ag st R x y) {rcv : Bool} {t sl : U64} (hsl : obj.Tcb.slo
   have gy := msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R (fun _ => True)) (st := st) y rcv t hsl hI hR0 hR8
   rw [← gy, ← gx, lib_ag h]
 
-theorem cap_congr (h : Ag st R x y) {sl : U64} (h0 : R sl) (h8 : R (core.num.U64.wrapping_add sl 8#u64)) :
+theorem cap_congr_ag (h : Ag st R x y) {sl : U64} (h0 : R sl) (h8 : R (core.num.U64.wrapping_add sl 8#u64)) :
     obj.Slot.cap st sl y = obj.Slot.cap st sl x := by
   unfold obj.Slot.cap
   rw [L.read_pair_eq, L.read_pair_eq, h.m _ h0, h.m _ h8]

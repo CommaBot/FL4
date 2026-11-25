@@ -6,7 +6,7 @@
 `rr_s3`: from the state `s1` after `update_timestamp` (P1 invariant `BXI`, `round_robin_ok` accepted, budget
 insufficient, nothing due), through `check_budget` (`rr_cb_state`) and the timer handler (`REPROGRAM`, `ARMED`:
 `handle_interrupt_timer`; the IRQ's state word is a kernel-global word outside the current SC, so the round-robin
-writes keep it), the `schedule` state `s3` has: writes only `RrW`, the action `CHOOSE_NEW`, the current thread
+writes keep it), the `schedule` state `s3` has: writes only `RrWT`, the action `CHOOSE_NEW`, the current thread
 schedulable, queued, alone in the highest ready queue, the current SC's ring well formed, no timer due
 (`rr_nodue`) and no release due (`rr_rel`).
 
@@ -57,7 +57,7 @@ theorem rr_s3 {A : Type} (ar : machine.Arch A) {s1 s2 s3 : S} {a1 a2 a3 : A} {x 
     (emx : layout.irq.MAX = ok mx) (hle : ¬ irq > mx)
     (eis1 : interrupt.irq_state st s1 irq = ok interrupt.IRQ_TIMER)
     (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3)) :
-    a2 = a1 ∧ WritesIn st s1 s3 (RrW st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) ∧
+    a2 = a1 ∧ WritesIn st s1 s3 (RrWT st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) ∧
       L.actionW s3 = sched.ACTION_CHOOSE_NEW ∧ sched.is_schedulable st s3 (L.curW s1) = ok true ∧
       (L.mem s3 (inqA (L.curW s1)) &&& sched.Q_QUEUED) ≠ 0#u64 ∧
       sched.highest_prio st s3 0#u64 = ok (L.mem s1 (prioA (L.curW s1))) ∧ L.l1W s3 (L.cpu s3) ≠ 0#u64 ∧
@@ -129,7 +129,7 @@ theorem rr_s3 {A : Type} (ar : machine.Arch A) {s1 s2 s3 : S} {a1 a2 a3 : A} {x 
   have hN2 : NodePlaced st T s2 (L.cpu s2) := by rw [c2]; exact hN1.ksb k2
   have hcC2 : L.cpu s2 ∈ Cs := by rw [c2]; exact hcC
   have w23 : WritesIn st s2 s3 (HW st s2) := handle_interrupt_timer_writes hN2 eh2 eh3
-  have w13 : WritesIn st s1 s3 (RrW st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) :=
+  have w13 : WritesIn st s1 s3 (RrWT st T s1 (L.curW s1) (L.cscW s1) (Z (L.cscW s1))) :=
     w12.trans1 (w23.mono fun b hb => by
       obtain ⟨o, ho, ho1, ho2, e⟩ := hb
       have ho' : o.val = 56 ∨ o.val = 80 := ho

@@ -234,7 +234,7 @@ theorem io_alt_not_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
     exact slot_back P Al hsl hc hk
   obtain ⟨bsl, hbsl⟩ := buffer_slot_ok (L.curW s)
   have hinv : ioport.invocation_ok st s2 (L.curW s) (L.mem s2 (regA (L.curW s) layout.reg.CAP)) info = ok true := by
-    refine inv_back (C := C) (tcb_slot_ctable _) (cap_congr G3 M2.hR0 M2.hR8) (fun p r m y c hp hm hc hk =>
+    refine inv_back (C := C) (tcb_slot_ctable _) (cap_congr_ag G3 M2.hR0 M2.hR8) (fun p r m y c hp hm hc hk =>
       hback _ (hC p r m y hp hm).1 c hc hk) (fun x f l z hl hc => hback _ ?_ _ hc (Or.inr ⟨_, _, _, rfl⟩)) M2.hcl M2.hroot
       (lib_congr G3 hbsl M2.iok.1.ib (M2.iok.1.bs bsl hbsl).1 (M2.iok.1.bs bsl hbsl).2) (G3.m _ M2.r10) hinv'
     -- the looked-up slot is a capability slot

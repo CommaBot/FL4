@@ -49,7 +49,7 @@ theorem entryHyps0_blkU_false (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P
   exact (E.blkU Ac s' h').1.ni e.symm
 
 /-- Its `tmoOK` alone (guarded by `XG`) is contradictory with any `XG` `BXI` state. -/
-theorem tmoOK_false
+theorem tmoOK_false_blk
   (hT : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     CanBlock st T Ac s (L.curW s)) {s : S} (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) : False := by
