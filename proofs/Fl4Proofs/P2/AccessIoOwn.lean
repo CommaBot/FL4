@@ -207,6 +207,16 @@ structure IoPre (st : machine.Store S) [L : LawfulStore st] (K : KLayout) (T Cs 
     x.slot ∈ K.slots ∧ OutsideObjs st T Cs s x.slot ∧
       OutsideObjs st T Cs s (core.num.U64.wrapping_add x.slot 8#u64)
 
+/-- **The words an accepted run writes**, as a write predicate `W` must allow them
+(the node's words, the current thread's registers, the current SC's ring and
+`CONSUMED`; its `STATE` is `IoSW`'s): `IoWS` (`IoPre.ioWr`), or the value-checked
+store's `WAll` (`AccessIoMv`). -/
+structure IoWr (st : machine.Store S) [L : LawfulStore st] (W : U64 → Prop) (Z : U64 → Nat) (s : S) : Prop where
+  nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → W (L.nodeAt s (L.cpu s) o)
+  reg : ∀ r : U64, r.val < 384 → W (regA (L.curW s) r)
+  ring : ∀ b, Aligned b → InRing (L.cscW s) (Z (L.cscW s)) b → W b
+  cons : W (core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED)
+
 section
 variable (P : IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
 include P
@@ -348,9 +358,13 @@ theorem IoPre.cscacc : ScAcc (IoRS (st := st) K Locks s) (IoWS (st := st) K Lock
 theorem IoPre.cscwf : RefillsWF st s (L.cscW s) (Z (L.cscW s)) :=
   (bxi_scin P.bxi P.cscS ((P.bxi.2.2.2.2.act _ P.cscS).1 P.csc)).1
 
-theorem IoPre.iacc : IoAcc st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) s (L.cscW s) (Z (L.cscW s)) where
-  acc := P.cscacc
-  nd := P.nd
+theorem IoPre.ioWr : IoWr st (IoWS (st := st) K Locks s) Z s :=
+  ⟨fun o h1 h2 => (P.nd o h1 h2).2, fun r hr => (P.reg hr).2, P.cscacc.wr, P.cscacc.cons⟩
+
+theorem IoPre.iacc {W : U64 → Prop} (hW : IoWr st W Z s) :
+    IoAcc st (IoRS (st := st) K Locks s) W s (L.cscW s) (Z (L.cscW s)) where
+  acc := ⟨(P.cscacc (Locks := Locks)).rd, hW.ring, hW.cons⟩
+  nd := fun o h1 h2 => ⟨(P.nd (Locks := Locks) o h1 h2).1, hW.nd o h1 h2⟩
   sc := P.gate (off := 3464#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])
   dt := P.ksw (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])
   td := P.td
@@ -358,20 +372,20 @@ theorem IoPre.iacc : IoAcc st (IoRS (st := st) K Locks s) (IoWS (st := st) K Loc
   ryl := (P.home (off := 3472#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
   rst := P.stw.1
   rfi := (P.reg (by simp [layout.reg.FAULT_IP])).1
-  wnx := (P.reg (by simp [layout.reg.NEXT_IP])).2
-  wst := P.stw.2
+  wnx := hW.reg _ (by simp [layout.reg.NEXT_IP])
   rin := (P.home (off := 3592#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
 
-theorem IoPre.ent : IoEnt st T Cs Ω H Sg Rp Scs Nt Z Ac (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) s :=
-  ⟨P.bxi, P.csc, P.hcsc, P.run, P.iacc⟩
+theorem IoPre.ent {W : U64 → Prop} (hW : IoWr st W Z s) :
+    IoEnt st T Cs Ω H Sg Rp Scs Nt Z Ac (IoRS (st := st) K Locks s) W s :=
+  ⟨P.bxi, P.csc, P.hcsc, P.run, P.iacc hW⟩
 
 /-- **`IoMid` at the entry.** -/
-theorem IoPre.mid {C : U64 → U64 → Prop}
+theorem IoPre.mid {W : U64 → Prop} (hW : IoWr st W Z s) {C : U64 → U64 → Prop}
     (hroot : ∀ p r gs g, obj.Slot.cap st (L.curW s) s = ok (.CNode p r gs g) → C p r) (hcl : WalkCl (st := st) s C)
     (hsl : ∀ p r m y, C p r → cspace.mask r = ok m → cnSlot p (y &&& m) ∈ K.slots)
     (hsc0 : L.mem s (scA (L.curW s)) = L.cscW s)
     (info : msginfo.MessageInfo) (emi : msg.msg_info st s (L.curW s) = ok info) :
-    IoMid (L := L) (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) s s (L.curW s) info
+    IoMid (L := L) (IoRS (st := st) K Locks s) W s s (L.curW s) info
       (L.mem s (regA (L.curW s) layout.reg.CAP)) C (L.curW s) := by
   have hslot : ∀ i sl, obj.Tcb.slot (L.curW s) i = ok sl → i.val < 6 →
       IoRS (st := st) K Locks s sl ∧ IoRS (st := st) K Locks s (core.num.U64.wrapping_add sl 8#u64) := fun i sl h hi => by
@@ -405,15 +419,14 @@ theorem IoPre.mid {C : U64 → U64 → Prop}
     iok := ⟨
       { tcb := P.tA
         regR := fun r hr => (P.reg hr).1
-        regW := fun r hr => (P.reg hr).2
+        regW := fun r hr => hW.reg r hr
         stR := P.stw.1
-        stW := P.stw.2
         sc := P.gate (off := 3464#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])
         max := by rw [hsc0]; exact P.cscacc.rd _ hmx.1 ⟨hmx.2.1, hmx.2.2⟩
         inq := (P.home (off := 3592#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
         ib := P.gate (off := 3512#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])
         bs := fun sl h => hslot _ sl h (by simp [layout.tcb.SLOT_BUFFER]) },
-      ⟨nd1.1, nd2.1, nd2.2⟩,
+      ⟨nd1.1, nd2.1, hW.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])⟩,
       nodeAt_aligned P.np (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]),
       node_ne_field P.np (by simp [layout.node.SCHED_ACTION]) P.cT P.tA (by simp)⟩ }
 
@@ -529,12 +542,12 @@ theorem io_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {number :
     w.2.2 _ (field_aligned P.tA (by simp) (by simp)) (preW_tcb P.tA P.np P.cT (K := 3464#u64) (by simp) (by simp))
   have hsc0 : L.mem s (scA (L.curW s)) = L.cscW s := (P.hcsc (by rw [← e1]; exact hsc2)).symm
   obtain ⟨C, hroot, hcl, hC⟩ := P.walk
-  exact syscall.handle_ioport_local.guard_ent ar hA P.ent
-    (P.mid hroot hcl (fun p r m y hp hm => (hC p r m y hp hm).1) hsc0)
+  exact syscall.handle_ioport_local.guard_ent ar hA (P.ent (P.ioWr (Locks := Locks)))
+    (P.mid (P.ioWr (Locks := Locks)) hroot hcl (fun p r m y hp hm => (hC p r m y hp hm).1) hsc0)
     (fun p r m y hp hm => (hC p r m y hp hm).2) (fun x hx => (P.fin x hx).2)
     (P.reg (by simp [layout.reg.MSG_INFO])).1
     (P.home (off := 3456#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
-    (P.reg (by simp [layout.reg.NEXT_IP])).1 (P.reg (by simp [layout.reg.FAULT_IP])).2 h
+    (P.reg (by simp [layout.reg.NEXT_IP])).1 (P.reg (by simp [layout.reg.FAULT_IP])).2 (IoSW.of_W P.stw.2) h
 
 end
 

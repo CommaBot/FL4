@@ -12,7 +12,7 @@ entry state) and `DecSet = IoDS` (`FAULT_IP`, `CUR_TIME`, `CONSUMED`), for the o
 * `read_own` / `write_own` / `aligned`: by the sets' definitions and `IoDS.safe`;
 * `move`: declined runs by `io_dec_alt`, accepted runs a premise;
 * `PathSide.read_aligned`: an accepting entry by `io_acc` and agreement of the guarded tree
-  (`interp_agree`); otherwise a premise.
+  (`interp_agree`); otherwise the entry run declines (`P0` totality) and `io_ra_dec`.
 
 Premises:
 * those of `IoPre` (`hPE`: `Pre` gives the entry facts), `hK` [J] (`RegionOK`), `hLA` [J] (`IoLayA`);
@@ -20,10 +20,9 @@ Premises:
   `frame_masks`), as in `P2/PathBridge` / E2E;
 * `hmv` [W]: `move` of accepted runs (every write of an accepted run passes `StepOK`: the
   prefix's and the registers' are safe words, the thread state goes `RESTART` / `RUNNING` only);
-* `hra` [W]: `read_aligned` from the alternatives of an entry state that does not accept;
 * `huf` [J] (`PathSide.user_free`).
 -/
-import Fl4Proofs.P2.AccessIoDecA
+import Fl4Proofs.P2.AccessIoRa
 import Fl4Proofs.P2.PathAgree
 open Aeneas Aeneas.Std Result
 
@@ -78,11 +77,6 @@ theorem io_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
     (hp : ∀ (m : machine.Store S) (x : S) (a : A),
       syscall.handle_ioport_local m ar x a number = interp m ar p x a) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    (hra : ∀ s s' a r, P s →
-      Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
-      (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
-      syscall.handle_ioport_local st ar s' a number = ok r →
-      syscall.handle_ioport_local (guard st (fun b => Aligned b) (fun _ => True)) ar s' a number = ok r)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
@@ -107,7 +101,14 @@ theorem io_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
       rw [hs] at h
       rw [← h]
       exact interp_mono (fun _ hw => hw.1) (fun _ _ => trivial) p hz s' a _ hg'
-    · exact hra s s' a r hE Al hac h
+    · obtain ⟨r0, h0, -⟩ := spec_ex_fd (P0.syscall.handle_ioport_local.p0 st ar s a number L.total hA)
+      have hr0 : r0.1 ≠ true := by
+        obtain ⟨b, z, c⟩ := r0
+        intro e
+        change b = true at e
+        subst e
+        exact hac ⟨z, c, h0⟩
+      exact io_ra_dec hA (hPE s hE) Al h0 hr0 h
   · by_contra hn
     exact hx (ko_unaligned hK hLA hn)
 

@@ -20,7 +20,16 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
+
+/-- **The I/O port path's two `STATE` values for `t`** (`RESTART`, `RUNNING`) are written
+by `gS` as by `st` (`SWr`): on `guard st R W` from `W (stA t)`; on a value-checked store
+(`gd`) from its check. -/
+def IoSW (gS st : machine.Store S) (t : U64) : Prop :=
+  SWr gS st t sched.TS_RESTART ∧ SWr gS st t sched.TS_RUNNING
+
+theorem IoSW.of_W {t : U64} (h : W (stA t)) : IoSW gS st t := ⟨SWr.of_W h, SWr.of_W h⟩
 
 theorem zero_lt_nmr : (0#u64 : U64) < msg.N_MSG_REGISTERS := by rw [n_msg_regs]; decide
 
@@ -42,7 +51,7 @@ theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.Messag
     R bsl ∧ R (core.num.U64.wrapping_add bsl 8#u64))
   (hr10 : R (regA t layout.reg.R10))
   (h : ioport.invocation_ok st s t cptr info = ok b) :
-  ioport.invocation_ok (PathObl.guard st R W) s t cptr info = ok b := by
+  ioport.invocation_ok gS s t cptr info = ok b := by
   have n0 := zero_lt_nmr
   unfold ioport.invocation_ok at h ⊢
   revert h
@@ -56,12 +65,12 @@ theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.Messag
     obtain ⟨h0, h8⟩ := hRf r1 hres
     dsimp only
     refine tr_ite (fun _ h => h) (fun _ => ?_)
-    rw [obj.Slot.cap.guard (gS := PathObl.guard st R W) _ s h0 h8]
+    rw [obj.Slot.cap.guard (gS := gS) _ s h0 h8]
     refine tr_bind_same (fun c _ => ?_)
     cases c <;> try exact fun h => h
     obtain ⟨bsl, hbsl⟩ := buffer_slot_ok t
-    rw [msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R W) s false t hbsl hib (hbs bsl hbsl).1 (hbs bsl hbsl).2]
-    have e : ∀ bf, msg.syscall_arg (PathObl.guard st R W) s t bf 0#u64 = msg.syscall_arg st s t bf 0#u64 :=
+    rw [msg.lookup_ipc_buffer.guard (gS := gS) s false t hbsl hib (hbs bsl hbsl).1 (hbs bsl hbsl).2]
+    have e : ∀ bf, msg.syscall_arg gS s t bf 0#u64 = msg.syscall_arg st s t bf 0#u64 :=
       fun bf => msg.syscall_arg.guard_lt s t bf 0#u64 n0
         (fun r hr => by rw [msg_register_zero] at hr; cases ok_inj_ff hr; exact hr10)
     simp only [e]
@@ -158,17 +167,18 @@ theorem decode_ioport_eq {A : Type} (m : machine.Store S) (ar : machine.Arch A) 
       ioArm m ar s a lbl length first last buf call := rfl
 
 theorem ioOutTail.guard {A : Type} (ar : machine.Arch A) {s : S} (a : A) {ct : U64} (port size raw : U64)
-    (hn : NodeSt (L := L) R W s) (hi : IoRd (L := L) R W s ct) :
-    ioOutTail (PathObl.guard st R W) ar s a ct port size raw = ioOutTail st ar s a ct port size raw := by
+    (hn : NodeSt (L := L) R W s) (hi : IoRd (L := L) R W s ct) (hw : IoSW gS st ct) :
+    ioOutTail gS ar s a ct port size raw = ioOutTail st ar s a ct port size raw := by
   unfold ioOutTail
   refine bind_guard_congr rfl (fun data _ => ?_)
-  rw [sts_io hn hi]
+  rw [sts_io hn hi hw.1]
 
 theorem ioInTail.guard {A : Type} (ar : machine.Arch A) {s : S} (a : A) {ct : U64} (port size : U64)
-    (call : Bool) (hn : NodeSt (L := L) R W s) (hda : ActDisj (L := L) s ct) (hi : IoRd (L := L) R W s ct) :
-    ioInTail (PathObl.guard st R W) ar s a ct port size call = ioInTail st ar s a ct port size call := by
+    (call : Bool) (hn : NodeSt (L := L) R W s) (hda : ActDisj (L := L) s ct) (hi : IoRd (L := L) R W s ct)
+    (hw : IoSW gS st ct) :
+    ioInTail gS ar s a ct port size call = ioInTail st ar s a ct port size call := by
   unfold ioInTail
-  rw [sts_io hn hi]
+  rw [sts_io hn hi hw.1]
   refine bind_guard_congr rfl (fun s1 hs1 => ?_)
   obtain ⟨hi1, hn1, -⟩ := sts_keep hi hn hda hs1
   refine bind_guard_congr rfl (fun va _ => ?_)
@@ -208,32 +218,33 @@ theorem ioInTail.guard {A : Type} (ar : machine.Arch A) {s : S} (a : A) {ct : U6
         rw [set_reg_ok'] at hs2
         cases ok_inj_ff hs2
         exact ⟨((hi1.wr_reg rB).wr_reg rR).wr_reg rM, hn1.wr.wr.wr⟩
-    rw [sts_io k2.2 k2.1]
+    rw [sts_io k2.2 k2.1 hw.2]
 
 /-- **`ioport.decode`** on an I/O port cap: the current thread's registers,
 state, SC/release-queue words, IPC buffer word and slot (`IoRd`) and the node's
 `CUR_THREAD` / `SCHED_ACTION` words (`NodeSt`, `ActDisj`). -/
 theorem ioport.decode.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) (lbl length : U64)
     (first last x : U64) (call : Bool) (buf : U64)
-    (hn : NodeSt (L := L) R W s) (hda : ActDisj (L := L) s (L.curW s)) (hi : IoRd (L := L) R W s (L.curW s)) :
-    ioport.decode (PathObl.guard st R W) ar s a lbl length (.IoPort first last x) call buf =
+    (hn : NodeSt (L := L) R W s) (hda : ActDisj (L := L) s (L.curW s)) (hi : IoRd (L := L) R W s (L.curW s))
+    (hw : IoSW gS st (L.curW s)) :
+    ioport.decode gS ar s a lbl length (.IoPort first last x) call buf =
       ioport.decode st ar s a lbl length (.IoPort first last x) call buf := by
   have r10 := hi.regR _ (lt384 (Or.inl rfl))
   have r8 := hi.regR _ (lt384 (Or.inr (Or.inl rfl)))
-  have e0 : ∀ bf, msg.syscall_arg (PathObl.guard st R W) s (L.curW s) bf 0#u64 =
+  have e0 : ∀ bf, msg.syscall_arg gS s (L.curW s) bf 0#u64 =
       msg.syscall_arg st s (L.curW s) bf 0#u64 := fun bf =>
     msg.syscall_arg.guard_lt s _ bf 0#u64 zero_lt_nmr
       (fun r hr => by rw [msg_register_zero] at hr; cases ok_inj_ff hr; exact r10)
-  have e1 : ∀ bf, msg.syscall_arg (PathObl.guard st R W) s (L.curW s) bf 1#u64 =
+  have e1 : ∀ bf, msg.syscall_arg gS s (L.curW s) bf 1#u64 =
       msg.syscall_arg st s (L.curW s) bf 1#u64 := fun bf =>
     msg.syscall_arg.guard_lt s _ bf 1#u64 one_lt_nmr
       (fun r hr => by rw [msg_register_one] at hr; cases ok_inj_ff hr; exact r8)
-  have ei : ∀ port size call, ioInTail (PathObl.guard st R W) ar s a (L.curW s) port size call =
+  have ei : ∀ port size call, ioInTail gS ar s a (L.curW s) port size call =
       ioInTail st ar s a (L.curW s) port size call := fun port size call =>
-    ioInTail.guard ar a port size call hn hda hi
-  have eo : ∀ port size raw, ioOutTail (PathObl.guard st R W) ar s a (L.curW s) port size raw =
+    ioInTail.guard ar a port size call hn hda hi hw
+  have eo : ∀ port size raw, ioOutTail gS ar s a (L.curW s) port size raw =
       ioOutTail st ar s a (L.curW s) port size raw := fun port size raw =>
-    ioOutTail.guard ar a port size raw hn hi
+    ioOutTail.guard ar a port size raw hn hi hw
   rw [decode_ioport_eq, decode_ioport_eq]
   unfold ioArm
   rw [sched.cur_thread.guard s hn.1, cur_thread_ok s]

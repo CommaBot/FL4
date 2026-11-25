@@ -27,7 +27,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 
 /-- The `length` `handle_invocation` / `invocation_ok` compute. -/
 abbrev ioLen (info : msginfo.MessageInfo) (buf : U64) : Result U64 :=
@@ -257,9 +258,9 @@ theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s :
     (hroot : ∀ p r gs g, obj.Slot.cap st sl s = ok (.CNode p r gs g) → C p r)
     (hRf : ∀ x, cspace.lookup_slot st s (L.curW s) cptr = ok (.Ok x) →
       R x.slot ∧ R (core.num.U64.wrapping_add x.slot 8#u64))
-    (hk : IoK (L := L) R W s (L.curW s))
+    (hk : IoK (L := L) R W s (L.curW s)) (hw : IoSW gS st (L.curW s))
     (h : syscall.handle_invocation st ar s a call blocking cd fp cptr = ok y) :
-    syscall.handle_invocation (PathObl.guard st R W) ar s a call blocking cd fp cptr = ok y ∧
+    syscall.handle_invocation gS ar s a call blocking cd fp cptr = ok y ∧
       y.1 = .Ok () := by
   obtain ⟨r1, f, l, x, buf, len, size, b, i1, hres, hc, hbuf, hlen, hsz, hz, hb, hl, hi1, hal⟩ :=
     inv_true hinv
@@ -287,7 +288,7 @@ theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s :
   rw [msg.lookup_ipc_buffer.guard s false _ hbsl hk.1.ib (hk.1.bs bsl hbsl).1 (hk.1.bs bsl hbsl).2, hbuf]
   simp only [bind_ok, bind_tc_ok] at h ⊢
   rw [extra_zero_ok s _ buf info hx] at h
-  rw [ipc.lookup_extra_caps.guard_zero (gS := PathObl.guard st R W) (st := st) s _ buf info hx, extra_zero_ok (st := st) s _ buf info hx]
+  rw [ipc.lookup_extra_caps.guard_zero (gS := gS) (st := st) s _ buf info hx, extra_zero_ok (st := st) s _ buf info hx]
   simp only [bind_ok, bind_tc_ok] at h ⊢
   rw [hlen'] at h
   rw [hlen']
@@ -297,7 +298,7 @@ theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s :
   rw [cur_thread_ok] at h
   rw [sched.cur_thread.guard s hct, cur_thread_ok]
   simp only [bind_ok, bind_tc_ok] at h ⊢
-  rw [ioport.decode.guard ar s a _ _ f l x call buf hk.2.1 hk.2.2 hk.1]
+  rw [ioport.decode.guard ar s a _ _ f l x call buf hk.2.1 hk.2.2 hk.1 hw]
   obtain ⟨⟨r3, s1, a1⟩, hd, h⟩ := bind_eq_ok h
   rw [hd]
   rw [decode_ioport_eq] at hd
@@ -338,7 +339,7 @@ theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s :
         rw [set_reg_ok'] at hs2
         cases ok_inj_ff hs2
         exact ⟨(k1.1.wr_reg rB).wr_reg rM, k1.2.1.wr.wr, ActDisj.wr (ActDisj.wr k1.2.2)⟩
-    rw [sts_io (gS := PathObl.guard st R W) k2.2.1 k2.1]
+    rw [sts_io (gS := gS) k2.2.1 k2.1 hw.2]
     exact fun h => h
 
 /-- `after_invocation` of an `Ok` invocation: no access, on any store. -/

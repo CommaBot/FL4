@@ -36,7 +36,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 
 /-- `schedule`'s tail with the action `RESUME_CURRENT`, on any store. -/
 def schedRes {A : Type} (m : machine.Store S) (ar : machine.Arch A) (s3 : S) (a2 : A) : Result (S × A) := do
@@ -75,22 +76,22 @@ theorem timer.fire.guard_none {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hRc : R (L.nodeAt s (L.cpu s) layout.node.CUR_TIME))
     (hRt : R (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))
     (h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64) :
-    timer.fire (PathObl.guard st R W) ar s a = ok (s, a) := by
+    timer.fire gS ar s a = ok (s, a) := by
   have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
   unfold timer.fire timer.fire_loop
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRc, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   rw [loop]
   unfold timer.fire_loop.body
-  simp only [hb, ↓reduceIte, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hb, ↓reduceIte, gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRt, node_get_ok, h0]
   simp only [bind_ok, bind_tc_ok, is_null_ok, decide_true, ↓reduceIte]
 
 theorem sched.awaken_loop.guard_none (s : S) (fuel : U64)
     (hRr : R (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))
     (h1 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64) :
-    sched.awaken_loop (PathObl.guard st R W) s fuel = ok s := by
+    sched.awaken_loop gS s fuel = ok s := by
   unfold sched.awaken_loop
   rw [loop]
   unfold sched.awaken_loop.body
@@ -98,7 +99,7 @@ theorem sched.awaken_loop.guard_none (s : S) (fuel : U64)
   swap
   · simp only [hf, ↓reduceIte, bind_ok, bind_tc_ok]
   obtain ⟨f1, hf1, -⟩ := spec_ex_fd (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
-  simp only [hf, ↓reduceIte, hf1, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hf, ↓reduceIte, hf1, gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRr, node_get_ok, h1]
   simp only [bind_ok, bind_tc_ok, is_null_ok, decide_true, ↓reduceIte]
 
@@ -109,7 +110,7 @@ theorem sched.awaken.guard_none {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hRr : R (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))
     (h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64)
     (h1 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64) :
-    sched.awaken (PathObl.guard st R W) ar s a = ok (s, a) := by
+    sched.awaken gS ar s a = ok (s, a) := by
   unfold sched.awaken
   rw [timer.fire.guard_none ar s a hRc hRt h0]
   simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
@@ -122,7 +123,7 @@ theorem running_ne_vm : (sched.TS_RUNNING != sched.TS_RUNNING_VM) = true := by
 /-- `vcpu.check` of a running thread: reads its state, returns. -/
 theorem vcpu.check.guard_running {A : Type} (ar : machine.Arch A) (s : S) (a : A) (t : U64)
     (hr : R (stA t)) (hs : L.mem s (stA t) = sched.TS_RUNNING) :
-    vcpu.check (PathObl.guard st R W) ar s a t = ok (s, a) ∧ vcpu.check st ar s a t = ok (s, a) := by
+    vcpu.check gS ar s a t = ok (s, a) ∧ vcpu.check st ar s a t = ok (s, a) := by
   constructor
   · unfold vcpu.check
     rw [obj.Tcb.state.guard t s hr, state_ok', hs]
@@ -143,14 +144,14 @@ states (`hsw`, `hfr`), the node's `REPROGRAM` and `IPI_PENDING`. -/
 theorem schedRes.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
     (hsw : ∀ s4, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
-      sched.switch_sched_context (PathObl.guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a)
+      sched.switch_sched_context gS ar s4 a = sched.switch_sched_context st ar s4 a)
     (hfr : ∀ s4 s5 a3, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
       sched.switch_sched_context st ar s4 a = ok (s5, a3) →
       L.ksb s5 = L.ksb s ∧ L.cpu s5 = L.cpu s ∧
       (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
-        sched.set_next_interrupt (PathObl.guard st R W) ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
+        sched.set_next_interrupt gS ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
         ∀ s7 a5, sched.set_next_interrupt st ar s5 a3 = ok (s7, a5) → L.ksb s7 = L.ksb s ∧ L.cpu s7 = L.cpu s)) :
-    schedRes (PathObl.guard st R W) ar s a = schedRes st ar s a := by
+    schedRes gS ar s a = schedRes st ar s a := by
   have rp : layout.node.REPROGRAM.val < 4288 := by simp [layout.node.REPROGRAM]
   have rp8 : layout.node.REPROGRAM.val % 8 = 0 := by simp [layout.node.REPROGRAM]
   have ip : layout.node.IPI_PENDING.val < 4288 := by simp [layout.node.IPI_PENDING]
@@ -165,7 +166,7 @@ theorem schedRes.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
   obtain ⟨s5, a3⟩ := x5
   obtain ⟨k5, c5, hnx⟩ := hfr s4 s5 a3 hs4 hs5
   simp only [Aeneas.Std.uncurry_apply_pair]
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s5 _ _ (nd_at hNd k5 c5 _ rp rp8).1, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   refine bind_guard_congr ?_ fun x6 hs6 => ?_
@@ -213,15 +214,15 @@ theorem timer.fire.guard_nd {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (h : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64 ∨
       L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) <
         L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) :
-    timer.fire (PathObl.guard st R W) ar s a = ok (s, a) := by
+    timer.fire gS ar s a = ok (s, a) := by
   have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
   unfold timer.fire timer.fire_loop
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRc, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   rw [loop]
   unfold timer.fire_loop.body
-  simp only [hb, ↓reduceIte, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hb, ↓reduceIte, gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRt, node_get_ok]
   simp only [bind_ok, bind_tc_ok, is_null_ok]
   by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64
@@ -245,7 +246,7 @@ theorem sched.awaken_loop.guard_nd (s : S) (fuel : U64)
       ¬ ((L.refill s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
           (L.rhead s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))).time ≤
         L.curTime s)) :
-    sched.awaken_loop (PathObl.guard st R W) s fuel = ok s := by
+    sched.awaken_loop gS s fuel = ok s := by
   unfold sched.awaken_loop
   rw [loop]
   unfold sched.awaken_loop.body
@@ -253,7 +254,7 @@ theorem sched.awaken_loop.guard_nd (s : S) (fuel : U64)
   swap
   · simp only [hf, ↓reduceIte, bind_ok, bind_tc_ok]
   obtain ⟨f1, hf1, -⟩ := spec_ex_fd (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
-  simp only [hf, ↓reduceIte, hf1, guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hf, ↓reduceIte, hf1, gst_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [obj.node_get.guard s _ _ hRr, node_get_ok]
   simp only [bind_ok, bind_tc_ok, is_null_ok]
   by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64
@@ -275,7 +276,7 @@ theorem sched.awaken.guard_nd {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hrs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
       RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
     (hnd : NoDue (L := L) s) :
-    sched.awaken (PathObl.guard st R W) ar s a = ok (s, a) := by
+    sched.awaken gS ar s a = ok (s, a) := by
   unfold sched.awaken
   rw [timer.fire.guard_nd ar s a hRc hRt htd hnd.1]
   simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
@@ -295,20 +296,20 @@ theorem syscall.finish.guard_resume {A : Type} (ar : machine.Arch A) (s : S) (a 
       RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
     (ha : L.actionW s = sched.ACTION_RESUME_CURRENT)
     (hsw : ∀ s4, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
-      sched.switch_sched_context (PathObl.guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a)
+      sched.switch_sched_context gS ar s4 a = sched.switch_sched_context st ar s4 a)
     (hfr : ∀ s4 s5 a3, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
       sched.switch_sched_context st ar s4 a = ok (s5, a3) →
       L.ksb s5 = L.ksb s ∧ L.cpu s5 = L.cpu s ∧
       (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
-        sched.set_next_interrupt (PathObl.guard st R W) ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
+        sched.set_next_interrupt gS ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
         ∀ s7 a5, sched.set_next_interrupt st ar s5 a3 = ok (s7, a5) → L.ksb s7 = L.ksb s ∧ L.cpu s7 = L.cpu s))
     (hact : ∀ s1 a1, sched.schedule st ar s a = ok (s1, a1) →
-      sched.activate_thread (PathObl.guard st R W) ar s1 a1 = sched.activate_thread st ar s1 a1)
+      sched.activate_thread gS ar s1 a1 = sched.activate_thread st ar s1 a1)
     (hvc : ∀ s1 a1 s2 a2, sched.schedule st ar s a = ok (s1, a1) →
       sched.activate_thread st ar s1 a1 = ok (s2, a2) →
       R (L.nodeAt s2 (L.cpu s2) layout.node.CUR_THREAD) ∧ R (stA (L.curW s2)) ∧
         L.mem s2 (stA (L.curW s2)) = sched.TS_RUNNING) :
-    syscall.finish (PathObl.guard st R W) ar s a = syscall.finish st ar s a := by
+    syscall.finish gS ar s a = syscall.finish st ar s a := by
   have ct : layout.node.CUR_TIME.val < 4288 := by simp [layout.node.CUR_TIME]
   have ct8 : layout.node.CUR_TIME.val % 8 = 0 := by simp [layout.node.CUR_TIME]
   have tm : layout.node.TIMER_MIN.val < 4288 := by simp [layout.node.TIMER_MIN]
@@ -321,7 +322,7 @@ theorem syscall.finish.guard_resume {A : Type} (ar : machine.Arch A) (s : S) (a 
     rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
   have es : sched.schedule st ar s a = schedRes st ar s a :=
     schedule_res_eq st ar s a (awaken_none ar s a hnd.1 hnd.2) hac
-  have eg : sched.schedule (PathObl.guard st R W) ar s a = schedRes (PathObl.guard st R W) ar s a :=
+  have eg : sched.schedule gS ar s a = schedRes gS ar s a :=
     schedule_res_eq _ ar s a
       (sched.awaken.guard_nd ar s a (hNd _ ct ct8).1 (hNd _ tm tm8).1 (hNd _ rh rh8).1 htd hrs hnd)
       (by rw [sched.action.guard s (hNd _ sa sa8).1]; exact hac)
@@ -337,7 +338,7 @@ theorem syscall.finish.guard_resume {A : Type} (ar : machine.Arch A) (s : S) (a 
   obtain ⟨hc, hr, hs⟩ := hvc s1 a1 s2 a2 hs1 hs2
   rw [sched.cur_thread.guard s2 hc, cur_thread_ok]
   simp only [bind_ok, bind_tc_ok]
-  have hv := vcpu.check.guard_running (W := W) ar s2 a2 _ hr hs
+  have hv := vcpu.check.guard_running (gS := gS) ar s2 a2 _ hr hs
   rw [hv.1, hv.2]
 
 end
