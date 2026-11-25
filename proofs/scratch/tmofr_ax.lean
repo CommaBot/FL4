@@ -3,6 +3,7 @@ import Fl4Proofs.P2.TmoFrD
 import Fl4Proofs.P3.XTopJointDomInv29Q
 import Fl4Proofs.P2.TmoFrE
 import Fl4Proofs.P2.StallAllT
+import Fl4Proofs.P2.StallAllJ
 #print axioms Fl4Proofs.P1.faults.set_fault.kwB
 #print axioms Fl4Proofs.P1.faults.set_fault.ftmo
 #print axioms Fl4Proofs.P1.ipc.reply_push.kwB0
@@ -39,3 +40,14 @@ import Fl4Proofs.P2.StallAllT
 #print axioms Fl4Proofs.P2.Stall.vm_timer_local.entryJ5
 #print axioms Fl4Proofs.P2.Stall.stallAt.viewsT
 #print axioms Fl4Proofs.P2.Stall.stallAt.allT
+#print axioms Fl4Proofs.P2.Stall.xg_triv
+#print axioms Fl4Proofs.P2.Stall.tmoCap_of_capW
+#print axioms Fl4Proofs.P2.Stall.tmoCap_view
+#print axioms Fl4Proofs.P2.Stall.tmoCapW_of_JAtZt
+#print axioms Fl4Proofs.P2.Stall.idleSc_of_JAtZ
+#print axioms Fl4Proofs.P2.Stall.curNB_of_JAtZ
+#print axioms Fl4Proofs.P2.Stall.stallAt.allZ
+#print axioms Fl4Proofs.P2.Stall.stallAt.viewsZ
+#print axioms Fl4Proofs.P2.Stall.stallAt.allJ
+#print axioms Fl4Proofs.P2.Stall.stallAt.viewsJ
+#print axioms Fl4Proofs.P2.Stall.stallAt.viewsJ0

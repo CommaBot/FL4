@@ -1639,6 +1639,7 @@ import Fl4Proofs.P2.AccessLvmExit
 import Fl4Proofs.P2.AccessLvmDecl
 import Fl4Proofs.P2.AccessLvmFin
 import Fl4Proofs.P2.AccessLvmSets
+import Fl4Proofs.P2.StallAllJ
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
