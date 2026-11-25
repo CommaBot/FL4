@@ -94,7 +94,7 @@ noncomputable def sl_localPath (ar : machine.Arch A) (hSt : P0.StoreTotal st) (h
   RS := SlRS (st := st) K Locks
   WS := SlWS (st := st) K Locks
   DS := SlDS (L := L)
-  isProg := hpz.choose_spec.1
+  isProg := IsProg.on hpz.choose_spec.1 _ _ _
   obl := sl_pathObl_e ar hSt hA hK hX hU hpz.choose_spec.1 hpz.choose_spec.2.1 hm hSe hUu a0 hPE hEj hHj hAk
   side := sl_pathSide_e ar hSt hA hK hX hU hpz.choose_spec.1 hpz.choose_spec.2.1 hm hSe hUu a0 hPE hEj hHj hAk
     huf

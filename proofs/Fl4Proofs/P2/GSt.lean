@@ -88,6 +88,12 @@ def gd (st : machine.Store S) (R : U64 → Prop) (P : S → U64 → U64 → Prop
   ks_base := st.ks_base
   cur_cpu := st.cur_cpu
 
+/-- `gd` narrows `st` (`PathBridge.Narrow`). -/
+theorem Narrow.gd (st : machine.Store S) (R : U64 → Prop) (P : S → U64 → U64 → Prop) :
+    PathObl.Narrow st (gd st R P) :=
+  ⟨rfl, rfl, rfl, fun _ _ => PathObl.Nar.ite', fun _ _ => PathObl.Nar.ite', fun _ _ _ => PathObl.Nar.ite',
+    fun _ _ _ => PathObl.Nar.fail' _ _, fun _ _ _ => PathObl.Nar.fail' _ _⟩
+
 /-- The words `P` lets any state write with any value. -/
 def WAll (P : S → U64 → U64 → Prop) (a : U64) : Prop := ∀ s v, P s a v
 

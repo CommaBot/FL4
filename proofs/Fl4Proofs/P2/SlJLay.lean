@@ -166,7 +166,7 @@ noncomputable def sl_localPathK (ar : machine.Arch A) (hSt : P0.StoreTotal st) (
     RS := SlRS (st := st) K Locks
     WS := SlWS (st := st) K Locks
     DS := SlDS (L := L)
-    isProg := hpz.choose_spec.1
+    isProg := IsProg.on hpz.choose_spec.1 _ _ _
     obl :=
       { acc := fun s a r hP => (O s hP).acc s a r hP
         dec_alt := fun s a r hP => (O s hP).dec_alt s a r hP

@@ -1714,6 +1714,7 @@ import Fl4Proofs.P2.FootTimerGERem
 import Fl4Proofs.P2.FootTimerGEIns
 import Fl4Proofs.P2.AccessVmLP
 import Fl4Proofs.P2.OnceGuard
+import Fl4Proofs.P2.IoPrune
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P3.StPostFault
 import Fl4Proofs.P3.StPostEv

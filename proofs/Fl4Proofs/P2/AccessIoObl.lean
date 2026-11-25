@@ -16,7 +16,8 @@ entry state) and `DecSet = IoDS` (`FAULT_IP`, `CUR_TIME`, `CONSUMED`), for the o
 
 Premises:
 * those of `IoPre` (`hPE`: `Pre` gives the entry facts), `hK` [J] (`RegionOK`), `hLA` [J] (`IoLayA`);
-* `hp` [P] (`IsProg`: the body is the tree `p`), `hz` [W] (`NoZero p`), `hm` [P] (writes leave
+* `hp` [P] (`IsProgOn`: the body is the tree `p` on the stores narrowing `st`, from the entry states and their
+  alternatives; `P2/IoPrune.lean` gives it from a tree of the pruned body), `hz` [W] (`NoZero p`), `hm` [P] (writes leave
   `frame_masks`), as in `P2/PathBridge` / E2E;
 * `hmv` [W]: `move` of accepted runs (every write of an accepted run passes `StepOK`: the
   prefix's and the registers' are safe words, the thread state goes `RESTART` / `RUNNING` only);
@@ -35,6 +36,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : KLayout}
 variable {Locks : S → U64 → Prop} {m0 : U64 → U64}
 variable {A : Type} {ar : machine.Arch A} {number : I64} {p : SProg (Bool)}
+
+/-- `IsProgOn` of the I/O port body, beta-reduced (for `rw`). -/
+theorem io_hp {G : S → Prop}
+    (hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st G p)
+    {m : machine.Store S} (N : Narrow st m) {s : S} (hG : G s) (a : A) :
+    syscall.handle_ioport_local m ar s a number = interp m ar p s a := hp m N s hG a
 
 /-- **`PathObl` for the I/O port path** (module docstring), `move` of accepted runs a premise. -/
 theorem io_pathObl (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
@@ -74,8 +81,8 @@ theorem io_pathObl (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
 /-- **`PathSide` for the I/O port path** (module docstring). -/
 theorem io_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
     {P : S → Prop} (hPE : ∀ s, P s → IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hp : ∀ (m : machine.Store S) (x : S) (a : A),
-      syscall.handle_ioport_local m ar x a number = interp m ar p x a) (hz : NoZero p)
+    (hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st
+      (AltOf st P (IoRS (st := st) K Locks) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user)) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
@@ -90,14 +97,15 @@ theorem io_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
     by_cases hac : ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)
     · obtain ⟨s1, a1, h0⟩ := hac
       have hg := io_acc (Locks := Locks) hA (hPE s hE) h0
-      rw [hp] at hg
+      rw [io_hp hp (Narrow.guard _ _ _) (AltOf.pre hE) a] at hg
       obtain ⟨s1', hg'⟩ := interp_agree hm (fun w hw => hw.1) (fun w hw => hw.1) p hz s s' a true s1 a1
         Al.ksb Al.cpu Al.masks Al.read hg
       have hs := interp_to (st := st) (st' := st) (fun _ _ _ => rfl)
         (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
         rfl rfl rfl p hz s' a _ hg'
       show syscall.handle_ioport_local _ ar s' a number = ok r
-      rw [hp] at h ⊢
+      rw [io_hp hp (Narrow.self st) ⟨s, hE, Al⟩ a] at h
+      rw [io_hp hp (Narrow.guard _ _ _) ⟨s, hE, Al⟩ a]
       rw [hs] at h
       rw [← h]
       exact interp_mono (fun _ hw => hw.1) (fun _ _ => trivial) p hz s' a _ hg'

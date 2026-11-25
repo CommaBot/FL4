@@ -50,8 +50,11 @@ false, `SerialSafe`). The exact list of what the end-to-end statement still
 assumes, nothing else:
 
 1. Per local path, the fields of `LocalPath` (the path lines' work):
-   * `isProg` [P]: `IsProg F p`, the body's own trait-call tree (`ReadGap`: the
-     result cannot observe read multiplicity, so `p` must be the body's own tree);
+   * `isProg` [P]: `IsProgOn (F ar) ar st (AltOf …) p`, the body's own trait-call tree on the
+     stores narrowing the path's store (`guard`, `mguard`, `gd`) from the entry states and their
+     alternatives (`PathBridge`, "The stores and states the bridge runs a body on"; `IsProg.on` from
+     the unrelativised `IsProg`; `ReadGap`: the result cannot observe read multiplicity, so `p` must
+     be the body's own tree);
    * `obl` [W]: `PathObl` (accept/decline refinement, `acc`, `move`, `dec_alt`);
    * `side` [W]: `PathSide` (user-word and set side conditions);
    * `once` [W]: `ReadOnce` (subsumes `DecOnce` and `NoZero`);
@@ -555,14 +558,14 @@ variable {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → 
 real store's state `σ` satisfies `Pre` and agrees with the model's memory `μ`
 on aligned kernel words. -/
 theorem body_safe (hL : MoveHeld own) (hO : OwnDep own User)
-    (hp : IsProg F p) (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS)
+    (hp : IsProgOn (F ar) ar st (AltOf st Pre RS cls ko User) p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS)
     (hN : ReadOnce st ar p cls ko User Pre RS) (hT : ∀ s a, ∃ r, F ar st s a = ok r)
     (hmk : MasksWr st) {σ : S} {a : A} (hpre : Pre σ) {μ : U64 → U64}
     (hμ : ∀ x, Aligned x → ¬ User x → L.mem σ x = μ x) :
     Safe own cls ko (L.cpu σ) (Locks σ) μ
       (tr (RS σ) User cls ko (L.cpu σ) (L.ksb σ) (masksOf st σ) ar p ∅ a) := by
-  have eF : ∀ st', F ar st' = interp st' ar p := fun st' => hp A ar st'
   have e0 : own (L.mem σ) = own μ := hO _ _ hμ
   let Hp : U64 → Prop := fun x => ¬ User x ∧ (WS σ x ∨ DS σ x)
   have hRI : RInv own (L.cpu σ) (Locks σ) (RpOf (RS σ) User Hp) Hp μ := by
@@ -606,14 +609,15 @@ theorem body_safe (hL : MoveHeld own) (hO : OwnDep own User)
   by_cases hacc : Acc ru.1
   · -- accepted at `σu`
     refine ⟨μ, fun y hy => absurd rfl hy, ?_⟩
+    have gu : AltOf st Pre RS cls ko User σu := AltOf.pre uP
     have hW := O.acc σu a ru uP hru hacc
-    rw [eF] at hW
+    rw [hp _ (Narrow.guard _ _ _) σu gu a] at hW
     have hW := (interp_guard p σu a ru hW).2
     have hA := Sd.read_aligned σu σu a ru uP (Alt.refl σu) hru
-    rw [eF] at hA
+    rw [hp _ (Narrow.guard _ _ _) σu gu a] at hA
     have hA := (interp_guard p σu a ru hA).2
-    have hM := O.move_steps hp uP hru
-    have hO1 := hN σu σu a ru uP (Alt.refl σu) (by rw [← eF]; exact hru)
+    have hM := O.move_steps hp uP gu hru
+    have hO1 := hN σu σu a ru uP (Alt.refl σu) (by rw [← hp _ (Narrow.self st) σu gu a]; exact hru)
     rw [uR] at hW hO1; rw [uW] at hW; rw [uc, uL] at hM
     rw [← hq]
     refine sim (L := L) hO hmk (Rr := RS σ) (Wr := fun x => True ∧ WS σ x) ?_ p σu a ∅ ∅ ∅ ν μ
@@ -643,14 +647,16 @@ theorem body_safe (hL : MoveHeld own) (hO : OwnDep own User)
           rw [hν.2.2 x hko, uMk x hxa hu]
         · rfl
     obtain ⟨rν, hrν⟩ := hT σν a
+    have gν : AltOf st Pre RS cls ko User σν := ⟨σu, uP, hAlt⟩
     obtain ⟨-, hW, hM⟩ := O.dec_alt σu a ru uP hru hacc σν rν hAlt hrν
-    rw [eF] at hW hM
+    rw [hp _ (Narrow.guard _ _ _) σν gν a] at hW
+    rw [hp _ (Narrow.mguard _ _) σν gν a] at hM
     have hW := (interp_guard p σν a rν hW).2
     have hM := (interp_mguard p σν a rν hM).2
     have hA := Sd.read_aligned σu σν a rν uP hAlt hrν
-    rw [eF] at hA
+    rw [hp _ (Narrow.guard _ _ _) σν gν a] at hA
     have hA := (interp_guard p σν a rν hA).2
-    have hO1 := hN σu σν a rν uP hAlt (by rw [← eF]; exact hrν)
+    have hO1 := hN σu σν a rν uP hAlt (by rw [← hp _ (Narrow.self st) σν gν a]; exact hrν)
     rw [uR] at hO1; rw [uD] at hW; rw [uc, uL] at hM
     refine ⟨fun x => if Aligned x ∧ ¬ User x then L.mem σν x else μ x, fun y hy hpo => ?_, ?_⟩
     · apply hy
@@ -682,7 +688,8 @@ end body
 
 /-- **A local path with its obligations** for an ownership map, value classes
 and user memory: the extracted body `F` (its other arguments fixed), the Store
-and Arch instances, and, all per path, `IsProg` [P], `PathObl` [W], `PathSide`
+and Arch instances, and, all per path, `IsProgOn` [P] (on the stores narrowing `st`, from the entry
+states and their alternatives; `IsProg.on` from `IsProg`), `PathObl` [W], `PathSide`
 [W], `ReadOnce` [W], totality (`<fn>.p0`, from a total Arch instance), and
 `MasksWr` [P] of the store. -/
 structure LocalPath (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 → U64 → U64)
@@ -701,7 +708,7 @@ structure LocalPath (own : (U64 → U64) → U64 → Owner U64 U64) (cls : U64 �
   RS : S → U64 → Prop
   WS : S → U64 → Prop
   DS : S → U64 → Prop
-  isProg : IsProg F p
+  isProg : IsProgOn (F ar) ar st (AltOf st Pre RS cls ko User) p
   obl : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS
   side : PathSide st (F ar) cls ko User Locks Pre RS WS DS
   once : ReadOnce st ar p cls ko User Pre RS
