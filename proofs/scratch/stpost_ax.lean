@@ -2,6 +2,7 @@ import Fl4Proofs.P2.SlJStPost
 import Fl4Proofs.P3.StPostRRLink
 import Fl4Proofs.P3.StPostReply
 import Fl4Proofs.P3.StPostTmo
+import Fl4Proofs.P3.StPostInv
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -26,3 +27,6 @@ import Fl4Proofs.P3.StPostTmo
 #print axioms Fl4Proofs.P3.replyLeafJSt
 #print axioms Fl4Proofs.P3.JAtZ.runTmoRecvJSt
 #print axioms Fl4Proofs.P3.runTmoP_recvSt
+#print axioms Fl4Proofs.P3.handle_invocation_refinesMXPF
+#print axioms Fl4Proofs.P3.JAtZ.flTailJStF
+#print axioms Fl4Proofs.P3.handle_invocation_replyJSt
