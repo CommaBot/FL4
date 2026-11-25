@@ -60,12 +60,12 @@ theorem TF2.wr_node {s0 s : S} {c o v : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt 
     (by omega) (by omega) (by omega)).trans h.2⟩
 
 theorem TF2.wr_clear {s0 s : S} {t : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T) :
-    TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) := by
+    TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) := by
   have hN := h.1.nodes _ h.1.cur
   refine ⟨h.1.wr_clear ht, ?_⟩
-  rw [tdA, cscW_wr_field (K := 3528#u64) h.1.tcbs ((hN.ksb (L.ksb_wr _ _ _)) |> fun hh => by
+  rw [thA, cscW_wr_field (K := 3568#u64) h.1.tcbs ((hN.ksb (L.ksb_wr _ _ _)) |> fun hh => by
       rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp),
-    thA, cscW_wr_field (K := 3568#u64) h.1.tcbs hN ht (by simp) (by simp)]
+    tdA, cscW_wr_field (K := 3528#u64) h.1.tcbs hN ht (by simp) (by simp)]
   exact h.2
 
 theorem timer.core_of.csf2 {s0 : S} (s : S) (t : U64) (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T)
@@ -337,11 +337,11 @@ theorem timer.remove.tf2 (s : S) (t : U64) (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z 
       obj.node_set st s cpu layout.node.TIMER_MIN v ⦃ s' => TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
     fun s v h hv => WP.spec_mono (obj.node_set.spec s cpu _ v) fun s' e => by
       subst e; exact h.wr_node hcpu (by rw [timer_min_val]; simp) hv
-  have HH : ∀ s0 : S, obj.Tcb.set_timer_height st t s0 0#u64 ⦃ s' => s' = L.wr s0 (thA t) 0#u64 ⦄ :=
-    fun s0 => obj.Tcb.set_timer_height.wr s0 t 0#u64
-  have HD : ∀ s7 s8 : S, s8 = L.wr s7 (thA t) 0#u64 → TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s7 →
-      obj.Tcb.set_timer_deadline st t s8 0#u64 ⦃ s' => TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
-    fun s7 s8 e h7 => WP.spec_mono (obj.Tcb.set_timer_deadline.wr s8 t 0#u64) fun s' e' => by
+  have HH : ∀ s0 : S, obj.Tcb.set_timer_deadline st t s0 0#u64 ⦃ s' => s' = L.wr s0 (tdA t) 0#u64 ⦄ :=
+    fun s0 => obj.Tcb.set_timer_deadline.wr s0 t 0#u64
+  have HD : ∀ s7 s8 : S, s8 = L.wr s7 (tdA t) 0#u64 → TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s7 →
+      obj.Tcb.set_timer_height st t s8 0#u64 ⦃ s' => TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
+    fun s7 s8 e h7 => WP.spec_mono (obj.Tcb.set_timer_height.wr s8 t 0#u64) fun s' e' => by
       subst e e'; exact h7.wr_clear ht
   step*
   all_goals try (
