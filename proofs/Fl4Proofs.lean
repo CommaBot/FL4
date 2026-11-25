@@ -59,6 +59,7 @@ import Fl4Proofs.P1.QueueTimerW
 import Fl4Proofs.P1.QueueSignal
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.ScAff
+import Fl4Proofs.P1.ScAffInv
 import Fl4Proofs.P1.QueueTimerSet
 import Fl4Proofs.P1.QueueFoot
 import Fl4Proofs.P1.QueueFinal
