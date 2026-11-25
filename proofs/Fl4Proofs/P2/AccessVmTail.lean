@@ -15,8 +15,9 @@ the guarded store. Here it is discharged.
   fault's `set_fault` (`set_fault_vm`, `faultReads_ofG` at the VM label);
 * `VmMidF.tailAcc`: `VmTailAcc` for `IoRS K Locks s` / `IoWS K Locks s` at `utW s n` (the state after
   the entry's `update_timestamp`), from `VmBase` and `VmMidF`;
-* `vm_acc`: **the accepted VM-fault local path on the guarded store ends as the real run**, with no
-  tail hypothesis.
+* `vm_accG`: **the accepted VM-fault local path on any store answering its words as `st`**
+  (`GRd`/`GWr`, the `STATE` writes `VmSW`) ends as the real run, with no tail hypothesis; `vm_acc`: on
+  the guarded store.
 
 Premises of `vm_acc`: `VmFPre`'s (`P2/AccessVmAcc.lean`: `base`, `hyp` [J], `lk` [P], `hEp`/`hRp` [J],
 `hyt` [J]) and
@@ -458,8 +459,9 @@ theorem VmMidF.tailAcc (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (M : VmMidF st K T H Rp Locks s (utW (L := L) s n) t ptr dest r)
     (hTab : RdTab (L := L) (IoRS (st := st) K Locks s) s)
     (hAs : AsidOff (L := L) Ω Sg (utW (L := L) s n))
-    (hsc0 : L.mem (utW (L := L) s n) (scA dest) ≠ 0#u64) :
-    VmTailAcc (L := L) Z (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) (utW (L := L) s n) dest := by
+    (hsc0 : L.mem (utW (L := L) s n) (scA dest) ≠ 0#u64) {W : U64 → Prop}
+    (hW : ∀ b, VmWd K b → IoWS (st := st) K Locks s b → W b) :
+    VmTailAcc (L := L) Z (IoRS (st := st) K Locks s) W (utW (L := L) s n) dest := by
   have hN := P.np
   have hT := P.tp
   obtain ⟨⟨Q, Rq, hq⟩, -, ⟨hO, -, hX⟩, -, -⟩ := P.bxi
@@ -482,7 +484,7 @@ theorem VmMidF.tailAcc (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
       (by simp [layout.node.RELEASE_HEAD, layout.node.CUR_TIME])
       (by simp [layout.node.RELEASE_HEAD, layout.node.CONSUMED])
   refine
-  { nd := M.nd P
+  { nd := fun o ho h8 => ⟨(M.nd P o ho h8).1, hW _ (by rw [M.c, nodeAt_of_ksb M.k]; exact P.wdNode ho) (M.nd P o ho h8).2⟩
     dt := by rw [utW_ksb]; exact P.ksw (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])
     kr := by unfold krA; rw [utW_ksb]; exact P.ksw (by simp [layout.ks.KERNEL_ROOT]) (by simp [layout.ks.KERNEL_ROOT])
     tab := ?_
@@ -497,9 +499,12 @@ theorem VmMidF.tailAcc (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
       exact (M.dh P (off := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
         (by simp [GField])).1
     dfi := (P.regOf M.dT M.aff (r := layout.reg.FAULT_IP) (by simp [layout.reg.FAULT_IP])).1
-    dni := (P.regOf M.dT M.aff (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP])).2
-    dsw := ⟨(M.dh P (off := 3480#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
+    dni := hW _ (P.wdReg M.dT (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP]))
+      (P.regOf M.dT M.aff (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP])).2
+    dsw := ⟨hW _ (P.wdTcb (off := 3480#u64) M.dT (by simp) (by simp) (by simp))
+      (M.dh P (off := 3480#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
       (by simp [GField])).2,
+      hW _ (P.wdTcb (off := 3488#u64) M.dT (by simp) (by simp) (by simp))
       (M.dh P (off := 3488#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
         (by simp [GField])).2⟩
     spo := by
@@ -507,8 +512,8 @@ theorem VmMidF.tailAcc (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
       have hw := sc_word_in hO hdsc (o := layout.sc.SPORADIC) (by simp [layout.sc.SPORADIC])
         (by simp [layout.sc.SPORADIC])
       exact hacc.rd _ hw.1 hw.2
-    dsc := by rw [esc]; exact hacc
-    csc := by rw [ut_csc hN n]; exact P.cscacc
+    dsc := by rw [esc]; exact P.scaccW hW hdsc hacc
+    csc := by rw [ut_csc hN n]; exact P.scaccW hW P.cscS P.cscacc
     tm := fun h0 => by rw [etm] at h0 ⊢; exact P.td h0
     rh := fun h0 => by
       rw [erh] at h0 ⊢
@@ -527,21 +532,23 @@ theorem VmMidF.tailAcc (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
   rw [e]
   exact hTab hi hhi
 
-/-- **The accepted VM-fault local path on the guarded store** (`acc` for `handle_vm_fault_local`):
-an accepted run on `PathObl.guard st (IoRS K Locks s) (IoWS K Locks s)` ends exactly as the real run. Premises
+/-- **The accepted VM-fault local path on any store `gS`** answering `IoRS K Locks s` words as `st`,
+the `VmWd` words of `IoWS K Locks s` (`hW`) and the `STATE` writes (`VmSW`) as `st`: an accepted run
+on `gS` ends exactly as the real run (`vm_acc` for `PathObl.guard`, `vm_acc_gd` for p2sl's `gd`). Premises
 (module docstring): `VmFPre`'s and `hTab` [J] (the ASID table at `ks_base + 288000` and the ASID
 pool words are readable: no typed object covers them, so they are gate-owned; discharge = extend
 `IoLay` / the ownership map to that kernel-state region). -/
-theorem vm_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} {a a' : A}
+theorem vm_accG {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} {a a' : A}
     {addr code : U64} (P : VmFPre st ar K T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s)
     (hTab : RdTab (L := L) (IoRS (st := st) K Locks s) s)
+    {gS : machine.Store S} {W : U64 → Prop} [GRd gS st (IoRS (st := st) K Locks s)] [GWr gS st W]
+    (hW : ∀ b, VmWd K b → IoWS (st := st) K Locks s b → W b) (hSW : VmSW st gS T Locks s)
     (h : syscall.handle_vm_fault_local st ar s a addr code = ok (true, s', a')) :
-    syscall.handle_vm_fault_local (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s a addr code =
-      ok (true, s', a') := by
+    syscall.handle_vm_fault_local gS ar s a addr code = ok (true, s', a') := by
   have B := P.base
   have hN := B.np
   have hT := B.tp
-  refine vm_acc_of_tail hA P ?_ h
+  refine vm_acc_of_tail hA P hW hSW ?_ h
   intro s1 a1 t ins ptr badge dest r s14 eu et C e14 h3
   have et' : t = L.curW s1 := by rw [cur_thread_ok] at et; exact (ok_inj_ff et).symm
   have hlk := P.lk a s1 a1 ptr badge dest r eu (by rw [← et']; exact C)
@@ -595,8 +602,27 @@ theorem vm_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} 
     rw [show yieldA dest = core.num.U64.wrapping_add dest 3472#u64 from rfl,
       ut_tcb hN hT n hdT (Kx := 3472#u64) (by simp) (by simp)]
     exact hy0
-  exact faultTail3.guardVm (gS := PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar hA HY.bxi
-    hF C hrecv hyX (M.tailAcc B hTab HY.asid HF.sc) (SWr.of_W (M.preRW B ar a1 addr code ins).sd) e14 h3
+  exact faultTail3.guardVm (gS := gS) ar hA HY.bxi
+    hF C hrecv hyX (M.tailAcc B hTab HY.asid HF.sc hW) (hSW dest _ hdT M.aff
+      (fun _ => by rw [(M.q dest (Or.inl rfl)).2.1]; exact M.lp) (Or.inr (Or.inl rfl))) e14 h3
+
+/-- **The accepted VM-fault local path on the guarded store** (`acc` for `handle_vm_fault_local`):
+an accepted run on `PathObl.guard st (IoRS K Locks s) (IoWS K Locks s)` ends exactly as the real run
+(`vm_accG`). Premises (module docstring): `VmFPre`'s and `hTab` [J]. -/
+theorem vm_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} {a a' : A}
+    {addr code : U64} (P : VmFPre st ar K T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s)
+    (hTab : RdTab (L := L) (IoRS (st := st) K Locks s) s)
+    (h : syscall.handle_vm_fault_local st ar s a addr code = ok (true, s', a')) :
+    syscall.handle_vm_fault_local (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s a addr code =
+      ok (true, s', a') := by
+  refine vm_accG (gS := PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) hA P hTab
+    (fun _ _ hb => hb) ?_ h
+  intro d v hd haff _ _
+  have e : core.num.U64.wrapping_add d layout.tcb.STATE = core.num.U64.wrapping_add d 3328#u64 := stA_eq d
+  refine SWr.of_W (gS := PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ?_
+  rw [e]
+  exact (P.base.homeOf hd haff (off := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+    (by simp [TimerField]) (by simp [GField])).2
 
 end
 

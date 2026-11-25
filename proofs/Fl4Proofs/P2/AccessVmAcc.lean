@@ -156,6 +156,61 @@ theorem tcb_slot_eq (y i : U64) :
     obj.Tcb.slot y i = ok (core.num.U64.wrapping_add y (core.num.U64.wrapping_mul i layout.cte.SIZE)) := by
   simp only [obj.Tcb.slot, lift, bind_ok]
 
+/-! ## The words the path writes, by region -/
+
+/-- **Words whose class nobody tracks**, by their region: node words, endpoint / reply-object
+words, TCB words off the deciding offsets (`AFFINITY`, `STATE`, `BLOCK_OBJ`, the timer fields'
+ends) and SC words other than the one `own` reads (offset 16). Every word the accepted VM-fault
+run writes, besides two threads' `STATE`, is one (`OwnMap`'s `DecW` excludes them, `AccessVmMv`). -/
+def VmWd (K : KLayout) (b : U64) : Prop :=
+  (∃ c, region K b = .node c) ∨ (∃ p, region K b = .obj p) ∨
+  (∃ t, region K b = .tcb t ∧ b.val - t.val ≠ 3520 ∧ b.val - t.val ≠ 3328 ∧ b.val - t.val ≠ 3336 ∧
+    b.val - t.val ≠ 3528 ∧ b.val - t.val ≠ 3568) ∨
+  (∃ p, region K b = .sc p ∧ b.val ≠ p.val + 16)
+
+section
+variable (P : VmBase st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
+include P
+
+theorem VmBase.wdNode {o : U64} (ho : o.val < 4288) : VmWd K (L.nodeAt s (L.cpu s) o) :=
+  Or.inl ⟨_, P.lay.io.node _ _ (P.inNode o ho)⟩
+
+theorem VmBase.wdTcb {y off : U64} (hy : y ∈ T) (h1 : 192 ≤ off.val) (h2 : off.val < 4096)
+    (hne : off.val ≠ 3520 ∧ off.val ≠ 3328 ∧ off.val ≠ 3336 ∧ off.val ≠ 3528 ∧ off.val ≠ 3568) :
+    VmWd K (fld y off) := by
+  obtain ⟨n1, n2, n3, n4, n5⟩ := hne
+  have e : (fld y off).val - y.val = off.val := by unfold fld; rw [tcb_wadd_val (P.tp y hy) h2]; omega
+  refine Or.inr (Or.inr (Or.inl ⟨y, P.lay.io.tcbw y (P.hT y hy) off h1 h2, ?_, ?_, ?_, ?_, ?_⟩)) <;> rw [e] <;> omega
+
+theorem VmBase.wdReg {y r : U64} (hy : y ∈ T) (hr : r.val < 384) : VmWd K (regA y r) := by
+  obtain ⟨k, hk, e⟩ := regA_eq (P.tp y hy) hr
+  rw [e]
+  exact P.wdTcb (off := k) hy (by omega) (by omega) ⟨by omega, by omega, by omega, by omega, by omega⟩
+
+theorem VmBase.wdEp {p b : U64} (hp : K.heap p = some .ep) (hb : InW p 16 b) : VmWd K b :=
+  Or.inr (Or.inl ⟨p, P.lay.epw p hp b hb⟩)
+
+theorem VmBase.wdRp {p b : U64} (hp : K.heap p = some .reply) (hb : InW p 32 b) : VmWd K b :=
+  Or.inr (Or.inl ⟨p, P.lay.rpw p hp b hb⟩)
+
+theorem VmBase.wdSc {c b : U64} (hc : c ∈ Scs) (hb : InW c (2 ^ Z c) b) (hne : b.val ≠ c.val + 16) : VmWd K b :=
+  Or.inr (Or.inr (Or.inr ⟨c, P.lay.io.scw c (Z c) (P.hSc c hc) b hb, hne⟩))
+
+/-- An SC's `ScAcc` for any write set `W` holding the `VmWd` words of `IoWS`. -/
+theorem VmBase.scaccW {W : U64 → Prop} (hW : ∀ b, VmWd K b → IoWS (st := st) K Locks s b → W b) {c : U64}
+    (hc : c ∈ Scs) (h : ScAcc (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) c (Z c)) :
+    ScAcc (IoRS (st := st) K Locks s) W c (Z c) where
+  rd := h.rd
+  wr b ha hb := hW b (P.wdSc hc hb.inSC (by have := hb.1; omega)) (h.wr b ha hb)
+  cons := by
+    obtain ⟨hP, hz⟩ := P.bxi.2.2.1.1.sc _ hc
+    obtain ⟨h8, h128, -⟩ := sc_lo hP hz
+    have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
+    have hcv : layout.sc.CONSUMED.val = 8 := by simp [layout.sc.CONSUMED]
+    exact hW _ (P.wdSc hc ⟨by rw [hv]; omega, by rw [hv, hcv]; omega⟩ (by rw [hv, hcv]; omega)) h.cons
+
+end
+
 /-- The facts at the state after the prefix that the checks and `vmPre14` use, read off the entry
 facts (`vm_mid_facts`). -/
 structure VmMidF (st : machine.Store S) [L : LawfulStore st] (K : KLayout) (T : Set U64) (H : Heap)
@@ -227,12 +282,27 @@ theorem VmMidF.rt : IoWS (st := st) K Locks s (core.num.U64.wrapping_add r layou
   have := M.rP.1; have := M.rP.2
   exact (P.reply M.rK (b := rTcbA r) ⟨by omega, by omega⟩ (by unfold Aligned; omega) M.lr).2
 
-/-- **The checks on the guarded store.** -/
-theorem VmMidF.chk {badge : U64} (C : FaultChecks st s1 t ptr badge dest r)
-    (hhere : fastpath.schedulable_here (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 dest =
-      fastpath.schedulable_here st s1 dest) :
-    FaultChecks (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 t ptr badge dest r := by
-  refine FaultChecks.guard C (M.nd P _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1
+theorem VmMidF.wdHd : VmWd K (core.num.U64.wrapping_add ptr layout.ep.HEAD) := by
+  have h := epHeadA_val (ep := ptr)
+  have := M.ep.fits; have := M.ep.align
+  exact P.wdEp (b := epHeadA ptr) M.epK ⟨by omega, by omega⟩
+
+theorem VmMidF.wdTs : VmWd K (core.num.U64.wrapping_add ptr layout.ep.TAIL_STATE) := by
+  have h := epTSA_val M.ep
+  have := M.ep.fits; have := M.ep.align
+  exact P.wdEp (b := epTSA ptr) M.epK ⟨by omega, by omega⟩
+
+theorem VmMidF.wdRt : VmWd K (core.num.U64.wrapping_add r layout.reply.TCB) := by
+  have h := rTcbA_val0 r
+  have := M.rP.1; have := M.rP.2
+  exact P.wdRp (b := rTcbA r) M.rK ⟨by omega, by omega⟩
+
+/-- **The checks on a store answering `IoRS` words as `st`.** -/
+theorem VmMidF.chk {gS : machine.Store S} {W : U64 → Prop} [GRd gS st (IoRS (st := st) K Locks s)] [GWr gS st W]
+    {badge : U64} (C : FaultChecks st s1 t ptr badge dest r)
+    (hhere : fastpath.schedulable_here gS s1 dest = fastpath.schedulable_here st s1 dest) :
+    FaultChecks gS s1 t ptr badge dest r := by
+  refine FaultChecks.guard (gS := gS) C (M.nd P _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1
     (fun sl hsl => ?_) (M.ts P).1 (M.hd P).1
     (M.dh P (off := 3360#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
       (by simp [GField])).1 hhere ?_
@@ -280,9 +350,11 @@ theorem VmMidF.sfQ {w0 w1 w2 : U64} :
     (by unfold Aligned; rw [epTSA_val M.ep]; omega) (by rw [epTSA_val M.ep]; omega)
   unfold LawfulStore.epQ; rw [h0, h8]
 
-/-- **The words `vmPre14` touches**, for the VM fault `VmFault w0 w1 ins`. -/
-theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (ins : Bool) :
-    VmPreRW (st := st) (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s) ar s1 a1 t
+/-- **The words `vmPre14` touches**, for the VM fault `VmFault w0 w1 ins`, the writes in any `W`
+holding the `VmWd` words of `IoWS`. -/
+theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (ins : Bool) {W : U64 → Prop}
+    (hW : ∀ b, VmWd K b → IoWS (st := st) K Locks s b → W b) :
+    VmPreRW (st := st) (IoRS (st := st) K Locks s) W ar s1 a1 t
       (error.Fault.VmFault w0 w1 ins) ptr dest r := by
   have hT := M.hT
   have ht' := hT t M.tT
@@ -291,17 +363,23 @@ theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (in
       core.num.U64.wrapping_add y Kx ≠ faultA t :=
     fun y hy Kx hKx hne => field_ne (hT y hy) ht' hKx (K2 := 3376#u64) (by simp) (fun _ => by simpa using hne)
   refine
-  { fw := ⟨(M.th P (off := 3376#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
-      (M.th P (off := 3384#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
-      (M.th P (off := 3392#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
-      (M.th P (off := 3400#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2⟩
+  { fw := ⟨hW _ (P.wdTcb (off := 3376#u64) M.tT (by simp) (by simp) (by simp))
+        (M.th P (off := 3376#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
+      hW _ (P.wdTcb (off := 3384#u64) M.tT (by simp) (by simp) (by simp))
+        (M.th P (off := 3384#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
+      hW _ (P.wdTcb (off := 3392#u64) M.tT (by simp) (by simp) (by simp))
+        (M.th P (off := 3392#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2,
+      hW _ (P.wdTcb (off := 3400#u64) M.tT (by simp) (by simp) (by simp))
+        (M.th P (off := 3400#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2⟩
     ts := (M.ts P).1
-    wh := (M.hd P).2
-    wt := (M.ts P).2
+    wh := hW _ (M.wdHd P) (M.hd P).2
+    wt := hW _ (M.wdTs P) (M.ts P).2
     nx := (M.link P (y := dest) (off := 3496#u64) (Or.inl rfl) (Or.inl (by simp))).1
     pv := ?_
-    dn := (M.link P (y := dest) (off := 3496#u64) (Or.inl rfl) (Or.inl (by simp))).2
-    dp := (M.link P (y := dest) (off := 3504#u64) (Or.inl rfl) (Or.inr (by simp))).2
+    dn := hW _ (P.wdTcb (off := 3496#u64) M.dT (by simp) (by simp) (by simp))
+      (M.link P (y := dest) (off := 3496#u64) (Or.inl rfl) (Or.inl (by simp))).2
+    dp := hW _ (P.wdTcb (off := 3504#u64) M.dT (by simp) (by simp) (by simp))
+      (M.link P (y := dest) (off := 3504#u64) (Or.inl rfl) (Or.inr (by simp))).2
     ib := P.gate (off := 3512#u64) M.dT (by simp) (by simp) (by simp) (by simp [GateField])
     bs := ⟨_, tcb_slot_eq dest _, P.tslot M.dT (tcb_slot_eq dest _) (by simp [layout.tcb.SLOT_BUFFER])⟩
     ty := ?_
@@ -311,17 +389,14 @@ theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (in
         w1 := (M.th P (off := 3392#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
         w2 := (M.th P (off := 3400#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
         ip := by rw [M.cur]; exact (P.reg (by simp [layout.reg.FAULT_IP])).1
-        mr := fun i _ r e => (P.regOf M.dT M.aff (post_of_ok (msg.msg_register.lt i) e)).2 }
-    mi := (P.regOf M.dT M.aff (by simp [layout.reg.MSG_INFO])).2
-    bd := (P.regOf M.dT M.aff (by simp [layout.reg.BADGE, layout.reg.RDI])).2
-    rt := M.rt P
-    sd := by
-      have e : core.num.U64.wrapping_add dest layout.tcb.STATE = core.num.U64.wrapping_add dest 3328#u64 := stA_eq dest
-      rw [e]
-      exact (M.dh P (off := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
-        (by simp [GField])).2
-    stt := by rw [M.cur]; exact P.stw.2
-    ro := (M.th P (off := 3360#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2 }
+        mr := fun i _ r e => hW _ (P.wdReg M.dT (post_of_ok (msg.msg_register.lt i) e))
+          (P.regOf M.dT M.aff (post_of_ok (msg.msg_register.lt i) e)).2 }
+    mi := hW _ (P.wdReg M.dT (by simp [layout.reg.MSG_INFO])) (P.regOf M.dT M.aff (by simp [layout.reg.MSG_INFO])).2
+    bd := hW _ (P.wdReg M.dT (by simp [layout.reg.BADGE, layout.reg.RDI]))
+      (P.regOf M.dT M.aff (by simp [layout.reg.BADGE, layout.reg.RDI])).2
+    rt := hW _ (M.wdRt P) (M.rt P)
+    ro := hW _ (P.wdTcb (off := 3360#u64) M.tT (by simp) (by simp) (by simp))
+      (M.th P (off := 3360#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).2 }
   · -- the successor's `EP_PREV`
     intro s2 tl i6 e2 etl hne e6
     rw [set_fault_vm] at e2
@@ -335,7 +410,8 @@ theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (in
         (nextA .Ep dest) = L.mem s1 (nextA .Ep dest) := by
       rw [nextA_eq']; exact M.sft P M.dT (by simp [nextOff]) (by simp [nextOff]) (Or.inr (by simp [nextOff]))
     rw [en]
-    exact (M.link P (y := L.mem s1 (nextA .Ep dest)) (off := 3504#u64) (Or.inr ⟨hne, rfl⟩) (Or.inr (by simp))).2
+    exact hW _ (P.wdTcb (off := 3504#u64) (M.q _ (Or.inr ⟨hne, rfl⟩)).1 (by simp) (by simp) (by simp))
+      (M.link P (y := L.mem s1 (nextA .Ep dest)) (off := 3504#u64) (Or.inr ⟨hne, rfl⟩) (Or.inr (by simp))).2
   · -- the fault type read back after the dequeue
     intro s2 tl s3 s4 s5 e2 etl e3 e4 e5
     rw [set_fault_vm] at e2
@@ -411,21 +487,31 @@ theorem rdHead_ut {R : U64 → Prop} (B : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) 
   have e : L.rhead (utW (L := L) s n) c = L.rhead s c := ut_out hN hcC n (bxi_headOut B hc)
   unfold RdHead at h ⊢; rw [e]; exact h
 
-/-- **The accepted VM-fault local path on the guarded store, up to its tail**: given the tail
-from the handler `Running` (`faultTail3`) agrees on the guarded store, the run on
-`PathObl.guard st (IoRS K Locks s) (IoWS K Locks s)` ends exactly as the real run. -/
+/-- The `STATE` writes of the accepted VM-fault run as a hypothesis on the store `gS`: a thread
+of `T` homed on this core (queued at the entry only on a held lock) is written the values
+`INACTIVE`, `RUNNING`, `BLOCKED_ON_REPLY` as by `st`. -/
+def VmSW (st : machine.Store S) [L : LawfulStore st] (gS : machine.Store S) (T : Set U64)
+    (Locks : S → U64 → Prop) (s : S) : Prop :=
+  ∀ d v, d ∈ T → L.mem s (affA d) = L.cpu s →
+    (OwnMap.QueuedState (L.mem s (stA d)) → Locks s (L.mem s (blockA d))) →
+    (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING ∨ v = sched.TS_BLOCKED_ON_REPLY) → SWr gS st d v
+
+/-- **The accepted VM-fault local path, up to its tail, on any store `gS`** answering `IoRS K Locks s`
+words as `st`, writes of the `VmWd` words of `IoWS K Locks s` as `st` (`hW`) and the `STATE` writes
+(`VmSW`): given the tail from the handler `Running` (`faultTail3`) agrees on `gS`, the run on `gS`
+ends exactly as the real run. -/
 theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} {a a' : A}
     {addr code : U64} (P : VmFPre st ar K T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s)
+    {gS : machine.Store S} {W : U64 → Prop} [GRd gS st (IoRS (st := st) K Locks s)] [GWr gS st W]
+    (hW : ∀ b, VmWd K b → IoWS (st := st) K Locks s b → W b) (hSW : VmSW st gS T Locks s)
     (htail : ∀ s1 a1 t ins ptr badge dest r s14, sched.update_timestamp st ar s a = ok (s1, a1) →
       sched.cur_thread st s1 = ok t → FaultChecks st s1 t ptr badge dest r →
       vmPre14 st ar s1 a1 t (error.Fault.VmFault addr code ins) fl4_abi.consts.fault.VMFault ptr badge dest r =
         ok s14 →
       faultTail3 st ar s14 a1 dest = ok (true, s', a') →
-      faultTail3 (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s14 a1 dest =
-        ok (true, s', a'))
+      faultTail3 gS ar s14 a1 dest = ok (true, s', a'))
     (h : syscall.handle_vm_fault_local st ar s a addr code = ok (true, s', a')) :
-    syscall.handle_vm_fault_local (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s a addr code =
-      ok (true, s', a') := by
+    syscall.handle_vm_fault_local gS ar s a addr code = ok (true, s', a') := by
   have B := P.base
   have hN := B.np
   have hT := B.tp
@@ -436,11 +522,13 @@ theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
     obtain ⟨⟨n, a2⟩, hn, -⟩ := spec_ex_fd (hA.now a)
     rw [update_timestamp_ok ar hN hn] at eu
     exact ⟨n, (Prod.mk.inj (ok_inj_ff eu)).1.symm⟩
-  refine syscall.handle_vm_fault_local.guard_acc ar
+  refine syscall.handle_vm_fault_local.guard_acc (gS := gS) ar
     (B.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
-    (B.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).2
+    (hW _ (B.wdNode (by simp [layout.node.CUR_TIME]))
+      (B.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).2)
     (B.nd _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1
-    (B.nd _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).2 ?_ ?_ ?_ h
+    (hW _ (B.wdNode (by simp [layout.node.CONSUMED]))
+      (B.nd _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).2) ?_ ?_ ?_ h
   · intro s1 a1 eu
     obtain ⟨n, rfl⟩ := hut s1 a1 eu
     rw [ut_nodeAt, ut_nodeAt, ut_nodeAt]
@@ -516,8 +604,7 @@ theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
       exact ut_node hN n (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
         (by simp [layout.node.RELEASE_HEAD, layout.node.CUR_TIME])
         (by simp [layout.node.RELEASE_HEAD, layout.node.CONSUMED])
-    have hhere := fastpath.schedulable_here.guard
-      (gS := PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s))
+    have hhere := fastpath.schedulable_here.guard (gS := gS)
       (utW (L := L) s n) dest
       (M.nd B _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
       (M.nd B _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1
@@ -538,9 +625,19 @@ theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
       (B.gate (off := 3464#u64) hdT (by simp) (by simp) (by simp) (by simp [GateField]))
       (M.dh B (off := 3592#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
         (by simp [GField])).1
+    have hq0 := M.q dest (Or.inl rfl)
+    have hsd : ∀ v, (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING) → SWr gS st dest v := fun v hv =>
+      hSW dest v hdT M.aff (fun _ => by rw [hq0.2.1]; exact M.lp) (hv.elim Or.inl (fun e => Or.inr (Or.inl e)))
+    have nq : ¬ OwnMap.QueuedState (L.mem s (stA (L.curW s))) := by
+      unfold OwnMap.QueuedState
+      rcases B.run with e | e <;> rw [e] <;> simp [sched.TS_RESTART, sched.TS_RUNNING]
+    have hst : SWr gS st t sched.TS_BLOCKED_ON_REPLY := by
+      rw [M.cur]
+      exact hSW _ _ B.cT B.curAff (fun hq => absurd hq nq) (Or.inr (Or.inr rfl))
     exact
-    { chk := M.chk B C hhere
-      pre := vmPre14.guard ar _ a1 t addr code (i2 != 0#u64) _ ptr badge dest r (M.preRW B ar a1 addr code _)
+    { chk := M.chk B (gS := gS) C hhere
+      pre := vmPre14.guard (gS := gS) ar _ a1 t addr code (i2 != 0#u64) _ ptr badge dest r
+        (M.preRW B ar a1 addr code _ hW) hsd hst
       tail := fun s14 e14 h3 => htl s14 eu et C e14 h3 }
 
 end

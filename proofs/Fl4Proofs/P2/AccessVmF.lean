@@ -2,7 +2,10 @@
 # P2: the accepted VM-fault local path on the guarded store (line p2e, VM paths)
 
 `syscall.handle_vm_fault_local.guard_acc`: an accepted run of the VM-fault
-local path (`true`) on `PathObl.guard st R W` ends exactly as the real run. The run is
+local path (`true`) on any store `gS` answering as `st` on the words it reads (`GRd gS st R`)
+and writes (`GWr gS st W`), with the three `STATE` writes whose values matter a hypothesis of
+their own (`SWr`), ends exactly as the real run (`PathObl.guard st R W` for `acc`, p2sl's checked
+store `gd` for `move`). The run is
 P1's decomposition (`P1/FastVm.lean`, `vm_fault_acc`): the prefix
 (`update_timestamp`, the budget check), the fast path's checks
 (`FaultChecks`), the writes up to the handler `Running` (`vmPre14`) and
@@ -61,7 +64,8 @@ theorem fastFaultG_checks {A : Type} (m : machine.Store S) (ar : machine.Arch A)
 end
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 
 /-! ## Leaf lemmas -/
 
@@ -71,28 +75,28 @@ def FaultWr (W : U64 → Prop) (t : U64) : Prop :=
     W (core.num.U64.wrapping_add t 3400#u64)
 
 theorem faults.set_fault.guard_vm (s : S) (t : obj.Tcb) (w0 w1 : U64) (ins : Bool) (h : FaultWr W t) :
-    faults.set_fault (PathObl.guard st R W) s t (error.Fault.VmFault w0 w1 ins) =
+    faults.set_fault gS s t (error.Fault.VmFault w0 w1 ins) =
       faults.set_fault st s t (error.Fault.VmFault w0 w1 ins) := by
   obtain ⟨h0, h1, h2, h3⟩ := h
   unfold faults.set_fault
   cases ins <;> simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
   all_goals
     simp only [uncurry_apply_pair]
-    rw [obj.Tcb.set_fault_type.guard (gS := PathObl.guard st R W) t s _ h0]
+    rw [obj.Tcb.set_fault_type.guard (gS := gS) t s _ h0]
     refine bind_guard_congr rfl (fun s2 _ => ?_)
-    rw [obj.Tcb.set_fault_w0.guard (gS := PathObl.guard st R W) t s2 _ h1]
+    rw [obj.Tcb.set_fault_w0.guard (gS := gS) t s2 _ h1]
     refine bind_guard_congr rfl (fun s3 _ => ?_)
-    rw [obj.Tcb.set_fault_w1.guard (gS := PathObl.guard st R W) t s3 _ h2]
+    rw [obj.Tcb.set_fault_w1.guard (gS := gS) t s3 _ h2]
     refine bind_guard_congr rfl (fun s4 _ => ?_)
-    rw [obj.Tcb.set_fault_w2.guard (gS := PathObl.guard st R W) t s4 _ h3]
+    rw [obj.Tcb.set_fault_w2.guard (gS := gS) t s4 _ h3]
 
 theorem msg.set_mr.guard_reg (s : S) (t : obj.Tcb) (buf i v : U64) (hi : i < msg.N_MSG_REGISTERS)
     (h : ∀ r, msg.msg_register i = ok r → W (regA t r)) :
-    msg.set_mr (PathObl.guard st R W) s t buf i v = msg.set_mr st s t buf i v := by
+    msg.set_mr gS s t buf i v = msg.set_mr st s t buf i v := by
   unfold msg.set_mr
   simp only [if_pos hi]
   refine bind_guard_congr rfl (fun r hr => ?_)
-  rw [obj.Tcb.set_reg.guard (gS := PathObl.guard st R W) t s r v (h r hr)]
+  rw [obj.Tcb.set_reg.guard (gS := gS) t s r v (h r hr)]
 
 /-- The words `set_mrs_fault` reads and writes for a VM fault from `snd` to
 `rcv`. -/
@@ -109,17 +113,17 @@ theorem n_msg_lt {i : U64} (h : i.val < 4) : i < msg.N_MSG_REGISTERS := by
 
 theorem faults.set_mrs_fault.guard_vm {A : Type} (ar : machine.Arch A) (s : S) (a : A) (snd rcv buf : U64)
     (hty : obj.Tcb.fault_type st snd s = ok fl4_abi.consts.fault.VMFault) (h : MrsVm R W snd rcv) :
-    faults.set_mrs_fault (PathObl.guard st R W) ar s a snd rcv buf = faults.set_mrs_fault st ar s a snd rcv buf := by
+    faults.set_mrs_fault gS ar s a snd rcv buf = faults.set_mrs_fault st ar s a snd rcv buf := by
   unfold faults.set_mrs_fault
-  rw [obj.Tcb.fault_type.guard (gS := PathObl.guard st R W) snd s h.ft, hty]
+  rw [obj.Tcb.fault_type.guard (gS := gS) snd s h.ft, hty]
   simp only [bind_ok]
-  rw [obj.Tcb.fault_w0.guard (gS := PathObl.guard st R W) snd s h.w0]
+  rw [obj.Tcb.fault_w0.guard (gS := gS) snd s h.w0]
   refine bind_guard_congr rfl (fun w0 _ => ?_)
-  rw [obj.Tcb.fault_w1.guard (gS := PathObl.guard st R W) snd s h.w1]
+  rw [obj.Tcb.fault_w1.guard (gS := gS) snd s h.w1]
   refine bind_guard_congr rfl (fun w1 _ => ?_)
-  rw [obj.Tcb.fault_w2.guard (gS := PathObl.guard st R W) snd s h.w2]
+  rw [obj.Tcb.fault_w2.guard (gS := gS) snd s h.w2]
   refine bind_guard_congr rfl (fun w2 _ => ?_)
-  rw [obj.Tcb.reg.guard (gS := PathObl.guard st R W) snd s _ h.ip]
+  rw [obj.Tcb.reg.guard (gS := gS) snd s _ h.ip]
   refine bind_guard_congr rfl (fun pc _ => ?_)
   have e1 : fl4_abi.consts.fault.VMFault ≠ fl4_abi.consts.fault.CapFault := by
     simp [fl4_abi.consts.fault.VMFault, fl4_abi.consts.fault.CapFault]
@@ -132,19 +136,19 @@ theorem faults.set_mrs_fault.guard_vm {A : Type} (ar : machine.Arch A) (s : S) (
   have e5 : fl4_abi.consts.fault.VMFault ≠ fl4_abi.consts.fault.DebugException := by
     simp [fl4_abi.consts.fault.VMFault, fl4_abi.consts.fault.DebugException]
   simp only [if_neg e1, if_neg e2, if_neg e3, if_neg e4, if_neg e5, ↓reduceIte]
-  rw [msg.set_mr.guard_reg s rcv buf 0#u64 pc (n_msg_lt (by decide)) (h.mr 0#u64 (by decide))]
+  rw [msg.set_mr.guard_reg (gS := gS) s rcv buf 0#u64 pc (n_msg_lt (by decide)) (h.mr 0#u64 (by decide))]
   refine bind_guard_congr rfl (fun x1 _ => ?_)
   obtain ⟨_, s1⟩ := x1
   simp only [uncurry_apply_pair]
-  rw [msg.set_mr.guard_reg s1 rcv buf 1#u64 w0 (n_msg_lt (by decide)) (h.mr 1#u64 (by decide))]
+  rw [msg.set_mr.guard_reg (gS := gS) s1 rcv buf 1#u64 w0 (n_msg_lt (by decide)) (h.mr 1#u64 (by decide))]
   refine bind_guard_congr rfl (fun x2 _ => ?_)
   obtain ⟨_, s2⟩ := x2
   simp only [uncurry_apply_pair]
-  rw [msg.set_mr.guard_reg s2 rcv buf 2#u64 w2 (n_msg_lt (by decide)) (h.mr 2#u64 (by decide))]
+  rw [msg.set_mr.guard_reg (gS := gS) s2 rcv buf 2#u64 w2 (n_msg_lt (by decide)) (h.mr 2#u64 (by decide))]
   refine bind_guard_congr rfl (fun x3 _ => ?_)
   obtain ⟨_, s3⟩ := x3
   simp only [uncurry_apply_pair]
-  rw [msg.set_mr.guard_reg s3 rcv buf 3#u64 w1 (n_msg_lt (by decide)) (h.mr 3#u64 (by decide))]
+  rw [msg.set_mr.guard_reg (gS := gS) s3 rcv buf 3#u64 w1 (n_msg_lt (by decide)) (h.mr 3#u64 (by decide))]
 
 /-! ## The checks -/
 
@@ -157,22 +161,22 @@ theorem FaultChecks.guard {s : S} {t : obj.Tcb} {ptr badge dest r : U64}
     (hts : R (core.num.U64.wrapping_add ptr layout.ep.TAIL_STATE))
     (hhd : R (core.num.U64.wrapping_add ptr layout.ep.HEAD))
     (hrp : R (core.num.U64.wrapping_add dest 3360#u64))
-    (hhere : fastpath.schedulable_here (PathObl.guard st R W) s dest = fastpath.schedulable_here st s dest)
+    (hhere : fastpath.schedulable_here gS s dest = fastpath.schedulable_here st s dest)
     (hcd : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (hpr : R (core.num.U64.wrapping_add dest 3448#u64))
     (hbm : RdBitmap (L := L) R s) :
-    FaultChecks (PathObl.guard st R W) s t ptr badge dest r := by
+    FaultChecks gS s t ptr badge dest r := by
   obtain ⟨hA, ⟨sl, x, y, g, gr, hS, hcap, hg⟩, hep, hh, hrep, hr0, hhe, ⟨d, p, hd, hp, hhi⟩⟩ := C
   refine ⟨?_, ⟨sl, x, y, g, gr, hS, ?_, hg⟩, ?_, ?_, ?_, hr0, ?_, ⟨d, p, ?_, ?_, ?_⟩⟩
-  · rw [sched.action.guard (gS := PathObl.guard st R W) s hact]; exact hA
-  · rw [obj.Slot.cap.guard (gS := PathObl.guard st R W) sl s (hsl sl hS).1 (hsl sl hS).2]; exact hcap
-  · rw [obj.Ep.state.guard (gS := PathObl.guard st R W) ptr s hts]; exact hep
-  · rw [obj.Ep.head.guard (gS := PathObl.guard st R W) ptr s hhd]; exact hh
-  · rw [obj.Tcb.reply_obj.guard (gS := PathObl.guard st R W) dest s hrp]; exact hrep
+  · rw [sched.action.guard (gS := gS) s hact]; exact hA
+  · rw [obj.Slot.cap.guard (gS := gS) sl s (hsl sl hS).1 (hsl sl hS).2]; exact hcap
+  · rw [obj.Ep.state.guard (gS := gS) ptr s hts]; exact hep
+  · rw [obj.Ep.head.guard (gS := gS) ptr s hhd]; exact hh
+  · rw [obj.Tcb.reply_obj.guard (gS := gS) dest s hrp]; exact hrep
   · rw [hhere]; exact hhe
-  · rw [sched.cur_domain.guard (gS := PathObl.guard st R W) s hcd]; exact hd
-  · rw [obj.Tcb.prio.guard (gS := PathObl.guard st R W) dest s hpr]; exact hp
-  · rw [sched.is_highest_prio.guard (gS := PathObl.guard st R W) s d p hbm]; exact hhi
+  · rw [sched.cur_domain.guard (gS := gS) s hcd]; exact hd
+  · rw [obj.Tcb.prio.guard (gS := gS) dest s hpr]; exact hp
+  · rw [sched.is_highest_prio.guard (gS := gS) s d p hbm]; exact hhi
 
 /-! ## The writes up to the handler running -/
 
@@ -244,56 +248,56 @@ structure VmPreRW {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s : S) 
   mi : W (regA dest layout.reg.MSG_INFO)
   bd : W (regA dest layout.reg.BADGE)
   rt : W (core.num.U64.wrapping_add r layout.reply.TCB)
-  sd : W (core.num.U64.wrapping_add dest layout.tcb.STATE)
-  stt : W (core.num.U64.wrapping_add t layout.tcb.STATE)
   ro : W (core.num.U64.wrapping_add t 3360#u64)
 
 /-- **`vmPre14` on the guarded store is the real one.** -/
 theorem vmPre14.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (w0 w1 : U64) (ins : Bool)
-    (ty ptr badge dest r : U64) (H : VmPreRW (st := st) R W ar s a t (error.Fault.VmFault w0 w1 ins) ptr dest r) :
-    vmPre14 (PathObl.guard st R W) ar s a t (error.Fault.VmFault w0 w1 ins) ty ptr badge dest r =
+    (ty ptr badge dest r : U64) (H : VmPreRW (st := st) R W ar s a t (error.Fault.VmFault w0 w1 ins) ptr dest r)
+    (hsd : ∀ v, (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING) → SWr gS st dest v)
+    (hst : SWr gS st t sched.TS_BLOCKED_ON_REPLY) :
+    vmPre14 gS ar s a t (error.Fault.VmFault w0 w1 ins) ty ptr badge dest r =
       vmPre14 st ar s a t (error.Fault.VmFault w0 w1 ins) ty ptr badge dest r := by
   unfold vmPre14
-  rw [faults.set_fault.guard_vm s t w0 w1 ins H.fw]
+  rw [faults.set_fault.guard_vm (gS := gS) s t w0 w1 ins H.fw]
   refine bind_guard_congr rfl (fun s2 e2 => ?_)
-  rw [obj.Ep.tail.guard (gS := PathObl.guard st R W) ptr s2 H.ts]
+  rw [obj.Ep.tail.guard (gS := gS) ptr s2 H.ts]
   refine bind_guard_congr rfl (fun tl etl => ?_)
   refine bind_guard_congr ?_ (fun s3 e3 => ?_)
   · by_cases hc : tl = dest
-    · rw [if_pos hc, if_pos hc]; exact obj.Ep.set_queue.guard (gS := PathObl.guard st R W) ptr s2 _ _ _ H.wh H.wt
+    · rw [if_pos hc, if_pos hc]; exact obj.Ep.set_queue.guard (gS := gS) ptr s2 _ _ _ H.wh H.wt
     · rw [if_neg hc, if_neg hc]
-      rw [obj.Tcb.ep_next.guard (gS := PathObl.guard st R W) dest s2 H.nx]
+      rw [obj.Tcb.ep_next.guard (gS := gS) dest s2 H.nx]
       refine bind_guard_congr rfl (fun i6 e6 => ?_)
-      rw [obj.Tcb.set_ep_prev.guard (gS := PathObl.guard st R W) i6 s2 _ (H.pv s2 tl i6 e2 etl hc e6)]
+      rw [obj.Tcb.set_ep_prev.guard (gS := gS) i6 s2 _ (H.pv s2 tl i6 e2 etl hc e6)]
       refine bind_guard_congr rfl (fun s4 _ => ?_)
-      exact obj.Ep.set_queue.guard (gS := PathObl.guard st R W) ptr s4 _ _ _ H.wh H.wt
-  rw [obj.Tcb.set_ep_next.guard (gS := PathObl.guard st R W) dest s3 _ H.dn]
+      exact obj.Ep.set_queue.guard (gS := gS) ptr s4 _ _ _ H.wh H.wt
+  rw [obj.Tcb.set_ep_next.guard (gS := gS) dest s3 _ H.dn]
   refine bind_guard_congr rfl (fun s4 e4 => ?_)
-  rw [obj.Tcb.set_ep_prev.guard (gS := PathObl.guard st R W) dest s4 _ H.dp]
+  rw [obj.Tcb.set_ep_prev.guard (gS := gS) dest s4 _ H.dp]
   refine bind_guard_congr rfl (fun s5 e5 => ?_)
   obtain ⟨sl, hsl, hR0, hR8⟩ := H.bs
-  rw [msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R W) s5 true dest hsl H.ib hR0 hR8]
+  rw [msg.lookup_ipc_buffer.guard (gS := gS) s5 true dest hsl H.ib hR0 hR8]
   refine bind_guard_congr rfl (fun rb _ => ?_)
-  rw [faults.set_mrs_fault.guard_vm ar s5 a t dest rb (H.ty s2 tl s3 s4 s5 e2 etl e3 e4 e5) H.mrs]
+  rw [faults.set_mrs_fault.guard_vm (gS := gS) ar s5 a t dest rb (H.ty s2 tl s3 s4 s5 e2 etl e3 e4 e5) H.mrs]
   refine bind_guard_congr rfl (fun x6 _ => ?_)
   obtain ⟨sent, s6⟩ := x6
   simp only [uncurry_apply_pair]
   refine bind_guard_congr rfl (fun mi _ => ?_)
-  rw [msg.set_msg_info.guard (gS := PathObl.guard st R W) s6 dest mi H.mi]
+  rw [msg.set_msg_info.guard (gS := gS) s6 dest mi H.mi]
   refine bind_guard_congr rfl (fun s7 _ => ?_)
-  rw [obj.Tcb.set_reg.guard (gS := PathObl.guard st R W) dest s7 _ _ H.bd]
+  rw [obj.Tcb.set_reg.guard (gS := gS) dest s7 _ _ H.bd]
   refine bind_guard_congr rfl (fun s8 _ => ?_)
-  rw [obj.Reply.set_tcb.guard (gS := PathObl.guard st R W) r s8 _ H.rt]
+  rw [obj.Reply.set_tcb.guard (gS := gS) r s8 _ H.rt]
   refine bind_guard_congr rfl (fun s9 _ => ?_)
-  rw [obj.Tcb.set_state.guard (gS := PathObl.guard st R W) dest s9 _ H.sd]
+  rw [obj.Tcb.set_state.guardV dest s9 _ (hsd _ (Or.inl rfl))]
   refine bind_guard_congr rfl (fun s10 _ => ?_)
-  rw [obj.Reply.set_tcb.guard (gS := PathObl.guard st R W) r s10 _ H.rt]
+  rw [obj.Reply.set_tcb.guard (gS := gS) r s10 _ H.rt]
   refine bind_guard_congr rfl (fun s11 _ => ?_)
-  rw [obj.Tcb.set_state.guard (gS := PathObl.guard st R W) t s11 _ H.stt]
+  rw [obj.Tcb.set_state.guardV t s11 _ hst]
   refine bind_guard_congr rfl (fun s12 _ => ?_)
-  rw [obj.Tcb.set_reply_obj.guard (gS := PathObl.guard st R W) t s12 _ H.ro]
+  rw [obj.Tcb.set_reply_obj.guard (gS := gS) t s12 _ H.ro]
   refine bind_guard_congr rfl (fun s13 _ => ?_)
-  rw [obj.Tcb.set_state.guard (gS := PathObl.guard st R W) dest s13 _ H.sd]
+  rw [obj.Tcb.set_state.guardV dest s13 _ (hsd _ (Or.inr rfl))]
 
 /-! ## From the handler running -/
 
@@ -305,7 +309,7 @@ theorem faultTail3.guard {A : Type} (ar : machine.Arch A) {s14 s' : S} {a a' : A
       R (core.num.U64.wrapping_add dsc layout.sc.SPORADIC))
     (hcs : R (L.nodeAt s14 (L.cpu s14) layout.node.CUR_SC))
     (hub : ∀ dsc, obj.Tcb.sc st dest s14 = ok dsc → sporadic.sc_sporadic st s14 dsc = ok true →
-      sporadic.unblock_check (PathObl.guard st R W) s14 dsc = sporadic.unblock_check st s14 dsc)
+      sporadic.unblock_check gS s14 dsc = sporadic.unblock_check st s14 dsc)
     (hsn : W (core.num.U64.wrapping_add dest 3480#u64)) (hspv : W (core.num.U64.wrapping_add dest 3488#u64))
     (hsw : ∀ dsc b2 s15 s16 s17, obj.Tcb.sc st dest s14 = ok dsc → sporadic.sc_sporadic st s14 dsc = ok b2 →
       (if b2 then (do
@@ -313,26 +317,26 @@ theorem faultTail3.guard {A : Type} (ar : machine.Arch A) {s14 s' : S} {a a' : A
         let b3 ← core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc dsc c
         if b3 then sporadic.unblock_check st s14 dsc else ok s14) else ok s14) = ok s15 →
       obj.Tcb.set_sched_next st dest s15 0#u64 = ok s16 → obj.Tcb.set_sched_prev st dest s16 0#u64 = ok s17 →
-      fastpath.switch_to (PathObl.guard st R W) ar s17 a dest = fastpath.switch_to st ar s17 a dest)
+      fastpath.switch_to gS ar s17 a dest = fastpath.switch_to st ar s17 a dest)
     (h : faultTail3 st ar s14 a dest = ok (true, s', a')) :
-    faultTail3 (PathObl.guard st R W) ar s14 a dest = ok (true, s', a') := by
+    faultTail3 gS ar s14 a dest = ok (true, s', a') := by
   unfold faultTail3 at h ⊢
   revert h
-  refine tr_bind (fun x hx _ => by rw [obj.Tcb.sc.guard (gS := PathObl.guard st R W) dest s14 hsc]; exact hx) (fun dsc edsc => ?_)
-  refine tr_bind (fun x hx _ => by rw [sporadic.sc_sporadic.guard (gS := PathObl.guard st R W) s14 dsc (hsp dsc edsc)]; exact hx)
+  refine tr_bind (fun x hx _ => by rw [obj.Tcb.sc.guard (gS := gS) dest s14 hsc]; exact hx) (fun dsc edsc => ?_)
+  refine tr_bind (fun x hx _ => by rw [sporadic.sc_sporadic.guard (gS := gS) s14 dsc (hsp dsc edsc)]; exact hx)
     (fun b2 eb2 => ?_)
   refine tr_bind (fun s15 h15 _ => ?_) (fun s15 e15 => ?_)
   · by_cases hb : b2 = true
     · subst hb
       rw [if_pos rfl] at h15 ⊢
-      rw [sched.cur_sc.guard (gS := PathObl.guard st R W) s14 hcs]
+      rw [sched.cur_sc.guard (gS := gS) s14 hcs]
       revert h15
       refine tr_bind_same (fun c _ => ?_)
       refine tr_bind_same (fun b3 _ => ?_)
       exact tr_ite (fun _ h => by rw [hub dsc edsc eb2]; exact h) (fun _ h => h)
     · rw [if_neg hb] at h15 ⊢; exact h15
-  · refine tr_bind (fun x hx _ => by rw [obj.Tcb.set_sched_next.guard (gS := PathObl.guard st R W) dest s15 _ hsn]; exact hx) (fun s16 e16 => ?_)
-    refine tr_bind (fun x hx _ => by rw [obj.Tcb.set_sched_prev.guard (gS := PathObl.guard st R W) dest s16 _ hspv]; exact hx)
+  · refine tr_bind (fun x hx _ => by rw [obj.Tcb.set_sched_next.guard (gS := gS) dest s15 _ hsn]; exact hx) (fun s16 e16 => ?_)
+    refine tr_bind (fun x hx _ => by rw [obj.Tcb.set_sched_prev.guard (gS := gS) dest s16 _ hspv]; exact hx)
       (fun s17 e17 => ?_)
     exact tr_bind (fun x hx _ => by rw [hsw dsc b2 s15 s16 s17 edsc eb2 e15 e16 e17]; exact hx) (fun _ _ h => h)
 
@@ -340,23 +344,23 @@ theorem faultTail3.guard {A : Type} (ar : machine.Arch A) {s14 s' : S} {a a' : A
 
 /-- The facts after the prefix that the guarded fast path needs: its checks
 pass on the guarded store, `vmPre14` agrees, and so does the accepted tail. -/
-structure VmMid {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s1 : S) (a1 : A) (t : obj.Tcb)
+structure VmMid {A : Type} (gS : machine.Store S) (ar : machine.Arch A) (s1 : S) (a1 : A) (t : obj.Tcb)
     (f : error.Fault) (ptr badge dest r : U64) (s' : S) (a' : A) : Prop where
-  chk : FaultChecks (PathObl.guard st R W) s1 t ptr badge dest r
-  pre : vmPre14 (PathObl.guard st R W) ar s1 a1 t f fl4_abi.consts.fault.VMFault ptr badge dest r =
+  chk : FaultChecks gS s1 t ptr badge dest r
+  pre : vmPre14 gS ar s1 a1 t f fl4_abi.consts.fault.VMFault ptr badge dest r =
     vmPre14 st ar s1 a1 t f fl4_abi.consts.fault.VMFault ptr badge dest r
   tail : ∀ s14, vmPre14 st ar s1 a1 t f fl4_abi.consts.fault.VMFault ptr badge dest r = ok s14 →
-    faultTail3 st ar s14 a1 dest = ok (true, s', a') → faultTail3 (PathObl.guard st R W) ar s14 a1 dest = ok (true, s', a')
+    faultTail3 st ar s14 a1 dest = ok (true, s', a') → faultTail3 gS ar s14 a1 dest = ok (true, s', a')
 
 theorem fastpath_vm.vm_fault.guard_acc {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t : obj.Tcb}
     {f : error.Fault}
     (hmid : ∀ ptr badge dest r, FaultChecks st s t ptr badge dest r →
-      VmMid (st := st) R W ar s a t f ptr badge dest r s' a')
+      VmMid (st := st) gS ar s a t f ptr badge dest r s' a')
     (h : fastpath_vm.vm_fault st ar s a t f = ok (true, s', a')) :
-    fastpath_vm.vm_fault (PathObl.guard st R W) ar s a t f = ok (true, s', a') := by
+    fastpath_vm.vm_fault gS ar s a t f = ok (true, s', a') := by
   obtain ⟨ptr, badge, dest, r, C, hT⟩ := vm_fault_acc st ar h
   have M := hmid ptr badge dest r C
-  show fastFaultG (PathObl.guard st R W) ar s a t f fl4_abi.consts.fault.VMFault = _
+  show fastFaultG gS ar s a t f fl4_abi.consts.fault.VMFault = _
   rw [fastFaultG_checks _ ar M.chk, faultTailG_split, M.pre]
   rw [faultTailG_split] at hT
   obtain ⟨s14, e14, h3⟩ := bind_eq_ok hT
@@ -377,30 +381,30 @@ theorem syscall.handle_vm_fault_local.guard_acc {A : Type} (ar : machine.Arch A)
     (hmid : ∀ s1 a1 t i2 f, sched.update_timestamp st ar s a = ok (s1, a1) → sched.cur_thread st s1 = ok t →
       vspace.vm_fault addr code (i2 != 0#u64) = ok f →
       ∀ ptr badge dest r, FaultChecks st s1 t ptr badge dest r →
-        VmMid (st := st) R W ar s1 a1 t f ptr badge dest r s' a')
+        VmMid (st := st) gS ar s1 a1 t f ptr badge dest r s' a')
     (h : syscall.handle_vm_fault_local st ar s a addr code = ok (true, s', a')) :
-    syscall.handle_vm_fault_local (PathObl.guard st R W) ar s a addr code = ok (true, s', a') := by
+    syscall.handle_vm_fault_local gS ar s a addr code = ok (true, s', a') := by
   unfold syscall.handle_vm_fault_local at h ⊢
   revert h
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  refine tr_bind (fun x hx _ => by rw [sched.update_timestamp.guard (gS := PathObl.guard st R W) ar s a hct hwct hcn hwcn]; exact hx)
+  refine tr_bind (fun x hx _ => by rw [sched.update_timestamp.guard (gS := gS) ar s a hct hwct hcn hwcn]; exact hx)
     (fun x eu => ?_)
   obtain ⟨s1, a1⟩ := x
   simp only [uncurry_apply_pair]
   obtain ⟨h1, h2, h3⟩ := hcsc s1 a1 eu
-  rw [sched.cur_sc.guard (gS := PathObl.guard st R W) s1 h1]
+  rw [sched.cur_sc.guard (gS := gS) s1 h1]
   refine tr_bind_same (fun csc ecsc => ?_)
-  rw [sched.consumed.guard (gS := PathObl.guard st R W) s1 h2]
+  rw [sched.consumed.guard (gS := gS) s1 h2]
   refine tr_bind_same (fun u _ => ?_)
-  rw [sporadic.sufficient.guard (gS := PathObl.guard st R W) ar s1 a1 csc u (hsuf s1 a1 csc eu ecsc)]
+  rw [sporadic.sufficient.guard (gS := gS) ar s1 a1 csc u (hsuf s1 a1 csc eu ecsc)]
   refine tr_bind_same (fun b _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [sched.cur_thread.guard (gS := PathObl.guard st R W) s1 h3]
+  rw [sched.cur_thread.guard (gS := gS) s1 h3]
   refine tr_bind_same (fun t et => ?_)
   refine tr_bind_same (fun _ _ => ?_)
   refine tr_bind_same (fun i2 _ => ?_)
   refine tr_bind_same (fun f ef => ?_)
-  exact fastpath_vm.vm_fault.guard_acc ar (fun ptr badge dest r C => hmid s1 a1 t i2 f eu et ef ptr badge dest r C)
+  exact fastpath_vm.vm_fault.guard_acc (gS := gS) ar (fun ptr badge dest r C => hmid s1 a1 t i2 f eu et ef ptr badge dest r C)
 
 end
 
