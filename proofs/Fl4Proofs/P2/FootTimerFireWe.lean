@@ -7,8 +7,9 @@ signal (`wk_sig`, the waking case `WkCase` asked at every state `remove` may rea
 stopping second iteration (`fire_stop_sig`, from `BufAt`).
 
 * `node_not_tw`: a node word of this core other than the timer root / min is no timer word.
+* `FwKeep`: what the waking fire step keeps (`WkKeep` minus the timer words `remove` writes).
 * `fire_wk_step`: `fire gS = fire st`, `fire st = ok (Y, aY)` with `TInv Y`, `FireStop` at `Y`, `ksb` / `cpu`
-  kept and the action at `Y` `RESUME_CURRENT` or a thread.
+  kept, the action at `Y` `RESUME_CURRENT` or the woken thread `w`, and `FwKeep X Y w`.
 
 No named premises.
 -/
@@ -33,6 +34,17 @@ theorem node_not_tw {X : S} {Xs : Set U64} {Q : U64 → U64 → List U64} {Rq : 
   · by_cases hcc : c = L.cpu X
     · subst hcc; exact nodeAt_ne hN ho (by rcases ho' with h | h <;> omega) (by rcases ho' with h | h <;> omega) e
     · exact nodeAt_ne_cpu hN (hq.nodes c hc) ho (by rcases ho' with h | h <;> omega) (Ne.symm hcc) e
+
+/-- **What the waking fire step keeps** from its start `X` to its end `Y`: `WkKeep` and also the timer words
+(`TIMER_ROOT` 104 / `TIMER_MIN` 112 and the threads' timer fields 3528–3568), which `remove` writes. -/
+def FwKeep (st : machine.Store S) [L : LawfulStore st] (T Scs : Set U64) (Z : U64 → Nat) (X Y : S) (w : U64) :
+    Prop :=
+  (∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → o.val ≠ 104 → o.val ≠ 112 →
+    L.mem Y (L.nodeAt X (L.cpu X) o) = L.mem X (L.nodeAt X (L.cpu X) o)) ∧
+  (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) → K.val ≠ 3496 →
+    K.val ≠ 3504 → (y = w → K.val ≠ 3328 ∧ K.val ≠ 256 ∧ K.val ≠ 3376) →
+    L.mem Y (core.num.U64.wrapping_add y K) = L.mem X (core.num.U64.wrapping_add y K)) ∧
+  (∀ c ∈ Scs, c ≠ L.mem X (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem X b)
 
 end
 
@@ -82,7 +94,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     (hrmg : timer.remove gS X TM = timer.remove st X TM) :
     ∃ Y aY, timer.fire st ar X a = ok (Y, aY) ∧ timer.fire gS ar X a = timer.fire st ar X a ∧
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac Y ∧ FireStop st R Y now ∧ L.ksb Y = L.ksb s ∧ L.cpu Y = L.cpu s ∧
-      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) := by
+      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Scs Z X Y w := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, -, hXX, -, -⟩ := hTX
   have hN := hq.nodes _ hq.cur
@@ -112,7 +124,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     hac1 (hwk X1 w31) rN wN rL wL rS wS lkL hLk nRW rCD hSW
   obtain ⟨⟨X2, a2⟩, eX2, -⟩ := spec_ex_fd
     (notification.send_signal.tagree hA X1 a N (L.mem X (tbA TM)) hT1 hNN (hNt N hNN) BA1.1 BA1.2)
-  obtain ⟨T2, -, k2, c2, w, hwT, act2⟩ := ssig X2 a2 eX2
+  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp⟩ := ssig X2 a2 eX2
   have hsg : (if L.mem X1 (boundA TM) != 0#u64 then
       notification.send_signal st ar X1 a (L.mem X1 (boundA TM)) (L.mem X (tbA TM)) else ok (X1, a)) =
       ok (X2, a2) := by
@@ -157,7 +169,29 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     unfold LawfulStore.actionW
     rw [nodeAt_of_ksb (L.ksb_wr _ _ _), LawfulStore.cpu_wr]
     exact mem_wr_ne' aRP aSA nRA
-  refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2⟩
+  have hT := hq.tcbs
+  have kY : FwKeep st T Scs Z X (L.wr X2 (L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM) 1#u64) w := by
+    have eRP : L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM = L.nodeAt X (L.cpu X) layout.node.REPROGRAM := by
+      rw [e2N, eXN]
+    have e1X : ∀ o, L.nodeAt X1 (L.cpu X1) o = L.nodeAt X (L.cpu X) o := fun o => by
+      rw [cX1, nodeAt_of_ksb kX1, eXN]
+    refine ⟨fun o ho h8 h16 h56 h104 h112 => ?_, fun y hy K hK h8 hK' h1 h2 hyw => ?_,
+      fun c hc hne b hb hin => ?_⟩
+    · rw [mem_wr_ne' aRP (nodeAt_aligned hN ho h8) (by
+          rw [eRP]; exact nodeAt_ne hN (by simp [layout.node.REPROGRAM]) ho (by simp [layout.node.REPROGRAM]; omega)),
+        ← e1X o, kp.1 o ho h8 h16 h56, e1X o]
+      exact w31.mem_eq (nodeAt_aligned hN ho h8) (node_not_tw hq ho h104 h112)
+    · have hy' := hT y hy
+      rw [mem_wr_ne' aRP (field_aligned hy' hK h8) (by
+          rw [eRP]; exact node_ne_field hN (by simp [layout.node.REPROGRAM]) hy hy' hK),
+        kp.2.1 y hy K hK h8 h1 h2 hyw]
+      exact tk1 y hy K hK h8 hK'
+    · have ho := hq.omega b (hXX.1.scW c hc b hb hin)
+      have e3 : L.mem X1 (scA w) = L.mem X (scA w) := tk1 w hwT 3464#u64 (by simp) (by simp) (Or.inl (by simp))
+      rw [mem_wr_ne' aRP hb (fun e => out_ne_node (o := layout.node.REPROGRAM) ho hq.cur hN (by simp [layout.node.REPROGRAM]) (by rw [← eRP, e])),
+        kp.2.2 c hc (by rw [e3]; exact hne) b hb hin]
+      exact w31.mem_eq hb (out_not_tw hT hq.nodes ho)
+  refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2, kY⟩
   · rw [L.ksb_wr]; exact k2.trans kX1
   · rw [LawfulStore.cpu_wr]; exact c2.trans cX1
 
