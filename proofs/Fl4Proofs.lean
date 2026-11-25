@@ -1498,4 +1498,6 @@ import Fl4Proofs.P3.XTopJointKEntryU29D
 import Fl4Proofs.P1.LocalTimer
 import Fl4Proofs.P1.LocalVmExit
 import Fl4Proofs.P1.LocalVmEnter
+import Fl4Proofs.P1.LocalVmDecNP
+import Fl4Proofs.P1.LocalVmInvoke
 import Fl4Proofs.P3.XTopJointKEntryU29T
