@@ -1,6 +1,7 @@
 import Fl4Proofs.P1.VcpuExitBuf
 import Fl4Proofs.P2.VcpuExitJ
 import Fl4Proofs.P2.VcpuExitV
+import Fl4Proofs.P2.VcpuExitI
 #print axioms Fl4Proofs.P1.handle_vcpu_exit_split
 #print axioms Fl4Proofs.P1.vexit_check
 #print axioms Fl4Proofs.P1.vexit_pre.bxi
@@ -42,3 +43,26 @@ import Fl4Proofs.P2.VcpuExitV
 #print axioms Fl4Proofs.P2.Stall.vm_timer_local.entryV
 #print axioms Fl4Proofs.P2.Stall.syscall.handle_vcpu_exit.entryJ2
 #print axioms Fl4Proofs.P2.Stall.vcpu_exit_local.entryJ2
+#print axioms Fl4Proofs.P2.Stall.irqW_off
+#print axioms Fl4Proofs.P2.Stall.IrqFr.trans
+#print axioms Fl4Proofs.P2.Stall.irqNtAt_fr
+#print axioms Fl4Proofs.P2.Stall.KgW.not_kwB
+#print axioms Fl4Proofs.P2.Stall.irqFr_footB
+#print axioms Fl4Proofs.P2.Stall.irqFr_footB0
+#print axioms Fl4Proofs.P2.Stall.vcpu.report.vckN
+#print axioms Fl4Proofs.P2.Stall.vcpu.check.vckN
+#print axioms Fl4Proofs.P2.Stall.irqFr_vckN
+#print axioms Fl4Proofs.P2.Stall.vexit_checkQ
+#print axioms Fl4Proofs.P2.Stall.TmoIbVI.v
+#print axioms Fl4Proofs.P2.Stall.TmoIbVI.gb
+#print axioms Fl4Proofs.P2.Stall.sched.check_budget.irq
+#print axioms Fl4Proofs.P2.Stall.vexit_pre.irq
+#print axioms Fl4Proofs.P2.Stall.vexit_hI
+#print axioms Fl4Proofs.P2.Stall.syscall.handle_vcpu_exit.entryI
+#print axioms Fl4Proofs.P2.Stall.vm_timer_local.entryI
+#print axioms Fl4Proofs.P2.Stall.irqNtAt_of_JAtZ
+#print axioms Fl4Proofs.P2.Stall.irqOff_of_JAtZ
+#print axioms Fl4Proofs.P2.Stall.vexitEntI_of_reachU17
+#print axioms Fl4Proofs.P2.Stall.syscall.handle_vcpu_exit.entryJ3
+#print axioms Fl4Proofs.P2.Stall.syscall.handle_vcpu_exit.entryJ3s
+#print axioms Fl4Proofs.P2.Stall.vm_timer_local.entryJ3
