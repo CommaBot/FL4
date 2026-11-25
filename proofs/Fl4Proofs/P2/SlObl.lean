@@ -29,8 +29,8 @@ Premises:
 * `huf` [J] (`PathSide.user_free`).
 
 `sl_pathObl_dr` / `sl_pathSide_dr` discharge `hna` / `hra` (`sl_hna`, `sl_hra`) from one
-per-state premise, `DecRd` [W]: a run declining at the entry state reads only `SlRS s` and
-writes only `SlDS s`; then at every alternative the guarded run agrees (`interp_agree`) and so
+per-state premise, `DecRd` [W] (as stated false when the receiver / replied thread is on another core: see
+`DecRd`): a run declining at the entry state reads only `SlRS s` and writes only `SlDS s`; then at every alternative the guarded run agrees (`interp_agree`) and so
 declines with the same flag; `hra` also uses P0 totality (`StoreTotal` [P]).
 -/
 import Fl4Proofs.P2.DecSl
@@ -233,10 +233,19 @@ theorem sl_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.
   · exact hra s s' a r hE Al hac h
 
 /-- `DecRd` [W]: a run declining at the entry state `s` reads only words of `SlRS s` and writes
-only the prefix words `SlDS s` (it succeeds the same on `guard st (SlRS s) (SlDS s)`). Sound by
-the glue: before the fast path reads an endpoint or reply object it holds its lock
-(`fl4-sync` `local_syscall`), the handler's `AFFINITY` (gate-owned, so in `RPerm`) is checked
-first (`schedulable_here`), and the other words read are the current thread's and the core's. -/
+only the prefix words `SlDS s` (it succeeds the same on `guard st (SlRS s) (SlDS s)`).
+**Not true in every reachable state as stated** (finding, p2sl13): both arms read words of a
+thread that may be homed on another core (owner `.core` of that core, so not in `SlRS s`)
+before `schedulable_here` checks its `AFFINITY`: `fastpath.fault` reads the receiver's
+`REPLY_OBJ` (`obj.Tcb.reply_obj`, the home core's by OwnMap v4) and declines if it is 0;
+`fastpath.reply_recv_found` reads the replied thread's `STATE`, `fault_type` and `SC`
+(`obj.Tcb.state` / `fault_type` / `sc` of `Reply.tcb`) and declines on them. E.g. a thread of
+core 1 with a cap fault blocked on a reply object of core 0's handler, which calls ReplyRecv:
+the run declines at `fault_type ≠ UnknownSyscall` after reading core 1's words. Holds when
+the receiver / replied thread is on this core; otherwise those runs decline at
+`schedulable_here` whatever the earlier reads give (its `AFFINITY` is gate-owned, in `SlRS`).
+Either move `schedulable_here` before those reads in fl4-core, or prove `hna` by a case
+split on that `AFFINITY`. -/
 def DecRd (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) : Prop :=
   ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
     syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found = ok r
