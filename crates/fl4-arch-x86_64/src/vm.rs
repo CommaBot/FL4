@@ -6,8 +6,11 @@
 //! is saved before remote calls can move/delete it; the hardware VMCS never
 //! migrates or belongs to user memory. EPT translations survive entries;
 //! unmaps and root deletion invalidate every core recorded for the root.
-//! VMX uses no VPID. SVM retains ASID 1 only for the last VCPU/root on a
-//! core; migration, software paging changes and invalidation revoke it.
+//! VMX tags guest translations with VPID 1 when the CPU can invalidate it
+//! (`vpid_mode`), as SVM does with ASID 1: either is retained only for the
+//! last VCPU/root on a core; migration, software paging changes and
+//! invalidation revoke it. VPID 0 (the host's and every native address
+//! space's) is then no longer flushed at each VM entry and exit.
 use crate::{cpu, fpu, percpu, spec, tlb};
 use core::arch::asm;
 use core::cell::UnsafeCell;
@@ -112,6 +115,64 @@ const SVM_CACHED: &[(u64, u64)] = &[
     (0x4c8, 8),
     (0x640, 9),
 ];
+/// VPID 1 on this core (`vpid_mode` nonzero): which VCPU and EPT root its
+/// translations are of, as `SvmState` for ASID 1. The VCPU's owner word
+/// (`vcpu::SVM_CPU`) distinguishes migration and retype at the same
+/// address; core policy also clears it for explicit TLB flushes and
+/// software writes of the guest's paging registers.
+struct VmxVpidState {
+    vcpu: u64,
+    root: u64,
+    valid: bool,
+}
+impl VmxVpidState {
+    const fn new() -> Self {
+        Self { vcpu: 0, root: 0, valid: false }
+    }
+    /// Whether VPID 1 must be invalidated before entering `vcpu` on
+    /// `root`, whose owner word is `owner`, on core `cpu`.
+    fn prepare(&mut self, vcpu: u64, root: u64, owner: u64, cpu: u64) -> bool {
+        let flush = !self.valid || self.vcpu != vcpu || self.root != root || owner != cpu + 1;
+        self.vcpu = vcpu;
+        self.root = root;
+        // A failed entry need not have run the guest on what was flushed;
+        // the next one flushes again.
+        self.valid = false;
+        flush
+    }
+}
+
+/// How VMX tags guest translations, from IA32_VMX_PROCBASED_CTLS2 (`secondary`,
+/// allowed-1 settings in bits 63:32) and IA32_VMX_EPT_VPID_CAP (`ept`):
+/// 0, no VPID (each entry and exit flushes VPID 0, the host's own);
+/// 1, VPID 1 invalidated with single-context INVVPID (type 1); 2, with
+/// all-context INVVPID (type 2, every VPID but 0). Both leave VPID 0's
+/// translations alone. VPID needs "enable VPID" (secondary bit 5) and
+/// INVVPID (EPT_VPID_CAP bit 32) with one of those types (bits 41, 42);
+/// the single-context-retaining-globals type (bit 43) is never used: a
+/// guest's global translations must not survive another VCPU's entry.
+fn vpid_mode(secondary: u64, ept: u64) -> u64 {
+    if (secondary >> 32) & (1 << 5) == 0 || ept & (1 << 32) == 0 {
+        0
+    } else if ept & (1 << 41) != 0 {
+        1
+    } else if ept & (1 << 42) != 0 {
+        2
+    } else {
+        0
+    }
+}
+
+/// INVVPID of `kind` (1 or 2, `vpid_mode`) for VPID 1: the descriptor's
+/// bits 63:16 must be zero (SDM Vol. 3 INVVPID), and type 2 ignores the
+/// VPID.
+fn invvpid(kind: u64) {
+    let descriptor: [u64; 2] = [if kind == 1 { 1 } else { 0 }, 0];
+    unsafe {
+        asm!("invvpid {kind}, [{ptr}]", kind=in(reg) kind, ptr=in(reg) descriptor.as_ptr(), options(nostack));
+    }
+}
+
 impl SvmState {
     const fn new() -> Self {
         Self {
@@ -202,6 +263,7 @@ struct Core {
     host: Page,
     vmcs: Page,
     vmx: VmcsState,
+    vmx_vpid: VmxVpidState,
     svm: SvmState,
     svm_host: SvmHost,
 }
@@ -215,6 +277,7 @@ static CORES: Cores = Cores(UnsafeCell::new(
             host: Page([0; 4096]),
             vmcs: Page([0; 4096]),
             vmx: VmcsState::new(),
+            vmx_vpid: VmxVpidState::new(),
             svm: SvmState::new(),
             svm_host: SvmHost { tls: None },
         }
@@ -237,6 +300,9 @@ static MAPS: Shared = Shared(UnsafeCell::new(Maps {
 static BACKEND: AtomicU64 = AtomicU64::new(0);
 static BASIC: AtomicU64 = AtomicU64::new(0);
 static EPT_CAP: AtomicU64 = AtomicU64::new(0);
+/// `vpid_mode` of the boot core, which every AP shares (`init_vmx` checks
+/// that APs have the same capability MSRs).
+static VPID_MODE: AtomicU64 = AtomicU64::new(0);
 static SVM_FEATURES: AtomicU64 = AtomicU64::new(0);
 static CAPS: [AtomicU64; 32] = [const { AtomicU64::new(0) }; 32];
 
@@ -530,6 +596,7 @@ fn init_vmx(bsp: bool) -> bool {
     if bsp {
         BASIC.store(basic, Ordering::Relaxed);
         EPT_CAP.store(ept, Ordering::Relaxed);
+        VPID_MODE.store(vpid_mode(cap(0x48b), ept), Ordering::Relaxed);
     } else if BASIC.load(Ordering::Relaxed) != basic || EPT_CAP.load(Ordering::Relaxed) != ept {
         return false;
     }
@@ -609,6 +676,10 @@ pub fn invalidate_local(root: u64) {
     if backend() != 1 {
         return;
     }
+    // INVEPT below removes this root's guest-physical and combined
+    // translations for every VPID. Forget VPID 1 too: a root destroyed
+    // and retyped at the same address must not find its old owner's.
+    local().vmx_vpid.valid = false;
     let eptp = physical(root) | 6 | (3 << 3);
     let descriptor = [eptp, 0];
     let kind: u64 = if EPT_CAP.load(Ordering::Relaxed) & (1 << 25) != 0 {
@@ -770,9 +841,16 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
             assert!(vmclear(pa) && vmptrld(pa));
             local().vmx.loaded = true;
         }
+        let vpid = VPID_MODE.load(Ordering::Relaxed);
         for field in vcpu::WRITE_FIELDS {
             if vmcs_field_exists(field, capability) {
-                vmwrite(field, vcpu::read_vmcs(s, v, field));
+                vmwrite(field, secondary_with_vpid(field, vcpu::read_vmcs(s, v, field), vpid));
+            }
+        }
+        if vpid != 0 {
+            vmwrite(CONTROL_VPID, 1);
+            if local().vmx_vpid.prepare(v, root, vcpu::get(s, v, vcpu::SVM_CPU), s.cur_cpu()) {
+                invvpid(vpid);
             }
         }
         vmwrite(CONTROL_PAGE_FAULT_MASK, 0);
@@ -917,11 +995,18 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
         };
         valid = local().vmx.finish_entry(run.failed != 0, raw);
         local().vmx.observe(HOST_RSP, run.host_rsp);
+        if valid && VPID_MODE.load(Ordering::Relaxed) != 0 {
+            local().vmx_vpid.valid = true;
+            vcpu::set(s, v, vcpu::SVM_CPU, s.cur_cpu() + 1);
+        }
         for field in vcpu::READ_FIELDS {
             // Undefined exit fields must not expose another VCPU's last
             // exit from this core's reusable VMCS.
             let value = if field & 0xc00 == 0x400 || !vmcs_field_exists(field, capability) {
                 0
+            } else if field == CONTROL_SECONDARY_PROCESSOR_CONTROLS {
+                // "Enable VPID" is the kernel's, never the VMM's.
+                vmread(field) & !VPID_ENABLE
             } else {
                 vmread(field)
             };
@@ -1048,6 +1133,21 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     }
 }
 
+/// Secondary processor-based control 5, "enable VPID".
+const VPID_ENABLE: u64 = 1 << 5;
+
+/// The value `run` loads into VMCS `field` from the VCPU's image `value`:
+/// the secondary controls with "enable VPID" when the kernel uses VPIDs
+/// (`vpid` from `vpid_mode`). The image never holds that bit (fl4-core
+/// `sanitize_vmcs` keeps it out, and `run` masks it from what it reads back).
+fn secondary_with_vpid(field: u64, value: u64, vpid: u64) -> u64 {
+    if field == CONTROL_SECONDARY_PROCESSOR_CONTROLS && vpid != 0 {
+        value | VPID_ENABLE
+    } else {
+        value
+    }
+}
+
 /// `run`'s result for an exit no host interrupt caused: told apart from a
 /// delivered vector, so that the exit path asks the local APIC nothing
 /// (an ISR read is itself an exit under a hypervisor, on every guest exit).
@@ -1142,6 +1242,70 @@ mod tests {
         }
         state.valid = false; // Local or remote nested invalidation.
         assert!(state.prepare(0x4000, 0x3000, 1, 0));
+    }
+
+    /// VPID only with "enable VPID" and INVVPID of type 1 or 2; type 1
+    /// (one VPID) preferred; never type 3 alone.
+    #[test]
+    fn vpid_mode_needs_enable_vpid_and_a_usable_invvpid() {
+        let sec = 1u64 << (32 + 5);
+        let invvpid = 1u64 << 32;
+        let (single, all, globals) = (1u64 << 41, 1u64 << 42, 1u64 << 43);
+        for (secondary, ept, mode) in [
+            (0, invvpid | single | all, 0),         // No "enable VPID".
+            (u64::MAX & !sec, u64::MAX, 0),         // Every other control.
+            (sec, single | all, 0),                 // No INVVPID.
+            (sec, invvpid, 0),                      // INVVPID of no type.
+            (sec, invvpid | single, 1),
+            (sec, invvpid | all, 2),
+            (sec, invvpid | single | all, 1),
+            (sec, invvpid | globals, 0),            // Retaining globals only.
+            (sec, invvpid | globals | all, 2),
+            (u64::MAX, u64::MAX, 1),
+            (sec & 0xffff_ffff_0000_0000, (1 << 6) | invvpid | single, 1),
+        ] {
+            assert_eq!(vpid_mode(secondary, ept), mode, "{secondary:#x} {ept:#x}");
+        }
+        // The allowed-0 half (bits 31:0) is not what allows the control.
+        assert_eq!(vpid_mode(1 << 5, invvpid | single), 0);
+    }
+
+    #[test]
+    fn vpid_reuse_requires_the_same_live_owner_and_completed_entry() {
+        let mut state = VmxVpidState::new();
+        assert!(state.prepare(0x1000, 0x2000, 0, 0)); // First entry.
+        assert!(state.prepare(0x1000, 0x2000, 1, 0)); // Failed entry.
+        state.valid = true;
+        assert!(!state.prepare(0x1000, 0x2000, 1, 0));
+        state.valid = true;
+        assert!(!state.prepare(0x1000, 0x2000, 4, 3)); // Owner is this core.
+        for (v, root, owner, cpu) in [
+            (0x1000, 0x2000, 2, 0), // Migrated away and back.
+            (0x1000, 0x2000, 0, 0), // Retype, FlushTLB, paging write, detach.
+            (0x1000, 0x3000, 1, 0), // Replaced EPT root.
+            (0x4000, 0x3000, 1, 0), // Another VCPU sharing that root.
+            (0x4000, 0x3000, 1, 1), // Same VCPU and root, another core's.
+        ] {
+            state.valid = true;
+            assert!(state.prepare(v, root, owner, cpu));
+        }
+        state.valid = false; // Local or remote EPT invalidation.
+        assert!(state.prepare(0x4000, 0x3000, 1, 0));
+    }
+
+    /// "Enable VPID" goes to the hardware secondary controls only, only
+    /// when the kernel uses VPIDs, and never into another field.
+    #[test]
+    fn enable_vpid_is_added_to_the_secondary_controls_only() {
+        let image = 0x82; // EPT and unrestricted guest, as sanitized.
+        assert_eq!(secondary_with_vpid(CONTROL_SECONDARY_PROCESSOR_CONTROLS, image, 0), image);
+        for mode in [1, 2] {
+            assert_eq!(secondary_with_vpid(CONTROL_SECONDARY_PROCESSOR_CONTROLS, image, mode), image | VPID_ENABLE);
+            assert_eq!(secondary_with_vpid(CONTROL_PRIMARY_PROCESSOR_CONTROLS, 0, mode), 0);
+            assert_eq!(secondary_with_vpid(CONTROL_VPID, 0, mode), 0);
+        }
+        // The VPID field has a VMCS cache slot of its own.
+        assert!(!vcpu::WRITE_FIELDS.iter().any(|&f| VmcsState::index(f) == VmcsState::index(CONTROL_VPID)));
     }
 
     #[test]

@@ -42,7 +42,19 @@ below. FL4 does not install firmware/microcode updates.
   `UNTRAIN_RET_VM` (`check_vm_asm.py` checks both). ITS-affected Intel parts
   and SRSO-affected AMD parts without Safe RET keep the IBPB. The core then
   owes the IBPB to its next switch to
-  an address space other than the one that entered the guest (`tlb::switch`).
+  an address space other than the one that entered the guest (`tlb::switch`,
+  `spec::ibpb_plan`). A switch to the kernel's own root (ASID 0: the idle
+  thread, a thread without a valid VSpace, a core leaving a deleted ASID)
+  does not pay it: that root maps nothing of user space, so no user code
+  meets the guest's predictions there, and the kernel's branches are out of
+  their reach (the condition for deferring at all). The debt stays: a halted
+  HVM guest whose core idles and is woken back into the same monitor costs
+  no IBPB, and any other address space still pays it first. So does the
+  monitor's own if its PCID is flushed on the way back (its ASID's
+  generation moved or another ASID took the PCID slot), since the ASID may
+  have been deleted and reused by another domain at the same root address;
+  without PCIDs every such switch flushes, so the IBPB comes at the wakeup
+  instead of at idle.
   Only the holder's address space is left without it, which suits a monitor
   whose address space is its guest's alone (l4h's HVM monitor holds guest RAM,
   the guest's I/O buffers and rings, and its own state). Linux's vmscape IBPB
@@ -50,6 +62,20 @@ below. FL4 does not install firmware/microcode updates.
   every other address space gets the IBPB first. A VMM sharing its address
   space with other data (a guest kernel's KVM) does not opt in. SMT siblings
   are isolated by STIBP or parked.
+* Guest translations are tagged on both backends, never with the host's
+  tag: SVM ASID 1 and, where the CPU has INVVPID of type 1 or 2, VMX VPID 1
+  (`vm::vpid_mode`; the globals-retaining type 3 is never used). Each core
+  keeps them only for the last VCPU and nested root it ran, and only while
+  the VCPU's owner word (`SVM_CPU`) names that core: a different VCPU or
+  root, a migration, retype, `X86VCPUFlushTLB`, a software write of the
+  guest's CR0/CR3/CR4/EFER/PAT (WriteVMCS or WriteVMCB), unbinding the VCPU,
+  an EPT invalidation on the core, or a failed entry flushes them
+  (single-context INVVPID of VPID 1, or all-context, which spares VPID 0)
+  before the next entry. "Enable VPID" is the kernel's: `sanitize_vmcs`
+  refuses it to the VMM, and the backend sets it on entry and hides it from
+  ReadVMCS. With VPID 1 in use, VM entries and exits no longer flush VPID 0,
+  so the host kernel's and native threads' PCIDs keep their translations
+  across guest runs on the core.
 * Intel eIBRS stays enabled. Without eIBRS, legacy IBRS is reasserted with a
   fresh WRMSR at each boundary, even if already set, and VM exit fills the RSB.
   Affected eIBRS CPUs use the PBRSB CALL/stack-adjust/LFENCE sequence.

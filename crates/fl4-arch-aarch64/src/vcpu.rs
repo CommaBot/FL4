@@ -661,6 +661,13 @@ fn owner_core(vcpu: u64) -> Option<usize> {
     }
 }
 
+/// Whether `vcpu`'s hardware state is live on a core other than this one:
+/// then `flush` would make a remote call, which only the gate holder may
+/// (a local path beside the gate leaves such a VCPU to the gate).
+pub fn live_elsewhere(vcpu: u64) -> bool {
+    matches!(owner_core(vcpu), Some(c) if c != percpu::cpu_index())
+}
+
 /// Flush `vcpu`'s live hardware state on whichever core owns it, and release
 /// ownership. Caller holds the serial gate when another core owns it.
 pub fn flush(vcpu: u64) {

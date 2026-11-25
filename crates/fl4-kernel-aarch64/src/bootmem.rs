@@ -1,6 +1,7 @@
 //! Physical memory at boot: RAM and device ranges from the loader's memory
-//! map. No kernel dependencies but `Region`, so the host tests include
-//! this file too (xtask/tests/aarch64_boot.rs).
+//! map. No kernel dependencies but `Region` and the boot record's types,
+//! so the host tests include this file too (xtask/tests/aarch64_boot.rs).
+use fl4_bootinfo::{mem, MemRegion};
 use fl4_core::boot::Region;
 
 const PAGE: u64 = 4096;
@@ -89,6 +90,45 @@ impl Ranges {
         }
         None
     }
+}
+
+/// What the memory map says, in whole pages below `pa_top` (what the
+/// processor addresses).
+pub struct MemLists {
+    /// Write-back RAM, free or the firmware's, in the window (below
+    /// `window_top`): what the window maps.
+    pub ram: Ranges,
+    /// Free write-back RAM in the window: what boot hands out as memory.
+    pub usable: Ranges,
+    /// The part of `usable` the loader zeroed.
+    pub zeroed: Ranges,
+    /// Free write-back RAM anywhere below `pa_top`, in the window or not:
+    /// never device memory, though what is past the window is not handed
+    /// out at all.
+    pub all_usable: Ranges,
+}
+
+pub fn classify(mmap: &[MemRegion], window_top: u64, pa_top: u64) -> MemLists {
+    let mut l = MemLists { ram: Ranges::new(), usable: Ranges::new(), zeroed: Ranges::new(), all_usable: Ranges::new() };
+    for e in mmap {
+        let wb = e.cacheable & 1 != 0;
+        if wb && e.kind == mem::FREE {
+            if let Some((start, end)) = entry_pages(e.base, e.len, pa_top) {
+                l.all_usable.add(start, end);
+            }
+        }
+        let Some((start, end)) = entry_pages(e.base, e.len, window_top.min(pa_top)) else { continue };
+        if wb && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
+            l.ram.add(start, end);
+        }
+        if wb && e.kind == mem::FREE {
+            l.usable.add(start, end);
+            if e.cacheable & mem::ZEROED != 0 {
+                l.zeroed.add(start, end);
+            }
+        }
+    }
+    l
 }
 
 /// The whole pages of a memory map entry of `len` bytes at `base`, below

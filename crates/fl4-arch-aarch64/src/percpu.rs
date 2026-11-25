@@ -52,13 +52,18 @@ pub struct PerCpu {
     pub iar: Cell<u64>,
     /// Pointer authentication (pac.rs): the TCB and key generation whose
     /// keys this core's key registers hold (0: none, the APGA key all
-    /// zero), and the SCTLR_EL1 enables it runs with.
+    /// zero), the SCTLR_EL1 enables it runs with, and the cached 10 key
+    /// words currently loaded in hardware so threads sharing keys skip MSRs.
     pub pac_owner: Cell<u64>,
     pub pac_epoch: Cell<u64>,
     pub pac_flags: Cell<u64>,
+    pub pac_keys: Cell<[u64; 10]>,
+    pub pac_keys_valid: Cell<bool>,
     /// The high window (mmu.rs `switch_high`): the one `ArmHighVSpace`
-    /// (TTBR1 value) whose translations this core's TLB may hold, and the
-    /// TTBR0 ASID they are tagged with (both 0: none).
+    /// (TTBR1 value, any physical address, 0 included) whose translations
+    /// this core's TLB may hold, and the TTBR0 ASID they are tagged with.
+    /// `high_asid` 0: no pair (ASID 0 never has a window), whatever
+    /// `high_ttbr1` says.
     pub high_ttbr1: Cell<u64>,
     pub high_asid: Cell<u64>,
     /// `mmu::HIGH_GEN` as this core's `switch_high` last saw it.
@@ -87,6 +92,8 @@ impl PerCpu {
             pac_owner: Cell::new(0),
             pac_epoch: Cell::new(0),
             pac_flags: Cell::new(0),
+            pac_keys: Cell::new([0; 10]),
+            pac_keys_valid: Cell::new(false),
             high_ttbr1: Cell::new(0),
             high_asid: Cell::new(0),
             high_gen: Cell::new(0),
@@ -108,8 +115,9 @@ struct Shared {
     vcpu_owner: AtomicU64,
     /// The user address space this core runs (TTBR0_EL1 value).
     ttbr0: AtomicU64,
-    /// The TTBR1_EL1 value this core runs (0 before its first switch: the
-    /// kernel's, from boot).
+    /// The TTBR1_EL1 value this core runs (`TTBR1_UNSET` before its first
+    /// switch: the kernel's, from boot; a TTBR1 value, a window's physical
+    /// address, may be 0).
     ttbr1: AtomicU64,
     /// The Stage-2 root+VMID this core runs (VTTBR_EL2 value).
     vttbr: AtomicU64,
@@ -128,7 +136,7 @@ static SHARED: [Shared; MAX_CPUS] = [const {
         fpu_owner: AtomicU64::new(0),
         vcpu_owner: AtomicU64::new(0),
         ttbr0: AtomicU64::new(0),
-        ttbr1: AtomicU64::new(0),
+        ttbr1: AtomicU64::new(TTBR1_UNSET),
         vttbr: AtomicU64::new(0),
         s2_asid: AtomicU64::new(0),
         mpidr: AtomicU64::new(0),
@@ -236,9 +244,15 @@ pub fn set_ttbr0(v: u64) {
 
 /// The TTBR1_EL1 value core `c` runs (mmu.rs `invalidate_high_vspace`:
 /// sequentially consistent, as `ttbr0`).
-pub fn ttbr1(c: usize) -> u64 {
-    SHARED[c].ttbr1.load(Ordering::SeqCst)
+pub fn ttbr1(c: usize) -> Option<u64> {
+    match SHARED[c].ttbr1.load(Ordering::SeqCst) {
+        TTBR1_UNSET => None,
+        v => Some(v),
+    }
 }
+
+/// No TTBR1 published yet: not a TTBR1 value (those are page aligned).
+const TTBR1_UNSET: u64 = u64::MAX;
 
 pub fn set_ttbr1(v: u64) {
     SHARED[cpu_index()].ttbr1.store(v, Ordering::SeqCst);

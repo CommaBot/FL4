@@ -362,15 +362,45 @@ pub(crate) fn vm_ibpb_deferred() -> bool {
         .is_some_and(|p| policy::vm_ibpb_deferrable(&p, FL4_SAFE_RET.load(Ordering::Acquire)))
 }
 
-/// The IBPB a deferred VM exit owes, before the core runs address space
-/// `cr3` (with its PCID tag): unless it is the guest's own.
+/// The IBPB a deferred VM exit owes (`guest_bp`, the address space and
+/// PCID tag the guest's monitor ran, or 0), before the core runs address
+/// space `target` (with its PCID tag) of ASID `asid`, whose switch flushes
+/// that PCID if `flush`: whether to issue it now, and what is owed after.
+///
+/// Not for ASID 0, the kernel's own root (`set_kernel_vm_root`: the idle
+/// thread, a thread without a valid VSpace, a core leaving a deleted
+/// ASID), which maps nothing of user space: no user code runs there to
+/// meet the guest's predictions, and the kernel's own branches are out of
+/// their reach (the condition for deferring at all, `vm_ibpb_deferred`).
+/// The debt stays, so an HVM guest that halts, idles its core and is woken
+/// back into the same monitor costs no IBPB. Any other address space pays
+/// it first; so does the monitor's own if its PCID is flushed on the way
+/// back (`flush`: its ASID's generation moved, or the slot was taken by
+/// another ASID meanwhile): its ASID may have been deleted and reused by
+/// another domain at the same root address.
 #[inline(always)]
-pub(crate) fn vm_ibpb_before(cr3: u64) {
+pub(crate) fn ibpb_plan(guest_bp: u64, target: u64, asid: u64, flush: bool) -> (bool, u64) {
+    if asid == 0 || guest_bp == 0 {
+        (false, guest_bp)
+    } else if guest_bp != target || flush {
+        (true, 0)
+    } else {
+        (false, guest_bp)
+    }
+}
+
+/// `ibpb_plan` on this core: the IBPB a deferred VM exit owes, if any,
+/// before it runs `target` (`tlb::switch`).
+#[inline(always)]
+pub(crate) fn vm_ibpb_before(target: u64, asid: u64, flush: bool) {
     let pc = percpu::get();
     let g = pc.guest_bp.get();
-    if g != 0 && g != cr3 {
-        crate::cpu::wrmsr(0x49, 1);
-        pc.guest_bp.set(0);
+    if g != 0 {
+        let (ibpb, owed) = ibpb_plan(g, target, asid, flush);
+        if ibpb {
+            crate::cpu::wrmsr(0x49, 1);
+        }
+        pc.guest_bp.set(owed);
     }
 }
 pub fn skim() -> bool {
@@ -474,6 +504,42 @@ pub fn describe() -> Status {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The IBPB a deferred VM exit owes, through idle and back (`ibpb_plan`
+    /// as `tlb::switch` applies it, over a sequence of switches).
+    #[test]
+    fn deferred_ibpb_survives_idle_but_not_another_domain_or_a_reused_asid() {
+        const KERNEL: u64 = 0x1000 | 1; // ASID 0's tag.
+        let (vmm, other) = (0xa000 | 5, 0xb000 | 6);
+        // (target, asid, flush) switches after the exit; the IBPBs issued.
+        let run = |switches: &[(u64, u64, bool)]| {
+            let mut g = vmm;
+            let mut ibpbs = 0;
+            for &(target, asid, flush) in switches {
+                let (ibpb, owed) = ibpb_plan(g, target, asid, flush);
+                ibpbs += ibpb as u32;
+                g = owed;
+            }
+            (ibpbs, g)
+        };
+        // HVM -> idle -> the same monitor: none, still owed (the monitor runs
+        // its own address space).
+        assert_eq!(run(&[(KERNEL, 0, false), (vmm, 5, false)]), (0, vmm));
+        assert_eq!(run(&[(KERNEL, 0, true), (KERNEL, 0, false), (vmm, 5, false)]), (0, vmm));
+        // HVM -> idle -> another domain: one, then nothing owed.
+        assert_eq!(run(&[(KERNEL, 0, false), (other, 6, false), (vmm, 5, false)]), (1, 0));
+        assert_eq!(run(&[(KERNEL, 0, false), (other, 6, true)]), (1, 0));
+        // HVM -> idle -> the same (cr3, tag) on a flushed PCID: the ASID may
+        // be another domain's now.
+        assert_eq!(run(&[(KERNEL, 0, false), (vmm, 5, true)]), (1, 0));
+        // HVM -> another domain directly.
+        assert_eq!(run(&[(other, 6, false)]), (1, 0));
+        // The same root with another tag (ASID) is another address space.
+        assert_eq!(run(&[(0xa000 | 7, 7, false)]), (1, 0));
+        // Nothing owed: nothing issued.
+        assert_eq!(ibpb_plan(0, other, 6, true), (false, 0));
+        assert_eq!(ibpb_plan(0, KERNEL, 0, true), (false, 0));
+    }
 
     #[test]
     fn skim_window_fails_closed_for_unknown_vendors() {

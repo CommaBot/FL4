@@ -249,6 +249,23 @@ fn classify_irq_under_gate(raw: u64) -> Option<TakenIrq> {
 /// only by the gate holder and the gate was open. A timer the local path
 /// acknowledged and did not handle is handled by the serial path.
 fn timer_irq_local_or_serial() {
+    timer_irq_local_or_serial_with(
+        |s, a, irq| fl4_sync::local_timer_irq(s, a, &Phys, irq, |_, _| {}),
+        |s, a, taken| {
+            if let Some(TakenIrq::Normal(irq)) = taken {
+                syscall::handle_interrupt_entry(s, a, irq)
+            }
+        },
+    )
+}
+
+/// `timer_irq_local_or_serial` with `local_path` as the timer's local path
+/// once acknowledged, and `serial` for what the gate takes instead.
+#[inline(always)]
+fn timer_irq_local_or_serial_with(
+    local_path: impl Fn(&mut PhysStore, &mut PhysArch, u64) -> bool,
+    serial: impl Fn(&mut PhysStore, &mut PhysArch, Option<TakenIrq>),
+) {
     let tid = timer::timer_irq_id();
     let timer_irq = irq::of(tid, percpu::cpu_index() as u64);
     // The local path acknowledged the timer and declined it; or (not
@@ -285,7 +302,7 @@ fn timer_irq_local_or_serial() {
         }
         timer::quiesce();
         percpu::get().iar.set(raw);
-        if fl4_sync::local_timer_irq(s, a, &Phys, timer_irq, |_, _| {}) {
+        if local_path(s, a, timer_irq) {
             return true;
         }
         taken_timer.set(true);
@@ -299,9 +316,7 @@ fn timer_irq_local_or_serial() {
         } else {
             take_irq_under_gate()
         };
-        if let Some(TakenIrq::Normal(irq)) = taken {
-            syscall::handle_interrupt_entry(s, a, irq)
-        }
+        serial(s, a, taken)
     };
     fl4_sync::run_timer_irq(&KernelEnv, &GATE, local, body);
 }
@@ -338,8 +353,7 @@ fn fl4_entry_vcpu_run(
         // The VGIC maintenance and virtual timer PPIs are levels from the
         // VCPU's saved state, raised again when it next runs.
         let caller = sched::cur_thread(s);
-        run_entry(true, |s, a| {
-            let taken = take_irq_under_gate();
+        let serial = |s: &mut PhysStore, a: &mut PhysArch, taken: Option<TakenIrq>| {
             nvhe_quiesce(&taken);
             let owner = sched::cur_thread(s) == caller
                 && caller.state(s) == sched::TS_RUNNING_VM
@@ -351,7 +365,23 @@ fn fl4_entry_vcpu_run(
                 Some(TakenIrq::Vppi(irq_id)) if owner => syscall::handle_vcpu_run_vppi(s, a, irq_id),
                 Some(_) => {}
             }
-        });
+        };
+        // The kernel timer while the guest runs: first beside the gate
+        // (`fl4_sync::local_vm_timer_irq`), as for a native thread. Not
+        // under nVHE, whose exit quiesces the guest's timer and VGIC with
+        // what the gate's entry took (`nvhe_quiesce`).
+        if !cpu::is_el2_nvhe()
+            && smp::multi()
+            && gic::can_ack_timer_only()
+            && gic::highest_pending() == timer::timer_irq_id()
+        {
+            timer_irq_local_or_serial_with(
+                |s, a, irq| fl4_sync::local_vm_timer_irq(s, a, &Phys, irq, |_, _| {}),
+                serial,
+            );
+        } else {
+            run_entry(true, |s, a| serial(s, a, take_irq_under_gate()));
+        }
         exit()
     }
     if kind != KIND_SYNC {
@@ -365,7 +395,7 @@ fn fl4_entry_vcpu_run(
     }
     vcpu::record_exit_regs(run_v, far, eff_hpfar, esr);
     if ec == EC_IABT_LOW || ec == EC_DABT_LOW {
-        run_entry(false, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VMFAULT, esr, s2_ipa, far));
+        vcpu_run_exit(vcpu_run_stop::VMFAULT, (esr, s2_ipa, far), None);
     } else if ec == EC_HVC64 {
         // HVC is the one exit here that is not raised again when the guest
         // resumes: its ELR is already past the instruction. (A software
@@ -383,16 +413,38 @@ fn fl4_entry_vcpu_run(
         // longer the rewound one.
         let elr = guest_tcb.reg(s, reg::ELR_EL1);
         guest_tcb.set_reg(s, reg::ELR_EL1, elr.wrapping_sub(4));
-        run_entry(false, |s, a| {
-            if guest_tcb.reg(s, reg::ELR_EL1) == elr.wrapping_sub(4) {
-                guest_tcb.set_reg(s, reg::ELR_EL1, elr);
-            }
-            syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VCPUFAULT, esr, far, eff_hpfar)
-        });
+        vcpu_run_exit(vcpu_run_stop::VCPUFAULT, (esr, far, eff_hpfar), Some((guest_tcb, elr)));
     } else {
-        run_entry(false, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VCPUFAULT, esr, far, eff_hpfar));
+        vcpu_run_exit(vcpu_run_stop::VCPUFAULT, (esr, far, eff_hpfar), None);
     }
     exit()
+}
+
+/// `handle_vcpu_run_exit(stop, w)` for a synchronous exit of the current
+/// thread's `ARMVCPURun` guest: first beside the gate
+/// (`fl4_sync::local_arm_vcpu_run_exit`), then under it. For an HVC, `hvc`
+/// is the guest thread and the ELR past it, which the entry rewound to the
+/// HVC: either path moves it on again before `complete_run` (unless an
+/// invocation moved it meanwhile).
+fn vcpu_run_exit(stop: u64, w: (u64, u64, u64), hvc: Option<(Tcb, u64)>) {
+    let serial = |s: &mut PhysStore, a: &mut PhysArch| {
+        if let Some((g, elr)) = hvc {
+            if g.reg(s, reg::ELR_EL1) == elr.wrapping_sub(4) {
+                g.set_reg(s, reg::ELR_EL1, elr);
+            }
+        }
+        syscall::handle_vcpu_run_exit(s, a, stop, w.0, w.1, w.2)
+    };
+    let local = |s: &mut PhysStore, a: &mut PhysArch| fl4_sync::local_arm_vcpu_run_exit(s, a, &Phys, stop, w, hvc, |_, _| {});
+    // As a syscall's local path: a stall while it waits for the gate to
+    // open cancels the entry (the caller stays `TS_RUNNING_VM`, the guest
+    // re-raises its exit, an HVC's PC still rewound).
+    match fl4_sync::try_local(&KernelEnv, &GATE, local) {
+        fl4_sync::Local::Done | fl4_sync::Local::Stalled => {}
+        fl4_sync::Local::Closed | fl4_sync::Local::Declined => {
+            run_entry(false, serial);
+        }
+    }
 }
 
 /// Called by entry.S for every exception from EL0 or a guest EL1/EL0.
@@ -541,13 +593,38 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
     if ec == EC_SVC64 {
         // The local paths beside the serial gate (fl4_sync::run_syscall),
         // as on x86_64.
-        let local = |s: &mut PhysStore, a: &mut PhysArch| fl4_sync::local_syscall(s, a, &Phys, number, |_, _| {});
+        let local = |s: &mut PhysStore, a: &mut PhysArch| {
+            if number == fl4_abi::syscall::SysCall && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::ARMVCPURun {
+                fl4_sync::local_arm_vcpu_run(s, a, &Phys, number, vcpu_run_hw_ok, |_, _| {})
+            } else {
+                fl4_sync::local_syscall(s, a, &Phys, number, |_, _| {})
+            }
+        };
         let body = |s: &mut PhysStore, a: &mut PhysArch| dispatch_syscall(s, a, number);
         fl4_sync::run_syscall(&KernelEnv, &GATE, number, local, body);
     } else {
         run_entry(false, |s, a| dispatch(s, a, ec, esr, far, elr));
     }
     exit()
+}
+
+/// An `ARMVCPURun` of VCPU `vc`, bound to `guest`, may run beside the gate
+/// as far as this core's hardware goes (`fl4_sync::local_arm_vcpu_run`):
+/// not under nVHE; `vc`'s state is live on no other core, so the run's
+/// flush stays on this one; and the guest's Stage-2 root, if any, has a
+/// VMID already, so installing it allocates none (`mmu::hw_vmid_for`:
+/// allocation and its wrap-around are the gate's).
+fn vcpu_run_hw_ok(s: &PhysStore, vc: u64, guest: Tcb) -> bool {
+    if cpu::is_el2_nvhe() || vcpu::live_elsewhere(vc) {
+        return false;
+    }
+    match guest.slot(tl::SLOT_VTABLE).cap(s) {
+        fl4_core::capability::Cap::Ept { ptr, level: 0, mapped: true, asid, .. } => match fl4_core::ept::find(s, asid) {
+            Ok(r) if r == ptr => mmu::lookup_vmid(asid).is_some(),
+            _ => true,
+        },
+        _ => true,
+    }
 }
 
 /// `dispatch` for a syscall, through `handle_syscall_fast`: whether a fast
@@ -621,6 +698,27 @@ extern "C" fn fl4_kernel_fault(esr: u64, far: u64, elr: u64, sp: u64) -> ! {
     panic!("kernel exception: esr {:#x} far {:#x} elr {:#x} sp {:#x}", esr, far, elr, sp)
 }
 
+/// Whether `exit` must take the serial gate (and start over) on a core with
+/// several cores running: not holding it, with the address space this core
+/// ran gone stale (`set_vm_root` rebuilds it from caps a serial entry may be
+/// deleting), or with a thread in a VM whose `vcpu::check` did not run
+/// beside the gate (`checked`). The stale mark is read after that local
+/// check: a remote call serviced while it waited may have set it.
+const fn exit_takes_gate(multi: bool, gate_held: bool, vspace_stale: bool, checked: bool, running_vm: bool) -> bool {
+    multi && !gate_held && (vspace_stale || (!checked && running_vm))
+}
+
+// `exit_takes_gate`'s cases: (multi, gate held, stale, checked, running a VM).
+const _: () = {
+    assert!(exit_takes_gate(true, false, true, true, true), "stale, set while the local check waited");
+    assert!(exit_takes_gate(true, false, true, false, false));
+    assert!(exit_takes_gate(true, false, false, false, true), "a VM thread not checked beside the gate");
+    assert!(!exit_takes_gate(true, false, false, true, true), "checked beside the gate");
+    assert!(!exit_takes_gate(true, false, false, false, false), "a native thread, nothing stale");
+    assert!(!exit_takes_gate(true, true, true, false, true), "held already");
+    assert!(!exit_takes_gate(false, false, true, false, true), "one core: no gate");
+};
+
 /// Leave the kernel to the current thread (or the idle loop), giving up
 /// the serial gate.
 pub fn exit() -> ! {
@@ -644,10 +742,31 @@ pub fn exit() -> ! {
         // The thread itself is this core's until a remote stall is
         // acknowledged, which it is not before this core leaves the kernel.
         let ct = sched::cur_thread(s);
+        // Beside the gate when the check changes nothing
+        // (`fl4_sync::local_arm_vm_entry`: the notification locked while it
+        // is read, without a signal); the guest is then entered without the
+        // gate, as after the general path's release of it.
+        let mut checked = false;
         if smp::multi()
             && !pc.gate_held.get()
-            && (pc.vspace_stale.get() || ct.state(s) == sched::TS_RUNNING_VM)
+            && !pc.vspace_stale.get()
+            && ct.state(s) == sched::TS_RUNNING_VM
         {
+            match fl4_sync::try_local(&KernelEnv, &GATE, |s, _| fl4_sync::local_arm_vm_entry(s, &Phys)) {
+                fl4_sync::Local::Done => checked = true,
+                fl4_sync::Local::Stalled => continue,
+                fl4_sync::Local::Closed | fl4_sync::Local::Declined => {}
+            }
+        }
+        // `vspace_stale` read again: a remote call serviced while the local
+        // check waited for the gate may have set it.
+        if exit_takes_gate(
+            smp::multi(),
+            pc.gate_held.get(),
+            pc.vspace_stale.get(),
+            checked,
+            ct.state(s) == sched::TS_RUNNING_VM,
+        ) {
             settle_resume_point(s, ct);
             lock();
             continue;
@@ -665,7 +784,7 @@ pub fn exit() -> ! {
         // A signal pending on the bound notification ends the run
         // (`vcpu_run_stop::INTERRUPT`) before the guest is entered: the
         // thread then returns to its caller below, as a native one.
-        if ct.state(s) == sched::TS_RUNNING_VM {
+        if ct.state(s) == sched::TS_RUNNING_VM && !checked {
             fl4_core::vcpu::check(s, &mut a, ct);
         }
         // Page-table writes this entry made reach the table walkers of

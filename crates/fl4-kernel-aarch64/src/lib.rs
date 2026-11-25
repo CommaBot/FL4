@@ -16,7 +16,7 @@ use core::fmt::Write;
 use fl4_arch_aarch64::arch::PhysArch;
 use bootmem::Ranges;
 use fl4_arch_aarch64::{cpu, fpu, gic, percpu, serial, timer};
-use fl4_bootinfo::{mem, BootInfo, KERNEL_VBASE, MAGIC};
+use fl4_bootinfo::{BootInfo, KERNEL_VBASE, MAGIC};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -185,28 +185,16 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     let pa_top = (1u64 << cpu::pa_bits()).min(PADDR_USER_DEVICE_TOP);
 
     // RAM in the window: everything the memory map calls write-back memory.
-    let mut ram = Ranges::new();
-    let mut usable = Ranges::new();
-    let mut zeroed = Ranges::new();
-    for e in &bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)] {
-        let Some((start, end)) = bootmem::entry_pages(e.base, e.len, PADDR_TOP.min(pa_top)) else { continue };
-        let wb = e.cacheable & 1 != 0;
-        if wb && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
-            ram.add(start, end);
-        }
-        if wb && e.kind == mem::FREE {
-            usable.add(start, end);
-            if e.cacheable & mem::ZEROED != 0 {
-                zeroed.add(start, end);
-            }
-        }
-    }
+    // Free RAM past the window (all_usable) is neither handed out as
+    // free memory nor as device memory (`dev` below).
+    let bootmem::MemLists { ram, usable, mut zeroed, all_usable } =
+        bootmem::classify(&bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)], PADDR_TOP, pa_top);
     if zeroed.lost {
         zeroed = Ranges::new();
     }
     // RAM a full list left out would go to user space as device memory,
     // or be handed out as free memory the window does not map.
-    if ram.lost || usable.lost {
+    if ram.lost || usable.lost || all_usable.lost {
         fail("too many memory map ranges");
     }
     let mut window = [(0u64, 0u64); bootmem::MAX_RANGES];
@@ -550,8 +538,8 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     let mut dev = Ranges::new();
     dev.add(0, pa_top);
-    for i in 0..usable.n {
-        dev.remove(usable.r[i].start, usable.r[i].end);
+    for i in 0..all_usable.n {
+        dev.remove(all_usable.r[i].start, all_usable.r[i].end);
     }
     // A kernel device range the list lost would be user space's.
     if dev_used.lost {

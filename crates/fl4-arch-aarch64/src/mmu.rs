@@ -81,26 +81,113 @@ pub fn switch(root: u64, asid: u64) {
     switch_to(layout::paddr(root) | (asid << 48));
 }
 
-/// Run on TTBR0 value `v` (table address and ASID): `switch`, and the way
-/// back from `cache_op`'s detour, so that too follows the module comment.
-fn switch_to(v: u64) {
-    let me = percpu::cpu_index();
-    if percpu::ttbr0(me) != v {
+/// This core's MMU registers and per-CPU fields, for mmu_switch.rs.
+struct Real {
+    me: usize,
+    pc: &'static percpu::PerCpu,
+}
+
+impl Real {
+    #[inline(always)]
+    fn new() -> Real {
+        Real { me: percpu::cpu_index(), pc: percpu::get() }
+    }
+}
+
+impl crate::mmu_switch::Hw for Real {
+    #[inline(always)]
+    fn kernel_ttbr1(&self) -> Option<u64> {
+        kernel_ttbr1()
+    }
+    #[inline(always)]
+    fn ttbr0(&self) -> u64 {
+        percpu::ttbr0(self.me)
+    }
+    #[inline(always)]
+    fn ttbr1(&self) -> Option<u64> {
+        percpu::ttbr1(self.me)
+    }
+    #[inline(always)]
+    fn write_ttbr0(&mut self, v: u64) {
         crate::msr!("ttbr0_el1", v);
         cpu::isb();
     }
-    // Publish before reading the count (module comment); also when the
-    // value is unchanged, which costs one store.
-    percpu::set_ttbr0(v);
-    let g = ASID_GEN.load(Ordering::SeqCst);
-    // Also when the value is unchanged: a root freed and made again at
-    // the same address can take back the same ASID.
-    let pc = percpu::get();
-    if pc.asid_gen.get() != g {
-        // After the switch, so the old tables cannot refill it.
-        unsafe { core::arch::asm!("tlbi vmalle1", "dsb nsh", "isb", options(nostack)) };
-        pc.asid_gen.set(g);
+    #[inline(always)]
+    fn write_ttbr1(&mut self, v: u64) {
+        crate::msr!("ttbr1_el1", v);
+        cpu::isb();
     }
+    #[inline(always)]
+    fn publish_ttbr0(&mut self, v: u64) {
+        percpu::set_ttbr0(v);
+    }
+    #[inline(always)]
+    fn publish_ttbr1(&mut self, v: u64) {
+        percpu::set_ttbr1(v);
+    }
+    #[inline(always)]
+    fn asid_gen(&self) -> u64 {
+        ASID_GEN.load(Ordering::SeqCst)
+    }
+    #[inline(always)]
+    fn seen_asid_gen(&self) -> u64 {
+        self.pc.asid_gen.get()
+    }
+    #[inline(always)]
+    fn set_seen_asid_gen(&mut self, g: u64) {
+        self.pc.asid_gen.set(g);
+    }
+    #[inline(always)]
+    fn high_gen(&self) -> u64 {
+        HIGH_GEN.load(Ordering::SeqCst)
+    }
+    #[inline(always)]
+    fn seen_high_gen(&self) -> u64 {
+        self.pc.high_gen.get()
+    }
+    #[inline(always)]
+    fn set_seen_high_gen(&mut self, g: u64) {
+        self.pc.high_gen.set(g);
+    }
+    #[inline(always)]
+    fn high_pair(&self) -> Option<(u64, u64)> {
+        match self.pc.high_asid.get() {
+            0 => None,
+            a => Some((self.pc.high_ttbr1.get(), a)),
+        }
+    }
+    #[inline(always)]
+    fn set_high_pair(&mut self, pair: Option<(u64, u64)>) {
+        let (t, a) = pair.unwrap_or((0, 0));
+        self.pc.high_ttbr1.set(t);
+        self.pc.high_asid.set(a);
+    }
+    #[inline(always)]
+    fn gate_held(&self) -> bool {
+        self.pc.gate_held.get()
+    }
+    #[inline(always)]
+    fn multi(&self) -> bool {
+        crate::smp::multi()
+    }
+    #[inline(always)]
+    fn set_vspace_stale(&mut self) {
+        self.pc.vspace_stale.set(true);
+    }
+    #[inline(always)]
+    fn tlbi_asid(&mut self, asid: u64) {
+        unsafe { core::arch::asm!("tlbi aside1, {}", "dsb nsh", "isb", in(reg) asid << 48, options(nostack)) };
+    }
+    #[inline(always)]
+    fn tlbi_all(&mut self) {
+        unsafe { core::arch::asm!("tlbi vmalle1", "dsb nsh", "isb", options(nostack)) };
+    }
+}
+
+/// Run on TTBR0 value `v` (table address and ASID); a new value leaves the
+/// high window first (mmu_switch.rs `switch_to`).
+fn switch_to(v: u64) {
+    crate::mmu_switch::switch_to(&mut Real::new(), v);
 }
 
 /// Make page-table writes visible to the table walkers before user code
@@ -152,38 +239,47 @@ pub fn cores_on(asid: u64) -> u64 {
 /// the ASID dropped the translations tagged with it, and ASID 0 never has
 /// an `ArmHighVSpace`.
 pub fn retired(asid: u64) {
+    let pc = percpu::get();
+    if asid != 0 && pc.high_asid.get() == asid {
+        pc.high_asid.set(0);
+        pc.high_ttbr1.set(0);
+    }
     if percpu::ttbr0(percpu::cpu_index()) >> 48 == asid {
-        switch(EMPTY_ROOT.load(Ordering::Relaxed), 0);
         switch_high(0, 0);
-        percpu::get().vspace_stale.set(true);
+        switch(EMPTY_ROOT.load(Ordering::Relaxed), 0);
+        pc.vspace_stale.set(true);
     }
 }
 
 // ---- The high window (TTBR1 EL0 mappings, `ArmHighVSpace`) -----------------
 //
 // A thread may run with TTBR1 on an `ArmHighVSpace` instead of the
-// kernel's tables: a copy of them whose level-1 entries 384-495 map user
-// pages (nG, EL0 permissions, never executable by the kernel). TCR_EL1.A1
-// is 0, so those translations are tagged with the TTBR0 ASID, the same for
-// every thread of a VSpace, while only some of them have the high window,
-// and a TTBR1 change without an ASID change is not seen by the TLB. So a
-// core keeps one fact (`PerCpu::high_ttbr1`, `high_asid`): translations
-// of the high window tagged with ASID `high_asid` may be in its TLB, and
-// all came from `high_ttbr1`; with any other ASID, none came from an
-// `ArmHighVSpace`; while TTBR1 is the kernel's, none came from one.
-// `switch_high` keeps that true (its comment lists the cases). Besides,
-// every change of TTBR1 flushes the core's whole TLB
-// (`TTBR1_CHANGE_FLUSHES_ALL`); see there for why.
+// kernel's tables: a copy of their level-0 entries 0-510 whose entry 511
+// points to its own level-1 table, entries 384-495 of which map user pages
+// (nG, EL0 permissions, never executable by the kernel). The kernel's own
+// TTBR1 leaves level-0 entry 511 invalid (the image and devices are in
+// entry 510), so it adds nothing to the TLB there. TCR_EL1.A1 is 0, so the
+// window's translations are tagged with the TTBR0 ASID, the same for every
+// thread of a VSpace while only some of them have the window, and a TTBR1
+// change without an ASID change is not seen by the TLB. So a core keeps
+// one fact (`PerCpu::high_ttbr1`, `high_asid`): translations of a window
+// may be in its TLB only tagged `high_asid`, all from `high_ttbr1`.
+// mmu_switch.rs keeps that true with the order of its register writes and
+// flushes only when the pair changes; its module comment has the state
+// machine.
 //
 // Translations of the window itself go when it changes: one page by VA in
 // every ASID on every core (`invalidate_high_page`), the whole of it when a
 // table is unmapped or the window deleted (`invalidate_high_vspace`, which
 // also makes every core running it leave it).
 
-/// The kernel's own TTBR1 (physical), set at boot.
-static KERNEL_TTBR1: AtomicU64 = AtomicU64::new(0);
-/// The kernel's TTBR1 level-0 table and the level-1 table its entry 511
-/// points to, as the kernel reaches them (`kernel_ttbr1_entry`).
+/// The kernel's own TTBR1 (physical), set at boot; `TTBR1_UNSET` before.
+static KERNEL_TTBR1: AtomicU64 = AtomicU64::new(TTBR1_UNSET);
+/// Not a TTBR1 value (those are page aligned; 0 is one).
+const TTBR1_UNSET: u64 = u64::MAX;
+/// The kernel's TTBR1 level-0 table and the level-1 table of the kernel
+/// image (level-0 entry 510, `KERNEL_VBASE`), as the kernel reaches them
+/// (`kernel_ttbr1_entry`).
 static KERNEL_L0: AtomicU64 = AtomicU64::new(0);
 static KERNEL_L1_TOP: AtomicU64 = AtomicU64::new(0);
 
@@ -195,8 +291,12 @@ pub fn set_kernel_ttbr1(ttbr1: u64, l0: u64, l1_top: u64) {
     KERNEL_L1_TOP.store(l1_top, Ordering::Relaxed);
 }
 
-pub fn kernel_ttbr1() -> u64 {
-    KERNEL_TTBR1.load(Ordering::Relaxed)
+/// The kernel's own TTBR1; None before boot set it.
+pub fn kernel_ttbr1() -> Option<u64> {
+    match KERNEL_TTBR1.load(Ordering::Relaxed) {
+        TTBR1_UNSET => None,
+        v => Some(v),
+    }
 }
 
 /// Entry `index` of the kernel's TTBR1 level-0 (`level` 0) or top level-1
@@ -209,137 +309,20 @@ pub fn kernel_ttbr1_entry(level: u64, index: u64) -> u64 {
     unsafe { core::ptr::read_volatile((t + index * 8) as *const u64) }
 }
 
-fn tlbi_asid_local(asid: u64) {
-    unsafe { core::arch::asm!("tlbi aside1, {}", "dsb nsh", "isb", in(reg) asid << 48, options(nostack)) };
-}
-
-fn tlbi_all_local() {
-    unsafe { core::arch::asm!("tlbi vmalle1", "dsb nsh", "isb", options(nostack)) };
-}
-
-/// Whether a change of TTBR1 flushes this core's whole TLB (`tlbi vmalle1`)
-/// rather than the incoming TTBR0 ASID alone (`tlbi aside1`).
-///
-/// Level-0 entry 511 of a window and of the kernel's tables point to
-/// different level-1 tables, and the kernel runs below that entry in both.
-/// A walk cache may hold that entry: tagged with the TTBR0 ASID the core
-/// ran when it walked it (the kernel walks the old TTBR1 between `switch`
-/// and the TTBR1 write), which the ASID flush drops, or as a global entry
-/// (the kernel's pages below it are global, and a table descriptor has no
-/// nG bit), which only the whole flush drops.
-///
-/// What was measured (2026-11-24, FL4HVS0001-0003 on Apple M4 under HVF,
-/// one and two cores, twice each): the whole flush, the ASID flush and no
-/// flush on a TTBR1 change at all (the switch's pair flushes only) all
-/// passed, so these tests do not tell the two apart. Before the whole flush
-/// was added, l4h's EL0 XNU on the same M4 and HVF took level-1
-/// translation faults in its window through the kernel's level-1 table
-/// after its core ran another thread on the kernel's TTBR1, and the whole
-/// flush ended them. It stays until a test reproduces that fault and shows
-/// the ASID flush enough.
-const TTBR1_CHANGE_FLUSHES_ALL: bool = true;
-
 /// `invalidate_high_vspace`s so far: the count `switch_high` checks after it
 /// publishes its TTBR1 (`PerCpu::high_gen`), apart from `ASID_GEN`, so a
 /// window's retirement costs other address-space switches nothing.
 static HIGH_GEN: AtomicU64 = AtomicU64::new(0);
 
-/// Write TTBR1 and publish it if it differs from what this core runs;
-/// true if it did. No TLB maintenance: the caller's (`switch_high`).
-fn set_ttbr1(v: u64) -> bool {
-    let me = percpu::cpu_index();
-    if v != 0 && percpu::ttbr1(me) != v {
-        crate::msr!("ttbr1_el1", v);
-        cpu::isb();
-        percpu::set_ttbr1(v);
-        true
-    } else {
-        false
-    }
-}
-
-/// Leave whatever window this core runs for the kernel's TTBR1 (a window
-/// retired, or the ASID beside it), flushing this core's TLB.
-fn leave_window_flush() {
-    set_ttbr1(KERNEL_TTBR1.load(Ordering::Relaxed));
-    let pc = percpu::get();
-    pc.high_ttbr1.set(0);
-    pc.high_asid.set(0);
-    tlbi_all_local();
-}
-
 /// Run with TTBR1 on the `ArmHighVSpace` at `root` (kernel virtual; 0 =
-/// the kernel's own tables) beside TTBR0 ASID `ttbr0_asid`, which the
-/// switch of TTBR0 (`switch`) has already installed. (In VHE mode the name
-/// TTBR1_EL1 reaches TTBR1_EL2.)
-///
-/// Invariant: translations (walk caches included) that came from a window
-/// are tagged with `high_asid` only, and all came from `high_ttbr1`; while
-/// TTBR1 is the kernel's, there are none (the pair is empty).
-///
-/// - A TTBR1 change flushes (`TTBR1_CHANGE_FLUSHES_ALL`): the whole TLB, or
-///   the incoming ASID, which since `switch` has walked the old TTBR1 (the
-///   kernel runs below level-0 entry 511 of either table, which point to
-///   different level-1 tables);
-/// - leaving a window for the kernel's TTBR1 also flushes the pair's ASID;
-/// - entering a window with another pair flushes the old pair's ASID and the
-///   incoming one: `(a1, W) -> (a2, W) -> (a3, k) -> (a1, k)` must not leave
-///   `a1` anything from `W`.
+/// the kernel's own tables) beside TTBR0 ASID `ttbr0_asid`, which this core
+/// already runs. (In VHE mode the name TTBR1_EL1 reaches TTBR1_EL2.) The
+/// order of writes and flushes: mmu_switch.rs `switch_high`.
 pub fn switch_high(root: u64, ttbr0_asid: u64) {
-    let k = KERNEL_TTBR1.load(Ordering::Relaxed);
-    let pc = percpu::get();
-    if root == 0 || ttbr0_asid == 0 {
-        let changed = set_ttbr1(k);
-        let old = pc.high_asid.get();
-        if changed && TTBR1_CHANGE_FLUSHES_ALL {
-            tlbi_all_local();
-        } else {
-            if changed {
-                tlbi_asid_local(ttbr0_asid);
-            }
-            if old != 0 && !(changed && old == ttbr0_asid) {
-                tlbi_asid_local(old);
-            }
-        }
-        pc.high_asid.set(0);
-        pc.high_ttbr1.set(0);
-        return;
-    }
-    let v = layout::paddr(root);
-    let changed = set_ttbr1(v);
-    // Publish before reading the count, also when unchanged (as `switch_to`
-    // does for TTBR0): against `invalidate_high_vspace`, which counts, then
-    // reads which cores run the window, either it sees this core and calls
-    // it, or this core sees the new count here. A switch outside the gate
-    // (a local path's ReplyRecv) then cannot trust the window it read, so it
-    // leaves it and lets the exit, under the gate, set the address space
-    // again. Under the gate, an invalidation counted is over (it runs under
-    // the gate and its broadcast flush ends it): nothing to flush.
-    percpu::set_ttbr1(v);
-    let g = HIGH_GEN.load(Ordering::SeqCst);
-    if pc.high_gen.get() != g {
-        // (A single core never takes the gate, and nothing runs beside it.)
-        if !pc.gate_held.get() && crate::smp::multi() {
-            leave_window_flush();
-            pc.vspace_stale.set(true);
-            return;
-        }
-        pc.high_gen.set(g);
-    }
-    let old = pc.high_asid.get();
-    let same_pair = pc.high_ttbr1.get() == v && old == ttbr0_asid;
-    if changed && TTBR1_CHANGE_FLUSHES_ALL {
-        tlbi_all_local();
-    } else {
-        if old != 0 && old != ttbr0_asid && !same_pair {
-            tlbi_asid_local(old);
-        }
-        if changed || !same_pair {
-            tlbi_asid_local(ttbr0_asid);
-        }
-    }
-    pc.high_ttbr1.set(v);
-    pc.high_asid.set(ttbr0_asid);
+    // A window's physical address may be 0 (`root` == PPTR_BASE); `root`
+    // 0 is none.
+    let v = if root == 0 { None } else { Some(layout::paddr(root)) };
+    crate::mmu_switch::switch_high(&mut Real::new(), v, ttbr0_asid);
 }
 
 /// Before this core enters a guest: the kernel's TTBR1 (in nVHE mode the
@@ -362,10 +345,7 @@ pub fn invalidate_high_page(vaddr: u64) {
 /// the window `ttbr1` if this core runs it; the exit sets the address
 /// space again from the current thread's caps.
 pub fn high_retired(ttbr1: u64) {
-    if percpu::ttbr1(percpu::cpu_index()) == ttbr1 {
-        leave_window_flush();
-        percpu::get().vspace_stale.set(true);
-    }
+    crate::mmu_switch::retire_window(&mut Real::new(), ttbr1, true);
 }
 
 /// No core may go on with the `ArmHighVSpace` at `root` (deleted, or one of
@@ -381,20 +361,15 @@ pub fn invalidate_high_vspace(root: u64) {
     let online = crate::smp::online_mask();
     let mut mask = 0u64;
     for c in 0..percpu::MAX_CPUS {
-        if c != me && online & (1 << c) != 0 && percpu::ttbr1(c) == target {
+        if c != me && online & (1 << c) != 0 && percpu::ttbr1(c) == Some(target) {
             mask |= 1 << c;
         }
     }
     if mask != 0 {
         crate::smp::remote_call(crate::smp::CALL_HIGH_VSPACE, target, 0, mask);
     }
-    if percpu::ttbr1(me) == target {
-        set_ttbr1(KERNEL_TTBR1.load(Ordering::Relaxed));
-        let pc = percpu::get();
-        pc.high_ttbr1.set(0);
-        pc.high_asid.set(0);
-        pc.vspace_stale.set(true);
-    }
+    // This core: as the others, its flush the broadcast below.
+    crate::mmu_switch::retire_window(&mut Real::new(), target, false);
     // Every core's pairs may name the window's translations: drop them all
     // (the pairs stay true, now naming nothing).
     unsafe {
@@ -667,19 +642,20 @@ pub fn invalidate_stage2_vmid(asid: u64) {
 /// `root == 0`, e.g. Stage-2 frames that must never be loaded into TTBR0).
 pub fn cache_op(op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64) {
     use fl4_core::vspace::{CACHE_CLEAN, CACHE_CLEAN_INVALIDATE, CACHE_INVALIDATE};
-    let (va, switched) = if in_window(paddr, len) {
-        (layout::pptr(paddr), None)
-    } else if root == 0 {
-        return;
-    } else {
-        // Under the serial gate in an SMP kernel. Page-table
-        // writes of this entry reach the walker before it walks them.
-        // PSTATE.PAN does not apply ("no effect on ... data cache
-        // instructions, except DC ZVA", DDI 0487J.a).
-        let old = percpu::ttbr0(percpu::cpu_index());
-        publish_tables();
-        switch(root, asid);
-        (vaddr, Some(old))
+    use crate::mmu_switch::CacheVia;
+    let ttbr0 = if root == 0 { 0 } else { layout::paddr(root) | (asid << 48) };
+    let (va, switched) = match crate::mmu_switch::cache_via(in_window(paddr, len), root, ttbr0) {
+        CacheVia::Window => (layout::pptr(paddr), None),
+        CacheVia::Skip => return,
+        CacheVia::Borrow(v) => {
+            // Under the serial gate in an SMP kernel. Page-table writes of
+            // this entry reach the walker before it walks them. PSTATE.PAN
+            // does not apply ("no effect on ... data cache instructions,
+            // except DC ZVA", DDI 0487J.a). A different ASID runs without
+            // this core's window meanwhile (mmu_switch.rs `borrow`).
+            publish_tables();
+            (vaddr, Some(crate::mmu_switch::borrow(&mut Real::new(), v)))
+        }
     };
     if op == CACHE_CLEAN {
         cpu::clean_dcache_poc(va, len);
@@ -691,6 +667,6 @@ pub fn cache_op(op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64)
         cpu::sync_icache(va, len);
     }
     if let Some(old) = switched {
-        switch_to(old);
+        crate::mmu_switch::unborrow(&mut Real::new(), old);
     }
 }
