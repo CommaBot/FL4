@@ -202,6 +202,7 @@ import Fl4Proofs.P2.SlHome
 import Fl4Proofs.P2.SlLay
 import Fl4Proofs.P2.SlDecL
 import Fl4Proofs.P2.SlAccL
+import Fl4Proofs.P2.SlAccJ
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
