@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRB
 import Fl4Proofs.P2.FootTimerIrqRS
 import Fl4Proofs.P2.FootTimerIrqRC
 import Fl4Proofs.P2.FootTimerIrqRF
@@ -85,3 +86,5 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.rr_run_writes
 #print axioms Fl4Proofs.P2.highest_prio_agree
 #print axioms Fl4Proofs.P2.check_budget_ins
+#print axioms Fl4Proofs.P2.rrw_keep
+#print axioms Fl4Proofs.P2.rr_cb_state
