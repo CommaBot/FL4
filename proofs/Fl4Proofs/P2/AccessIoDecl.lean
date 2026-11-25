@@ -187,7 +187,7 @@ theorem io_alt_not_acc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
     have hh := headA_val' hP hz
     exact hq.omega _ (hS.sub _ ((hS.all _ hc).2.2 _ (by unfold Aligned; omega) ⟨by omega, by omega⟩))
   have M2 := io_hmid' (a := a) ar hA hq.tcbs (hq.nodes _ hq.cur) hq.cur hq.curT
-    (P.mid (Locks := Locks) hroot hcl (fun p r m y hp hm => (hC p r m y hp hm).1) hsc0)
+    (P.mid (Locks := Locks) (P.ioWr (Locks := Locks)) hroot hcl (fun p r m y hp hm => (hC p r m y hp hm).1) hsc0)
     (fun p r m y hp hm => (hC p r m y hp hm).2) (fun x hx => (P.fin x hx).2) (hd hX.cur)
     (fun h0 => ⟨(bxi_rh P.bxi h0).1, hd (bxi_rh P.bxi h0).2.1⟩) info nx _ s2 a1 emi hnx hs1 hu
   -- the checks at `s2`

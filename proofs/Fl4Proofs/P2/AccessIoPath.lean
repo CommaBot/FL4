@@ -29,7 +29,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 
 /-- The I/O port local path after the trap-flag check (both arms). -/
 def ioTail {A : Type} (m : machine.Store S) (ar : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -142,7 +143,7 @@ theorem IoMid.hRfT {s s2 : S} {t sl cptr : U64} {info : msginfo.MessageInfo} {C 
 
 /-- `finish.guard_resume`'s premises at the post-invocation state `s3`, with
 the entry's kernel base and core. -/
-structure FinOK {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S) (a3 : A) : Prop where
+structure FinOK {A : Type} (gS : machine.Store S) (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S) (a3 : A) : Prop where
   k : L.ksb s3 = L.ksb s
   c : L.cpu s3 = L.cpu s
   nd : NoDue (L := L) s3
@@ -152,15 +153,15 @@ structure FinOK {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S)
     RdHead (L := L) R s3 (L.mem s3 (scA (L.mem s3 (rhA (L := L) s3))))
   ha : L.actionW s3 = sched.ACTION_RESUME_CURRENT
   hsw : ∀ s4, sched.set_action st s3 sched.ACTION_RESUME_CURRENT = ok s4 →
-    sched.switch_sched_context (PathObl.guard st R W) ar s4 a3 = sched.switch_sched_context st ar s4 a3
+    sched.switch_sched_context gS ar s4 a3 = sched.switch_sched_context st ar s4 a3
   hfr : ∀ s4 s5 a4, sched.set_action st s3 sched.ACTION_RESUME_CURRENT = ok s4 →
     sched.switch_sched_context st ar s4 a3 = ok (s5, a4) →
     L.ksb s5 = L.ksb s3 ∧ L.cpu s5 = L.cpu s3 ∧
     (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
-      sched.set_next_interrupt (PathObl.guard st R W) ar s5 a4 = sched.set_next_interrupt st ar s5 a4 ∧
+      sched.set_next_interrupt gS ar s5 a4 = sched.set_next_interrupt st ar s5 a4 ∧
       ∀ s7 a5, sched.set_next_interrupt st ar s5 a4 = ok (s7, a5) → L.ksb s7 = L.ksb s3 ∧ L.cpu s7 = L.cpu s3)
   hact : ∀ s1 a1, sched.schedule st ar s3 a3 = ok (s1, a1) →
-    sched.activate_thread (PathObl.guard st R W) ar s1 a1 = sched.activate_thread st ar s1 a1
+    sched.activate_thread gS ar s1 a1 = sched.activate_thread st ar s1 a1
   hvc : ∀ s1 a1 s2 a2, sched.schedule st ar s3 a3 = ok (s1, a1) →
     sched.activate_thread st ar s1 a1 = ok (s2, a2) →
     R (L.nodeAt s2 (L.cpu s2) layout.node.CUR_THREAD) ∧ R (stA (L.curW s2)) ∧
@@ -170,7 +171,7 @@ structure FinOK {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S)
 theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t : U64}
     {info : msginfo.MessageInfo} {number : I64}
     (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
-    (hnx : R (regA t layout.reg.NEXT_IP)) (hfi : W (regA t layout.reg.FAULT_IP))
+    (hnx : R (regA t layout.reg.NEXT_IP)) (hfi : W (regA t layout.reg.FAULT_IP)) (hw : IoSW gS st t)
     (hmid : ∀ nx s1 s2 a1, obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
@@ -183,9 +184,9 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
       fastpath.schedulable_here st s2 t = ok true →
       syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
       true (decide (number = fl4_abi.syscall.SysCall)) false (L.mem s2 (regA t layout.reg.CAP)) = ok (r, s3, a2) →
-      FinOK (L := L) R W ar s s3 a2)
+      FinOK (L := L) gS R W ar s s3 a2)
     (h : ioTail st ar s a t info number = ok (true, s', a')) :
-    ioTail (PathObl.guard st R W) ar s a t info number = ok (true, s', a') := by
+    ioTail gS ar s a t info number = ok (true, s', a') := by
   unfold ioTail at h ⊢
   revert h
   refine tr_bind_same (fun b _ => ?_)
@@ -210,15 +211,15 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   have nd2 := nd_at hNd M.k M.c
   have Mc := M.cur
   subst Mc
-  rw [obj.Tcb.reg.guard (gS := PathObl.guard st R W) (L.curW s2) s2 _ M.cap, reg_ok]
+  rw [obj.Tcb.reg.guard (gS := gS) (L.curW s2) s2 _ M.cap, reg_ok]
   simp only [bind_ok]
-  rw [sched.cur_sc.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1]
+  rw [sched.cur_sc.guard (gS := gS) s2 (nd2 _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1]
   refine tr_bind_same (fun csc ecsc => ?_)
-  rw [sched.action.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1]
+  rw [sched.action.guard (gS := gS) s2 (nd2 _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1]
   refine tr_bind_same (fun i3 ei3 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hi3 => ?_)
-  rw [obj.Tcb.yield_to.guard (gS := PathObl.guard st R W) (L.curW s2) s2 M.yld]
+  rw [obj.Tcb.yield_to.guard (gS := gS) (L.curW s2) s2 M.yld]
   refine tr_bind_same (fun i4 ei4 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hi4 => ?_)
@@ -237,16 +238,16 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
       rw [← e]; exact hb1)) M.iok.1.ib M.iok.1.bs M.r10 hb1) (fun b1 eb1 => ?_)
   beta_reduce
   refine tr_ite (fun hb => ?_) (fun _ h => h)
-  rw [sched.consumed.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
+  rw [sched.consumed.guard (gS := gS) s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
   refine tr_bind_same (fun i5 _ => ?_)
   have ecsc' : csc = L.cscW s2 := by
     rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s2)] at ecsc; exact (ok_inj_ff ecsc).symm
   subst ecsc'
-  rw [sporadic.sufficient.guard (gS := PathObl.guard st R W) ar s2 a1 _ i5 M.rh]
+  rw [sporadic.sufficient.guard (gS := gS) ar s2 a1 _ i5 M.rh]
   refine tr_bind_same (fun b2 _ => ?_)
   beta_reduce
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [fastpath.schedulable_here.guard (gS := PathObl.guard st R W) s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
+  rw [fastpath.schedulable_here.guard (gS := gS) s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
     (nd2 _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 (nd2 _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
     M.td M.rs M.dt M.cd M.af M.dom M.iok.1.sc M.iok.1.inq]
   refine tr_bind_same (fun b3 eb3 => ?_)
@@ -255,11 +256,11 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   have hb1t : b1 = true := by assumption
   subst hb1t
   refine tr_bind (fun y ey _ => by
-      have e := syscall.handle_invocation.guard_io ar (call := decide (number = fl4_abi.syscall.SysCall))
+      have e := syscall.handle_invocation.guard_io (gS := gS) ar (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
         (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
         eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot (M.hRfT eb1)
-        M.iok ey
+        M.iok hw ey
       exact e.1)
     (fun y ey => ?_)
   obtain ⟨r, s3, a2⟩ := y
@@ -269,12 +270,12 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
     subst hi3 hi4 hb3
     exact hfin nx s1 s2 a1 r s3 a2 enx es1 eu ei3 ei4 hx eb1 eb3 ey
   have hr : r = .Ok () := by
-    have e := syscall.handle_invocation.guard_io (R := R) (W := W) ar
+    have e := syscall.handle_invocation.guard_io (gS := gS) (R := R) (W := W) ar
         (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
         (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
         eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot (M.hRfT eb1)
-        M.iok ey
+        M.iok hw ey
     exact e.2
   subst hr
   rw [syscall.after_invocation.ok_eq, syscall.after_invocation.ok_eq]
@@ -290,6 +291,7 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
     (hmi : R (regA (L.curW s) layout.reg.MSG_INFO))
     (hfl : R (core.num.U64.wrapping_add (L.curW s) 3456#u64))
     (hnx : R (regA (L.curW s) layout.reg.NEXT_IP)) (hfi : W (regA (L.curW s) layout.reg.FAULT_IP))
+    (hw : IoSW gS st (L.curW s))
     (hmid : ∀ info nx s1 s2 a1, msg.msg_info st s (L.curW s) = ok info →
       obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
@@ -304,22 +306,22 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
       fastpath.schedulable_here st s2 (L.curW s) = ok true →
       syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
       true (decide (number = fl4_abi.syscall.SysCall)) false (L.mem s2 (regA (L.curW s) layout.reg.CAP)) =
-        ok (r, s3, a2) → FinOK (L := L) R W ar s s3 a2)
+        ok (r, s3, a2) → FinOK (L := L) gS R W ar s s3 a2)
     (h : syscall.handle_ioport_local st ar s a number = ok (true, s', a')) :
-    syscall.handle_ioport_local (PathObl.guard st R W) ar s a number = ok (true, s', a') := by
+    syscall.handle_ioport_local gS ar s a number = ok (true, s', a') := by
   rw [handle_ioport_local_eq] at h ⊢
   revert h
-  rw [sched.cur_thread.guard (gS := PathObl.guard st R W) s (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
+  rw [sched.cur_thread.guard (gS := gS) s (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
   simp only [bind_ok]
-  rw [msg.msg_info.guard (gS := PathObl.guard st R W) s _ hmi]
+  rw [msg.msg_info.guard (gS := gS) s _ hmi]
   refine tr_bind_same (fun info emi => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [obj.Tcb.flags.guard (gS := PathObl.guard st R W) _ s hfl]
+  rw [obj.Tcb.flags.guard (gS := gS) _ s hfl]
   refine tr_bind_same (fun i _ => ?_)
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   have hT := fun (h : ioTail st ar s a (L.curW s) info number = ok (true, s', a')) =>
-    ioTail.guard ar hNd hnx hfi (fun nx s1 s2 a1 e1 e2 e3 => hmid info nx s1 s2 a1 emi e1 e2 e3) (hfin info · · · · · · · emi) h
+    ioTail.guard ar hNd hnx hfi hw (fun nx s1 s2 a1 e1 e2 e3 => hmid info nx s1 s2 a1 emi e1 e2 e3) (hfin info · · · · · · · emi) h
   refine tr_ite (fun _ => tr_ite (fun _ h => h) (fun _ => hT)) (fun _ => hT)
 
 end

@@ -165,7 +165,6 @@ structure IoRd (R W : U64 → Prop) (s : S) (t : U64) : Prop where
   regR : ∀ r : U64, r.val < 384 → R (regA t r)
   regW : ∀ r : U64, r.val < 384 → W (regA t r)
   stR : R (stA t)
-  stW : W (stA t)
   sc : R (scA t)
   max : R (maxA (L.mem s (scA t)))
   inq : R (inqA t)
@@ -184,10 +183,12 @@ theorem lt384 {r : U64} (h : r = layout.reg.R10 ∨ r = layout.reg.R8 ∨ r = la
   rcases h with rfl | rfl | rfl | rfl <;>
     simp [layout.reg.R10, layout.reg.R8, layout.reg.BADGE, layout.reg.MSG_INFO]
 
-/-- `set_thread_state` at a state the `IoRd`/`NodeSt` facts hold. -/
-theorem sts_io {s : S} {t v : U64} (hn : NodeSt (L := L) R W s) (hi : IoRd (L := L) R W s t) :
+/-- `set_thread_state` at a state the `IoRd`/`NodeSt` facts hold, the value `v`
+written to `t`'s `STATE` as by `st` (`SWr`: a `W` word, or a value-checked write). -/
+theorem sts_io {s : S} {t v : U64} (hn : NodeSt (L := L) R W s) (hi : IoRd (L := L) R W s t)
+    (hw : SWr gS st t v) :
     sched.set_thread_state gS s t v = sched.set_thread_state st s t v :=
-  sched.set_thread_state.guard s t v hn hi.stW hi.stR hi.sc (hi.wr_st (v := v)).max hi.inq
+  sched.set_thread_state.guardV s t v hn hw hi.stR hi.sc (hi.wr_st (v := v)).max hi.inq
 
 /-- `set_thread_state`'s writes keep `IoRd` / `NodeSt`. -/
 theorem sts_keep {s s1 : S} {t v : U64} (hi : IoRd (L := L) R W s t) (hn : NodeSt (L := L) R W s)

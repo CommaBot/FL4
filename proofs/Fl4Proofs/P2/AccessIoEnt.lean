@@ -27,7 +27,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s s2 x y : S} {c : U64} {zc : Nat}
 
 /-- The release head's SC is well formed and its words are among `Ω`. -/
@@ -75,7 +76,6 @@ structure IoAcc (st : machine.Store S) [L : LawfulStore st] (R W : U64 → Prop)
   rst : R (stA (L.curW s))
   rfi : R (regA (L.curW s) layout.reg.FAULT_IP)
   wnx : W (regA (L.curW s) layout.reg.NEXT_IP)
-  wst : W (stA (L.curW s))
   rin : R (inqA (L.curW s))
 
 theorem SwOK.of_bxi (B : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hcsc : L.cscW s ∈ Ac)
@@ -237,7 +237,7 @@ theorem IoS2.of_ent {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 
 /-- **`guard_acc`'s `hfin` from the entry.** -/
 theorem io_hfin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : IoEnt st T Cs Ω H Sg Rp Scs Nt Z Ac R W s) {a : A} {number : I64}
+    (E : IoEnt st T Cs Ω H Sg Rp Scs Nt Z Ac R W s) (hw : IoSW gS st (L.curW s)) {a : A} {number : I64}
     (hmi2 : ∀ info nx s1 s2 a1, msg.msg_info st s (L.curW s) = ok info →
       obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
@@ -252,7 +252,7 @@ theorem io_hfin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       fastpath.schedulable_here st s2 (L.curW s) = ok true →
       syscall.handle_invocation st ar s2 a1 (decide (number = fl4_abi.syscall.SysCall))
       true (decide (number = fl4_abi.syscall.SysCall)) false (L.mem s2 (regA (L.curW s) layout.reg.CAP)) =
-        ok (r, s3, a2) → FinOK (L := L) R W ar s s3 a2 := by
+        ok (r, s3, a2) → FinOK (L := L) gS R W ar s s3 a2 := by
   intro info nx s1 s2 a1 r s3 a2 emi enx es1 eu eac ey hx einv ehere eh
   have Hf := here_facts ehere
   have I := IoS2.of_ent hA E es1 eu Hf.sc
@@ -273,7 +273,8 @@ theorem io_hfin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   have w3 : WritesIn st s2 s3 (IoPW st s2) := K.1.mono fun b h => Or.inr h
   have hnd := (K.fin hK (QOK.of_sw I.F I.rh I.tm) Hf.nd I.F.td I.F.rs).1
   have hcs : L.curW s3 = L.curW s := hcur3.trans I.cur
-  refine FinOK.of_sw hA (K.1.1.trans I.k) (K.1.2.1.trans I.cp) hnd K.2.1 (I.F.frame w3) ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine FinOK.of_sw hA (K.1.1.trans I.k) (K.1.2.1.trans I.cp) hnd K.2.1 (I.F.frame w3) ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    (by rw [hcs]; exact hw.2)
   · rw [hcur3]
     exact (I.F.tcbP w3 I.F.cT (K := 3472#u64) (by simp) (by simp) (by simp)).trans hy2
   · rw [hcur3]; exact K.2.2
@@ -281,7 +282,6 @@ theorem io_hfin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   · rw [hcs]; exact A0.rst
   · rw [hcs]; exact A0.rfi
   · rw [hcs]; exact A0.wnx
-  · rw [hcs]; exact A0.wst
   · rw [hcs]; exact A0.rin
 
 /-- **The accepted I/O port path on the guarded store ends as the real run**,
@@ -297,8 +297,9 @@ theorem syscall.handle_ioport_local.guard_ent {A : Type} (ar : machine.Arch A) (
     (hmi : R (regA (L.curW s) layout.reg.MSG_INFO))
     (hfl : R (core.num.U64.wrapping_add (L.curW s) 3456#u64))
     (hnx : R (regA (L.curW s) layout.reg.NEXT_IP)) (hfi : W (regA (L.curW s) layout.reg.FAULT_IP))
+    (hw : IoSW gS st (L.curW s))
     (h : syscall.handle_ioport_local st ar s a number = ok (true, s', a')) :
-    syscall.handle_ioport_local (PathObl.guard st R W) ar s a number = ok (true, s', a') := by
+    syscall.handle_ioport_local gS ar s a number = ok (true, s', a') := by
   have B' := E.bxi
   obtain ⟨⟨Q, Rq, hq⟩, hb, ⟨hO, -, hX⟩, -, hS⟩ := B'
   have hd : ∀ {c : U64}, c ∈ Scs → OutsideObjs st T Cs s (headA c) := fun {c} hc => by
@@ -310,8 +311,8 @@ theorem syscall.handle_ioport_local.guard_ent {A : Type} (ar : machine.Arch A) (
     (fun h0 => ⟨(bxi_rh E.bxi h0).1, hd (bxi_rh E.bxi h0).2.1⟩)
   have hmid := fun info nx s1 s2 a1 h1 h2 h3 h4 => (⟨C, sl, hmid' info nx s1 s2 a1 h1 h2 h3 h4⟩ :
     ∃ C sl, IoMid (L := L) R W s s2 (L.curW s) info (L.mem s2 (regA (L.curW s) layout.reg.CAP)) C sl)
-  refine syscall.handle_ioport_local.guard_acc ar E.acc.nd hmi hfl hnx hfi hmid ?_ h
-  refine io_hfin hA E fun info nx s1 s2 a1 h1 h2 h3 h4 => ?_
+  refine syscall.handle_ioport_local.guard_acc ar E.acc.nd hmi hfl hnx hfi hw hmid ?_ h
+  refine io_hfin hA E hw fun info nx s1 s2 a1 h1 h2 h3 h4 => ?_
   exact (hmid' info nx s1 s2 a1 h1 h2 h3 h4).mi
 
 end

@@ -23,7 +23,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+  [L : LawfulStore st]
 variable {T Cs Ω : Set U64} {x y : S} {c : U64} {zc : Nat}
 
 /-- Offsets of the node words `schedRes` writes: `SCHED_ACTION`, `CUR_SC`,
@@ -206,7 +207,7 @@ theorem SwOK.act_wr (F : SwOK st T Cs Ω R W x c zc) (v : U64) :
     w0.mono fun b hb => Or.inl ⟨_, by simp [SwNode, layout.node.SCHED_ACTION], hb⟩⟩
 
 theorem SwOK.sw_guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (F : SwOK st T Cs Ω R W x c zc)
-    (a : A) : sched.switch_sched_context (PathObl.guard st R W) ar x a = sched.switch_sched_context st ar x a :=
+    (a : A) : sched.switch_sched_context gS ar x a = sched.switch_sched_context st ar x a :=
   sched.switch_sched_context.guard hA x a (zc := zc) (zt := zc) F.np F.i F.csc
     (fun o ho h8 => ⟨nodeAt_aligned F.np ho h8, F.out o ho h8, fun h => absurd rfl h⟩)
     F.q.1 F.q.2.2.2 (fun h => absurd rfl h) F.acc (fun h => absurd rfl h) F.nd F.sc
@@ -235,7 +236,7 @@ theorem SwOK.sw_fp {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (F : 
 /-- The state after `switch_sched_context`, as the rest of `schedRes` needs it. -/
 theorem SwOK.sni_guard {A : Type} (ar : machine.Arch A) (F : SwOK st T Cs Ω R W x c zc) (a : A)
     (w : WritesIn st x y (SwB st x c zc)) (hwf : RefillsWF st y c zc) :
-    sched.set_next_interrupt (PathObl.guard st R W) ar y a = sched.set_next_interrupt st ar y a := by
+    sched.set_next_interrupt gS ar y a = sched.set_next_interrupt st ar y a := by
   have hcur := F.curM w
   have hcs : L.mem y (scA (L.curW x)) = L.mem x (scA (L.curW x)) :=
     F.tcbM w F.cT (K := 3464#u64) (by simp) (by simp)
@@ -330,7 +331,6 @@ structure ActOK (R W : U64 → Prop) (x : S) : Prop where
   rst : R (stA (L.curW x))
   rfi : R (regA (L.curW x) layout.reg.FAULT_IP)
   wnx : W (regA (L.curW x) layout.reg.NEXT_IP)
-  wst : W (stA (L.curW x))
   rin : R (inqA (L.curW x))
 
 theorem sts_mem {z z1 : S} {t v : U64} (hT : TcbAddr t) (hcur : L.curW z = t)
@@ -385,7 +385,8 @@ theorem sts_mem {z z1 : S} {t v : U64} (hT : TcbAddr t) (hcur : L.curW z = t)
 theorem FinOK.of_sw {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s : S} {a3 : A}
     (k : L.ksb x = L.ksb s) (hc : L.cpu x = L.cpu s) (hnd : NoDue (L := L) x)
     (ha : L.actionW x = sched.ACTION_RESUME_CURRENT)
-    (F : SwOK st T Cs Ω R W x c zc) (H : ActOK (L := L) R W x) : FinOK (L := L) R W ar s x a3 := by
+    (F : SwOK st T Cs Ω R W x c zc) (H : ActOK (L := L) R W x)
+    (hw : SWr gS st (L.curW x) sched.TS_RUNNING) : FinOK (L := L) gS R W ar s x a3 := by
   have hT := F.tp _ F.cT
   have st4 : layout.tcb.STATE.val < 4096 := by rw [st_val]; omega
   have hs : ∀ {s1 : S} {a1 : A}, sched.schedule st ar x a3 = ok (s1, a1) → WritesIn st x s1 (SwB st x c zc) := by
@@ -415,8 +416,8 @@ theorem FinOK.of_sw {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s :
       fun h4 h8 => F.tcbM w F.cT h4 h8
     have e3 : L.mem s1 (scA (L.curW x)) = c := (tm (K := 3464#u64) (by simp) (by simp)).trans F.i
     have eN : ∀ o : U64, L.nodeAt s1 (L.cpu s1) o = L.nodeAt x (L.cpu x) o := fun o => wi_node w o
-    refine sched.activate_thread.guard ar s1 a1 hcur hT ((tm (K := 3472#u64) (by simp) (by simp)).trans H.y0)
-      ?_ H.ryl H.rst H.rfi H.wnx H.wst F.sc ?_ H.rin
+    refine sched.activate_thread.guardV ar s1 a1 hcur hT ((tm (K := 3472#u64) (by simp) (by simp)).trans H.y0)
+      ?_ H.ryl H.rst H.rfi H.wnx hw F.sc ?_ H.rin
     · unfold NodeSt
       rw [eN, eN]
       have n0 := F.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
