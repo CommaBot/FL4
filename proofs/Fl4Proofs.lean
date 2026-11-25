@@ -1640,6 +1640,11 @@ import Fl4Proofs.P2.AccessLvmDecl
 import Fl4Proofs.P2.AccessLvmFin
 import Fl4Proofs.P2.AccessLvmSets
 import Fl4Proofs.P2.StallAllJ
+import Fl4Proofs.P2.AccessLvmSplit
+import Fl4Proofs.P2.AccessLvmWalk
+import Fl4Proofs.P2.AccessLvmDw
+import Fl4Proofs.P2.AccessLvmOwn
+import Fl4Proofs.P2.AccessLvmLP
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
