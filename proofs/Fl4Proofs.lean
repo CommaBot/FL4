@@ -1692,4 +1692,9 @@ import Fl4Proofs.P3.StPostIrqLeaf
 import Fl4Proofs.P3.StPostIrqEv
 import Fl4Proofs.P3.StPostIrqTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P3.StPostInvAcc
+import Fl4Proofs.P3.StPostInvLeaf
+import Fl4Proofs.P3.StPostInvInv
+import Fl4Proofs.P3.StPostInvTop
+import Fl4Proofs.P2.SlJStPostInv
 import Fl4Proofs.P2.SlJStLocTop

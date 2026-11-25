@@ -14,6 +14,11 @@ import Fl4Proofs.P2.SlJStPostIo
 import Fl4Proofs.P2.SlJStPostTm
 import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P3.StPostInvAcc
+import Fl4Proofs.P3.StPostInvLeaf
+import Fl4Proofs.P3.StPostInvInv
+import Fl4Proofs.P3.StPostInvTop
+import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -92,3 +97,15 @@ import Fl4Proofs.P2.SlJStPostIrq
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_irq_localSt17
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_irqSt
 #print axioms Fl4Proofs.P2.PathObl.irqPreK_of_chain
+#print axioms Fl4Proofs.P1.read_cap_new
+#print axioms Fl4Proofs.P1.plan_with_cap
+#print axioms Fl4Proofs.P1.plan_fieldsW
+#print axioms Fl4Proofs.P1.inv_local_acc
+#print axioms Fl4Proofs.P3.JAtZ.vsPostJSt
+#print axioms Fl4Proofs.P3.decode_frameMapJSt
+#print axioms Fl4Proofs.P3.decode_cnodeCopyJSt
+#print axioms Fl4Proofs.P3.handle_invocation_frameCapJSt
+#print axioms Fl4Proofs.P3.dispatch_frameCapJSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_invSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_inv_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_invSt

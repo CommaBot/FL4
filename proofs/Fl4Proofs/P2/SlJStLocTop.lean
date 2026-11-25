@@ -1,10 +1,11 @@
 /-
-# P2 (line stpost, generations 6–7): the I/O port, `TCB_SetTimer` and timer-interrupt local paths' layout chain, closed
+# P2 (line stpost, generations 6–8): the I/O port, `TCB_SetTimer` and timer-interrupt local paths' layout chain, closed
 
 SlJStTop's `sl_pathsK_startAt_loc` for the syscall local path, extended to every local entry line
 stpost proved stable: the chain's step relation is now the union `LocAll` of the accepted syscall
 local runs (`LocSys`: trap arm and ReplyRecv fast path), the accepted I/O port runs (`LocIo`), the
-accepted `TCB_SetTimer` runs (`LocTm`) and the accepted timer interrupts (`LocIrq`, gen 7), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
+accepted `TCB_SetTimer` runs (`LocTm`), the accepted timer interrupts (`LocIrq`, gen 7) and the accepted
+frame-cap invocations at `CNodeCopy` / `CNodeMint` / `X86PageMap` (`LocInv`, gen 8), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
 of it is `locKeepSt_st` (no premise).
 
 * `lpRestrict`: a local path with its `Pre` narrowed to a `Pre'` that implies it and is closed under
@@ -22,7 +23,8 @@ of it is `locKeepSt_st` (no premise).
   ghosts) with: `R` at the exit; `R` closed under the accepted trap arm, the ReplyRecv fast path, the
   I/O port entry, the `TCB_SetTimer` entry and the timer interrupt (each under its U29 clause's inputs, a
   subset; the interrupt's are `IrqHw` [P] and `KFinEv13`); and `SlJAt (layoutJ Z H (L.ksb s0) nc)` at every
-  `R` state (clause 7). `StartAt` at an `R` state for each path: its `…_startAt` (`sl_pathsK_startAt_stab'`,
+  `R` state (clause 7); clause 8 (gen 8): `R` closed under the accepted frame-cap invocation (U29V's
+  inputs that the route reads, fl4-sync's plan, the label not `CNodeDelete`). `StartAt` at an `R` state for each path: its `…_startAt` (`sl_pathsK_startAt_stab'`,
   `io_pathsK_startAt`, `tm_pathsK_startAt`) with clause 7 for `SlJAt K σ` and the path's `Q K m σ` plus the
   glue's core / locks / memory link. No `LocKeepSt` / `LocRunMv` premise.
 * `IrqPreK`, **`irqPreK_of_chain`** (gen 7): the timer interrupt path's `Pre` (par/p2lt2's `IrqPreJ3`, body
@@ -39,6 +41,7 @@ path's own premises, unchanged in kind: `sl_pathsK`'s; `io_pathsK`'s `hPE` (`IoP
 -/
 import Fl4Proofs.P2.SlJStTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P2.SlJStPostInv
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P2.FootTimerSetMv
 open Aeneas Aeneas.Std Result
@@ -310,7 +313,7 @@ variable (AR : A → Fl4Spec.Cr3 → Prop)
 /-- (stpost) **The accepted local runs proved stable** (module docstring). -/
 def LocAll (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop :=
   LocSys (st := st) arI s a σ s' a' σ' ∨ LocIo (st := st) arI s a σ s' a' σ' ∨ LocTm (st := st) arI s a σ s' a' σ' ∨
-    LocIrq (st := st) arI s a σ s' a' σ'
+    LocIrq (st := st) arI s a σ s' a' σ' ∨ LocInv (st := st) arI s a σ s' a' σ'
 
 /-- (stpost) **The chain's step relation** (module docstring). -/
 abbrev LocAllSt (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap) (Cs : Set U64) :
@@ -412,7 +415,25 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
       -- 7. the layout bundle at every chain state
       (∀ (σ : S) (a3' : A3) (τ : Fl4Spec.State Unit),
         JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) σ a3' τ →
-        SlJAt (L := L) (layoutJ Z H (L.ksb s0) nc) σ) := by
+        SlJAt (L := L) (layoutJ Z H (L.ksb s0) nc) σ) ∧
+      -- 8. the frame-cap invocation (gen 8; labels Copy / Mint / Map, not Delete)
+      (∀ (s : S) (a : A3) (σ : Fl4Spec.State Unit),
+        JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) s a σ →
+        ∀ (n : I64) (c : Fl4Spec.Syscall) (p : localinv.Plan), σ.curThread ≠ σ.idleThread → NativeSys n c →
+          (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+            ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
+          (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
+            (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A3),
+              KFrontF (L := L) arI n s a s' a' →
+              JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+              KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
+          localinv.plan st s n = ok (some p) →
+          (∀ t info, sched.cur_thread st s = ok t → msg.msg_info st s t = ok info →
+            info.label ≠ fl4_abi.label.CNodeDelete) →
+          ∀ s' a', syscall.handle_invocation_local st arI s a n p = ok (true, s', a') →
+            ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
+              JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
+                s' a' σ') := by
   obtain ⟨Z, H, Cx, Ac0, Lst0, D0, J, -, -, -, -, -, -, -, hvx⟩ := jreach_invU3 hnd h0.1
   obtain ⟨nc, hnc, hK, hU, hMaps⟩ := SerExit.ser_of_JAtZN J
   have hKS : LocKeepSt (L := L) arI AR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx :=
@@ -427,9 +448,12 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inl h1)), h2⟩
   have hsubQ : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocIrq (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
       LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
-    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr h1)), h2⟩
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inl h1))), h2⟩
+  have hsubV : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocInv (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
+      LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inr h1))), h2⟩
   have hNS : NativeSys fl4_abi.syscall.SysReplyRecv .sysReplyRecv := Or.inr (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩)))
-  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro s a σ hJ n' found' hct hUn hND hFin s' a' hrun
     exact jreachSt_sysUStK hARI hA3 hnd hM hKD hPA hT hmax htu hRef hSX hDR hKS hsubS hJ n' found' hct hUn hND
       hFin hrun
@@ -446,6 +470,9 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     exact jreachSt_irqSt hARI hA3 hnd hM hKD hPA hIA hT hmax htu hRef hDR hKS hsubQ hJ w a1 p hI hFin hrun
   · intro σ a3' τ hR
     exact slJAt_layoutJ_of_jreachSt' hnd hnc hKS hR
+  · intro s a σ hJ n c p hct hn hflag hFin hp hnD s' a' hrun
+    exact jreachSt_invSt hARI hA3 hnd hM hKD hPA hT hmax htu hRef hDR hKS hsubV hJ n c p hct hn hflag hFin hp hnD
+      hrun
 
 end
 
