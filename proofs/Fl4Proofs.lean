@@ -253,6 +253,7 @@ import Fl4Proofs.P2.EntryExit
 import Fl4Proofs.P2.EntryWire
 import Fl4Proofs.P2.EntryVcpu
 import Fl4Proofs.P2.EntryFinal
+import Fl4Proofs.P2.EntryVent
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
