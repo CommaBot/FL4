@@ -74,8 +74,8 @@ theorem reply_viewB {c : U64} {s : S} (h : @ReplyInv S st L T Rp Scs s)
 
 theorem scExtra_viewB {c : U64} {s : S} (h : @ScExtra S st L T Cs Scs Nt s)
     (hcs : cscAt st c s ∈ Scs) : @ScExtra S (atCpu st c) (L.atCpu c) T Cs Scs Nt s := by
-  obtain ⟨h0, hh⟩ := h
-  refine @ScExtra.mk S (atCpu st c) (L.atCpu c) T Cs Scs Nt s ?_ hh
+  obtain ⟨h0, hh, ha⟩ := h
+  refine @ScExtra.mk S (atCpu st c) (L.atCpu c) T Cs Scs Nt s ?_ hh ha
   exact ⟨h0.bound, hcs, h0.core, h0.bnd, h0.nsc, timerOK_viewB h0.tm, h0.ntb, timerRB_viewB h0.rb, h0.scn, h0.yt,
     bndS_viewB h0.bs⟩
 
@@ -187,8 +187,8 @@ theorem reply_viewR {d : U64} {s : S} (h : @ReplyInv S (atCpu st d) (L.atCpu d) 
 
 theorem scExtra_viewR {d : U64} {s : S} (h : @ScExtra S (atCpu st d) (L.atCpu d) T Cs Scs Nt s)
     (hcs : cscAt st (L.cpu s) s ∈ Scs) : @ScExtra S st L T Cs Scs Nt s := by
-  obtain ⟨h0, hh⟩ := h
-  refine @ScExtra.mk S st L T Cs Scs Nt s ?_ hh
+  obtain ⟨h0, hh, ha⟩ := h
+  refine @ScExtra.mk S st L T Cs Scs Nt s ?_ hh ha
   exact ⟨h0.bound, hcs, h0.core, h0.bnd, h0.nsc, timerOK_viewR h0.tm, h0.ntb, timerRB_viewR h0.rb, h0.scn, h0.yt,
     bndS_viewR h0.bs⟩
 

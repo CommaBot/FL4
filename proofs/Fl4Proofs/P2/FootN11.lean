@@ -212,7 +212,8 @@ theorem ObjsOK.noScs {s : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω
     ntOSc := fun _ _ c hc => absurd hc (Set.notMem_empty c)
     snW := fun c hc => absurd hc (Set.notMem_empty c)
     syW := fun c hc => absurd hc (Set.notMem_empty c)
-    mxW := fun c hc => absurd hc (Set.notMem_empty c) }
+    mxW := fun c hc => absurd hc (Set.notMem_empty c)
+    sc0 := fun c hc => absurd hc (Set.notMem_empty c) }
 
 /-- A `KW` word with no SC objects is not the `CUR_DOMAIN` word. -/
 theorem kw0_ne_cdom {s : S} {b : U64} (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hSg : SgOK st Ω Sg s)
