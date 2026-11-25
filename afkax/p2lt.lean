@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqFC
 import Fl4Proofs.P2.FootTimerIrqObl
 import Fl4Proofs.P2.FootTimerIrqDec
 import Fl4Proofs.P2.FootTimerIrqOwn
@@ -122,3 +123,10 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.irq_pathObl
 #print axioms Fl4Proofs.P2.irq_pathSide
 #print axioms Fl4Proofs.P2.irq_localPath
+#print axioms Fl4Proofs.P2.may_run_here.guardZ
+#print axioms Fl4Proofs.P2.top_ok.guardC
+#print axioms Fl4Proofs.P2.wake_ok.guardC
+#print axioms Fl4Proofs.P2.fireTail.guardC
+#print axioms Fl4Proofs.P2.fire_ok.guardK
+#print axioms Fl4Proofs.P2.plan_facts
+#print axioms Fl4Proofs.P2.fire_rd
