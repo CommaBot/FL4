@@ -90,7 +90,7 @@ theorem ge_remove (C : TC st gS T s0 c K R W) {s : S} {t : U64} (hI : TI st s0 c
   unfold timer.remove
   refine GE.bind (ge_td' C ht) fun i hi => ?_
   refine GE.ite (fun hi0 => GE.ret ⟨hI, ?_⟩) (fun hi0 => ?_)
-  · rw [eq_of_spec_fd (obj.Tcb.timer_deadline.val (L := L) s t)] at hi; rw [← hi0]; exact (ok_inj_ff hi).symm
+  · rw [eq_of_spec_fd (obj.Tcb.timer_deadline.val (L := L) s t)] at hi; rw [← hi0]; exact ok_inj_ff hi
   refine GE.bind (ge_core_of C ht (hco i hi hi0)) fun cpu hcpu => ?_
   subst hcpu
   repeat' tg_stepR
