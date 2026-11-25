@@ -18,3 +18,4 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.OKeep2.ofWst
 #print axioms Fl4Proofs.P2.Stall.sched.set_thread_state.fk
 #print axioms Fl4Proofs.P2.Stall.vcpu.report.fk
+#print axioms Fl4Proofs.P2.Stall.ipc.cancel_ipc.kwNR

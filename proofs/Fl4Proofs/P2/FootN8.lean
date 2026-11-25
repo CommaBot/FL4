@@ -802,6 +802,92 @@ theorem vcpu.report.fk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   rw [e, WP.spec_ok, hcpu] at K2
   exact ⟨hb', st', K1.trans K2⟩
 
+/-! ## `cancel_ipc` of a receive-blocked thread, in `KWN` -/
+
+/-- `set_thread_state.kwN` from the placement only. -/
+theorem sched.set_thread_state.kwNP {Nd : Prop} (s : S) (t : obj.Tcb) (v : U64) (hT : TcbPlaced T)
+    (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) (ht : t ∈ T) (hKt : t ∉ Kp) :
+    sched.set_thread_state st s t v ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
+  unfold sched.set_thread_state
+  refine WP.spec_bind (obj.Tcb.set_state.spec s t v) fun s1 e1 => ?_
+  subst e1
+  refine WP.spec_mono (sched.schedule_tcb.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) _ t hT
+    (fun c hc => (NP c hc).ksb (L.ksb_wr _ _ _)) (by rw [LawfulStore.cpu_wr]; exact hc)) fun s2 f2 => ?_
+  have f1 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (stA t) v) := by
+    rw [stA_eq]; exact footN_field hT NP hc ht (by simp) (by simp) (by simp) (by simp) (PrF.of_nk hKt (by simp) (by simp))
+  exact f1.trans f2
+
+/-- `reply_unlink.kwN` from `ObjsOK` (no `XInv`). -/
+theorem ipc.reply_unlink.kwNO {Nd : Prop} {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} (s : S)
+    (r t : U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hr : r ∈ Rp) (ht : t ∈ T) (hKt : t ∉ Kp) :
+    ipc.reply_unlink st s r t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
+  unfold ipc.reply_unlink
+  refine WP.spec_bind (obj.Reply.set_tcb.spec s r 0#u64) fun s1 e1 => ?_
+  subst e1
+  have hm : rTcbA r ∈ Ω := hsub _ (hO.tcbW hr)
+  have ha := (h.omega _ hm).1
+  have h1 := inv_of_free h ((writesIn_wr (v := 0#u64) ha).mono fun b hb => hb ▸ Or.inl hm)
+  exact WP.spec_mono (sched.set_thread_state.kwN _ t _ h1 ht hKt) fun s2 f2 =>
+    (footN_wr ha ⟨kw_sg (hO.tcbW hr), notIdW_out h.nodes (h.omega _ hm)
+      (noHdr_rp hO hr (by rw [rTcbA_v]) (by rw [rTcbA_v]; omega))⟩ (actionW_out h.nodes h.cur (h.omega _ hm))).trans f2
+
+/-- **`cancel_ipc` of a receive-blocked thread outside `Kp`, in `KWN`**
+(`clear_fault`, the endpoint dequeue, `reply_unlink`, `TS_INACTIVE`). -/
+theorem ipc.cancel_ipc.kwNR {Nd : Prop} {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
+    {Q : U64 → U64 → List U64} {R : U64 → List U64} (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : t ∈ T)
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hst : L.mem s (stA t) = sched.TS_BLOCKED_ON_RECV)
+    (hrecv : L.mem s (replyA t) ≠ 0#u64 → L.mem s (replyA t) ∈ Rp) (hKt : t ∉ Kp) :
+    ipc.cancel_ipc st ar s a t ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
+  have hT := h.tcbs
+  have hO := hX.1
+  unfold ipc.cancel_ipc
+  refine WP.spec_bind (WP.spec_and (faults.clear_fault.inv s t Q R h ht hO hsub)
+    (WP.spec_mono (obj.Tcb.set_fault_type.spec s t _) fun s' e => e)) ?_
+  rintro s1 ⟨⟨h1, f1, -, -, -⟩, e1⟩
+  have F1 : FootN st Kp Nd T Cs Sg Scs Z (EH H) s s1 := by
+    rw [e1]; exact footN_field (K := 3376#u64) hT h.nodes h.cur ht (by simp) (by simp) (by simp) (by simp)
+  have st1 : L.mem s1 (stA t) = sched.TS_BLOCKED_ON_RECV := by
+    rw [stA_eq, f1 t ht _ (by simp) (by simp) (fun _ => by simp), ← stA_eq]; exact hst
+  have rp1 : L.mem s1 (replyA t) = L.mem s (replyA t) := f1 t ht _ (by simp) (by simp) (fun _ => by simp)
+  have hb : Blocked (L.mem s1 (stA t)) := by rw [st1]; exact Or.inr (Or.inl rfl)
+  step with obj.Tcb.state.spec as ⟨v, ev⟩
+  split
+  · rename_i hsd
+    rw [ev, st1] at hsd
+    exact absurd hsd (by unfold sched.TS_BLOCKED_ON_RECV sched.TS_BLOCKED_ON_SEND; decide)
+  split
+  · rename_i _ hrv
+    step with obj.Tcb.block_obj.spec as ⟨ep, ep_post⟩
+    subst ep_post
+    obtain ⟨E, EQ, hEW⟩ := h1.eps
+    obtain ⟨he, hmem⟩ := hEW.2.2.2.2.1 t ht (by simp) hb
+    obtain ⟨hE, hEN, hq⟩ := hEW.1 _ he
+    have hH : L.mem s1 (blockA t) ∈ EH H := (hEW.2.2.2.2.2.2.2.1 _).1 he
+    refine WP.spec_bind (WP.spec_and (endpoint.ep_dequeue.inv s1 t Q R h1 ht (by simp) hb)
+      (endpoint.ep_dequeue.foot s1 _ t _ hT hE hq hmem)) ?_
+    rintro s2 ⟨⟨h2, f2, -⟩, w2⟩
+    have F2 : FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 :=
+      FootN.of' w2 (fun b _ hb => EpFoot.kwN hT h1.nodes hq.mem hH hE hEN (hEW.2.2.1 _ he) (hdrΩ_of hX hsub) hb)
+        (AcK.of_eq (EpFoot.act hT h1.nodes h1.cur hq.mem hE hEN w2))
+    step with obj.Tcb.reply_obj.spec as ⟨i, ei⟩
+    refine WP.spec_bind (Pₘ := fun s3 => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s3) ?_ ?_
+    · split
+      · rename_i hi
+        have hi0 : i ≠ 0#u64 := by simpa using hi
+        have rp2 : L.mem s2 (replyA t) = L.mem s (replyA t) :=
+          (f2 t ht _ (by simp) (by simp) (by simp) (by simp)).trans rp1
+        have hiR : i ∈ Rp := by rw [ei, rp2]; exact hrecv (by rw [← rp2, ← ei]; exact hi0)
+        exact WP.spec_mono (ipc.reply_unlink.kwNO (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s2 i t h2 hO.ksb hsub hiR ht hKt) fun s3 f3 => F1.trans (F2.trans f3)
+      · exact (WP.spec_ok _).2 (F1.trans F2)
+    intro s3 f3
+    refine WP.spec_bind (sched.set_thread_state.kwNP (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s3 t _ hT (fun c hc => (h.nodes c hc).ksb f3.1)
+      (by rw [f3.2.1]; exact h.cur) ht hKt) fun s4 f4 => ?_
+    exact (WP.spec_ok _).2 (f3.trans f4)
+  · rename_i _ hnr
+    exact absurd (ev.trans st1) hnr
+
 end
 
 end Fl4Proofs.P2.Stall
