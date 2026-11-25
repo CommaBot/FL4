@@ -65,6 +65,7 @@ import Fl4Proofs.P2.FootTimerFireSy
 import Fl4Proofs.P2.FootTimerIrqLPP2
 import Fl4Proofs.P2.FootTimerIrqLPP3
 import Fl4Proofs.P2.FootTimerIrqSlotJ
+import Fl4Proofs.P2.FootTimerIrqJC
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -378,4 +379,19 @@ import Fl4Proofs.P2.FootTimerIrqSlotJ
 #print axioms Fl4Proofs.P2.objLay_of_layP
 #print axioms Fl4Proofs.P2.SlotJ.layP
 #print axioms Fl4Proofs.P2.SlotJ.objLay
+#print axioms Fl4Proofs.P2.irq_localPathP3J2
+#print axioms Fl4Proofs.P2.slotCs_of_JAtZ
+#print axioms Fl4Proofs.P2.SlotJ.cs
+#print axioms Fl4Proofs.P2.SlotJC.slotJ
+#print axioms Fl4Proofs.P2.SlotJC.bufAt
+#print axioms Fl4Proofs.P2.slJAt_slotJC
+#print axioms Fl4Proofs.P2.IrqLayR.lay
+#print axioms Fl4Proofs.P2.IrqEntR.ent
+#print axioms Fl4Proofs.P2.IrqEntRM.entM
+#print axioms Fl4Proofs.P2.irq_bufAt_runB
+#print axioms Fl4Proofs.P2.irq_localPathJC
+#print axioms Fl4Proofs.P2.irq_pathsJ
+#print axioms Fl4Proofs.P2.irq_pathsJ_startAt
+#print axioms Fl4Proofs.P2.irq_rd_own
+#print axioms Fl4Proofs.P2.irq_acc_own
 #print axioms Fl4Proofs.P2.irq_localPathP3J2
