@@ -23,8 +23,8 @@ def delClr {S : Type _} (st : machine.Store S) (s : S) (t : obj.Tcb) : Result S 
   let s5 ← timer.set_parent st s t 0#u64
   let s6 ← timer.set_left st s5 t 0#u64
   let s7 ← timer.set_right st s6 t 0#u64
-  let s8 ← obj.Tcb.set_timer_height st t s7 0#u64
-  obj.Tcb.set_timer_deadline st t s8 0#u64
+  let s8 ← obj.Tcb.set_timer_deadline st t s7 0#u64
+  obj.Tcb.set_timer_height st t s8 0#u64
 
 /-- `remove`, one-child case, from the parent read on. -/
 def delOne {S : Type _} (st : machine.Store S) (s1 : S) (cpu : Std.U64) (t : obj.Tcb) (removed_red : Bool)
@@ -213,7 +213,7 @@ structure DelMid (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s1 :
 
 /-- The state after `remove` clears `t`'s words. -/
 def clrT (st : machine.Store S) [L : LawfulStore st] (s : S) (t : U64) : S :=
-  L.wr (L.wr (L.wr (L.wr (L.wr s (tpA t) 0#u64) (tlA t) 0#u64) (trA t) 0#u64) (thA t) 0#u64) (tdA t) 0#u64
+  L.wr (L.wr (L.wr (L.wr (L.wr s (tpA t) 0#u64) (tlA t) 0#u64) (trA t) 0#u64) (tdA t) 0#u64) (thA t) 0#u64
 
 theorem delClr.on (s : S) (t : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
     delClr st s t ⦃ s' => s' = clrT st s t ⦄ := by
@@ -224,9 +224,9 @@ theorem delClr.on (s : S) (t : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
   subst e6
   refine WP.spec_bind (timer.set_right.on _ t 0#u64 hT ht) fun s7 e7 => ?_
   subst e7
-  refine WP.spec_bind (obj.Tcb.set_timer_height.wr _ t 0#u64) fun s8 e8 => ?_
+  refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr _ t 0#u64) fun s8 e8 => ?_
   subst e8
-  exact WP.spec_mono (obj.Tcb.set_timer_deadline.wr _ t 0#u64) fun s' e => e
+  exact WP.spec_mono (obj.Tcb.set_timer_height.wr _ t 0#u64) fun s' e => e
 
 theorem rr_tail {s3 : S} {rr : Bool} {Q : S → S → Prop} (c : U64) (x xp : U64)
     (hf : rr = false → timer.remove_fixup st s3 c x xp ⦃ s4 => Q s3 s4 ⦄) :

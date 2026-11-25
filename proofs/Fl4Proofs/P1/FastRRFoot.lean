@@ -1103,8 +1103,8 @@ theorem rr_x15G {ty : U64} [HfrRestart st ar ty] {X0 X8 X9 X10 X11 X12 X13 X14 X
     (K8 : FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc))
     (w08 : WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)))
     (hact8 : L.actionW X8 = u)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -1129,10 +1129,10 @@ theorem rr_x15G {ty : U64} [HfrRestart st ar ty] {X0 X8 X9 X10 X11 X12 X13 X14 X
   have aR : Aligned (rTcbA rptr) := (P.hΩ _ hrΩ).1
   have ta := ht'.align; have tf := ht'.fits
   -- the writes
-  have w9 : X9 = L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV := by
-    have := obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV; rw [e9, WP.spec_ok] at this; exact this
-  have w10 : X10 = L.wr X9 (blockA t) ep := by
-    have := obj.Tcb.set_block_obj.wr (L := L) X9 t ep; rw [e10, WP.spec_ok] at this; exact this
+  have w9 : X9 = L.wr X8 (blockA t) ep := by
+    have := obj.Tcb.set_block_obj.wr (L := L) X8 t ep; rw [e9, WP.spec_ok] at this; exact this
+  have w10 : X10 = L.wr X9 (stA t) sched.TS_BLOCKED_ON_RECV := by
+    have := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV; rw [e10, WP.spec_ok] at this; exact this
   have w11 : X11 = L.wr X10 (replyA t) rptr := by
     have := obj.Tcb.set_reply_obj.wr (L := L) X10 t rptr; rw [e11, WP.spec_ok] at this; exact this
   have w12 : X12 = L.wr X11 (rTcbA rptr) t := by
@@ -1160,8 +1160,8 @@ theorem rr_x15G {ty : U64} [HfrRestart st ar ty] {X0 X8 X9 X10 X11 X12 X13 X14 X
   have m11 : ∀ b, Aligned b → (b.val < t.val + 3328 ∨ t.val + 3328 < b.val) → b.val ≠ t.val + 3336 →
       b.val ≠ t.val + 3360 → L.mem X11 b = L.mem X8 b := by
     intro b hb h1 h2 h3
-    rw [w11, mem_wr_ne' aRp hb (fun e => h3 (by rw [← e, vRp])), w10, mem_wr_ne' aB hb (fun e => h2 (by rw [← e, vB])),
-      w9, mem_wr_ne' aSt hb (fun e => by rw [← e, vS] at h1; omega)]
+    rw [w11, mem_wr_ne' aRp hb (fun e => h3 (by rw [← e, vRp])), w10, mem_wr_ne' aSt hb (fun e => by rw [← e, vS] at h1; omega),
+      w9, mem_wr_ne' aB hb (fun e => h2 (by rw [← e, vB]))]
   have m12 : ∀ b, Aligned b → (b.val < t.val + 3328 ∨ t.val + 3328 < b.val) → b.val ≠ t.val + 3336 →
       b.val ≠ t.val + 3360 → b ≠ rTcbA rptr → L.mem X12 b = L.mem X8 b := by
     intro b hb h1 h2 h3 h4
@@ -1341,8 +1341,8 @@ theorem rr_x15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc :
     (K8 : FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc))
     (w08 : WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)))
     (hact8 : L.actionW X8 = u)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -1559,8 +1559,8 @@ theorem RRReads2.of_plG {ty : U64} [HfrRestart st ar ty] {X0 X1 X2 X3 X4 X5 X6 X
     (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
     (e7 : sched.set_action st X6 u = ok X7)
     (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -1593,8 +1593,8 @@ theorem RRReads2.of_pl {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : 
     (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
     (e7 : sched.set_action st X6 u = ok X7)
     (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -1625,8 +1625,8 @@ def RRPre3G (ty : U64) (X0 : S) (a : A) : Prop :=
       obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6 →
       sched.set_action st X6 u = ok X7 →
       obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 →
-      obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 →
-      obj.Tcb.set_block_obj st t X9 ep = ok X10 →
+      obj.Tcb.set_block_obj st t X8 ep = ok X9 →
+      obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 →
       obj.Tcb.set_reply_obj st t X10 rptr = ok X11 →
       obj.Reply.set_tcb st rptr X11 t = ok X12 →
       obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 →

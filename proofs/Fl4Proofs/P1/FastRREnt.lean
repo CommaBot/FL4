@@ -149,8 +149,8 @@ theorem RRReads.of_entG {ty : U64} [HfrRestart st ar ty] {T : Set U64} {X0 : S} 
     (E : RREnt (L := L) T X0 t rptr ep u) (C : RRChecksG st ar ty X0 a t rptr ep u usc)
     (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
     (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -166,10 +166,10 @@ theorem RRReads.of_entG {ty : U64} [HfrRestart st ar ty] {T : Set U64} {X0 : S} 
     have := obj.Tcb.set_state.spec (L := L) X0 t sched.TS_RESTART; rw [e1, WP.spec_ok] at this; exact this
   have w6 : X6 = L.wr X5 (stA u) sched.TS_RESTART := by
     have := obj.Tcb.set_state.spec (L := L) X5 u sched.TS_RESTART; rw [e6, WP.spec_ok] at this; exact this
-  have w9 : X9 = L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV := by
-    have := obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV; rw [e9, WP.spec_ok] at this; exact this
-  have w10 : X10 = L.wr X9 (blockA t) ep := by
-    have := obj.Tcb.set_block_obj.wr (L := L) X9 t ep; rw [e10, WP.spec_ok] at this; exact this
+  have w9 : X9 = L.wr X8 (blockA t) ep := by
+    have := obj.Tcb.set_block_obj.wr (L := L) X8 t ep; rw [e9, WP.spec_ok] at this; exact this
+  have w10 : X10 = L.wr X9 (stA t) sched.TS_BLOCKED_ON_RECV := by
+    have := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV; rw [e10, WP.spec_ok] at this; exact this
   have w11 : X11 = L.wr X10 (replyA t) rptr := by
     have := obj.Tcb.set_reply_obj.wr (L := L) X10 t rptr; rw [e11, WP.spec_ok] at this; exact this
   have w12 : X12 = L.wr X11 (rTcbA rptr) t := by
@@ -245,13 +245,14 @@ theorem RRReads.of_entG {ty : U64} [HfrRestart st ar ty] {T : Set U64} {X0 : S} 
     rw [mem_wr_ne' aTS aS (ne _ _ (by rw [vTS, vS]; omega)), mem_wr_ne' aH aS (ne _ _ (by rw [vH, vS]; omega)),
       w14, mem_wr_ne' aP aS (ne _ _ (by rw [vP, vS]; omega)), w13, mem_wr_ne' aN aS (ne _ _ (by rw [vN, vS]; omega)),
       w12, mem_wr_ne' E.hrO.1 aS (Ne.symm nRO), w11, mem_wr_ne' aRp aS (ne _ _ (by rw [vRp, vS]; omega)),
-      w10, mem_wr_ne' aB aS (ne _ _ (by rw [vB, vS]; omega)), w9, LawfulStore.mem_wr_same aS]
+      w10, LawfulStore.mem_wr_same aS]
   have ns15 : sched.is_schedulable st X15 t = ok false := by
     refine is_schedulable_not X15 t ?_
     rw [st15]; exact blocked_not_runnable (Or.inr (Or.inl rfl))
   have ucn : ¬ u = sched.ACTION_CHOOSE_NEW := by
     intro e; have := congrArg UScalar.val e; simp at this; omega
   exact {
+    tw := ⟨aS, aB, ne _ _ (by rw [vS, vB]; omega)⟩,
     sch1 := sch1, rt1 := rt1, us1 := us1, sc2 := R.sc2, sch6 := R.sch6, sc6 := R.sc6, run6 := run6,
     rdy6 := R.rdy6, suf6 := R.suf6, pst := R.pst, st7 := R.st7, act8 := R.act8, ct8 := R.ct8, lk8 := R.lk8,
     rt8 := R.rt8, ntfn8 := R.ntfn8, ep8 := R.ep8, act11 := R.act11, r0 := E.hr0, q12 := R.q12, T15 := R.T15,
@@ -264,8 +265,8 @@ theorem RRReads.of_ent {T : Set U64} {X0 : S} {a : A} {t rptr ep u usc : U64}
     (E : RREnt (L := L) T X0 t rptr ep u) (C : RRChecks st ar X0 a t rptr ep u usc)
     (e1 : obj.Tcb.set_state st t X0 sched.TS_RESTART = ok X1)
     (e6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -387,8 +388,8 @@ def RRPre2G (ty : U64) (X0 : S) (a : A) : Prop :=
       obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6 →
       sched.set_action st X6 u = ok X7 →
       obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 →
-      obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 →
-      obj.Tcb.set_block_obj st t X9 ep = ok X10 →
+      obj.Tcb.set_block_obj st t X8 ep = ok X9 →
+      obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 →
       obj.Tcb.set_reply_obj st t X10 rptr = ok X11 →
       obj.Reply.set_tcb st rptr X11 t = ok X12 →
       obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 →
