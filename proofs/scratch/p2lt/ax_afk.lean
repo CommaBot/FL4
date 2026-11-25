@@ -395,3 +395,10 @@ import Fl4Proofs.P2.FootTimerIrqJC
 #print axioms Fl4Proofs.P2.irq_rd_own
 #print axioms Fl4Proofs.P2.irq_acc_own
 #print axioms Fl4Proofs.P2.irq_localPathP3J2
+#print axioms Fl4Proofs.P2.OwnMap.LayP.region_ntfnW
+#print axioms Fl4Proofs.P2.irqLayK_of_slJAt
+#print axioms Fl4Proofs.P2.IrqEntI.entR
+#print axioms Fl4Proofs.P2.IrqEntIM.entRM
+#print axioms Fl4Proofs.P2.irq_localPathJC2
+#print axioms Fl4Proofs.P2.irq_pathsJ2
+#print axioms Fl4Proofs.P2.irq_pathsJ2_startAt
