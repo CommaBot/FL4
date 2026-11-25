@@ -60,6 +60,9 @@ structure RegionOKX (K : KLayout) : Prop where
   node : ∀ c b, InNode K c b → region K b = .node c
   /-- The kernel globals below the nodes. -/
   ks : ∀ b, K.ksb.val ≤ b.val → b.val < K.ksb.val + 13568 → region K b = .none
+  /-- Kernel objects are not user memory (P1 `HeapOK`: frames overlap no kernel object; the
+  source `E2E.UserOK` cites). -/
+  kern : ∀ b, region K b ≠ .none → b ∉ K.user
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
@@ -108,6 +111,12 @@ theorem not_slDS_of_obj {found : U64 × U64} {s : S} (N : SlEnt (st := st) K Loc
     (h : region K x = .obj p) : ¬ SlDS (L := L) s x := fun hx => by
   rcases N.dsR x hx with ⟨c, e⟩ | e <;> rw [h] at e <;> cases e
 
+/-- The prefix words are not user words (they lie in a node or the current TCB). -/
+theorem slDS_nu (hX : RegionOKX K) {found : U64 × U64} {s : S} (N : SlEnt (st := st) K Locks found s) :
+    ∀ y, SlDS (L := L) s y → y ∉ K.user := fun y hy => by
+  refine hX.kern y ?_
+  rcases N.dsR y hy with ⟨c, e⟩ | e <;> rw [e] <;> exact fun h => by cases h
+
 /-- **`SlThrIn` from the layout and the entry's glue facts.** -/
 theorem slThrIn_of (hK : RegionOK K) (hX : RegionOKX K) {found : U64 × U64} {s : S}
     (hp : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
@@ -116,7 +125,7 @@ theorem slThrIn_of (hK : RegionOK K) (hX : RegionOKX K) {found : U64 × U64} {s 
   have hi : (layout.tcb.SLOT_FAULT_HANDLER).val < 6 := by simp [layout.tcb.SLOT_FAULT_HANDLER]
   obtain ⟨-, -, -, -, a0, a8⟩ := hX.tslot _ hc _ hi
   obtain ⟨g0, g8⟩ := own_tslot hK hX hc hi (L.mem s)
-  refine ⟨fun _ => ⟨slRS_of_gate a0 g0, slRS_of_gate a8 g8, not_slDS_of_gate hp g0, not_slDS_of_gate hp g8⟩,
+  refine ⟨fun _ => ⟨slRS_of_gate a0 g0, slRS_of_gate a8 g8, not_slDS_of_gate hp (slDS_nu hX N) g0, not_slDS_of_gate hp (slDS_nu hX N) g8⟩,
     fun hS hE => ?_, fun hS => ?_, fun lv => ?_⟩
   · have he := N.hep hS hE
     have hl := N.lep hS hE
@@ -127,7 +136,7 @@ theorem slThrIn_of (hK : RegionOK K) (hX : RegionOKX K) {found : U64 × U64} {s 
   · obtain ⟨r1, a1⟩ := hX.rpW _ (N.hrp hS) layout.reply.TCB (by simp [layout.reply.TCB]) (by simp [layout.reply.TCB])
     exact ⟨slRS_of_lock a1 r1 (N.lrp hS), not_slDS_of_obj N r1⟩
   · have ht := N.hthr lv
-    exact af_of_tcb hK hp ht (hX.tcbW _ ht 3520#u64 (by simp) (by simp) (by simp)).2.2
+    exact af_of_tcb hK hp (slDS_nu hX N) ht (hX.tcbW _ ht 3520#u64 (by simp) (by simp) (by simp)).2.2
 
 
 variable {A : Type} (ar : machine.Arch A)

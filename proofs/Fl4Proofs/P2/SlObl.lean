@@ -57,9 +57,11 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 def SlRS (K : KLayout) (Locks : S → U64 → Prop) (s : S) (x : U64) : Prop :=
   Aligned x ∧ (x ∈ K.user ∨ RPerm (own K) (L.cpu s) (Locks s) (L.mem s) x)
 
-/-- What an accepted run may write. -/
+/-- What an accepted run may write: aligned user words and words it may write by `own`
+(mirrors `SlRS`; user memory is outside `own`'s domain, `PathObl.write_own` asks `WPerm` only of
+non-user words, `PathSide.user_free` covers user-word writes). -/
 def SlWS (K : KLayout) (Locks : S → U64 → Prop) (s : S) (x : U64) : Prop :=
-  Aligned x ∧ WPerm (own K) (L.cpu s) (Locks s) (L.mem s) x
+  Aligned x ∧ (x ∈ K.user ∨ WPerm (own K) (L.cpu s) (Locks s) (L.mem s) x)
 
 variable {A : Type} (ar : machine.Arch A)
 
@@ -192,10 +194,10 @@ theorem sl_pathObl (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.E
     exact ⟨hn', sl_dec_at (ar := ar) hK hU Al.ksb Al.cpu (sl_alt_cur E.preG Al) E.pre h' hn'⟩
   · intro s x _ hx hu
     exact hx.2.resolve_left hu
-  · intro s x hE hx _
+  · intro s x hE hx hu
     rcases hx with hx | hx
-    · exact hx.2
-    · exact (SlDS.ws (hPE s hE).preG hx).2
+    · exact hx.2.resolve_left hu
+    · exact (SlDS.ws (hPE s hE).preG hx).2.resolve_left hu
   · intro s x hE hx
     rcases hx with hx | hx
     · exact hx.1

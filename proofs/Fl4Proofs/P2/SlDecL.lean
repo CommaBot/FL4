@@ -41,7 +41,7 @@ variable {K : KLayout} {Locks : S → U64 → Prop}
 /-- A word this core owns is in the read and write sets. -/
 theorem slRS_of_core {s : S} {x : U64} (ha : Aligned x) (h : own K (L.mem s) x = .core (L.cpu s)) :
     SlRS (st := st) K Locks s x ∧ SlWS (st := st) K Locks s x := by
-  refine ⟨⟨ha, Or.inr (Or.inl ?_)⟩, ⟨ha, ?_⟩⟩
+  refine ⟨⟨ha, Or.inr (Or.inl ?_)⟩, ⟨ha, Or.inr ?_⟩⟩
   · show HeldBy (L.cpu s) (Locks s) (own K (L.mem s) x)
     rw [h]; simp [HeldBy]
   · show HeldBy (L.cpu s) (Locks s) (own K (L.mem s) x)

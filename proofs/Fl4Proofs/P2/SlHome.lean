@@ -234,11 +234,13 @@ theorem slRS_of_gate {s : S} {x : U64} (ha : Aligned x) (hg : own K (L.mem s) x 
     SlRS (st := st) K Locks s x :=
   ⟨ha, Or.inr (Or.inr hg)⟩
 
-/-- A gate-owned word is not a prefix word (prefix words are writable, `PreAcc`). -/
+/-- A gate-owned word is not a prefix word (prefix words are writable, `PreAcc`, and not user
+words, `hdu`). -/
 theorem not_slDS_of_gate {s : S} {x : U64}
     (hp : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
+    (hdu : ∀ y, SlDS (L := L) s y → y ∉ K.user)
     (hg : own K (L.mem s) x = .gate) : ¬ SlDS (L := L) s x := fun hx => by
-  have h := (SlDS.ws hp hx).2
+  have h := (SlDS.ws hp hx).2.resolve_left (hdu x hx)
   unfold WPerm at h
   rw [hg] at h
   exact h
@@ -247,9 +249,10 @@ theorem not_slDS_of_gate {s : S} {x : U64}
 gate-owned (`RegionOK` [J]), so it is in the read set and not a prefix word. -/
 theorem af_of_tcb (hK : RegionOK K) {s : S} {d : U64}
     (hp : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
+    (hdu : ∀ y, SlDS (L := L) s y → y ∉ K.user)
     (ht : K.heap d = some .tcb) (ha : Aligned (affA d)) :
     SlRS (st := st) K Locks s (affA d) ∧ ¬ SlDS (L := L) s (affA d) :=
-  ⟨slRS_of_gate ha (own_aff_gate hK ht _), not_slDS_of_gate hp (own_aff_gate hK ht _)⟩
+  ⟨slRS_of_gate ha (own_aff_gate hK ht _), not_slDS_of_gate hp hdu (own_aff_gate hK ht _)⟩
 
 /-- The trap arm's receiver, read at the prefix state, is the decided thread. -/
 theorem slThr_hd_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
