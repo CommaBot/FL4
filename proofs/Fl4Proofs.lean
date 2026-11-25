@@ -1557,3 +1557,4 @@ import Fl4Proofs.P2.AccessVmMv
 import Fl4Proofs.P2.AccessVmRR
 import Fl4Proofs.P2.AccessVmRRL
 import Fl4Proofs.P2.AccessVmRRA
+import Fl4Proofs.P2.AccessVmRRM
