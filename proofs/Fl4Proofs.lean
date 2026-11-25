@@ -1613,6 +1613,7 @@ import Fl4Proofs.P2.OwnMapVcpu
 import Fl4Proofs.P2.SerialHw
 import Fl4Proofs.P2.E2EV
 import Fl4Proofs.P2.E2EVTop
+import Fl4Proofs.P2.E2EVUser
 import Fl4Proofs.P2.AccessLvm
 import Fl4Proofs.P2.AccessLvmRep
 import Fl4Proofs.P2.AccessLvmRepR0
@@ -1725,3 +1726,4 @@ import Fl4Proofs.P2.FootTimerGEIns
 import Fl4Proofs.P2.AccessVmLP
 import Fl4Proofs.P2.OnceGuard
 import Fl4Proofs.P2.AccessIoLP
+import Fl4Proofs.P2.E2EVUserIo
