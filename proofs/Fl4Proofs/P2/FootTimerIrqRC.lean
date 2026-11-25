@@ -85,4 +85,59 @@ theorem highest_prio_app {X Y : S} {d dom : U64} {Q : U64 → List U64} (hT : Tc
 
 end law
 
+section run
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {R W : U64 → Prop}
+
+/-- **The round-robin `charge_budget` run**: with the current SC not idle and round-robin, the current thread
+schedulable after the merge and `RRTail` there (`F`, e.g. `rr_tail_F`), the run is the ring merge, the node's
+`CONSUMED` cleared, `append` of the current thread, the action set to `CHOOSE_NEW`, then `set_reprogram`. -/
+theorem charge_budget_rr_run {A : Type} (ar : machine.Arch A) {s Y : S} {a a' : A} {c : U64}
+    (hne : ∀ isc, sched.idle_sc st s = ok isc → L.cscW s ≠ isc) (hrr : L.rperiod s (L.cscW s) = 0#u64)
+    (hsch : ∀ s2 s3, cbRR st s (L.cscW s) c = ok s2 → sched.set_consumed st s2 0#u64 = ok s3 →
+      sched.is_schedulable st s3 (L.curW s3) = ok true)
+    (F : ∀ s2 s3, cbRR st s (L.cscW s) c = ok s2 → sched.set_consumed st s2 0#u64 = ok s3 →
+      RRTail st ar T R W s3 a)
+    (h : sched.charge_budget st ar s a c true = ok (Y, a')) :
+    ∃ s2 s3 s4, cbRR st s (L.cscW s) c = ok s2 ∧ sched.set_consumed st s2 0#u64 = ok s3 ∧
+      sched.append st s3 (L.curW s3) = ok s4 ∧
+      sched.set_reprogram st (L.wr s4 (L.nodeAt s4 (L.cpu s4) layout.node.SCHED_ACTION) sched.ACTION_CHOOSE_NEW) =
+        ok Y ∧ a' = a := by
+  have esc : sched.cur_sc st s = ok (L.cscW s) := eq_of_spec_fd (sched.cur_sc.spec (L := L) s)
+  unfold sched.charge_budget at h
+  rw [esc] at h
+  simp only [bind_ok] at h
+  obtain ⟨isc, eisc, h⟩ := bind_eq_ok h
+  obtain ⟨b, eb, h⟩ := bind_eq_ok h
+  have hb : b = true := (PathObl.post_of_ok (sc_ne.spec' _ isc) eb).2 (hne isc eisc)
+  subst hb
+  simp only [↓reduceIte] at h
+  rw [eq_of_spec_fd (sporadic.is_round_robin.spec (L := L) s _), hrr] at h
+  simp only [bind_ok] at h
+  rw [if_pos (by simp)] at h
+  obtain ⟨s2, e2, h⟩ := bind_eq_ok h
+  have e2' : cbRR st s (L.cscW s) c = ok s2 := e2
+  have h' : cbTail st ar s2 a true = ok (Y, a') := h
+  unfold cbTail at h'
+  obtain ⟨s3, e3, h⟩ := bind_eq_ok h'
+  rw [cur_thread_ok] at h
+  simp only [bind_ok] at h
+  rw [hsch s2 s3 e2' e3] at h
+  simp only [bind_ok, ↓reduceIte] at h
+  obtain ⟨⟨s4, a4⟩, e4, h⟩ := bind_eq_ok h
+  have F3 := F s2 s3 e2' e3
+  obtain ⟨ea, rfl⟩ := end_timeslice_rr ar F3.rr F3.rd F3.sf e4
+  obtain ⟨xs, hr, hq⟩ := F3.rel
+  obtain ⟨-, -, a4e⟩ := append_keep F3.hT F3.ct F3.prio F3.aff F3.hN hr hq ea
+  simp only [e4, bind_ok, Aeneas.Std.uncurry_apply_pair] at h
+  obtain ⟨s5, e5, h⟩ := bind_eq_ok h
+  have e5' := reschedule_required_resume (a4e.trans F3.act) e5
+  subst e5'
+  obtain ⟨s6, e6, h⟩ := bind_eq_ok h
+  have e := ok_inj_ff h
+  simp only [Prod.mk.injEq] at e
+  obtain ⟨rfl, rfl⟩ := e
+  exact ⟨s2, s3, s4, e2', e3, ea, e6, rfl⟩
+
+end run
+
 end Fl4Proofs.P2
