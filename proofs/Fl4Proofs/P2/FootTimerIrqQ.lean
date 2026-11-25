@@ -3,7 +3,8 @@
 
 * `check_budget_suf`: with a sufficient budget `check_budget` returns `(true, s, a)` (one domain: never expired);
 * `handle_interrupt_timer`: for an IRQ in range with state `IRQ_TIMER` the handler sets the node's `REPROGRAM` to 1
-  and `ARMED` to 0, then acks the IRQ (`Arch`).
+  and `ARMED` to 0, then acks the IRQ (`Arch`); `handle_interrupt_timer_writes`: as a `WritesIn` (this core's node
+  words 56 and 80 only).
 
 No named premises.
 -/
@@ -52,6 +53,25 @@ theorem handle_interrupt_timer {s s3 : S} {a a3 : A} {irq mx : U64} (emx : layou
   simp only [Prod.mk.injEq] at e'
   obtain ⟨rfl, rfl⟩ := e'
   exact ⟨s2, e3, e4, e2⟩
+
+/-- **The timer handler's writes**: only this core's node words `REPROGRAM` (56) and `ARMED` (80). -/
+theorem handle_interrupt_timer_writes [L : LawfulStore st] {T : Set U64} {s s2 s3 : S}
+    (hN : NodePlaced st T s (L.cpu s))
+    (e2 : obj.node_set st s (L.cpu s) layout.node.REPROGRAM 1#u64 = ok s2)
+    (e3 : obj.node_set st s2 (L.cpu s) layout.node.ARMED 0#u64 = ok s3) :
+    WritesIn st s s3 (L.NodeOf s (L.cpu s) (fun o => o = 56 ∨ o = 80)) := by
+  rw [eq_of_spec_fd (obj.node_set.spec (L := L) s _ _ _)] at e2
+  rw [eq_of_spec_fd (obj.node_set.spec (L := L) s2 _ _ _)] at e3
+  have h2 := ok_inj_ff e2
+  have h3 := ok_inj_ff e3
+  subst h2 h3
+  have w1 : WritesIn st s (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) 1#u64)
+      (L.NodeOf s (L.cpu s) (fun o => o = 56 ∨ o = 80)) :=
+    writesIn_wr_node (s1 := s) hN rfl (Or.inl (by simp)) (by simp) (by simp)
+  have w2 := writesIn_wr_node (s1 := L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) 1#u64)
+    (c := L.cpu s) (o := layout.node.ARMED) (v := 0#u64)
+    (P := fun o => o = 56 ∨ o = 80) hN (L.ksb_wr _ _ _) (Or.inr (by simp)) (by simp) (by simp)
+  exact (w1.trans w2).mono fun b hb => by rcases hb with h | h <;> exact h
 
 end
 
