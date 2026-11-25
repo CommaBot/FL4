@@ -34,6 +34,7 @@ import Fl4Proofs.P2.FootTimerFireT
 import Fl4Proofs.P2.FootTimerFireSw
 import Fl4Proofs.P2.FootTimerFireSt
 import Fl4Proofs.P2.FootTimerFireP
+import Fl4Proofs.P2.FootTimerFireNw
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -184,3 +185,15 @@ import Fl4Proofs.P2.FootTimerFireP
 #print axioms Fl4Proofs.P2.fire_stop_sig
 #print axioms Fl4Proofs.P2.irq_accG_fire_walk
 #print axioms Fl4Proofs.P2.irq_accG_fire_pre
+#print axioms Fl4Proofs.P2.armed.tinv
+#print axioms Fl4Proofs.P2.SCq.agree'
+#print axioms Fl4Proofs.P2.ntfn_ts_out
+#print axioms Fl4Proofs.P2.out_not_tw
+#print axioms Fl4Proofs.P2.plan_facts'
+#print axioms Fl4Proofs.P2.fire_ok_tail
+#print axioms Fl4Proofs.P2.fireTail_idle
+#print axioms Fl4Proofs.P2.set_active_wr
+#print axioms Fl4Proofs.P2.send_signal_nw
+#print axioms Fl4Proofs.P2.rel_agree
+#print axioms Fl4Proofs.P2.fire_run
+#print axioms Fl4Proofs.P2.fire_tail_nw
