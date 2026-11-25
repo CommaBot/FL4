@@ -27,7 +27,9 @@ premise `hE` of `AllCores.schedF`).
 
 Named premises of `AllCores.schedE`: `hR` [J] (the `res` part of `SchPre`:
 with action `RESUME` at the end of `awaken` the current thread is
-`SchCur`), `hS0` [W].
+`SchCur`), `hS0` [W]. **(hr)** `hR` is discharged in P2/FootN11
+(`sched.awaken.rc`, from FL4's one domain `DomInv`): `AllCores.schedH` is
+`schedE` without it.
 
 **Finding (p2j18): `hR` does not follow from P1 without a domain invariant.**
 Counterexample shape: the body ends with action `RESUME` and a current thread

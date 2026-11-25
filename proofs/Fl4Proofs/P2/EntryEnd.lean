@@ -22,6 +22,7 @@ P2 (p2je): **the entry-side end facts of `AllCores.schedE`** (`kb`, `hidl`,
 Named premises of `AllCores.schedB` (as `AllCores.schedE`): `hR` [J] (with
 action `RESUME` at the end of `awaken` the current thread is `SchCur`; the
 domain-invariant finding of `P2/FootN10.lean`), `hS0` [W] (`0 ∉ Scs`).
+**(hr)** `AllCores.schedBH` (P2/FootN11) is `schedB` with `hR` discharged.
 -/
 import Fl4Proofs.P2.FootN10
 open Aeneas Aeneas.Std Result
