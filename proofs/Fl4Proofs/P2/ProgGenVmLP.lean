@@ -81,7 +81,7 @@ noncomputable def vm_localPathG (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E
   RS := IoRS (st := st) K Locks
   WS := IoWS (st := st) K Locks
   DS := IoDS (st := st)
-  isProg := vm_isProg S addr code
+  isProg := IsProg.on (vm_isProg S addr code) _ _ _
   obl := vm_pathObl_mv hA hK hU hLA hmA
     (fun mm x a => congrFun (congrFun (vm_isProg S addr code A ar mm) x) a)
   side := vm_pathSide hA hK hLA (fun mm x a => congrFun (congrFun (vm_isProg S addr code A ar mm) x) a)

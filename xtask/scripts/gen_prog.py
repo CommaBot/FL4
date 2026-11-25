@@ -135,6 +135,26 @@ for m in DEFRE.finditer(src):
     except Exception:
         pass
 
+# Extra (hand-written, extracted-style) definitions: GEN_EXTRA="file.lean ...", resolved in the generated
+# modules' namespace (no `fl4_core.` prefix); GEN_RENAME="old=new ..." renames callees inside their bodies.
+LOCAL = set()
+RENAME = dict(x.split('=', 1) for x in os.environ.get('GEN_RENAME', '').split() if x)
+for _path in os.environ.get('GEN_EXTRA', '').split():
+    for m in DEFRE.finditer(open(_path).read()):
+        name = m.group(1)
+        try:
+            f = parse_header(name, m.group(2))
+        except Exception:
+            continue
+        for a, b in RENAME.items():
+            f.body = re.sub(r'(?<![\w.])' + re.escape(a) + r'(?![\w.])', b, f.body)
+        FUNCS[name] = f
+        LOCAL.add(name)
+
+
+def qn(name):
+    return ('Fl4Proofs.P2.PathObl.' if name in LOCAL else 'fl4_core.') + name
+
 
 def ret_kinds(ret):
     """Flat components of `Result T` as [(kind, type)]; kind S/A/V. No S/A: one V component."""
@@ -570,7 +590,7 @@ def aeneas_call(f, own=False):
     for n, ty, _ in f.params:
         xs.append({'machine.Store S': 'mS', 'machine.Arch A': 'mA'}.get(ty) or
                   (n if own else {'S': 'sS', 'A': 'aA'}.get(ty, n)))
-    return 'fl4_core.' + f.name + ' ' + ' '.join(xs)
+    return qn(f.name) + ' ' + ' '.join(xs)
 
 
 def proj(i, n, r='r'):
@@ -590,16 +610,21 @@ def blk_shape(K):
     return f'(fun r sB aB => ({v}, {ss[0] if ss else "sB"}, {as_[0] if as_ else "aB"}))'
 
 
+# `split` on a match over a projection (`x.1` after `uncurry_proj`) can pair one side's arm with the other's:
+# such leftover goals have contradictory `heq`s (`x.1 = .Ok _`, `x.1 = .Err _`)
+CLOSE = '  all_goals (exfalso; simp only [*, reduceCtorEq] at *)'
+
+
 def proof_loop(ctx):
     if not ctx.blks:
-        return ['  reif_loop']
+        return ['  reif_loop', CLOSE]
     shs = [f'((refine (show BlkShape S A {k} _ _ from ?_)); exact {blk_shape(K)})' for k, K in enumerate(ctx.blks)]
     return (['  repeat\' (first', '    | (with_reducible apply bind_congr_r; intro)',
              '    | (with_reducible refine ite_congr\' (fun _ => ?_) (fun _ => ?_))',
              '    | (with_reducible refine ite_bind_congr\' (fun _ => ?_) (fun _ => ?_))',
              '    | (simp only [reif_simps])',
              '    | ((with_reducible refine bind_cut mS mA ?sh ?_ (fun _ => ?_)); (case sh => first'] +
-            [f'      | {x}' for x in shs] + ['      ))', '    | reif_step)'])
+            [f'      | {x}' for x in shs] + ['      ))', '    | reif_step)', CLOSE])
 
 
 def shape(K):
@@ -628,7 +653,7 @@ def gen_fn(f, out):
     out.append(f'    interp mS mA (R.{f.name} {argnames(f)}) sS aA =')
     out.append(f'      ({aeneas_call(f)} >>= {shape(K)}) := by')
     out.append(f'  unfold R.{f.name}')
-    out.append(f'  simp only [reif_simps, fl4_core.{f.name}]')
+    out.append(f'  simp only [reif_simps, {qn(f.name)}]')
     out.extend(proof_loop(ctx))
     out.append('')
     emit_nz(f, ctx, out)
@@ -656,7 +681,18 @@ def emit_nz(f, ctx, out, name=None):
     out.append('')
 
 
-MEASURE = {}  # loop name -> (measure on loop vars text using x, on σ0 text)
+MEASURE = {  # loop name -> (measure on the loop variables `xL`, proof after `simp only [body] at h`)
+    # the body matches on the walked cap and then on the next slot's cap: split both matches
+    'cspace.resolve_address_bits_loop': ('xL.2.2.val', """split at h
+all_goals (try (simp only [ok_eq_ok_iff, reduceCtorEq] at h; done))
+dec_peel
+rename_i hm
+split at hm
+all_goals (simp only [ok_eq_ok_iff, reduceCtorEq, ControlFlow.cont.injEq] at hm)
+subst hm
+simp only
+apply ge_sub1_lt <;> first | assumption | scalar_tac"""),
+}
 
 
 def projs(v, n):
@@ -726,7 +762,7 @@ def gen_loop(L, out):
     out.append(f'    interp mS mA (R.{B.name} {argnames(B)}) sS aA =')
     out.append(f'      ({aeneas_call(B)} >>= {shapeB}) := by')
     out.append(f'  unfold R.{B.name}')
-    out.append(f'  simp only [reif_simps, fl4_core.{B.name}]')
+    out.append(f'  simp only [reif_simps, {qn(B.name)}]')
     out.extend(proof_loop(ctx))
     out.append('')
     emit_nz(B, ctx, out)
@@ -739,7 +775,7 @@ def gen_loop(L, out):
     out.append(f'    (h : {aeneas_call(B, own=True)} = ok (.cont σ0)) :')
     lhs = f'{mfun} σ0' if mode == 'R' else f'{mfun} ({unmk} σ0).1'
     out.append(f'    {lhs} < {mfun} {tup(lvn)} := by')
-    out.append(f'  simp only [fl4_core.{B.name}] at h')
+    out.append(f'  simp only [{qn(B.name)}] at h')
     out.extend('  ' + l for l in dec_proof.strip('\n').split('\n'))
     out.append('')
     # tree loop
@@ -766,14 +802,14 @@ def gen_loop(L, out):
     out.append(f'@[reif_simps] theorem R.{L.name}_eq {binders(L)} (sS : S) (aA : A) :')
     out.append(f'    interp mS mA (R.{L.name} {argnames(L)}) sS aA =')
     out.append(f'      ({aeneas_call(L)} >>= {shape(K)}) := by')
-    out.append(f'  unfold R.{L.name} fl4_core.{L.name}')
+    out.append(f'  unfold R.{L.name} {qn(L.name)}')
     decargs = lambda sv, av: ' '.join(xmap.get(n, sv if ty == 'S' else av if ty == 'A' else n) for n, ty in bps)
     if mode == 'R':
         sp = projs('σ0', nx)
         smap = dict(zip(lvn, sp))
         aargs = ' '.join({'machine.Store S': 'mS', 'machine.Arch A': 'mA', 'S': 'sS', 'A': 'aA'}.get(ty, smap.get(n, n))
                          for n, ty, _ in B.params)
-        bodyA = f'(fun (σ0 : {tc}) => fl4_core.{B.name} {aargs})'
+        bodyA = f'(fun (σ0 : {tc}) => {qn(B.name)} {aargs})'
         out.append(f'  exact interp_iterR mS mA {bodyA} {bodyP} {mfun} sS')
         out.append(f'    (fun xL aL => R.{B.name}_eq mS mA {treeargs} sS aL)')
         out.append(f'    (fun xL cL h => R.{B.name}_dec {sta} {decargs("sS", "aA")} h) _ _ _ (Nat.lt_succ_self _)')
@@ -787,7 +823,7 @@ def gen_loop(L, out):
         vproj = dict(zip(lvn, [p for p, k in zip(sp_all, kc) if k == 'V']))
         aargs = ' '.join({'machine.Store S': 'mS', 'machine.Arch A': 'mA', 'S': S_, 'A': (A_[0] if A_ else 'a')}.get(ty, vproj.get(n, n))
                          for n, ty, _ in B.params)
-        bodyA = f'(fun (σ0 : {tc}) => fl4_core.{B.name} {aargs})'
+        bodyA = f'(fun (σ0 : {tc}) => {qn(B.name)} {aargs})'
         mkt = [('sL' if k == 'S' else 'aL' if k == 'A' else None) for k in kc]
         xi = iter(xp)
         mkt = [m if m else next(xi) for m in mkt]
@@ -866,6 +902,7 @@ def pure_heads(texts):
 
 
 DEC_DEFAULT = """dec_peel
+all_goals (repeat (rename_i h; split at h; all_goals (try (simp only [ok_eq_ok_iff, reduceCtorEq] at h; done)); all_goals (try dec_peel)))
 all_goals (try simp only at *)
 all_goals first
   | (apply ge_sub1_lt <;> assumption)
@@ -928,7 +965,7 @@ def nd_lemmas(heads):
             out.append(f'-- no P0 lemma for {h}')
             continue
         f = FUNCS[h]
-        b = ' '.join(f'({n} : {ty})' for n, ty, _ in f.params)
+        b = ' '.join(f'({n} : {"Type" if ty == "Type _" else ty})' for n, ty, _ in f.params)
         a = ' '.join(n for n, _, _ in f.params)
         out.append(f'@[reif_simps] theorem nd.{h} {b} : fl4_core.{h} {a} ≠ div :=')
         out.append(f'  ne_div_of_spec (Fl4Proofs.P0.{h}.p0 {a})')
@@ -955,6 +992,24 @@ def main():
     roots = sys.argv[2:]
     names = closure(roots)
     names = {n for n in names if not n.endswith('.body')}
+    # GEN_BASE="root ...": trees of the base roots' closure already exist in GEN_BASE_MOD (imported, not
+    # regenerated); GEN_IMPORTS="Mod ...": further imports of the first module.
+    base_roots = os.environ.get('GEN_BASE', '').split()
+    base_mod = os.environ.get('GEN_BASE_MOD', 'Fl4Proofs.P2.ProgGenBase')
+    names -= closure(base_roots)
+    have = set()
+    todo, seen = [base_mod], set()
+    while todo:
+        mo = todo.pop()
+        if mo in seen or not mo.startswith('Fl4Proofs.P2.ProgGen'):
+            continue
+        seen.add(mo)
+        fp = os.path.join(OUTDIR, mo.split('.')[-1] + '.lean')
+        if not os.path.exists(fp):
+            continue
+        t = open(fp).read()
+        have |= set(re.findall(r'theorem nd\.([\w.]+?)(?:\.ne)? ', t))
+        todo += re.findall(r'^import (\S+)', t, re.M)
     lv = levels(names)
     order = sorted(names, key=lambda n: (lv[n], n))
     # generate per function
@@ -970,7 +1025,7 @@ def main():
         heads |= pure_heads(pure)
         for t in pure:
             insts |= set(INSTRE.findall(t))
-    ndl = nd_lemmas(heads) + inst_lemmas(insts)
+    ndl = nd_lemmas(heads - have) + inst_lemmas(insts - have)
     # split into files of ~LIMIT lines, respecting level order
     LIMIT = int(os.environ.get('GEN_LIMIT', '400'))
     files = [[]]
@@ -988,11 +1043,11 @@ def main():
     for old in glob.glob(os.path.join(OUTDIR, f'ProgGen{prefix}[0-9]*.lean')):
         os.remove(old)
     mods = []
-    base = 'Fl4Proofs.P2.ProgGenBase'
+    base = base_mod
     prev = None
     for k, fl in enumerate(files):
         mod = f'ProgGen{prefix}{k}'
-        imports = f'import {prev}' if prev else f'import {base}'
+        imports = f'import {prev}' if prev else '\n'.join(f'import {x}' for x in [base] + os.environ.get('GEN_IMPORTS', '').split())
         body = []
         if k == 0:
             body += ['/-! ## Pure steps never diverge (from P0) -/', ''] + ndl

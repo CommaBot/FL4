@@ -66,7 +66,7 @@ noncomputable def sl_localPathG (ar : machine.Arch A) (hSt : P0.StoreTotal st) (
   RS := SlRS (st := st) K Locks
   WS := SlWS (st := st) K Locks
   DS := SlDS (L := L)
-  isProg := sl_isProg S n found
+  isProg := IsProg.on (sl_isProg S n found) _ _ _
   obl := sl_pathObl_e ar hSt hA hK hX hU (sl_isProg S n found) (sl_noZero n found) hm hSe hUu a0 hPE hEj hHj
     hAk
   side := sl_pathSide_e ar hSt hA hK hX hU (sl_isProg S n found) (sl_noZero n found) hm hSe hUu a0 hPE hEj
