@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRR
 import Fl4Proofs.P2.FootTimerIrqAcc
 import Fl4Proofs.P2.FootTimerSetMv
 import Fl4Proofs.P2.FootTimerIrqH
@@ -29,3 +30,9 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.irq_quiet_pre
 #print axioms Fl4Proofs.P2.irq_accG_quiet_walk
 #print axioms Fl4Proofs.P2.irq_accG_quiet
+#print axioms Fl4Proofs.P2.sched.charge_budget.guard_rr
+#print axioms Fl4Proofs.P2.sched.reschedule_required.guard_resume
+#print axioms Fl4Proofs.P2.reschedule_required_resume
+#print axioms Fl4Proofs.P2.faults.valid_timeout_handler.guard
+#print axioms Fl4Proofs.P2.sched.end_timeslice.guard_rr
+#print axioms Fl4Proofs.P2.cbTail.guard
