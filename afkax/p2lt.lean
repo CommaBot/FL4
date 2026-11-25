@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRD
 import Fl4Proofs.P2.FootTimerIrqRB
 import Fl4Proofs.P2.FootTimerIrqRS
 import Fl4Proofs.P2.FootTimerIrqRC
@@ -88,3 +89,7 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.check_budget_ins
 #print axioms Fl4Proofs.P2.rrw_keep
 #print axioms Fl4Proofs.P2.rr_cb_state
+#print axioms Fl4Proofs.P2.rr_nodue
+#print axioms Fl4Proofs.P2.rr_rel
+#print axioms Fl4Proofs.P2.dequeue_single_writes
+#print axioms Fl4Proofs.P2.rr_choose
