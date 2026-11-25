@@ -374,6 +374,8 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
     unfold replyA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hbd : ∀ y ∈ H.tcbs, L.mem s' (boundA y) = L.mem s (boundA y) := fun y hy => by
     unfold boundA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
+  have haf : ∀ y ∈ H.tcbs, L.mem s' (affA y) = L.mem s (affA y) := fun y hy => by
+    unfold affA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hyl : ∀ y ∈ H.tcbs, L.mem s' (yieldA y) = L.mem s (yieldA y) := fun y hy => by
     unfold yieldA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hsr : ∀ c ∈ H.scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) := fun c hc => sig _ (hO.repW c hc)
@@ -416,7 +418,7 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
         rw [hbd _ ((hE.ntb n hn).ne0 h0')]; exact hE.bs.nt n hn h0',
        fun c hc hc0 h0' => by
         rw [hsn c hc] at h0' ⊢; rw [hns _ (hE.scn c hc h0')]; exact hE.bs.sn c hc hc0 h0'⟩⟩,
-      hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc⟩
+      hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc, fun t ht hb => ?_⟩
     · rcases A.tcbs_add.1 ht with ht | hnw
       · rw [hsc t ht] at hb ⊢
         obtain ⟨h1, h2, h3⟩ := hE.bound t ht hb
@@ -430,6 +432,10 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       · rw [hyl t ht] at h0' ⊢; exact hE.yt.2.1 t ht h0'
       · rw [A.zYl hnw] at h0'; exact absurd rfl h0'
     · rw [hyf c hc] at h0' ⊢; exact TU _ (hE.yt.2.2 c hc h0')
+    · rcases A.tcbs_add.1 ht with ht | hnw
+      · rw [hsc t ht] at hb ⊢
+        rw [(hfx _ (hE.bound t ht hb).1).2, haf t ht]; exact hE.aff t ht hb
+      · rw [A.zSc hnw] at hb; exact absurd rfl hb
   have hS' : SCsOK st (H.add N .tcb).tcbs H.omega H.frame H.scs H.scBits Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [G.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [G.ksb]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,

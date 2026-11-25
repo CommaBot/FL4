@@ -474,7 +474,8 @@ theorem cfDK {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s3 : S) 
     else ok s7
   ok (t1, a5)) ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ Foot st T Cs Sg Scs Z ∅ s3 r.1 ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
-  refine WP.spec_bind (WP.spec_and (migrate_tail hA s3 a1 target i cpu Q R h0 hB hX hS hSg hi htq htr hcpu htS)
+  refine WP.spec_bind (WP.spec_and (migrate_tail hA s3 a1 target i cpu Q R h0 hB (hX.w i) hS hSg hi htq htr hcpu htS
+    (fun h0' => (hX.2.2.aff i hi h0').trans haff))
     (smp.migrate_tcb.frame hA s3 a1 i cpu h0.tcbs h0.nodes ⟨hX.2.2.tm.dn, hX.2.2.tm.dp, hX.2.2.tm.dh⟩
       (h0.aff i hi) hcpu hi)) ?_
   rintro ⟨s5, a3⟩ hh
@@ -589,15 +590,21 @@ theorem schedcontext.configure_flags.blkK {A : Type _} {ar : machine.Arch A} (hA
   refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧
       (b = false → (L.mem r.1 (inqA i) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem r.1 (inqA i) &&& sched.Q_RELEASE) = 0#u64 ∧
         L.mem r.1 (scA i) = target ∧ L.mem r.1 (affA i) = cpu) ∧ (∀ y ∈ T, L.actionW r.1 ≠ y) ∧
+        (∀ y ∈ T, L.mem r.1 (scA y) = target → y = i) ∧
       Foot st T Cs Sg Scs Z ∅ s r.1) ?_ ?_
   · split
     · rename_i hb
-      exact (WP.spec_ok _).2 ⟨h, fun hf => absurd (hf.symm.trans hb) (by simp), hna, Foot.refl _⟩
+      exact (WP.spec_ok _).2 ⟨h, fun hf => absurd (hf.symm.trans hb) (by simp), hna, fun y hy e => by
+        have := (hX.2.2.bound y hy (by rw [e]; exact ht0)).2.1
+        rw [e, ← ei] at this; exact this.symm, Foot.refl _⟩
     · rename_i hb
       have hi0 : i ≠ 0#u64 := hbi (by simpa using hb)
       exact WP.spec_mono (cfAK hA a i target h (hiT hi0) hna) fun r ⟨h1, q1, r1, a1, s1, _, f1, af1⟩ =>
-        ⟨h1, fun _ => ⟨q1, r1, s1.trans (hsci hi0), af1.trans (hai hi0)⟩, a1, f1⟩
-  rintro ⟨s1, a1⟩ ⟨h1, hq1, ha1, fw1⟩
+        ⟨h1, fun _ => ⟨q1, r1, s1.trans (hsci hi0), af1.trans (hai hi0)⟩, a1, fun y hy e => by
+          have b1 := (h1.2.2.1.2.2.bound y hy (by rw [e]; exact ht0)).2.1
+          have b2 := (h1.2.2.1.2.2.bound i (hiT hi0) (by rw [s1.trans (hsci hi0)]; exact ht0)).2.1
+          rw [e] at b1; rw [s1.trans (hsci hi0)] at b2; exact b1.symm.trans b2, f1⟩
+  rintro ⟨s1, a1⟩ ⟨h1, hq1, ha1, hu1, fw1⟩
   try simp only [WP.uncurry'_pair]
   -- the refills
   have keep : ∀ s2 : S, BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) s2 →
@@ -609,17 +616,19 @@ theorem schedcontext.configure_flags.blkK {A : Type _} {ar : machine.Arch A} (hA
       BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) s2 ∧
       (b = false → (L.mem s2 (inqA i) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s2 (inqA i) &&& sched.Q_RELEASE) = 0#u64 ∧
         L.mem s2 (scA i) = target ∧ L.mem s2 (affA i) = cpu) ∧ (∀ y ∈ T, L.actionW s2 ≠ y) ∧
+        (∀ y ∈ T, L.mem s2 (scA y) = target → y = i) ∧
       Foot st T Cs Sg Scs Z ∅ s s2 := fun s2 h2' ea fl fa fw =>
     ⟨h2', fun hf => by
       have hiT' := hiT (hbi hf)
       obtain ⟨q, r, sc, af⟩ := hq1 hf
       rw [(fl i hiT').2.2, (fl i hiT').1, fa i hiT']; exact ⟨q, r, sc, af⟩, fun y hy => by rw [ea]; exact ha1 y hy,
-      fw1.trans fw⟩
+      fun y hy e => hu1 y hy (by rw [← (fl y hy).1]; exact e), fw1.trans fw⟩
   have RN : ∀ m bud per : U64, sporadic.MIN_REFILLS.val ≤ m.val → m.val ≤ absMax (Z target) →
       sporadic.refill_new st s1 target m bud per ⦃ s2 =>
         BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) s2 ∧
         (b = false → (L.mem s2 (inqA i) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s2 (inqA i) &&& sched.Q_RELEASE) = 0#u64 ∧
           L.mem s2 (scA i) = target ∧ L.mem s2 (affA i) = cpu) ∧ (∀ y ∈ T, L.actionW s2 ≠ y) ∧
+        (∀ y ∈ T, L.mem s2 (scA y) = target → y = i) ∧
         Foot st T Cs Sg Scs Z ∅ s s2 ⦄ := fun m bud per hm2 hmm =>
     WP.spec_mono (sporadic.refill_new.fr m bud per hP hz hm2 hmm) fun s2 ⟨wf, w⟩ => by
       obtain ⟨h2', ea, -, -, fl⟩ := refill_blk h1 htS w wf
@@ -630,6 +639,7 @@ theorem schedcontext.configure_flags.blkK {A : Type _} {ar : machine.Arch A} (hA
         BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) s2 ∧
         (b = false → (L.mem s2 (inqA i) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s2 (inqA i) &&& sched.Q_RELEASE) = 0#u64 ∧
           L.mem s2 (scA i) = target ∧ L.mem s2 (affA i) = cpu) ∧ (∀ y ∈ T, L.actionW s2 ≠ y) ∧
+        (∀ y ∈ T, L.mem s2 (scA y) = target → y = i) ∧
         Foot st T Cs Sg Scs Z ∅ s s2 ⦄ := fun per bud m hm2 hmm =>
     WP.spec_mono (sporadic.refill_update.fr per bud m hP hz hm2 hmm) fun s2 ⟨wf, w⟩ => by
       obtain ⟨h2', ea, -, -, fl⟩ := refill_blk h1 htS w wf
@@ -639,6 +649,7 @@ theorem schedcontext.configure_flags.blkK {A : Type _} {ar : machine.Arch A} (hA
   refine WP.spec_bind (Pₘ := fun s2 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) s2 ∧
       (b = false → (L.mem s2 (inqA i) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s2 (inqA i) &&& sched.Q_RELEASE) = 0#u64 ∧
         L.mem s2 (scA i) = target ∧ L.mem s2 (affA i) = cpu) ∧ (∀ y ∈ T, L.actionW s2 ≠ y) ∧
+        (∀ y ∈ T, L.mem s2 (scA y) = target → y = i) ∧
       Foot st T Cs Sg Scs Z ∅ s s2) ?_ ?_
   · split
     · exact RN _ _ _ (le_refl _) hmin
@@ -654,22 +665,31 @@ theorem schedcontext.configure_flags.blkK {A : Type _} {ar : machine.Arch A} (hA
             · exact RN _ _ _ h2 hm
         · exact RN _ _ _ h2 hm
       · exact RN _ _ _ h2 hm
-  rintro s2 ⟨h2', hq2, ha2, fw2⟩
+  rintro s2 ⟨h2', hq2, ha2, hu2, fw2⟩
   -- the core
   refine WP.spec_bind (obj.Sc.set_cpu.wr s2 target cpu) fun s3 e3 => ?_
   subst e3
-  obtain ⟨h3, ea3, -, -, fl3⟩ := scword_blk h2' htS hTA (Or.inl (scCoreA_val hP hz)) (fun _ => hcpu)
+  obtain ⟨h3, ea3, -, -, fl3⟩ := scword_blkW (d := i) h2' htS hTA (Or.inl (scCoreA_val hP hz))
+    (fun _ => ⟨hcpu, fun t ht hne e => hne (hu2 t ht e)⟩)
+  have hco3 : L.mem (L.wr s2 (scCoreA target) cpu) (scCoreA target) = cpu :=
+    L.mem_wr_same (by obtain ⟨h8', -, -⟩ := sc_lo hP hz; have := scCoreA_val hP hz; unfold Aligned; omega)
   obtain ⟨fw3, fa3⟩ := scw_foot (v := cpu) h2' htS (Or.inl (scCoreA_val hP hz))
   -- the thread
   refine WP.spec_bind (Pₘ := fun r : S × A => BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) r.1 ∧
       Foot st T Cs Sg Scs Z ∅ s r.1) ?_ ?_
   · split
-    · exact (WP.spec_ok _).2 ⟨h3, fw2.trans fw3⟩
+    · rename_i hb
+      have hi0 : i = 0#u64 := by rw [eb] at hb; simpa using hb
+      exact (WP.spec_ok _).2 ⟨⟨h3.1, h3.2.1, h3.2.2.1.1.x h3.2.2.1.2.1 (h3.2.2.1.2.2.full fun hiT0 _ =>
+        ((h3.1.choose_spec.choose_spec.tcbs _ hiT0).ne0 (by rw [hi0]; simp)).elim), h3.2.2.2⟩, fw2.trans fw3⟩
     · rename_i hb
       have hbf : b = false := by simpa using hb
       have hiT' := hiT (hbi hbf)
       obtain ⟨q2, r2, sc2, af2⟩ := hq2 hbf
-      exact WP.spec_mono (cfDK hA _ a1 i target cpu h3 hiT' (by rw [(fl3 i hiT').2.2]; exact q2)
+      have h3f : BlkOK st T Cs Ω H Sg Rp Scs Nt Z (insert target Ac) (L.wr s2 (scCoreA target) cpu) :=
+        ⟨h3.1, h3.2.1, h3.2.2.1.1.x h3.2.2.1.2.1 (h3.2.2.1.2.2.full fun _ _ => by
+          rw [(fl3 i hiT').1, sc2, hco3, fa3 i hiT']; exact af2.symm), h3.2.2.2⟩
+      exact WP.spec_mono (cfDK hA _ a1 i target cpu h3f hiT' (by rw [(fl3 i hiT').2.2]; exact q2)
         (by rw [(fl3 i hiT').2.2]; exact r2) (by rw [(fl3 i hiT').1]; exact sc2) ht0 htS hTA hcpu
         (fun y hy => by rw [ea3]; exact ha2 y hy) (by rw [fa3 i hiT']; exact af2))
         fun r hr => ⟨hr.1, fw2.trans (fw3.trans hr.2)⟩

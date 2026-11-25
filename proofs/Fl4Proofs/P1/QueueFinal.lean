@@ -1017,8 +1017,8 @@ theorem notification.unbind_notification.blkF (s : S) (t : U64) (h : BlkOK st T 
 for that SC before the write). -/
 theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     (h0 : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
-    (htx : TScX st Scs c0 s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hc0 : c0 ∈ Scs)
-    (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ c0) :
+    (htx : TScX st Scs c0 s) (haf : ScAff st T s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s)
+    (hc0 : c0 ∈ Scs) (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ c0) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scTcbA c0) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scTcbA c0) 0#u64) ∧ ANI st s (L.wr s (scTcbA c0) 0#u64) := by
   have hO := hX.1
@@ -1026,9 +1026,19 @@ theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U6
   have ho := h0.omega _ hm
   have hN' := h0.nodes _ h0.cur
   obtain ⟨h128, e1, -, e3, e4, e5, -⟩ := sc_facts hO hc0
+  have haf' : ScAff st T (L.wr s (scTcbA c0) 0#u64) := haf.keep (fun t ht h0' => (hX.2.2.bound t ht h0').1)
+    (fun y hy => L.mem_wr_ne ho.1 (scA_aligned (h0.tcbs y hy))
+      (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
+    (fun c hc => L.mem_wr_ne ho.1 (h0.omega _ (hSg.sub _ (hO.fixW c hc).2)).1 (by
+      rw [e1, (sc_facts hO hc).2.2.1]
+      by_cases hcc : c = c0
+      · subst hcc; omega
+      · have := hO.scDisj c hc c0 hc0 hcc; have := (sc_facts hO hc).1; omega))
+    (fun y hy => L.mem_wr_ne ho.1 (field_aligned (K := 3520#u64) (h0.tcbs y hy) (by simp) (by simp))
+      (out_ne_field (K := 3520#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
   refine ⟨⟨⟨Q, R, inv_of_free h0 ((writesIn_wr (v := 0#u64) ho.1).mono fun b hb => hb ▸ Or.inl hm)⟩,
     BoundInv.owr h0 hB hm, (XInv.set_sctcb h0 hX hSg.sub hc0 hnb (fun h0' => absurd rfl h0') (fun e => absurd e.symm (idle_ne0 h0))).x
-      ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0'),
+      ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0') haf',
     SCsOK.wr' h0 hS hO ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h0.cur hN' (by simp [layout.node.CUR_SC])).symm (fun c hc => ?_)
       (scw_ne_spor hO hc0 e1 (by omega) (by omega))
@@ -1126,7 +1136,7 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     rw [f3.sig _ (hX1.1.fixW sc hsc).1, f2.sig _ (hX1.1.fixW sc hsc).1, sc1, ← et]
   refine WP.spec_bind (obj.Tcb.set_sc.wr s3 t 0#u64) fun s4 e4 => ?_
   subst e4
-  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, -, kΩ, ks0⟩ :=
+  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, kf, kΩ, ks0⟩ :=
     clear_sc_state h3 hB3 hX3 hS3 hSg3 htT ⟨qq3, qr3⟩ id3
   have hB4 := kB na3 (fun e => by rw [ka, ea3, ea2]; exact cr1 (by rw [← ec2, ← ec3, ← kc]; exact e))
   have ktx' : TScX st Scs sc (L.wr s3 (scA t) 0#u64) := by
@@ -1140,7 +1150,12 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     rw [scA_eq]; exact foot_field h3.tcbs htT (by simp) (by simp) (by simp) (by simp)
   refine WP.spec_mono (obj.Sc.set_tcb.wr _ sc 0#u64) fun s5 e5 => ?_
   subst e5
-  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' k4 k5 hsc fun y hy e => by
+  have haf4 : ScAff st T (L.wr s3 (scA t) 0#u64) :=
+    (ScAffX.keep (d := t) (hX3.2.2.aff.x t) (fun y hy _ h0 => (hX3.2.2.bound y hy h0).1)
+      (fun y hy hyt => by rw [scA_eq]; exact kf y hy _ (by simp) (by simp) (fun e => absurd e hyt))
+      (fun c hc => kΩ _ (hSg3.sub _ (hX3.1.fixW c hc).2))
+      (fun y hy _ => kf y hy _ (by simp) (by simp) (fun _ => by simp))).full (fun _ h0 => absurd ks0 h0)
+  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' haf4 k4 k5 hsc fun y hy e => by
     by_cases eyt : y = t
     · subst eyt; rw [ks0] at e; exact hsc0 e.symm
     · have := (k3.2.2.bound y hy (by rw [e]; exact hsc0)).2.1

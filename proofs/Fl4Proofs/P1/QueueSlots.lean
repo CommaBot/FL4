@@ -270,6 +270,7 @@ theorem blk_of_capw {s s' : S} {B : U64 → Prop} (h : BlkOK st T Cs Ω H Sg Rp 
       (fun c hc => sig _ (hX.1.snW c hc)) (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))
       (fun c hc => sig _ (hX.1.mxW c hc)) ei
+      (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
   have hS' : SCsOK st T Ω Sg Scs Z Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [hw.1]; exact hS.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,

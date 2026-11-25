@@ -179,12 +179,13 @@ theorem not_prot_tw {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
         · exact hsub _ (hO.syW c hc)
         · exact hsub _ (hO.mxW c hc)
       exact out_ne_field (h.omega _ hm) hy hya (by omega) rfl
-    · rcases e' with e' | e' | e' | e' | e'
+    · rcases e' with e' | e' | e' | e' | e' | e'
       · rw [scA_eq] at e'
         exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
       · exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
       · rw [stA_eq] at e'
         exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
+      · exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
       · exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
       · exact field_ne hya (h.tcbs u hu) (by omega) (by simp) (fun _ => by simp; omega) e'
   · exact not_prot_node h hO hsub hc (by omega)

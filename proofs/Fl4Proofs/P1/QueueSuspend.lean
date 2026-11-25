@@ -66,7 +66,7 @@ the timer-tree typing after the write. -/
 theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsub : ∀ b ∈ Sg, b ∈ Ω) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
-    (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472)
+    (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472 ∧ K.val ≠ 3520)
     (htn : TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
@@ -98,12 +98,13 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
           · exact hsub _ (hX.1.syW c hc)
           · exact hsub _ (hX.1.mxW c hc)
         exact out_ne_field (h.omega _ hm) hy hya hK rfl
-      · rcases e' with e' | e' | e' | e' | e'
+      · rcases e' with e' | e' | e' | e' | e' | e'
         · rw [scA_eq] at e'
           exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
         · exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
         · rw [stA_eq] at e'
           exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
+        · exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
         · exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
         · exact field_ne hya (h.tcbs u hu) hK (by simp) (fun _ => by simp; omega) e'
   · rw [scA_eq]
@@ -116,7 +117,7 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
 theorem bx_field {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsub : ∀ b ∈ Sg, b ∈ Ω) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
-    (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472)
+    (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472 ∧ K.val ≠ 3520)
     (hKt : K.val < 3528 ∨ 3592 ≤ K.val) :
     BoundInv st T Ac (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (core.num.U64.wrapping_add y K) v) :=
@@ -128,7 +129,7 @@ def AvoidX (st : machine.Store S) [L : LawfulStore st] (T Rp Scs Nt : Set U64) (
   (∀ r ∈ Rp, a.val ≠ (rTcbA r).val ∧ a.val ≠ (rPrevA r).val ∧ a.val ≠ (rNextA r).val) ∧
   (∀ c ∈ Scs, a.val ≠ (scTcbA c).val ∧ a.val ≠ (scCoreA c).val ∧ a.val ≠ (scReplyA c).val ∧
     a.val ≠ (scNtfnA c).val ∧ a.val ≠ (maxA c).val) ∧
-  (∀ u ∈ T, a.val ≠ (scA u).val ∧ a.val ≠ (replyA u).val ∧ a.val ≠ (stA u).val ∧ a.val ≠ (boundA u).val) ∧
+  (∀ u ∈ T, a.val ≠ (scA u).val ∧ a.val ≠ (replyA u).val ∧ a.val ≠ (stA u).val ∧ a.val ≠ (boundA u).val ∧ a.val ≠ (affA u).val) ∧
   (∀ n ∈ Nt, a.val ≠ (ntfnScA n).val) ∧ a.val ≠ (L.nodeA s layout.node.CUR_SC).val ∧
   a.val ≠ (L.nodeA s layout.node.IDLE_THREAD).val
 
@@ -145,7 +146,7 @@ theorem avoidX_yieldA {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : 
   refine ⟨fun r hr => ⟨om _ (hrΩ r hr).1, om _ (hrΩ r hr).2.1, om _ (hrΩ r hr).2.2⟩,
     fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1, om _ (hsub _ (hX.1.repW c hc)), om _ (hsub _ (hX.1.snW c hc)), om _ (hsub _ (hX.1.mxW c hc))⟩,
     fun u hu => ⟨by rw [scA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp),
-      by rw [stA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp)⟩,
+      by rw [stA_eq]; exact fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp), fl u hu _ (by simp) (by simp)⟩,
     fun n hn => om _ (hsub _ (hX.1.ntW n hn)), fun e => ?_, fun e => ?_⟩
   · have hN' := h.nodes _ h.cur
     exact node_ne_field hN' (by simp [layout.node.CUR_SC]) ht hta (K := 3472#u64) (by simp)
@@ -178,7 +179,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       fun K hK => out_ne_field ho hu hua hK
     refine ⟨fun e => this 3464#u64 (by simp) (by rw [← scA_eq]; exact e.symm),
       fun e => this 3360#u64 (by simp) e.symm, fun e => this 3328#u64 (by simp) (by rw [← stA_eq]; exact e.symm),
-      fun e => this 3368#u64 (by simp) e.symm⟩
+      fun e => this 3368#u64 (by simp) e.symm, fun e => this 3520#u64 (by simp) e.symm⟩
   · have := hO.ntSc n hn c0 hc0; rw [av]; omega
   · exact out_ne_node ho h.cur (h.nodes _ h.cur) (by simp [layout.node.CUR_SC]) e.symm
   · exact out_ne_node ho h.cur (h.nodes _ h.cur) (by simp [layout.node.IDLE_THREAD]) e.symm
@@ -209,19 +210,20 @@ theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inl rfl)⟩)))) (hU u hu).2.1)
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inl rfl))⟩)))) (hU u hu).2.2.1)
     ?_ (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩))) (hC c hc).2.2.1)
-    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2)
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2.1)
     (fun n hn => k _ (hO.ntAl n hn) (hN n hn)) htn
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2.1)
     ⟨fun c hc => by
       rw [k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩))) (hC c hc).1]; exact hX.2.2.yt.1 c hc,
      fun u hu h0 => by
-      have hb := alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩)))
+      have hb := alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))⟩)))
       have e := z _ hb h0; rw [e] at h0 ⊢; exact hX.2.2.yt.2.1 u hu h0,
      fun c hc h0 => by
       have hb := alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))⟩))
       have e := z _ hb h0; rw [e] at h0 ⊢; exact hX.2.2.yt.2.2 c hc h0⟩
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))
       (hC c hc).2.2.2.2) ?_
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))) (hU u hu).2.2.2.2)
   · unfold LawfulStore.cscW; rw [nodeA_wr]
     rw [k (L.nodeA s layout.node.CUR_SC) (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])) hcs]
