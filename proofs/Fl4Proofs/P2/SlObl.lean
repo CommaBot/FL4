@@ -27,6 +27,11 @@ Premises:
 * `hna` [W]: a run that declines at the entry state declines at every alternative;
 * `hra` [W]: `read_aligned` from the alternatives of an entry state that does not accept;
 * `huf` [J] (`PathSide.user_free`).
+
+`sl_pathObl_dr` / `sl_pathSide_dr` discharge `hna` / `hra` (`sl_hna`, `sl_hra`) from one
+per-state premise, `DecRd` [W]: a run declining at the entry state reads only `SlRS s` and
+writes only `SlDS s`; then at every alternative the guarded run agrees (`interp_agree`) and so
+declines with the same flag; `hra` also uses P0 totality (`StoreTotal` [P]).
 -/
 import Fl4Proofs.P2.DecSl
 import Fl4Proofs.P2.PathAgree
@@ -226,6 +231,109 @@ theorem sl_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.
     rw [← h]
     exact interp_mono (fun _ hw => hw.1) (fun _ _ => trivial) p hz s' a _ hg'
   · exact hra s s' a r hE Al hac h
+
+/-- `DecRd` [W]: a run declining at the entry state `s` reads only words of `SlRS s` and writes
+only the prefix words `SlDS s` (it succeeds the same on `guard st (SlRS s) (SlDS s)`). Sound by
+the glue: before the fast path reads an endpoint or reply object it holds its lock
+(`fl4-sync` `local_syscall`), the handler's `AFFINITY` (gate-owned, so in `RPerm`) is checked
+first (`schedulable_here`), and the other words read are the current thread's and the core's. -/
+def DecRd (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) : Prop :=
+  ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
+    syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found = ok r
+
+/-- A declined run at `s` is, at every alternative `s'`, a run on `guard st (SlRS s) (SlDS s)`
+declining with the same flag and Arch state (`interp_agree`), and then on `st` (`interp_to`). -/
+theorem sl_dec_alt_run (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
+      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
+    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
+    {s s' : S} {a : A} {b : Bool} {s1 : S} {a1 : A}
+    (hpre : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s)
+    (Al : Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s')
+    (hg : syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found =
+      ok (b, s1, a1)) :
+    ∃ s1', syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s' a n found =
+        ok (b, s1', a1) ∧ syscall.handle_syscall_local st ar s' a n found = ok (b, s1', a1) := by
+  have hp : ∀ (m : machine.Store S) (x : S) (a : A),
+      syscall.handle_syscall_local m ar x a n found = interp m ar p x a :=
+    fun m x a => congrFun (congrFun (hFp A ar m) x) a
+  rw [hp] at hg
+  obtain ⟨s1', hg'⟩ := interp_agree hm (fun w hw => hw.1) (fun w hw => (SlDS.ws hpre hw).1) p hz s s' a b s1 a1
+    Al.ksb Al.cpu Al.masks Al.read hg
+  refine ⟨s1', by rw [hp]; exact hg', ?_⟩
+  rw [hp]
+  exact interp_to (st := st) (st' := st) (fun _ _ _ => rfl) (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
+    rfl rfl rfl p hz s' a _ hg'
+
+/-- **`hna` from `DecRd`**: a run declining at the entry state declines at every alternative. -/
+theorem sl_hna (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
+      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
+    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    ∀ s a r s' r', P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
+      Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
+      syscall.handle_syscall_local st ar s' a n found = ok r' → r'.1 ≠ true := by
+  intro s a r s' r' hP h hn Al h'
+  obtain ⟨b, s1, a1⟩ := r
+  obtain ⟨s1', -, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (hdr s a _ hP h hn)
+  rw [h2] at h'
+  obtain rfl := Result.ok_injective h'
+  exact hn
+
+/-- **`hra` from `DecRd`** and P0 totality: at an alternative of an entry state that does not
+accept, the run reads only aligned words. -/
+theorem sl_hra (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar)
+    (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
+      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
+    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    ∀ s s' a r, P s →
+      Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
+      (¬ ∃ s1 a1, syscall.handle_syscall_local st ar s a n found = ok (true, s1, a1)) →
+      syscall.handle_syscall_local st ar s' a n found = ok r →
+      syscall.handle_syscall_local (guard st (fun b => Aligned b) (fun _ => True)) ar s' a n found = ok r := by
+  intro s s' a r hP Al hna h
+  obtain ⟨⟨b, s1, a1⟩, h0, -⟩ := spec_ex_fd (Fl4Proofs.P0.syscall.handle_syscall_local.p0 st ar s a n found hS hA)
+  have hb : b ≠ true := fun e => hna ⟨s1, a1, by rw [h0, e]⟩
+  obtain ⟨s1', hg, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (hdr s a _ hP h0 hb)
+  rw [h2] at h
+  obtain rfl := Result.ok_injective h
+  have hp : ∀ (m : machine.Store S) (x : S) (a : A),
+      syscall.handle_syscall_local m ar x a n found = interp m ar p x a :=
+    fun m x a => congrFun (congrFun (hFp A ar m) x) a
+  rw [hp] at hg ⊢
+  exact interp_mono (fun _ hq => hq.1) (fun _ _ => trivial) p hz s' a _ hg
+
+/-- **`PathObl` of the syscall entry from `DecRd`** (`sl_pathObl` with `hna := sl_hna`). -/
+theorem sl_pathObl_dr (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.E2E.UserOK K)
+    (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
+      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
+    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    PathObl st (fun m s a => syscall.handle_syscall_local m ar s a n found) (fun b => b = true)
+      (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
+      (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
+  sl_pathObl ar hA hK hU hFp hPE (sl_hna ar hFp hz hm hPE hdr)
+
+/-- **`PathSide` of the syscall entry from `DecRd`** (`sl_pathSide` with `hra := sl_hra`). -/
+theorem sl_pathSide_dr (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : RegionOK K)
+    (hU : Fl4Proofs.P2.E2E.UserOK K)
+    (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
+      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
+    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks)
+    (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
+      P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
+        SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
+        SlWS (st := st) K Locks (L.wr s b v) = SlWS (st := st) K Locks s ∧
+        SlDS (L := L) (L.wr s b v) = SlDS (L := L) s) :
+    PathSide st (fun m s a => syscall.handle_syscall_local m ar s a n found)
+      (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
+      (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
+  sl_pathSide ar hA hK hU hFp hz hm hPE (sl_hra ar hS hA hFp hz hm hPE hdr) huf
 
 end
 
