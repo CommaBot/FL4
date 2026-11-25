@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqApp
 import Fl4Proofs.P2.FootTimerIrqRR
 import Fl4Proofs.P2.FootTimerIrqAcc
 import Fl4Proofs.P2.FootTimerSetMv
@@ -36,3 +37,12 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.faults.valid_timeout_handler.guard
 #print axioms Fl4Proofs.P2.sched.end_timeslice.guard_rr
 #print axioms Fl4Proofs.P2.cbTail.guard
+#print axioms Fl4Proofs.P2.tq_append_empty
+#print axioms Fl4Proofs.P2.tq_append_ne
+#print axioms Fl4Proofs.P2.sched.q_get.guard
+#print axioms Fl4Proofs.P2.sched.q_set.guard
+#print axioms Fl4Proofs.P2.sched.set_flag.guard
+#print axioms Fl4Proofs.P2.tcbqueue.append.guard_sched
+#print axioms Fl4Proofs.P2.sched.add_to_bitmap.guard
+#print axioms Fl4Proofs.P2.smp.remote_queue_update.guard_local
+#print axioms Fl4Proofs.P2.sched.append.guard_local
