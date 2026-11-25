@@ -249,3 +249,4 @@ import Fl4Proofs.P2.FootTimerFirePk
 #print axioms Fl4Proofs.P2.PathObl.switch_hsw_hfr
 #print axioms Fl4Proofs.P2.pick_top
 #print axioms Fl4Proofs.P2.top_unique
+#print axioms Fl4Proofs.P2.choose_head
