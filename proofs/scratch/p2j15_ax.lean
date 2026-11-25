@@ -5,3 +5,6 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.schedcontext.donate.ff
 #print axioms Fl4Proofs.P2.Stall.FFoot.trans
 #print axioms Fl4Proofs.P2.Stall.notification.maybe_donate_sched_context.ff
+#print axioms Fl4Proofs.P2.Stall.AllCores.step2
+#print axioms Fl4Proofs.P2.Stall.CoreInv.keep2
+#print axioms Fl4Proofs.P2.Stall.AllCores.sched
