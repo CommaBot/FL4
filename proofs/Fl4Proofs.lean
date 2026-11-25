@@ -154,6 +154,7 @@ import Fl4Proofs.P1.EntryXGTop
 import Fl4Proofs.P1.EntryFin
 import Fl4Proofs.P1.EntryVacuous
 import Fl4Proofs.P1.DomInv
+import Fl4Proofs.P1.DomInvQ
 import Fl4Proofs.P1.QueueSortedC
 import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq
