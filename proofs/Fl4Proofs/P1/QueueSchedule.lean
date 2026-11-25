@@ -291,7 +291,7 @@ theorem SCsOK.switch {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List
     fun c hc h0 => hS.spor c hc (by rw [← ksp c hc]; exact h0), hS.spSg, fun c hc h0 => hS.rep c hc (by
       obtain ⟨hPc, hzc⟩ := hO.sc c hc; obtain ⟨h8c, -, -⟩ := sc_lo hPc hzc
       have := scReplyA_val hPc hzc
-      rwa [kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inr this))] at h0), hS.repSg⟩
+      rwa [kk c hc _ (by unfold Aligned; omega) (Or.inr (Or.inr this))] at h0), hS.repSg, fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
   · rw [fld y hy] at hy0 hne ⊢
     rw [hcs'] at hne ⊢
     intro b hin

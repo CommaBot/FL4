@@ -94,6 +94,9 @@ structure SCsOK (st : machine.Store S) [L : LawfulStore st] (T Ω Sg Scs : Set U
   rep : ∀ c ∈ Scs, L.mem s (scReplyA c) ≠ 0#u64 → c ∈ Ac
   /-- The `REPLY` words are frame words. -/
   repSg : ∀ c ∈ Scs, scReplyA c ∈ Sg
+  /-- The SC objects lie outside the kernel-global area (as `SchedQueuesInv.ksOut`
+  for TCBs, `ks` for frame words); retype places new objects there (`AddOKP.ks`). -/
+  scKs : ∀ c ∈ Scs, c.val + 2 ^ Z c ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ c.val
 
 /-- The frame words `Sg` are among `Ω` and outside the kernel-global area,
 which is part of `Ω`. -/
@@ -232,7 +235,8 @@ theorem SCsOK.fr {Sg : Set U64} {Z : U64 → Nat} {s s' : S} (h : SCsOK st T Ω 
     fun t ht hb hne => ?_, fun c hc => (h.all c hc).agree f.sig,
     fun c hc => by rw [show L.rmax s' c = L.rmax s c from f.sig _ (h.all c hc).2.1]; exact h.act c hc,
     fun c hc h0 => h.spor c hc (by rw [← f.sig _ (h.spSg c hc)]; exact h0), h.spSg,
-    fun c hc h0 => h.rep c hc (by rw [← f.sig _ (h.repSg c hc)]; exact h0), h.repSg⟩
+    fun c hc h0 => h.rep c hc (by rw [← f.sig _ (h.repSg c hc)]; exact h0), h.repSg,
+    fun c hc => by rw [f.ksb]; exact h.scKs c hc⟩
   rw [f.sc t ht] at hb hne ⊢; rw [f.csc] at hne ⊢; exact h.disj t ht hb hne
 
 /-- `SCsOK` from its parts: the kernel-global base, the TCBs' SC fields and
@@ -246,8 +250,13 @@ theorem SCsOK.mk2 {Sg : Set U64} {Z : U64 → Nat} {s s' : S} (h : SCsOK st T Ω
   refine ⟨h.sub, fun b hb => by rw [hk]; exact h.ks b hb, fun o h1 h2 => by rw [hk]; exact h.ksΩ o h1 h2,
     fun t ht hb hne => ?_, hall, fun c hc => by rw [show L.rmax s' c = L.rmax s c from hmx c hc]; exact h.act c hc,
     fun c hc h0 => h.spor c hc (by rw [← hsp c hc]; exact h0), h.spSg,
-    hrep, h.repSg⟩
+    hrep, h.repSg, fun c hc => by rw [hk]; exact h.scKs c hc⟩
   rw [hsc t ht] at hb hne ⊢; rw [hcs] at hne ⊢; exact h.disj t ht hb hne
+
+/-- **No SC overlaps the kernel-global area**: P2's `ScKsOut` (`P2/EntryIrq.lean`) at a
+state with `SCsOK`. -/
+theorem SCsOK.scKsOut {Sg : Set U64} {Z : U64 → Nat} {s : S} (h : SCsOK st T Ω Sg Scs Z Ac s) :
+    ∀ c ∈ Scs, c.val + 2 ^ Z c ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ c.val := h.scKs
 
 theorem SCsOK.wf {Sg : Set U64} {Z : U64 → Nat} {s : S} (h : SCsOK st T Ω Sg Scs Z Ac s) {c : U64} (hc : c ∈ Scs)
     (ha : c ∈ Ac) : RefillsWF st s c (Z c) := (h.all c hc).1 ((h.act c hc).1 ha)

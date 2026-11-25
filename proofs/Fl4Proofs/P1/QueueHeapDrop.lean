@@ -219,7 +219,7 @@ theorem SCsOK.drop (P : DropOK st H D Cs s) {Ac : Set U64}
     (hb : ∀ t ∈ (H.drop D).tcbs, L.mem s (scA t) ≠ 0#u64 → ¬ D (L.mem s (scA t))) :
     SCsOK st (H.drop D).tcbs (H.drop D).omega (H.drop D).frame (H.drop D).scs (H.drop D).scBits Ac s := by
   refine ⟨fun b hb => Heap.frame_omega hb, fun b hb => h.ks b (Heap.frame_drop_sub hb),
-    fun o ho h8 => Heap.omega_drop (h.ksΩ o ho h8) (P.ks o ho h8), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    fun o ho h8 => Heap.omega_drop (h.ksΩ o ho h8) (P.ks o ho h8), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro t ht h0 hne b hin
     rw [Heap.scBits_drop (hb t ht h0)] at hin
     rw [Heap.scBits_drop P.csc]
@@ -239,6 +239,9 @@ theorem SCsOK.drop (P : DropOK st H D Cs s) {Ac : Set U64}
   · intro c hc
     obtain ⟨hc', hcD⟩ := Heap.mem_scs_drop.1 hc
     exact P.scFrame hc' hcD (h.repSg c hc') (P.scIn hc' (by simp [layout.sc.REPLY]))
+  · intro c hc
+    obtain ⟨hc', hcD⟩ := Heap.mem_scs_drop.1 hc
+    rw [Heap.scBits_drop hcD]; exact h.scKs c hc'
 
 end
 

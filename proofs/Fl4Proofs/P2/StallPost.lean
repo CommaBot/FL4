@@ -192,7 +192,7 @@ theorem csc_blk {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
           (by rw [c24]; omega) (by rw [c24]; omega))) ki
   · refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
       fun t ht hb1 hne b hin => ?_, fun c hc => (hS.all c hc).agree hsig, fun c hc => ?_, fun c hc hs => ?_, hS.spSg,
-      fun c hc hr => ?_, hS.repSg⟩
+      fun c hc hr => ?_, hS.repSg, fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
     · rw [cs]
       rw [ks t ht] at hb1 hne hin
       rw [cs] at hne

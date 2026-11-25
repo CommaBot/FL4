@@ -350,7 +350,7 @@ theorem SCsOK.reset {s' : S} {c : U64}
     have := hwf.min_le; rw [e] at this; simp [sporadic.MIN_REFILLS] at this
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
     fun y hy hb hne => ?_, fun c' hc' => ?_, fun c' hc' => ?_, fun c' hc' h0' => ?_, hS.spSg,
-    fun c' hc' h0' => ?_, hS.repSg⟩
+    fun c' hc' h0' => ?_, hS.repSg, fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
   · rw [hsc y hy] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
   · by_cases e : c' = c
     · subst e; exact (hS.all c' hc').mk' fun _ => hwf
@@ -652,7 +652,7 @@ theorem SCsOK.ringNode {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 →
       have := (sc_lo hPc hzc).2.1; omega
   refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
     fun y hy hb hne => ?_, fun c' hc' => ?_, fun c' hc' => ?_, fun c' hc' h0' => ?_, hS.spSg,
-    fun c' hc' h0' => ?_, hS.repSg⟩
+    fun c' hc' h0' => ?_, hS.repSg, fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
   · rw [hsc y hy] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
   · obtain ⟨a1, a2, a3⟩ := maxA_facts hO hc'
     obtain ⟨hPc, hzc⟩ := hO.sc c' hc'
