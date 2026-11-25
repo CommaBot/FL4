@@ -37,8 +37,10 @@ for the timer IRQ, `hKS` [W] (`ScKsOut`). Here:
 
 Entry facts (inputs, as `hI0`/`hBA0`): `AllCores s0`, P1's `EntryInv` and
 `BufAt` at the entry, `hD0 : DomInv st T s0`. Named premises left: none for
-the `B`/plain wrappers; for the `Exit` wrappers, those of `AllCores.exit`:
-`hSI` [J] (`SchIb`) and `hVW` [P] (`VcpuUsr`).
+the `B`/plain wrappers; for the `Exit` wrappers, that of `AllCores.exit`:
+`hVW` [P] (`VcpuUsr`) (`SchIb` is discharged by sib, `schIb_holds`). (comb) The
+`B` wrappers also export the body's `FootB` from the entry to `schedule`'s
+start, as sib's `allCoresB`; `P2/EntryFinal.lean` uses it.
 -/
 import Fl4Proofs.P2.EntryExit
 import Fl4Proofs.P2.FootN11
@@ -468,7 +470,7 @@ theorem timer_irq_local.allCoresBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (h
     (hD0 : DomInv st T s0)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
-      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      FootB st T Cs Sg Scs Z ∅ s0 s3 ∧ sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -674,7 +676,7 @@ theorem timer_irq_local.allCoresBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (h
   have W := AllCores.schedBH hA IK hNt a3 h0 hcpu hS0 hB0 F03 hBlk3 hBA3 hsa3 D3 r3
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  refine ⟨s3, a3, s4, a4, hBlk3, hBA3, esc, W, ?_⟩
+  refine ⟨s3, a3, s4, a4, hBlk3, hBA3, B03, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
@@ -693,28 +695,27 @@ theorem timer_irq_local.allCoresW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
         vcpu.check st ar s5 a5 t) = ok (s', a') := by
-  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
+  obtain ⟨-, -, s4, a4, -, -, -, -, W, E⟩ := timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
   exact ⟨s4, a4, W, E⟩
 
 /-- **The timer-interrupt local entry ends in `AllCores`** at the entry's exit
 (`timer_irq_local.allCoresExit` with `hR`, `hS0`, `hKS` discharged). Named
-premises: `hSI` [J] (`SchIb`), `hVW` [P] (`VcpuUsr`), as `AllCores.exit`. -/
+premise: `hVW` [P] (`VcpuUsr`), as `AllCores.exit` (sib: `SchIb` discharged). -/
 theorem timer_irq_local.allCoresExitW (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s0 s' : S} {a0 a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
     (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
     (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0)
     (hD0 : DomInv st T s0)
-    (hSI : SchIb st ar T Cs Ω H Sg Rp Scs Nt Z Ac U)
     (hVW : ∀ s : S, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s → VcpuUsr st T Cs H Sg Scs Z s)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, esc, W, E⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E⟩ :=
     timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0
     exact ObjsOK.zero_notScs hX0.1
-  exact AllCores.exit hA IK hNt hS0 hSI hVW hB3 hBA3 esc W E
+  exact AllCores.exit hA IK hNt hS0 hVW hB3 hBA3 esc W E
 
 /-! ## The `TCB_SetTimer` local entry -/
 
@@ -736,7 +737,7 @@ theorem set_timer_tailBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n
     (es6 : sched.set_thread_state st s5 t sched.TS_RUNNING = ok s6)
     (esc : sched.schedule st ar s6 a1 = ok (s7, a2)) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s6 ∧ BufAt st T Cs H Sg Scs Z U s6 ∧
-      AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
+      FootB st T Cs Sg Scs Z ∅ s0 s6 ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
   have ect' : t = L.curW s0 := by
     obtain ⟨w, ew, hw⟩ := spec_ex_fd (sched.cur_thread.spec (st := st) s0)
     rw [ect] at ew; cases ok_inj_ff ew; exact hw
@@ -878,7 +879,7 @@ theorem set_timer_tailBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n
   have W := AllCores.schedBH hA IK hNt a1 h0 hcpu hS0 hB0 F06 hBlk6 hBA6 hsa6 D6 r6
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  exact ⟨hBlk6, hBA6, W⟩
+  exact ⟨hBlk6, hBA6, B06, W⟩
 
 
 set_option maxHeartbeats 4000000 in
@@ -892,7 +893,7 @@ theorem set_timer_local.allCoresBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (h
     (hD0 : DomInv st T s0)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
-      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      FootB st T Cs Sg Scs Z ∅ s0 s3 ∧ sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -1001,8 +1002,8 @@ theorem set_timer_local.allCoresBW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (h
   have e6 := ok_inj_ff h
   simp only [Prod.mk.injEq, true_and] at e6
   obtain ⟨rfl, rfl⟩ := e6
-  obtain ⟨hB6, hBA6, W⟩ := set_timer_tailBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 ect hrun es1 eu es3 es4 es5 es6 esc
-  refine ⟨s6, a1, s7, a2, hB6, hBA6, esc, W, ?_⟩
+  obtain ⟨hB6, hBA6, B06, W⟩ := set_timer_tailBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 ect hrun es1 eu es3 es4 es5 es6 esc
+  refine ⟨s6, a1, s7, a2, hB6, hBA6, B06, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
@@ -1021,28 +1022,27 @@ theorem set_timer_local.allCoresW (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
         vcpu.check st ar s5 a5 t) = ok (s', a') := by
-  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
+  obtain ⟨-, -, s4, a4, -, -, -, -, W, E⟩ := set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
   exact ⟨s4, a4, W, E⟩
 
 /-- **The `TCB_SetTimer` local entry ends in `AllCores`** at the entry's exit
-(`set_timer_local.allCoresExit` with `hR`, `hS0` discharged). Named premises:
-`hSI` [J] (`SchIb`), `hVW` [P] (`VcpuUsr`), as `AllCores.exit`. -/
+(`set_timer_local.allCoresExit` with `hR`, `hS0` discharged). Named premise:
+`hVW` [P] (`VcpuUsr`), as `AllCores.exit` (sib: `SchIb` discharged). -/
 theorem set_timer_local.allCoresExitW (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s0 s' : S} {a0 a' : A} {n : I64} {target : U64}
     (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
     (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : target ∈ T)
     (hD0 : DomInv st T s0)
-    (hSI : SchIb st ar T Cs Ω H Sg Rp Scs Nt Z Ac U)
     (hVW : ∀ s : S, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s → VcpuUsr st T Cs H Sg Scs Z s)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, esc, W, E⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E⟩ :=
     set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0
     exact ObjsOK.zero_notScs hX0.1
-  exact AllCores.exit hA IK hNt hS0 hSI hVW hB3 hBA3 esc W E
+  exact AllCores.exit hA IK hNt hS0 hVW hB3 hBA3 esc W E
 
 end
 
