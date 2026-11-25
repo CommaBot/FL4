@@ -208,6 +208,7 @@ theorem ObjsOK.one {s s' : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {c : U64} (hc
     exact sc_word_in hO hc (by simp [layout.sc.REFILL_MAX]) (by simp [layout.sc.REFILL_MAX])
   nt0 := fun n hn => absurd hn (by simp)
   rp0 := fun r hr => absurd hr (by simp)
+  sc0 := fun c' hc' => by rw [Set.mem_singleton_iff] at hc'; subst hc'; exact hO.sc0 _ hc
 
 /-- **`activate_thread` of the current thread `d` writes only `B`**, for any
 `B` holding this core's node words, `d`'s TCB words and the SC `d` yields to. -/
