@@ -9,3 +9,5 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.CoreInv.keep2
 #print axioms Fl4Proofs.P2.Stall.AllCores.sched
 #print axioms Fl4Proofs.P2.Stall.signal_tail.ff
+#print axioms Fl4Proofs.P2.Stall.signal_vm.ff
+#print axioms Fl4Proofs.P2.Stall.notification.maybe_donate_sched_context.ffB
