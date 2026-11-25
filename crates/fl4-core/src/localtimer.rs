@@ -143,14 +143,14 @@ pub fn in_core_timer_tree<S: Store>(s: &S, cpu: u64, target: Tcb, d: u64) -> boo
 
 /// Whether `schedule()`'s `awaken` would release a thread of this core's
 /// release queue (at the time `update_timestamp` set).
-fn release_due<S: Store>(s: &S, cpu: u64) -> bool {
+pub fn release_due<S: Store>(s: &S, cpu: u64) -> bool {
     let rh = Tcb(node_get(s, cpu, node::RELEASE_HEAD));
     !rh.is_null() && sporadic::ready(s, Sc(rh.sc(s)))
 }
 
 /// Whether `awaken`'s `timer::fire` would fire a timer of this core at
 /// `now`.
-fn timer_due<S: Store>(s: &S, cpu: u64, now: u64) -> bool {
+pub fn timer_due<S: Store>(s: &S, cpu: u64, now: u64) -> bool {
     let tm = Tcb(node_get(s, cpu, node::TIMER_MIN));
     !tm.is_null() && tm.timer_deadline(s) <= now
 }
@@ -159,7 +159,7 @@ fn timer_due<S: Store>(s: &S, cpu: u64, now: u64) -> bool {
 /// reschedule pending (`schedule()` keeps or chooses among this core's
 /// threads, and `schedule_choose_new_thread` never moves the domain, which
 /// `domain_time` does when it is 0), no reschedule IPI owed.
-fn sched_quiet<S: Store>(s: &S, cpu: u64) -> bool {
+pub fn sched_quiet<S: Store>(s: &S, cpu: u64) -> bool {
     sched::action(s) == sched::ACTION_RESUME_CURRENT
         && sched::domain_time(s) != 0
         && node_get(s, cpu, node::IPI_PENDING) == 0
@@ -170,7 +170,7 @@ fn sched_quiet<S: Store>(s: &S, cpu: u64) -> bool {
 /// the gate's), with no yield to complete (`activate_thread`), no VCPU
 /// bound (AArch64 `exit` loads it) and its scheduling context, if any, on
 /// this core.
-fn may_run_here<S: Store>(s: &S, cpu: u64, t: Tcb) -> bool {
+pub fn may_run_here<S: Store>(s: &S, cpu: u64, t: Tcb) -> bool {
     !t.is_null()
         && t.affinity(s) == cpu
         && t.state(s) != sched::TS_RUNNING_VM
@@ -181,7 +181,7 @@ fn may_run_here<S: Store>(s: &S, cpu: u64, t: Tcb) -> bool {
 
 /// The current thread `ct` and scheduling context `csc` at entry: both
 /// this core's, `ct` running on `csc` (the idle thread on the idle SC).
-fn current_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, csc: Sc) -> bool {
+pub fn current_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, csc: Sc) -> bool {
     may_run_here(s, cpu, ct)
         && ct.sc(s) == csc.0
         && csc.cpu(s) == cpu
@@ -330,7 +330,7 @@ pub struct TimerIrqPlan {
     pub n: usize,
 }
 
-fn plan_objects<S: Store>(s: &S) -> TimerIrqPlan {
+pub fn plan_objects<S: Store>(s: &S) -> TimerIrqPlan {
     let cpu = s.cur_cpu();
     let mut p = TimerIrqPlan { tm: 0, ntfn: 0, waiter: 0, ep: 0, reply: 0, objects: [(0, 0); MAX_TIMER_LOCKS], n: 0 };
     let tm = Tcb(node_get(s, cpu, node::TIMER_MIN));
@@ -366,7 +366,7 @@ fn plan_objects<S: Store>(s: &S) -> TimerIrqPlan {
     p
 }
 
-fn same_plan(x: &TimerIrqPlan, y: &TimerIrqPlan) -> bool {
+pub fn same_plan(x: &TimerIrqPlan, y: &TimerIrqPlan) -> bool {
     x.tm == y.tm && x.ntfn == y.ntfn && x.waiter == y.waiter && x.ep == y.ep && x.reply == y.reply && x.n == y.n
 }
 
@@ -395,7 +395,7 @@ fn top_ok<S: Store>(s: &S, cpu: u64) -> bool {
 /// (`end_timeslice`: ready and sufficient, so neither a timeout fault nor
 /// `postpone`), and that `choose_thread` then takes again: no other thread
 /// of this core is ready at its priority or above.
-fn round_robin_ok<S: Store, A: Arch>(s: &S, a: &A, cpu: u64, ct: Tcb, csc: Sc, now: u64) -> bool {
+pub fn round_robin_ok<S: Store, A: Arch>(s: &S, a: &A, cpu: u64, ct: Tcb, csc: Sc, now: u64) -> bool {
     if csc == sched::idle_sc(s) || !sporadic::is_round_robin(s, csc) || !sched::is_schedulable(s, ct) || sched::queued(s, ct) {
         return false;
     }
@@ -430,7 +430,7 @@ fn wake_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, w: Tcb, n: Ntfn) -> bool {
 /// local path may write: it ORs the badge into an active notification,
 /// makes an idle one active, or wakes a thread of this core that may then
 /// run here (Frame).
-fn fire_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, p: &TimerIrqPlan, now: u64) -> bool {
+pub fn fire_ok<S: Store>(s: &S, cpu: u64, ct: Tcb, p: &TimerIrqPlan, now: u64) -> bool {
     if p.tm == 0 {
         return false;
     }

@@ -30,6 +30,8 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_core::localtimer;
 use fl4_store::lock::{self, Mem};
 
+pub mod localvm;
+
 /// Cores the runtime supports. Do not scan flags for cores it cannot run.
 pub const MAX_CPUS: usize = lock::MAX_CPUS;
 
@@ -311,8 +313,11 @@ pub fn run_syscall<E: EntryEnv>(
     // will decline again, so it does not wait next time. Nor does a
     // TCB_SetTimer that declined (most often: on another core's thread),
     // but one that found the gate closed may run beside it next time.
+    // A VM's syscalls (`SysVMEnter`, its VCPU's state invocations) have
+    // no fast path under the gate either, and usually run beside it.
     let hit = fast.get()
         || candidate == Candidate::Port
+        || candidate == Candidate::Vm
         || (candidate == Candidate::SetTimer && matches!(res, Local::Closed));
     env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, hit as u64, Ordering::Relaxed);
     ran
@@ -412,8 +417,27 @@ fn local_candidate<S: fl4_core::machine::Store>(s: &S, number: i64) -> Candidate
         && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::TCBSetTimer
     {
         Candidate::SetTimer
+    } else if vm_candidate(s, t, number) {
+        Candidate::Vm
     } else {
         Candidate::No
+    }
+}
+
+/// A VM's syscall a local path may take (`localvm`): on x86 `SysVMEnter`
+/// of a thread with a bound VCPU, or a VCPU state invocation by its label
+/// (`localvm::is_vcpu_state_label`); on AArch64 `ARMVCPURun` by its label.
+#[inline(always)]
+fn vm_candidate<S: fl4_core::machine::Store>(s: &S, t: fl4_core::obj::Tcb, number: i64) -> bool {
+    #[cfg(not(feature = "aarch64"))]
+    {
+        (number == fl4_abi::syscall::SysVMEnter && fl4_core::vcpu::bound(s, t) != 0)
+            || ((number == fl4_abi::syscall::SysCall || number == fl4_abi::syscall::SysSend)
+                && localvm::is_vcpu_state_label(fl4_core::msg::msg_info(s, t).label))
+    }
+    #[cfg(feature = "aarch64")]
+    {
+        number == fl4_abi::syscall::SysCall && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::ARMVCPURun
     }
 }
 
@@ -428,6 +452,8 @@ enum Candidate {
     Invocation,
     /// A `TCB_SetTimer` (`localtimer::handle_set_timer_local`).
     SetTimer,
+    /// A VM's syscall (`localvm`).
+    Vm,
 }
 
 /// How long `local_entry` waits for a closed gate to open, through
@@ -442,12 +468,27 @@ pub const LOCAL_WAIT_US: u64 = 500;
 /// The bound without a clock (the simulator), in spins.
 const LOCAL_WAIT_SPINS: u32 = 1024;
 
-enum Local {
+/// How a local path beside the gate went (`try_local`).
+pub enum Local {
     Done,
     Declined,
     /// The gate stayed closed.
     Closed,
+    /// A remote stall took this core's thread while it waited for the gate
+    /// to open: no entry for it now.
     Stalled,
+}
+
+/// On several cores, `local` (a local path, which returns whether it ran)
+/// beside the serial gate, as `run_syscall` tries one: marked active, after
+/// waiting a while for a closed gate to open. On one core, Declined. The
+/// caller takes the gate (`run_entry`, or its own) for anything but Done.
+#[inline(always)]
+pub fn try_local<E: EntryEnv>(env: &E, gate: &SerialGate, mut local: impl FnMut(&mut E::S, &mut E::A) -> bool) -> Local {
+    if !env.multi() {
+        return Local::Declined;
+    }
+    local_entry(env, gate, &mut local)
 }
 
 #[inline(always)]
@@ -723,6 +764,8 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
         && fl4_core::msg::msg_info(s, t).label == fl4_abi::label::TCBSetTimer
     {
         return local_set_timer(s, a, m, number, observe);
+    } else if vm_candidate(s, t, number) {
+        return local_vm_syscall(s, a, m, number, observe);
     } else {
         // An I/O port access writes only the caller and this core's
         // state: nothing to lock.
@@ -746,6 +789,150 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
     lock::unlock_held(m, &mut held);
     done
 }
+
+/// `lock::try_lock_object` of `addr` unless it is 0 (none to lock).
+#[inline(always)]
+fn lock_if<M: Mem>(m: &M, addr: u64, held: &mut lock::Held) -> bool {
+    addr == 0 || lock_object(m, addr, held)
+}
+
+/// A VM's syscall beside the gate (`localvm`): x86 `SysVMEnter` with the
+/// bound VCPU and notification locked, or a VCPU state invocation on the
+/// VCPU its capability register names, found with the slots of its lookup
+/// locked and the VCPU locked; AArch64 `ARMVCPURun` likewise.
+#[inline(always)]
+fn local_vm_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    number: i64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let n = t.bound_ntfn(s);
+    let mut held = lock::Held::new();
+    #[cfg(not(feature = "aarch64"))]
+    let done = if number == fl4_abi::syscall::SysVMEnter {
+        let v = fl4_core::vcpu::bound(s, t);
+        lock_if(m, v, &mut held) && lock_if(m, n, &mut held) && {
+            observe(s, &[(v, localvm::VCPU_BYTES), (n, 64)]);
+            localvm::handle_vm_enter_local(s, a, number, v, n)
+        }
+    } else {
+        let cptr = t.reg(s, fl4_core::layout::reg::CAP);
+        match lookup_slot_locked(s, m, t, cptr, &mut held) {
+            Some(slot) => match slot.cap(s) {
+                fl4_core::capability::Cap::Vcpu { ptr } => lock_object(m, ptr, &mut held) && {
+                    observe(s, &[(ptr, localvm::VCPU_BYTES)]);
+                    localvm::handle_vcpu_invocation_local(s, a, number, slot, ptr)
+                },
+                _ => false,
+            },
+            None => false,
+        }
+    };
+    #[cfg(feature = "aarch64")]
+    let done = {
+        let cptr = t.reg(s, fl4_core::layout::reg::CAP);
+        match lookup_slot_locked(s, m, t, cptr, &mut held) {
+            Some(slot) => match slot.cap(s) {
+                fl4_core::capability::Cap::Vcpu { ptr } => {
+                    lock_object(m, ptr, &mut held) && lock_if(m, n, &mut held) && {
+                        observe(s, &[(ptr, localvm::VCPU_BYTES), (n, 64)]);
+                        localvm::handle_arm_vcpu_run_local(s, a, number, slot, ptr, n)
+                    }
+                }
+                _ => false,
+            },
+            None => false,
+        }
+    };
+    lock::unlock_held(m, &mut held);
+    done
+}
+
+/// x86: the checks before a hardware entry of the current thread's guest
+/// beside the gate (`localvm::vm_entry_ready`), with its bound notification
+/// locked while they read it: the EPT root to enter on (0 for the empty
+/// one), or None to take the gate.
+#[cfg(not(feature = "aarch64"))]
+#[inline(always)]
+pub fn local_vm_entry<S: fl4_core::machine::Store, M: Mem>(s: &S, m: &M) -> Option<u64> {
+    let t = fl4_core::sched::cur_thread(s);
+    let n = t.bound_ntfn(s);
+    let v = fl4_core::vcpu::bound(s, t);
+    let mut held = lock::Held::new();
+    let r = if lock_if(m, n, &mut held) { localvm::vm_entry_ready(s, v, n) } else { None };
+    lock::unlock_held(m, &mut held);
+    r
+}
+
+/// x86: a VM exit of the current thread beside the gate, with no host
+/// interrupt (`irq` is `syscall::NO_IRQ`: `localvm::handle_vcpu_exit_local`)
+/// or the kernel timer's (`localvm::handle_vm_timer_irq_local`, with the
+/// objects of its plan locked, as `local_timer_irq`), holding the bound
+/// VCPU's and notification's locks too; true if it ran. Writes nothing
+/// before `observe`.
+#[cfg(not(feature = "aarch64"))]
+#[inline(always)]
+pub fn local_vm_exit<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    irq: u64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let n = t.bound_ntfn(s);
+    let v = fl4_core::vcpu::bound(s, t);
+    let mut held = lock::Held::new();
+    let done = if irq == fl4_core::syscall::NO_IRQ {
+        lock_if(m, v, &mut held) && lock_if(m, n, &mut held) && {
+            observe(s, &[(v, localvm::VCPU_BYTES), (n, 64)]);
+            localvm::handle_vcpu_exit_local(s, a, v, n)
+        }
+    } else {
+        local_vm_timer_irq(s, a, m, irq, v, localvm::VCPU_BYTES, n, &mut held, observe)
+    };
+    lock::unlock_held(m, &mut held);
+    done
+}
+
+/// The kernel timer interrupt `irq` while the current thread runs a guest
+/// (`localvm::handle_vm_timer_irq_local`): the plan's objects, the VCPU
+/// `v` (`bytes` long) and the bound notification `n` locked into `held`.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn local_vm_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    irq: u64,
+    v: u64,
+    bytes: u64,
+    n: u64,
+    held: &mut lock::Held,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let p = match localtimer::plan_timer_irq(s, irq) {
+        Some(p) => p,
+        None => return false,
+    };
+    let mut objects = [(0, 0); localtimer::MAX_TIMER_LOCKS + 2];
+    let mut ok = true;
+    for i in 0..p.n {
+        objects[i] = p.objects[i];
+        ok = ok && lock_object(m, p.objects[i].0, held);
+    }
+    objects[p.n] = (v, bytes);
+    objects[p.n + 1] = (n, 64);
+    ok && lock_if(m, v, held) && lock_if(m, n, held) && {
+        observe(s, &objects[..p.n + 2]);
+        localvm::handle_vm_timer_irq_local(s, a, irq, &p, n)
+    }
+}
+
+const _: () = assert!(localtimer::MAX_TIMER_LOCKS + 2 <= lock::MAX_HELD);
 
 #[inline(always)]
 fn serial<E: EntryEnv>(env: &E, gate: &SerialGate, irq: bool, body: &mut impl FnMut(&mut E::S, &mut E::A)) -> bool {

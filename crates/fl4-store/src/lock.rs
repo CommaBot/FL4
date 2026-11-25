@@ -79,7 +79,7 @@ pub fn unlock_held<M: Mem>(m: &M, held: &mut Held) {
     }
 }
 
-pub const MAX_HELD: usize = 4;
+pub const MAX_HELD: usize = 6;
 
 /// Locks `try_lock_object` holds.
 pub struct Held {
