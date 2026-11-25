@@ -758,15 +758,15 @@ variable {K : KLayoutV}
 /-- **`read_own` of `v.PENDING`** for a path holding `lock v` with `v` bound: the exit / timer heads read it
 after checking `ct.VCPU = v`, and `v.TCB = ct ≠ 0` by P1's VCPU binding invariant (`QueueVcpuLink`). -/
 theorem pending_rperm (hK : RegionOKV K) {m : U64 → U64} {v c : U64} {lk : U64 → Prop} (hv : v ∈ K.vcpus)
-    (hpv : (OwnMap.fld v oVPENDING).val = v.val + 20520) (hb : m (OwnMap.fld v oVTCB) ≠ 0#u64) (hl : lk v) :
+    (hpv : (OwnMap.fld v oVPENDING).val = v.val + 20520) (hl : lk v) :
     PathObl.RPerm (ownV K) c lk m (OwnMap.fld v oVPENDING) :=
-  rpermV_vcpu hK (vpending_in hK hv hpv).1 (vpending_in hK hv hpv).2 hb hl
+  rpermV_vcpu hK (vpending_in hK hv hpv).1 (vpending_in hK hv hpv).2 hl
 
 /-- **`write_own` of `v.PENDING`** (the tails' `vcpu.report` / `vcpu.enter` writes): held by the path. -/
 theorem pending_wperm (hK : RegionOKV K) {m : U64 → U64} {v c : U64} {lk : U64 → Prop} (hv : v ∈ K.vcpus)
-    (hpv : (OwnMap.fld v oVPENDING).val = v.val + 20520) (hb : m (OwnMap.fld v oVTCB) ≠ 0#u64) (hl : lk v) :
+    (hpv : (OwnMap.fld v oVPENDING).val = v.val + 20520) (hl : lk v) :
     PathObl.WPerm (ownV K) c lk m (OwnMap.fld v oVPENDING) :=
-  wpermV_vcpu hK (vpending_in hK hv hpv).1 (vpending_in hK hv hpv).2 hb hl
+  wpermV_vcpu hK (vpending_in hK hv hpv).1 (vpending_in hK hv hpv).2 hl
 
 end
 

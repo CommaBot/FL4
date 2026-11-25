@@ -1,5 +1,5 @@
 /-
-# P2 (line lvm, gen 3): **rule 7 of the ownership map**, the words of a bound VCPU, and the hardware-write premise
+# P2 (line lvm, gen 3, rule 7 revised in gen 4): **rule 7 of the ownership map**, the words of a bound VCPU, and the hardware-write premise
 
 `OwnMap.own` (rules 1–6) gives every VCPU word to the gate ("everything else"). #104's local VM paths
 (`localvm.handle_vcpu_exit_local`, `handle_vm_timer_irq_local`, `handle_vm_enter_local`,
@@ -11,23 +11,30 @@ This module adds, **beside** `own` (which stays as it is, with all its users):
   0x8000 bytes, `heap v = some (.other 15)`);
 * **rule 7**, `vcpuOwner`: of a VCPU `v`, the binding word `TCB` (0x5000) and the list links `NEXT` / `PREV`
   (0x5008 / 0x5010) are the gate's (binding and unbinding, `TCBSetVCPU` / `vcpu.detach` / `finalise` / retype,
-  run only under the gate); every other word is **`lock v`'s while `v` is bound** (`TCB` word ≠ 0), the gate's
-  while unbound. fl4-sync's local VM entries lock `v` (`vm_locks` / `vm_timer_locks` / `vcpu_locks`: the object
+  run only under the gate); every other word is **`lock v`'s** (gen 4: bound or not; gen 3 gave an unbound
+  VCPU's words to the gate, see below). fl4-sync's local VM entries lock `v` (`vm_locks` / `vm_timer_locks` / `vcpu_locks`: the object
   `(v, VCPU_BYTES)`) before calling the body, so an accepted path holds every rule-7 word it touches;
 * `ownV K m b`: `vcpuOwner` on a VCPU word, `own K m b` elsewhere (`ownV_off`).
 
-The owner of a rule-7 word is decided by one gate-owned word (`v.TCB`), so the usual carry-over facts hold:
+**Gen 4 change.** A rule-7 owner depends on no memory word (`ownV_on_mem`). Gen 3 made an unbound VCPU's
+words the gate's, so the owner read `v.TCB`; then `own`'s per-write check (`StepOK`) of an existing path did
+not imply `ownV`'s (a write of `v.TCB` is invisible to `own`'s check), and the existing paths could not be lifted
+to `ownV` generically (`E2EV.LocalPath.liftV` needs `stepOKV_of_stepOK`). Bound VCPUs keep gen 3's owner
+`lock v` (the lead's decision). An unbound VCPU is touched beside the gate only by a path that takes `lock v`
+and then declines on the binding check, so `lock v` loses nothing there.
 
-* `ownV_congr` / `ownV_upd_nondec`: owners read only `DecV` words (`own`'s `DecW` and the VCPUs' `TCB` words);
+The usual carry-over facts:
+
+* `ownV_congr` / `ownV_upd_nondec`: owners read only `own`'s `DecW` words;
 * **`moveHeldV`**: `Serial.MoveHeld (ownV K)` (from `OwnMap.moveHeld` off the VCPUs);
 * **`ownDepV`**: `E2E.OwnDep (ownV K) (· ∈ K.user)`;
 * per-write checks: `stepOKV_vcpu` (a write of a non-binding word of a VCPU moves no owner and has a free
-  class), `stepOKV_of_own` (any `StepOK` for `own` of a write off the VCPUs is one for `ownV`),
-  `rpermV_of_own` / `wpermV_of_own` (off the VCPUs the permissions are `own`'s), `wpermV_vcpu` (a bound VCPU's
-  non-binding word is held by a path holding `lock v`), `rpermV_vtcb` (the binding word is readable).
+  class), `stepOKV_of_stepOK` (every `StepOK` for `own` is one for `ownV`),
+  `rpermV_of_own` / `wpermV_of_own` (off the VCPUs the permissions are `own`'s), `wpermV_of_own'` (an `own` write permission
+  is an `ownV` one), `wpermV_vcpu` (a VCPU's non-binding word is held by a path holding `lock v`), `rpermV_vtcb` (the binding word is readable).
 
 **The hardware-write premise** `VmRunFrame K v m m'` [P], stated on the store (memory before / after):
-every changed word is user memory or a word of `v` whose owner is `lock v` (bound, non-binding). Its two
+every changed word is user memory or a word of `v` whose owner is `lock v` (non-binding). Its two
 sources, both trusted code (`TRUSTED`):
 * `fl4_arch_x86_64::vm::run` / `vm::vmx_exit` and `check_vm_asm.py`'s entry/exit ordering: between two kernel
   entries on core `c`, which runs `v`'s bound thread in the guest with no lock held, the hardware changes only
@@ -40,16 +47,15 @@ changed kernel word is, from any core not holding `lock v`, a `Serial.Foreign` w
 hardware's writes look to every other local path exactly as another core's permitted writes do. Why no other
 core holds `lock v` while `v` runs: a local path locks `v` only for `v` bound to its own current thread
 (`handle_vcpu_invocation_local` checks `v.TCB = ct` after the lock and reads only gate words before it), and a
-thread runs on one core. Wiring the hardware step into `Serial.Step` as its own step kind (a batch of `Foreign`
-writes) is the remaining part.
+thread runs on one core. The hardware step is wired in by `SerialHw` (`HwWr`, one word per step) and
+`E2EV.HwStepV` (gen 4).
 
 Layout facts (`RegionOKV`, `UserOKV`) [J], from P1's typed heap (`HeapOK`: a VCPU's 0x8000 bytes overlap no other
 object, slot or node, and VCPUs are 0x8000-aligned so their `TCB` word is aligned and in range): VCPU words lie in
 `own`'s `.none` region, two VCPUs do not overlap, and `v + 0x5000` does not wrap.
 
-Existing users are unchanged: nothing here edits `OwnMap.own`, `E2E.Paths` or `Exec`. Moving `E2E.Paths` to
-`ownV` (so that the VM paths can be listed) is the lead's step: every existing `LocalPath` lifts by
-`rpermV_of_own` / `wpermV_of_own` / `stepOKV_of_own` since no non-VM path touches a VCPU word.
+Nothing here edits `OwnMap.own`, `E2E.Paths` or `Exec`. `P2/E2EV.lean` (gen 4) states the end-to-end chain
+for `ownV` with the hardware as a step kind (`SerialHw`), and lifts every existing `LocalPath` to `ownV`.
 -/
 import Fl4Proofs.P2.MoveOwn
 open Aeneas Aeneas.Std Result
@@ -77,13 +83,15 @@ def VcpuGate (o : Nat) : Prop := o = 20480 ∨ o = 20488 ∨ o = 20496
 /-- `b` is a word of the VCPU `v`. -/
 def InVcpu (K : KLayoutV) (v b : U64) : Prop := v ∈ K.vcpus ∧ InW v 32768 b
 
-/-- **Rule 7**: binding words the gate's; the rest `lock v`'s while bound, the gate's while unbound. -/
-def vcpuOwner (m : U64 → U64) (v : U64) (o : Nat) : Owner U64 U64 :=
-  if VcpuGate o then .gate else if m (fld v oVTCB) ≠ 0#u64 then .lock v else .gate
+/-- **Rule 7** (gen 4): the binding words are the gate's; every other word of `v` is `lock v`'s, bound or not.
+The owner depends on no memory word (gen 3's "the gate's while unbound" made it depend on `v.TCB`, which an
+`own` path's per-write check cannot see; see the module docstring). -/
+def vcpuOwner (v : U64) (o : Nat) : Owner U64 U64 :=
+  if VcpuGate o then .gate else .lock v
 
 /-- **The ownership map with rule 7**: `vcpuOwner` on VCPU words, `own` elsewhere. -/
 def ownV (K : KLayoutV) (m : U64 → U64) (b : U64) : Owner U64 U64 :=
-  if h : ∃ v, InVcpu K v b then vcpuOwner m (Classical.choose h) (b.val - (Classical.choose h).val)
+  if h : ∃ v, InVcpu K v b then vcpuOwner (Classical.choose h) (b.val - (Classical.choose h).val)
   else own K.toKLayout m b
 
 /-- **Layout facts for rule 7** [J] (module docstring). -/
@@ -93,10 +101,9 @@ structure RegionOKV (K : KLayoutV) : Prop where
   disj : ∀ v w b, InVcpu K v b → InVcpu K w b → v = w
   tcbw : ∀ v ∈ K.vcpus, (fld v oVTCB).val = v.val + 20480
 
-/-- **User memory lies outside the VCPUs' binding words** [J] (as `E2E.UserOK`). -/
+/-- **User memory lies outside the kernel's objects** [J] (`E2E.UserOK` of the base layout). -/
 structure UserOKV (K : KLayoutV) : Prop where
   base : E2E.UserOK K.toKLayout
-  tcbw : ∀ v ∈ K.vcpus, Aligned (fld v oVTCB) ∧ fld v oVTCB ∉ K.user
 
 variable {K : KLayoutV}
 
@@ -104,10 +111,16 @@ theorem ownV_off {m : U64 → U64} {b : U64} (h : ¬ ∃ v, InVcpu K v b) : ownV
   unfold ownV; rw [dif_neg h]
 
 theorem ownV_on (hK : RegionOKV K) {m : U64 → U64} {v b : U64} (h : InVcpu K v b) :
-    ownV K m b = vcpuOwner m v (b.val - v.val) := by
+    ownV K m b = vcpuOwner v (b.val - v.val) := by
   have h' : ∃ v, InVcpu K v b := ⟨v, h⟩
   unfold ownV; rw [dif_pos h']
   rw [hK.disj _ _ _ (Classical.choose_spec h') h]
+
+/-- A VCPU word's owner does not depend on memory. -/
+theorem ownV_on_mem (hK : RegionOKV K) {m m' : U64 → U64} {b : U64} (h : ∃ v, InVcpu K v b) :
+    ownV K m b = ownV K m' b := by
+  obtain ⟨v, hv⟩ := h
+  rw [ownV_on hK hv, ownV_on hK hv]
 
 theorem vtcb_in (hK : RegionOKV K) {v : U64} (hv : v ∈ K.vcpus) : InVcpu K v (fld v oVTCB) :=
   ⟨hv, by have := hK.tcbw v hv; unfold InW; omega⟩
@@ -119,56 +132,46 @@ theorem ownV_vtcb (hK : RegionOKV K) {v : U64} (hv : v ∈ K.vcpus) (m : U64 →
   have e : v.val + 20480 - v.val = 20480 := by omega
   rw [e]; simp [vcpuOwner, VcpuGate]
 
-/-- A bound VCPU's non-binding word is `lock v`'s. -/
-theorem ownV_bound (hK : RegionOKV K) {m : U64 → U64} {v b : U64} (h : InVcpu K v b)
-    (ho : ¬ VcpuGate (b.val - v.val)) (hb : m (fld v oVTCB) ≠ 0#u64) : ownV K m b = .lock v := by
-  rw [ownV_on hK h]; simp only [vcpuOwner, if_neg ho, if_pos hb]
+/-- A VCPU's non-binding word is `lock v`'s. -/
+theorem ownV_data (hK : RegionOKV K) {m : U64 → U64} {v b : U64} (h : InVcpu K v b)
+    (ho : ¬ VcpuGate (b.val - v.val)) : ownV K m b = .lock v := by
+  rw [ownV_on hK h]; simp only [vcpuOwner, if_neg ho]
+
+/-- Under `own` (rules 1–6) a VCPU word is the gate's ("everything else"). -/
+theorem own_vcpu (hK : RegionOKV K) {m : U64 → U64} {v b : U64} (h : InVcpu K v b) :
+    own K.toKLayout m b = .gate := by
+  unfold own; rw [hK.none v b h]
 
 /-- A VCPU word decides no `own` owner. -/
 theorem vcpu_nondec (hK : RegionOKV K) {v b : U64} (h : InVcpu K v b) : ¬ DecW K.toKLayout b :=
   OwnMap.nondec_of_region hK.base (Or.inr (Or.inr (Or.inr (Or.inl (hK.none v b h)))))
 
-/-- The words `ownV` reads. -/
-def DecV (K : KLayoutV) (d : U64) : Prop := DecW K.toKLayout d ∨ ∃ v ∈ K.vcpus, d = fld v oVTCB
-
-/-- A non-binding word of a VCPU decides no `ownV` owner. -/
-theorem vcpu_nondecV (hK : RegionOKV K) {w a : U64} (h : InVcpu K w a) (ho : a.val - w.val ≠ 20480) :
-    ¬ DecV K a := by
-  rintro (hd | ⟨v, hv, rfl⟩)
-  · exact vcpu_nondec hK h hd
-  · have h1 := hK.tcbw v hv
-    have e := hK.disj _ _ _ (vtcb_in hK hv) h
-    rw [← e] at ho
-    omega
-
-/-- `ownV` reads only `DecV` words. -/
-theorem ownV_congr (hK : RegionOKV K) {m m' : U64 → U64} (h : ∀ d, DecV K d → m d = m' d) :
+/-- `ownV` reads only `own`'s deciding words (`DecW`). -/
+theorem ownV_congr (hK : RegionOKV K) {m m' : U64 → U64} (h : ∀ d, DecW K.toKLayout d → m d = m' d) :
     ownV K m = ownV K m' := by
   funext b
   by_cases hb : ∃ v, InVcpu K v b
-  · obtain ⟨v, hv⟩ := hb
-    rw [ownV_on hK hv, ownV_on hK hv]
-    simp only [vcpuOwner, h _ (Or.inr ⟨v, hv.1, rfl⟩)]
-  · rw [ownV_off hb, ownV_off hb, OwnMap.own_congr hK.base (fun d hd => h d (Or.inl hd))]
+  · exact ownV_on_mem hK hb
+  · rw [ownV_off hb, ownV_off hb, OwnMap.own_congr hK.base h]
 
-theorem ownV_upd_nondec (hK : RegionOKV K) {a : U64} (ha : ¬ DecV K a) (m : U64 → U64) (v : U64) :
+theorem ownV_upd_nondec (hK : RegionOKV K) {a : U64} (ha : ¬ DecW K.toKLayout a) (m : U64 → U64) (v : U64) :
     ownV K (Function.update m a v) = ownV K m :=
   ownV_congr hK fun d hd => Function.update_of_ne (fun e : d = a => ha (e ▸ hd)) _ _
 
+/-- A write of a VCPU word changes no owner. -/
+theorem ownV_upd_vcpu (hK : RegionOKV K) {a : U64} (ha : ∃ w, InVcpu K w a) (m : U64 → U64) (v : U64) :
+    ownV K (Function.update m a v) = ownV K m := by
+  obtain ⟨w, hw⟩ := ha
+  exact ownV_upd_nondec hK (vcpu_nondec hK hw) m v
+
 /-! ## `MoveHeld` and `OwnDep` -/
 
-/-- **`MoveHeld` for `ownV`.** A VCPU word's owner moves only with its gate-owned binding word, which no held
-write changes; off the VCPUs `OwnMap.moveHeld` applies (VCPU words decide no `own` owner). -/
+/-- **`MoveHeld` for `ownV`.** A VCPU word's owner never moves; off the VCPUs `OwnMap.moveHeld` applies
+(VCPU words decide no `own` owner). -/
 theorem moveHeldV (hK : RegionOKV K) : MoveHeld (ownV K) := by
   intro c hs m m' a v x ha hag hx
   by_cases hxv : ∃ w, InVcpu K w x
-  · exfalso
-    obtain ⟨w, hw⟩ := hxv
-    apply hx
-    rw [ownV_on hK hw, ownV_on hK hw]
-    have hne : fld w oVTCB ≠ a := by
-      rintro rfl; rw [ownV_vtcb hK hw.1] at ha; exact ha
-    simp only [vcpuOwner, Function.update_of_ne hne]
+  · exact absurd (ownV_on_mem hK hxv) hx
   · simp only [ownV_off hxv] at hx ⊢
     by_cases hav : ∃ w, InVcpu K w a
     · exfalso; obtain ⟨w, hw⟩ := hav
@@ -194,16 +197,7 @@ theorem moveHeldV (hK : RegionOKV K) : MoveHeld (ownV K) := by
 /-- **`OwnDep` for `ownV`**: owners depend on aligned kernel words only. -/
 theorem ownDepV (hK : RegionOKV K) (hU : UserOKV K) : E2E.OwnDep (ownV K) (· ∈ K.user) := by
   intro m m' h
-  apply ownV_congr hK
-  rintro d (hd | ⟨v, hv, rfl⟩)
-  · exact h d (OwnMap.decW_ok hU.base hd).1 (OwnMap.decW_ok hU.base hd).2
-  · exact h _ (hU.tcbw v hv).1 (hU.tcbw v hv).2
-
-/-- `DecV` words are aligned kernel words. -/
-theorem decV_ok (hK : RegionOKV K) (hU : UserOKV K) {d : U64} (h : DecV K d) : Aligned d ∧ d ∉ K.user := by
-  rcases h with hd | ⟨v, hv, rfl⟩
-  · exact OwnMap.decW_ok hU.base hd
-  · exact hU.tcbw v hv
+  exact ownV_congr hK fun d hd => h d (OwnMap.decW_ok hU.base hd).1 (OwnMap.decW_ok hU.base hd).2
 
 /-! ## Classes and the per-write check -/
 
@@ -212,35 +206,38 @@ theorem ko_vcpu (hK : RegionOKV K) {v b : U64} (h : InVcpu K v b) (m0 : U64 → 
     OwnMap.ko K.toKLayout m0 b = .free :=
   OwnMap.ko_free_of_nondec hK.base (vcpu_nondec hK h) m0
 
-/-- **The per-write check of a write to non-binding VCPU words**: changing only such words moves no owner and
-keeps every tracked class. -/
+/-- **The per-write check of a write to VCPU words**: changing only such words moves no owner and keeps every
+tracked class. -/
 theorem stepOKV_vcpu (hK : RegionOKV K) {m m' : U64 → U64}
-    (h : ∀ y, m' y ≠ m y → ∃ w, InVcpu K w y ∧ y.val - w.val ≠ 20480)
+    (h : ∀ y, m' y ≠ m y → ∃ w, InVcpu K w y)
     (m0 : U64 → U64) (User : U64 → Prop) (c : U64) (lk : U64 → Prop) :
     PathObl.StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m0) User c lk m m' := by
   have e : ownV K m' = ownV K m := ownV_congr hK fun d hd => by
     by_contra hne
-    obtain ⟨w, hw, ho⟩ := h d hne
-    exact vcpu_nondecV hK hw ho hd
+    obtain ⟨w, hw⟩ := h d hne
+    exact vcpu_nondec hK hw hd
   refine ⟨fun x hx => absurd (by rw [e]) hx, fun x hx _ => ?_⟩
-  obtain ⟨w, hw, -⟩ := h x hx
+  obtain ⟨w, hw⟩ := h x hx
   exact Or.inr (Or.inr (ko_vcpu hK hw m0))
 
-/-- **Off the VCPUs, `own`'s per-write check is `ownV`'s**: a `StepOK` for `own` of a step that changes no
-VCPU word is one for `ownV`. -/
-theorem stepOKV_of_own (hK : RegionOKV K) {m m' : U64 → U64} (h : ∀ y, (∃ w, InVcpu K w y) → m' y = m y)
+/-- **`own`'s per-write check is `ownV`'s**, for every step: a VCPU word's owner never moves, and off the
+VCPUs the two maps agree. -/
+theorem stepOKV_of_stepOK (hK : RegionOKV K) {m m' : U64 → U64}
     {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop} {c : U64} {lk : U64 → Prop}
     (hs : PathObl.StepOK (own K.toKLayout) cls ko User c lk m m') :
     PathObl.StepOK (ownV K) cls ko User c lk m m' := by
   refine ⟨fun x hx => ?_, hs.2⟩
   by_cases hxv : ∃ w, InVcpu K w x
-  · exfalso
-    obtain ⟨w, hw⟩ := hxv
-    apply hx
-    rw [ownV_on hK hw, ownV_on hK hw]
-    simp only [vcpuOwner, h _ ⟨w, vtcb_in hK hw.1⟩]
+  · exact absurd (ownV_on_mem hK hxv) hx
   · simp only [ownV_off hxv] at hx ⊢
     exact hs.1 x hx
+
+/-- Gen 3's form, kept for its users: off the VCPUs. -/
+theorem stepOKV_of_own (hK : RegionOKV K) {m m' : U64 → U64} (_h : ∀ y, (∃ w, InVcpu K w y) → m' y = m y)
+    {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop} {c : U64} {lk : U64 → Prop}
+    (hs : PathObl.StepOK (own K.toKLayout) cls ko User c lk m m') :
+    PathObl.StepOK (ownV K) cls ko User c lk m m' :=
+  stepOKV_of_stepOK hK hs
 
 theorem rpermV_of_own {m : U64 → U64} {x c : U64} {lk : U64 → Prop} (hx : ¬ ∃ w, InVcpu K w x)
     (h : PathObl.RPerm (own K.toKLayout) c lk m x) : PathObl.RPerm (ownV K) c lk m x := by
@@ -250,16 +247,23 @@ theorem wpermV_of_own {m : U64 → U64} {x c : U64} {lk : U64 → Prop} (hx : ¬
     (h : PathObl.WPerm (own K.toKLayout) c lk m x) : PathObl.WPerm (ownV K) c lk m x := by
   unfold PathObl.WPerm at *; rw [ownV_off hx]; exact h
 
-/-- A path holding `lock v` may write (and read) the non-binding words of the bound VCPU `v`. -/
+/-- **Every `own` write permission is an `ownV` one**: a word a path may write under `own` is held, so not
+the gate's, so not a VCPU word. -/
+theorem wpermV_of_own' (hK : RegionOKV K) {m : U64 → U64} {x c : U64} {lk : U64 → Prop}
+    (h : PathObl.WPerm (own K.toKLayout) c lk m x) : PathObl.WPerm (ownV K) c lk m x := by
+  refine wpermV_of_own (fun ⟨w, hw⟩ => ?_) h
+  unfold PathObl.WPerm at h; rw [own_vcpu hK hw] at h; exact h
+
+/-- A path holding `lock v` may write (and read) the non-binding words of the VCPU `v`. -/
 theorem wpermV_vcpu (hK : RegionOKV K) {m : U64 → U64} {v b c : U64} {lk : U64 → Prop} (h : InVcpu K v b)
-    (ho : ¬ VcpuGate (b.val - v.val)) (hb : m (fld v oVTCB) ≠ 0#u64) (hl : lk v) :
+    (ho : ¬ VcpuGate (b.val - v.val)) (hl : lk v) :
     PathObl.WPerm (ownV K) c lk m b := by
-  unfold PathObl.WPerm; rw [ownV_bound hK h ho hb]; exact hl
+  unfold PathObl.WPerm; rw [ownV_data hK h ho]; exact hl
 
 theorem rpermV_vcpu (hK : RegionOKV K) {m : U64 → U64} {v b c : U64} {lk : U64 → Prop} (h : InVcpu K v b)
-    (ho : ¬ VcpuGate (b.val - v.val)) (hb : m (fld v oVTCB) ≠ 0#u64) (hl : lk v) :
+    (ho : ¬ VcpuGate (b.val - v.val)) (hl : lk v) :
     PathObl.RPerm (ownV K) c lk m b :=
-  Or.inl (wpermV_vcpu hK h ho hb hl)
+  Or.inl (wpermV_vcpu hK h ho hl)
 
 /-- The binding word is readable by every path (gate-owned). -/
 theorem rpermV_vtcb (hK : RegionOKV K) {m : U64 → U64} {v c : U64} {lk : U64 → Prop} (hv : v ∈ K.vcpus) :
@@ -276,7 +280,7 @@ theorem vpending_in (hK : RegionOKV K) {v : U64} (hv : v ∈ K.vcpus) (hp : (fld
 /-! ## The hardware-write premise -/
 
 /-- **`VmRunFrame`** [P] (module docstring): from `m` to `m'` only user words and words of `v` that `ownV`
-gives to `lock v` (bound, non-binding) change. Sources: `fl4_arch_x86_64::vm::run` / `vm::vmx_exit` (the guest
+gives to `lock v` (non-binding) change. Sources: `fl4_arch_x86_64::vm::run` / `vm::vmx_exit` (the guest
 runs `v` between kernel entries, no lock held) and `Arch::vcpu_sync` (`lock v` held or `v` stalled), both in
 `TRUSTED`; `check_vm_asm.py` checks the entry/exit ordering. -/
 def VmRunFrame (K : KLayoutV) (v : U64) (m m' : U64 → U64) : Prop :=
@@ -298,8 +302,8 @@ theorem VmRunFrame.ownV_eq (hK : RegionOKV K) (hU : UserOKV K) {v : U64} {m m' :
     (h : VmRunFrame K v m m') : ownV K m' = ownV K m :=
   ownV_congr hK fun d hd => by
     by_contra hne
-    obtain ⟨hw, ho, -⟩ := h.kernel hK hne (decV_ok hK hU hd).2
-    exact vcpu_nondecV hK hw ho hd
+    obtain ⟨hw, -, -⟩ := h.kernel hK hne (OwnMap.decW_ok hU.base hd).2
+    exact vcpu_nondec hK hw hd
 
 /-- **The hardware changes no gate-owned kernel word.** -/
 theorem VmRunFrame.gate (hK : RegionOKV K) {v : U64} {m m' : U64 → U64} (h : VmRunFrame K v m m') {x : U64}
@@ -323,8 +327,8 @@ hardware does to memory looks, to every other local path, like another core's pe
 theorem VmRunFrame.foreign (hK : RegionOKV K) {v : U64} {m m' : U64 → U64} (h : VmRunFrame K v m m') {d : U64}
     {hs : U64 → Prop} (hv : ¬ hs v) {b : U64} (hb : m' b ≠ m b) (hu : b ∉ K.user) (m0 : U64 → U64) (x : U64) :
     Foreign (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m0) d hs m b x := by
-  obtain ⟨hw, ho, he⟩ := h.kernel hK hb hu
-  refine ⟨?_, fun y hy => absurd (by rw [ownV_upd_nondec hK (vcpu_nondecV hK hw ho)]) hy, ?_⟩
+  obtain ⟨hw, -, he⟩ := h.kernel hK hb hu
+  refine ⟨?_, fun y hy => absurd (by rw [ownV_upd_nondec hK (vcpu_nondec hK hw)]) hy, ?_⟩
   · rw [he]; rintro (h1 | h1)
     · exact hv h1
     · cases h1
