@@ -192,6 +192,9 @@ import Fl4Proofs.P2.MoveStale
 import Fl4Proofs.P2.GSt
 import Fl4Proofs.P2.MoveOwn
 import Fl4Proofs.P2.MoveSl
+import Fl4Proofs.P2.MoveSyscall
+import Fl4Proofs.P2.DecSl
+import Fl4Proofs.P2.PathAgree
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
