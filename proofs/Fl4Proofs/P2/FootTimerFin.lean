@@ -18,12 +18,18 @@ namespace Fl4Proofs.P2.PathObl.LT
 open fl4_core Fl4Proofs.P1
 
 section
+variable {S : Type}
+
+/-- A store answering as `st` has `st`'s core index (pointwise, for `simp`; no `LawfulStore` argument, so
+`simp` can use it before `st` is known). -/
+theorem gcc {g st : machine.Store S} {R' : U64 → Prop} [G : GRd g st R'] (s : S) : g.cur_cpu s = st.cur_cpu s :=
+  congrFun G.cur_cpu s
+
+end
+
+section
 variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
 variable {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
-
-/-- A store answering as `st` has `st`'s core index (pointwise, for `simp`). -/
-theorem gcc {g : machine.Store S} {R' : U64 → Prop} [G : GRd g st R'] (s : S) : g.cur_cpu s = st.cur_cpu s :=
-  congrFun G.cur_cpu s
 
 /-- `schedule`'s tail with the action `RESUME_CURRENT`, on any store. -/
 def schedRes {A : Type} (m : machine.Store S) (ar : machine.Arch A) (s3 : S) (a2 : A) : Result (S × A) := do
@@ -66,12 +72,12 @@ theorem timer.fire.guard_none {A : Type} (ar : machine.Arch A) (s : S) (a : A)
   have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
   unfold timer.fire timer.fire_loop
   simp only [gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
-  rw [obj.node_get.guard s _ _ hRc, node_get_ok]
+  rw [obj.node_get.guard (gS := gS) s _ _ hRc, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   rw [loop]
   unfold timer.fire_loop.body
   simp only [hb, ↓reduceIte, gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
-  rw [obj.node_get.guard s _ _ hRt, node_get_ok, h0]
+  rw [obj.node_get.guard (gS := gS) s _ _ hRt, node_get_ok, h0]
   simp only [bind_ok, bind_tc_ok, is_null_ok, decide_true, ↓reduceIte]
 
 theorem sched.awaken_loop.guard_none (s : S) (fuel : U64)
@@ -86,7 +92,7 @@ theorem sched.awaken_loop.guard_none (s : S) (fuel : U64)
   · simp only [hf, ↓reduceIte, bind_ok, bind_tc_ok]
   obtain ⟨f1, hf1, -⟩ := spec_ex_fd (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
   simp only [hf, ↓reduceIte, hf1, gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
-  rw [obj.node_get.guard s _ _ hRr, node_get_ok, h1]
+  rw [obj.node_get.guard (gS := gS) s _ _ hRr, node_get_ok, h1]
   simp only [bind_ok, bind_tc_ok, is_null_ok, decide_true, ↓reduceIte]
 
 /-- **`awaken` with nothing due** on a store answering as `st` (`GRd` / `GWr`). -/
@@ -153,7 +159,7 @@ theorem schedRes.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
   obtain ⟨k5, c5, hnx⟩ := hfr s4 s5 a3 hs4 hs5
   simp only [Aeneas.Std.uncurry_apply_pair]
   simp only [gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
-  rw [obj.node_get.guard s5 _ _ (nd_at hNd k5 c5 _ rp rp8).1, node_get_ok]
+  rw [obj.node_get.guard (gS := gS) s5 _ _ (nd_at hNd k5 c5 _ rp rp8).1, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   refine bind_guard_congr ?_ fun x6 hs6 => ?_
   · by_cases h : (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) != 0#u64) = true
@@ -164,7 +170,7 @@ theorem schedRes.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
       obtain ⟨s7, a5⟩ := x7
       obtain ⟨k7, c7⟩ := (hnx (bne_iff_ne.1 h)).2 s7 a5 hs7
       simp only [Aeneas.Std.uncurry_apply_pair]
-      rw [obj.node_set.guard s7 _ _ _ (by rw [c5, ← c7]; exact (nd_at hNd k7 c7 _ rp rp8).2)]
+      rw [obj.node_set.guard (gS := gS) s7 _ _ _ (by rw [c5, ← c7]; exact (nd_at hNd k7 c7 _ rp rp8).2)]
     · rw [if_neg h, if_neg h]
   · obtain ⟨s6, a4⟩ := x6
     have k6 : L.ksb s6 = L.ksb s ∧ L.cpu s6 = L.cpu s := by
