@@ -45,6 +45,7 @@ import Fl4Proofs.P2.FootTimerFireWc
 import Fl4Proofs.P2.FootTimerFireLoc
 import Fl4Proofs.P2.FootTimerFireSwT
 import Fl4Proofs.P2.FootTimerFirePk
+import Fl4Proofs.P2.FootTimerFireRs
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -255,3 +256,7 @@ import Fl4Proofs.P2.FootTimerFirePk
 #print axioms Fl4Proofs.P2.sched.schedule_tcb.guardC
 #print axioms Fl4Proofs.P2.sched.set_thread_state.guardVC
 #print axioms Fl4Proofs.P2.set_thread_state.gwC
+#print axioms Fl4Proofs.P2.schedule_act_eq
+#print axioms Fl4Proofs.P2.fire_tail_of_aw
+#print axioms Fl4Proofs.P2.actTail.guard
+#print axioms Fl4Proofs.P2.aw_tail_resume
