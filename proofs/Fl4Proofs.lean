@@ -1614,6 +1614,8 @@ import Fl4Proofs.P2.SerialHw
 import Fl4Proofs.P2.E2EV
 import Fl4Proofs.P2.E2EVTop
 import Fl4Proofs.P2.E2EVUser
+import Fl4Proofs.P2.E2EVCut
+import Fl4Proofs.P2.E2EVCutP
 import Fl4Proofs.P2.AccessLvm
 import Fl4Proofs.P2.AccessLvmRep
 import Fl4Proofs.P2.AccessLvmRepR0
