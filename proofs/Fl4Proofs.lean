@@ -1609,6 +1609,7 @@ import Fl4Proofs.P1.LocalVmEnter
 import Fl4Proofs.P1.LocalVmDecNP
 import Fl4Proofs.P1.LocalVmInvoke
 import Fl4Proofs.P1.VcpuExitInv
+import Fl4Proofs.P1.VcpuExitBuf
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
