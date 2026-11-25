@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRS
 import Fl4Proofs.P2.FootTimerIrqRC
 import Fl4Proofs.P2.FootTimerIrqRF
 import Fl4Proofs.P2.FootTimerIrqRW
@@ -80,3 +81,5 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.rr_tail_F
 #print axioms Fl4Proofs.P2.highest_prio_app
 #print axioms Fl4Proofs.P2.charge_budget_rr_run
+#print axioms Fl4Proofs.P2.is_schedulable_rel
+#print axioms Fl4Proofs.P2.rr_run_writes
