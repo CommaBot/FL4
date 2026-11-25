@@ -11,7 +11,7 @@ idle with no bound thread or a bound thread not in `Recv`): `fire_tail_nw`.
   does not run a VM), `send_signal_nw` (the non-waking `send_signal`: the notification's state and badge words,
   `TInv` and `TmFr` kept).
 * The word sets at the entry state: `FTree` / `FTreeL` (the timer fields / links of this core's armed threads),
-  `FNt` (the due thread's bound notification), `FireRd` / `FireWr` (`IrqRd` / `IrqWr` with them).
+  `FNt` / `FNtW` (the due thread's bound notification; its words but `BOUND_TCB`), `FireRd` / `FireWr` (`IrqRd` / `IrqWr` with them).
 * `rel_agree` (`RelNone` at an agreeing state), `fire_run` (`timer::fire` firing one timer on `st`: `remove`,
   the signal, `REPROGRAM`, and a second iteration that stops).
 * `fire_tail_nw`: from the entry facts (P1's `BXI`, `IrqOk`) and the run's equations up to `handle_interrupt`, on
@@ -351,13 +351,20 @@ def FNt (st : machine.Store S) [L : LawfulStore st] (s : S) (w : U64) : Prop :=
     ∃ K : U64, K.val < 64 ∧ K.val % 8 = 0 ∧
       w = core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) K
 
+/-- The words of `FNt` the fire case may write: all but `BOUND_TCB` (offset 24, the gate's). -/
+def FNtW (st : machine.Store S) [L : LawfulStore st] (s : S) (w : U64) : Prop :=
+  L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 ∧
+    L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64 ∧
+    ∃ K : U64, K.val < 64 ∧ K.val % 8 = 0 ∧ K.val ≠ 24 ∧
+      w = core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) K
+
 /-- What the fire case reads at the entry state (module docstring). -/
 def FireRd (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (w : U64) : Prop :=
   IrqRd st Z s w ∨ FTree st T s w ∨ FNt st s w
 
 /-- What the fire case writes at the entry state besides the deadlines and heights of `FTree` (module docstring). -/
 def FireWr (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → Nat) (s : S) (w : U64) : Prop :=
-  IrqWr st Z s w ∨ FTreeL st T s w ∨ FNt st s w
+  IrqWr st Z s w ∨ FTreeL st T s w ∨ FNtW st s w
 
 /-- The due thread's bound notification wakes nobody: none, neither idle nor waiting, or idle with no bound
 thread or one not in `Recv`. -/
@@ -687,11 +694,11 @@ theorem fire_tail_nw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
     obtain ⟨p1, p2⟩ := hO.ntP _ (nNt h)
     exact gRd _ (by unfold Aligned; rw [ntfn_word_val p1 p2 h1]; omega)
       (Or.inr (Or.inr ⟨by rw [eTM]; exact hne, by rw [eTM, eN]; exact h, K, h1, h2, by rw [eTM, eN]⟩))
-  have wN : N ≠ 0#u64 → ∀ K : U64, K.val < 64 → K.val % 8 = 0 →
-      core.num.U64.wrapping_add N K ≠ stA (L.curW s) → W (core.num.U64.wrapping_add N K) := fun h K h1 h2 hn => by
+  have wN : N ≠ 0#u64 → ∀ K : U64, K.val < 64 → K.val % 8 = 0 → K.val ≠ 24 →
+      core.num.U64.wrapping_add N K ≠ stA (L.curW s) → W (core.num.U64.wrapping_add N K) := fun h K h1 h2 h24 hn => by
     obtain ⟨p1, p2⟩ := hO.ntP _ (nNt h)
     exact gWr _ (by unfold Aligned; rw [ntfn_word_val p1 p2 h1]; omega)
-      (Or.inr (Or.inr ⟨by rw [eTM]; exact hne, by rw [eTM, eN]; exact h, K, h1, h2, by rw [eTM, eN]⟩)) hn
+      (Or.inr (Or.inr ⟨by rw [eTM]; exact hne, by rw [eTM, eN]; exact h, K, h1, h2, h24, by rw [eTM, eN]⟩)) hn
   have nsO : ∀ b, OutsideObjs st T Cs s b → b ≠ stA (L.curW s) := fun b hb e => by
     rw [stA_eq] at e
     exact out_ne_field hb hcT ht' (by simp) (congrArg UScalar.val e).symm
@@ -839,9 +846,9 @@ theorem fire_tail_nw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
       have eS : L.epState X1 N = L.epState s N := by unfold LawfulStore.epState; rw [kO1 _ (oT hb)]
       obtain ⟨p1, p2⟩ := hO.ntP _ (nNt hb)
       have wTS : W (core.num.U64.wrapping_add N layout.ntfn.TAIL_STATE) :=
-        wN hb _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]) (by rw [eTS]; exact nsO _ (oT hb))
+        wN hb _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]) (by rw [eTS]; exact nsO _ (oT hb))
       have wBd : W (core.num.U64.wrapping_add N layout.ntfn.BADGE) :=
-        wN hb _ (by simp [layout.ntfn.BADGE]) (by simp [layout.ntfn.BADGE]) (nsO _ (oB hb))
+        wN hb _ (by simp [layout.ntfn.BADGE]) (by simp [layout.ntfn.BADGE]) (by simp [layout.ntfn.BADGE]) (nsO _ (oB hb))
       have rBd : R (core.num.U64.wrapping_add N layout.ntfn.BADGE) :=
         rN hb _ (by simp [layout.ntfn.BADGE]) (by simp [layout.ntfn.BADGE])
       refine notification.send_signal.guardF ar X1 a3 N _
