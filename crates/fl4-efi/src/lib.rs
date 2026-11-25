@@ -9,7 +9,7 @@ use core::ffi::c_void;
 #[cfg(target_arch = "aarch64")]
 use fl4_bootinfo::elf::{self, Layout};
 #[cfg(target_arch = "aarch64")]
-use fl4_bootinfo::{BootInfo, Module, RootTask, KERNEL_VBASE, LOAD_TOP, MAGIC, USER_END, VERSION};
+use fl4_bootinfo::{BootInfo, Module, RootTask, KERNEL_REGION_TOP, KERNEL_VBASE, LOAD_TOP, MAGIC, USER_END, VERSION};
 
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
@@ -486,16 +486,19 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
 
     // The kernel region: image, boot tables, boot record.
     let kernel = embedded::KERNEL;
-    let kl = match elf::check(kernel, KERNEL_VBASE, u64::MAX) {
+    // The image, and the whole region after it, stay in TTBR1 level-0
+    // entry 510: entry 511 is the high window's.
+    let kl = match elf::check(kernel, KERNEL_VBASE, KERNEL_REGION_TOP) {
         // The region starts with the image's first byte at KERNEL_VBASE.
         Some(l) => Layout { v_start: KERNEL_VBASE, ..l },
         None => fail("no AArch64 kernel image built in"),
     };
     let image_len = kl.size();
-    let tables_off = image_len;
-    let bi_off = tables_off + TABLE_PAGES * PAGE;
-    let bi_len = (core::mem::size_of::<BootInfo>() as u64 + PAGE - 1) & !(PAGE - 1);
-    let region_len = (bi_off + bi_len + MB2 - 1) & !(MB2 - 1);
+    let Some((tables_off, bi_off, region_len)) =
+        fl4_bootinfo::kernel_region_layout(image_len, TABLE_PAGES * PAGE, core::mem::size_of::<BootInfo>() as u64, PAGE, MB2)
+    else {
+        fail("kernel region past level-0 entry 510")
+    };
     let region = alloc_aligned(region_len);
     load_segments(kernel, &kl, region);
     let (ttbr0, ttbr1) = build_tables(region + tables_off, region, region_len);

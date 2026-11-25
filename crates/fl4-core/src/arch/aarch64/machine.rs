@@ -52,9 +52,9 @@ macro_rules! arch_machine_methods {
         /// (never 0), so the backend reloads keys whose generation changed.
         fn next_pac_epoch(&mut self) -> u64 { 1 }
         /// AArch64: entry `index` of the kernel's own TTBR1 tables, level 0
-        /// (`level` 0) or the level-1 table level-0 entry 511 points to
-        /// (`level` 1); 0 where there are none (host tests). A new
-        /// `ArmHighVSpace` starts as a copy of them.
+        /// (`level` 0) or the level-1 table of the kernel image, level-0
+        /// entry 510 (`level` 1); 0 where there are none (host tests). A new
+        /// `ArmHighVSpace` starts as a copy of level-0 entries 0-510.
         fn kernel_ttbr1_entry(&self, _level: u64, _index: u64) -> u64 { 0 }
         /// AArch64: run with TTBR1 on the `ArmHighVSpace` at `root` (kernel
         /// virtual; 0 = the kernel's own TTBR1) beside the TTBR0 VSpace of

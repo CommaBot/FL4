@@ -62,18 +62,76 @@ fn set_enables(flags: u64) {
     crate::msr!("sctlr_el1", (v & !SCTLR_EN_ALL) | sctlr_bits(flags));
 }
 
-fn load_keys(tcb: u64) {
+fn load_keys_incremental(pc: &percpu::PerCpu, tcb: u64, flags: u64) -> bool {
+    use fl4_abi::consts::pac_flag;
     let k = |i: u64| unsafe { core::ptr::read_volatile((tcb + tl::PAC_KEYS + i * 8) as *const u64) };
-    crate::msr!("s3_0_c2_c1_0", k(0)); // APIAKeyLo_EL1
-    crate::msr!("s3_0_c2_c1_1", k(1)); // APIAKeyHi_EL1
-    crate::msr!("s3_0_c2_c1_2", k(2)); // APIBKeyLo_EL1
-    crate::msr!("s3_0_c2_c1_3", k(3)); // APIBKeyHi_EL1
-    crate::msr!("s3_0_c2_c2_0", k(4)); // APDAKeyLo_EL1
-    crate::msr!("s3_0_c2_c2_1", k(5)); // APDAKeyHi_EL1
-    crate::msr!("s3_0_c2_c2_2", k(6)); // APDBKeyLo_EL1
-    crate::msr!("s3_0_c2_c2_3", k(7)); // APDBKeyHi_EL1
-    crate::msr!("s3_0_c2_c3_0", k(8)); // APGAKeyLo_EL1
-    crate::msr!("s3_0_c2_c3_1", k(9)); // APGAKeyHi_EL1
+    let mut cached = pc.pac_keys.get();
+    let valid = pc.pac_keys_valid.get();
+    let mut wrote = false;
+
+    if flags & pac_flag::EN_IA != 0 {
+        let lo = k(0);
+        let hi = k(1);
+        if !valid || cached[0] != lo || cached[1] != hi {
+            crate::msr!("s3_0_c2_c1_0", lo); // APIAKeyLo_EL1
+            crate::msr!("s3_0_c2_c1_1", hi); // APIAKeyHi_EL1
+            cached[0] = lo;
+            cached[1] = hi;
+            wrote = true;
+        }
+    }
+    if flags & pac_flag::EN_IB != 0 {
+        let lo = k(2);
+        let hi = k(3);
+        if !valid || cached[2] != lo || cached[3] != hi {
+            crate::msr!("s3_0_c2_c1_2", lo); // APIBKeyLo_EL1
+            crate::msr!("s3_0_c2_c1_3", hi); // APIBKeyHi_EL1
+            cached[2] = lo;
+            cached[3] = hi;
+            wrote = true;
+        }
+    }
+    if flags & pac_flag::EN_DA != 0 {
+        let lo = k(4);
+        let hi = k(5);
+        if !valid || cached[4] != lo || cached[5] != hi {
+            crate::msr!("s3_0_c2_c2_0", lo); // APDAKeyLo_EL1
+            crate::msr!("s3_0_c2_c2_1", hi); // APDAKeyHi_EL1
+            cached[4] = lo;
+            cached[5] = hi;
+            wrote = true;
+        }
+    }
+    if flags & pac_flag::EN_DB != 0 {
+        let lo = k(6);
+        let hi = k(7);
+        if !valid || cached[6] != lo || cached[7] != hi {
+            crate::msr!("s3_0_c2_c2_2", lo); // APDBKeyLo_EL1
+            crate::msr!("s3_0_c2_c2_3", hi); // APDBKeyHi_EL1
+            cached[6] = lo;
+            cached[7] = hi;
+            wrote = true;
+        }
+    }
+    // APGA is not governed by an SCTLR enable bit, so always keep it synced.
+    let ga_lo = k(8);
+    let ga_hi = k(9);
+    if !valid || cached[8] != ga_lo || cached[9] != ga_hi {
+        crate::msr!("s3_0_c2_c3_0", ga_lo); // APGAKeyLo_EL1
+        crate::msr!("s3_0_c2_c3_1", ga_hi); // APGAKeyHi_EL1
+        cached[8] = ga_lo;
+        cached[9] = ga_hi;
+        wrote = true;
+    }
+
+    if wrote {
+        pc.pac_keys.set(cached);
+    }
+    // A disabled pair keeps whatever the cache says hardware holds: it
+    // cannot sign or authenticate until enabled, and enabling it again
+    // compares and loads it here first. `switch_to` loads all 10 words while
+    // the cache is invalid, so it is valid for every word from then on.
+    wrote
 }
 
 /// Run the thread whose TCB is at `tcb` (0: the idle thread or a VCPU
@@ -104,6 +162,7 @@ pub fn switch_to(tcb: u64) {
             crate::msr!("s3_0_c2_c3_1", 0); // APGAKeyHi_EL1
             pc.pac_owner.set(0);
             pc.pac_epoch.set(0);
+            pc.pac_keys_valid.set(false);
         }
         cpu::isb();
         return;
@@ -111,10 +170,29 @@ pub fn switch_to(tcb: u64) {
     let mut dirty = false;
     let epoch = unsafe { core::ptr::read_volatile((tcb + tl::PAC_EPOCH) as *const u64) };
     if pc.pac_owner.get() != tcb || pc.pac_epoch.get() != epoch {
-        load_keys(tcb);
+        if !pc.pac_keys_valid.get() {
+            // Cold cache: load all 10 words once so every pair in `pac_keys`
+            // matches hardware, then future switches only touch changed pairs.
+            let k = |i: u64| unsafe { core::ptr::read_volatile((tcb + tl::PAC_KEYS + i * 8) as *const u64) };
+            let keys = [k(0), k(1), k(2), k(3), k(4), k(5), k(6), k(7), k(8), k(9)];
+            crate::msr!("s3_0_c2_c1_0", keys[0]);
+            crate::msr!("s3_0_c2_c1_1", keys[1]);
+            crate::msr!("s3_0_c2_c1_2", keys[2]);
+            crate::msr!("s3_0_c2_c1_3", keys[3]);
+            crate::msr!("s3_0_c2_c2_0", keys[4]);
+            crate::msr!("s3_0_c2_c2_1", keys[5]);
+            crate::msr!("s3_0_c2_c2_2", keys[6]);
+            crate::msr!("s3_0_c2_c2_3", keys[7]);
+            crate::msr!("s3_0_c2_c3_0", keys[8]);
+            crate::msr!("s3_0_c2_c3_1", keys[9]);
+            pc.pac_keys.set(keys);
+            pc.pac_keys_valid.set(true);
+            dirty = true;
+        } else if load_keys_incremental(pc, tcb, flags) {
+            dirty = true;
+        }
         pc.pac_owner.set(tcb);
         pc.pac_epoch.set(epoch);
-        dirty = true;
     }
     if pc.pac_flags.get() != flags {
         set_enables(flags);

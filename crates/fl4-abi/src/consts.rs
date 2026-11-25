@@ -257,9 +257,10 @@ pub mod sc_flag {
 
 /// `seL4_ARM_VMAttributes`.
 /// FL4 AArch64: the TTBR1 addresses an `ArmHighVSpace` may map, level-0
-/// entry 511, level-1 entries 384-495 (112 GiB): clear of the kernel window
-/// (`PPTR_BASE..PPTR_TOP`), the device mappings below this window and the
-/// kernel image at `KERNEL_VBASE`.
+/// entry 511, level-1 entries 384-495 (112 GiB). The kernel's own TTBR1
+/// leaves level-0 entry 511 invalid: its window over RAM
+/// (`PPTR_BASE..PPTR_TOP`) is entries 256-509, its device mappings and
+/// image (`KERNEL_VBASE`) entry 510, below `0xffff_ff80_0000_0000`.
 #[cfg(feature = "aarch64")]
 pub const HIGH_VSPACE_BASE: u64 = 0xffff_ffe0_0000_0000;
 #[cfg(feature = "aarch64")]
