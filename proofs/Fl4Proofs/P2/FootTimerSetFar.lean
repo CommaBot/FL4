@@ -96,10 +96,10 @@ theorem set_timer_far {s : S} {a : A} {n : I64} {target : U64} {r : Bool × S ×
   refine ⟨rfl, ?_⟩
   revert h
   unfold localtimer.handle_set_timer_local
-  rw [PathObl.sched.cur_thread.guard s (nA _ (by rw [curth_val]; omega) (by rw [curth_val])), cur_thread_ok,
+  rw [PathObl.sched.cur_thread.guard (gS := guard st Aligned (fun _ => False)) s (nA _ (by rw [curth_val]; omega) (by rw [curth_val])), cur_thread_ok,
     PathObl.guard_cur_cpu, L.cur_cpu_eq]
   simp only [bind_ok, lift]
-  rw [PathObl.msg.msg_info.guard s _ (by
+  rw [PathObl.msg.msg_info.guard (gS := guard st Aligned (fun _ => False)) s _ (by
     obtain ⟨k, hk', e⟩ := regA_eq ht' (r := layout.reg.MSG_INFO) (by simp [layout.reg.MSG_INFO])
     have : layout.reg.MSG_INFO.val < 384 := by simp [layout.reg.MSG_INFO]
     rw [e]; exact fA hcT (by omega) (by omega))]
@@ -107,13 +107,13 @@ theorem set_timer_far {s : S} {a : A} {n : I64} {target : U64} {r : Bool × S ×
   rw [num_domains_ne_one_false]
   simp only [Bool.false_eq_true, ↓reduceIte]
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [PathObl.obj.Tcb.flags.guard _ s (fA hcT (by simp) (by simp))]
+  rw [PathObl.obj.Tcb.flags.guard (gS := guard st Aligned (fun _ => False)) _ s (fA hcT (by simp) (by simp))]
   refine tr_bind_same (fun i _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [PathObl.sched.cur_sc.guard s (nA _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))]
+  rw [PathObl.sched.cur_sc.guard (gS := guard st Aligned (fun _ => False)) s (nA _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))]
   refine tr_bind_same (fun csc _ => ?_)
   refine tr_bind (fun b eb _ => gtgt b eb) (fun b eb => ?_)
   cases b

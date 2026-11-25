@@ -61,7 +61,7 @@ def fireTail (M : machine.Store S) (s : S) (cpu : U64) (ct : obj.Tcb) (p : local
 theorem fire_ok_eq (M : machine.Store S) (s : S) (cpu : U64) (ct : obj.Tcb) (p : localtimer.TimerIrqPlan)
     (now : U64) :
     localtimer.fire_ok M s cpu ct p now =
-      if p.tm = 0#u64
+      (if p.tm = 0#u64
       then ok false
       else do
         let i ← obj.Tcb.timer_right M p.tm s
@@ -82,7 +82,7 @@ theorem fire_ok_eq (M : machine.Store S) (s : S) (cpu : U64) (ct : obj.Tcb) (p :
           then fireTail M s cpu ct p
           else do
             let i3 ← obj.Tcb.timer_deadline M i2 s
-            if i3 <= now then ok false else fireTail M s cpu ct p := by
+            if i3 <= now then ok false else fireTail M s cpu ct p) := by
   unfold localtimer.fire_ok fireTail
   rfl
 
@@ -101,7 +101,7 @@ theorem WakeRd.guard {s : S} {w n : U64} (h : WakeRd st R s w n) (ct : obj.Tcb) 
 theorem ntfn_state_guard (n : obj.Ntfn) (s : S) (h : R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE)) :
     obj.Ntfn.state (guard st R W) n s = obj.Ntfn.state st n s := by
   unfold obj.Ntfn.state
-  rw [PathObl.obj.Ntfn.tail_state.guard n s h]
+  rw [PathObl.obj.Ntfn.tail_state.guard (gS := PathObl.guard st R W) n s h]
 
 theorem fireTail.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan}
     (h1 : R (core.num.U64.wrapping_add p.ntfn layout.ntfn.TAIL_STATE))
@@ -119,14 +119,14 @@ theorem fireTail.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan}
   · rw [if_pos ha, if_pos ha]
   rw [if_neg ha, if_neg ha]
   by_cases hi : x = obj.NTFN_IDLE
-  · rw [if_pos hi, if_pos hi, PathObl.obj.Ntfn.bound_tcb.guard p.ntfn s h2]
+  · rw [if_pos hi, if_pos hi, PathObl.obj.Ntfn.bound_tcb.guard (gS := PathObl.guard st R W) p.ntfn s h2]
     refine bind_guard_congr rfl fun b2 _ => ?_
     by_cases hz : b2 = 0#u64
     · rw [if_pos hz, if_pos hz]
     rw [if_neg hz, if_neg hz]
     by_cases hn : (b2 != p.tm) = true
     · rw [if_pos hn, if_pos hn]
-    rw [if_neg hn, if_neg hn, PathObl.obj.Tcb.state.guard p.tm s h3]
+    rw [if_neg hn, if_neg hn, PathObl.obj.Tcb.state.guard (gS := PathObl.guard st R W) p.tm s h3]
     refine bind_guard_congr rfl fun bs _ => ?_
     by_cases hv : bs = sched.TS_RUNNING_VM
     · rw [if_pos hv, if_pos hv]
@@ -147,7 +147,7 @@ theorem fireTail.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan}
     by_cases hw : x = obj.NTFN_WAITING
     swap
     · rw [if_neg hw, if_neg hw]
-    rw [if_pos hw, if_pos hw, PathObl.obj.Ntfn.head.guard p.ntfn s h4]
+    rw [if_pos hw, if_pos hw, PathObl.obj.Ntfn.head.guard (gS := PathObl.guard st R W) p.ntfn s h4]
     exact bind_guard_congr rfl fun w ew => (hw2 w ew).guard ct
 
 /-- The walk to the due thread's successor: left links from its right child. -/
@@ -158,9 +158,10 @@ theorem fire_ok_loop.guard {s : S} (P : U64 → Prop)
   unfold localtimer.fire_ok_loop
   refine GE.loop (fun y : U64 × U64 => P y.1) (fun y => y.2.val) (fun y hy => ?_) (i, fuel) hi
   obtain ⟨i1, f1⟩ := y
-  show GE (localtimer.fire_ok_loop.body (guard st R W) s i1 f1) (localtimer.fire_ok_loop.body st s i1 f1) _
+  -- `PathObl.guard`: in this theorem's body a bare `guard` names the theorem itself (`fire_ok_loop.guard`)
+  show GE (localtimer.fire_ok_loop.body (PathObl.guard st R W) s i1 f1) (localtimer.fire_ok_loop.body st s i1 f1) _
   unfold localtimer.fire_ok_loop.body
-  rw [PathObl.obj.Tcb.timer_left.guard i1 s (hP i1 hy).1]
+  rw [PathObl.obj.Tcb.timer_left.guard (gS := PathObl.guard st R W) i1 s (hP i1 hy).1]
   refine GE.bind (GE.refl _) fun j ej => ?_
   have hj : P j := (hP i1 hy).2 j ej
   refine GE.ite (fun _ => GE.ite (fun hf => GE.bind (GE.refl _) fun f2 ef => GE.ret ?_)
@@ -186,9 +187,9 @@ theorem fire_ok.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan} {now 
   rw [fire_ok_eq, fire_ok_eq]
   by_cases h0 : p.tm = 0#u64
   · rw [if_pos h0, if_pos h0]
-  rw [if_neg h0, if_neg h0, PathObl.obj.Tcb.timer_right.guard p.tm s hr]
+  rw [if_neg h0, if_neg h0, PathObl.obj.Tcb.timer_right.guard (gS := PathObl.guard st R W) p.tm s hr]
   refine bind_guard_congr rfl fun i ei => ?_
-  rw [PathObl.obj.Tcb.timer_parent.guard p.tm s hp]
+  rw [PathObl.obj.Tcb.timer_parent.guard (gS := PathObl.guard st R W) p.tm s hp]
   refine bind_guard_congr rfl fun i1 ei1 => ?_
   refine bind_guard_congr rfl fun b _ => ?_
   cases b
@@ -198,7 +199,7 @@ theorem fire_ok.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan} {now 
     refine bind_guard_congr rfl fun b1 _ => ?_
     cases b1
     · rw [if_neg Bool.false_ne_true, if_neg Bool.false_ne_true,
-        PathObl.obj.Tcb.timer_deadline.guard i2 s (hd2 i2 hi2)]
+        PathObl.obj.Tcb.timer_deadline.guard (gS := PathObl.guard st R W) i2 s (hd2 i2 hi2)]
       refine bind_guard_congr rfl fun d _ => ?_
       by_cases hd : d ≤ now
       · rw [if_pos hd, if_pos hd]
@@ -208,7 +209,7 @@ theorem fire_ok.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan} {now 
     refine bind_guard_congr rfl fun b1 _ => ?_
     cases b1
     · rw [if_neg Bool.false_ne_true, if_neg Bool.false_ne_true,
-        PathObl.obj.Tcb.timer_deadline.guard i1 s (hd1 i1 ei1)]
+        PathObl.obj.Tcb.timer_deadline.guard (gS := PathObl.guard st R W) i1 s (hd1 i1 ei1)]
       refine bind_guard_congr rfl fun d _ => ?_
       by_cases hd : d ≤ now
       · rw [if_pos hd, if_pos hd]
@@ -218,7 +219,7 @@ theorem fire_ok.guard {s : S} {ct : obj.Tcb} {p : localtimer.TimerIrqPlan} {now 
 theorem core_of_guard (s : S) (t : obj.Tcb) (h : R (core.num.U64.wrapping_add t 3568#u64)) :
     localtimer.core_of (guard st R W) s t = localtimer.core_of st s t := by
   unfold localtimer.core_of
-  rw [PathObl.obj.Tcb.timer_height.guard t s h]
+  rw [PathObl.obj.Tcb.timer_height.guard (gS := PathObl.guard st R W) t s h]
 
 /-- What `plan_objects` reads of the earliest armed thread `tm` and of its bound notification. -/
 structure PlanTm (st : machine.Store S) [L : LawfulStore st] (R : U64 → Prop) (s : S) (tm : U64) : Prop where
@@ -243,7 +244,7 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   have hc := ok_inj_ff ecpu
   subst hc
   dsimp only
-  rw [PathObl.obj.node_get.guard s _ _ h1]
+  rw [PathObl.obj.node_get.guard (gS := PathObl.guard st R W) s _ _ h1]
   refine bind_guard_congr rfl fun i ei => ?_
   rw [node_get_ok] at ei
   have hi := ok_inj_ff ei
@@ -253,7 +254,7 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64
   · rw [if_pos (decide_eq_true h0), if_pos (decide_eq_true h0)]
   have P := h2 h0
-  rw [if_neg (by simpa using h0), if_neg (by simpa using h0), PathObl.obj.Tcb.affinity.guard _ s P.aff]
+  rw [if_neg (by simpa using h0), if_neg (by simpa using h0), PathObl.obj.Tcb.affinity.guard (gS := PathObl.guard st R W) _ s P.aff]
   refine bind_guard_congr rfl fun i1 _ => ?_
   by_cases ha : (i1 != L.cpu s) = true
   · rw [if_pos ha, if_pos ha]
@@ -261,7 +262,7 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   refine bind_guard_congr rfl fun i2 _ => ?_
   by_cases hb : (i2 != L.cpu s) = true
   · rw [if_pos hb, if_pos hb]
-  rw [if_neg hb, if_neg hb, PathObl.obj.Tcb.bound_ntfn.guard _ s P.bn]
+  rw [if_neg hb, if_neg hb, PathObl.obj.Tcb.bound_ntfn.guard (gS := PathObl.guard st R W) _ s P.bn]
   refine bind_guard_congr rfl fun n en => ?_
   by_cases hn : n = 0#u64
   · rw [if_pos hn, if_pos hn]
@@ -269,29 +270,28 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   rw [if_neg hn, if_neg hn]
   refine bind_guard_congr rfl fun x _ => ?_
   obtain ⟨x1, x2⟩ := x
-  dsimp only
+  simp only [Aeneas.Std.uncurry_apply_pair]
   rw [ntfn_state_guard n s hn1]
   refine bind_guard_congr rfl fun i3 _ => ?_
   by_cases h3 : (i3 != obj.NTFN_IDLE) = true
   · rw [if_pos h3, if_pos h3]
-  rw [if_neg h3, if_neg h3, PathObl.obj.Ntfn.bound_tcb.guard n s hn2]
+  rw [if_neg h3, if_neg h3, PathObl.obj.Ntfn.bound_tcb.guard (gS := PathObl.guard st R W) n s hn2]
   refine bind_guard_congr rfl fun i4 _ => ?_
   by_cases h4 : (i4 != L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) = true
   · rw [if_pos h4, if_pos h4]
-  rw [if_neg h4, if_neg h4, PathObl.obj.Tcb.state.guard _ s P.stt]
+  rw [if_neg h4, if_neg h4, PathObl.obj.Tcb.state.guard (gS := PathObl.guard st R W) _ s P.stt]
   refine bind_guard_congr rfl fun i5 _ => ?_
   by_cases h5 : (i5 != sched.TS_BLOCKED_ON_RECV) = true
   · rw [if_pos h5, if_pos h5]
-  rw [if_neg h5, if_neg h5, PathObl.obj.Tcb.block_obj.guard _ s P.bo]
+  rw [if_neg h5, if_neg h5, PathObl.obj.Tcb.block_obj.guard (gS := PathObl.guard st R W) _ s P.bo]
   refine bind_guard_congr rfl fun ep _ => ?_
   by_cases h6 : ep = 0#u64
   · rw [if_pos h6, if_pos h6]
   rw [if_neg h6, if_neg h6]
-  dsimp only
   refine bind_guard_congr rfl fun y _ => ?_
   obtain ⟨y1, y2⟩ := y
-  dsimp only
-  rw [PathObl.obj.Tcb.reply_obj.guard _ s P.ro]
+  simp only [Aeneas.Std.uncurry_apply_pair]
+  rw [PathObl.obj.Tcb.reply_obj.guard (gS := PathObl.guard st R W) _ s P.ro]
 
 end
 

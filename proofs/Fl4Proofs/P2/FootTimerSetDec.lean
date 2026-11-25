@@ -208,40 +208,40 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
       exact eb
   revert h
   unfold localtimer.handle_set_timer_local
-  rw [PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val])), cur_thread_ok,
+  rw [PathObl.sched.cur_thread.guard (gS := guard st R W) s (nR _ (by rw [curth_val]; omega) (by rw [curth_val])), cur_thread_ok,
     PathObl.guard_cur_cpu, L.cur_cpu_eq]
   simp only [bind_ok, lift]
-  rw [PathObl.msg.msg_info.guard s _ (rR _ (by simp [layout.reg.MSG_INFO]))]
+  rw [PathObl.msg.msg_info.guard (gS := guard st R W) s _ (rR _ (by simp [layout.reg.MSG_INFO]))]
   refine tr_bind_same (fun info _ => ?_)
   rw [num_domains_ne_one_false]
   simp only [Bool.false_eq_true, ↓reduceIte]
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [PathObl.obj.Tcb.flags.guard _ s (cR _ (by simp) (by simp) (by simp) (by simp))]
+  rw [PathObl.obj.Tcb.flags.guard (gS := guard st R W) _ s (cR _ (by simp) (by simp) (by simp) (by simp))]
   refine tr_bind_same (fun i _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))]
+  rw [PathObl.sched.cur_sc.guard (gS := guard st R W) s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))]
   refine tr_bind_same (fun csc ecsc => ?_)
   have ecsc' : L.cscW s = csc := by
     rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s)] at ecsc; exact ok_inj_ff ecsc
   subst ecsc'
   refine tr_bind (fun b eb _ => gtgt b eb) (fun b _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [current_ok.guard s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
+  rw [current_ok.guard (gS := guard st R W) s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
       (cR _ (by simp) (by simp) (by simp) (by simp)) rSc (by rw [hP.sct]; exact rCore) rCore
       (nR _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))
       (cR _ (by simp) (by simp) (by simp) (by simp)) rD1]
   refine tr_bind_same (fun b1 _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [PathObl.obj.Tcb.state.guard _ s rSt]
+  rw [PathObl.obj.Tcb.state.guard (gS := guard st R W) _ s rSt]
   refine tr_bind_same (fun i2 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [PathObl.sched.is_schedulable.guard s _ rSt rSc (by rw [hP.sct]; exact rMx) rIq]
+  rw [PathObl.sched.is_schedulable.guard (gS := guard st R W) s _ rSt rSc (by rw [hP.sct]; exact rMx) rIq]
   refine tr_bind_same (fun b2 eb2 => ?_)
   refine tr_ite (fun hb2 => ?_) (fun _ h => h)
-  rw [sched_quiet.guard s (nR _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])) rD2
+  rw [sched_quiet.guard (gS := guard st R W) s (nR _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])) rD2
       (nR _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]))]
   refine tr_bind_same (fun b3 _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
@@ -251,9 +251,9 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
     rw [eb2, WP.spec_ok] at hs
     obtain ⟨-, -, -, hmax0⟩ := hs rfl
     rw [hP.sct] at hmax0; exact hmax0
-  rw [PathObl.obj.Tcb.reg.guard _ s _ (rR _ (by simp [layout.reg.NEXT_IP]))]
+  rw [PathObl.obj.Tcb.reg.guard (gS := guard st R W) _ s _ (rR _ (by simp [layout.reg.NEXT_IP]))]
   refine tr_bind_same (fun nx _ => ?_)
-  rw [PathObl.obj.Tcb.set_reg.guard _ s _ _ (Or.inl rfl)]
+  rw [PathObl.obj.Tcb.set_reg.guard (gS := guard st R W) _ s _ _ (Or.inl rfl)]
   refine tr_bind_same (fun s1 es1 => ?_)
   have e1s : s1 = L.wr s (regA (L.curW s) layout.reg.FAULT_IP)
       (core.num.U64.wrapping_sub nx localtimer.SYSCALL_INSN_LEN) := by
@@ -263,7 +263,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
     rw [e1s]; exact PathObl.nd_wr _ _ _ _
   have ndR : ∀ (Y : S), (∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o) → ∀ o : U64, o.val < 4288 →
       o.val % 8 = 0 → R (L.nodeAt Y (L.cpu Y) o) := fun Y e o h1 h2 => by rw [e]; exact nR o h1 h2
-  rw [PathObl.sched.update_timestamp.guard ar s1 a
+  rw [PathObl.sched.update_timestamp.guard (gS := guard st R W) ar s1 a
       (ndR s1 e1N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
       (by show W (L.nodeAt s1 (L.cpu s1) _); rw [e1N]; exact Or.inr (Or.inl rfl))
       (ndR s1 e1N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
@@ -273,24 +273,24 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
   obtain ⟨k2, c2, uK, pre_node, agΩ2, hB2⟩ := set_timer_prefix ar hA hI rfl (cur_thread_ok s) es1 eu
   have e2N : ∀ o, L.nodeAt s2 (L.cpu s2) o = L.nodeAt s (L.cpu s) o := fun o => by rw [c2, nodeAt_of_ksb k2]
   simp only [uncurry_apply_pair]
-  rw [PathObl.sched.cur_time.guard s2 (ndR s2 e2N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
+  rw [PathObl.sched.cur_time.guard (gS := guard st R W) s2 (ndR s2 e2N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
   refine tr_bind_same (fun now _ => ?_)
-  rw [PathObl.msg.syscall_arg.guard_lt s2 _ _ _ (by rw [PathObl.n_msg_regs]; decide) (fun r er => by
+  rw [PathObl.msg.syscall_arg.guard_lt (gS := guard st R W) s2 _ _ _ (by rw [PathObl.n_msg_regs]; decide) (fun r er => by
       rw [PathObl.msg_register_zero] at er; rw [← ok_inj_ff er]; exact rR _ (by simp [layout.reg.R10]))]
   refine tr_bind_same (fun dl _ => ?_)
-  rw [PathObl.msg.syscall_arg.guard_lt s2 _ _ _ (by rw [PathObl.n_msg_regs]; decide) (fun r er => by
+  rw [PathObl.msg.syscall_arg.guard_lt (gS := guard st R W) s2 _ _ _ (by rw [PathObl.n_msg_regs]; decide) (fun r er => by
       rw [PathObl.msg_register_one] at er; rw [← ok_inj_ff er]; exact rR _ (by simp [layout.reg.R8]))]
   refine tr_bind_same (fun bd _ => ?_)
-  rw [PathObl.sched.consumed.guard s2 (ndR s2 e2N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))]
+  rw [PathObl.sched.consumed.guard (gS := guard st R W) s2 (ndR s2 e2N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))]
   refine tr_bind_same (fun cns _ => ?_)
   have hdC : RdHead (L := L) R s2 (L.cscW s) :=
-    PathObl.ScAcc.head (W := fun _ => True) ⟨scR, fun _ _ _ => trivial, trivial⟩ ((SCq.agree hcq agΩ2).1 (by
+    PathObl.ScAcc.head (W := fun _ => True) ⟨fun b ha hb => scR b hb ha, fun _ _ _ => trivial, trivial⟩ ((SCq.agree hcq agΩ2).1 (by
       unfold LawfulStore.rmax; rw [agΩ2 _ (hcq.2.1 _ hcq.2.2.2.2 hcq.2.2.2.1)]; exact hmx0))
-  rw [PathObl.sporadic.sufficient.guard ar s2 a1 (L.cscW s) cns hdC]
+  rw [PathObl.sporadic.sufficient.guard (gS := guard st R W) ar s2 a1 (L.cscW s) cns hdC]
   refine tr_bind_same (fun b4 _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
   have gtdue : localtimer.timer_due (guard st R W) s2 (L.cpu s) now = localtimer.timer_due st s2 (L.cpu s) now := by
-    have := timer_due.guard (R := R) (W := W) s2 now
+    have := timer_due.guard (gS := guard st R W) s2 now
       (ndR s2 e2N _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])) (fun hne => by
         have e : L.mem s2 (L.nodeAt s2 (L.cpu s2) layout.node.TIMER_MIN) =
             L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) := by
@@ -305,7 +305,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
   refine tr_bind_same (fun b5 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   have grdue : localtimer.release_due (guard st R W) s2 (L.cpu s) = localtimer.release_due st s2 (L.cpu s) := by
-    have := release_due.guard (R := R) (W := W) s2
+    have := release_due.guard (gS := guard st R W) s2
       (ndR s2 e2N _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD]))
       (fun hne => by
         have e : L.mem s2 (L.nodeAt s2 (L.cpu s2) layout.node.RELEASE_HEAD) =
@@ -322,7 +322,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
         rw [es]
         refine ⟨gateR r1 (by simp) (by simp) (by simp) (by simp [GateField]), ?_⟩
         exact PathObl.ScAcc.head (W := fun _ => True)
-          ⟨fun b hb ha => scw r4 hb (by rw [hAff _ r1 r3, r2]) ha, fun _ _ _ => trivial, trivial⟩
+          ⟨fun b ha hb => scw r4 hb (by rw [hAff _ r1 r3, r2]) ha, fun _ _ _ => trivial, trivial⟩
           ((SCq.agree hqr agΩ2).1 (by
             unfold LawfulStore.rmax; rw [agΩ2 _ (hqr.2.1 _ hqr.2.2.2.2 hqr.2.2.2.1)]; exact r5)))
       (ndR s2 e2N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))

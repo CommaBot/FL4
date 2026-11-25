@@ -194,11 +194,12 @@ theorem st_wr_nondec (hK : RegionOK K) {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs 
         unfold thA; rw [show k = 3568#u64 from UScalar.eq_of_val_eq (by simp [e'])])⟩)
       exact Or.inl ⟨z, hL.tcb z hz.1 k (by omega) (by omega), by omega, by omega, by omega, by omega, by omega⟩
     · exact Or.inr (Or.inl ⟨_, hL.nd o ho'⟩)
-  · have e : (core.num.U64.wrapping_add (L.curW s) k).val - (L.curW s).val = k.val := by
-      rw [field_val (hT _ h0.curT) (by omega)]; omega
+  · have hcT : L.curW s ∈ T := h0.curT
+    have e : (core.num.U64.wrapping_add (L.curW s) k).val - (L.curW s).val = k.val := by
+      rw [field_val (hT _ hcT) (by omega)]; omega
     have k1 : k.val ≠ 3328 := fun e' => hn (Or.inl (by
       rw [stA_eq, show k = 3328#u64 from UScalar.eq_of_val_eq (by simp [e'])]))
-    exact Or.inl ⟨_, hL.tcb _ h0.curT k h1 (by omega), by omega, by omega, by omega, by omega, by omega⟩
+    exact Or.inl ⟨_, hL.tcb _ hcT k h1 (by omega), by omega, by omega, by omega, by omega, by omega⟩
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, hL.sc _ ho.csc w h.inSC, by unfold InRing at h; omega⟩))))
   · obtain ⟨hP, hz⟩ := hI.2.2.1.1.sc _ ho.csc
     have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
@@ -260,7 +261,7 @@ theorem set_timer_move (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserO
       (L.mem y)) (I := fun _ => True)
     (fun x q v x' _ hq hw => by
       rw [L.write_eq] at hw
-      have e := Result.ok.inj hw
+      have e := ok_inj_ff hw
       subst e
       exact ⟨hq, trivial⟩) p s a _ trivial hg
 

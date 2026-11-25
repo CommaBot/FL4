@@ -200,7 +200,7 @@ theorem resume_hsw_hfr (hA : P0.ArchTotal ar) (X : S) (a : A) {zc : Nat}
               have := hdis hne b hin; unfold Outside at this; unfold InSC at h; omega)), eX1]
             exact mem_wr_ne' aA hb fun e =>
               out_ne_node hO hcC hN (by rw [act_val]; omega) (congrArg UScalar.val e)
-        exact PathObl.ScAcc.head (W := fun _ => True) ⟨hRall, fun _ _ _ => trivial, trivial⟩ hwf
+        exact PathObl.ScAcc.head (W := fun _ => True) ⟨fun b ha hi => hRall b hi ha, fun _ _ _ => trivial, trivial⟩ hwf
       · have etm : L.mem s5 (tmA (L := L) s5) = L.mem X (tmA (L := L) X) := by
           show L.mem s5 (L.nodeAt s5 (L.cpu s5) _) = _
           rw [eN5]

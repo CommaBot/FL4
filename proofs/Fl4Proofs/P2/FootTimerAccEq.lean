@@ -27,7 +27,6 @@ open Fl4Proofs.P2.PathObl (guard guard_read)
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {R Wr : U64 → Prop}
-variable {gS : machine.Store S} [PathObl.GRd gS st R]
 
 /-- The words `in_core_timer_tree` on core `c` reads, `W` the keys of `c`'s tree. -/
 def TreeReads (st : machine.Store S) [L : LawfulStore st] (s : S) (c : U64) (Ks : List U64) (w : U64) : Prop :=
@@ -123,6 +122,12 @@ theorem body_split_x (M : machine.Store S) (s : S) (i d : U64) (x : Array U64 32
         else ok (ControlFlow.done x.2.2.2.1)
       else ok (ControlFlow.done x.2.2.2.1)) :=
   body_split M s i d x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2
+
+/- The store `gS` comes in only here: `PathObl.GRd` needs `S : Type`, and a section variable's constraints are
+elaborated with every declaration of the section, so declared above it would fix `S : Type` (universe 0) for
+`body_split`/`body_split_x` too, and `rw [body_split_x] at h` on a hypothesis over `S : Type u_1`
+(`ictt_body_step`) finds no instance (`@localtimer.in_core_timer_tree_loop.body.{0}` vs `.{u_1}`). -/
+variable {gS : machine.Store S} [PathObl.GRd gS st R]
 
 /-- **One step of the search reads only `TreeReads` words**: the guarded step is the real step. -/
 theorem ictt_body_eq {s : S} {c target d : U64} {Ks : List U64}

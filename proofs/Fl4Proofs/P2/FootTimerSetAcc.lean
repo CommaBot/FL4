@@ -613,7 +613,7 @@ theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr
     · rw [etc, stA_eq] at e; exact out_ne_field ho htT ht' (by simp) (congrArg UScalar.val e).symm
     · exact out_ne_field ho hy'.1 (hT y' hy'.1) (K := 3528#u64) (by simp) (congrArg UScalar.val e).symm
     · exact out_ne_field ho hy'.1 (hT y' hy'.1) (K := 3568#u64) (by simp) (congrArg UScalar.val e).symm
-  have hSc : ScAcc R W csc (Z csc) := ⟨scR, fun b h1 h2 =>
+  have hSc : ScAcc R W csc (Z csc) := ⟨fun b ha hb => scR b hb ha, fun b h1 h2 =>
     gWr _ h1 (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact h2))))
       (scND b h1 ⟨by have := h2.1; omega, h2.2⟩),
     gWr _ hcq.2.2.1.2 (Or.inr (Or.inr (Or.inr (by rw [ecsc'])))) (scND _ hcq.2.2.1.2 hcq.2.2.1.1)⟩
@@ -681,7 +681,7 @@ theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr
         RdHead (L := L) R Y (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) := by
     intro Y kY cY eh es ag hne
     obtain ⟨-, q2, q3, q4, q5, -⟩ := hRH Y kY cY eh es ag hne
-    exact ⟨q2, PathObl.ScAcc.head (W := fun _ => True) ⟨q5, fun _ _ _ => trivial, trivial⟩ (q3.1 q4)⟩
+    exact ⟨q2, PathObl.ScAcc.head (W := fun _ => True) ⟨fun b ha hb => q5 b hb ha, fun _ _ _ => trivial, trivial⟩ (q3.1 q4)⟩
   -- the earliest timer
   have scK2 : ∀ y ∈ T, L.mem s2 (scA y) = L.mem s (scA y) := fun y hy => by
     rw [scA_eq]; exact uK hy (by simp) (by simp) (fun _ => by simp)
@@ -787,16 +787,16 @@ theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr
   have st4 : L.mem s4 (stA t) = sched.TS_RESTART := by
     rw [w34.mem_eq sA ?_, e3, L.mem_wr_same sA]
     rintro (⟨o, ho, e⟩ | ⟨K, a1', a2', e⟩ | ⟨y, hy, -, -, K, a1', a2', e⟩)
-    · exact node_ne_field hN3 (by omega) htT ht' (K := 3328#u64) (by simp) (by rw [← stA_eq]; exact e.symm)
-    · exact tcb_word_ne ht' (hT _ htg) (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+    · exact node_ne_field hN3 (by omega) htT ht' (o := o) (K := 3328#u64) (by simp) (by rw [← stA_eq]; exact e.symm)
+    · exact tcb_word_ne ht' (hT _ htg) (K1 := 3328#u64) (K2 := K) (by simp) (by omega) (fun _ h => by simp at h; omega)
         (by rw [← stA_eq]; exact e)
-    · exact tcb_word_ne ht' (hT _ hy) (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+    · exact tcb_word_ne ht' (hT _ hy) (K1 := 3328#u64) (K2 := K) (by simp) (by omega) (fun _ h => by simp at h; omega)
         (by rw [← stA_eq]; exact e)
   have st5 : L.mem s5 (stA t) = sched.TS_RESTART := by
     rw [(reply_regs ht' es5).mem_eq sA ?_]
     · exact st4
     rintro ⟨K, a1', a2', e⟩
-    exact tcb_word_ne ht' ht' (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+    exact tcb_word_ne ht' ht' (K1 := 3328#u64) (K2 := K) (by simp) (by omega) (fun _ h => by simp at h; omega)
       (by rw [← stA_eq]; exact e)
   have e5N : ∀ o, L.nodeAt s5 (L.cpu s5) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [w25.2.1, nodeAt_of_ksb w25.1, e2N]
@@ -867,7 +867,7 @@ theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr
       (nR _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))
       (cR _ (by simp) (by simp) (by simp) (by simp)) hD1
   exact set_timer_replay (st := st) (st' := gS) ar et
-    (PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))) rfl (L.cur_cpu_eq s) emi
+    (PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))) ‹PathObl.GRd gS st R›.cur_cpu (L.cur_cpu_eq s) emi
     (PathObl.msg.msg_info.guard s t (rR _ (by simp [layout.reg.MSG_INFO]))) cn ei
     (PathObl.obj.Tcb.flags.guard t s (cR _ (by simp) (by simp) (by simp) (by simp))) n1 n2 n3 n4 ecsc
     (PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))) eb
