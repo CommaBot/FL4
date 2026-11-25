@@ -1620,6 +1620,8 @@ import Fl4Proofs.P2.FootTimerFireSy1
 import Fl4Proofs.P2.FootTimerFireSy2
 import Fl4Proofs.P2.FootTimerFireSy
 import Fl4Proofs.P2.FootTimerIrqLPP2
+import Fl4Proofs.P2.FootTimerIrqLPP3
+import Fl4Proofs.P2.FootTimerIrqSlotJ
 import Fl4Proofs.P2.FootTimerAccLoop
 import Fl4Proofs.P2.GuardGE
 import Fl4Proofs.P2.FootTimerGE
