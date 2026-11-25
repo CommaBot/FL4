@@ -266,6 +266,7 @@ theorem inv_back {s s' : S} {t cptr sl : U64} {info : msginfo.MessageInfo} {C : 
   rw [hl] at hres
   cases ok_inj_ff hres
   dsimp only
+  refine tr_ite (fun _ h => h) (fun _ => ?_)
   refine tr_bind (fun c hc' _ => by rw [hc] at hc'; rw [hc2]; exact hc') (fun c hc' => ?_)
   rw [hc] at hc'
   cases ok_inj_ff hc'

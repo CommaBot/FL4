@@ -50,12 +50,11 @@ def Calm (v : U64) : Prop := v = sched.TS_RESTART ∨ v = sched.TS_RUNNING
 theorem Calm.val {v : U64} (h : Calm v) : v.val = 1 ∨ v.val = 2 := by
   rcases h with e | e <;> rw [e] <;> simp [sched.TS_RESTART, sched.TS_RUNNING]
 
-theorem gOwner_calm {v bo ro : U64} {home : Serial.Owner U64 U64} (h : Calm v) :
-    OwnMap.gOwner v bo ro home = home := by
+theorem gOwner_calm {v bo : U64} {home : Serial.Owner U64 U64} (h : Calm v) :
+    OwnMap.gOwner v bo home = home := by
   have hv := h.val
   have q1 : ¬ OwnMap.QueuedState v := by unfold OwnMap.QueuedState; omega
-  have q2 : ¬ OwnMap.ReplyState v := by unfold OwnMap.ReplyState; omega
-  unfold OwnMap.gOwner; rw [if_neg q1, if_neg q2]
+  unfold OwnMap.gOwner; rw [if_neg q1]
 
 /-- **`own` depends only on `Dec` words and thread states.** -/
 theorem own_congr (hK : RegionOK K) (h : ∀ b, Dec K b → m' b = m b)
@@ -79,7 +78,7 @@ theorem own_congr (hK : RegionOK K) (h : ∀ b, Dec K b → m' b = m b)
     have e : ∀ off, DecOff off → m' (fld t off) = m (fld t off) := fun off ho =>
       h _ (Or.inr (Or.inl ⟨t, off, ht, ho, rfl⟩))
     simp only [own, hR, tcbOwner]
-    rw [e oAFFINITY (by simp [DecOff]), e oBLOCK_OBJ (by simp [DecOff]), e oREPLY_OBJ (by simp [DecOff]),
+    rw [e oAFFINITY (by simp [DecOff]), e oBLOCK_OBJ (by simp [DecOff]),
       e oTIMER_DEADLINE (by simp [DecOff]), e oTIMER_HEIGHT (by simp [DecOff]), fld_state]
     rcases hs t ht with e' | ⟨c1, c2⟩
     · rw [e']
@@ -164,14 +163,14 @@ theorem ko_unaligned (hK : RegionOK K) (hA : IoLayA K) {m0 : U64 → U64} {z : U
     simp only [if_neg this]
   | tcb t =>
     have ha := (hA.tcb t (hK.tcbOf t z hR)).align
-    have : ¬ (z.val - t.val = 3328) := fun h => hz (by unfold Aligned; omega)
+    have : ¬ (z.val - t.val = 3328 ∨ z.val - t.val = 3528) := fun h => hz (by unfold Aligned; omega)
     simp only [if_neg this]
 
 theorem SafeW.ko {m0 : U64 → U64} {b : U64} (h : SafeW K b) : OwnMap.ko K m0 b = .free := by
   unfold OwnMap.ko
-  rcases h with ⟨c, h⟩ | ⟨t, off, -, h, h1, h2, h3, -⟩ | ⟨p, h, -⟩
+  rcases h with ⟨c, h⟩ | ⟨t, off, -, h, h1, h2, h3, -, -, -, h7, -⟩ | ⟨p, h, -⟩
   · simp only [h]
-  · have : ¬ (b.val - t.val = 3328) := by omega
+  · have : ¬ (b.val - t.val = 3328 ∨ b.val - t.val = 3528) := by omega
     simp only [h, if_neg this]
   · simp only [h]
 
@@ -231,7 +230,8 @@ theorem stepOK_state (hK : RegionOK K) (hA : IoLayA K) {t : U64} (ht : K.heap t 
     refine Or.inr (Or.inl ?_)
     have o : (stA t).val - t.val = 3328 := by omega
     unfold OwnMap.ko
-    simp only [hr, if_pos o]
+    simp only [hr]
+    rw [if_pos (Or.inl o)]
     rw [← hc]; rfl
   · exact Or.inr (Or.inr (ko_unaligned hK hA ha))
 

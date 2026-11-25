@@ -99,8 +99,8 @@ theorem io_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K)
       rw [hp] at hg
       obtain ⟨s1', hg'⟩ := interp_agree hm (fun w hw => hw.1) (fun w hw => hw.1) p hz s s' a true s1 a1
         Al.ksb Al.cpu Al.masks Al.read hg
-      have hs := interp_to (st := st) (st' := st) (fun _ _ hq => (guard_read hq).symm)
-        (fun _ _ h1 h2 => (guard_read_pair h1 h2).symm) (fun _ _ _ hq => (guard_write hq).symm)
+      have hs := interp_to (st := st) (st' := st) (fun _ _ _ => rfl)
+        (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
         rfl rfl rfl p hz s' a _ hg'
       show syscall.handle_ioport_local _ ar s' a number = ok r
       rw [hp] at h ⊢
