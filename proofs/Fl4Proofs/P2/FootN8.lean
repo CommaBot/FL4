@@ -625,6 +625,183 @@ theorem FireKeep.ofFK {e : U64} {s s' : S} (k : FK st T Cs e s s') (ha : ActOut 
     (hc : L.curW s ∉ OtherK st T Cs e s) : FireKeep st T Cs e s s' :=
   ⟨k.keep, ha.step k.ac, by rw [k.cur]; exact hc⟩
 
+/-! ## The VMEnter completion (`vcpu.report`) as an `FK` step -/
+
+/-- The report's `RepW` words (the thread's registers, the user words) are
+`FireW` words. -/
+theorem RepW.fireW {s : S} {t b : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (ht : t ∈ T)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (h : RepW t U b) :
+    FireW st Kp Il Ks T Cs Sg Scs Z Es U s b := by
+  rcases h with ⟨K, h1, h2, -, rfl⟩ | hu
+  · exact Or.inl ⟨Or.inl (kw_field ht (by omega) (by omega) ⟨by omega, by omega⟩),
+      notIdW_field hT NP ht (by omega) (PrF.of_ne (by omega) (by omega) (by omega) (by omega))⟩
+  · refine Or.inl ⟨Or.inr (Or.inr hu), notIdW_out NP (hU b hu).out fun _ c hc => ?_⟩
+    obtain ⟨⟨-, i1⟩, ⟨-, i2⟩⟩ := sclink_in hO hc
+    exact ⟨fun e => (hU b hu).sc c hc (by rw [e]; exact i1), fun e => (hU b hu).sc c hc (by rw [e]; exact i2)⟩
+
+/-- The report's `RepW` writes are an `FFoot`. -/
+theorem RepW.ff {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s1 : S} {t : U64}
+    (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (ht : t ∈ T)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (w : WritesIn st s s1 (RepW t U)) :
+    FFoot st Kp Il Ks T Cs Sg Scs Z Es U s s1 := by
+  have hN := hq.nodes _ hq.cur
+  refine (w.mono fun b hb => RepW.fireW hq.tcbs hq.nodes ht hU hO hb).a (AcK.of_eq (actionW_of w hN ?_))
+  rintro (⟨K, h1, h2, -, e⟩ | hu)
+  · exact node_ne_field hN (by rw [act_val]; omega) ht (hq.tcbs t ht) (by omega) e
+  · exact out_ne_node (hU _ hu).out hq.cur hN (by rw [act_val]; omega) rfl
+
+/-- `set_thread_state` writes the thread's `STATE` word and possibly the
+executing core's `SCHED_ACTION` (to `CHOOSE_NEW`). -/
+theorem sched.set_thread_state.w2 (s : S) (t : obj.Tcb) (v : U64) (hT : TcbPlaced T)
+    (hN : NodePlaced st T s (L.cpu s)) (ht : t ∈ T) :
+    sched.set_thread_state st s t v ⦃ s' => WritesIn st s s'
+        (fun b => b = stA t ∨ b = L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) ∧
+      (L.actionW s' = L.actionW s ∨ L.actionW s' = sched.ACTION_CHOOSE_NEW) ∧ L.mem s' (stA t) = v ⦄ := by
+  have hta := hT t ht
+  have a1 : Aligned (stA t) := by rw [stA_eq]; exact field_aligned hta (by simp) (by simp)
+  have w1 : WritesIn st s (L.wr s (stA t) v)
+      (fun b => b = stA t ∨ b = L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) :=
+    (writesIn_wr a1).mono fun b hb => Or.inl hb
+  have e1 : L.actionW (L.wr s (stA t) v) = L.actionW s := act_wr_field hN ht hta (stA_eq t) (by simp) (by simp)
+  have ok1 : (ok (L.wr s (stA t) v) : Result S) ⦃ s' => WritesIn st s s'
+        (fun b => b = stA t ∨ b = L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) ∧
+      (L.actionW s' = L.actionW s ∨ L.actionW s' = sched.ACTION_CHOOSE_NEW) ∧ L.mem s' (stA t) = v ⦄ :=
+    (WP.spec_ok _).2 ⟨w1, Or.inl e1, L.mem_wr_same a1⟩
+  unfold sched.set_thread_state
+  refine WP.spec_bind (obj.Tcb.set_state.spec s t v) fun s1 es1 => ?_
+  subst es1
+  unfold sched.schedule_tcb
+  step with sched.cur_thread.spec as ⟨t1, et1⟩
+  step with tcb_eq.blk as ⟨b, eb⟩
+  split
+  · step with sched.action.spec as ⟨i, ei⟩
+    split
+    · step with sched.is_schedulable.spec as ⟨b1, eb1⟩
+      split
+      · exact ok1
+      · refine WP.spec_mono (sched.set_action.spec _ _) fun s' e' => ?_
+        subst e'
+        have hk1 : L.ksb (L.wr s (stA t) v) = L.ksb s := L.ksb_wr _ _ _
+        have hc1 : L.cpu (L.wr s (stA t) v) = L.cpu s := L.cpu_wr _ _ _
+        rw [hc1, nodeAt_of_ksb hk1]
+        have ha := act_aligned hN
+        refine ⟨(w1.trans (writesIn_wr ha)).mono fun b hb => hb.elim id Or.inr, Or.inr ?_, ?_⟩
+        · unfold LawfulStore.actionW
+          rw [L.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _), hc1, nodeAt_of_ksb hk1]
+          exact L.mem_wr_same ha
+        · rw [L.mem_wr_ne ha a1 (fun e => node_ne_field (K := 3328#u64) hN (by rw [act_val]; omega) ht hta
+            (by simp) (by rw [← stA_eq]; exact UScalar.eq_of_val_eq e))]
+          exact L.mem_wr_same a1
+    · exact ok1
+  · exact ok1
+
+/-- **Writes that miss `LocW2 e s` except one thread's `STATE` word**, runnable
+before and after, keep `OKeep2` (its `kp` up to `StK`). -/
+theorem OKeep2.ofWst {s s' : S} {F : U64 → Prop} {e t : U64} {X : Set U64} {Q : U64 → U64 → List U64}
+    {R : U64 → List U64} (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hKT : ∀ y ∈ OtherK st T Cs e s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs) (ht : t ∈ T)
+    (w : WritesIn st s s' F) (hF : ∀ b, F b → b ≠ stA t → ¬ LocW2 st T Cs e s b)
+    (hr : Runnable (L.mem s (stA t))) (hr' : Runnable (L.mem s' (stA t))) : OKeep2 st T Cs e s s' := by
+  have hT := hq.tcbs
+  have hta := hT t ht
+  have keep : ∀ b, LocW2 st T Cs e s b → b ≠ stA t → Aligned b → L.mem s' b = L.mem s b :=
+    fun b hb hne al => w.2.2 b al fun hf => hF b hf hne hb
+  have fne : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val ≠ 3328 → core.num.U64.wrapping_add y K ≠ stA t :=
+    fun y hy K hK hK3 e' => field_ne (hT y hy) hta hK (by simp) (fun _ => by simpa using hK3) (e'.trans (stA_eq t))
+  refine ⟨w.1, fun c hc o ho => ?_, fun y hy => ?_, fun y hy => ?_, fun y hy => ?_, fun y hy => ?_,
+    fun c hc => ?_, fun c hc => ?_, fun c hc => ?_⟩
+  · exact keep _ (Or.inl ⟨c, hc, o, ho, rfl⟩)
+      (fun e' => node_ne_field (K := 3328#u64) (hq.nodes c hc) (by omega) ht hta (by simp) (e'.trans (stA_eq t)))
+      (nodeAt_aligned (hq.nodes c hc) (by omega) (by omega))
+  · by_cases hyt : y = t
+    · subst hyt; exact Or.inr ⟨hr, hr'⟩
+    · refine Or.inl (keep _ (Or.inr (Or.inl ⟨y, hy, Or.inl rfl⟩)) ?_
+        (by rw [stA_eq]; exact field_aligned (hT y (hKT y hy)) (by simp) (by simp)))
+      intro e'
+      rw [stA_eq, stA_eq] at e'
+      exact field_ne (hT y (hKT y hy)) hta (by simp) (by simp) (fun h => absurd h hyt) e'
+  · exact keep _ (Or.inr (Or.inl ⟨y, hy, Or.inr (Or.inl rfl)⟩))
+      (by rw [inqA_eq]; exact fne y (hKT y hy) _ (by simp) (by simp)) (inqA_aligned (hT y (hKT y hy)))
+  · exact keep _ (Or.inr (Or.inl ⟨y, hy, Or.inr (Or.inr (Or.inl rfl))⟩))
+      (by rw [affA_eq]; exact fne y (hKT y hy) _ (by simp) (by simp))
+      (by rw [affA_eq]; exact field_aligned (hT y (hKT y hy)) (by simp) (by simp))
+  · exact keep _ (Or.inr (Or.inl ⟨y, hy, Or.inr (Or.inr (Or.inr rfl))⟩))
+      (by rw [scA_eq]; exact fne y (hKT y hy) _ (by simp) (by simp)) (scA_aligned (hT y (hKT y hy)))
+  · exact keep _ (Or.inr (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩)))
+      (by rw [affA_eq]; exact fne _ (hiT c hc) _ (by simp) (by simp))
+      (by rw [affA_eq]; exact field_aligned (hT _ (hiT c hc)) (by simp) (by simp))
+  · exact keep _ (Or.inr (Or.inr (Or.inl ⟨c, hc, Or.inr rfl⟩)))
+      (by rw [scA_eq]; exact fne _ (hiT c hc) _ (by simp) (by simp)) (scA_aligned (hT _ (hiT c hc)))
+  · have hsc := hiS c hc
+    obtain ⟨⟨a1, i1⟩, ⟨a2, i2⟩⟩ := sclink_in hO hsc
+    have o1 := hq.omega _ (hO.scW _ hsc _ a1 i1)
+    have o2 := hq.omega _ (hO.scW _ hsc _ a2 i2)
+    exact ⟨keep _ (Or.inr (Or.inr (Or.inr ⟨c, hc, Or.inl rfl⟩)))
+        (fun e' => out_ne_field (K := 3328#u64) o1 ht hta (by simp) (by rw [← stA_eq, e'])) a1,
+      keep _ (Or.inr (Or.inr (Or.inr ⟨c, hc, Or.inr rfl⟩)))
+        (fun e' => out_ne_field (K := 3328#u64) o2 ht hta (by simp) (by rw [← stA_eq, e'])) a2⟩
+
+/-- **`set_thread_state` between runnable states is an `FK` step**, also for
+another core's thread (its `STATE` up to `StK`). -/
+theorem sched.set_thread_state.fk {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} (s : S)
+    (t v : U64) (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hKT : ∀ y ∈ OtherK st T Cs (L.cpu s) s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs) (ht : t ∈ T)
+    (hr : Runnable (L.mem s (stA t))) (hv : Runnable v) :
+    sched.set_thread_state st s t v ⦃ s' => FK st T Cs (L.cpu s) s s' ⦄ := by
+  have hN := hq.nodes _ hq.cur
+  have hT := hq.tcbs
+  refine WP.spec_mono (sched.set_thread_state.w2 s t v hT hN ht) fun s' ⟨w, ha, hst⟩ => ?_
+  have hna : ¬ LocW2 st T Cs (L.cpu s) s (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) := fun hl =>
+    notIdW_node hq.nodes hq.cur (by rw [act_val]; omega)
+      (idOff_cur (by rw [act_val]; omega) (by rw [act_val]; omega) (fun _ => by rw [act_val]; omega))
+      (locW2_idW hq hO hKT hiT hiS hl)
+  refine ⟨OKeep2.ofWst hq hO hKT hiT hiS ht w
+    (fun b hb hne => hb.elim (fun e => absurd e hne) (fun e => by rw [e]; exact hna)) hr (by rw [hst]; exact hv),
+    ?_, ?_⟩
+  · rcases ha with e | e
+    · exact AcK.of_eq e
+    · exact AcK.of_nT (by rw [e, choose_val]; exact notT_small hT (by simp))
+  · have hc0 : (layout.node.CUR_THREAD).val < 4288 := by rw [curth0]; omega
+    unfold LawfulStore.curW
+    rw [nodeAt_of_ksb w.1, w.2.1]
+    refine w.mem_eq (nodeAt_aligned hN hc0 (by rw [curth0])) ?_
+    rintro (e | e)
+    · exact node_ne_field (K := 3328#u64) hN hc0 ht (hT t ht) (by simp) (e.trans (stA_eq t))
+    · exact nodeAt_ne hN hc0 (by rw [act_val]; omega) (by rw [curth0, act_val]; omega) e
+
+/-- **`vcpu.report` of a `TS_RUNNING_VM` thread (`signal_completes`) is an
+`FK` step**, also when the thread is another core's (P1 `vcpu.report.xf`: its
+`RepW` writes are an `FFoot`, then `set_thread_state TS_RUNNING`, both states
+runnable). -/
+theorem vcpu.report.fk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
+    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
+    (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄)
+    (hKT : ∀ y ∈ OtherK st T Cs (L.cpu s) s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs) :
+    vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      L.mem s' (stA t) = sched.TS_RUNNING ∧ FK st T Cs (L.cpu s) s s' ⦄ := by
+  have h0 := h
+  obtain ⟨⟨Q, R, hq⟩, -, hX, -, -⟩ := h0
+  refine WP.spec_mono (WP.spec_and (vcpu.report.xf hA s a t badge h ht hvm hc hU hbuf)
+    (vcpu.report.blk hA s a t badge h ht hvm hc hU hbuf)) ?_
+  rintro s' ⟨⟨s1, h1, st1, w1, e⟩, hb', st'⟩
+  have K1 : FK st T Cs (L.cpu s) s s1 :=
+    FFoot.fk hq hX.1 hKT hiT hiS (RepW.ff (Es := ∅) (U := U) hq hX.1 ht hU w1)
+  obtain ⟨⟨Q1, R1, hq1⟩, -, hX1, -, -⟩ := h1
+  have hcpu : L.cpu s1 = L.cpu s := w1.2.1
+  have hK1 : OtherK st T Cs (L.cpu s1) s1 = OtherK st T Cs (L.cpu s) s := by rw [hcpu]; exact K1.keep.otherK
+  have K2 := sched.set_thread_state.fk s1 t sched.TS_RUNNING hq1 hX1.1
+    (fun y hy => by rw [hK1] at hy; exact hKT y hy) (fun c hc => by rw [K1.keep.idle_eq hc]; exact hiT c hc)
+    (fun c hc => by rw [K1.keep.idle_eq hc, K1.keep.isc c hc]; exact hiS c hc) ht
+    (by rw [st1]; exact Or.inr (Or.inr rfl)) (Or.inl rfl)
+  rw [e, WP.spec_ok, hcpu] at K2
+  exact ⟨hb', st', K1.trans K2⟩
+
 end
 
 end Fl4Proofs.P2.Stall
