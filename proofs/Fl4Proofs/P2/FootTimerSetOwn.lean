@@ -42,6 +42,36 @@ structure StLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T Scs
   dtm : region K (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME) = .none
   domA : Aligned (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN)
   dtmA : Aligned (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME)
+  /-- User words lie in no region (as `AccessIoOwn.IoLay.user`). -/
+  user : ∀ b ∈ K.user, region K b = .none
+  /-- The two domain words (region `.none`) are no user words. -/
+  domU : core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN ∉ K.user
+  dtmU : core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME ∉ K.user
+
+/-- A word of a region other than `.none` is no user word. -/
+theorem StLay.nu {s : S} (h : StLay K st T Scs Z s) {b : U64} (hr : region K b ≠ .none) : b ∉ K.user :=
+  fun hb => hr (h.user b hb)
+
+/-- A word not owned by the gate is no user word (user words are region `.none`, owned by the gate). -/
+theorem StLay.nu_own {s : S} (h : StLay K st T Scs Z s) {m : U64 → U64} {b : U64} (ho : own K m b ≠ .gate) :
+    b ∉ K.user := fun hb => ho (by simp only [own, h.user b hb])
+
+/-- A held word is no user word. -/
+theorem StLay.nu_held {s : S} (h : StLay K st T Scs Z s) {c : U64} {lk : U64 → Prop} {m : U64 → U64} {b : U64}
+    (hh : HeldBy c lk (own K m b)) : b ∉ K.user :=
+  h.nu_own fun e => by rw [e] at hh; exact hh
+
+theorem StLay.nu_node {s : S} (h : StLay K st T Scs Z s) {o : U64} (ho : o.val < 4288) :
+    L.nodeAt s (L.cpu s) o ∉ K.user :=
+  h.nu (by rw [h.nd o ho]; intro e; cases e)
+
+theorem StLay.nu_tcb {s : S} (h : StLay K st T Scs Z s) {t k : U64} (ht : t ∈ T) (h1 : 256 ≤ k.val)
+    (h2 : k.val < 4096) : core.num.U64.wrapping_add t k ∉ K.user :=
+  h.nu (show region K (fld t k) ≠ .none by rw [h.tcb t ht k h1 h2]; intro e; cases e)
+
+theorem StLay.nu_sc {s : S} (h : StLay K st T Scs Z s) {p b : U64} (hp : p ∈ Scs) (hb : InSC p (Z p) b) :
+    b ∉ K.user :=
+  h.nu (by rw [h.sc p hp b hb]; intro e; cases e)
 
 theorem StLay.own_node {s : S} (h : StLay K st T Scs Z s) (m : U64 → U64) {o : U64} (ho : o.val < 4288) :
     own K m (L.nodeAt s (L.cpu s) o) = .core (L.cpu s) := by
@@ -155,6 +185,24 @@ theorem st_rd_own {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLa
   · obtain ⟨r1, r2, r3, r4, -⟩ := rel_facts hI hne
     exact scw r4 h (by rw [hAff _ r1 r3, r2])
 
+/-- **No word of `StRd` is a user word** at an accepted run's entry (the case split of `st_rd_own`). -/
+theorem st_rd_nu {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s)
+    {target w : U64} (htg : target ∈ T) (ho : StOk st Scs s target)
+    (h : StRd st T Z s target w) : w ∉ K.user := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced T := h0.tcbs
+  rcases h with h | ⟨k, h1, h2, -, h4, rfl⟩ | rfl | rfl | rfl | h | ⟨hne, rfl | h⟩
+  · exact hL.nu_own (m := L.mem s) (by rw [tw_own hL hT ho h]; intro e; cases e)
+  · exact hL.nu_tcb h0.curT h1 h2
+  · exact hL.nu_tcb htg (by simp) (by simp)
+  · exact hL.domU
+  · exact hL.dtmU
+  · exact hL.nu_sc ho.csc h
+  · obtain ⟨r1, -, -, -, -⟩ := rel_facts hI hne
+    exact hL.nu_tcb r1 (by simp) (by simp)
+  · obtain ⟨r1, r2, r3, r4, -⟩ := rel_facts hI hne
+    exact hL.nu_sc r4 h
+
 /-- **Every aligned word of `StWr` is this core's** at an accepted run's entry. -/
 theorem st_wr_own {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s)
     {target w : U64} (ho : StOk st Scs s target) {lk : U64 → Prop}
@@ -177,9 +225,10 @@ theorem st_wr_own {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLa
     rw [if_neg (by rw [hv, hcv]; omega)] at e
     exact held_core e
 
-/-- The maximal `ReadSet`: the aligned words the path may read at the entry state. -/
+/-- The maximal `ReadSet`: the aligned non-user words the path may read at the entry state (no timer path reads a
+user word; the `∉ K.user` conjunct lets the path be taken at `E2EV.userV K`, handoff `vlift.md` §8.3). -/
 def MaxR (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (lk : S → U64 → Prop) (s : S) (w : U64) : Prop :=
-  RPerm (own K) (L.cpu s) (lk s) (L.mem s) w ∧ Aligned w
+  RPerm (own K) (L.cpu s) (lk s) (L.mem s) w ∧ Aligned w ∧ w ∉ K.user
 
 /-- The maximal `WriteSet`: the aligned words the path may write at the entry state. -/
 def MaxW (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (lk : S → U64 → Prop) (s : S) (w : U64) : Prop :=
@@ -194,10 +243,10 @@ theorem set_timer_acc_own {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar
     localtimer.handle_set_timer_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a n target =
       ok (true, s', a') :=
   set_timer_acc ar hA hI htg
-    (fun ho _ ha hw => ⟨st_rd_own hI hL hAff htg ho hw, ha⟩)
+    (fun ho _ ha hw => ⟨st_rd_own hI hL hAff htg ho hw, ha, st_rd_nu hI hL htg ho hw⟩)
     (fun ho _ ha hw => ⟨st_wr_own hI hL ho hw, ha⟩)
-    (fun ho => ⟨st_rd_own hI hL hAff htg ho (Or.inr (Or.inr (Or.inr (Or.inl rfl)))), hL.domA⟩)
-    (fun ho => ⟨st_rd_own hI hL hAff htg ho (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))), hL.dtmA⟩) h
+    (fun ho => ⟨st_rd_own hI hL hAff htg ho (Or.inr (Or.inr (Or.inr (Or.inl rfl)))), hL.domA, hL.domU⟩)
+    (fun ho => ⟨st_rd_own hI hL hAff htg ho (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))), hL.dtmA, hL.dtmU⟩) h
 
 end
 

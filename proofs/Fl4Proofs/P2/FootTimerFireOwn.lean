@@ -111,6 +111,17 @@ theorem fire_rd_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H
       rw [fnt_ownE hK hI hY hne hb hk, ntfnOwner, if_pos h24]
     · exact Or.inl (held_core (fnt_own hK hI hL hY hne (hTm hne) hb hk h24))
 
+/-- **No word of `FireRd` is a user word** (the case split of `fire_rd_own`). -/
+theorem fire_rd_nu {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s) {w : U64} (h : FireRd st T Z s w) : w ∉ K.user := by
+  rcases h with h | ⟨y, hy, -, k, h1, h2, -, rfl⟩ | ⟨hne, hb, k, hk, -, rfl⟩
+  · exact irq_rd_nu hI hL hY h
+  · exact hL.nu_tcb hy (by omega) (by omega)
+  · have h0 := hI.1.choose_spec.choose_spec
+    obtain ⟨q1, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne
+    have hNt := hI.2.2.1.2.2.bnd _ q1 hb
+    exact hL.nu (by rw [hY.ntw _ hNt k hk]; intro e; cases e)
+
 /-- **Every word of `FireWr` is this core's** at an accepted fire-case run's entry. -/
 theorem fire_wr_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s) (hok : IrqOk st s)
@@ -226,11 +237,11 @@ theorem irq_acc_fire_nw (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a
   have wS : IrqWr st Z s (stA (L.curW s)) := Or.inr (Or.inl ⟨3328#u64, by simp, by simp, by simp, stA_eq _⟩)
   refine irq_accG_fire_pre (gS := guard st (MaxR K st lk s) (MaxW K st lk s)) (R := MaxR K st lk s)
     (W := MaxW K st lk s) ar hA hI hq
-    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
+    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha, irq_rd_nu hI hL hY hw⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩)
-    (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
-    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩) ?_ ?_ h
+    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1, hY.iqU i hi⟩)
+    (fun _ => ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩)
+    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩) ?_ ?_ h
   · intro _ s1' a1' now' eu' _
     obtain ⟨n1, -, er⟩ := ut_now ar hA hN eu'
     simp only at er
@@ -245,9 +256,9 @@ theorem irq_acc_fire_nw (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a
     obtain rfl := ok_inj_ff enow'
     exact fire_tail_nw (gS := guard st (MaxR K st lk s) (MaxW K st lk s)) (R := MaxR K st lk s)
       (W := MaxW K st lk s) ar hA hI hNt hok
-      (fun w ha hw => ⟨fire_rd_own hK hI hL hY hAff hok hTm hw, ha⟩)
+      (fun w ha hw => ⟨fire_rd_own hK hI hL hY hAff hok hTm hw, ha, fire_rd_nu hI hL hY hw⟩)
       (fun w ha hw _ => ⟨fire_wr_own hK hI hL hY hok hTm hw, ha⟩)
-      ⟨rperm_none hL.dtm _, hL.dtmA⟩
+      ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩
       (fun X _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))
         ⟨irq_wr_own hI hL hok wS, aS⟩ X _)
       (fun X y v hy ha _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))

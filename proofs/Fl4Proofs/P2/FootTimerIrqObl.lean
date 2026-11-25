@@ -95,7 +95,7 @@ theorem irq_alt (hA : P0.ArchTotal ar) (hK : RegionOK K)
       localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s' a irq pl = ok r') ∨
     (∃ s1 a1, localtimer.handle_timer_irq_local st ar s a irq pl = ok (false, s1, a1) ∧ r'.1 = false ∧
       localtimer.handle_timer_irq_local (guard st Aligned (IrqDec st s)) ar s' a irq pl = ok r') := by
-  have hR1 : ∀ w, MaxR K st lk s w → Aligned w := fun _ hw => hw.2
+  have hR1 : ∀ w, MaxR K st lk s w → Aligned w := fun _ hw => hw.2.1
   have hW1 : ∀ w, MaxW K st lk s w → Aligned w := fun _ hw => hw.2
   have hW2 : ∀ w, IrqDec st s w → Aligned w := fun _ hw => (hE.dec hw).1
   have eP : ∀ (mm : machine.Store S) (x : S),
@@ -211,7 +211,7 @@ theorem irq_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K)
         IrqDec st (L.wr s b v) = IrqDec st s) :
     PathObl.PathSide st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a irq pl) cls ko User lk
       P (MaxR K st lk) (MaxW K st lk) (IrqDec st) := by
-  refine ⟨?_, fun s x _ hx => hx.2, hkoA, huf⟩
+  refine ⟨?_, fun s x _ hx => hx.2.1, hkoA, huf⟩
   intro s s' a r hE hAlt h
   have eP : ∀ (mm : machine.Store S) (x : S),
       localtimer.handle_timer_irq_local mm ar x a irq pl = interp mm ar p x a :=
@@ -220,7 +220,7 @@ theorem irq_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K)
     hAlt h with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
   · show localtimer.handle_timer_irq_local _ ar s' a irq pl = ok r
     rw [eP] at h2 ⊢
-    exact interp_mono (fun _ hw => hw.2) (fun _ _ => trivial) p hz s' a r h2
+    exact interp_mono (fun _ hw => hw.2.1) (fun _ _ => trivial) p hz s' a r h2
   · show localtimer.handle_timer_irq_local _ ar s' a irq pl = ok r
     rw [eP] at h2 ⊢
     exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) p hz s' a r h2
