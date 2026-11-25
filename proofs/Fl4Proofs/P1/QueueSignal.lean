@@ -1133,7 +1133,8 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s
         (fun n hn => h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)) ht (by simp) (by simp))))
       (fun c hc => om _ (hSg.sub _ (hX.1.snW c hc)))
       (hX.2.2.yt.keep (fun c hc => om _ (hcΩ c hc).1) (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp))
-        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1) ei,
+        (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1) ei
+      (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp)),
     SCsOK.fieldO (K := 3368#u64) h0 hS hX.1 ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩

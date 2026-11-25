@@ -447,6 +447,7 @@ theorem XInv.wr_max {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
       refine k _ a1 ?_
       rw [mxv, maxA_val hPc hzc]
       have := hO.scDisj c hc p hp hne; have := (sc_facts hO hp).1; have := (sc_facts hO hc).1; omega) (idleW_wr_out h hm)
+    (fun y hy => fk y hy _ (by simp) (by simp))
 
 theorem obj.Sc.set_sporadic.wr (s : S) (c : obj.Sc) (v : U64) :
     obj.Sc.set_sporadic st c s v ⦃ s' => s' = L.wr s (core.num.U64.wrapping_add c layout.sc.SPORADIC) v ⦄ := by

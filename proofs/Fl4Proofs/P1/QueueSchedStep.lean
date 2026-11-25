@@ -132,10 +132,12 @@ structure Fr (st : machine.Store S) [L : LawfulStore st] (T Sg : Set U64) (s s' 
   yld : ∀ t ∈ T, L.mem s' (core.num.U64.wrapping_add t 3472#u64) = L.mem s (core.num.U64.wrapping_add t 3472#u64)
   /-- The idle thread. -/
   idle : L.idleW s' = L.idleW s
+  /-- The `AFFINITY` fields of the TCBs (only `migrate_tcb` writes them). -/
+  aff : ∀ t ∈ T, L.mem s' (affA t) = L.mem s (affA t)
 
 theorem Fr.refl (Sg : Set U64) (s : S) : Fr st T Sg s s :=
   ⟨rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl,
-    fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl, rfl⟩
+    fun _ _ _ _ _ _ => rfl, fun _ _ _ _ => rfl, fun _ _ => rfl, rfl, fun _ _ => rfl⟩
 
 theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s₂) (h₂ : Fr st T Sg s₂ s₃) : Fr st T Sg s₁ s₃ :=
   ⟨h₂.ksb.trans h₁.ksb, h₂.cpu.trans h₁.cpu, fun b hb => (h₂.sig b hb).trans (h₁.sig b hb),
@@ -146,7 +148,8 @@ theorem Fr.trans {Sg : Set U64} {s₁ s₂ s₃ : S} (h₁ : Fr st T Sg s₁ s�
    fun c hc o ho => by
      rw [← nodeAt_of_ksb h₁.ksb]
      exact (h₂.tnd c (hc.ksb h₁.ksb) o ho).trans (by rw [nodeAt_of_ksb h₁.ksb]; exact h₁.tnd c hc o ho),
-   fun t ht => (h₂.yld t ht).trans (h₁.yld t ht), h₂.idle.trans h₁.idle⟩
+   fun t ht => (h₂.yld t ht).trans (h₁.yld t ht), h₂.idle.trans h₁.idle,
+   fun t ht => (h₂.aff t ht).trans (h₁.aff t ht)⟩
 
 /-- The scheduling words a TCB invocation's later steps rely on: the TCBs'
 `SC` and state fields, the frame words `Sg` (the SCs' `TCB` words among
@@ -279,7 +282,8 @@ theorem fr_wr (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) 
     fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp)),
     fun t ht K h1 h2 h3 => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by omega) h3) (hf t ht _ (by omega)),
     fun c hc o ho => L.mem_wr_ne ha (nodeAt_aligned hc (by omega) (by omega)) (htn c hc o ho),
-    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp)), fid⟩
+    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp)), fid,
+    fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))⟩
   · exact L.mem_wr_ne ha (h.omega _ (hS.sub b hb)).1 (hsg b hb)
   · rw [scA_eq]; exact L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (by simp) (by simp)) (hf t ht _ (by simp))
   rotate_left
@@ -347,7 +351,8 @@ theorem act_wr_field {s : S} {t K v a : U64} (hN : NodePlaced st T s (L.cpu s)) 
 /-- A TCB field write keeps `Fr` when the field is none of those `Fr` keeps. -/
 theorem fr_field (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg s) {t K v : U64} (ht : t ∈ T)
     (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
-    (hKx : K.val ≠ 3328 ∧ K.val ≠ 3360 ∧ K.val ≠ 3368 ∧ K.val ≠ 3464 ∧ K.val ≠ 3472 ∧ (K.val < 3528 ∨ 3592 ≤ K.val)) :
+    (hKx : K.val ≠ 3328 ∧ K.val ≠ 3360 ∧ K.val ≠ 3368 ∧ K.val ≠ 3464 ∧ K.val ≠ 3472 ∧ (K.val < 3528 ∨ 3592 ≤ K.val) ∧
+      K.val ≠ 3520) :
     Fr st T Sg s (L.wr s (core.num.U64.wrapping_add t K) v) := by
   have hT := h.tcbs
   have hta := hT t ht
@@ -362,7 +367,7 @@ theorem fr_field (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg 
       L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) :=
     fun c hc o ho h8 => L.mem_wr_ne ha (nodeAt_aligned hc ho h8)
       (fun e => node_ne_field hc ho ht hta hK (UScalar.eq_of_val_eq e).symm)
-  obtain ⟨k1, k2, k3, k4, k5, k6⟩ := hKx
+  obtain ⟨k1, k2, k3, k4, k5, k6, k7⟩ := hKx
   refine ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb => L.mem_wr_ne ha (h.omega _ (hS.sub b hb)).1
       (out_ne_field (h.omega _ (hS.sub b hb)) ht hta hK),
     fun y hy => by rw [scA_eq]; exact fk y hy _ (by simp) (by simp) (by simp; omega), ?_,
@@ -371,7 +376,8 @@ theorem fr_field (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω Sg 
     fun y hy => fk y hy _ (by simp) (by simp) (by simp; omega),
     fun y hy K' h1 h2 h3 => fk y hy K' (by omega) h3 (by omega),
     fun c hc o ho => nk c hc o (by omega) (by omega),
-    fun y hy => fk y hy _ (by simp) (by simp) (by simp; omega), ?_⟩
+    fun y hy => fk y hy _ (by simp) (by simp) (by simp; omega), ?_,
+    fun y hy => fk y hy _ (by simp) (by simp) (by simp; omega)⟩
   · unfold LawfulStore.cscW; rw [cscW_eq (L.ksb_wr _ _ _) (L.cpu_wr _ _ _)]
     exact nk _ hN _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
   · unfold LawfulStore.idleW; simp only [LawfulStore.cpu_wr, nodeAt_wr]
@@ -404,7 +410,7 @@ theorem qfoot_keep (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SgOK st Ω S
       have e := node_qfoot hT hW hN hN' ht hw hc' (o := o) (by omega) (by omega) hP' (fun _ => by omega)
       rwa [nodeAt_of_ksb hw.1] at e,
     fun y hy => field_qfoot hT hW hN hN' ht hw hy (by simp) (by simp) (by simp) (fun _ => by simp),
-    nd _ (by rw [idle8]; omega) (by rw [idle8]) (by rw [idle8]; omega)⟩,
+    nd _ (by rw [idle8]; omega) (by rw [idle8]) (by rw [idle8]; omega), fun y hy => aff_qfoot hT hW hN hN' ht hw hy⟩,
     fun y hy hyt => inq_qfoot hT hW hN hN' ht hw hy hyt, ?_, ?_, ?_⟩
   · unfold LawfulStore.cscW LawfulStore.nodeA
     exact nd _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])

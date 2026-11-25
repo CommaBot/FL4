@@ -182,6 +182,7 @@ theorem BlkOK.agreeD {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (G 
       (fun y hy => by unfold yieldA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))
       (fun c hc => sig _ (hX.1.mxW c hc)) ei
+      (fun y hy => by unfold affA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
   have hS' : SCsOK st T Ω Sg Scs Z Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [G.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [G.ksb]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,

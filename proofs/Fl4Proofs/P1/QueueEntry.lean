@@ -865,7 +865,7 @@ theorem reg_entry {Ac : Set U64} {s : S} {t r v : U64} (h : EntryInv st T Cs Ω 
     regW_all (Ac := Ac) (Sg := Sg) (Z := Z) ⟨⟨Q, R, h0⟩, hB, hX, hS, hS.sg⟩ ht (K := K) (v := v)
       (by omega) (by omega) (by omega)
   have f := fr_field (Sg := Sg) h0 hS.sg ht (K := K) (v := v) (by omega) (by omega)
-    ⟨by omega, by omega, by omega, by omega, by omega, Or.inl (by omega)⟩
+    ⟨by omega, by omega, by omega, by omega, by omega, Or.inl (by omega), by omega⟩
   refine ⟨⟨Q', R', h'⟩, hB', hX', hS', hX'.2.2.tm, by rw [f.csc]; exact hcA, by rw [n.1, n.2.2]; exact hna, ?_⟩
   rw [n.2.2, f.sc (L.curW s) h0.curT, f.csc]; exact hcsc
 

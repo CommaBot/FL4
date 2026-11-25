@@ -365,13 +365,13 @@ theorem XInv.wr_yieldV {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inl rfl)⟩)))) (hU u hu).2.1)
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inl rfl))⟩)))) (hU u hu).2.2.1)
     ?_ (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩))) (hC c hc).2.2.1)
-    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2)
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2.1)
     (fun n hn => k _ (hO.ntAl n hn) (hN n hn)) htn
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2.1)
     ⟨fun c hc => by
       rw [k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inl rfl⟩))) (hC c hc).1]; exact hX.2.2.yt.1 c hc,
      fun u hu h0 => by
-      have hb := alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr rfl)))⟩)))
+      have hb := alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))⟩)))
       rw [L.mem_wr_val ha hb] at h0 ⊢
       split
       · rename_i e; rw [if_pos e] at h0; exact hvy u hu e h0
@@ -384,6 +384,7 @@ theorem XInv.wr_yieldV {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
       · rename_i e; rw [if_neg e] at h0; exact hX.2.2.yt.2.2 c hc h0⟩
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))
       (hC c hc).2.2.2.2) ?_
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))⟩)))) (hU u hu).2.2.2.2)
   · unfold LawfulStore.cscW; rw [nodeA_wr]
     rw [k (L.nodeA s layout.node.CUR_SC) (nodeAt_aligned (h.nodes _ h.cur) (by simp [layout.node.CUR_SC])
       (by simp [layout.node.CUR_SC])) hcs]

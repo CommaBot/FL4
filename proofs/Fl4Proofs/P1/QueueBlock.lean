@@ -406,7 +406,9 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
             have := hO.rpSc r0 (hr0 h0).1 c hc
             have := (sc_facts hO hc).1
-            omega))⟩, hE.tsc.keep hE.yt.1 (fun c hc => (fix c hc).1) scf⟩⟩,
+            omega))⟩, hE.tsc.keep hE.yt.1 (fun c hc => (fix c hc).1) scf,
+        hE.aff.keep (fun u hu h0 => (hE.bound u hu h0).1) scf (fun c hc => (fix c hc).2.1)
+          (fun u hu => fld u hu _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp))⟩⟩,
     SCsOK.keep hS ⟨hO, hR, hE⟩ hk scf ecs (fun c hc => (fix c hc).2.2) (fun c hc =>
       om _ (spor_omega hO hc) (fun h0 e => by
         have := congrArg UScalar.val e
@@ -1320,7 +1322,10 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
           have hb := hE.tsc c hc hc0 h0
           by_cases hyt : L.mem s (scTcbA c) = t
           · rw [hyt, hsc] at hb; exact absurd hb.symm hci
-          · rw [scA_eq, F1 _ hyT _ (by simp) (by simp) (fun e => absurd e hyt), ← scA_eq]; exact hb⟩⟩,
+          · rw [scA_eq, F1 _ hyT _ (by simp) (by simp) (fun e => absurd e hyt), ← scA_eq]; exact hb,
+      (ScAffX.keep (d := t) (hE.aff.x t) (fun y hy _ h0 => (hE.bound y hy h0).1) scy
+        (fun c hc => scw c hc _ (hcΩ _ hc).2.1 (Or.inl (sc_facts hO hc).2.2.1))
+        (fun u hu _ => F1 u hu _ (by simp) (by simp) (fun _ => by simp))).full (fun _ h0 => absurd sct h0)⟩⟩,
     SCsOK.keep' hS ⟨hO, hR, hE⟩ (by simp [hs2]) (fun y hy => ?_) ecs (fun c hc => ?_) (fun c hc =>
       F2 _ (spor_omega hO hc) (fun e => by
         obtain ⟨hPc, hzc⟩ := hO.sc c hc

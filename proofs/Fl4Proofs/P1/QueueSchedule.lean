@@ -329,7 +329,9 @@ theorem SCsOK.node {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U
     fun c hc o' ho' => k _ (nodeAt_aligned hc (by omega) (by omega)) (fun e =>
       node_ne_node hN' hc ho (by omega) (fun _ => by omega) (congrArg UScalar.val e).symm),
     fun y hy => k _ (field_aligned (h.tcbs y hy) (by simp) (by simp)) (fun e =>
-      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm), ?_⟩
+      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm), ?_,
+    fun y hy => k _ (field_aligned (h.tcbs y hy) (by simp) (by simp)) (fun e =>
+      node_ne_field hN' ho hy (h.tcbs y hy) (by simp) e.symm)⟩
   rotate_right
   · unfold LawfulStore.idleW; rw [w.2.1, nodeAt_of_ksb w.1]
     refine k _ (nodeAt_aligned hN' (by rw [idle8]; omega) (by rw [idle8])) (fun e => ?_)

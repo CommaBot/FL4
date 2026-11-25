@@ -16,10 +16,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 /-- The invariants only read words: a state that agrees with one meeting them
 on every aligned word (and on `ksb` and the CPU) meets them too. -/
 theorem agree_all {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List U64}
-    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
-    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s)
+    {d : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s)
+    (hX : XInvW st T Cs Ω Sg Rp Scs Nt Z d s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s)
     (hk : L.ksb s' = L.ksb s) (hc : L.cpu s' = L.cpu s) (hm : ∀ b, Aligned b → L.mem s' b = L.mem s b) :
-    SchedQueuesInvX st T Cs Ω H X s' Q R ∧ BoundInv st T Ac s' ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s' ∧
+    SchedQueuesInvX st T Cs Ω H X s' Q R ∧ BoundInv st T Ac s' ∧ XInvW st T Cs Ω Sg Rp Scs Nt Z d s' ∧
       SCsOK st T Ω Sg Scs Z Ac s' ∧ SgOK st Ω Sg s' := by
   have hT := h.tcbs
   have hN := h.nodes _ h.cur
@@ -33,7 +33,7 @@ theorem agree_all {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U
       fun y hy => fa y hy _ (by simp) (by simp), fun y hy => by rw [stA_eq]; exact fa y hy _ (by simp) (by simp),
       fun y hy => fa y hy _ (by simp) (by simp), fun y hy K h1 h2 h3 => fa y hy K (by omega) h3,
       fun c hc' o ho => hm _ (nodeAt_aligned hc' (by omega) (by omega)),
-      fun y hy => fa y hy _ (by simp) (by simp), ?_⟩
+      fun y hy => fa y hy _ (by simp) (by simp), ?_, fun y hy => fa y hy _ (by simp) (by simp)⟩
     rotate_right
     · unfold LawfulStore.idleW; rw [hc, nodeAt_of_ksb hk]
       exact hm _ (nodeAt_aligned hN (by rw [idle8]; omega) (by rw [idle8]))
@@ -96,7 +96,7 @@ theorem schedcontext.bind_tcb.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   step with obj.Sc.set_tcb.wr as ⟨s2, e2⟩
   subst e1 e2
   obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
-    donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+    donate_pair h0 hB hX.x0 hX.2.2.tsc.x hX.2.2.aff ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
       (fun e => hB.idle (by rw [e]; exact ht0))
   have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
     (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
@@ -122,7 +122,7 @@ theorem schedcontext.bind_tcb.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Ar
   step with obj.Sc.cpu.spec as ⟨cpu, ecpu⟩
   have hc' : cpu ∈ Cs := by rw [ecpu, core2]; exact hcore
   refine WP.spec_bind (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
-    (by rw [iq2]; exact htr) hc' hsc) ?_
+    (by rw [iq2]; exact htr) hc' hsc (fun _ => by rw [sc2, ecpu])) ?_
   rintro ⟨s3, a1⟩ ⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩
   try simp only [WP.uncurry'_pair]
   rw [sc2] at sc3

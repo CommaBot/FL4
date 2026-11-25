@@ -15,7 +15,7 @@ fails for the one thread being moved: `ScAffX d` is `ScAff` off that thread,
 `ScAff.pairX` / `ScAff.coreX` enter it and `ScAffX.restore` (the affinity
 write) leaves it.
 -/
-import Fl4Proofs.P1.QueueObjs
+import Fl4Proofs.P1.QueueSc
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1

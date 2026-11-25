@@ -154,7 +154,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
       rw [scA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
     exact f1.trans (foot_wr hal (kw_sg (hO.fixW sc hsc).1))
   obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
-    donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+    donate_pair h0 hB hX.x0 hX.2.2.tsc.x hX.2.2.aff ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
       (fun e => hB.idle (by rw [e]; exact ht0))
   have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
     (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
@@ -180,8 +180,8 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
   step with obj.Sc.cpu.spec as ⟨cpu, ecpu⟩
   have hc' : cpu ∈ Cs := by rw [ecpu, core2]; exact hcore
   refine WP.spec_bind (WP.spec_and (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
-    (by rw [iq2]; exact htr) hc' hsc) (smp.migrate_tcb.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (Cs := Cs)
-      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.2.2.tm.dn, hX2.2.2.tm.dp, hX2.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
+    (by rw [iq2]; exact htr) hc' hsc (fun _ => by rw [sc2, ecpu])) (smp.migrate_tcb.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (Cs := Cs)
+      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.1.2.2.tm.dn, hX2.1.2.2.tm.dp, hX2.1.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
   rintro ⟨s3, a1⟩ ⟨⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩, fw3⟩
   try simp only [WP.uncurry'_pair]
   rw [sc2] at sc3
