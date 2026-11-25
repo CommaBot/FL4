@@ -69,6 +69,7 @@ import Fl4Proofs.P1.QueueBind
 import Fl4Proofs.P1.QueueReply
 import Fl4Proofs.P1.QueueReplyPop
 import Fl4Proofs.P1.QueueReplyKw
+import Fl4Proofs.P1.VcpuCheckInv
 import Fl4Proofs.P1.QueueEntry
 import Fl4Proofs.P1.QueueInvoke
 import Fl4Proofs.P1.QueueSlots

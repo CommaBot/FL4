@@ -24,18 +24,14 @@ this module carries `AllCores` over the tail.
   (`complete_yield_to.tw`: the SC's `CONSUMED`/`YIELD_FROM`, `y`'s registers and
   `YIELD_TO`; the restart: `NEXT_IP` and `STATE`); P1's
   `sched.activate_thread.entry` gives `EntryInv`.
-* `vcpu.report.xfP`: P1's `vcpu.report.xf` without its no-pending-exit premise:
-  the VCPU's `PENDING` word, when the report clears it, is one more user word.
-* **`vcpu.check.tw`** and **`Fl4Proofs.P1.vcpu.check.entry`**: `vcpu::check`
-  of the current thread keeps `EntryInv` (the P1 fact `EntryHyps0.vmchk` /
-  `InvGaps.vmchk` assumed as [P]), as a `TW` step: off `RUNNING_VM` a no-op; on
-  it the report (with a pending exit or the bound notification's badge, the
-  notification made idle first), its user words and the VCPU's `PENDING` word,
-  then the thread made running.
+* **`vcpu.check.tw`**: `vcpu::check` of the current thread keeps `EntryInv`, as
+  a `TW` step: P1's `vcpu.check.vck` (P1/VcpuCheckInv; line vmchk moved the
+  proof and `Fl4Proofs.P1.vcpu.check.entry` there), whose words `VckW` are `TW`
+  words (`VckW.tw`).
 * **`AllCores.tail`**: from `AllCores`, `EntryInv` and `BufAt` at `schedule`'s
   end, the tail ends in `AllCores`.
 
-Named premise of `vcpu.check.tw` / `vcpu.check.entry` / `AllCores.tail`:
+Named premise of `vcpu.check.tw` / `AllCores.tail`:
 `hpw` / `hVW` **[P]** (`VcpuUsr`): a TCB's bound VCPU's `PENDING` word is a
 user-class word (`UsrW`: outside the TCBs and nodes, apart from the endpoints
 and notifications, off `Sg`, the kernel-global area and the SC objects). A
@@ -45,6 +41,7 @@ VCPU is a heap object of its own (`.other 15`, P1 `QueueVcpu`, P3's
 import Fl4Proofs.P2.EntryEnd
 import Fl4Proofs.P1.FastFault
 import Fl4Proofs.P1.FastFin
+import Fl4Proofs.P1.VcpuCheckInv
 open Aeneas Aeneas.Std Result
 
 set_option autoImplicit false
@@ -426,59 +423,15 @@ theorem sched.activate_thread.tw (hA : P0.ArchTotal ar) (s : S) (a : A)
     · rw [← st1, ← ev, hv]; exact Or.inr (Or.inl rfl)
   · exact (WP.spec_ok _).2 ⟨TWc.tw w1, Or.inl ea1, Or.inl st1⟩
 
-/-! ## `vcpu::check` -/
+/-! ## `vcpu::check` (P1 `VcpuCheckInv`) -/
 
-/-- (#80 / #81) **`vcpu.report` of a `RUNNING_VM` thread, a pending exit
-allowed**: as P1's `vcpu.report.xf`, its writes before the final state change
-are `RepW` words, the VCPU's `PENDING` word (cleared when set) being a user
-word of `U`. -/
-theorem vcpu.report.xfP (hA : P0.ArchTotal ar) (s : S) (a : A)
-    (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
-    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
-    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄)
-    (hpw : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
-      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) ≠ 0#u64 →
-      core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING ∈ U) :
-    vcpu.report st ar s a t badge ⦃ s' => ∃ s1, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧
-      L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧ WritesIn st s s1 (RepW t U) ∧
-      sched.set_thread_state st s1 t sched.TS_RUNNING = ok s' ⦄ := by
-  have hS0 : P0.StoreTotal st := L.total
-  have hT : TcbPlaced T := h.1.choose_spec.choose_spec.tcbs
-  refine vcpu.report.gen (Bok := BufOK U) (vOk := fun v => core.num.U64.wrapping_add v vcpu.PENDING ∈ U)
-    (P := fun s1 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧ L.mem s1 (stA t) = sched.TS_RUNNING_VM ∧
-      WritesIn st s s1 (RepW t U)) hA ⟨?_, ?_, ?_⟩ ?_ ⟨h, hvm, WritesIn.refl _ _⟩ hbuf hpw
-  · rintro s1 b i v hb ⟨h1, st1, w1⟩ hi
-    exact WP.spec_mono (msg.set_mr.xw s1 (hT t ht) hb (fun b hb => (hU b hb).ksb w1.1) (by omega)) fun r w =>
-      xw_step h1 st1 w1 (fun b hb => (hU b hb).ksb w1.1) w ht
-  · rintro s1 r v ⟨h1, st1, w1⟩ hr
-    have hr' : r.val < 384 := by
-      rcases hr with rfl | rfl | rfl <;>
-        simp [layout.reg.MSG_INFO, layout.reg.BADGE, layout.reg.FAULT_IP, layout.reg.RSI, layout.reg.RDI]
-    refine WP.spec_mono (obj.Tcb.set_reg.wrS s1 t r v (hT t ht) hr') fun s2 hs2 => ?_
-    obtain ⟨K, hK, e⟩ := hs2
-    subst e
-    exact xw_step h1 st1 w1 (fun b hb => (hU b hb).ksb w1.1) ((writesIn_wr (field_aligned (hT t ht) (by omega)
-      (by omega))).mono fun b e => Or.inl ⟨K, by omega, by omega, by omega, e⟩) ht
-  · rintro s1 v ⟨h1, st1, w1⟩ hv
-    have hv' : core.num.U64.wrapping_add v vcpu.PENDING ∈ U := hv
-    unfold vcpu.set
-    simp only [lift, bind_ok]
-    refine WP.spec_mono (LawfulStore.write_spec s1 _ 0#u64) fun s2 e => ?_
-    subst e
-    exact xw_step h1 st1 w1 (fun b hb => (hU b hb).ksb w1.1)
-      ((writesIn_wr (hU _ hv').out.1).mono fun b e => Or.inr (by rw [e]; exact hv')) ht
-  · intro s1 h1
-    exact WP.spec_mono (spec_eq' (Fl4Proofs.P0.sched.set_thread_state.p0 _ _ _ _ hS0)) fun s' hs' =>
-      ⟨s1, h1.1, h1.2.1, h1.2.2, hs'.1⟩
-
-/-- The report's `RepW` words are `TWr` words. -/
-theorem RepW.twr {s : S} {t b : U64} (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
-    (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (h : RepW t U b) : TWr st T Cs Scs t s b := by
-  rcases h with ⟨K, h1, h2, h3, e⟩ | hu
-  · exact Or.inr ⟨K, h1, h2, h3, e⟩
-  · refine Or.inl ⟨(hU b hu).out, fun _ c hc => ?_⟩
-    obtain ⟨⟨-, i1⟩, ⟨-, i2⟩⟩ := sclink_in hO hc
-    exact ⟨fun e => (hU b hu).sc c hc (by rw [e]; exact i1), fun e => (hU b hu).sc c hc (by rw [e]; exact i2)⟩
+/-- The words of P1's `vcpu.check.vck` are `TW` words. -/
+theorem VckW.tw {y b : U64} {s0 : S} (h : VckW st T Cs Scs y s0 b) : TW st T Cs Scs y s0 b := by
+  rcases h with (⟨ho, hh⟩ | hr) | e | e
+  · exact Or.inl (Or.inl (Or.inl ⟨ho, fun _ => hh⟩))
+  · exact Or.inl (Or.inl (Or.inr hr))
+  · exact Or.inr (Or.inl e)
+  · exact Or.inr (Or.inr e)
 
 /-- The post of `vcpu.check` (and its report) as a `TW` step. -/
 abbrev CkPost (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
@@ -501,54 +454,6 @@ theorem CkPost.trans {y : U64} {s s1 s2 : S} (h1 : CkPost st T Cs Ω H Sg Rp Scs
       · rw [e1] at r2; exact Or.inr ⟨r2, e2⟩
       · exact Or.inr ⟨r1, e2⟩
 
-/-- **The current thread's report keeps `EntryInv`**, as a `TW` step. -/
-theorem vcpu.report.tw (hA : P0.ArchTotal ar) {s : S} (a : A) (y badge : U64)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hy : y = L.curW s)
-    (hvm : L.mem s (stA y) = sched.TS_RUNNING_VM)
-    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄)
-    (hpw : L.mem s (core.num.U64.wrapping_add y 3664#u64) ≠ 0#u64 →
-      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add y 3664#u64)) vcpu.PENDING) ≠ 0#u64 →
-      core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add y 3664#u64)) vcpu.PENDING ∈ U) :
-    vcpu.report st ar s a y badge ⦃ s' => CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac y s s' ⦄ := by
-  subst hy
-  have hb := h.blkOK
-  obtain ⟨⟨Q, R, hq⟩, -, hX, -, -⟩ := h.blkOK
-  have hT := hq.tcbs
-  have hcT : L.curW s ∈ T := hq.curT
-  refine WP.spec_mono (vcpu.report.xfP hA s a _ badge hb hcT hvm hU hbuf hpw) ?_
-  rintro s' ⟨s2, h2, st2, w2, e⟩
-  have w2' : WritesIn st s s2 (TW st T Cs Scs (L.curW s) s) := TWr.tw (w2.mono fun b hb => RepW.twr hU hX.1 hb)
-  obtain ⟨-, eC2, ec2, -, fld2, -⟩ := TW.frames hq hcT w2'
-  have hN := hq.nodes _ hq.cur
-  have ea2 : L.actionW s2 = L.actionW s := actionW_of w2 hN (by
-    rintro (⟨K, -, hK, -, e'⟩ | hu)
-    · exact node_ne_field hN (by rw [act_val]; omega) hcT (hT _ hcT) (by omega) e'
-    · exact out_ne_node (hU _ hu).out hq.cur hN (by rw [act_val]; omega) rfl)
-  have esc2 : ∀ z ∈ T, L.mem s2 (scA z) = L.mem s (scA z) := fun z hz => by
-    rw [scA_eq]; exact fld2 z hz _ (by simp) (by simp) (fun _ => Or.inr ⟨by simp, by simp⟩)
-  have E2 := EntryInv.of_step h h2 ec2 eC2 (Or.inl ea2) esc2
-  obtain ⟨⟨Q2, R2, q2⟩, hB2, hX2, hS2, hSg2⟩ := h2
-  have hN2 : NodePlaced st T s2 (L.cpu s2) := by rw [w2.2.1]; exact hN.ksb w2.1
-  have hst := sts_all s2 (L.curW s) _ Q2 R2 q2 hB2 hX2 hS2 hSg2 hcT not_blocked_running running_ne
-    (Or.inr (by rw [st2]; exact not_blocked_vm))
-    (hX2.noref (q2.tcbs _ hcT) (by rw [st2]; exact runnable_ne_reply (Or.inr (Or.inr rfl)))
-      (by rw [st2]; exact runnable_ne_recv (Or.inr (Or.inr rfl))))
-    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩
-  have hw := sched.set_thread_state.w2 s2 (L.curW s) sched.TS_RUNNING hT hN2 hcT
-  rw [e, WP.spec_ok] at hst hw
-  obtain ⟨q6, hB6, hX6, hS6, hSg6, st6, -⟩ := hst
-  obtain ⟨w3, ea3, -⟩ := hw
-  have w3' : WritesIn st s2 s' (TW st T Cs Scs (L.curW s) s2) :=
-    w3.mono fun b hb => hb.elim (fun e => Or.inr (Or.inl e)) (fun e => Or.inr (Or.inr e))
-  obtain ⟨-, eC3, ec3, -, fld3, -⟩ := TW.frames q2 hcT w3'
-  have E3 := EntryInv.of_step E2 ⟨⟨Q2, R2, q6.congrX empty_congr⟩, hB6, hX6, hS6, hSg6⟩ ec3 eC3
-    (ea3.imp id (fun e => e.trans choose_val)) (fun z hz => by
-      rw [scA_eq]; exact fld3 z hz _ (by simp) (by simp) (fun _ => Or.inr ⟨by simp, by simp⟩))
-  refine ⟨E3, TW.trans w2' w3', ?_, Or.inr ⟨Or.inr (Or.inr hvm), st6⟩⟩
-  rcases ea3 with e3 | e3
-  · exact Or.inl (e3.trans ea2)
-  · exact Or.inr e3
-
 /-- A `TW` write keeps the buffer-lookup words of every TCB. -/
 theorem TW.ibFr {y : U64} {s s' : S} {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hy : y ∈ T) (w : WritesIn st s s' (TW st T Cs Scs y s)) :
@@ -561,7 +466,8 @@ theorem TW.ibFr {y : U64} {s s' : S} {X : Set U64} {Q : U64 → U64 → List U64
   · rw [sbWordA8_eq]; exact fld t ht _ (by simp) (by simp) (fun _ => Or.inl (by simp))
 
 /-- **`vcpu::check` of the current thread keeps `EntryInv`, as a `TW` step**
-(module docstring). Named premise `hpw` [P]: the bound VCPU's `PENDING` word
+(P1's `vcpu.check.vck`, moved there by line vmchk). Named premises `hbuf` [P]
+(the thread's IPC buffer in `U`) and `hpw` [P]: the bound VCPU's `PENDING` word
 is a user word of `U`. -/
 theorem vcpu.check.tw (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
     (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
@@ -569,151 +475,11 @@ theorem vcpu.check.tw (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .nt
     (hpw : L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
       core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING ∈ U) :
     vcpu.check st ar s a (L.curW s) ⦃ s' _ => CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac (L.curW s) s s' ⦄ := by
-  obtain ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ := h.blkOK
-  have hT := hq.tcbs
-  have hcT : L.curW s ∈ T := hq.curT
-  have hta := hT _ hcT
-  have OK0 : (ok (s, a) : Result (S × A)) ⦃ s' _ => CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac (L.curW s) s s' ⦄ :=
-    (WP.spec_ok _).2 ⟨h, WritesIn.refl _ _, Or.inl rfl, Or.inl rfl⟩
-  unfold vcpu.check
-  step with obj.Tcb.state.spec as ⟨i, ei⟩
-  split
-  · exact OK0
-  rename_i hvm0
-  have hvm : L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM := by
-    rw [← ei]; by_contra hne; exact hvm0 (bne_iff_ne.mpr hne)
-  have REP0 : ∀ bd : U64, (do
-      let s1 ← vcpu.report st ar s a (L.curW s) bd
-      ok (s1, a)) ⦃ s' _ => CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac (L.curW s) s s' ⦄ := fun bd =>
-    WP.spec_bind (vcpu.report.tw hA a _ bd h rfl hvm hU hbuf (fun h0 _ => hpw h0)) fun s1 hs1 =>
-      (WP.spec_ok _).2 hs1
-  -- the bound notification's badge (the VCPU, if any, has no pending exit)
-  have NT : (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
-      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING) =
-        0#u64) → ∀ n : U64, n = L.mem s (boundA (L.curW s)) → n ≠ 0#u64 → L.epState s n = obj.NTFN_ACTIVE →
-      (do
-        let badge ← obj.Ntfn.badge st n s
-        let s1 ← obj.Ntfn.set_state st n s obj.NTFN_IDLE
-        let s2 ← vcpu.report st ar s1 a (L.curW s) badge
-        ok (s2, a)) ⦃ s' _ => CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac (L.curW s) s s' ⦄ := by
-    intro hP0 n en hn0 hact
-    have hnN : n ∈ Nt := by rw [en]; exact hX.2.2.bnd _ hcT (by rw [← en]; exact hn0)
-    have hnH := hNt n hnN
-    obtain ⟨E, EQ, hEW⟩ := hq.eps
-    have he : n ∈ E := (hEW.2.2.2.2.2.2.2.1 n).2 (Or.inr hnH)
-    obtain ⟨hE, hEN, -⟩ := hEW.1 n he
-    have hEΩ : ∀ x ∈ Ω, x.val + 8 ≤ n.val ∨ n.val + 16 ≤ x.val := hEW.2.2.1 n he
-    have hTS := epTSA_val hE
-    have a2 : Aligned (epTSA n) := (ep_aligned hE).2
-    refine WP.spec_bind (obj.Ntfn.badge.any s n) fun bd _ => ?_
-    refine WP.spec_bind (obj.Ntfn.set_state.val s n _) fun s1 e1 => ?_
-    subst e1
-    obtain ⟨h2, hB2, hX2, hS2, hSg2, f2, -, ea2, -, ec2⟩ :=
-      ntfn_idle_all hq hB hX hS hSg hnH (by rw [hact, ntfn_active_val])
-    set s1 := L.wr s (epTSA n) ((L.mem s (epTSA n) &&& ~~~3#u64) ||| (obj.NTFN_IDLE &&& 3#u64)) with hs1
-    -- the notification word is a `TW` word
-    have hout : OutsideObjs st T Cs s (epTSA n) := by
-      refine ⟨a2, fun t ht => ?_, fun c hc => ?_⟩
-      · have := hE.disj t ht; rw [hTS]; omega
-      · have := hEN.1 c hc; rw [hTS]; omega
-    have hnh : NoHdr True Scs (epTSA n) := by
-      intro _ c hc
-      obtain ⟨⟨a1, i1⟩, ⟨a3, i3⟩⟩ := sclink_in hX.1 hc
-      have r1 := hEΩ _ (hX.1.scW c hc _ a1 i1)
-      have r3 := hEΩ _ (hX.1.scW c hc _ a3 i3)
-      refine ⟨fun e => ?_, fun e => ?_⟩
-      · have := congrArg UScalar.val e; rw [hTS] at this; omega
-      · have := congrArg UScalar.val e; rw [hTS] at this; omega
-    have w1 : WritesIn st s s1 (TW st T Cs Scs (L.curW s) s) :=
-      (writesIn_wr a2).mono fun b e => Or.inl (Or.inl (Or.inl (by rw [e]; exact ⟨hout, hnh⟩)))
-    obtain ⟨-, eC1, ec1, -, fld1, -⟩ := TW.frames hq hcT w1
-    have h1 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s1 :=
-      EntryInv.of_step h ⟨⟨Q, R, h2⟩, hB2, hX2, hS2, hSg2⟩ ec1 eC1 (Or.inl ea2) fun z hz => by
-        rw [scA_eq]; exact fld1 z hz _ (by simp) (by simp) (fun _ => Or.inr ⟨by simp, by simp⟩)
-    have st1 : L.mem s1 (stA (L.curW s)) = sched.TS_RUNNING_VM := by
-      rw [stA_eq, f2 _ hcT _ (by simp) (by simp) (by simp) (by simp), ← stA_eq]; exact hvm
-    have C1 : CkPost st T Cs Ω H Sg Rp Scs Nt Z Ac (L.curW s) s s1 :=
-      ⟨h1, w1, Or.inl ea2, Or.inl (by rw [st1, hvm])⟩
-    have hU1 : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s1 b := fun b hb => (hU b hb).ksb w1.1
-    have hbuf1 : msg.lookup_ipc_buffer st s1 true (L.curW s) ⦃ b => BufOK U b ⦄ := by
-      rw [lookup_ipc_buffer_same ((TW.ibFr hq hcT w1).2 _ hcT)]; exact hbuf
-    have ev1 : L.mem s1 (core.num.U64.wrapping_add (L.curW s) 3664#u64) =
-        L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) :=
-      f2 _ hcT _ (by simp) (by simp) (by simp) (by simp)
-    have hp1 : L.mem s1 (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
-        L.mem s1 (core.num.U64.wrapping_add (L.mem s1 (core.num.U64.wrapping_add (L.curW s) 3664#u64))
-          vcpu.PENDING) = 0#u64 := by
-      intro hv0
-      rw [ev1] at hv0 ⊢
-      have hu := hU _ (hpw hv0)
-      have hne := hu.eps n (Or.inr hnH)
-      rw [hs1, L.mem_wr_ne a2 hu.out.1 (by rw [hTS]; omega)]
-      exact hP0 hv0
-    refine WP.spec_bind (vcpu.report.tw hA a _ bd h1 eC1.symm st1 hU1 hbuf1 (fun h0 hp => absurd (hp1 h0) hp))
-      fun s2 hs2 => (WP.spec_ok _).2 (C1.trans hs2)
-  unfold vcpu.bound
-  step as ⟨o, ho⟩
-  simp only [lift, bind_ok]
-  refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
-  subst ho
-  split
-  · rename_i hv0
-    unfold vcpu.get
-    simp only [lift, bind_ok]
-    refine WP.spec_bind (LawfulStore.read_spec s _) fun i1 ei1 => ?_
-    split
-    · exact REP0 0#u64
-    · rename_i hi1
-      have hP0 : L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
-          L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64))
-            vcpu.PENDING) = 0#u64 := fun _ => by
-              rw [← ev, ← ei1]; by_contra hne; exact hi1 (bne_iff_ne.mpr hne)
-      refine WP.spec_bind (obj.Tcb.bound_ntfn.val s _) fun i2 ei2 => ?_
-      split
-      · rename_i hi2
-        refine WP.spec_bind (obj.Ntfn.state.spec s i2) fun i3 ei3 => ?_
-        split
-        · rename_i hi3
-          exact NT hP0 i2 ei2 (by simpa using hi2) (by rw [← ei3]; exact hi3)
-        · split
-          · exact REP0 0#u64
-          · exact OK0
-      · split
-        · exact REP0 0#u64
-        · exact OK0
-  · rename_i hv0
-    have hP0 : L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
-        L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64))
-          vcpu.PENDING) = 0#u64 := fun hne => absurd (by rw [← ev]; by_contra hne'; exact hv0 (bne_iff_ne.mpr hne')) hne
-    refine WP.spec_bind (obj.Tcb.bound_ntfn.val s _) fun i2 ei2 => ?_
-    split
-    · rename_i hi2
-      refine WP.spec_bind (obj.Ntfn.state.spec s i2) fun i3 ei3 => ?_
-      split
-      · rename_i hi3
-        exact NT hP0 i2 ei2 (by simpa using hi2) (by rw [← ei3]; exact hi3)
-      · split
-        · exact REP0 0#u64
-        · exact OK0
-    · split
-      · exact REP0 0#u64
-      · exact OK0
-
-/-- **(P1) `vcpu::check` of the current thread keeps `EntryInv`** (what
-`EntryHyps0.vmchk` / `InvGaps.vmchk` assume, [P] there). Named premise `hpw`
-[P]: the thread's bound VCPU's `PENDING` word is a user word of `U` (a VCPU is
-a heap object off the kernel's typed objects, P3 `VcpuPl`). -/
-theorem _root_.Fl4Proofs.P1.vcpu.check.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    (s : S) (a : A)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
-    (hbuf : msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄)
-    (hpw : L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
-      core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING ∈ U) :
-    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
-  refine WP.spec_mono (vcpu.check.tw hA hNt s a h hU hbuf hpw) ?_
+  refine WP.spec_mono (vcpu.check.vck hA hNt s a h hU hbuf hpw) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
-  exact hh.1
+  obtain ⟨E, w, ea, est⟩ := hh
+  exact ⟨E, w.mono fun _ hb => VckW.tw hb, ea, est⟩
 
 /-! ## The tail -/
 

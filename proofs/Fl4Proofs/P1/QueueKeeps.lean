@@ -475,15 +475,18 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
       (s1 : S) (a1 : A), EntAt st P3Ok s0 → syscall.handle_invocation st ar s0 a0 call blk don fp cptr = ok (r, s1, a1) →
       XG st T Cs Ω H Sg Scs Z P3Ok s1 ∧ ∀ (b : Bool) (s2 : S) (a2 : A),
         syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2)
-    (vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    (vmpl : ∀ (Ac : Set U64) (s : S), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
-      vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄)
+      msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄ ∧
+      (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
+        UsrW st T Cs H Sg Scs Z s
+          (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING)))
     (bufAt : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
       BufAt st T Cs H Sg Scs Z U s) :
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨⟨xfer, tmoOK, blkU, recvOK, irqcap, debug, postG, fun Ac s a h =>
     WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr,
-    vmchk, bufAt⟩, inv⟩
+    vmpl, bufAt⟩, inv⟩
 
 end
 
