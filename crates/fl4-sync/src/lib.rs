@@ -831,21 +831,12 @@ fn local_vm_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: 
             None => false,
         }
     };
+    // AArch64: `ARMVCPURun` needs the kernel's word on its hardware state
+    // (`local_arm_vcpu_run`), which this entry has not got.
     #[cfg(feature = "aarch64")]
     let done = {
-        let cptr = t.reg(s, fl4_core::layout::reg::CAP);
-        match lookup_slot_locked(s, m, t, cptr, &mut held) {
-            Some(slot) => match slot.cap(s) {
-                fl4_core::capability::Cap::Vcpu { ptr } => {
-                    lock_object(m, ptr, &mut held) && lock_if(m, n, &mut held) && {
-                        observe(s, &[(ptr, localvm::VCPU_BYTES), (n, 64)]);
-                        localvm::handle_arm_vcpu_run_local(s, a, number, slot, ptr, n)
-                    }
-                }
-                _ => false,
-            },
-            None => false,
-        }
+        let _ = (a, number, n, observe);
+        false
     };
     lock::unlock_held(m, &mut held);
     done
@@ -933,6 +924,101 @@ fn local_vm_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M
 }
 
 const _: () = assert!(localtimer::MAX_TIMER_LOCKS + 2 <= lock::MAX_HELD);
+
+/// AArch64: an `ARMVCPURun` beside the gate
+/// (`localvm::handle_arm_vcpu_run_local`), on the VCPU its capability
+/// register names, found with the slots of its lookup locked, with the
+/// VCPU and the caller's bound notification locked; `hw_ok` is the
+/// kernel's check of the VCPU's hardware state (there). True if it ran.
+#[cfg(feature = "aarch64")]
+#[inline(always)]
+pub fn local_arm_vcpu_run<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    number: i64,
+    hw_ok: impl FnOnce(&S, u64, fl4_core::obj::Tcb) -> bool,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let n = t.bound_ntfn(s);
+    let cptr = t.reg(s, fl4_core::layout::reg::CAP);
+    let mut held = lock::Held::new();
+    let done = match lookup_slot_locked(s, m, t, cptr, &mut held) {
+        Some(slot) => match slot.cap(s) {
+            fl4_core::capability::Cap::Vcpu { ptr } => {
+                lock_object(m, ptr, &mut held) && lock_if(m, n, &mut held) && {
+                    observe(s, &[(ptr, localvm::VCPU_BYTES), (n, 64)]);
+                    localvm::handle_arm_vcpu_run_local(s, a, number, slot, ptr, n, hw_ok)
+                }
+            }
+            _ => false,
+        },
+        None => false,
+    };
+    lock::unlock_held(m, &mut held);
+    done
+}
+
+/// AArch64: the check before an `ARMVCPURun` caller's guest runs, beside
+/// the gate (`localvm::arm_vm_entry_ready`), with the caller's bound
+/// notification locked while it reads it.
+#[cfg(feature = "aarch64")]
+#[inline(always)]
+pub fn local_arm_vm_entry<S: fl4_core::machine::Store, M: Mem>(s: &S, m: &M) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let n = t.bound_ntfn(s);
+    let mut held = lock::Held::new();
+    let r = lock_if(m, n, &mut held) && localvm::arm_vm_entry_ready(s, n);
+    lock::unlock_held(m, &mut held);
+    r
+}
+
+/// AArch64: an exit of an `ARMVCPURun` caller's guest beside the gate
+/// (`localvm::handle_arm_vcpu_run_exit_local`), its VCPU locked.
+#[cfg(feature = "aarch64")]
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+pub fn local_arm_vcpu_run_exit<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    stop: u64,
+    w: (u64, u64, u64),
+    hvc: Option<(fl4_core::obj::Tcb, u64)>,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let vc = localvm::run_vcpu(s, t);
+    let mut held = lock::Held::new();
+    let done = vc != 0 && lock_object(m, vc, &mut held) && {
+        observe(s, &[(vc, localvm::VCPU_BYTES)]);
+        localvm::handle_arm_vcpu_run_exit_local(s, a, vc, stop, w.0, w.1, w.2, hvc)
+    };
+    lock::unlock_held(m, &mut held);
+    done
+}
+
+/// AArch64: the kernel timer interrupt `irq` while an `ARMVCPURun`
+/// caller's guest runs (`localvm::handle_vm_timer_irq_local`), with the
+/// timer plan's objects, the VCPU and the bound notification locked.
+#[cfg(feature = "aarch64")]
+#[inline(always)]
+pub fn local_arm_vm_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    irq: u64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    let t = fl4_core::sched::cur_thread(s);
+    let vc = localvm::run_vcpu(s, t);
+    let n = t.bound_ntfn(s);
+    let mut held = lock::Held::new();
+    let done = vc != 0 && local_vm_timer_irq(s, a, m, irq, vc, localvm::VCPU_BYTES, n, &mut held, observe);
+    lock::unlock_held(m, &mut held);
+    done
+}
 
 #[inline(always)]
 fn serial<E: EntryEnv>(env: &E, gate: &SerialGate, irq: bool, body: &mut impl FnMut(&mut E::S, &mut E::A)) -> bool {

@@ -138,12 +138,19 @@ pub fn handle_vm_timer_irq_local<S: Store, A: Arch>(
     }
     let expired = !sporadic::sufficient(s, a, csc, sched::consumed(s));
     let due = localtimer::timer_due(s, cpu, now);
+    // On AArch64 `ct` must stay current without a switch: one back to it
+    // (`choose_thread` after a refill, or after a woken thread queued
+    // behind it) would set its guest's Stage-2 root, whose VMID may need
+    // allocating, which only the gate does (`mmu::hw_vmid_for`). So no
+    // refill, and a due timer only where its signal wakes no thread.
     let ok = if expired && due {
         false
     } else if expired {
-        localtimer::round_robin_ok(s, a, cpu, ct, csc, now)
+        !cfg!(feature = "aarch64") && localtimer::round_robin_ok(s, a, cpu, ct, csc, now)
     } else if due {
         localtimer::fire_ok(s, cpu, ct, p, now)
+            && (!cfg!(feature = "aarch64")
+                || (p.waiter == 0 && (p.ntfn == 0 || Ntfn(p.ntfn).state(s) != fl4_core::obj::NTFN_WAITING)))
     } else {
         true
     };
@@ -402,6 +409,188 @@ mod x86 {
                 }
             }
         }
+        finish(s, a);
+        true
+    }
+}
+
+#[cfg(feature = "aarch64")]
+pub use arm::*;
+
+#[cfg(feature = "aarch64")]
+mod arm {
+    use super::*;
+    use fl4_abi::consts::tcb_flag;
+    use fl4_abi::label;
+    use fl4_abi::syscall as sc;
+    use fl4_core::capability::Cap;
+    use fl4_core::error::Exc;
+    use fl4_core::layout::tcb as tl;
+    use fl4_core::obj::Slot;
+    use fl4_core::{ipc, msg};
+
+    /// Bytes of an AArch64 VCPU object, as `observe` reports it.
+    pub const VCPU_BYTES: u64 = 0x1000;
+
+    /// The VCPU an `ARMVCPURun` caller `t` runs (0 for none).
+    pub fn run_vcpu<S: Store>(s: &S, t: Tcb) -> u64 {
+        s.read(t.0.wrapping_add(tl::RUN_VCPU))
+    }
+
+    /// An `ARMVCPURun` (`SysCall`) of the current thread `ct` on VCPU `vc`,
+    /// through the cap in `slot` (found with the slots of its lookup
+    /// locked), beside the serial gate, holding the locks of `vc` and of
+    /// `ct`'s bound notification `n`: `handle_invocation` through
+    /// `vcpu::decode`'s `decode_run` and `finish`, when nothing of it is
+    /// another core's. `vc`'s guest thread is inactive (not running, so
+    /// `remote_tcb_stall` stalls nothing) and bound to `vc`; no run of `vc`
+    /// is in flight; `vc` last ran here (`OWNER_CPU`: no cross-core flush);
+    /// `n` has no signal (`vcpu::check` would end the run at once); budget
+    /// is left and `schedule()` keeps `ct`; and `hw_ok(s, vc, guest)`, the
+    /// kernel's word that `vc`'s hardware state is live on no other core
+    /// and the guest's Stage-2 VMID needs no allocation (both of which only
+    /// the gate may change elsewhere). A run the decode refuses gets its
+    /// error reply, as on the general path (its errors come before any
+    /// write). Returns false otherwise, having written only `FAULT_IP` and
+    /// the timestamp (Decline).
+    #[allow(clippy::too_many_arguments)]
+    pub fn handle_arm_vcpu_run_local<S: Store, A: Arch>(
+        s: &mut S,
+        a: &mut A,
+        number: i64,
+        slot: Slot,
+        vc: u64,
+        n: u64,
+        hw_ok: impl FnOnce(&S, u64, Tcb) -> bool,
+    ) -> bool {
+        let ct = sched::cur_thread(s);
+        let cpu = s.cur_cpu();
+        let info = msg::msg_info(s, ct);
+        if NUM_DOMAINS != 1
+            || number != sc::SysCall
+            || ct.flags(s) & tcb_flag::TRAP_SYSCALLS != 0
+            || info.label != label::ARMVCPURun
+            || info.extra_caps != 0
+            || vc == 0
+            || slot.cap(s) != (Cap::Vcpu { ptr: vc })
+            || ct.bound_ntfn(s) != n
+            || !ntfn_quiet(s, n)
+        {
+            return false;
+        }
+        let guest = Tcb(s.read(vc.wrapping_add(vcpu::TCB)));
+        if guest.is_null()
+            || guest == ct
+            || guest.state(s) != sched::TS_INACTIVE
+            || vcpu::bound(s, guest) != vc
+            || s.read(vc.wrapping_add(vcpu::RUN_CALLER)) != 0
+            || s.read(vc.wrapping_add(vcpu::OWNER_CPU)) != cpu.wrapping_add(1)
+            || !hw_ok(s, vc, guest)
+        {
+            return false;
+        }
+        let csc = sched::cur_sc(s);
+        // `ct` itself a native thread of this core (no VCPU of its own).
+        if !localtimer::current_ok(s, cpu, ct, csc)
+            || ct.state(s) != sched::TS_RUNNING
+            || !sched::is_schedulable(s, ct)
+            || !localtimer::sched_quiet(s, cpu)
+        {
+            return false;
+        }
+        syscall_prefix(s, a, ct);
+        let now = sched::cur_time(s);
+        if !sporadic::sufficient(s, a, csc, sched::consumed(s)) || !awaken_quiet(s, cpu, now) {
+            return false;
+        }
+        // `handle_invocation`: the lookup found `slot`; no extra caps.
+        let buf = msg::lookup_ipc_buffer(s, false, ct);
+        let extra = match ipc::lookup_extra_caps(s, ct, buf, info) {
+            Ok(e) => e,
+            Err(_) => return false,
+        };
+        let mut length = info.length;
+        if length > msg::N_MSG_REGISTERS && buf == 0 {
+            length = msg::N_MSG_REGISTERS;
+        }
+        match vcpu::decode(s, a, info.label, length, vc, true, buf, &extra) {
+            Err(Exc::Sys(e)) => fl4_core::syscall::reply_error(s, ct, e),
+            Err(_) => {}
+            Ok(()) => {
+                if ct.state(s) == sched::TS_RESTART {
+                    msg::reply_success_empty(s, ct);
+                    sched::set_thread_state(s, ct, sched::TS_RUNNING);
+                }
+            }
+        }
+        finish(s, a);
+        true
+    }
+
+    /// The check `exit` makes before an `ARMVCPURun` caller's guest runs
+    /// (`vcpu::check`), beside the serial gate, holding the lock of its
+    /// bound notification `n`: true when it would change nothing (the run
+    /// is in flight and `n` has no signal). Writes nothing. A signal, an
+    /// unbinding or a deletion after the gate opens again stalls this core
+    /// (`kick_guest`, `remote_tcb_stall`), which takes its guest out at
+    /// once, as after the general path's release of the gate.
+    pub fn arm_vm_entry_ready<S: Store>(s: &S, n: u64) -> bool {
+        let ct = sched::cur_thread(s);
+        ct.state(s) == sched::TS_RUNNING_VM && run_vcpu(s, ct) != 0 && ct.bound_ntfn(s) == n && ntfn_quiet(s, n)
+    }
+
+    /// `handle_vcpu_run_exit(stop, w1, w2, w3)` for an exit of the guest
+    /// of the current thread `ct`'s `ARMVCPURun` on VCPU `vc` (locked),
+    /// beside the serial gate: `complete_run` writes `vc`, `ct` and its IPC
+    /// buffer frame, flushes `vc`'s state live on this core and sets `ct`'s
+    /// address space here; when budget is left (so `check_budget` charges
+    /// nothing after `ct` is back in `TS_RUNNING`) and `schedule()` keeps
+    /// `ct`. For an HVC, `hvc` is the guest thread and the ELR past the
+    /// HVC, which the entry rewound to the HVC (its own guest registers,
+    /// this core's while `ct` runs `vc`): restored first, as the general
+    /// path's entry body does. Returns false otherwise, having written only
+    /// the timestamp (Decline).
+    #[allow(clippy::too_many_arguments)]
+    pub fn handle_arm_vcpu_run_exit_local<S: Store, A: Arch>(
+        s: &mut S,
+        a: &mut A,
+        vc: u64,
+        stop: u64,
+        w1: u64,
+        w2: u64,
+        w3: u64,
+        hvc: Option<(Tcb, u64)>,
+    ) -> bool {
+        let ct = sched::cur_thread(s);
+        let cpu = s.cur_cpu();
+        let csc = sched::cur_sc(s);
+        if NUM_DOMAINS != 1
+            || ct.state(s) != sched::TS_RUNNING_VM
+            || vc == 0
+            || run_vcpu(s, ct) != vc
+            || !current_vm_ok(s, cpu, ct, csc)
+            || !sched::is_schedulable(s, ct)
+            || !localtimer::sched_quiet(s, cpu)
+        {
+            return false;
+        }
+        if let Some((g, _)) = hvc {
+            if s.read(vc.wrapping_add(vcpu::TCB)) != g.0 {
+                return false;
+            }
+        }
+        sched::update_timestamp(s, a);
+        let now = sched::cur_time(s);
+        if !sporadic::sufficient(s, a, csc, sched::consumed(s)) || !awaken_quiet(s, cpu, now) {
+            return false;
+        }
+        if let Some((g, elr)) = hvc {
+            if g.reg(s, reg::ELR_EL1) == elr.wrapping_sub(4) {
+                g.set_reg(s, reg::ELR_EL1, elr);
+            }
+        }
+        vcpu::complete_run(s, a, ct, stop, w1, w2, w3);
+        let _ = sched::check_budget(s, a);
         finish(s, a);
         true
     }

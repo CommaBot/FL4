@@ -2779,15 +2779,16 @@ fn the_timer_only_acknowledge_never_takes_an_lpi() {
     assert_eq!(acknowledge(TIMER_PMR, &with_call[..2]), TIMER);
 }
 
-/// The kernel timer's local path (`timer_irq_local_or_serial`) acknowledges
-/// only under the timer-only mask (`gic::ack_timer_only`), never with a
-/// plain `gic::ack()`, and is entered only where `init_cpu`'s check passed
+/// The kernel timer's local path (`timer_irq_local_or_serial_with`, for a
+/// native thread or an `ARMVCPURun` guest) acknowledges only under the
+/// timer-only mask (`gic::ack_timer_only`), never with a plain `gic::ack()`,
+/// and is entered only where `init_cpu`'s check passed
 /// (`gic::can_ack_timer_only`).
 #[test]
 fn the_timer_local_path_acknowledges_only_under_the_mask() {
     let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
     let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap()).collect();
-    let start = code.iter().position(|l| l.contains("fn timer_irq_local_or_serial(")).expect("timer_irq_local_or_serial");
+    let start = code.iter().position(|l| l.contains("fn timer_irq_local_or_serial_with(")).expect("timer_irq_local_or_serial_with");
     let end = start + code[start..].iter().position(|l| l.contains("let body =")).expect("its serial body");
     let local = &code[start..end];
     assert!(local.iter().any(|l| l.contains("gic::ack_timer_only()")), "the local path acknowledges under the mask");
@@ -2799,8 +2800,10 @@ fn the_timer_local_path_acknowledges_only_under_the_mask() {
     assert_eq!(ret.trim(), "return false;", "a spurious timer-only acknowledge leaves the timer to the serial path");
     let calls: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial();")).collect();
     assert_eq!(calls.len(), 2, "fl4_entry and fl4_kernel_irq");
+    let with: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial_with(")).collect();
+    assert_eq!(with.len(), 3, "its definition, timer_irq_local_or_serial and fl4_entry_vcpu_run");
     let guards = code.iter().filter(|l| l.contains("gic::can_ack_timer_only()")).count();
-    assert_eq!(guards, 2, "both entries check can_ack_timer_only");
+    assert_eq!(guards, 3, "every entry checks can_ack_timer_only");
 }
 
 // ---- Memory past the window --------------------------------------------------
