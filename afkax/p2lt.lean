@@ -250,3 +250,8 @@ import Fl4Proofs.P2.FootTimerFirePk
 #print axioms Fl4Proofs.P2.pick_top
 #print axioms Fl4Proofs.P2.top_unique
 #print axioms Fl4Proofs.P2.choose_head
+#print axioms Fl4Proofs.P2.sc_sporadic_true
+#print axioms Fl4Proofs.P2.sched.is_schedulable.guardC
+#print axioms Fl4Proofs.P2.sched.schedule_tcb.guardC
+#print axioms Fl4Proofs.P2.sched.set_thread_state.guardVC
+#print axioms Fl4Proofs.P2.set_thread_state.gwC

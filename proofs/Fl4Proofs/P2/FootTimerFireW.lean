@@ -8,6 +8,9 @@ badge register, `maybe_donate_sched_context`, `possible_switch_to` when schedula
 current thread, may run here (`fire_ok`'s `wake_ok`: this core, the current domain), takes no SC from `n`, and with
 the action `RESUME_CURRENT`, `wakeTail` is its real run; the state-dependent words are premises at every state
 reached from the start by writes to `w`'s `STATE`, its badge register and this core's `SCHED_ACTION` (`WkD`).
+`WkPre`'s SC facts (`REFILL_MAX`, `SPORADIC`, the ring) are asked only when `w` has an SC: `is_schedulable` reads
+`REFILL_MAX` only then (`sched.is_schedulable.guardC`, `schedule_tcb.guardC`, `set_thread_state.guardVC` / `gwC`)
+and `unblock_sporadic` reads `SPORADIC` and runs `unblock_check` only then (`sc_sporadic_true`).
 
 Pieces: `sched.possible_switch_to.guard_here`, `notification.maybe_donate_sched_context.guard_nd`,
 `notification.unblock_sporadic.guard`.
@@ -104,26 +107,96 @@ theorem sporadic.sc_sporadic.guardQ (X : S) (sc : obj.Sc) (h : sc ≠ 0#u64 → 
   · simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte]
     rw [PathObl.obj.Sc.sporadic.guard (gS := gS) sc X (h h0)]
 
-/-- **`notification::unblock_sporadic`** (as p2sl's `endpoint.unblock_sporadic.guard`). -/
+omit [PathObl.GRd gS st R] [PathObl.GWr gS st W] in
+/-- An accepted `sc_sporadic`: the SC is not null and its `SPORADIC` word is set. -/
+theorem sc_sporadic_true {X : S} {sc : U64} (h : sporadic.sc_sporadic st X sc = ok true) :
+    sc ≠ 0#u64 ∧ L.mem X (sporA sc) ≠ 0#u64 := by
+  unfold sporadic.sc_sporadic at h
+  rw [eq_of_spec_fd (obj.Sc.is_null.spec sc)] at h
+  simp only [bind_ok] at h
+  by_cases h0 : sc = 0#u64
+  · simp [h0] at h
+  simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at h
+  have e : obj.Sc.sporadic st sc X = ok (L.mem X (sporA sc)) := by
+    unfold obj.Sc.sporadic; simp [lift, L.read_eq, sporA]
+  rw [e] at h
+  simp only [bind_ok] at h
+  exact ⟨h0, by simpa using ok_inj_ff h⟩
+
+/-- `is_schedulable` reading `REFILL_MAX` only when the thread has an SC. -/
+theorem sched.is_schedulable.guardC (s : S) (t : obj.Tcb) (h1 : R (stA t)) (h2 : R (scA t))
+    (h3 : L.mem s (scA t) ≠ 0#u64 → R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
+    sched.is_schedulable gS s t = sched.is_schedulable st s t := by
+  unfold sched.is_schedulable
+  rw [PathObl.sched.is_runnable.guard (gS := gS) s t h1]
+  refine bind_guard_congr rfl fun b _ => ?_
+  by_cases hb : b = true
+  · rw [if_pos hb, if_pos hb, PathObl.obj.Tcb.sc.guard (gS := gS) t s h2, tcb_sc_ok]
+    simp only [bind_ok]
+    by_cases h0 : L.mem s (scA t) = 0#u64
+    · rw [eq_of_spec_fd (obj.Sc.is_null.spec (L.mem s (scA t)))]
+      simp [h0]
+    · rw [PathObl.sporadic.sc_active.guard (gS := gS) s _ (h3 h0),
+        PathObl.sched.in_release_queue.guard (gS := gS) s t h4]
+  · rw [if_neg hb, if_neg hb]
+
+theorem sched.schedule_tcb.guardC (s : S) (t : obj.Tcb) (hn : NodeSt (L := L) R W s)
+    (h1 : R (stA t)) (h2 : R (scA t)) (h3 : L.mem s (scA t) ≠ 0#u64 → R (maxA (L.mem s (scA t))))
+    (h4 : R (inqA t)) :
+    sched.schedule_tcb gS s t = sched.schedule_tcb st s t := by
+  obtain ⟨hc, ha, hwa⟩ := hn
+  unfold sched.schedule_tcb
+  rw [PathObl.sched.cur_thread.guard (gS := gS) s hc, PathObl.sched.action.guard (gS := gS) s ha,
+    sched.is_schedulable.guardC s t h1 h2 h3 h4, PathObl.sched.set_action.guard (gS := gS) s _ hwa]
+
+theorem sched.set_thread_state.guardVC (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
+    (hw : SWr gS st t v) (h1 : R (stA t)) (h2 : R (scA t))
+    (h3 : L.mem (L.wr s (stA t) v) (scA t) ≠ 0#u64 → R (maxA (L.mem (L.wr s (stA t) v) (scA t))))
+    (h4 : R (inqA t)) :
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v := by
+  unfold sched.set_thread_state
+  rw [PathObl.obj.Tcb.set_state.guardV (gS := gS) t s v hw, PathObl.set_state_ok' s t v]
+  simp only [bind_ok]
+  exact sched.schedule_tcb.guardC (L.wr s (stA t) v) t hn.wr h1 h2 h3 h4
+
+/-- `set_thread_state` with the `STATE` write answered as `st`'s at its state, `REFILL_MAX` read only with an SC. -/
+theorem set_thread_state.gwC (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
+    (hw : gS.write s (stA t) v = st.write s (stA t) v) (h1 : R (stA t)) (h2 : R (scA t))
+    (h3 : L.mem (L.wr s (stA t) v) (scA t) ≠ 0#u64 → R (maxA (L.mem (L.wr s (stA t) v) (scA t))))
+    (h4 : R (inqA t)) :
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v := by
+  unfold sched.set_thread_state
+  have e : obj.Tcb.set_state gS t s v = obj.Tcb.set_state st t s v := by
+    unfold obj.Tcb.set_state; simp only [lift, bind_ok]; exact hw
+  rw [e, PathObl.set_state_ok' s t v]
+  simp only [bind_ok]
+  exact sched.schedule_tcb.guardC (L.wr s (stA t) v) t hn.wr h1 h2 h3 h4
+
+/-- **`notification::unblock_sporadic`** (as p2sl's `endpoint.unblock_sporadic.guard`); the SC's words only when it
+is not null (`sc_sporadic` reads `SPORADIC` only then, `unblock_check` runs only on a sporadic SC). -/
 theorem notification.unblock_sporadic.guard (X : S) (d : obj.Tcb) {sb : Nat}
-    (hsc : R (scA d)) (hsp : R (sporA (L.mem X (scA d))))
+    (hsc : R (scA d)) (hsp : L.mem X (scA d) ≠ 0#u64 → R (sporA (L.mem X (scA d))))
     (hcs : R (L.nodeAt X (L.cpu X) layout.node.CUR_SC))
-    (hS : ScAcc R W (L.mem X (scA d)) sb) (hW : RefillsWF st X (L.mem X (scA d)) sb)
-    (hrep : Aligned (L.nodeA X layout.node.REPROGRAM) ∧
+    (hS : L.mem X (scA d) ≠ 0#u64 → ScAcc R W (L.mem X (scA d)) sb)
+    (hW : L.mem X (scA d) ≠ 0#u64 → RefillsWF st X (L.mem X (scA d)) sb)
+    (hrep : L.mem X (scA d) ≠ 0#u64 → Aligned (L.nodeA X layout.node.REPROGRAM) ∧
       Outside (L.nodeA X layout.node.REPROGRAM) (L.mem X (scA d)) sb)
     (hct : R (ctA (L := L) X)) (hrp : W (L.nodeA X layout.node.REPROGRAM)) :
     notification.unblock_sporadic gS X d = notification.unblock_sporadic st X d := by
   unfold notification.unblock_sporadic
   rw [PathObl.obj.Tcb.sc.guard (gS := gS) d X hsc, eq_of_spec_fd (obj.Tcb.sc.spec (L := L) X d)]
   simp only [bind_ok]
-  rw [sporadic.sc_sporadic.guardQ (gS := gS) X _ (fun _ => hsp)]
-  refine bind_guard_congr rfl fun b _ => ?_
+  rw [sporadic.sc_sporadic.guardQ (gS := gS) X _ hsp]
+  refine bind_guard_congr rfl fun b hb' => ?_
   by_cases hb : b = true
-  · rw [if_pos hb, if_pos hb, PathObl.sched.cur_sc.guard (gS := gS) X hcs]
+  · subst hb
+    have h0 := (sc_sporadic_true hb').1
+    rw [if_pos rfl, if_pos rfl, PathObl.sched.cur_sc.guard (gS := gS) X hcs]
     refine bind_guard_congr rfl fun c _ => ?_
     refine bind_guard_congr rfl fun b1 _ => ?_
     by_cases hb1 : b1 = true
-    · rw [if_pos hb1, if_pos hb1, PathObl.sporadic.unblock_check.guardS (gS := gS) hS hW hrep hct hrp]
+    · rw [if_pos hb1, if_pos hb1,
+        PathObl.sporadic.unblock_check.guardS (gS := gS) (hS h0) (hW h0) (hrep h0) hct hrp]
     · rw [if_neg hb1, if_neg hb1]
   · rw [if_neg hb, if_neg hb]
 
@@ -160,15 +233,16 @@ def WkD (st : machine.Store S) [L : LawfulStore st] (X : S) (w b : U64) : Prop :
 /-- What `wakeTail` needs at a state reached by `WkD` writes. -/
 structure WkPre (st : machine.Store S) [L : LawfulStore st] (R W : U64 → Prop) (Y : S) (w n : U64) (sb : Nat) :
     Prop where
-  mx : R (maxA (L.mem Y (scA w)))
+  mx : L.mem Y (scA w) ≠ 0#u64 → R (maxA (L.mem Y (scA w)))
   nsc : L.mem Y (scA w) = 0#u64 → R (ntfnScA n)
   nd : L.mem Y (scA w) = 0#u64 → L.mem Y (ntfnScA n) = 0#u64
   dom : L.mem Y (domA w) = L.mem Y (core.num.U64.wrapping_add (L.ksb Y) layout.ks.CUR_DOMAIN)
   aff : L.mem Y (affA w) = L.cpu Y
-  sp : R (sporA (L.mem Y (scA w)))
-  acc : ScAcc R W (L.mem Y (scA w)) sb
-  wf : RefillsWF st Y (L.mem Y (scA w)) sb
-  rep : Aligned (L.nodeA Y layout.node.REPROGRAM) ∧ Outside (L.nodeA Y layout.node.REPROGRAM) (L.mem Y (scA w)) sb
+  sp : L.mem Y (scA w) ≠ 0#u64 → R (sporA (L.mem Y (scA w)))
+  acc : L.mem Y (scA w) ≠ 0#u64 → ScAcc R W (L.mem Y (scA w)) sb
+  wf : L.mem Y (scA w) ≠ 0#u64 → RefillsWF st Y (L.mem Y (scA w)) sb
+  rep : L.mem Y (scA w) ≠ 0#u64 → Aligned (L.nodeA Y layout.node.REPROGRAM) ∧
+    Outside (L.nodeA Y layout.node.REPROGRAM) (L.mem Y (scA w)) sb
   ct : R (ctA (L := L) Y)
   rp : W (L.nodeA Y layout.node.REPROGRAM)
   cs : R (L.nodeAt Y (L.cpu Y) layout.node.CUR_SC)
@@ -206,7 +280,7 @@ theorem wakeTail.guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n bad
     rw [eq_of_spec_fd (tcb_eq.blk w (L.curW X))]
     simp only [bind_ok, hcur, decide_false, Bool.false_eq_true, ↓reduceIte]
   unfold wakeTail
-  rw [PathObl.sched.set_thread_state.guardV (gS := gS) X w _ hn wS rS rSc (hY _ wi2).mx rI, hst2]
+  rw [sched.set_thread_state.guardVC (gS := gS) X w _ hn wS rS rSc (hY _ wi2).mx rI, hst2]
   simp only [bind_ok]
   rw [PathObl.obj.Tcb.set_reg.guard (gS := gS) w _ _ _ wB, PathObl.set_reg_ok']
   simp only [bind_ok]
@@ -221,7 +295,7 @@ theorem wakeTail.guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n bad
     (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) a w n rSc P3.nsc P3.nd
   rw [m1, m2]
   simp only [bind_ok, Aeneas.Std.uncurry_apply_pair]
-  rw [PathObl.sched.is_schedulable.guard (gS := gS) _ w rS rSc P3.mx rI]
+  rw [sched.is_schedulable.guardC (gS := gS) _ w rS rSc P3.mx rI]
   refine bind_guard_congr rfl fun b _ => ?_
   have hac3 : L.actionW (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) =
       sched.ACTION_RESUME_CURRENT := by

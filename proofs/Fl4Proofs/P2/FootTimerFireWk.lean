@@ -65,7 +65,7 @@ theorem wakeTail.gw {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
     rw [eq_of_spec_fd (tcb_eq.blk w (L.curW X))]
     simp only [bind_ok, hcur, decide_false, Bool.false_eq_true, ↓reduceIte]
   unfold wakeTail
-  rw [set_thread_state.gw (gS := gS) X w _ hn wS rS rSc (hY _ wi2).mx rI, hst2]
+  rw [set_thread_state.gwC (gS := gS) X w _ hn wS rS rSc (hY _ wi2).mx rI, hst2]
   simp only [bind_ok]
   rw [PathObl.obj.Tcb.set_reg.guard (gS := gS) w _ _ _ wB, PathObl.set_reg_ok']
   simp only [bind_ok]
@@ -79,7 +79,7 @@ theorem wakeTail.gw {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
     (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) a w n rSc P3.nsc P3.nd
   rw [m1, m2]
   simp only [bind_ok, Aeneas.Std.uncurry_apply_pair]
-  rw [PathObl.sched.is_schedulable.guard (gS := gS) _ w rS rSc P3.mx rI]
+  rw [sched.is_schedulable.guardC (gS := gS) _ w rS rSc P3.mx rI]
   refine bind_guard_congr rfl fun b _ => ?_
   have hac3 : L.actionW (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) =
       sched.ACTION_RESUME_CURRENT := by
@@ -124,9 +124,11 @@ theorem WkPre.agree {X Y : S} {w n : U64} {sb : Nat} (P : WkPre st R W X w n sb)
   have hN : ∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt X (L.cpu X) o := fun o => by rw [c, nodeAt_of_ksb k]
   have hNA : ∀ o, L.nodeA Y o = L.nodeA X o := fun o => hN o
   obtain ⟨mx, nsc, nd, dom, aff, sp, acc, wf, rep, ct, rp, cs, cd⟩ := P
-  refine ⟨by rw [e1]; exact mx, fun h => nsc (by rw [← e1]; exact h), fun h => by rw [e2]; exact nd (by rw [← e1]; exact h),
-    by rw [e3, k, e4]; exact dom, by rw [e5, c]; exact aff, by rw [e1]; exact sp, by rw [e1]; exact acc,
-    by rw [e1]; exact wf.agree e6, by rw [hNA, e1]; exact rep, ?_, by rw [hNA]; exact rp, by rw [hN]; exact cs,
+  refine ⟨fun h => by rw [e1] at h ⊢; exact mx h, fun h => nsc (by rw [← e1]; exact h),
+    fun h => by rw [e2]; exact nd (by rw [← e1]; exact h),
+    by rw [e3, k, e4]; exact dom, by rw [e5, c]; exact aff, fun h => by rw [e1] at h ⊢; exact sp h,
+    fun h => by rw [e1] at h ⊢; exact acc h, fun h => by rw [e1] at h ⊢; exact (wf h).agree e6,
+    fun h => by rw [hNA, e1]; rw [e1] at h; exact rep h, ?_, by rw [hNA]; exact rp, by rw [hN]; exact cs,
     by rw [k]; exact cd⟩
   show R (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME)
   rw [hN]; exact ct
@@ -365,7 +367,7 @@ theorem wake_recv_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
     (wPn : (L.epQ X ep).end ≠ t → W (prevA .Ep (L.mem X (nextA .Ep t))))
     (wNp : (L.epQ X ep).head ≠ t → W (nextA .Ep (L.mem X (prevA .Ep t))))
     (wRt : r ≠ 0#u64 → W (rTcbA r) ∧ Aligned (rTcbA r))
-    (rMx : R (maxA (L.mem X (scA t))))
+    (rMx : L.mem X (scA t) ≠ 0#u64 → R (maxA (L.mem X (scA t))))
     (hcur : t ≠ L.curW X) (hn : NodeSt (L := L) R W X)
     (rSc : R (scA t)) (rI : R (inqA t)) (rD : R (domA t)) (rA : R (affA t))
     (wB : W (regA t layout.reg.BADGE)) (hac : L.actionW X = sched.ACTION_RESUME_CURRENT)
@@ -520,7 +522,7 @@ theorem wake_recv_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
       (gS.write Y (stA t) v = st.write Y (stA t) v) →
       sched.set_thread_state gS Y t v = sched.set_thread_state st Y t v := by
     intro Y v wY hw
-    refine set_thread_state.gw (gS := gS) Y t v (NodeSt.of_wi hn wY) hw rS rSc ?_ rI
+    refine set_thread_state.gwC (gS := gS) Y t v (NodeSt.of_wi hn wY) hw rS rSc ?_ rI
     rw [PathObl.st_wr_sc ht', scK Y wY]; exact rMx
   constructor
   · -- `cancel_ipc` on the guarded store

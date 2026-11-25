@@ -107,14 +107,15 @@ theorem wakeTail_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
     unfold notification.unblock_sporadic at h6
     rw [tcb_sc_ok] at h6
     simp only [bind_ok] at h6
-    obtain ⟨b1, -, h6⟩ := bind_eq_ok h6
+    obtain ⟨b1, eb1, h6⟩ := bind_eq_ok h6
     by_cases hb1 : b1 = true
     · rw [if_pos hb1] at h6
+      have h0 : L.mem X5 (scA w) ≠ 0#u64 := (sc_sporadic_true (by rw [← hb1]; exact eb1)).1
       obtain ⟨c, -, h6⟩ := bind_eq_ok h6
       obtain ⟨b2, -, h6⟩ := bind_eq_ok h6
       by_cases hb2 : b2 = true
       · rw [if_pos hb2] at h6
-        have := sporadic.unblock_check.fr (st := st) P5.wf P5.rep
+        have := sporadic.unblock_check.fr (st := st) (P5.wf h0) (P5.rep h0)
         rw [h6, WP.spec_ok] at this
         rw [sc5, nA5] at this
         exact this
