@@ -284,7 +284,8 @@ set_option maxHeartbeats 4000000 in
 `hI : SInvIP σ` (carried), `hLF : LargeFrOK` [J] FL4 at the entry, `hn` [S],
 `hflag` [S], `hK : KDispHypsKV42` and `hDL : JDecMRLK VtxK` [W] at the
 dispatch states, `hFin : KFinAtR31` at the front outcomes, the [P] bundle,
-`hRP5 : RRPreAt5` [J] (m67's `nvm`, ReplyRecv only). -/
+`hRP5 : RRPreAt5` [J] (m67's `nvm`, ReplyRecv only).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ42 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
@@ -312,7 +313,7 @@ theorem kernel_entryJ42 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st)
     (hRP5 : n = fl4_abi.syscall.SysReplyRecv → P1.RRPreAt5 (L := L) arI s a) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostU (L := L) arI AR MR c σ r ⦄ := by
   have hni := hX.entered hct
@@ -349,7 +350,7 @@ theorem kernel_entryJ42 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
   have hP : syscall.handle_syscall st arI s a n ⦃ r => KPostMS (L := L) arI AR MR c σ r ⦄ := by
     by_cases hrr : n = fl4_abi.syscall.SysReplyRecv
     · exact P1.FastAgree.spec st arI (P1.FastAgree.of_acc st arI P1.LawfulStore.total hA
-        (FastAcc.of_rrpre hflag hn.range hrr (J.rrPreAt hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu
+        (FastAcc.of_rrpre hSX hflag hn.range hrr (J.rrPreAt hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu
           (Fl4Proofs.P3.SInvW.rv hX.w) (hRP5 hrr)))) hG
     · rw [handle_syscall_eq_general_of hflag hn.range hrr, P1.handle_syscall_general_eq]; exact hG
   refine WP.spec_mono hP ?_
@@ -520,7 +521,7 @@ theorem kernel_entry_reachUV [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
     fun w a1 hIh hFin => ?_, fun n c hct hU hFin => ?_, fun ad c ft hct hV hFin => ?_,
     fun v hct hv hFin => ?_, fun n hct hU hD hFF hFin => ?_⟩
   · have hE := kernel_entryJ42 (MR := MR) s a σ J hct hR hX hI hLF n c hn hflag hK hDL hFin hARI hA hnd hM hKD
-      hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hRP5
+      hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hRP5
     obtain ⟨⟨s', a'⟩, hv, σ', hy, hRJ, hM', hX', h1, h2⟩ := spec_exists hE
     rw [hv, WP.spec_ok]
     exact ⟨σ', hy, hRJ, hX', hM', h1, h2, fun hU => JReachU.step n c hJ hct hn hv hy ⟨hRJ, hM'⟩ hU⟩

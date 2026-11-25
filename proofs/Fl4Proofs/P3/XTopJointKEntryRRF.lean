@@ -293,7 +293,8 @@ set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ33R` with `hRP : P1.RRPreAt` replaced** (module
 docstring) by `hRV : SInvR.RV σ` [J] (l4v `valid_refills` / `refills_sum`, at
 the entry's spec state; a conjunct of the carried `SInvW`, `SInvW.rv`) and
-m67's `nvm` read `hRP5 : P1.RRPreAt5` (kept). -/
+m67's `nvm` read `hRP5 : P1.RRPreAt5` (kept).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ33F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
@@ -317,15 +318,16 @@ theorem kernel_entryJ33F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st)
     (hRV : SInvR.RV σ)
     (hRP5 : n = fl4_abi.syscall.SysReplyRecv → P1.RRPreAt5 (L := L) arI s a) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ33R s a σ J hni hR hS hE hQ hLv n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT
-    hmax htu (fun hrr => J.rrPreAt hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu hRV (hRP5 hrr))
+    hmax htu hSX (fun hrr => J.rrPreAt hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu hRV (hRP5 hrr))
 
 set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ33F` without `hLv`** (`J.live`, as `kernel_entryJ34R`). -/
+/-- **`kernel_entryJ33F` without `hLv`** (`J.live`, as `kernel_entryJ34R`).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ34F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
@@ -349,12 +351,12 @@ theorem kernel_entryJ34F [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st)
     (hRV : SInvR.RV σ)
     (hRP5 : n = fl4_abi.syscall.SysReplyRecv → P1.RRPreAt5 (L := L) arI s a) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ33F s a σ J hni hR hS hE hQ J.live n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT
-    hmax htu hRV hRP5
+    hmax htu hSX hRV hRP5
 
 /-- `RV` is a conjunct of the readiness line's carried bundle `SInvW`. -/
 theorem SInvW.rv {σ : Fl4Spec.State Unit} (h : SInvR.B8w.SInvW σ) : SInvR.RV σ := h.2.1.2.2.2.1
@@ -362,7 +364,8 @@ theorem SInvW.rv {σ : Fl4Spec.State Unit} (h : SInvR.B8w.SInvW σ) : SInvR.RV �
 set_option maxHeartbeats 4000000 in
 /-- **`kernel_entryJ34F` with `hS` / `hRV` from `SInvW`** (the readiness
 line's carried bundle, `kentry_rdyOffW`): no spec-side premise beyond the
-carried ones. -/
+carried ones.
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ34FW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hSW : SInvR.B8w.SInvW σ) (hE : SInvE.EpQAll σ)
@@ -386,11 +389,11 @@ theorem kernel_entryJ34FW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st)
     (hRP5 : n = fl4_abi.syscall.SysReplyRecv → P1.RRPreAt5 (L := L) arI s a) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ34F s a σ J hni hR (SInvR.B8w.SInvW.sb hSW) hE hQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA
-    hmrt hmb hT hmax htu (SInvW.rv hSW) hRP5
+    hmrt hmb hT hmax htu hSX (SInvW.rv hSW) hRP5
 
 end
 
