@@ -401,7 +401,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 /-- **Native kernel entries keep `EntryInv`, ReplyRecv half from one read**
 (m68): `entry_of8` with `hRP : RRPreAt3` (`lk8`, `nvm`) replaced by
 `hRP : RRPreAt5` (m67's `nvm` only) and the CNode placement `hCn : CnOffAt`
-[J] at the dispatch states (`lk8_of`). -/
+[J] at the dispatch states (`lk8_of`).
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of9 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

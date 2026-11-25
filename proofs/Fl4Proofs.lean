@@ -152,6 +152,7 @@ import Fl4Proofs.P1.QueueIpcFoot
 import Fl4Proofs.P1.EntryXG
 import Fl4Proofs.P1.EntryXGTop
 import Fl4Proofs.P1.EntryFin
+import Fl4Proofs.P1.EntryVacuous
 import Fl4Proofs.P1.QueueSortedC
 import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq
@@ -1489,6 +1490,7 @@ import Fl4Proofs.P3.XTopJointKEntryU29
 import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.XTopJointKEntryVm
 import Fl4Proofs.P3.XTopJointKEntryU29S
+import Fl4Proofs.P3.XTopJointEntryInv29
 import Fl4Proofs.P3.XTopJointKEntryU29I
 import Fl4Proofs.P1.LocalInv
 import Fl4Proofs.P3.XTopJointKEntryInvL

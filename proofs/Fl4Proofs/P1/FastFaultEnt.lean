@@ -223,7 +223,10 @@ the kernel entry state (m64 (d3'): `FastFaultPre.of_asid`; the handler cap
 typing and the receive buffer from Hyps4's `P3Place`), plus (m67) m62's
 `FaultNvm` [J] at the fast-path entry states (`hNv : FaultNvmPre`, which
 m64's version lost when it replaced `FastFaultOK`). `StoreExt` [P] and the
-ReplyRecv half `FastRRP` [P] unchanged; `entry_of6` kept. -/
+ReplyRecv half `FastRRP` [P] unchanged; `entry_of6` kept.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of7 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

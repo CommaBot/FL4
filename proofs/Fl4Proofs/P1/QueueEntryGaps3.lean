@@ -45,7 +45,10 @@ theorem InvGaps3.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} 
     G.vcpu, G.ept, G.ioPortControl, G.ioPort, decGap_tdx hA P.xfer⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps3`, `CdtHyps2`
-and `P3Place` of every admissible tuple. -/
+and `P3Place` of every admissible tuple.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (TX : TmoXG st ar) (IK : IbKeep st ar)
     (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ CdtHyps2 st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z P3Ok ∧

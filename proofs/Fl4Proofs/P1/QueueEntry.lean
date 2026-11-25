@@ -391,7 +391,9 @@ structure PSets where
 operation not proved in P1, stated with P1's invariants.  An invocation may
 shrink the active set (`Ac'`, an SC deletion); `handle_invocation` reports
 its `CurStep` (for `HCur.step`) and, when it was preempted, what the
-preemption point needs (that is `EntryHyps`' `inv`). -/
+preemption point needs (that is `EntryHyps`' `inv`).
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`); not a
+specification of the kernel. -/
 structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   /-- The message transfer keeps the invariants within `XferFr` (`do_ipc_transfer`;
@@ -450,7 +452,9 @@ structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.A
   bufAt : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     BufAt st T Cs H Sg Scs Z U s
 
-/-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`. -/
+/-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`.
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`); not a
+specification of the kernel. -/
 structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Adm : PSets → Prop)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop
     extends EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok where
