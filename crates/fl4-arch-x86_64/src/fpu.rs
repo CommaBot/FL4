@@ -278,6 +278,16 @@ pub fn xcr0() -> u64 {
     XCR0.load(Ordering::Relaxed)
 }
 
+/// The save instruction as `kernel_config::x86_fpu_insn` numbers it.
+pub(crate) fn save_insn_id() -> u64 {
+    insn() as u64
+}
+
+#[cfg(test)]
+pub(crate) fn insn_ids() -> [u64; 5] {
+    [Insn::Fxsave, Insn::Xsave, Insn::Xsaveopt, Insn::Xsavec, Insn::Xsaves].map(|i| i as u64)
+}
+
 /// The save instruction, for the boot banner.
 pub fn save_insn() -> &'static str {
     match insn() {

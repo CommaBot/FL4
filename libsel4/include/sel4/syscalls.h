@@ -7,6 +7,7 @@
 #pragma once
 #include <sel4/config.h>
 
+#include <sel4/errors.h>
 #include <sel4/functions.h>
 
 /**
@@ -406,3 +407,25 @@ LIBSEL4_INLINE_FUNC void
 seL4_SetTLSBase(seL4_Word tls_base);
 #endif
 
+/** The answer to seL4_KernelConfig. */
+typedef struct seL4_KernelConfig_Result {
+    /** seL4_NoError, or seL4_InvalidArgument for a key the kernel does not
+     * know or one of the other architecture. */
+    seL4_Error error;
+    /** The value, 0 on an error. */
+    seL4_Word value;
+} seL4_KernelConfig_Result_t;
+
+/**
+ * @xmlonly <manual name="Kernel Config" label="sel4_kernelconfig"/> @endxmlonly
+ * @brief FL4: what the kernel found and chose at boot.
+ *
+ * Needs no capability and does not touch the IPC buffer. The answers never
+ * change after boot. A thread with seL4_TCBFlag_trapSyscalls raises
+ * seL4_Fault_UnknownSyscall instead, as with every syscall.
+ *
+ * @param key One of the seL4_KernelConfig_* keys (sel4/constants.h).
+ * @return The error and the value.
+ */
+LIBSEL4_INLINE_FUNC seL4_KernelConfig_Result_t
+seL4_KernelConfig(seL4_Word key);

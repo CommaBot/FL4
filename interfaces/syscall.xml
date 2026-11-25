@@ -68,5 +68,12 @@
             <condition><config var="CONFIG_VTX"/></condition>
             <syscall name="VMEnter"/>
         </config>
+        <!-- FL4: answered by the kernel's entry code, before the API's
+             syscalls are decoded. In every configuration (FL4 is always
+             MCS). New numbers go after this one. -->
+        <config>
+            <condition><config var="CONFIG_KERNEL_MCS"/></condition>
+            <syscall name="KernelConfig"/>
+        </config>
     </debug>
 </syscalls>

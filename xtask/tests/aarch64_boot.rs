@@ -1,7 +1,8 @@
 //! The AArch64 kernel's boot-time decisions on the host: its memory lists
 //! (fl4-kernel-aarch64 bootmem.rs), its ACPI parsing (hw.rs, over
-//! host-allocated tables), the GIC layout arithmetic and the cores'
-//! capability check (fl4-arch-aarch64 gic_layout.rs, ap_caps.rs). Only the window, the console
+//! host-allocated tables), the GIC layout arithmetic, the cores'
+//! capability check and SysKernelConfig's answers (fl4-arch-aarch64
+//! gic_layout.rs, ap_caps.rs, kconfig.rs). Only the window, the console
 //! and the boot core's MPIDR are replaced.
 extern crate self as fl4_core;
 extern crate self as fl4_arch_aarch64;
@@ -64,6 +65,8 @@ mod el0_access;
 mod ap_caps;
 #[path = "../../crates/fl4-arch-aarch64/src/vmid.rs"]
 mod vmid;
+#[path = "../../crates/fl4-arch-aarch64/src/kconfig.rs"]
+mod kconfig;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
@@ -3262,4 +3265,123 @@ mod switches {
         run(&mut c, owner);
         assert_eq!(c.pair, Some((0, 1)));
     }
+}
+
+// ---- SysKernelConfig ---------------------------------------------------------
+
+#[test]
+fn virtualization_rejections_are_classified() {
+    use fl4_abi::consts::kernel_config::virt_reject as r;
+    use kconfig::{virt_reject_of, Virt};
+    let ok = Virt { has_el2: true, novirt: false, vgic: true, lrs: 4, ppis_ok: true, psci_ok: true };
+    assert_eq!(virt_reject_of(&ok), r::NONE);
+    assert_eq!(virt_reject_of(&Virt { has_el2: false, ..ok }), r::EL1_ONLY);
+    assert_eq!(virt_reject_of(&Virt { novirt: true, ..ok }), r::NOVIRT_CMDLINE);
+    for v in [
+        Virt { vgic: false, ..ok },
+        Virt { lrs: 0, ..ok },
+        Virt { ppis_ok: false, ..ok },
+        Virt { psci_ok: false, ..ok },
+    ] {
+        assert_eq!(virt_reject_of(&v), r::NO_VGIC);
+        // The first reason counts.
+        assert_eq!(virt_reject_of(&Virt { novirt: true, ..v }), r::NOVIRT_CMDLINE);
+        assert_eq!(virt_reject_of(&Virt { has_el2: false, novirt: true, ..v }), r::EL1_ONLY);
+    }
+}
+
+/// One test, as `freeze` writes the kernel's one table.
+#[test]
+fn kernel_config_answers() {
+    use fl4_abi::consts::error::{InvalidArgument, NoError};
+    use fl4_abi::consts::kernel_config::{arm_mitigations as m, arm_platform_flags as p, keys, virt_reject};
+    use kconfig::{freeze, reply, Facts};
+    let none = Facts {
+        online: 1,
+        el2_vhe: false,
+        el2_nvhe: false,
+        virt_reject: virt_reject::EL1_ONLY,
+        vmid16: false,
+        s2_ipa_bits: 40,
+        vgic_lrs: 0,
+        pan: false,
+        pauth: false,
+        clrbhb: false,
+        asid16: false,
+        hw_af: false,
+        gicv3_sre: false,
+        its: false,
+        timer_local_ack: false,
+        pa_bits: 32,
+        gic_version: 2,
+        max_spi: 31,
+        psci: 0,
+        timer_hz: 1,
+    };
+    let ask = |f: &Facts, key: u64| {
+        freeze(f);
+        let (error, value) = reply(key);
+        assert_eq!(error, NoError, "{key:#x}");
+        value
+    };
+    assert_eq!(ask(&none, keys::ARCH), 2);
+    assert_eq!(ask(&Facts { online: 5, ..none }, keys::ONLINE_CPUS), 5);
+    assert_eq!(ask(&none, keys::MAX_CPUS), fl4_abi::config::MAX_NUM_NODES);
+    let b = ask(&none, keys::BUILD_FLAGS);
+    assert_eq!((b & 1 != 0, b & 2 != 0, b & 4 != 0), (
+        fl4_abi::config::DEBUG_BUILD, fl4_abi::config::PRINTING, fl4_abi::config::ENABLE_SMP_SUPPORT,
+    ));
+    assert_eq!(b >> 6, 0);
+
+    // Virtualization: (backend, rejection, features).
+    let virt = |f: &Facts| {
+        (ask(f, keys::VIRT_BACKEND), ask(f, keys::VIRT_REJECT), ask(f, keys::VIRT_FEATURES))
+    };
+    assert_eq!(virt(&none), (0, 10, 0));
+    let vhe = Facts { el2_vhe: true, virt_reject: 0, vmid16: true, gic_version: 3, ..none };
+    assert_eq!(virt(&vhe), (3, 0, 1 | 2 | 8));
+    let nvhe = Facts { el2_nvhe: true, virt_reject: 0, ..none };
+    assert_eq!(virt(&nvhe), (4, 0, 1 | 4));
+    // At EL2 without guests: no backend and no VGIC, but the VMIDs' size.
+    assert_eq!(virt(&Facts { virt_reject: virt_reject::NO_VGIC, ..vhe }), (0, 9, 2));
+    assert_eq!(virt(&Facts { virt_reject: virt_reject::NOVIRT_CMDLINE, ..nvhe }), (0, 8, 0));
+    assert_eq!(ask(&Facts { s2_ipa_bits: 44, ..none }, keys::VIRT_S2_IPA_BITS), 44);
+    assert_eq!(ask(&Facts { vgic_lrs: 16, ..none }, keys::VIRT_VGIC_LRS), 16);
+    assert_eq!((ask(&vhe, keys::CVM_TYPE), ask(&vhe, keys::CVM_FLAGS)), (0, 0));
+
+    // Every flag is its own bit.
+    let flags: [(u64, u64, fn(&mut Facts)); 10] = [
+        (keys::ARM_MITIGATIONS, m::PAN, |f| f.pan = true),
+        (keys::ARM_MITIGATIONS, m::PAUTH, |f| f.pauth = true),
+        (keys::ARM_MITIGATIONS, m::CLRBHB, |f| f.clrbhb = true),
+        (keys::ARM_PLATFORM_FLAGS, p::ASID16, |f| f.asid16 = true),
+        (keys::ARM_PLATFORM_FLAGS, p::HW_AF, |f| f.hw_af = true),
+        (keys::ARM_PLATFORM_FLAGS, p::GICV3_SRE, |f| f.gicv3_sre = true),
+        (keys::ARM_PLATFORM_FLAGS, p::ITS_ACTIVE, |f| f.its = true),
+        (keys::ARM_PLATFORM_FLAGS, p::TIMER_LOCAL_ACK, |f| f.timer_local_ack = true),
+        (keys::ARM_PLATFORM_FLAGS, p::EL2_VHE, |f| f.el2_vhe = true),
+        (keys::ARM_PLATFORM_FLAGS, p::EL2_NVHE, |f| f.el2_nvhe = true),
+    ];
+    for (key, flag, set) in flags {
+        assert_eq!(ask(&none, key), 0);
+        let mut f = none;
+        set(&mut f);
+        assert_eq!(ask(&f, key), flag, "{key:#x} {flag:#x}");
+    }
+    let f = Facts { pa_bits: 48, gic_version: 3, max_spi: 1019, psci: 2, timer_hz: 1_000_000_000, ..none };
+    assert_eq!(ask(&f, keys::ARM_PA_BITS), 48);
+    assert_eq!(ask(&f, keys::ARM_GIC_VERSION), 3);
+    assert_eq!(ask(&f, keys::ARM_MAX_SPI), 1019);
+    assert_eq!(ask(&f, keys::ARM_PSCI_METHOD), smp::PSCI_HVC);
+    assert_eq!(ask(&f, keys::ARM_TIMER_FREQ_HZ), 1_000_000_000);
+
+    // Unknown keys, and all of x86_64's.
+    for key in [0, 5, 0x105, 0x202, 0x381, 0x486, 0xdead_beef, 1 << 32 | 1, u64::MAX]
+        .into_iter()
+        .chain(keys::SPEC_STATUS..=keys::SPEC_MSR_VALID)
+        .chain(keys::X86_CPU_VENDOR..=keys::X86_ARCH_CAPABILITIES)
+    {
+        assert_eq!(reply(key), (InvalidArgument, 0), "{key:#x}");
+    }
+    assert_eq!((0..0x1_0000).filter(|&k| reply(k).0 == NoError).count(), 18);
 }
