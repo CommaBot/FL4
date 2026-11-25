@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqCh
 import Fl4Proofs.P2.FootTimerIrqApp
 import Fl4Proofs.P2.FootTimerIrqRR
 import Fl4Proofs.P2.FootTimerIrqAcc
@@ -46,3 +47,14 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.sched.add_to_bitmap.guard
 #print axioms Fl4Proofs.P2.smp.remote_queue_update.guard_local
 #print axioms Fl4Proofs.P2.sched.append.guard_local
+#print axioms Fl4Proofs.P2.tq_remove_single
+#print axioms Fl4Proofs.P2.tcbqueue.prev.guard_sched
+#print axioms Fl4Proofs.P2.tcbqueue.next.guard_sched
+#print axioms Fl4Proofs.P2.tcbqueue.remove.guard_single
+#print axioms Fl4Proofs.P2.sched.remove_from_bitmap.guard
+#print axioms Fl4Proofs.P2.sched.dequeue.guard_single
+#print axioms Fl4Proofs.P2.sched.switch_to_thread.guard
+#print axioms Fl4Proofs.P2.sched.choose_thread.guard_ne
+#print axioms Fl4Proofs.P2.sched.schedule_choose_new_thread.guard
+#print axioms Fl4Proofs.P2.schedule_choose_eq
+#print axioms Fl4Proofs.P2.sched.schedule.guard_choose
