@@ -1729,3 +1729,5 @@ import Fl4Proofs.P2.AccessVmLP
 import Fl4Proofs.P2.OnceGuard
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P2.E2EVUserIo
+import Fl4Proofs.P2.E2EVHeap
+import Fl4Proofs.P2.E2EVAll
