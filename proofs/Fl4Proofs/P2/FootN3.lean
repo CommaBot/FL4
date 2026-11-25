@@ -74,13 +74,14 @@ theorem end_suffGN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → L
 /-- The timeout faults a budget check from `s0` raises keep the invariants
 and `G`: at a state `s` reached from `s0` by `ChgW` writes (P1's `TmoK` guard)
 where the current thread satisfies `CurOK` and `G` holds. Unlike P1's
-`TmoKG`, whose states are only constrained by the invariants and `G`. -/
+`TmoKG`, whose states are only constrained by the invariants and `G`. (tmofr: over `Timeout` faults only, the fault `end_timeslice` raises; a non-timeout fault
+would take the cap-transferring normal transfer.) -/
 def TmoKC (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) (G : S → Prop) : Prop :=
-  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+  ∀ (s : S) (a : A) (f : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64),
     SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
     SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) → CurOK st T s → G s →
-    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄
+    faults.handle_timeout st ar s a (L.curW s) (error.Fault.Timeout f) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄
 
 /-- seL4 `endTimeslice` (`KWN` frame). -/
 theorem sched.end_timeslice.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bool)

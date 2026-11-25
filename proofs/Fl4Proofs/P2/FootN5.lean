@@ -620,9 +620,9 @@ theorem tmoKC_N {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
         by rw [kc, kq]; exact hnq, hok.rel, hok.act, by rw [ki, kc]; exact hni,
         fun _ => (hS.act _ (hX.2.2.bound _ h.curT hok.bnd).1).2 hok.rmx⟩
     have hU : UserOK st T Cs Ω H U s := hU1.ksb hw.1
-    refine WP.spec_mono (WP.spec_and (faults.handle_timeout.bxi hA (xferOK_rs hxf hxw hRSK) s a _ f
+    refine WP.spec_mono (WP.spec_and (faults.handle_timeout.bxi hA (xferOK_rs hxf hxw hRSK) s a _ (error.Fault.Timeout f)
       (XGR.faultG hRSK hG.1 hrs hk hU hc) hk hU hc (hcap s hw))
-      (faults.handle_timeout.footN (Nd := Nd) hA hxf hxw s a _ f hk hU hc (hcap s hw) hRSK
+      (faults.handle_timeout.footN (Nd := Nd) hA hxf hxw s a _ (error.Fault.Timeout f) hk hU hc (hcap s hw) hRSK
         hrs hG.1 hKt hKT hKB (hG.2.out hKa0))) ?_
     rintro ⟨s', a'⟩ hr
     simp only [WP.uncurry'_pair] at hr ⊢
