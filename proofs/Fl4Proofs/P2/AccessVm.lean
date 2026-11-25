@@ -18,7 +18,7 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 /-- The ASID table and pool words `find_asid` may read. -/
 def RdTab (R : U64 → Prop) (s : S) : Prop :=
@@ -31,7 +31,7 @@ def RdVm (R : U64 → Prop) (s : S) (t : U64) : Prop :=
   R (vtA t) ∧ R (core.num.U64.wrapping_add (vtA t) 8#u64) ∧ R (krA (L := L) s) ∧ RdTab (L := L) R s
 
 theorem vspace.asid_table.guard (s : S) (hi : U64) (h : R (atAF (L.ksb s) (hi &&& 2047#u64))) :
-    vspace.asid_table (guard st R W) s hi = vspace.asid_table st s hi := by
+    vspace.asid_table gS s hi = vspace.asid_table st s hi := by
   have hN : vspace.N_ASID_POOLS = 2048#u64 := by unfold vspace.N_ASID_POOLS; rfl
   unfold vspace.asid_table
   rw [hN]
@@ -49,7 +49,7 @@ theorem vspace.asid_table.guard (s : S) (hi : U64) (h : R (atAF (L.ksb s) (hi &&
   exact h
 
 theorem vspace.find_asid.guard (s : S) (asid : U64) (h : RdTab (L := L) R s) :
-    vspace.find_asid (guard st R W) s asid = vspace.find_asid st s asid := by
+    vspace.find_asid gS s asid = vspace.find_asid st s asid := by
   unfold vspace.find_asid
   refine bind_guard_congr rfl fun i _ => ?_
   obtain ⟨h1, h2⟩ := h (i &&& 2047#u64) (and2047_lt i)
@@ -60,19 +60,19 @@ theorem vspace.find_asid.guard (s : S) (asid : U64) (h : RdTab (L := L) R s) :
   · simp only [hp, ↓reduceIte, lift, bind_ok]
     have h3 := h2 (asid &&& 511#u64) (and511_lt asid) hp
     unfold peAF at h3
-    rw [guard_read h3]
+    rw [gst_read h3]
 
 theorem vspace.find_vspace_for_asid.guard (s : S) (asid : U64) (h : RdTab (L := L) R s) :
-    vspace.find_vspace_for_asid (guard st R W) s asid = vspace.find_vspace_for_asid st s asid := by
+    vspace.find_vspace_for_asid gS s asid = vspace.find_vspace_for_asid st s asid := by
   unfold vspace.find_vspace_for_asid
   rw [vspace.find_asid.guard s asid h]
 
 /-- **`set_vm_root t`** reads only `RdVm` and writes nothing. -/
 theorem vspace.set_vm_root.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) (t : U64)
     (h : RdVm (L := L) R s t) :
-    vspace.set_vm_root (guard st R W) ar s a t = vspace.set_vm_root st ar s a t := by
+    vspace.set_vm_root gS ar s a t = vspace.set_vm_root st ar s a t := by
   obtain ⟨h0, h8, hk, ht⟩ := h
-  have K : vspace.set_kernel_vm_root (PathObl.guard st R W) ar s a = vspace.set_kernel_vm_root st ar s a :=
+  have K : vspace.set_kernel_vm_root gS ar s a = vspace.set_kernel_vm_root st ar s a :=
     vspace.set_kernel_vm_root.guard ar s a hk
   unfold vspace.set_vm_root
   rw [slot_vt]

@@ -25,20 +25,20 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 variable {s : S} {sc : obj.Sc} {sb : Nat}
 
 theorem sporadic.sc_active.guardSl (s : S) (sc : obj.Sc) (h : R (maxA sc)) :
-    sporadic.sc_active (PathObl.guard st R W) s sc = sporadic.sc_active st s sc := by
+    sporadic.sc_active gS s sc = sporadic.sc_active st s sc := by
   unfold sporadic.sc_active
   rw [obj.Sc.refill_max.guard sc s h]
 
 theorem sporadic.unblock_check.guardS (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb)
     (hrep : Aligned (L.nodeA s layout.node.REPROGRAM) ∧ Outside (L.nodeA s layout.node.REPROGRAM) sc sb)
     (hct : R (ctA (L := L) s)) (hrp : W (L.nodeA s layout.node.REPROGRAM)) :
-    sporadic.unblock_check (PathObl.guard st R W) s sc = sporadic.unblock_check st s sc := by
+    sporadic.unblock_check gS s sc = sporadic.unblock_check st s sc := by
   unfold sporadic.unblock_check
-  rw [sporadic.is_round_robin.guard s sc (hS.off h _ (by simp)), sporadic.ready.guard s sc (hS.head h) hct]
+  rw [sporadic.is_round_robin.guard s sc (hS.off h _ (by simp) (by simp)), sporadic.ready.guard s sc (hS.head h) hct]
   refine bind_guard_congr rfl fun b _ => ?_
   split
   · rfl
@@ -52,7 +52,7 @@ theorem sporadic.unblock_check.guardS (hS : ScAcc R W sc sb) (h : RefillsWF st s
     rw [eq_ok_of_spec (sporadic.set_head.eq s sc _)] at hs1
     cases ok_inj_ff hs1
     have h1 := h.putS (r := { time := now, amount := hd.amount }) h.head_lt
-    simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+    simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
     have e : ∀ r : sporadic.Refill, L.nodeAt (L.putS s sc (L.rhead s sc) r)
         (L.cpu (L.putS s sc (L.rhead s sc) r)) layout.node.REPROGRAM = L.nodeA s layout.node.REPROGRAM := by
       intro r; simp [LawfulStore.putS, LawfulStore.nodeA]
@@ -61,7 +61,7 @@ theorem sporadic.unblock_check.guardS (hS : ScAcc R W sc sb) (h : RefillsWF st s
     rw [eq_ok_of_spec (obj.node_set.spec _ _ _ _), e] at hs2
     cases ok_inj_ff hs2
     have h2 := h1.wr_out (v := 1#u64) hrep.1 hrep.2
-    rw [obj.Sc.refill_max.guard sc _ (hS.off h2 _ (by simp))]
+    rw [obj.Sc.refill_max.guard sc _ (hS.off h2 _ (by simp) (by simp))]
     refine bind_guard_congr rfl fun i _ => ?_
     simp only [lift, bind_ok]
     exact sporadic.unblock_check_loop.guardS hS h2 _
@@ -70,14 +70,14 @@ theorem sporadic.unblock_check.guardS (hS : ScAcc R W sc sb) (h : RefillsWF st s
 theorem sporadic.budget_check.guardS {A : Type} (ar : machine.Arch A) (a : A) (usage : U64)
     (hS : ScAcc R W sc sb) (h : RefillsWF st s sc sb) (hcur : L.mem s (L.nodeA s layout.node.CUR_SC) = sc)
     (hcs : R (L.nodeA s layout.node.CUR_SC)) :
-    sporadic.budget_check (PathObl.guard st R W) ar s a usage = sporadic.budget_check st ar s a usage := by
+    sporadic.budget_check gS ar s a usage = sporadic.budget_check st ar s a usage := by
   unfold sporadic.budget_check
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_get.guard s _ _ hcs, node_get_ok]
   simp only [bind_ok]
   have e : L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_SC) = sc := hcur
   rw [e]
-  simp only [obj.Sc.period.guard sc s (hS.off h _ (by simp)), sporadic.budget_check_loop0.guardS hS h]
+  simp only [obj.Sc.period.guard sc s (hS.off h _ (by simp) (by simp)), sporadic.budget_check_loop0.guardS hS h]
   refine bind_guard_congr rfl fun mrt _ => ?_
   refine bind_guard_congr rfl fun per _ => ?_
   refine bind_guard_congr rfl fun p hp => ?_
@@ -99,7 +99,7 @@ theorem sporadic.budget_check.guardS {A : Type} (ar : machine.Arch A) (a : A) (u
         exact post_of_ok (sporadic.schedule_used.wf _ (post_of_ok (sporadic.set_head.wf _ h1) hs3)) hs2
       all_goals (cases ok_inj_ff hs2; exact h1)
     refine bind_guard_congr rfl fun mb _ => ?_
-    rw [obj.Sc.refill_max.guard sc s2 (hS.off h2 _ (by simp))]
+    rw [obj.Sc.refill_max.guard sc s2 (hS.off h2 _ (by simp) (by simp))]
     refine bind_guard_congr rfl fun i2 _ => ?_
     simp only [lift, bind_ok]
     exact sporadic.budget_check_loop1.guardS hS h2 _ _
@@ -111,7 +111,7 @@ theorem sched.commit_time.guardS {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     (hcons : Aligned (L.nodeA s layout.node.CONSUMED)) (hconsO : Outside (L.nodeA s layout.node.CONSUMED) c sb)
     (hcs : R (L.nodeA s layout.node.CUR_SC)) (hid : R (L.nodeA s layout.node.IDLE_SC))
     (hcn : R (L.nodeA s layout.node.CONSUMED)) (hcw : W (L.nodeA s layout.node.CONSUMED)) :
-    sched.commit_time (PathObl.guard st R W) ar s a = sched.commit_time st ar s a := by
+    sched.commit_time gS ar s a = sched.commit_time st ar s a := by
   have hfr := sched.commit_time.fr hA a h0 hcur hcons hconsO
   unfold sched.commit_time at hfr ⊢
   rw [sched.cur_sc.guard s hcs, eq_ok_of_spec (sched.cur_sc.spec s), hcur]
@@ -131,12 +131,12 @@ theorem sched.commit_time.guardS {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
         refine bind_guard_congr rfl fun cu _ => ?_
         obtain ⟨r1, w1, r2, w2⟩ := hS.rt h h.head_lt
         obtain ⟨r3, w3, r4, w4⟩ := hS.rt h h.tail_lt
-        simp only [sporadic.is_round_robin.guard s c (hS.off h layout.sc.PERIOD (by simp)),
-          obj.Sc.refill_head.guard _ s (hS.off h _ (by simp)), obj.Sc.refill_tail.guard _ s (hS.off h _ (by simp)),
+        simp only [sporadic.is_round_robin.guard s c (hS.off h layout.sc.PERIOD (by simp) (by simp)),
+          obj.Sc.refill_head.guard _ s (hS.off h _ (by simp) (by simp)), obj.Sc.refill_tail.guard _ s (hS.off h _ (by simp) (by simp)),
           eq_ok_of_spec (obj.Sc.refill_head.spec s c), eq_ok_of_spec (obj.Sc.refill_tail.spec s c), bind_ok,
           sporadic.get.guard _ _ _ r1 r2, sporadic.get.guard _ _ _ r3 r4, sporadic.put.guard _ _ _ w1 w2,
           sporadic.put.guard _ _ _ w3 w4, sporadic.budget_check.guardS ar a _ hS h hcur hcs,
-          obj.Sc.consumed.guard _ _ (hS.off h _ (by simp)), obj.Sc.set_consumed.guard _ _ _ hS.cons]
+          obj.Sc.consumed.guard _ _ (hS.off h _ (by simp) (by simp)), obj.Sc.set_consumed.guard _ _ _ hS.cons]
       · rfl
     · rfl
   · rw [hb] at hfr
@@ -162,7 +162,7 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
     (hti : i ≠ c → RefillsWF st s i zt ∧ ∀ b, InSC i zt b → Outside b c zc)
     (hSc : ScAcc R W c zc) (hSi : i ≠ c → ScAcc R W i zt)
     (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA s o) ∧ W (L.nodeA s o)) (hsc : R (scA (L.curW s))) :
-    sched.switch_sched_context (PathObl.guard st R W) ar s a = sched.switch_sched_context st ar s a := by
+    sched.switch_sched_context gS ar s a = sched.switch_sched_context st ar s a := by
   have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
   have cs : layout.node.CUR_SC.val = 24 := by simp [layout.node.CUR_SC]
   have cn : layout.node.CONSUMED.val = 40 := by simp [layout.node.CONSUMED]
@@ -196,7 +196,7 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
       rw [eq_ok_of_spec (sched.set_reprogram.spec s)] at hs3
       cases ok_inj_ff hs3
       have hSt3 := (hti hne).1.wr_out (v := 1#u64) aR (oRi hne)
-      rw [sporadic.sc_constant_bandwidth.guard _ i (hSi'.off hSt3 _ (by simp))]
+      rw [sporadic.sc_constant_bandwidth.guard _ i (hSi'.off hSt3 _ (by simp) (by simp))]
       refine bind_guard_congr rfl fun b1 _ => ?_
       split
       · have e3 : ∀ o, L.nodeA (L.wr s (L.nodeA s layout.node.REPROGRAM) 1#u64) o = L.nodeA s o := fun o => by simp
@@ -246,13 +246,13 @@ theorem sched.switch_sched_context.guard {A : Type} {ar : machine.Arch A} (hA : 
         by_contra hn
         have hin : InSC c zc x := by unfold Outside at hn; push Not at hn; exact hn
         exact notC x hin h
-    simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+    simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
     have eN' : ∀ o, L.nodeAt s2 (L.cpu s2) o = L.nodeA s o := eN
     rw [obj.node_get.guard s2 _ _ (by rw [eN']; exact (nd _ (by rw [rp]; omega) (by rw [rp])).1), node_get_ok]
     simp only [bind_ok]
     refine bind_guard_congr ?_ fun s3 hs3 => ?_
     · split
-      · exact sched.commit_time.guardS hA a c m2 hSc wf2 (hSc.rd _ hcM.1 hcM.2) (by rw [eN]; exact aN)
+      · exact sched.commit_time.guardS hA a c m2 hSc wf2 (hSc.rd _ hcM.2 hcM.1) (by rw [eN]; exact aN)
           (by rw [eN]; exact oNc) (by rw [eN]; exact (nd _ (by rw [cs]; omega) (by rw [cs])).1)
           (by rw [eN]; exact (nd _ (by simp [layout.node.IDLE_SC]) (by simp [layout.node.IDLE_SC])).1)
           (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).1) (by rw [eN]; exact (nd _ (by rw [cn]; omega) (by rw [cn])).2)
