@@ -67,7 +67,8 @@ theorem rr_s3 {A : Type} (ar : machine.Arch A) {s1 s2 s3 : S} {a1 a2 a3 : A} {x 
       (L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.TIMER_MIN) = 0#u64 ∨
         L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.CUR_TIME) <
           L.mem s3 (tdA (L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.TIMER_MIN)))) ∧
-      RelNone st s3 := by
+      RelNone st s3 ∧ interrupt.irq_state st s2 irq = ok interrupt.IRQ_TIMER ∧ L.ksb s2 = L.ksb s1 ∧
+      L.cpu s2 = L.cpu s1 := by
   obtain ⟨Qq, Rq, h1⟩ := hI.1
   have hX1 := hI.2.2.1
   have hS1 := hI.2.2.2.2
@@ -173,7 +174,7 @@ theorem rr_s3 {A : Type} (ar : machine.Arch A) {s1 s2 s3 : S} {a1 a2 a3 : A} {x 
         (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])]
     exact hnow
   refine ⟨ha2, w13, by rw [action_hw hN2 w23]; exact hact2, hsch3, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    rr_rel hI hcT htime w13 (rel_false erel)⟩
+    rr_rel hI hcT htime w13 (rel_false erel), eis2, k2, c2⟩
   · rw [inqA_eq, ht23 _ hcT 3592#u64 (by simp) (by simp), ← inqA_eq]; exact hq2
   · rw [highest_prio_agree (Z := s3) _ hN2 (by rw [c2]; exact hB2) (by rw [c2]; exact hl12) w23.1 w23.2.1 hl1' hl2']
     exact hhp2
