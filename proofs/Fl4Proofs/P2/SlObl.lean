@@ -245,7 +245,7 @@ arm's replied thread, `Reply.tcb found.1`), `TW t` the words of `t` a run reads 
 `schedulable_here` checks `t`. Each field is a statement about the code of one arm:
 * `alt`: `thr` is read from the read set, so it is the same at every alternative;
 * `affR`: its `AFFINITY` (gate-owned, so `RPerm`) is in the read set;
-* `acc`: an accepting run passes `schedulable_here` on it (`AFFINITY = cur_cpu`);
+* `acc`: an accepting run at an alternative passes `schedulable_here` on it (`AFFINITY = cur_cpu`);
 * `home`: homed here, a declining run reads only `SlRS s` and writes only `SlDS s` (its words
   are then this core's);
 * `away`: homed elsewhere, a run at an alternative reads only `SlRS s` and `TW (thr s)`
@@ -255,8 +255,10 @@ structure SlThr (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) (thr
   alt : ∀ s s', P s →
     Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' → thr s' = thr s
   affR : ∀ s, P s → SlRS (st := st) K Locks s (affA (thr s))
-  acc : ∀ x a r, syscall.handle_syscall_local st ar x a n found = ok r → r.1 = true →
-    L.mem x (affA (thr x)) = L.cpu x
+  acc : ∀ s s' a r, P s →
+    Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
+    syscall.handle_syscall_local st ar s' a n found = ok r → r.1 = true →
+    L.mem s' (affA (thr s')) = L.cpu s'
   home : ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
     L.mem s (affA (thr s)) = L.cpu s →
     syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found = ok r
@@ -311,7 +313,7 @@ theorem sl_hna (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine
     exact hn
   · intro e
     apply hh
-    have ha := Th.acc s' a r' h' e
+    have ha := Th.acc s s' a r' hP Al h' e
     rw [Th.alt s s' hP Al, Al.read _ (Th.affR s hP), Al.cpu] at ha
     exact ha
 
