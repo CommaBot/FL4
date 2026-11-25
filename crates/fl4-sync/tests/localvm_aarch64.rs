@@ -464,3 +464,38 @@ fn the_timer_while_a_guest_runs_beside_the_gate_refines_handle_interrupt_entry()
     Ntfn(N).set_state(&mut sig, NTFN_ACTIVE);
     declines(&sig, &a, timer_local, timer_general);
 }
+
+/// `exit`'s choice of the gate: a stale address space takes it even after
+/// the VM check ran beside it (a remote call serviced while that check
+/// waited for the gate may have set the mark), and a VM thread whose check
+/// did not run beside it takes it too.
+#[test]
+fn a_stale_address_space_takes_the_gate_even_after_a_local_vm_check() {
+    use fl4_sync::localvm::arm_exit_takes_gate as takes;
+    // (multi, gate held, stale, checked, running a VM)
+    assert!(takes(true, false, true, true, true), "set while the local check waited");
+    assert!(takes(true, false, true, false, false));
+    assert!(takes(true, false, false, false, true));
+    assert!(!takes(true, false, false, true, true), "checked beside the gate");
+    assert!(!takes(true, false, false, false, false), "a native thread, nothing stale");
+    assert!(!takes(true, true, true, false, true), "held already");
+    assert!(!takes(false, false, true, false, true), "one core: no gate");
+}
+
+/// The guest thread's own timer is the earliest (its bound notification in
+/// the timer plan): the kernel timer while its guest runs still goes beside
+/// the gate, the notification locked once.
+#[test]
+fn the_timer_with_the_callers_own_timer_armed_goes_beside_the_gate() {
+    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let (mut s, mut a) = fixture();
+    running(&mut s, &mut a);
+    ks_set(&mut s, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
+    fl4_core::timer::insert(&mut s, CT, NOW + 10_000, 9);
+    let p = fl4_core::localtimer::plan_timer_irq(&s, TIMER_IRQ).unwrap();
+    assert!(p.objects[..p.n].iter().any(|&(o, _)| o == N));
+    refines(&s, &a, timer_local, timer_general);
+    let mut h = lock::Held::new();
+    assert!(lock::try_lock_object(&Atomics, N, &mut h) && lock::try_lock_object(&Atomics, VC, &mut h));
+    lock::unlock_held(&Atomics, &mut h);
+}

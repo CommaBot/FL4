@@ -737,11 +737,15 @@ pub fn exit() -> ! {
                 fl4_sync::Local::Closed | fl4_sync::Local::Declined => {}
             }
         }
-        if smp::multi()
-            && !checked
-            && !pc.gate_held.get()
-            && (pc.vspace_stale.get() || ct.state(s) == sched::TS_RUNNING_VM)
-        {
+        // `vspace_stale` read again: a remote call serviced while the local
+        // check waited for the gate may have set it.
+        if fl4_sync::localvm::arm_exit_takes_gate(
+            smp::multi(),
+            pc.gate_held.get(),
+            pc.vspace_stale.get(),
+            checked,
+            ct.state(s) == sched::TS_RUNNING_VM,
+        ) {
             settle_resume_point(s, ct);
             lock();
             continue;

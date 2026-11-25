@@ -878,9 +878,21 @@ pub fn decode<S: Store, A: Arch>(
             let val = sanitize_vmcs(a, f, value)?;
             write_vmcs(s, v, f, val);
             // As WriteVMCB: a software write of the guest's paging state
+            // (its paging registers, the PAE PDPTEs VM entry loads, and the
+            // entry controls that set IA-32e mode or load EFER and PAT)
             // performs none of the guest's own TLB invalidation, so its
             // VPID's translations are flushed on re-entry.
-            if f == GUEST_CR0 || f == GUEST_CR3 || f == GUEST_CR4 || f == GUEST_EFER || f == GUEST_PAT {
+            if f == GUEST_CR0
+                || f == GUEST_CR3
+                || f == GUEST_CR4
+                || f == GUEST_EFER
+                || f == GUEST_PAT
+                || f == GUEST_PDPTE0
+                || f == GUEST_PDPTE1
+                || f == GUEST_PDPTE2
+                || f == GUEST_PDPTE3
+                || f == CONTROL_ENTRY_CONTROLS
+            {
                 set(s, v, SVM_CPU, 0);
             }
             reply(s, call, val);

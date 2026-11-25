@@ -527,6 +527,19 @@ mod arm {
         true
     }
 
+    /// Whether AArch64 `exit` must take the serial gate (and go round its
+    /// loop again) before it goes on, on a core with several cores
+    /// running: not holding it, with the address space this core ran gone
+    /// stale (`vspace_stale`, which `set_vm_root` then rebuilds from caps a
+    /// serial entry may be deleting), or with a thread in a VM whose
+    /// `vcpu::check` has not run beside the gate (`checked`, from
+    /// `arm_vm_entry_ready`). The stale mark is read after that local check:
+    /// a remote call serviced while it waited for the gate to open may have
+    /// set it, and a local check does not cover it.
+    pub fn arm_exit_takes_gate(multi: bool, gate_held: bool, vspace_stale: bool, checked: bool, running_vm: bool) -> bool {
+        multi && !gate_held && (vspace_stale || (!checked && running_vm))
+    }
+
     /// The check `exit` makes before an `ARMVCPURun` caller's guest runs
     /// (`vcpu::check`), beside the serial gate, holding the lock of its
     /// bound notification `n`: true when it would change nothing (the run

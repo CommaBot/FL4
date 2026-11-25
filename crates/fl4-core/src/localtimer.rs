@@ -167,15 +167,17 @@ pub fn sched_quiet<S: Store>(s: &S, cpu: u64) -> bool {
 
 /// A thread `schedule()` may make current on this core and `exit` run
 /// without the gate: this core's, not running a VM (whose VCPU state is
-/// the gate's), with no yield to complete (`activate_thread`), no VCPU
-/// bound (AArch64 `exit` loads it) and its scheduling context, if any, on
-/// this core.
+/// the gate's), with no yield to complete (`activate_thread`), on AArch64
+/// no VCPU bound (its `exit` loads it; on x86 a thread with a bound VCPU
+/// outside `TS_RUNNING_VM` is a native thread to `exit`, `vcpu::check`
+/// and `set_vm_root`, as an l4h vCPU thread handling its guest's exit is)
+/// and its scheduling context, if any, on this core.
 pub fn may_run_here<S: Store>(s: &S, cpu: u64, t: Tcb) -> bool {
     !t.is_null()
         && t.affinity(s) == cpu
         && t.state(s) != sched::TS_RUNNING_VM
         && t.yield_to(s) == 0
-        && vcpu::bound(s, t) == 0
+        && (!cfg!(feature = "aarch64") || vcpu::bound(s, t) == 0)
         && (t.sc(s) == 0 || Sc(t.sc(s)).cpu(s) == cpu)
 }
 

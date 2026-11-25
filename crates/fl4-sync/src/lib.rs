@@ -313,14 +313,24 @@ pub fn run_syscall<E: EntryEnv>(
     // will decline again, so it does not wait next time. Nor does a
     // TCB_SetTimer that declined (most often: on another core's thread),
     // but one that found the gate closed may run beside it next time.
-    // A VM's syscalls (`SysVMEnter`, its VCPU's state invocations) have
-    // no fast path under the gate either, and usually run beside it.
-    let hit = fast.get()
-        || candidate == Candidate::Port
-        || candidate == Candidate::Vm
-        || (candidate == Candidate::SetTimer && matches!(res, Local::Closed));
+    // So with a VM's syscalls (`SysVMEnter`, VCPU state invocations,
+    // `ARMVCPURun`): one that declined (another thread's VCPU, nVHE) will
+    // again.
+    let hit = local_hit_after(candidate, fast.get(), &res);
     env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, hit as u64, Ordering::Relaxed);
     ran
+}
+
+/// Whether a syscall that `run_syscall` ran under the gate, after its local
+/// attempt ended in `res`, leaves this core waiting for a closed gate next
+/// time (`local_hit`): a fast path ran under the gate, or it was an I/O
+/// port access, or a `TCB_SetTimer` or VM syscall that found the gate
+/// closed (it may run beside it next time; one that declined would again).
+#[inline(always)]
+fn local_hit_after(candidate: Candidate, fast: bool, res: &Local) -> bool {
+    fast
+        || candidate == Candidate::Port
+        || ((candidate == Candidate::SetTimer || candidate == Candidate::Vm) && matches!(res, Local::Closed))
 }
 
 /// A VM fault from user code: on several cores, first try its fast path
@@ -916,9 +926,18 @@ fn local_vm_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M
         ok = ok && lock_object(m, p.objects[i].0, held);
     }
     objects[p.n] = (v, bytes);
-    objects[p.n + 1] = (n, 64);
-    ok && lock_if(m, v, held) && lock_if(m, n, held) && {
-        observe(s, &objects[..p.n + 2]);
+    // `n` is the plan's own notification when the earliest timer is the
+    // guest thread's (a vCPU thread arms its guest's timer on itself): held
+    // already, and not taken twice (the locks are not reentrant).
+    let planned = p.objects[..p.n].iter().any(|&(o, _)| o == n);
+    let k = if n == 0 || planned {
+        p.n + 1
+    } else {
+        objects[p.n + 1] = (n, 64);
+        p.n + 2
+    };
+    ok && lock_if(m, v, held) && (planned || lock_if(m, n, held)) && {
+        observe(s, &objects[..k]);
         localvm::handle_vm_timer_irq_local(s, a, irq, &p, n)
     }
 }
@@ -1066,6 +1085,24 @@ mod tests {
         for m in mutants {
             assert!(guard.contains(&std::format!("feature = \"{m}\"")), "{m} is not refused on bare metal");
         }
+    }
+
+    /// A syscall that declined beside the gate does not make the core wait
+    /// for a closed gate next time, unless its fast path ran under the gate
+    /// or it is an I/O port access; a `TCB_SetTimer` or VM syscall that
+    /// found the gate closed does.
+    #[test]
+    fn only_closed_gates_or_fast_paths_keep_the_core_waiting() {
+        for c in [Candidate::SetTimer, Candidate::Vm] {
+            assert!(local_hit_after(c, false, &Local::Closed));
+            assert!(!local_hit_after(c, false, &Local::Declined));
+            assert!(!local_hit_after(c, false, &Local::Stalled));
+            assert!(local_hit_after(c, true, &Local::Declined));
+        }
+        assert!(local_hit_after(Candidate::Port, false, &Local::Declined));
+        assert!(!local_hit_after(Candidate::Invocation, false, &Local::Closed));
+        assert!(local_hit_after(Candidate::Fast, true, &Local::Declined));
+        assert!(!local_hit_after(Candidate::Fast, false, &Local::Closed));
     }
 
     #[test]

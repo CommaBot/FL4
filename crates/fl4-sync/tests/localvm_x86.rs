@@ -594,3 +594,58 @@ fn vm_entry_checks_beside_the_gate_write_nothing() {
     lock::unlock_held(&Atomics, &mut other);
     assert_eq!(node_get(&serial, CPU, node::CUR_THREAD), CT.0);
 }
+
+/// On x86 an l4h vCPU thread, bound to its VCPU but outside
+/// `TS_RUNNING_VM` (handling its guest's exit), is a native thread to the
+/// timer's local paths: its `TCB_SetTimer` on itself (the guest's timer)
+/// and a timer interrupt while it runs user code go beside the gate.
+#[test]
+fn a_vcpu_threads_own_timer_and_timer_interrupt_go_beside_the_gate() {
+    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let (mut s, a) = fixture();
+    const SELF_CPTR: u64 = 5;
+    Slot::index(ROOT_CNODE, SELF_CPTR).set_cap(&mut s, Cap::Thread { ptr: CT.0 });
+    let mut st = s.clone();
+    syscall_regs(&mut st, label::TCBSetTimer, 2, SELF_CPTR, &[NOW + 10_000, 9]);
+    let local = |s: &mut Memory, a: &mut Machine| fl4_sync::local_syscall(s, a, &Atomics, sc::SysCall, |_, _| {});
+    let general = |s: &mut Memory, a: &mut Machine| syscall::handle_syscall(s, a, sc::SysCall);
+    let (ls, _) = refines(&st, &a, local, general);
+    assert_eq!(CT.timer_deadline(&ls), NOW + 10_000);
+    // The timer interrupt in user code, with its own timer armed (not due).
+    let mut ti = ls.clone();
+    ks_set(&mut ti, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
+    let local = |s: &mut Memory, a: &mut Machine| fl4_sync::local_timer_irq(s, a, &Atomics, TIMER_IRQ, |_, _| {});
+    let general = |s: &mut Memory, a: &mut Machine| syscall::handle_interrupt_entry(s, a, TIMER_IRQ);
+    refines(&ti, &a, local, general);
+    // In `TS_RUNNING_VM` it is not: that is the VM exit's path.
+    let mut vm = ti.clone();
+    running_vm(&mut vm);
+    let mut lv = vm.clone();
+    assert!(!fl4_sync::local_timer_irq(&mut lv, &mut a.clone(), &Atomics, TIMER_IRQ, |_, _| {}));
+    assert!(lv.diff(&vm).is_empty());
+}
+
+/// A vCPU thread whose own guest timer is the earliest (`TIMER_MIN`, its
+/// bound notification in the timer plan) still takes a kernel timer exit
+/// beside the gate: the notification is locked once.
+#[test]
+fn a_timer_exit_with_the_guests_own_timer_armed_goes_beside_the_gate() {
+    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let (mut s, a) = fixture();
+    exited(&mut s, false);
+    ks_set(&mut s, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
+    fl4_core::timer::insert(&mut s, CT, NOW + 10_000, 9);
+    assert_eq!(node_get(&s, CPU, node::TIMER_MIN), CT.0);
+    let p = fl4_core::localtimer::plan_timer_irq(&s, TIMER_IRQ).unwrap();
+    assert!(p.objects[..p.n].iter().any(|&(o, _)| o == N), "the plan holds the guest's notification");
+    let (ls, _) = refines(&s, &a, vm_exit_local(TIMER_IRQ), vm_exit_general(TIMER_IRQ));
+    assert_eq!(CT.state(&ls), sched::TS_RUNNING_VM);
+    // Due: its signal is the gate's (the guest's notification, `report`).
+    let mut due = s.clone();
+    fl4_core::timer::insert(&mut due, CT, NOW - 1, 9);
+    declines(&due, &a, vm_exit_local(TIMER_IRQ), vm_exit_general(TIMER_IRQ));
+    // Nothing left locked.
+    let mut h = lock::Held::new();
+    assert!(lock::try_lock_object(&Atomics, N, &mut h) && lock::try_lock_object(&Atomics, V, &mut h));
+    lock::unlock_held(&Atomics, &mut h);
+}
