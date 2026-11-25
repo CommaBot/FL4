@@ -33,7 +33,7 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
     (hwt : L.epState X n = obj.NTFN_WAITING) (hwq : (L.epQ X n).head = w) (hmem : w ∈ EQ n)
     (hcur : w ≠ L.curW X) (hac : L.actionW X = sched.ACTION_RESUME_CURRENT)
     (P : WkPre st R W X w n sb) (hnsΩ : ntfnScA n ∈ Ω)
-    (hscΩ : ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → b ∈ Ω)
+    (hscΩ : L.mem X (scA w) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → b ∈ Ω)
     (hAo : Outside (L.nodeA X layout.node.SCHED_ACTION) (L.mem X (scA w)) sb)
     {X' : S} {a' : A} (hr : notification.send_signal st ar X a n badge = ok (X', a')) :
     a' = a ∧
@@ -134,7 +134,7 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
   have hY : ∀ Y, WritesIn st X1 Y (WkD st X1 w) → WkPre st R W Y w n sb := by
     intro Y wY
     refine P.agree (wY.1.trans k1) (wY.2.1.trans c1) ?_ (oK Y _ wY hnsΩ) ?_ (cdK Y wY) ?_
-      (fun b hb hin => oK Y b wY (hscΩ b hb hin))
+      (fun h0 b hb hin => oK Y b wY (hscΩ h0 b hb hin))
     · rw [scA_eq]; exact tK Y 3464#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3432#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3520#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
@@ -176,7 +176,7 @@ theorem wake_recv_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge t
     (aRt : r ≠ 0#u64 → Aligned (rTcbA r))
     (hcur : t ≠ L.curW X) (hac : L.actionW X = sched.ACTION_RESUME_CURRENT)
     (P : WkPre st R W X t n sb) (hnsΩ : ntfnScA n ∈ Ω)
-    (hscΩ : ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → b ∈ Ω)
+    (hscΩ : L.mem X (scA t) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → b ∈ Ω)
     (hRt : r ≠ 0#u64 → ∀ b, (b = ntfnScA n ∨ (Aligned b ∧ InSC (L.mem X (scA t)) sb b) ∨
       b = core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN ∨
       (∃ o : U64, o.val < 4288 ∧ b = L.nodeAt X (L.cpu X) o) ∨
@@ -417,8 +417,9 @@ theorem wake_recv_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge t
       tK Y 3520#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
     have e2 : L.mem Y (ntfnScA n) = L.mem X (ntfnScA n) := oK Y (ntfnScA n) wY hnsΩ hRn
     have e4 := cdK Y wY
-    have e6 : ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → L.mem Y b = L.mem X b := fun b hb hin =>
-      oK Y b wY (hscΩ b hb hin) fun hr0 => hRt hr0 b (Or.inr (Or.inl ⟨hb, hin⟩))
+    have e6 : L.mem X (scA t) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → L.mem Y b = L.mem X b :=
+        fun h0 b hb hin =>
+      oK Y b wY (hscΩ h0 b hb hin) fun hr0 => hRt hr0 b (Or.inr (Or.inl ⟨hb, hin⟩))
     exact P.agree (wY.1.trans k4) (wY.2.1.trans c4) e1 e2 e3 e4 e5 e6
   have hcur4 : t ≠ L.curW X4 := by
     have : L.curW X4 = L.curW X := nodeK X4 wX4 layout.node.CUR_THREAD (by rw [curth_val]; omega) (by rw [curth_val])
