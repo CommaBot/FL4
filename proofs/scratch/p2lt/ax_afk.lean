@@ -63,6 +63,8 @@ import Fl4Proofs.P2.FootTimerFireSy1
 import Fl4Proofs.P2.FootTimerFireSy2
 import Fl4Proofs.P2.FootTimerFireSy
 import Fl4Proofs.P2.FootTimerIrqLPP2
+import Fl4Proofs.P2.FootTimerIrqLPP3
+import Fl4Proofs.P2.FootTimerIrqSlotJ
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -359,3 +361,21 @@ import Fl4Proofs.P2.FootTimerIrqLPP2
 #print axioms Fl4Proofs.P2.irq_acc_fire_wk2
 #print axioms Fl4Proofs.P2.irq_move_fire_wk2
 #print axioms Fl4Proofs.P2.irq_localPathP2
+#print axioms Fl4Proofs.P2.fire_ibFr
+#print axioms Fl4Proofs.P2.fire_bufAt3
+#print axioms Fl4Proofs.P2.irq_bufAt_run
+#print axioms Fl4Proofs.P2.irq_localPathP3
+#print axioms Fl4Proofs.P2.SlotLayV
+#print axioms Fl4Proofs.P2.SlotLay.v
+#print axioms Fl4Proofs.P2.slot_maxRV
+#print axioms Fl4Proofs.P2.OwnMap.LayP.slot_uniqW
+#print axioms Fl4Proofs.P2.OwnMap.LayP.region_slotW
+#print axioms Fl4Proofs.P2.slotLayV_of_JAtZ
+#print axioms Fl4Proofs.P2.SlotJ
+#print axioms Fl4Proofs.P2.SlotJ.slotLayV
+#print axioms Fl4Proofs.P2.irq_localPathP3J
+#print axioms Fl4Proofs.P2.OwnMap.LayP.region_objW
+#print axioms Fl4Proofs.P2.objLay_of_layP
+#print axioms Fl4Proofs.P2.SlotJ.layP
+#print axioms Fl4Proofs.P2.SlotJ.objLay
+#print axioms Fl4Proofs.P2.irq_localPathP3J2
