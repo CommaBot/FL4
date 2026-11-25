@@ -155,6 +155,8 @@ import Fl4Proofs.P1.EntryXG
 import Fl4Proofs.P1.EntryXGTop
 import Fl4Proofs.P1.EntryFin
 import Fl4Proofs.P1.EntryVacuous
+import Fl4Proofs.P1.DomInv
+import Fl4Proofs.P1.DomInvQ
 import Fl4Proofs.P1.QueueSortedC
 import Fl4Proofs.P1.QueueSchedCtl
 import Fl4Proofs.P1.QueueDecIrq
@@ -241,6 +243,8 @@ import Fl4Proofs.P2.AllSched
 import Fl4Proofs.P2.FootN8
 import Fl4Proofs.P2.FootN9
 import Fl4Proofs.P2.FootN10
+import Fl4Proofs.P2.EntryEnd
+import Fl4Proofs.P2.FootN11
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
@@ -1578,9 +1582,11 @@ import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.XTopJointKEntryVm
 import Fl4Proofs.P3.XTopJointKEntryU29S
 import Fl4Proofs.P3.XTopJointEntryInv29
+import Fl4Proofs.P3.XTopJointDomInv29
 import Fl4Proofs.P3.XTopJointKEntryU29I
 import Fl4Proofs.P1.LocalInv
 import Fl4Proofs.P3.XTopJointKEntryInvL
+import Fl4Proofs.P3.XTopJointRBuf
 import Fl4Proofs.P3.XTopJointKEntryU29D
 import Fl4Proofs.P1.LocalTimer
 import Fl4Proofs.P3.XTopJointKEntryU29T

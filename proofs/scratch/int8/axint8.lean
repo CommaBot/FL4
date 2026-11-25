@@ -836,3 +836,49 @@ section
 #print axioms Fl4Proofs.P2.PathObl.io_readOnce
 #print axioms Fl4Proofs.P2.PathObl.io_localPath
 end
+
+-- from scratch/hr_ax.lean
+section
+#print axioms Fl4Proofs.P2.Stall.AllCores.schedH
+#print axioms Fl4Proofs.P2.Stall.AllCores.schedBH
+#print axioms Fl4Proofs.P2.Stall.sched.awaken.rc
+#print axioms Fl4Proofs.P2.Stall.sched.possible_switch_to.rd
+#print axioms Fl4Proofs.P2.Stall.notification.send_signal.rd
+#print axioms Fl4Proofs.P2.Stall.timer.fire_loop.rd
+#print axioms Fl4Proofs.P2.Stall.sched.awaken_loop.rd
+#print axioms Fl4Proofs.P2.Stall.kw0_ne_cdom
+end
+
+-- from scratch/p1dom_ax.lean
+section
+#print axioms Fl4Proofs.P1.DomInv.writesIn
+#print axioms Fl4Proofs.P1.obj.Tcb.set_domain.domInv
+#print axioms Fl4Proofs.P1.create_tcb_domain.domInv
+#print axioms Fl4Proofs.P1.dom_lt_num
+#print axioms Fl4Proofs.P3.Sched.SchedRel.domInv
+#print axioms Fl4Proofs.P3.sched.next_domain.domInv
+#print axioms Fl4Proofs.P3.JAtZ.domInv
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_domInvU29
+end
+
+-- from scratch/p1dom_ax2.lean
+section
+#print axioms Fl4Proofs.P1.sched.possible_switch_to.domInv
+#print axioms Fl4Proofs.P1.sched.reschedule_required.domInv
+#print axioms Fl4Proofs.P1.sched.release_remove.domInv
+#print axioms Fl4Proofs.P1.sched.dequeue.domInv
+end
+
+-- from scratch/p2je_ax.lean
+section
+#print axioms Fl4Proofs.P2.Stall.FootN.monoK
+#print axioms Fl4Proofs.P2.Stall.AllCores.bodyEnd
+#print axioms Fl4Proofs.P2.Stall.AllCores.schedB
+end
+
+-- from scratch/rbuf_ax.lean
+section
+#print axioms Fl4Proofs.P3.JAtZ.bufUser
+#print axioms Fl4Proofs.P3.JAtZ.curBufUser
+#print axioms Fl4Proofs.P3.JAtZ.rbufAt
+end
