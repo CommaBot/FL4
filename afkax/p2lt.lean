@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRW
 import Fl4Proofs.P2.FootTimerIrqRM
 import Fl4Proofs.P2.FootTimerIrqRT
 import Fl4Proofs.P2.FootTimerIrqCh
@@ -68,3 +69,8 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.cbRR_frame
 #print axioms Fl4Proofs.P2.sched.charge_budget.guard_rrC
 #print axioms Fl4Proofs.P2.sched.check_budget.guard_rr
+#print axioms Fl4Proofs.P2.round_robin_ok_true
+#print axioms Fl4Proofs.P2.refill_putS_ne
+#print axioms Fl4Proofs.P2.cbRR_head
+#print axioms Fl4Proofs.P2.rr_wr_out
+#print axioms Fl4Proofs.P2.rr_sufficient
