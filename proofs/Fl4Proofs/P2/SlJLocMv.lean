@@ -86,9 +86,9 @@ variable {arI AR MR}
 theorem LocRunMv.keepSt {Loc : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop}
     (hK : LocRunMv (L := L) arI AR Loc) (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap)
     (Cs : Set U64) : LocKeepSt (L := L) arI AR Loc th B H Cs := by
-  intro k s a σ s' a' σ' ⟨Z, Ac, Lst, D, hth, hB, hk, J⟩ hL
+  intro k s a σ s' a' σ' ⟨Z, Ac, Lst, D, hth, hB, hk, J, hvx⟩ hL
   obtain ⟨hk', G, V, Ac', Lst', D', J'⟩ := hK _ _ _ _ _ _ _ _ _ _ _ _ J hL
-  exact ⟨Z.mv G V, Ac', Lst', D', hth, hB, hk'.trans hk, J'⟩
+  exact ⟨Z.mv G V, Ac', Lst', D', hth, hB, hk'.trans hk, J', ⟨hvx.eq⟩⟩
 
 /-- `LocKeepSt` of a union of steps. -/
 theorem LocKeepSt.or {Loc₁ Loc₂ : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop}
@@ -122,7 +122,7 @@ theorem slJAt_layoutJ_of_jreachSt' {Loc : S → A → Fl4Spec.State Unit → S �
     (hK : LocKeepSt (L := L) arI AR Loc Z.th Z.B H Cs)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachSt (L := L) arI AR MR Loc Z.th Z.B H Cs k s a σ) :
     SlJAt (L := L) (layoutJ Z H k n) s := by
-  obtain ⟨Z', Ac, Lst, D, hth, hB, hk', J⟩ := h.atSt' hK
+  obtain ⟨Z', Ac, Lst, D, hth, hB, hk', J, -⟩ := h.atSt' hK
   obtain ⟨-, -, -, -, -, -, -, hX, -⟩ := jreach_invU3 hnd h.reach.1
   exact slJAt_of_JAtZ_stable J hX.cr.2 (layoutJ Z H k n) rfl (by rw [hth]; rfl) (by rw [hB]; rfl)
     hk'.symm hn
@@ -156,12 +156,12 @@ theorem jreachSt_tick (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR) (hM
 ghost; `BufPlaced` by `JAtZ.bufPlacedJ`, the word aligned (`TopPlaced`'s `balign`). -/
 theorem locKeepSt_user (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap) (Cs : Set U64) :
     LocKeepSt (L := L) arI AR (LocUser (L := L) B H) th B H Cs := by
-  intro k s a σ s' a' σ' ⟨Z, Ac, Lst, D, hth, hB, hk, J⟩ ⟨wp, hwB, v, hAp, hObj, hs, ha, hσ⟩
+  intro k s a σ s' a' σ' ⟨Z, Ac, Lst, D, hth, hB, hk, J, hvx⟩ ⟨wp, hwB, v, hAp, hObj, hs, ha, hσ⟩
   subst hs ha hσ
   have hwZ : wp ∈ Z.B := hB ▸ hwB
   have hal : P1.Aligned wp.1 := (J.xtop.fin.1.2.ep.balign wp hwZ).1
   have hkb : L.ksb (L.wr s wp.1 v) = L.ksb s := (P1.writesIn_wr (st := st) (s := s) hal (v := v)).1
-  exact ⟨Z, Ac, Lst, D, hth, hB, hkb.trans hk, J.userWrJ J.bufPlacedJ hwZ hAp hObj v⟩
+  exact ⟨Z, Ac, Lst, D, hth, hB, hkb.trans hk, J.userWrJ J.bufPlacedJ hwZ hAp hObj v, hvx⟩
 
 end
 
