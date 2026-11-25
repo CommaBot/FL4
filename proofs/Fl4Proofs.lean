@@ -223,6 +223,7 @@ import Fl4Proofs.P2.SlJEnt
 import Fl4Proofs.P2.SlJReach
 import Fl4Proofs.P2.SlJLay
 import Fl4Proofs.P2.SlJStab
+import Fl4Proofs.P2.SlJLocMv
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
