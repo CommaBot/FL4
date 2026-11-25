@@ -1613,6 +1613,13 @@ import Fl4Proofs.P2.OwnMapVcpu
 import Fl4Proofs.P2.SerialHw
 import Fl4Proofs.P2.E2EV
 import Fl4Proofs.P2.AccessLvm
+import Fl4Proofs.P2.AccessLvmRep
+import Fl4Proofs.P2.AccessLvmRepR0
+import Fl4Proofs.P2.AccessLvmRepR1a
+import Fl4Proofs.P2.AccessLvmRepR1b
+import Fl4Proofs.P2.AccessLvmRepR1
+import Fl4Proofs.P2.AccessLvmRepR
+import Fl4Proofs.P2.AccessLvmExit
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
