@@ -103,7 +103,7 @@ theorem scsOK_view {d c : U64} {s : S} (h : @SCsOK S (atCpu st d) (L.atCpu d) T 
     (hd : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scA t) ≠ cscAt st c s →
       ∀ b, InSC (L.mem s (scA t)) (Z (L.mem s (scA t))) b → Outside b (cscAt st c s) (Z (cscAt st c s))) :
     @SCsOK S (atCpu st c) (L.atCpu c) T Ω Sg Scs Z Ac s :=
-  ⟨h.sub, h.ks, h.ksΩ, hd, fun k hk => sca_view (h.all k hk), h.act, h.spor, h.spSg, h.rep, h.repSg⟩
+  ⟨h.sub, h.ks, h.ksΩ, hd, fun k hk => sca_view (h.all k hk), h.act, h.spor, h.spSg, h.rep, h.repSg, h.scKs⟩
 
 theorem sgOK_view {d c : U64} {s : S} (h : @SgOK S (atCpu st d) (L.atCpu d) Ω Sg s) :
     @SgOK S (atCpu st c) (L.atCpu c) Ω Sg s := ⟨h.sub, h.ks, h.ksΩ⟩

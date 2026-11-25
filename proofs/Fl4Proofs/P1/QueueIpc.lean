@@ -724,7 +724,7 @@ theorem SCsOK.bind {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64
     fun y hy hb hne => ?_, fun c hc => (hS.all c hc).agree ag,
     fun c hc => by rw [show L.rmax (L.wr s (scA t) c0) c = L.rmax s c from ag _ (hS.all c hc).2.1]; exact hS.act c hc,
     fun c hc h0 => hS.spor c hc (by rw [← ag _ (hS.spSg c hc)]; exact h0), hS.spSg,
-    fun c hc h0 => hS.rep c hc (by rw [← ag _ (hS.repSg c hc)]; exact h0), hS.repSg⟩
+    fun c hc h0 => hS.rep c hc (by rw [← ag _ (hS.repSg c hc)]; exact h0), hS.repSg, fun c hc => by rw [L.ksb_wr]; exact hS.scKs c hc⟩
   · rw [ecs] at hne ⊢
     by_cases e : y = t
     · subst e; rw [L.mem_wr_same ha] at hne ⊢; exact hdisj hne

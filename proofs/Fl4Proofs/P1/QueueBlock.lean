@@ -1026,7 +1026,7 @@ theorem SCsOK.keep' {s s' : S} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st 
     fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc),
     fun c hc => by rw [show L.rmax s' c = L.rmax s c from (hfix c hc).1]; exact hS.act c hc,
     fun c hc h0 => hS.spor c hc (by rw [← hsp c hc]; exact h0), hS.spSg,
-    fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0), hS.repSg⟩
+    fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0), hS.repSg, fun c hc => by rw [hk]; exact hS.scKs c hc⟩
   · rcases hsc y hy with e | e
     · rw [e] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
     · exact absurd e hb
@@ -1754,6 +1754,10 @@ def BlkOKM (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : 
     (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
   (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T Ac s ∧ XInvM st T Cs Ω Sg Rp Scs Nt Z s ∧
     SCsOK st T Ω Sg Scs Z Ac s ∧ SgOK st Ω Sg s
+
+/-- `SCsOK.scKsOut` at a `BlkOK` state: no SC overlaps the kernel-global area. -/
+theorem BlkOK.scKsOut {s : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    ∀ c ∈ Scs, c.val + 2 ^ Z c ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ c.val := h.2.2.2.1.scKs
 
 theorem BlkOK.m {s : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s :=
   ⟨h.1, h.2.1, h.2.2.1.m, h.2.2.2⟩

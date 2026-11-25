@@ -394,7 +394,7 @@ theorem BlkOK.addNtfn (A : AddOK st H N .ntfn Cs s) (hH : HeapOK H) {Ac : Set U6
   have sc : SCsOK st H.tcbs (H.add N .ntfn).omega (H.add N .ntfn).frame H.scs H.scBits Ac s :=
     ⟨sub, ks, kO, hS.disj,
       fun c hc => ⟨(hS.all c hc).1, fS (hS.all c hc).2.1, fun b ha hin => fS ((hS.all c hc).2.2 b ha hin)⟩,
-      hS.act, hS.spor, fun c hc => fS (hS.spSg c hc), hS.rep, fun c hc => fS (hS.repSg c hc)⟩
+      hS.act, hS.spor, fun c hc => fS (hS.spSg c hc), hS.rep, fun c hc => fS (hS.repSg c hc), hS.scKs⟩
   exact ⟨⟨Q, R, q⟩, hB, x, sc, ⟨sub, ks, kO⟩⟩
 
 
@@ -560,7 +560,7 @@ theorem BlkOK.addReply (A : AddOK st H N .reply Cs s) (hH : HeapOK H) {Ac : Set 
   have sc : SCsOK st H.tcbs (H.add N .reply).omega (H.add N .reply).frame H.scs H.scBits Ac s :=
     ⟨sub, ks, kO, hS.disj,
       fun c hc => ⟨(hS.all c hc).1, fS (hS.all c hc).2.1, fun b ha hin => fS ((hS.all c hc).2.2 b ha hin)⟩,
-      hS.act, hS.spor, fun c hc => fS (hS.spSg c hc), hS.rep, fun c hc => fS (hS.repSg c hc)⟩
+      hS.act, hS.spor, fun c hc => fS (hS.spSg c hc), hS.rep, fun c hc => fS (hS.repSg c hc), hS.scKs⟩
   exact ⟨⟨Q, R, q⟩, hB, x, sc, ⟨sub, ks, kO⟩⟩
 
 end

@@ -165,6 +165,7 @@ import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.IbKeepHolds
+import Fl4Proofs.P1.SchedFootB
 import Fl4Proofs.P1.QueueRestartFoot
 import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P2.Runtime
@@ -246,6 +247,12 @@ import Fl4Proofs.P2.FootN9
 import Fl4Proofs.P2.FootN10
 import Fl4Proofs.P2.EntryEnd
 import Fl4Proofs.P2.FootN11
+import Fl4Proofs.P2.EntryIrq
+import Fl4Proofs.P2.EntryTmr
+import Fl4Proofs.P2.EntryTail
+import Fl4Proofs.P2.EntryExit
+import Fl4Proofs.P2.EntryWire
+import Fl4Proofs.P2.EntryVcpu
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
