@@ -107,6 +107,23 @@ theorem body_split (M : machine.Store S) (s : S) (i d : U64) (stack : Array U64 
         else ok (ControlFlow.done found)
       else ok (ControlFlow.done found)) := rfl
 
+/-- `body_split` on a state tuple, its arguments as the loop passes them (`x.1`, `x.2.1`, …). -/
+theorem body_split_x (M : machine.Store S) (s : S) (i d : U64) (x : Array U64 32#usize × Usize × U64 × Bool × Bool) :
+    localtimer.in_core_timer_tree_loop.body M s i d x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2 =
+      (if x.2.1 > 0#usize then
+        if x.2.2.1 < localtimer.TREE_VISITS then
+          if x.2.2.2.1 then ok (ControlFlow.done x.2.2.2.1)
+          else if x.2.2.2.2 then ok (ControlFlow.done x.2.2.2.1)
+          else do
+            let visits1 ← x.2.2.1 + 1#u64
+            let sp1 ← x.2.1 - 1#usize
+            let i1 ← Array.index_usize x.1 sp1
+            ictTail i d x.1 sp1 visits1 x.2.2.2.1 x.2.2.2.2 i1 (obj.Tcb.timer_deadline M i1 s)
+              (obj.Tcb.timer_left M i1 s) (obj.Tcb.timer_right M i1 s)
+        else ok (ControlFlow.done x.2.2.2.1)
+      else ok (ControlFlow.done x.2.2.2.1)) :=
+  body_split M s i d x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2
+
 /-- **One step of the search reads only `TreeReads` words**: the guarded step is the real step. -/
 theorem ictt_body_eq {s : S} {c target d : U64} {Ks : List U64}
     (hR : ∀ w, TreeReads st s c Ks w → R w)
