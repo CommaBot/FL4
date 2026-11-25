@@ -21,17 +21,18 @@ open Fl4Proofs.P2.PathObl (guard guard_read)
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R W : U64 → Prop}
+variable {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
 
 theorem vcpu.bound.guardT (s : S) (t : U64) (h : R (core.num.U64.wrapping_add t 3664#u64)) :
-    vcpu.bound (guard st R W) s t = vcpu.bound st s t := by
+    vcpu.bound gS s t = vcpu.bound st s t := by
   unfold vcpu.bound
   rw [eq_of_spec_fd layout.tcb.VCPU.spec]
   simp only [lift, bind_ok]
-  exact guard_read h
+  exact PathObl.gst_read h
 
 theorem may_run_here.guard (s : S) (cpu t : U64) (h1 : R (affA t)) (h2 : R (stA t)) (h3 : R (yieldA t))
     (h4 : R (core.num.U64.wrapping_add t 3664#u64)) (h5 : R (scA t)) (h6 : R (scCoreA (L.mem s (scA t)))) :
-    localtimer.may_run_here (guard st R W) s cpu t = localtimer.may_run_here st s cpu t := by
+    localtimer.may_run_here gS s cpu t = localtimer.may_run_here st s cpu t := by
   unfold localtimer.may_run_here
   rw [PathObl.obj.Tcb.affinity.guard t s h1, PathObl.obj.Tcb.state.guard t s h2,
     PathObl.obj.Tcb.yield_to.guard t s h3, vcpu.bound.guardT s t h4, PathObl.obj.Tcb.sc.guard t s h5,
@@ -43,7 +44,7 @@ theorem current_ok.guard (s : S) (cpu ct csc : U64) (h1 : R (affA ct)) (h2 : R (
     (h4 : R (core.num.U64.wrapping_add ct 3664#u64)) (h5 : R (scA ct)) (h6 : R (scCoreA (L.mem s (scA ct))))
     (h7 : R (scCoreA csc)) (h8 : R (L.nodeAt s (L.cpu s) layout.node.IDLE_THREAD)) (h9 : R (domA ct))
     (h10 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN)) :
-    localtimer.current_ok (guard st R W) s cpu ct csc = localtimer.current_ok st s cpu ct csc := by
+    localtimer.current_ok gS s cpu ct csc = localtimer.current_ok st s cpu ct csc := by
   unfold localtimer.current_ok
   rw [may_run_here.guard s cpu ct h1 h2 h3 h4 h5 h6, PathObl.obj.Tcb.sc.guard ct s h5,
     PathObl.obj.Sc.cpu.guard csc s h7, PathObl.sched.idle_thread.guard s h8, PathObl.obj.Tcb.domain.guard ct s h9,
@@ -52,14 +53,14 @@ theorem current_ok.guard (s : S) (cpu ct csc : U64) (h1 : R (affA ct)) (h2 : R (
 theorem sched_quiet.guard (s : S) (h1 : R (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (h2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
     (h3 : R (L.nodeAt s (L.cpu s) layout.node.IPI_PENDING)) :
-    localtimer.sched_quiet (guard st R W) s (L.cpu s) = localtimer.sched_quiet st s (L.cpu s) := by
+    localtimer.sched_quiet gS s (L.cpu s) = localtimer.sched_quiet st s (L.cpu s) := by
   unfold localtimer.sched_quiet
   rw [PathObl.sched.action.guard s h1, PathObl.sched.domain_time.guard s h2, PathObl.obj.node_get.guard s _ _ h3]
 
 theorem timer_due.guard (s : S) (now : U64) (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))
     (h2 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 →
       R (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) :
-    localtimer.timer_due (guard st R W) s (L.cpu s) now = localtimer.timer_due st s (L.cpu s) now := by
+    localtimer.timer_due gS s (L.cpu s) now = localtimer.timer_due st s (L.cpu s) now := by
   unfold localtimer.timer_due
   rw [PathObl.obj.node_get.guard s _ _ h1, node_get_ok]
   simp only [bind_ok]
@@ -74,7 +75,7 @@ theorem release_due.guard (s : S) (h1 : R (L.nodeAt s (L.cpu s) layout.node.RELE
       R (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))) ∧
       PathObl.RdHead (L := L) R s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))
     (hct : R (ctA (L := L) s)) :
-    localtimer.release_due (guard st R W) s (L.cpu s) = localtimer.release_due st s (L.cpu s) := by
+    localtimer.release_due gS s (L.cpu s) = localtimer.release_due st s (L.cpu s) := by
   unfold localtimer.release_due
   rw [PathObl.obj.node_get.guard s _ _ h1, node_get_ok]
   simp only [bind_ok]
@@ -91,7 +92,7 @@ theorem set_timer_target_ok.guard {T : Set U64} {s : S} {c target : U64} {Wt : T
     (ct : CoreTree st T s c Wt) (hR : ∀ w, TreeReads st s c Wt.keys w → R w)
     (h1 : R (affA target)) (h2 : R (tdA target)) (h3 : R (thA target))
     (h : localtimer.set_timer_target_ok st s c target = ok b) :
-    localtimer.set_timer_target_ok (guard st R W) s c target = ok b := by
+    localtimer.set_timer_target_ok gS s c target = ok b := by
   unfold localtimer.set_timer_target_ok at h ⊢
   rw [PathObl.obj.Tcb.affinity.guard target s h1, PathObl.obj.Tcb.timer_deadline.guard target s h2]
   obtain ⟨i, ei, h⟩ := bind_eq_ok h
@@ -120,7 +121,7 @@ theorem timer.fire.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     (hT : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64 ∨
       L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) <
         L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) :
-    timer.fire (guard st R W) ar s a = ok (s, a) := by
+    timer.fire gS ar s a = ok (s, a) := by
   have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
   unfold timer.fire timer.fire_loop
   simp only [PathObl.guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
@@ -150,7 +151,7 @@ theorem sched.awaken_loop.guard_nodue (s : S) (fuel : U64)
       ¬ ((L.refill s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
           (L.rhead s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))).time ≤
         L.curTime s)) :
-    sched.awaken_loop (guard st R W) s fuel = ok s := by
+    sched.awaken_loop gS s fuel = ok s := by
   unfold sched.awaken_loop
   rw [loop]
   unfold sched.awaken_loop.body
@@ -192,14 +193,14 @@ theorem sched.schedule.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a :
         L.curTime s))
     (ha : L.actionW s = sched.ACTION_RESUME_CURRENT)
     (hsw : ∀ s4, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
-      sched.switch_sched_context (guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a)
+      sched.switch_sched_context gS ar s4 a = sched.switch_sched_context st ar s4 a)
     (hfr : ∀ s4 s5 a3, sched.set_action st s sched.ACTION_RESUME_CURRENT = ok s4 →
       sched.switch_sched_context st ar s4 a = ok (s5, a3) →
       L.ksb s5 = L.ksb s ∧ L.cpu s5 = L.cpu s ∧
       (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
-        sched.set_next_interrupt (guard st R W) ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
+        sched.set_next_interrupt gS ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
         ∀ s7 a5, sched.set_next_interrupt st ar s5 a3 = ok (s7, a5) → L.ksb s7 = L.ksb s ∧ L.cpu s7 = L.cpu s)) :
-    sched.schedule (guard st R W) ar s a = sched.schedule st ar s a := by
+    sched.schedule gS ar s a = sched.schedule st ar s a := by
   have ct := hNd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
   have tm := hNd layout.node.TIMER_MIN (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])
   have rh := hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
@@ -208,13 +209,13 @@ theorem sched.schedule.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a :
     rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
   have es : sched.schedule st ar s a = PathObl.schedRes st ar s a :=
     PathObl.schedule_res_eq st ar s a (awaken_none ar s a hT hRel) hac
-  have haw : sched.awaken (guard st R W) ar s a = ok (s, a) := by
+  have haw : sched.awaken gS ar s a = ok (s, a) := by
     unfold sched.awaken
     rw [timer.fire.guard_nodue ar s a ct.1 tm.1 hd hT]
     simp only [bind_ok, bind_tc_ok, Aeneas.Std.uncurry_apply_pair]
     rw [sched.awaken_loop.guard_nodue s _ rh.1 h2 ct.1 hRel]
     simp only [bind_ok, bind_tc_ok]
-  have eg : sched.schedule (guard st R W) ar s a = PathObl.schedRes (guard st R W) ar s a :=
+  have eg : sched.schedule gS ar s a = PathObl.schedRes gS ar s a :=
     PathObl.schedule_res_eq _ ar s a haw (by rw [PathObl.sched.action.guard s sa.1]; exact hac)
   rw [eg, es]
   exact PathObl.schedRes.guard ar s a hNd hsw hfr
@@ -265,6 +266,11 @@ def StWr (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (Z : U64 → 
     Prop :=
   TW st s (L.cpu s) (StKeys st T s target) w ∨ CallerRegW (L.curW s) w ∨ InRing (L.cscW s) (Z (L.cscW s)) w ∨
     w = core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED
+
+/-- The words of `StWr` whose writes `PathObl.move` checks by value: the caller's `STATE` and the keys'
+`TIMER_DEADLINE` / `TIMER_HEIGHT`. -/
+def StDecW (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s : S) (target w : U64) : Prop :=
+  w = stA (L.curW s) ∨ ∃ y, StKeys st T s target y ∧ (w = tdA y ∨ w = thA y)
 
 /-- What an accepted `TCB_SetTimer` local path checked at its entry state: the caller (running) and the current SC
 are on this core; the target is, and is disarmed or armed in this core's tree. -/

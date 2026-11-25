@@ -21,6 +21,7 @@ open Fl4Proofs.P2.PathObl (guard guard_read ScAcc rhA tmA RdHead)
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R W : U64 → Prop}
+variable {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
 variable {T Cs Ω : Set U64}
 variable {A : Type} (ar : machine.Arch A)
 
@@ -45,12 +46,12 @@ theorem resume_hsw_hfr (hA : P0.ArchTotal ar) (X : S) (a : A) {zc : Nat}
     (htd : L.mem X (tmA (L := L) X) ≠ 0#u64 → L.mem X (tmA (L := L) X) ∈ T ∧
       R (core.num.U64.wrapping_add (L.mem X (tmA (L := L) X)) 3528#u64)) :
     (∀ s4, sched.set_action st X sched.ACTION_RESUME_CURRENT = ok s4 →
-      sched.switch_sched_context (guard st R W) ar s4 a = sched.switch_sched_context st ar s4 a) ∧
+      sched.switch_sched_context gS ar s4 a = sched.switch_sched_context st ar s4 a) ∧
     (∀ s4 s5 a3, sched.set_action st X sched.ACTION_RESUME_CURRENT = ok s4 →
       sched.switch_sched_context st ar s4 a = ok (s5, a3) →
       L.ksb s5 = L.ksb X ∧ L.cpu s5 = L.cpu X ∧
       (L.mem s5 (L.nodeAt s5 (L.cpu s5) layout.node.REPROGRAM) ≠ 0#u64 →
-        sched.set_next_interrupt (guard st R W) ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
+        sched.set_next_interrupt gS ar s5 a3 = sched.set_next_interrupt st ar s5 a3 ∧
         ∀ s7 a5, sched.set_next_interrupt st ar s5 a3 = ok (s7, a5) → L.ksb s7 = L.ksb X ∧ L.cpu s7 = L.cpu X)) := by
   have e1 := eq_of_spec_fd (sched.set_action.spec (L := L) X sched.ACTION_RESUME_CURRENT)
   set X1 := L.wr X (L.nodeAt X (L.cpu X) layout.node.SCHED_ACTION) sched.ACTION_RESUME_CURRENT with eX1

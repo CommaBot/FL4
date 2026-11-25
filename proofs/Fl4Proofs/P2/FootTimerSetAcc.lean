@@ -97,19 +97,87 @@ theorem armed_back {s3 s4 : S} {tg y : U64} (hT : TcbPlaced T) (hN : NodePlaced 
   · have := k 3528#u64 (Or.inl (by simp)); unfold tdA; rw [← this]; exact h.1
   · have := k 3568#u64 (Or.inr (by simp)); unfold thA; rw [← this, ← w.2.1]; exact h.2
 
+/-- `reply_success_empty` writes only the caller's `BADGE` and `MSG_INFO` registers. -/
+theorem reply_regs {X Y : S} {t : U64} (ht : TcbAddr t) (h : msg.reply_success_empty st X t = ok Y) :
+    WritesIn st X Y (fun b => ∃ K : U64, 256 ≤ K.val ∧ K.val ≤ 264 ∧ b = core.num.U64.wrapping_add t K) := by
+  unfold msg.reply_success_empty msg.set_msg_info at h
+  obtain ⟨s1, e1, h⟩ := bind_eq_ok h
+  obtain ⟨mi, -, h⟩ := bind_eq_ok h
+  obtain ⟨wv, -, h⟩ := bind_eq_ok h
+  have h1 := obj.Tcb.set_reg.wrK (L := L) X t layout.reg.BADGE 0#u64 ht (by simp [layout.reg.BADGE, layout.reg.RDI])
+  rw [e1, WP.spec_ok] at h1
+  obtain ⟨K1, hK1, rfl⟩ := h1
+  have h2 := obj.Tcb.set_reg.wrK (L := L) (L.wr X (core.num.U64.wrapping_add t K1) 0#u64) t layout.reg.MSG_INFO wv ht
+    (by simp [layout.reg.MSG_INFO, layout.reg.RSI])
+  rw [h, WP.spec_ok] at h2
+  obtain ⟨K2, hK2, rfl⟩ := h2
+  have v1 : K1.val = 256 := by rw [hK1]; simp [layout.reg.BADGE, layout.reg.RDI]
+  have v2 : K2.val = 264 := by rw [hK2]; simp [layout.reg.MSG_INFO, layout.reg.RSI]
+  exact ((writesIn_wr (field_aligned ht (by omega) (by omega))).trans
+    (writesIn_wr (field_aligned ht (by omega) (by omega)))).mono fun b hb => by
+      rcases hb with e | e
+      · exact ⟨K1, by omega, by omega, e⟩
+      · exact ⟨K2, by omega, by omega, e⟩
+
+section gst
+variable {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+
+/-- `set_thread_state` on `gS`, its `STATE` write answered as `st`'s. -/
+theorem set_thread_state.gw (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
+    (hw : gS.write s (stA t) v = st.write s (stA t) v) (h1 : R (stA t)) (h2 : R (scA t))
+    (h3 : R (maxA (L.mem (L.wr s (stA t) v) (scA t)))) (h4 : R (inqA t)) :
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v := by
+  unfold sched.set_thread_state
+  have e : obj.Tcb.set_state gS t s v = obj.Tcb.set_state st t s v := by
+    unfold obj.Tcb.set_state; simp only [lift, bind_ok]; exact hw
+  rw [e, PathObl.set_state_ok' s t v]
+  simp only [bind_ok]
+  exact PathObl.sched.schedule_tcb.guard (L.wr s (stA t) v) t hn.wr h1 h2 h3 h4
+
+/-- `activate_thread` of a running current thread: no write. -/
+theorem activate_thread.g_run {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64} (hcur : L.curW s = t)
+    (hy0 : L.mem s (yieldA t) = 0#u64) (hn : NodeSt (L := L) R W s) (hyt : R (yieldA t)) (hst : R (stA t))
+    (hrun : L.mem s (stA t) = sched.TS_RUNNING) :
+    sched.activate_thread gS ar s a = sched.activate_thread st ar s a := by
+  unfold sched.activate_thread
+  rw [PathObl.sched.cur_thread.guard s hn.1, cur_thread_ok, hcur]
+  simp only [bind_ok]
+  rw [PathObl.obj.Tcb.yield_to.guard t s hyt, PathObl.eq_ok_of_spec (obj.Tcb.yield_to.spec s t), hy0]
+  simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, Aeneas.Std.uncurry_apply_pair]
+  rw [PathObl.obj.Tcb.state.guard t s hst]
+  refine PathObl.bind_guard_congr rfl fun v hv => ?_
+  have ev : v = sched.TS_RUNNING := by
+    rw [eq_of_spec_fd (obj.Tcb.state.spec (L := L) s t)] at hv; rw [← hrun]; exact (ok_inj_ff hv).symm
+  subst ev
+  have hne : ¬ (sched.TS_RUNNING = sched.TS_RESTART) := by simp [sched.TS_RUNNING, sched.TS_RESTART]
+  simp only [hne, ↓reduceIte]
+
+end gst
+
 section main
 variable {A : Type} (ar : machine.Arch A)
 
 set_option maxHeartbeats 32000000 in
 /-- **An accepted `TCB_SetTimer` local path on the guarded store** (module docstring). -/
-theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
+theorem set_timer_accG {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     {target : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htg : target ∈ T)
     (gRd : StOk st Scs s target → ∀ w, Aligned w → StRd st T Z s target w → R w)
-    (gWr : StOk st Scs s target → ∀ w, Aligned w → StWr st T Z s target w → W w)
+    (gWr : StOk st Scs s target → ∀ w, Aligned w → StWr st T Z s target w → ¬ StDecW st T s target w → W w)
     (hD1 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (hD2 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hwS : StOk st Scs s target → ∀ X v, (v = sched.TS_RESTART ∨ v = sched.TS_RUNNING) →
+      (L.mem X (stA (L.curW s)) = sched.TS_RUNNING ∨ L.mem X (stA (L.curW s)) = sched.TS_RESTART) →
+      L.mem X (affA (L.curW s)) = L.cpu s → gS.write X (stA (L.curW s)) v = st.write X (stA (L.curW s)) v)
+    (hwH : StOk st Scs s target → ∀ X y v, StKeys st T s target y →
+      (L.mem X (tdA y) ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val ∧ v.val >>> 8 = (L.cpu s).val) →
+      gS.write X (thA y) v = st.write X (thA y) v)
+    (hwD : StOk st Scs s target → ∀ X y v, StKeys st T s target y → L.mem X (affA y) = L.cpu s →
+      L.mem s (affA y) = L.cpu s →
+      (L.mem X (tdA y) ≠ 0#u64 ∨ v ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val) →
+      gS.write X (tdA y) v = st.write X (tdA y) v)
     (h : localtimer.handle_set_timer_local st ar s a n target = ok (true, s', a')) :
-    localtimer.handle_set_timer_local (guard st R W) ar s a n target = ok (true, s', a') := by
+    localtimer.handle_set_timer_local gS ar s a n target = ok (true, s', a') := by
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
   have hcC : L.cpu s ∈ Cs := h0.cur
@@ -506,18 +574,31 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
       taff := haffg, town := hown }
   replace gRd := gRd hok
   replace gWr := gWr hok
+  have hwS' := hwS hok
+  rw [etc] at hwS'
+  replace hwH := hwH hok
+  replace hwD := hwD hok
   replace hD1 := hD1 hok
   replace hD2 := hD2 hok
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
     gRd _ (nodeAt_aligned hN h1 h2) (Or.inl (Or.inr ⟨o, h1, h2, rfl⟩))
   have nW : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → W (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
-    gWr _ (nodeAt_aligned hN h1 h2) (Or.inl (Or.inr ⟨o, h1, h2, rfl⟩))
+    gWr _ (nodeAt_aligned hN h1 h2) (Or.inl (Or.inr ⟨o, h1, h2, rfl⟩)) (by
+      rintro (e | ⟨y', hy', e | e⟩)
+      · rw [etc, stA_eq] at e; exact node_ne_field hN h1 htT ht' (by simp) e
+      · exact node_ne_field hN h1 hy'.1 (hT y' hy'.1) (K := 3528#u64) (by simp) e
+      · exact node_ne_field hN h1 hy'.1 (hT y' hy'.1) (K := 3568#u64) (by simp) e)
   have cR : ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) →
       R (core.num.U64.wrapping_add t K) := fun K h1 h2 h3 h4 =>
     gRd _ (field_aligned ht' h2 h3) (Or.inr (Or.inl ⟨K, h1, h2, h3, h4, by rw [etc]⟩))
-  have cW : ∀ K : U64, 256 ≤ K.val → K.val ≤ 3328 → K.val % 8 = 0 → W (core.num.U64.wrapping_add t K) :=
+  have cW : ∀ K : U64, 256 ≤ K.val → K.val < 3328 → K.val % 8 = 0 → W (core.num.U64.wrapping_add t K) :=
     fun K h1 h2 h3 =>
-    gWr _ (field_aligned ht' (by omega) h3) (Or.inr (Or.inl ⟨K, h1, h2, h3, by rw [etc]⟩))
+    gWr _ (field_aligned ht' (by omega) h3) (Or.inr (Or.inl ⟨K, h1, by omega, h3, by rw [etc]⟩)) (by
+      rintro (e | ⟨y', hy', e | e⟩)
+      · rw [etc, stA_eq] at e
+        exact tcb_word_ne ht' ht' (by omega) (by simp) (fun _ h => by simp at h; omega) e
+      · exact tcb_word_ne ht' (hT y' hy'.1) (K2 := 3528#u64) (by omega) (by simp) (fun _ h => by simp at h; omega) e
+      · exact tcb_word_ne ht' (hT y' hy'.1) (K2 := 3568#u64) (by omega) (by simp) (fun _ h => by simp at h; omega) e)
   have rR : ∀ r : U64, r.val < 384 → R (regA t r) := fun r hr => by
     obtain ⟨K, hK, e⟩ := regA_eq ht' hr
     rw [e]; exact cR K (by omega) (by omega) (by omega) (by omega)
@@ -526,19 +607,34 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     rw [e]; exact cW K (by omega) (by omega) (by omega)
   have scR : ∀ b, InSC csc (Z csc) b → Aligned b → R b := fun b hb ha =>
     gRd _ ha (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact hb)))))))
-  have hSc : ScAcc R W csc (Z csc) := ⟨scR, fun b hb ha =>
-    gWr _ ha (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact hb)))),
-    gWr _ hcq.2.2.1.2 (Or.inr (Or.inr (Or.inr (by rw [ecsc']))))⟩
+  have scND : ∀ b, Aligned b → InSC csc (Z csc) b → ¬ StDecW st T s target b := fun b ha hb => by
+    have ho := h0.omega b (hcq.2.1 b ha hb)
+    rintro (e | ⟨y', hy', e | e⟩)
+    · rw [etc, stA_eq] at e; exact out_ne_field ho htT ht' (by simp) (congrArg UScalar.val e).symm
+    · exact out_ne_field ho hy'.1 (hT y' hy'.1) (K := 3528#u64) (by simp) (congrArg UScalar.val e).symm
+    · exact out_ne_field ho hy'.1 (hT y' hy'.1) (K := 3568#u64) (by simp) (congrArg UScalar.val e).symm
+  have hSc : ScAcc R W csc (Z csc) := ⟨scR, fun b h1 h2 =>
+    gWr _ h1 (Or.inr (Or.inr (Or.inl (by rw [ecsc']; exact h2))))
+      (scND b h1 ⟨by have := h2.1; omega, h2.2⟩),
+    gWr _ hcq.2.2.1.2 (Or.inr (Or.inr (Or.inr (by rw [ecsc'])))) (scND _ hcq.2.2.1.2 hcq.2.2.1.1)⟩
   have rSt : R (stA t) := by rw [stA_eq]; exact cR _ (by simp) (by simp) (by simp) (by simp)
   have rSc : R (scA t) := cR _ (by simp) (by simp) (by simp) (by simp)
   have rIq : R (inqA t) := cR _ (by simp) (by simp) (by simp) (by simp)
   have rYt : R (yieldA t) := cR _ (by simp) (by simp) (by simp) (by simp)
-  have wSt : W (stA t) := by rw [stA_eq]; exact cW _ (by simp) (by simp) (by simp)
   have rMx : R (maxA csc) := scR _ hcq.2.2.2.1 hcq.2.2.2.2
   have keyR : ∀ y, StKeys st T s target y → ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
-      R (core.num.U64.wrapping_add y K) ∧ W (core.num.U64.wrapping_add y K) := fun y hy K h1 h2 h3 =>
+      R (core.num.U64.wrapping_add y K) ∧ (K.val ≠ 3528 → K.val ≠ 3568 → W (core.num.U64.wrapping_add y K)) :=
+    fun y hy K h1 h2 h3 =>
     have al := field_aligned (hT y hy.1) (K := K) (by omega) h3
-    ⟨gRd _ al (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩)), gWr _ al (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩))⟩
+    ⟨gRd _ al (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩)), fun n1 n2 =>
+      gWr _ al (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, rfl⟩)) (by
+        rintro (e | ⟨y', hy', e | e⟩)
+        · rw [etc, stA_eq] at e
+          exact tcb_word_ne (hT y hy.1) ht' (by omega) (by simp) (fun _ h => by simp at h; omega) e
+        · exact tcb_word_ne (hT y hy.1) (hT y' hy'.1) (K2 := 3528#u64) (by omega) (by simp)
+            (fun _ h => by simp at h; omega) e
+        · exact tcb_word_ne (hT y hy.1) (hT y' hy'.1) (K2 := 3568#u64) (by omega) (by simp)
+            (fun _ h => by simp at h; omega) e)⟩
   have tgK : StKeys st T s target target := ⟨htg, Or.inl rfl⟩
   have hmx0 : L.rmax s csc ≠ 0#u64 := by unfold LawfulStore.rmax; exact hmax0
   have nrm : ∀ Y : S, (∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o) → NodeSt (L := L) R W Y := fun Y e => by
@@ -628,13 +724,13 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     · exact Or.inl e
     · exact Or.inr (armed30 q1 e)
   -- the insert
-  have gIns : timer.insert (guard st R W) s3 target dl bd = timer.insert st s3 target dl bd := by
+  have gIns : timer.insert gS s3 target dl bd = timer.insert st s3 target dl bd := by
     obtain ⟨W3, ct3⟩ := (TInv.rb hB3).tree _ (c3 ▸ hcC : L.cpu s3 ∈ Cs)
     have hkey : ∀ z, (z ∈ W3.keys ∨ z = target) → StKeys st T s target z := by
       rintro z (hz | rfl)
       · exact ⟨ct3.inT z hz, Or.inr (armed30 (ct3.inT z hz) ⟨ct3.armed z hz, ct3.core z hz⟩)⟩
       · exact tgK
-    have C : TC st T s (L.cpu s) (fun z => z ∈ W3.keys ∨ z = target) R W :=
+    have C : TC st gS T s (L.cpu s) (fun z => z ∈ W3.keys ∨ z = target) R W :=
       { tcbs := hT, inT := fun z hz => (hkey z hz).1, node := hN
         rd := fun w hw => by
           rcases hw with ⟨z, hz, k, h1, h2, h3, rfl⟩ | ⟨o, ho, h8, rfl⟩
@@ -642,24 +738,30 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
           · exact nR o ho h8
         wr := fun w hw => by
           rcases hw with ⟨z, hz, k, h1, h2, h3, rfl⟩ | ⟨o, ho, h8, rfl⟩
-          · exact (keyR z (hkey z hz) k h1 h2 h3).2
-          · exact nW o ho h8 }
+          · exact (keyR z (hkey z hz) k (by omega) (by omega) h3).2 (by omega) (by omega)
+          · exact nW o ho h8
+        wh := fun X x v hx hc => hwH X x v (hkey x hx) hc
+        wd := fun X x v hx ha1 ha0 hc => hwD X x v (hkey x hx) ha1 ha0 hc }
+    have af3 : ∀ z ∈ T, L.mem s3 (affA z) = L.mem s (affA z) := fun z hz =>
+      k03 (K := 3520#u64) hz (by simp) (by simp) (fun _ => by simp)
     have I3 : TI st s (L.cpu s) (fun z => z ∈ W3.keys) (fun z => z ∈ W3.keys) s3 :=
       { ksb := k3, cpu := c3, sub := fun _ hz => hz
         root := by
           have := ct3.rep.root_mem
           rw [c3, nodeAt_of_ksb k3] at this; exact this
-        lnk := fun z hz => ct3.rep.links z hz }
-    refine (ge_insert C rfl ?_).1
+        lnk := fun z hz => ct3.rep.links z hz
+        hj := fun z hz _ => by rw [← c3]; exact ct3.core z hz
+        af := fun z hz => af3 z (ct3.inT z hz) }
+    refine (ge_insert C rfl haffg ?_).1
     by_cases hd : L.mem s3 (tdA target) = 0#u64
     · unfold timer.remove
       have etd : obj.Tcb.timer_deadline st target s3 = ok 0#u64 := by
         rw [td_ok, hd]
-      have gtd : obj.Tcb.timer_deadline (guard st R W) target s3 = obj.Tcb.timer_deadline st target s3 :=
+      have gtd : obj.Tcb.timer_deadline gS target s3 = obj.Tcb.timer_deadline st target s3 :=
         PathObl.obj.Tcb.timer_deadline.guard target s3 (keyR _ tgK _ (by simp) (by simp) (by simp)).1
       rw [gtd, etd]
       simp only [bind_ok, ↓reduceIte]
-      exact GE.ret I3
+      exact GE.ret ⟨I3, hd, af3 target htg⟩
     · obtain ⟨c', hc', t', ct', hkt⟩ := (TInv.rb hB3).armed target htg hd
       have hcc : c' = L.cpu s3 := by
         have h1 := ct'.core target hkt
@@ -667,19 +769,41 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
         exact UScalar.eq_of_val_eq (h1.symm.trans h2)
       subst hcc
       rw [ct'.uniq ct3] at hkt
-      refine ge_remove (C.mono fun z hz => Or.inl hz) I3 hkt fun i _ _ => ?_
+      refine GE.mono (ge_remove (C.mono fun z hz => Or.inl hz) I3 hkt haffg fun i _ _ => ?_)
+        (fun s' h' => ⟨h'.1, h'.2, h'.1.af target hkt⟩)
       have e := timer.core_of.rb s3 target ct3 hkt
       rw [← c3]; exact eq_of_spec_fd e
   -- `set_thread_state`
   have gSts : ∀ (Y : S) (v : U64), (∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o) → L.mem Y (scA t) = csc →
-      sched.set_thread_state (guard st R W) Y t v = sched.set_thread_state st Y t v := fun Y v e1 e2 =>
-    PathObl.sched.set_thread_state.guard Y t v (nrm Y e1) wSt rSt rSc (by rw [PathObl.st_wr_sc ht', e2]; exact rMx) rIq
+      (v = sched.TS_RESTART ∨ v = sched.TS_RUNNING) →
+      (L.mem Y (stA t) = sched.TS_RUNNING ∨ L.mem Y (stA t) = sched.TS_RESTART) → L.mem Y (affA t) = L.cpu s →
+      sched.set_thread_state gS Y t v = sched.set_thread_state st Y t v := fun Y v e1 e2 hv ho ha =>
+    set_thread_state.gw Y t v (nrm Y e1) (hwS' Y v hv ho ha) rSt rSc
+      (by rw [PathObl.st_wr_sc ht', e2]; exact rMx) rIq
+  have aff2 : L.mem s2 (affA t) = L.cpu s :=
+    (uK (K := 3520#u64) htT (by simp) (by simp) (fun _ => by simp)).trans haff
+  have aff5 : L.mem s5 (affA t) = L.cpu s :=
+    (mid_tcb (K := 3520#u64) hT hN2 htT w25 htT (by simp) (by simp) (by simp) (fun _ => by simp)).trans aff2
+  have st4 : L.mem s4 (stA t) = sched.TS_RESTART := by
+    rw [w34.mem_eq sA ?_, e3, L.mem_wr_same sA]
+    rintro (⟨o, ho, e⟩ | ⟨K, a1', a2', e⟩ | ⟨y, hy, -, -, K, a1', a2', e⟩)
+    · exact node_ne_field hN3 (by omega) htT ht' (K := 3328#u64) (by simp) (by rw [← stA_eq]; exact e.symm)
+    · exact tcb_word_ne ht' (hT _ htg) (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+        (by rw [← stA_eq]; exact e)
+    · exact tcb_word_ne ht' (hT _ hy) (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+        (by rw [← stA_eq]; exact e)
+  have st5 : L.mem s5 (stA t) = sched.TS_RESTART := by
+    rw [(reply_regs ht' es5).mem_eq sA ?_]
+    · exact st4
+    rintro ⟨K, a1', a2', e⟩
+    exact tcb_word_ne ht' ht' (K1 := 3328#u64) (by simp) (by omega) (fun _ h => by simp at h; omega)
+      (by rw [← stA_eq]; exact e)
   have e5N : ∀ o, L.nodeAt s5 (L.cpu s5) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [w25.2.1, nodeAt_of_ksb w25.1, e2N]
   have e7N : ∀ o, L.nodeAt s7 (L.cpu s7) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [w67.2.1, nodeAt_of_ksb w67.1, e6N]
   -- `schedule`
-  have hres := resume_hsw_hfr (R := R) (W := W) ar hA s6 a1 (zc := Z csc) hcC6 hN6 hT
+  have hres := resume_hsw_hfr (gS := gS) ar hA s6 a1 (zc := Z csc) hcC6 hN6 hT
     (fun b hb => (h0.omega b hb).ksb k6) (by rw [hct6]; exact htT) (by rw [hct6, hsc6, hcs6])
     (by rw [hcs6]; exact SCq.agree hcq agΩ6)
     (by rw [hcs6]; unfold LawfulStore.rmax; rw [agΩ6 _ hmaxΩ]; exact hmx0)
@@ -689,7 +813,7 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
       obtain ⟨q1, q2, q3, q4, q5, q6⟩ := hRH s6 k6 c6 rh6 scK6 agΩ6 hne
       exact ⟨_, q1, q2, q3, q4, q5, by rw [hcs6]; exact q6, fun e => by rw [e, hcs6]⟩)
     (fun hne => tm6 hne)
-  have gSched : sched.schedule (guard st R W) ar s6 a1 = sched.schedule st ar s6 a1 :=
+  have gSched : sched.schedule gS ar s6 a1 = sched.schedule st ar s6 a1 :=
     sched.schedule.guard_nodue ar s6 a1 (fun o h1 h2 => by rw [e6N]; exact ⟨nR o h1 h2, nW o h1 h2⟩)
       (fun hne => (tm6 hne).2) hT6 (fun hne => rhd s6 k6 c6 rh6 scK6 agΩ6 hne) hR6 hact6 hres.1 hres.2
   obtain ⟨W0, ct0⟩ := (TInv.rb (BXI.blk hI)).tree _ hcC
@@ -700,29 +824,27 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     rw [PathObl.set_reg_ok'] at e; exact (ok_inj_ff e).symm
   have e1N : ∀ o, L.nodeAt s1 (L.cpu s1) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [e1s]; exact PathObl.nd_wr _ _ _ _
-  have gact : sched.activate_thread (guard st R W) ar s7 a2 = sched.activate_thread st ar s7 a2 :=
-    PathObl.sched.activate_thread.guard ar s7 a2 hcur7 ht' hy7 (nrm s7 e7N) rYt rSt
-      (rR _ (by simp [layout.reg.FAULT_IP])) (rW _ (by simp [layout.reg.NEXT_IP])) wSt rSc
-      (by rw [scA_eq, tK7 _ (by simp) (by simp), ← scA_eq, hsc6]; exact rMx) rIq
-  have gvc := PathObl.vcpu.check.guard_running (R := R) (W := W) ar s7 a2 t rSt hst7
+  have gact : sched.activate_thread gS ar s7 a2 = sched.activate_thread st ar s7 a2 :=
+    activate_thread.g_run ar s7 a2 hcur7 hy7 (nrm s7 e7N) rYt rSt hst7
+  have gvc := PathObl.vcpu.check.guard_running (gS := gS) ar s7 a2 t rSt hst7
   have ndR : ∀ (Y : S), (∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o) → ∀ o : U64, o.val < 4288 →
       o.val % 8 = 0 → R (L.nodeAt Y (L.cpu Y) o) := fun Y e o h1 h2 => by rw [e]; exact nR o h1 h2
-  have gcnsv : sched.consumed (guard st R W) s2 = sched.consumed st s2 :=
+  have gcnsv : sched.consumed gS s2 = sched.consumed st s2 :=
     PathObl.sched.consumed.guard s2 (ndR s2 e2N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
-  have gtdue : localtimer.timer_due (guard st R W) s2 (L.cpu s) now = localtimer.timer_due st s2 (L.cpu s) now := by
-    have := timer_due.guard (R := R) (W := W) s2 now
+  have gtdue : localtimer.timer_due gS s2 (L.cpu s) now = localtimer.timer_due st s2 (L.cpu s) now := by
+    have := timer_due.guard (gS := gS) s2 now
       (ndR s2 e2N _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])) tm2
     rwa [c2] at this
-  have grdue : localtimer.release_due (guard st R W) s2 (L.cpu s) = localtimer.release_due st s2 (L.cpu s) := by
-    have := release_due.guard (R := R) (W := W) s2
+  have grdue : localtimer.release_due gS s2 (L.cpu s) = localtimer.release_due st s2 (L.cpu s) := by
+    have := release_due.guard (gS := gS) s2
       (ndR s2 e2N _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD]))
       (fun hne => rhd s2 k2 c2 rh2 scK2 agΩ2 hne)
       (ndR s2 e2N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
     rwa [c2] at this
-  have gquiet : localtimer.sched_quiet (guard st R W) s (L.cpu s) = localtimer.sched_quiet st s (L.cpu s) :=
+  have gquiet : localtimer.sched_quiet gS s (L.cpu s) = localtimer.sched_quiet st s (L.cpu s) :=
     sched_quiet.guard s (nR _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])) hD2
       (nR _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]))
-  have gtgt : localtimer.set_timer_target_ok (guard st R W) s (L.cpu s) target = ok true :=
+  have gtgt : localtimer.set_timer_target_ok gS s (L.cpu s) target = ok true :=
     set_timer_target_ok.guard ct0 (fun w hw => by
       rcases hw with rfl | rfl | ⟨y, hy, rfl | rfl | rfl⟩
       · exact nR _ (by simp [layout.node.TIMER_ROOT]) (by simp [layout.node.TIMER_ROOT])
@@ -739,12 +861,12 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     have hcv : layout.sc.CORE.val = 16 := by simp [layout.sc.CORE]
     exact scR _ ⟨by unfold scCoreA; rw [hv]; omega, by unfold scCoreA; rw [hv, hcv]; omega⟩
       (by unfold Aligned scCoreA; rw [hv, hcv]; omega)
-  have gcok : localtimer.current_ok (guard st R W) s (L.cpu s) t csc = localtimer.current_ok st s (L.cpu s) t csc :=
+  have gcok : localtimer.current_ok gS s (L.cpu s) t csc = localtimer.current_ok st s (L.cpu s) t csc :=
     current_ok.guard s (L.cpu s) t csc (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
       (cR _ (by simp) (by simp) (by simp) (by simp)) rSc (by rw [hsct]; exact rCore) rCore
       (nR _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))
       (cR _ (by simp) (by simp) (by simp) (by simp)) hD1
-  exact set_timer_replay (st := st) (st' := guard st R W) ar et
+  exact set_timer_replay (st := st) (st' := gS) ar et
     (PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))) rfl (L.cur_cpu_eq s) emi
     (PathObl.msg.msg_info.guard s t (rR _ (by simp [layout.reg.MSG_INFO]))) cn ei
     (PathObl.obj.Tcb.flags.guard t s (cR _ (by simp) (by simp) (by simp) (by simp))) n1 n2 n3 n4 ecsc
@@ -764,11 +886,32 @@ theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
     ebd (PathObl.msg.syscall_arg.guard_lt s2 t _ _ (by rw [PathObl.n_msg_regs]; decide) (fun r er => by
       rw [PathObl.msg_register_one] at er; rw [← ok_inj_ff er]; exact rR _ (by simp [layout.reg.R8])))
     ecns gcnsv eb4 (PathObl.sporadic.sufficient.guard ar s2 a1 csc cns (hdC s2 agΩ2)) eb5 gtdue eb6 grdue hdl es3
-    (gSts s2 _ e2N sc2) es4 gIns es5
+    (gSts s2 _ e2N sc2 (Or.inl rfl) (Or.inl hrs2) aff2) es4 gIns es5
     (PathObl.msg.reply_success_empty.guard s4 t (rW _ (by simp [layout.reg.BADGE])) (rW _ (by simp [layout.reg.MSG_INFO])))
-    es6 (gSts s5 _ e5N sc5) es7 gSched es8r gact et1r
+    es6 (gSts s5 _ e5N sc5 (Or.inr rfl) (Or.inr st5) aff5) es7 gSched es8r gact et1r
     (PathObl.sched.cur_thread.guard s7 (ndR s7 e7N _ (by rw [curth_val]; omega) (by rw [curth_val])))
     es9r (gvc.1.trans gvc.2.symm)
+
+/-- **An accepted `TCB_SetTimer` local path on the guarded store** (`set_timer_accG` at `guard st R W`). -/
+theorem set_timer_acc (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I64}
+    {target : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htg : target ∈ T)
+    (gRd : StOk st Scs s target → ∀ w, Aligned w → StRd st T Z s target w → R w)
+    (gWr : StOk st Scs s target → ∀ w, Aligned w → StWr st T Z s target w → W w)
+    (hD1 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hD2 : StOk st Scs s target → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (h : localtimer.handle_set_timer_local st ar s a n target = ok (true, s', a')) :
+    localtimer.handle_set_timer_local (guard st R W) ar s a n target = ok (true, s', a') := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced T := h0.tcbs
+  have hcT : L.curW s ∈ T := h0.curT
+  exact set_timer_accG (gS := guard st R W) ar hA hI htg gRd (fun ho w ha hw _ => gWr ho w ha hw) hD1 hD2
+    (fun ho X v _ _ _ => PathObl.guard_write (gWr ho _ (by rw [stA_eq]; exact field_aligned (hT _ hcT) (by simp) (by simp))
+      (Or.inr (Or.inl ⟨3328#u64, by simp, by simp, by simp, by rw [stA_eq]⟩))))
+    (fun ho X y v hy _ => PathObl.guard_write (gWr ho _ (field_aligned (hT y hy.1) (by simp) (by simp))
+      (Or.inl (Or.inl ⟨y, hy, 3568#u64, by simp, by simp, by simp, rfl⟩))))
+    (fun ho X y v hy _ _ _ => PathObl.guard_write (gWr ho _ (field_aligned (hT y hy.1) (by simp) (by simp))
+      (Or.inl (Or.inl ⟨y, hy, 3528#u64, by simp, by simp, by simp, rfl⟩))))
+    h
 
 end main
 
