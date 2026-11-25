@@ -523,8 +523,8 @@ set_option maxHeartbeats 4000000 in
 /-- **The timer-interrupt local entry ends `schedule` in `AllCores`**
 (module docstring). Named premises: `hR` [J] (`SchCur` at the end of `awaken`
 when the action is `RESUME`, at an `EntryEnd` state), `hS0` [W], `hKS` [W]
-(`ScKsOut`). -/
-theorem timer_irq_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+(`ScKsOut`). (actv) `allCoresB` also names `schedule`'s start `s3` (`BlkOK`, `BufAt`). -/
+theorem timer_irq_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s0 s' : S} {a0 a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
     (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
     (hKS : ScKsOut st Scs Z s0)
@@ -532,7 +532,8 @@ theorem timer_irq_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt
     (hR : ∀ (s : S) (a : A), EntryEnd st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
       ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
-    ∃ s4 a4, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+    ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
+      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -715,10 +716,31 @@ theorem timer_irq_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt
   have W := AllCores.schedB hA IK hNt a3 h0 hcpu hS0 hB0 F03 hBlk3 hBA3 hsa3 (hR s3 a3 ⟨hBlk3, F03, B03⟩)
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  refine ⟨s4, a4, W, ?_⟩
+  refine ⟨s3, a3, s4, a4, hBlk3, hBA3, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
+
+set_option maxHeartbeats 4000000 in
+/-- **The timer-interrupt local entry ends `schedule` in `AllCores`**
+(module docstring). Named premises: `hR` [J] (`SchCur` at the end of `awaken`
+when the action is `RESUME`, at an `EntryEnd` state), `hS0` [W], `hKS` [W]
+(`ScKsOut`). -/
+theorem timer_irq_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s0 s' : S} {a0 a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
+    (hKS : ScKsOut st Scs Z s0)
+    (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0)
+    (hR : ∀ (s : S) (a : A), EntryEnd st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
+      ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
+    (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
+    ∃ s4 a4, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      (do
+        let (s5, a5) ← sched.activate_thread st ar s4 a4
+        let t ← sched.cur_thread st s5
+        vcpu.check st ar s5 a5 t) = ok (s', a') := by
+  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := timer_irq_local.allCoresB hA IK hNt h0 hcpu hS0 hKS hI0 hBA0 hR e
+  exact ⟨s4, a4, W, E⟩
 
 end
 

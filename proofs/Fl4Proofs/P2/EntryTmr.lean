@@ -127,7 +127,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The body and `schedule` of an accepted `TCB_SetTimer` local entry**,
 from the run's equations: `AllCores` at `schedule`'s end. Named premises:
 `hR` [J], `hS0` [W]. -/
-theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+theorem set_timer_tailB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s0 s1 s2 s3 s4 s5 s6 s7 : S} {a0 a1 a2 : A} {t tg d bd v : U64}
     (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
     (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : tg ∈ T)
@@ -141,7 +141,8 @@ theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n �
     (es5 : msg.reply_success_empty st s4 t = ok s5)
     (es6 : sched.set_thread_state st s5 t sched.TS_RUNNING = ok s6)
     (esc : sched.schedule st ar s6 a1 = ok (s7, a2)) :
-    AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s6 ∧ BufAt st T Cs H Sg Scs Z U s6 ∧
+      AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
   have ect' : t = L.curW s0 := by
     obtain ⟨w, ew, hw⟩ := spec_ex_fd (sched.cur_thread.spec (st := st) s0)
     rw [ect] at ew; cases ok_inj_ff ew; exact hw
@@ -236,19 +237,38 @@ theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n �
   have W := AllCores.schedB hA IK hNt a1 h0 hcpu hS0 hB0 F06 hBlk6 hBA6 hsa6 (hR s6 a1 ⟨hBlk6, F06, B06⟩)
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  exact W
+  exact ⟨hBlk6, hBA6, W⟩
+
+/-- `set_timer_tailB`'s `AllCores` at `schedule`'s end. -/
+theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s0 s1 s2 s3 s4 s5 s6 s7 : S} {a0 a1 a2 : A} {t tg d bd v : U64}
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
+    (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : tg ∈ T)
+    (hR : ∀ (s : S) (a : A), EntryEnd st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
+      ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
+    (ect : sched.cur_thread st s0 = ok t) (hrun : L.mem s0 (stA t) = sched.TS_RUNNING)
+    (es1 : obj.Tcb.set_reg st t s0 layout.reg.FAULT_IP v = ok s1)
+    (eu : sched.update_timestamp st ar s1 a0 = ok (s2, a1))
+    (es3 : sched.set_thread_state st s2 t sched.TS_RESTART = ok s3)
+    (es4 : timer.insert st s3 tg d bd = ok s4)
+    (es5 : msg.reply_success_empty st s4 t = ok s5)
+    (es6 : sched.set_thread_state st s5 t sched.TS_RUNNING = ok s6)
+    (esc : sched.schedule st ar s6 a1 = ok (s7, a2)) :
+    AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 :=
+  (set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc).2.2
 
 set_option maxHeartbeats 4000000 in
 /-- **The `TCB_SetTimer` local entry ends `schedule` in `AllCores`**
 (module docstring). Named premises: `hR` [J], `hS0` [W]. -/
-theorem set_timer_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+theorem set_timer_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s0 s' : S} {a0 a' : A} {n : I64} {target : U64}
     (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
     (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : target ∈ T)
     (hR : ∀ (s : S) (a : A), EntryEnd st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
       ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
-    ∃ s4 a4, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+    ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
+      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -357,10 +377,30 @@ theorem set_timer_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt
   have e6 := ok_inj_ff h
   simp only [Prod.mk.injEq, true_and] at e6
   obtain ⟨rfl, rfl⟩ := e6
-  refine ⟨s7, a2, set_timer_tail hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc, ?_⟩
+  obtain ⟨hB6, hBA6, W⟩ := set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc
+  refine ⟨s6, a1, s7, a2, hB6, hBA6, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
+
+
+set_option maxHeartbeats 4000000 in
+/-- **The `TCB_SetTimer` local entry ends `schedule` in `AllCores`**
+(module docstring). Named premises: `hR` [J], `hS0` [W]. -/
+theorem set_timer_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s0 s' : S} {a0 a' : A} {n : I64} {target : U64}
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs) (hS0 : (0#u64) ∉ Scs)
+    (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : target ∈ T)
+    (hR : ∀ (s : S) (a : A), EntryEnd st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
+      ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
+    (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
+    ∃ s4 a4, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      (do
+        let (s5, a5) ← sched.activate_thread st ar s4 a4
+        let t ← sched.cur_thread st s5
+        vcpu.check st ar s5 a5 t) = ok (s', a') := by
+  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := set_timer_local.allCoresB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR e
+  exact ⟨s4, a4, W, E⟩
 
 end
 
