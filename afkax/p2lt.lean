@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRT
 import Fl4Proofs.P2.FootTimerIrqCh
 import Fl4Proofs.P2.FootTimerIrqApp
 import Fl4Proofs.P2.FootTimerIrqRR
@@ -58,3 +59,7 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.sched.schedule_choose_new_thread.guard
 #print axioms Fl4Proofs.P2.schedule_choose_eq
 #print axioms Fl4Proofs.P2.sched.schedule.guard_choose
+#print axioms Fl4Proofs.P2.end_timeslice_rr
+#print axioms Fl4Proofs.P2.append_keep
+#print axioms Fl4Proofs.P2.sched.end_timeslice.guard_rrT
+#print axioms Fl4Proofs.P2.cbTail.guard_rr
