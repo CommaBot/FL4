@@ -35,7 +35,7 @@ theorem may_run_here.guard (s : S) (cpu t : U64) (h1 : R (affA t)) (h2 : R (stA 
     localtimer.may_run_here gS s cpu t = localtimer.may_run_here st s cpu t := by
   unfold localtimer.may_run_here
   rw [PathObl.obj.Tcb.affinity.guard t s h1, PathObl.obj.Tcb.state.guard t s h2,
-    PathObl.obj.Tcb.yield_to.guard t s h3, vcpu.bound.guardT s t h4, PathObl.obj.Tcb.sc.guard t s h5,
+    PathObl.obj.Tcb.yield_to.guard t s h3, PathObl.obj.Tcb.sc.guard t s h5,
     eq_of_spec_fd (obj.Tcb.sc.spec s t)]
   simp only [bind_ok]
   rw [PathObl.obj.Sc.cpu.guard _ s h6]

@@ -185,10 +185,6 @@ theorem may_run_here_true {s : S} {cpu t : U64} (h : localtimer.may_run_here st 
   split at h
   swap
   · simp at h
-  obtain ⟨v, -, h⟩ := bind_eq_ok h
-  split at h
-  swap
-  · simp at h
   rw [eq_of_spec_fd (obj.Tcb.sc.spec s t)] at h
   simp only [bind_ok] at h
   refine ⟨h0, h1, by simpa using h2, ?_⟩

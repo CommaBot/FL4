@@ -47,7 +47,7 @@ theorem may_run_here.guardC (s : S) (cpu t : U64) (h1 : R (affA t))
   rw [aff_ok] at ei
   obtain ⟨h2, h3, h4, h5, h6⟩ := h ((ok_inj_ff ei).trans hi)
   rw [if_pos hi, if_pos hi, PathObl.obj.Tcb.state.guard t s h2, PathObl.obj.Tcb.yield_to.guard t s h3,
-    vcpu.bound.guardT s t h4, PathObl.obj.Tcb.sc.guard t s h5, eq_of_spec_fd (obj.Tcb.sc.spec s t)]
+    PathObl.obj.Tcb.sc.guard t s h5, eq_of_spec_fd (obj.Tcb.sc.spec s t)]
   simp only [bind_ok]
   by_cases h0 : L.mem s (scA t) = 0#u64
   · rw [if_pos h0, if_pos h0]
