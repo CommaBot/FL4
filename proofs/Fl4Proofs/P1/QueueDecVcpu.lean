@@ -554,8 +554,9 @@ local macro "verr" : tactic => `(tactic| first
      exact (WP.spec_ok _).2 (Cur0.post c1)))
 
 set_option hygiene false in
-/-- The decode's prefix: the VCPU's stall, the caller, the arch and the two arguments. -/
-local macro "vpre" : tactic => `(tactic| (
+/-- The decode's prefix: the VCPU's stall, the caller, the arch and the two
+arguments (`vpre0`), then the label ladder decided (`vlbl`). -/
+local macro "vpre0" : tactic => `(tactic| (
   unfold vcpu.decode
   refine WP.spec_bind (WP.spec_and (vcpu.stall.cur0 hA a v c0) (vcpu.stall.node hA a v c0)) ?_
   rintro ⟨s1, a1⟩ ⟨⟨c1, k1, -⟩, w1⟩
@@ -569,12 +570,17 @@ local macro "vpre" : tactic => `(tactic| (
   refine WP.spec_bind (Pₘ := fun _ => True) (by
     split
     · exact WP.spec_mono (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun _ _ => trivial
-    · exact (WP.spec_ok _).2 trivial) fun value _ => ?_
+    · exact (WP.spec_ok _).2 trivial) fun value _ => ?_))
+
+/-- The label tests decided (the label is a constant). -/
+local macro "vlbl" : tactic => `(tactic|
   simp (config := { decide := true }) only [fl4_abi.label.X86VCPUSetTCB, fl4_abi.label.X86VCPUWriteRegisters,
     fl4_abi.label.X86VCPUFlushTLB, fl4_abi.label.X86VCPUReadVMCS, fl4_abi.label.X86VCPUWriteVMCS,
     fl4_abi.label.X86VCPUReadVMCB, fl4_abi.label.X86VCPUWriteVMCB, fl4_abi.label.X86VCPUReadMSR,
     fl4_abi.label.X86VCPUWriteMSR, fl4_abi.label.X86VCPUEnableIOPort, fl4_abi.label.X86VCPUDisableIOPort,
-    ite_true, ite_false, if_true, if_false]))
+    ite_true, ite_false, if_true, if_false])
+
+local macro "vpre" : tactic => `(tactic| (vpre0; vlbl))
 
 /-- **`X86VCPUFlushTLB`.** -/
 theorem vcpu.decode.flush {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (hH : HeapOK H) {s : S} {a : A}
@@ -674,19 +680,37 @@ theorem vcpu.decode.vmcs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
       DecPost st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s r s' ⦄ := by
   have c0 := Cur0.ofPre D
   rcases hl with rfl | rfl
+  -- The label tests rewritten one by one: `vlbl` over the body exceeds
+  -- simp's step bound since #104's `SVM_CPU` field tests.
+  all_goals vpre0
+  on_goal 1 =>
+    rw [if_neg (show ¬ (fl4_abi.label.X86VCPUReadVMCS = fl4_abi.label.X86VCPUSetTCB) by vlbl),
+      if_neg (show ¬ (fl4_abi.label.X86VCPUReadVMCS = fl4_abi.label.X86VCPUWriteRegisters) by vlbl), if_neg (show ¬ (fl4_abi.label.X86VCPUReadVMCS = fl4_abi.label.X86VCPUFlushTLB) by vlbl), if_pos trivial,
+      if_neg (show ¬ (fl4_abi.label.X86VCPUReadVMCS = fl4_abi.label.X86VCPUWriteVMCS) by vlbl),
+      if_neg (show ¬ (fl4_abi.label.X86VCPUReadVMCS = fl4_abi.label.X86VCPUWriteVMCS) by vlbl)]
+  on_goal 2 =>
+    rw [if_neg (show ¬ (fl4_abi.label.X86VCPUWriteVMCS = fl4_abi.label.X86VCPUSetTCB) by vlbl),
+      if_neg (show ¬ (fl4_abi.label.X86VCPUWriteVMCS = fl4_abi.label.X86VCPUWriteRegisters) by vlbl), if_neg (show ¬ (fl4_abi.label.X86VCPUWriteVMCS = fl4_abi.label.X86VCPUFlushTLB) by vlbl),
+      if_neg (show ¬ (fl4_abi.label.X86VCPUWriteVMCS = fl4_abi.label.X86VCPUReadVMCS) by vlbl), if_pos trivial,
+      if_pos trivial, if_pos trivial]
+  -- (`vpre0`'s `simp only` already made the WriteVMCS self-tests `True`.)
+  -- The `i = 2` and length tests by `spec_ite` (`split` simplifies the
+  -- whole goal and exceeds simp's step bound too).
   all_goals
-    vpre
     have hU1 : UserOK st H.tcbs Cs H.omega H U s1 := D.user.ksb k1
-    split
+    refine spec_ite (fun _ => ?_) (fun _ => ?_)
     · verr
-    try simp only [bind_ok]
-    split
+    refine WP.spec_bind (Pₘ := fun x => x = _) ((WP.spec_ok _).2 rfl) fun i1 hi1 => ?_
+    subst hi1
+    refine spec_ite (fun _ => ?_) (fun _ => ?_)
     · verr
   · -- read
     try simp only [lift, bind_ok]
     refine WP.spec_bind (P0.vcpu.contains.p0 _ _) fun b _ => ?_
     split
-    · refine WP.spec_bind (Pₘ := fun _ => True) (by
+    · -- #106: the image is brought up to date first (its store effect: `Cur0.vcpu_sync`)
+      refine WP.spec_bind (hA.vcpu_sync a1 v f) fun a2 _ => ?_
+      refine WP.spec_bind (Pₘ := fun _ => True) (by
         repeat' (first
           | exact (WP.spec_ok _).2 trivial
           | refine WP.spec_bind (hA.vcpu_capability _ _) fun _ _ => ?_
@@ -702,8 +726,16 @@ theorem vcpu.decode.vmcs {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     refine WP.spec_bind (P0.vcpu.sanitize_vmcs.p0 _ _ _ _ hA) fun r _ => ?_
     rcases r with val | e
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+      refine WP.spec_bind (hA.vcpu_sync a1 v f) fun a2 _ => ?_
       refine WP.spec_bind (vcpu.write_vmcs.cur0 hH hv c1) fun s2 ⟨c2, k2⟩ => ?_
-      exact reply_leaf E he c2 (hU1.ksb k2)
+      -- #104: a write of the guest's paging state clears `SVM_CPU` (the VPID's translations).
+      refine WP.spec_bind (Pₘ := fun s3 => Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s s3 ∧
+          L.ksb s3 = L.ksb s2) (by
+        repeat' (first
+          | exact vcpu.set.cur0k hH hv (by simp [vcpu.SVM_CPU]) (by simp [vcpu.SVM_CPU]) c2
+          | exact (WP.spec_ok _).2 ⟨c2, rfl⟩
+          | split)) fun s3 ⟨c3, k3⟩ => ?_
+      exact reply_leaf E he c3 (hU1.ksb (k3.trans k2))
     · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_tc_ok]

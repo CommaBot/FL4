@@ -33,6 +33,7 @@ theorem mrKeepD_true {A : Type} {arI : machine.Arch A} (hT : P0.ArchTotal arI) :
   fpu_sanitise a t _ _ := hT.fpu_sanitise a t
   fpu_reload a t _ _ := hT.fpu_reload a t
   vcpu_barrier a _ _ := hT.vcpu_barrier a
+  vcpu_release a v _ _ := hT.vcpu_release a v
   invalidate_ept a x y _ _ := hT.invalidate_ept a x y
   invalidate_page a x y _ _ := hT.invalidate_page a x y
   invalidate_asid a x _ _ := hT.invalidate_asid a x

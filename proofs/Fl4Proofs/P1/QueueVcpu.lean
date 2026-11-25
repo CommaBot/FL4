@@ -4,7 +4,11 @@ P1: the VCPU objects' steps.  A VCPU is a heap object of kind `.other 15`
 the frame words: `vcpu_obj_capw`); the TCBs' VCPU word (offset 3664) is a
 field no invariant reads (`plainW_all`).  The steps keep `Cur0`: a VCPU
 word write (`vcpu.set.cur0`, `vcpu.write_vmcs.cur0`), a TCB's VCPU word,
-the stall, a thread's VCPU report and `detach`.  P3's facts are one
+the stall, a thread's VCPU report and `detach`. `Cur0.vcpu_sync` is the
+trusted contract of #106's `Arch::vcpu_sync` (outside the extraction, whose
+Arch methods return only the arch state): it may overwrite the VCPU's VMCS
+image word of the field being read or written, and no other word the store
+shows; `Cur0` holds whatever value lands there.  P3's facts are one
 structure, `VcpuPlace`.
 -/
 import Fl4Proofs.P1.QueueVcpuLink
@@ -92,6 +96,21 @@ theorem vcpu.vmcs_addr.off (v f : U64) :
   · simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, vcpu.SHADOW]; omega
   · simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, vcpu.SHADOW]; omega
   · exact wadd_assoc v _ _ (by simp [vcpu.SHADOW]; omega)
+
+/-- **#106 `vcpu_sync`'s memory effect keeps `Cur0`.** The extraction's Arch
+methods return only the arch state, so the model leaves the store unchanged
+across `a.vcpu_sync(v, f)`; on the hardware it may overwrite the VCPU's VMCS
+image word of `f` (`vcpu.vmcs_addr v f`) with the field's hardware value and
+no other word the store shows (`fl4_core::machine::Arch::vcpu_sync`, the
+trusted backend). Whatever value lands there, `Cur0` holds after it: the word
+is a VCPU object word. -/
+theorem Cur0.vcpu_sync (hH : HeapOK H) {s0 s : S} {v f w x : U64} (hv : H v = some (.other 15))
+    (hw : vcpu.vmcs_addr v f = ok w) (h : Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 s) :
+    Cur0 st H.tcbs Cs H.omega H H.frame Rp Scs Nt Z Ac s0 (L.wr s w x) := by
+  have hoff := vcpu.vmcs_addr.off v f
+  rw [hw, WP.spec_ok] at hoff
+  obtain ⟨o, ho, h8, rfl⟩ := hoff
+  exact h.vword hH hv (by omega) h8
 
 end
 
@@ -505,7 +524,11 @@ theorem vcpu.detach.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
   try simp only [lift, bind_ok]
   refine WP.spec_bind (LawfulStore.write_spec _ _ _) fun s4 e4 => ?_
   subst e4
-  exact (WP.spec_ok _).2 ⟨h3.tvcpu ht, by rw [L.ksb_wr, L.ksb_wr]; exact k2⟩
+  -- #104: the binding's `SVM_CPU` is cleared last.
+  refine WP.spec_bind (LawfulStore.write_spec _ _ _) fun s5 e5 => ?_
+  subst e5
+  exact (WP.spec_ok _).2 ⟨(h3.tvcpu ht).vword P.heap hv (o := vcpu.SVM_CPU) (x := 0#u64)
+    (by simp [vcpu.SVM_CPU]) (by simp [vcpu.SVM_CPU]), by rw [L.ksb_wr, L.ksb_wr, L.ksb_wr]; exact k2⟩
 
 end
 

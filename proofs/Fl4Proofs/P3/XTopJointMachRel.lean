@@ -340,6 +340,8 @@ def modelArch : machine.Arch MachineState where
   virtualization _ := ok 0#u64
   vcpu_capability _ _ := ok 0#u64
   vcpu_barrier a := ok a
+  vcpu_sync a _ _ := ok a
+  vcpu_release a _ := ok a
   invalidate_ept a _ _ := ok a
   tdx_active _ := ok false
   tdx_report a _ _ _ _ _ _ _ _ _ := ok (core.num.U64.MAX, a)

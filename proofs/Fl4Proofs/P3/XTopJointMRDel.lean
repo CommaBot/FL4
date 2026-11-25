@@ -51,6 +51,7 @@ theorem modelArch_mrKeepD {C : Type} (AR : Fl4Spec.MachineState → C → Prop) 
   fpu_sanitise _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   fpu_reload _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   vcpu_barrier _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
+  vcpu_release _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   invalidate_ept _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   invalidate_page _ _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
   invalidate_asid _ _ _ h := by show (ok _ : Result _) ⦃ _ ⦄; rw [WP.spec_ok]; exact h
