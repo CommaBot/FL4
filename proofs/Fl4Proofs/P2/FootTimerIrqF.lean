@@ -222,16 +222,22 @@ theorem core_of_guard (s : S) (t : obj.Tcb) (h : R (core.num.U64.wrapping_add t 
   unfold localtimer.core_of
   rw [PathObl.obj.Tcb.timer_height.guard (gS := gS) t s h]
 
-/-- What `plan_objects` reads of the earliest armed thread `tm` and of its bound notification. -/
+/-- `plan_objects` goes past its first check for `tm`: `tm` is homed on this core and armed in this core's tree. -/
+def TmHere (st : machine.Store S) [L : LawfulStore st] (s : S) (tm : U64) : Prop :=
+  obj.Tcb.affinity st tm s = ok (L.cpu s) ∧ localtimer.core_of st s tm = ok (L.cpu s)
+
+/-- What `plan_objects` reads of the earliest armed thread `tm` and of its bound notification: its `AFFINITY`,
+`TIMER_HEIGHT` and `BOUND_NTFN`, and, once `tm` is this core's (`TmHere`), its `STATE`, `BLOCK_OBJ`, `REPLY_OBJ` and
+its bound notification's state and `BOUND_TCB`. -/
 structure PlanTm (st : machine.Store S) [L : LawfulStore st] (R : U64 → Prop) (s : S) (tm : U64) : Prop where
   aff : R (core.num.U64.wrapping_add tm 3520#u64)
   ht : R (core.num.U64.wrapping_add tm 3568#u64)
   bn : R (core.num.U64.wrapping_add tm 3368#u64)
-  stt : R (core.num.U64.wrapping_add tm layout.tcb.STATE)
-  bo : R (core.num.U64.wrapping_add tm 3336#u64)
-  ro : R (core.num.U64.wrapping_add tm 3360#u64)
-  nt : ∀ n, obj.Tcb.bound_ntfn st tm s = ok n → n ≠ 0#u64 →
-    R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE) ∧ R (core.num.U64.wrapping_add n layout.ntfn.BOUND_TCB)
+  here : TmHere st s tm →
+    R (core.num.U64.wrapping_add tm layout.tcb.STATE) ∧ R (core.num.U64.wrapping_add tm 3336#u64) ∧
+    R (core.num.U64.wrapping_add tm 3360#u64) ∧
+    (∀ n, obj.Tcb.bound_ntfn st tm s = ok n → n ≠ 0#u64 →
+      R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE) ∧ R (core.num.U64.wrapping_add n layout.ntfn.BOUND_TCB))
 
 set_option maxHeartbeats 4000000 in
 /-- **`plan_objects` on the guarded store**: it reads the node's `TIMER_MIN` and what `PlanTm` lists. -/
@@ -257,18 +263,24 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   · rw [if_pos (decide_eq_true h0), if_pos (decide_eq_true h0)]
   have P := h2 h0
   rw [if_neg (by simpa using h0), if_neg (by simpa using h0), PathObl.obj.Tcb.affinity.guard (gS := gS) _ s P.aff]
-  refine bind_guard_congr rfl fun i1 _ => ?_
+  refine bind_guard_congr rfl fun i1 ei1 => ?_
   by_cases ha : (i1 != L.cpu s) = true
   · rw [if_pos ha, if_pos ha]
+  have e1 : i1 = L.cpu s := by by_contra hne; exact ha (bne_iff_ne.mpr hne)
+  subst e1
   rw [if_neg ha, if_neg ha, core_of_guard s _ P.ht]
-  refine bind_guard_congr rfl fun i2 _ => ?_
+  refine bind_guard_congr rfl fun i2 ei2 => ?_
   by_cases hb : (i2 != L.cpu s) = true
   · rw [if_pos hb, if_pos hb]
+  have e2 : i2 = L.cpu s := by by_contra hne; exact hb (bne_iff_ne.mpr hne)
+  subst e2
+  have hh : TmHere st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) := And.intro ei1 ei2
+  obtain ⟨Pst, Pbo, Pro, Pnt⟩ := P.here hh
   rw [if_neg hb, if_neg hb, PathObl.obj.Tcb.bound_ntfn.guard (gS := gS) _ s P.bn]
   refine bind_guard_congr rfl fun n en => ?_
   by_cases hn : n = 0#u64
   · rw [if_pos hn, if_pos hn]
-  obtain ⟨hn1, hn2⟩ := P.nt n en hn
+  obtain ⟨hn1, hn2⟩ := Pnt n en hn
   rw [if_neg hn, if_neg hn]
   refine bind_guard_congr rfl fun x _ => ?_
   obtain ⟨x1, x2⟩ := x
@@ -281,11 +293,11 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   refine bind_guard_congr rfl fun i4 _ => ?_
   by_cases h4 : (i4 != L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) = true
   · rw [if_pos h4, if_pos h4]
-  rw [if_neg h4, if_neg h4, PathObl.obj.Tcb.state.guard (gS := gS) _ s P.stt]
+  rw [if_neg h4, if_neg h4, PathObl.obj.Tcb.state.guard (gS := gS) _ s Pst]
   refine bind_guard_congr rfl fun i5 _ => ?_
   by_cases h5 : (i5 != sched.TS_BLOCKED_ON_RECV) = true
   · rw [if_pos h5, if_pos h5]
-  rw [if_neg h5, if_neg h5, PathObl.obj.Tcb.block_obj.guard (gS := gS) _ s P.bo]
+  rw [if_neg h5, if_neg h5, PathObl.obj.Tcb.block_obj.guard (gS := gS) _ s Pbo]
   refine bind_guard_congr rfl fun ep _ => ?_
   by_cases h6 : ep = 0#u64
   · rw [if_pos h6, if_pos h6]
@@ -293,7 +305,7 @@ theorem plan_objects.guard {s : S} (h1 : R (L.nodeAt s (L.cpu s) layout.node.TIM
   refine bind_guard_congr rfl fun y _ => ?_
   obtain ⟨y1, y2⟩ := y
   simp only [Aeneas.Std.uncurry_apply_pair]
-  rw [PathObl.obj.Tcb.reply_obj.guard (gS := gS) _ s P.ro]
+  rw [PathObl.obj.Tcb.reply_obj.guard (gS := gS) _ s Pro]
 
 end
 

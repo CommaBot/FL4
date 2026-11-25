@@ -530,26 +530,31 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
   -- the earliest timer
   have tmF : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 →
       L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ∈ T ∧
-      (∀ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368 ∨ K.val = 3328 ∨ K.val = 3336 ∨
-        K.val = 3360) → R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
-      (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64 →
-        R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
-          layout.ntfn.TAIL_STATE) ∧
-        R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
-          layout.ntfn.BOUND_TCB)) := by
+      (∀ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368) →
+        R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
+      (TmHere st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) →
+        (∀ K : U64, (K.val = 3328 ∨ K.val = 3336 ∨ K.val = 3360) →
+          R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
+        (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64 →
+          R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+            layout.ntfn.TAIL_STATE) ∧
+          R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+            layout.ntfn.BOUND_TCB))) := by
     intro hne
     have q1 := (tmin_facts (BXI.blk hI) hcC hne).1
     refine ⟨q1, fun K hK => gRd _ (field_aligned (hT _ q1) (by omega) (by omega))
-      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inl ⟨K, hK, rfl⟩⟩))))), fun hb => ?_⟩
+      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inl ⟨K, hK, rfl⟩⟩))))), fun hh => ⟨fun K hK =>
+        gRd _ (field_aligned (hT _ q1) (by omega) (by omega))
+          (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inl ⟨K, hK, rfl⟩⟩⟩))))), fun hb => ?_⟩⟩
     have hn := hX.2.2.bnd _ q1 hb
     obtain ⟨p1, p2⟩ := hO.ntP _ hn
     have al : ∀ K : U64, K.val < 64 → K.val % 8 = 0 →
         Aligned (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) K) :=
       fun K h1 h2 => by unfold Aligned; rw [ntfn_word_val p1 p2 h1]; omega
     exact ⟨gRd _ (al _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hb, Or.inl rfl⟩⟩))))),
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inr ⟨hb, Or.inl rfl⟩⟩⟩))))),
       gRd _ (al _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hb, Or.inr rfl⟩⟩)))))⟩
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inr ⟨hb, Or.inr rfl⟩⟩⟩)))))⟩
   have tm1e : L.mem s1 (L.nodeAt s1 (L.cpu s1) layout.node.TIMER_MIN) =
       L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) := by
     rw [e1N]
@@ -562,17 +567,16 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
         { aff := (tmF hne).2.1 3520#u64 (by simp)
           ht := (tmF hne).2.1 3568#u64 (by simp)
           bn := (tmF hne).2.1 3368#u64 (by simp)
-          stt := by
-            have := (tmF hne).2.1 3328#u64 (by simp)
-            rw [← stA_eq] at this
-            exact this
-          bo := (tmF hne).2.1 3336#u64 (by simp)
-          ro := (tmF hne).2.1 3360#u64 (by simp)
-          nt := fun n en hn => by
-            rw [eq_of_spec_fd (obj.Tcb.bound_ntfn.val (L := L) s _)] at en
-            have e := ok_inj_ff en
-            subst e
-            exact (tmF hne).2.2 hn })
+          here := fun hh => by
+            obtain ⟨H1, H2⟩ := (tmF hne).2.2 hh
+            refine ⟨?_, H1 3336#u64 (by simp), H1 3360#u64 (by simp), fun n en hn => ?_⟩
+            · have := H1 3328#u64 (by simp)
+              rw [← stA_eq] at this
+              exact this
+            · rw [eq_of_spec_fd (obj.Tcb.bound_ntfn.val (L := L) s _)] at en
+              have e := ok_inj_ff en
+              subst e
+              exact H2 hn })
   have gcok : localtimer.current_ok gS s (L.cpu s) (L.curW s) (L.cscW s) =
       localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) :=
     current_ok.guard s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
@@ -619,7 +623,7 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
   have rP : R (prioA (L.curW s)) := cR 3448#u64 (by simp) (by simp) (by simp) (by simp)
   -- the current thread's CNode slot words
   have slot8 : ∀ (i : U64) {sl : U64}, (core.num.U64.wrapping_mul i layout.cte.SIZE).val + 8 < 256 →
-      (core.num.U64.wrapping_mul i layout.cte.SIZE).val % 8 = 0 → obj.Tcb.slot (L.curW s) i = ok sl →
+      (core.num.U64.wrapping_mul i layout.cte.SIZE).val % 32 = 0 → obj.Tcb.slot (L.curW s) i = ok sl →
       R sl ∧ R (core.num.U64.wrapping_add sl 8#u64) := by
     intro i sl hK h8 e
     have es : obj.Tcb.slot (L.curW s) i =
@@ -638,9 +642,10 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
       apply UScalar.eq_of_val_eq
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] <;> omega
     rw [ea]
-    exact ⟨gRd _ (field_aligned ht' (by omega) h8) (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, by omega, h8, rfl⟩))))),
+    exact ⟨gRd _ (field_aligned ht' (by omega) (by omega))
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, by omega, by omega, by omega, rfl⟩))))),
       gRd _ (field_aligned ht' (by omega) (by omega))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, by omega, by omega, rfl⟩)))))⟩
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, by omega, by omega, by omega, rfl⟩)))))⟩
   have hKv : (core.num.U64.wrapping_mul layout.tcb.SLOT_VTABLE layout.cte.SIZE).val = 32 := by
     unfold layout.tcb.SLOT_VTABLE layout.cte.SIZE
     simp [core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]

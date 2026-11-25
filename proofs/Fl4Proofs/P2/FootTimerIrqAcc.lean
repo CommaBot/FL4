@@ -81,18 +81,22 @@ section sets
 variable {S : Type}
 
 /-- What `plan_objects` / `timer_due` read of the earliest armed thread `tm` (`PlanTm`, its deadline) and of
-its bound notification. -/
+its bound notification: its `AFFINITY`, `TIMER_DEADLINE`, `TIMER_HEIGHT`, `BOUND_NTFN`, and, once `tm` is this
+core's (`TmHere`), its `STATE`, `BLOCK_OBJ`, `REPLY_OBJ` and its bound notification's state and `BOUND_TCB`. -/
 def TmWords (st : machine.Store S) [L : LawfulStore st] (s : S) (tm w : U64) : Prop :=
-  (∃ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368 ∨ K.val = 3328 ∨ K.val = 3336 ∨
-      K.val = 3360) ∧ w = core.num.U64.wrapping_add tm K) ∨
-    (L.mem s (boundA tm) ≠ 0#u64 ∧
-      (w = core.num.U64.wrapping_add (L.mem s (boundA tm)) layout.ntfn.TAIL_STATE ∨
-        w = core.num.U64.wrapping_add (L.mem s (boundA tm)) layout.ntfn.BOUND_TCB))
+  (∃ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368) ∧
+      w = core.num.U64.wrapping_add tm K) ∨
+    (TmHere st s tm ∧
+      ((∃ K : U64, (K.val = 3328 ∨ K.val = 3336 ∨ K.val = 3360) ∧ w = core.num.U64.wrapping_add tm K) ∨
+        (L.mem s (boundA tm) ≠ 0#u64 ∧
+          (w = core.num.U64.wrapping_add (L.mem s (boundA tm)) layout.ntfn.TAIL_STATE ∨
+            w = core.num.U64.wrapping_add (L.mem s (boundA tm)) layout.ntfn.BOUND_TCB))))
 
 /-- The words an accepted timer interrupt (quiet or round-robin) reads at its entry state `s` (current SC sized
 by `Z`), besides the kernel-global ones: this core's node words, the current thread's words (`CallerW`), the
 current SC, the release head's SC word and SC, `TmWords` of the earliest armed thread, and the current thread's
-CNode slot words (offsets below 256: the timeout handler slot, the `VTABLE` slot). -/
+CNode slot cap words (offsets below 256, the first 16 bytes of a 32-byte slot: the timeout handler slot, the
+`VTABLE` slot; not the CDT links, `lock <slot>`'s). -/
 def IrqRd (st : machine.Store S) [L : LawfulStore st] (Z : U64 → Nat) (s : S) (w : U64) : Prop :=
   (∃ o : U64, o.val < 4288 ∧ o.val % 8 = 0 ∧ w = L.nodeAt s (L.cpu s) o) ∨ CallerW (L.curW s) w ∨
     InSC (L.cscW s) (Z (L.cscW s)) w ∨
@@ -102,7 +106,7 @@ def IrqRd (st : machine.Store S) [L : LawfulStore st] (Z : U64 → Nat) (s : S) 
           (Z (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))) w)) ∨
     (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 ∧
       TmWords st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) w) ∨
-    (∃ K : U64, K.val < 256 ∧ K.val % 8 = 0 ∧ w = core.num.U64.wrapping_add (L.curW s) K)
+    (∃ K : U64, K.val < 256 ∧ K.val % 32 < 16 ∧ K.val % 8 = 0 ∧ w = core.num.U64.wrapping_add (L.curW s) K)
 
 /-- The words an accepted timer interrupt (quiet or round-robin) writes: this core's node words, the current
 thread's registers and `STATE` (`CallerRegW`), the current SC's ring and `CONSUMED`, and the current thread's
@@ -524,26 +528,31 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   -- the earliest timer
   have tmF : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 →
       L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ∈ T ∧
-      (∀ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368 ∨ K.val = 3328 ∨ K.val = 3336 ∨
-        K.val = 3360) → R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
-      (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64 →
-        R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
-          layout.ntfn.TAIL_STATE) ∧
-        R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
-          layout.ntfn.BOUND_TCB)) := by
+      (∀ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368) →
+        R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
+      (TmHere st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) →
+        (∀ K : U64, (K.val = 3328 ∨ K.val = 3336 ∨ K.val = 3360) →
+          R (core.num.U64.wrapping_add (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) K)) ∧
+        (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64 →
+          R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+            layout.ntfn.TAIL_STATE) ∧
+          R (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+            layout.ntfn.BOUND_TCB))) := by
     intro hne
     have q1 := (tmin_facts (BXI.blk hI) hcC hne).1
     refine ⟨q1, fun K hK => gRd _ (field_aligned (hT _ q1) (by omega) (by omega))
-      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inl ⟨K, hK, rfl⟩⟩))))), fun hb => ?_⟩
+      (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inl ⟨K, hK, rfl⟩⟩))))), fun hh => ⟨fun K hK =>
+        gRd _ (field_aligned (hT _ q1) (by omega) (by omega))
+          (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inl ⟨K, hK, rfl⟩⟩⟩))))), fun hb => ?_⟩⟩
     have hn := hX.2.2.bnd _ q1 hb
     obtain ⟨p1, p2⟩ := hO.ntP _ hn
     have al : ∀ K : U64, K.val < 64 → K.val % 8 = 0 →
         Aligned (core.num.U64.wrapping_add (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) K) :=
       fun K h1 h2 => by unfold Aligned; rw [ntfn_word_val p1 p2 h1]; omega
     exact ⟨gRd _ (al _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hb, Or.inl rfl⟩⟩))))),
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inr ⟨hb, Or.inl rfl⟩⟩⟩))))),
       gRd _ (al _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]))
-        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hb, Or.inr rfl⟩⟩)))))⟩
+        (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hne, Or.inr ⟨hh, Or.inr ⟨hb, Or.inr rfl⟩⟩⟩)))))⟩
   have tm1e : L.mem s1 (L.nodeAt s1 (L.cpu s1) layout.node.TIMER_MIN) =
       L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) := by
     rw [e1N]
@@ -567,17 +576,16 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
         { aff := (tmF hne).2.1 3520#u64 (by simp)
           ht := (tmF hne).2.1 3568#u64 (by simp)
           bn := (tmF hne).2.1 3368#u64 (by simp)
-          stt := by
-            have := (tmF hne).2.1 3328#u64 (by simp)
-            rw [← stA_eq] at this
-            exact this
-          bo := (tmF hne).2.1 3336#u64 (by simp)
-          ro := (tmF hne).2.1 3360#u64 (by simp)
-          nt := fun n en hn => by
-            rw [eq_of_spec_fd (obj.Tcb.bound_ntfn.val (L := L) s _)] at en
-            have e := ok_inj_ff en
-            subst e
-            exact (tmF hne).2.2 hn })
+          here := fun hh => by
+            obtain ⟨H1, H2⟩ := (tmF hne).2.2 hh
+            refine ⟨?_, H1 3336#u64 (by simp), H1 3360#u64 (by simp), fun n en hn => ?_⟩
+            · have := H1 3328#u64 (by simp)
+              rw [← stA_eq] at this
+              exact this
+            · rw [eq_of_spec_fd (obj.Tcb.bound_ntfn.val (L := L) s _)] at en
+              have e := ok_inj_ff en
+              subst e
+              exact H2 hn })
   have gcok : localtimer.current_ok gS s (L.cpu s) (L.curW s) (L.cscW s) =
       localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) :=
     current_ok.guard s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
