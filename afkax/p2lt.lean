@@ -22,6 +22,7 @@ import Fl4Proofs.P2.FootTimerIrqH
 import Fl4Proofs.P2.FootTimerIrqW
 import Fl4Proofs.P2.FootTimerIrqQF
 import Fl4Proofs.P2.FootTimerIrqRe
+import Fl4Proofs.P2.FootTimerFireQ
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -130,3 +131,8 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.fire_ok.guardK
 #print axioms Fl4Proofs.P2.plan_facts
 #print axioms Fl4Proofs.P2.fire_rd
+#print axioms Fl4Proofs.P2.tcbqueue.remove.guardL
+#print axioms Fl4Proofs.P2.tcbqueue.prepend.guardL
+#print axioms Fl4Proofs.P2.tcbqueue.append.guardL
+#print axioms Fl4Proofs.P2.notification.ntfn_dequeue.guard
+#print axioms Fl4Proofs.P2.endpoint.ep_dequeue.guard
