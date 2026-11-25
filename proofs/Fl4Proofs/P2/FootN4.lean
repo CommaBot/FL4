@@ -101,13 +101,14 @@ theorem notIdW_ep {s : S} {e b : U64} (NP : ∀ c ∈ Cs, NodePlaced st T s c) (
     rw [e', nodeAt_val (NP c hc) (by omega)] at hv
     have := hEN.1 c hc
     omega
-  · rcases h with ⟨y', hy', hya', -, e' | e'⟩ | ⟨hn, ⟨y', hy', hya', e' | e'⟩ | ⟨c, hc, e' | e', -⟩⟩
+  · rcases h with ⟨y', hy', hya', -, e' | e'⟩ | ⟨hn, ⟨y', hy', hya', e' | e'⟩ | ⟨c, hc, e' | e', -⟩ | ⟨y', hy', hya', e'⟩⟩
     · rw [e', stA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
     · rw [e', inqA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
     · rw [e', scA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
     · rw [e', affA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
     · have := hEΩ _ (hHΩ hn c hc).1; rw [← e'] at this; omega
     · have := hEΩ _ (hHΩ hn c hc).2; rw [← e'] at this; omega
+    · rw [e', field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
 
 theorem EpFoot.kwN {s : S} {W : List U64} {e b : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
     (hW : ∀ w ∈ W, w ∈ T) (he : e ∈ Es) (hE : EpPlaced T e) (hEN : EpOutNodes st Cs s e)

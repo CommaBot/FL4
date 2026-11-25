@@ -85,8 +85,8 @@ theorem StKeep.ofI {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → Lis
     (Or.inr (Or.inr ⟨trivial, Or.inl ⟨y, hy, h.tcbs y hy, Or.inl rfl⟩⟩))
   lk := fun c hc => by
     obtain ⟨⟨a1, i1⟩, ⟨a2, i2⟩⟩ := sclink_in hO hc
-    exact ⟨f.idKeep a1 (Or.inr (Or.inr ⟨trivial, Or.inr ⟨c, hc, Or.inl rfl, h.omega _ (hO.scW c hc _ a1 i1)⟩⟩)),
-      f.idKeep a2 (Or.inr (Or.inr ⟨trivial, Or.inr ⟨c, hc, Or.inr rfl, h.omega _ (hO.scW c hc _ a2 i2)⟩⟩))⟩
+    exact ⟨f.idKeep a1 (Or.inr (Or.inr ⟨trivial, Or.inr (Or.inl ⟨c, hc, Or.inl rfl, h.omega _ (hO.scW c hc _ a1 i1)⟩)⟩)),
+      f.idKeep a2 (Or.inr (Or.inr ⟨trivial, Or.inr (Or.inl ⟨c, hc, Or.inr rfl, h.omega _ (hO.scW c hc _ a2 i2)⟩)⟩))⟩
 
 /-- A `FootN` footprint in no-donation mode is an `StKeep`, from `BlkOK`. -/
 theorem StKeep.ofN {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hKT : ∀ y ∈ Kp, y ∈ T)

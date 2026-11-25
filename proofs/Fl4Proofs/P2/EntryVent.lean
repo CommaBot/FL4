@@ -59,6 +59,17 @@ proved (`vcpuWK_of_tw`).
   sets) ends in `AllCores`, under the run premise [W] (and `htg` for
   `TCB_SetTimer`).
 
+**(vk) The run premise discharged.** `PrW` (P2/FootN) now protects every
+TCB's VCPU word under `Nd`, so the body's `FootN (KI …) True` footprint,
+`fire`'s `FK` frame (`FK.vc`) and the rest of `schedule` (`SFootN`) keep
+them (`sched.schedule.vkB`, P2/FootN11); wire's `allCoresBW` exports the
+keep from the entry to `schedule`'s end. Hence
+**`timer_irq_local.allCoresExitZ2`** / **`set_timer_local.allCoresExitZ2`**
+(`allCoresExitZ` without `IrqVK`/`SetVK`) and
+**`timer_irq_local.allCoresExitJ2`** / **`set_timer_local.allCoresExitJ2`**
+(`allCoresExitJ` without the run premise). `IrqVK`/`SetVK` and the
+`…Z`/`…J` theorems are kept unchanged.
+
 Inputs left (P2's own, not P3's): `AllCores s0` (other cores' clauses),
 `BufAt s0` (user words / buffers), `IbKeep` (arch), `target ∈ T`.
 Fixed-heap caveat (as slj2): `AllCores` is over one `H` for the run; P3
@@ -163,7 +174,7 @@ theorem timer_irq_local.allCoresExitZ (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hD0 : DomInv st T s0) (hz : VcpuZ st T s0) (VK : IrqVK st ar T s0 a0 irq)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E, pin⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, -, E, pin⟩ :=
     timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0
@@ -182,12 +193,49 @@ theorem set_timer_local.allCoresExitZ (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hD0 : DomInv st T s0) (hz : VcpuZ st T s0) (VK : SetVK st ar T s0 a0 target)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E, pin⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, -, E, pin⟩ :=
     set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0
     exact ObjsOK.zero_notScs hX0.1
   exact AllCores.exitZ hA IK hNt hS0 hz (VK s3 a3 s4 a4 pin esc) hB3 hBA3 esc W E
+
+/-- (vk) **The timer-interrupt local entry ends in `AllCores`, no run
+premise**: `allCoresExitZ` with `IrqVK` discharged (the run's VCPU words
+kept, exported by `allCoresBW` from `sched.schedule.vkB`). Entry facts:
+`h0`, `hcpu`, `hI0`, `hBA0`, `hD0`, `hz` (`VcpuZ`, P3). No named premise. -/
+theorem timer_irq_local.allCoresExitZ2 (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s0 s' : S} {a0 a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
+    (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0)
+    (hD0 : DomInv st T s0) (hz : VcpuZ st T s0)
+    (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
+    AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, VK, E, -⟩ :=
+    timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
+  have hS0 : (0#u64) ∉ Scs := by
+    obtain ⟨-, -, hX0, -⟩ := hI0
+    exact ObjsOK.zero_notScs hX0.1
+  exact AllCores.exitZ hA IK hNt hS0 hz VK hB3 hBA3 esc W E
+
+/-- (vk) **The `TCB_SetTimer` local entry ends in `AllCores`, no run
+premise**: `allCoresExitZ` with `SetVK` discharged. Entry facts: `h0`,
+`hcpu`, `hI0`, `hBA0`, `htg`, `hD0`, `hz`. No named premise. -/
+theorem set_timer_local.allCoresExitZ2 (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s0 s' : S} {a0 a' : A} {n : I64} {target : U64}
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
+    (hI0 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hBA0 : BufAt st T Cs H Sg Scs Z U s0) (htg : target ∈ T)
+    (hD0 : DomInv st T s0) (hz : VcpuZ st T s0)
+    (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
+    AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, VK, E, -⟩ :=
+    set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
+  have hS0 : (0#u64) ∉ Scs := by
+    obtain ⟨-, -, hX0, -⟩ := hI0
+    exact ObjsOK.zero_notScs hX0.1
+  exact AllCores.exitZ hA IK hNt hS0 hz VK hB3 hBA3 esc W E
 
 /-- `VcpuEnt` without its `pl` (the facts that are the entry state's; module
 docstring). -/
@@ -317,6 +365,62 @@ theorem set_timer_local.allCoresExitJ {A : Type} (arI : machine.Arch A) (AR : A 
     ventS_of_reachU17 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
   exact ⟨H, Cs, Ac, fun U a0 a' s' n target h0 hBA0 htg VK e =>
     set_timer_local.allCoresExitZ hA IK (fun _ hn => hn) h0 hc hI hBA0 htg hD hz VK e⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- (vk) **The timer-interrupt local entry ends in `AllCores` from every
+reachable entry state, no run premise** (`allCoresExitJ` without `IrqVK`).
+Premises: `kernel_entry_domInvU29`'s and `IK` (arch). -/
+theorem timer_irq_local.allCoresExitJ2 {A : Type} (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop)
+    (MR : A → Fl4Spec.MachineState → Prop) [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
+    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
+    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
+    (IK : IbKeep st arI)
+    {s0 : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s0 a σ) :
+    ∃ (H : Heap) (Cs Ac : Set U64), ∀ (U : Set U64) (a0 a' : A) (s' : S) (irq : U64) (p : localtimer.TimerIrqPlan),
+      AllCores st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s0 →
+      BufAt st (Heap.tcbs H) Cs H (Heap.frame H) (Heap.scs H) (Heap.scBits H) U s0 →
+      localtimer.handle_timer_irq_local st arI s0 a0 irq p = ok (true, s', a') →
+      AllCores st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s' := by
+  obtain ⟨H, Cs, Ac, hc, hI, hD, -, hz⟩ :=
+    ventS_of_reachU17 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
+  exact ⟨H, Cs, Ac, fun U a0 a' s' irq p h0 hBA0 e =>
+    timer_irq_local.allCoresExitZ2 hA IK (fun _ hn => hn) h0 hc hI hBA0 hD hz e⟩
+
+set_option maxHeartbeats 4000000 in
+/-- (vk) **The `TCB_SetTimer` local entry ends in `AllCores` from every
+reachable entry state, no run premise** (`allCoresExitJ` without `SetVK`);
+inputs also `target ∈ T`. -/
+theorem set_timer_local.allCoresExitJ2 {A : Type} (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop)
+    (MR : A → Fl4Spec.MachineState → Prop) [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
+    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
+    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
+    (IK : IbKeep st arI)
+    {s0 : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s0 a σ) :
+    ∃ (H : Heap) (Cs Ac : Set U64), ∀ (U : Set U64) (a0 a' : A) (s' : S) (n : I64) (target : U64),
+      AllCores st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s0 →
+      BufAt st (Heap.tcbs H) Cs H (Heap.frame H) (Heap.scs H) (Heap.scBits H) U s0 →
+      target ∈ Heap.tcbs H →
+      localtimer.handle_set_timer_local st arI s0 a0 n target = ok (true, s', a') →
+      AllCores st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
+        (Heap.scBits H) Ac s' := by
+  obtain ⟨H, Cs, Ac, hc, hI, hD, -, hz⟩ :=
+    ventS_of_reachU17 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
+  exact ⟨H, Cs, Ac, fun U a0 a' s' n target h0 hBA0 htg e =>
+    set_timer_local.allCoresExitZ2 hA IK (fun _ hn => hn) h0 hc hI hBA0 htg hD hz e⟩
 
 end
 

@@ -33,6 +33,11 @@ at its end, i.e. `hR`. **`AllCores.schedH`** / **`AllCores.schedBH`**:
 `hsa`): `hD` (`DomInv` at the body's end: P1/DomInv, P3's
 `kernel_entry_domInvU29`) and `hrs` (`RC` at the body's end). Named premise
 left: `hS0` [W] (`0 ∉ Scs`).
+
+**(vk)** `sched.schedule.vk` / `sched.schedule.vkB`: `schedule` (and an entry
+body with a `FootN (KI …) True` footprint before it) keeps every TCB's VCPU
+word (offset 3664): `fire` by `FK.vc`, the rest by `SFootN` (`PrW` protects
+the VCPU words under `Nd`). No premise.
 -/
 import Fl4Proofs.P2.EntryEnd
 import Fl4Proofs.P1.DomInvQ
@@ -1382,6 +1387,88 @@ theorem AllCores.schedBH {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal a
     sched.schedule st ar s a ⦃ s' _ => AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   obtain ⟨kb, hc, hao, hcK, hidl, -⟩ := AllCores.bodyEnd h0 hcpu hB0 f
   exact AllCores.schedH hA IK hNt a h0 hcpu hS0 kb hc h hBA hao hcK hsa hD hrs hidl
+
+
+/-! ## (vk) `schedule` keeps every TCB's VCPU word -/
+
+/-- **`schedule` keeps every TCB's VCPU word** (offset 3664; vk): `fire` is
+an `FKI` step (`FK.vc`), the rest of `schedule` an `SFootN` over `KI`, whose
+`PrW … True` protects the VCPU words. Hypotheses as `sched.schedule.idl`. -/
+theorem sched.schedule.vk {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) {s0 s : S} (a : A)
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
+    (kb : OKeep2 st T Cs (L.cpu s0) s0 s) (hc : L.cpu s = L.cpu s0)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s)
+    (hao : ActOut st T (OtherK st T Cs (L.cpu s0) s0) s) (hcK : L.curW s ∉ OtherK st T Cs (L.cpu s0) s0)
+    (hidl : L.mem s (stA (L.idleW s)) = sched.TS_IDLE) :
+    sched.schedule st ar s a ⦃ s' _ => ∀ y ∈ T,
+      L.mem s' (core.num.U64.wrapping_add y 3664#u64) = L.mem s (core.num.U64.wrapping_add y 3664#u64) ⦄ := by
+  have c : FCtx st T Cs Scs (L.cpu s0) s := FCtx.ofAll h0 hcpu kb hc h hidl hao
+  have c' : FCtx st T Cs Scs (L.cpu s) s := by rw [hc]; exact c
+  have he := c.he
+  have h' := h
+  obtain ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ := h'
+  have hT := hq.tcbs
+  have hiT : idleAt st (L.cpu s0) s ∈ T := c.iT _ he
+  have hiS : L.mem s (stA (idleAt st (L.cpu s0) s)) = sched.TS_IDLE := c.iSt _ he
+  have FK : ∀ rf : S × A, timer.fire st ar s a = ok rf → FKI st T Cs (L.cpu s0) s rf.1 ∧
+      TInv st T Cs Ω H Sg Rp Scs Nt Z Ac rf.1 ∧ L.cpu rf.1 = L.cpu s0 := fun rf hrf => by
+    have k0 := timer.fire.fki hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA c'
+    rw [hrf] at k0
+    have k1 := (WP.spec_ok rf).1 k0
+    have k : FKI st T Cs (L.cpu s) s rf.1 := k1
+    have w := (WP.spec_ok _).1 (hrf ▸ timer.fire.tinvF hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA)
+    rw [hc] at k
+    exact ⟨k, w.1, w.2.2.1.trans hc⟩
+  have hF : ∀ rf : S × A, timer.fire st ar s a = ok rf →
+      KpAff st T (KI st T Cs (L.cpu s0) s) rf.1 ∧ ActOut st T (KI st T Cs (L.cpu s0) s) rf.1 ∧
+        (L.curW rf.1 ∈ KI st T Cs (L.cpu s0) s → ¬ Runnable (L.mem rf.1 (stA (L.curW rf.1)))) := fun rf hrf => by
+    obtain ⟨k, w, hc1⟩ := FK rf hrf
+    have hKA := KpAff.ofKeep h0 hcpu (kb.trans k.fk.keep) hc1
+    have c1 := c.step k (hc1.trans hc.symm)
+    obtain ⟨⟨Q1, R1, q1⟩, -, -, -, -⟩ := w
+    have hI : L.mem rf.1 (stA (idleAt st (L.cpu s0) s)) = sched.TS_IDLE := k.idl.trans hiS
+    refine ⟨fun y hy => ?_, ?_, fun hk => ?_⟩
+    · rcases hy with hy | rfl
+      · rw [kb.otherK] at hy; exact hKA y hy
+      · exact ⟨hiT, Or.inr (by rw [hI]; exact tsIdle_nr)⟩
+    · have ao := c1.aoK q1
+      rw [k.kiEq he] at ao
+      exact ao
+    · rw [k.fk.cur] at hk ⊢
+      rcases hk with hk | hk
+      · rw [kb.otherK] at hk; exact absurd hk hcK
+      · rw [hk, hI]; exact tsIdle_nr
+  refine WP.spec_mono (sched.schedule.sN (Kp := KI st T Cs (L.cpu s0) s) hA IK hNt s a h hBA hF) ?_
+  rintro ⟨s', a'⟩ hh
+  simp only [WP.uncurry'_pair] at hh ⊢
+  obtain ⟨rf, hrf, -, F⟩ := hh
+  obtain ⟨k, -, -⟩ := FK rf hrf
+  intro y hy
+  rw [F.mem_eq (field_aligned (hT y hy) (by simp) (by simp))
+    (fun hb => hb.2.2 (Or.inr ⟨trivial, Or.inr (Or.inr ⟨y, hy, hT y hy, rfl⟩)⟩))]
+  exact k.fk.vc y hy
+
+/-- **The entry body and `schedule` keep every TCB's VCPU word** (vk): the
+body's `FootN … True` footprint protects them (`PrW`), and `schedule` keeps
+them (`sched.schedule.vk`, its hypotheses from `AllCores.bodyEnd`). -/
+theorem sched.schedule.vkB {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) {s0 s : S} (a : A)
+    (h0 : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
+    (hB0 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s0)
+    (f : FootN st (KI st T Cs (L.cpu s0) s0) True T Cs Sg Scs Z (EH H) s0 s)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s) :
+    sched.schedule st ar s a ⦃ s' _ => ∀ y ∈ T,
+      L.mem s' (core.num.U64.wrapping_add y 3664#u64) = L.mem s0 (core.num.U64.wrapping_add y 3664#u64) ⦄ := by
+  have hT : TcbPlaced T := hB0.1.choose_spec.choose_spec.tcbs
+  obtain ⟨kb, hc, hao, hcK, hidl, -⟩ := AllCores.bodyEnd h0 hcpu hB0 f
+  refine WP.spec_mono (sched.schedule.vk hA IK hNt a h0 hcpu kb hc h hBA hao hcK hidl) ?_
+  rintro ⟨s', a'⟩ hh
+  simp only [WP.uncurry'_pair] at hh ⊢
+  intro y hy
+  rw [hh y hy]
+  exact f.idKeep (field_aligned (hT y hy) (by simp) (by simp))
+    (Or.inr (Or.inr ⟨trivial, Or.inr (Or.inr ⟨y, hy, hT y hy, rfl⟩)⟩))
 
 end
 
