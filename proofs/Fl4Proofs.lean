@@ -1682,3 +1682,10 @@ import Fl4Proofs.P2.SlJStTop
 import Fl4Proofs.P3.StPostIoLeaf
 import Fl4Proofs.P3.StPostIoTop
 import Fl4Proofs.P2.SlJStPostIo
+import Fl4Proofs.P3.StPostTmLeaf
+import Fl4Proofs.P3.StPostTmAcc
+import Fl4Proofs.P3.StPostTmDec
+import Fl4Proofs.P3.StPostTmInv
+import Fl4Proofs.P3.StPostTmTop
+import Fl4Proofs.P2.SlJStPostTm
+import Fl4Proofs.P2.SlJStLocTop
