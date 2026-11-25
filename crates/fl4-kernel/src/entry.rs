@@ -3,7 +3,7 @@
 use crate::kprintln;
 use crate::user_trap;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, cvm, fpu, percpu, tdx, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, cvm, fpu, kconfig, percpu, tdx, timer, tlb};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -564,6 +564,18 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
                 }
                 None => {}
             }
+        }
+    }
+    // SysKernelConfig: one boot-frozen word (kconfig.rs), answered from the
+    // caller's registers alone, in a confidential VM too. A thread with
+    // trapSyscalls takes the ordinary path to its fault handler.
+    if v == VEC_SYSCALL && f.rdx as i64 == fl4_abi::syscall::SysKernelConfig {
+        let s = store();
+        if sched::cur_thread(&s).flags(&s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS == 0 {
+            (f.rdi, f.r10) = kconfig::reply(f.rdi);
+            // seL4_MessageInfo_new(0, 0, 0, 1).
+            f.rsi = 1;
+            return resume_user();
         }
     }
     save_user(&mut store(), f);

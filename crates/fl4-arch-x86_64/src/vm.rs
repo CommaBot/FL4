@@ -15,6 +15,7 @@ use crate::{cpu, fpu, percpu, spec, tlb};
 use core::arch::asm;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU64, Ordering};
+use fl4_abi::consts::kernel_config::{virt_features, virt_reject};
 use fl4_core::layout;
 use fl4_core::machine::Store;
 use fl4_core::vcpu::{self, svm, vmx::*};
@@ -298,6 +299,8 @@ static MAPS: Shared = Shared(UnsafeCell::new(Maps {
     empty: Page([0; 4096]),
 }));
 static BACKEND: AtomicU64 = AtomicU64::new(0);
+/// Why the boot core has no backend (`virt_reject`); NONE with one.
+static REJECT: AtomicU64 = AtomicU64::new(virt_reject::NONE);
 static BASIC: AtomicU64 = AtomicU64::new(0);
 static EPT_CAP: AtomicU64 = AtomicU64::new(0);
 /// `vpid_mode` of the boot core, which every AP shares (`init_vmx` checks
@@ -355,6 +358,36 @@ fn maps() -> &'static Maps {
 }
 pub fn backend() -> u64 {
     BACKEND.load(Ordering::Acquire)
+}
+/// Why there is no backend (`virt_reject`), from the boot core's `init`.
+pub(crate) fn reject() -> u64 {
+    REJECT.load(Ordering::Relaxed)
+}
+/// The optional features in use (`virt_features`).
+pub(crate) fn features() -> u64 {
+    features_of(
+        backend(),
+        VPID_MODE.load(Ordering::Relaxed),
+        EPT_CAP.load(Ordering::Relaxed),
+        CAPS[0x484 - 0x480].load(Ordering::Relaxed),
+        SVM_FEATURES.load(Ordering::Relaxed),
+    )
+}
+/// `features` for a backend with these `vpid_mode`, EPT_VPID_CAP, VM-entry
+/// controls and CPUID 8000_000AH:EDX. A probe that failed may have left
+/// its findings behind: they count only for the backend chosen.
+fn features_of(backend: u64, vpid: u64, ept: u64, entry_controls: u64, svm: u64) -> u64 {
+    let on = |cond: bool, bit: u64| if cond { bit } else { 0 };
+    match backend {
+        1 => {
+            on(vpid == 1, virt_features::X86_VPID_SINGLE)
+                | on(vpid == 2, virt_features::X86_VPID_ALL)
+                | on(ept & (1 << 25) != 0, virt_features::X86_INVEPT_SINGLE)
+                | on(entry_controls >> 32 & (1 << 13) != 0, virt_features::X86_VMX_PERF_GLOBAL_CTRL)
+        }
+        2 => on(svm & (1 << 5) != 0, virt_features::X86_SVM_VMCB_CLEAN),
+        _ => 0,
+    }
 }
 pub fn capability(field: u64) -> u64 {
     if field == 0 {
@@ -436,19 +469,35 @@ fn svm_ap_compatible(bsp: u32, ap: u32) -> bool {
     bsp & SVM_SHARED & !ap == 0
 }
 
-fn init_svm(bsp: bool) -> bool {
-    if spec::vmexit().is_none() {
-        return false;
+/// Whether a core with CPUID 8000_0001H:ECX `ecx` (its maximum extended
+/// leaf `max_ext`), CPUID 8000_000AH `svm` and VM_CR `vm_cr` (read only
+/// once the rest allows it) can run guests under AMD-V, given the
+/// speculation policy's leave (`policy`); else why not (`virt_reject`).
+fn svm_usable(max_ext: u32, ecx: u32, policy: bool, svm: cpu::Cpuid, vm_cr: impl FnOnce() -> u64) -> Result<(), u64> {
+    if max_ext < 0x8000_000a || ecx & 4 == 0 {
+        return Err(virt_reject::NO_HW);
     }
-    if cpu::cpuid(0x8000_0000, 0).eax < 0x8000_000a || cpu::cpuid(0x8000_0001, 0).ecx & 4 == 0 {
-        return false;
+    if !policy {
+        return Err(virt_reject::SPEC_POLICY_REJECTED);
     }
+    // Nested paging and NRIP save, and two ASIDs.
+    if svm.edx & 9 != 9 || svm.ebx < 2 {
+        return Err(virt_reject::MISSING_FEATURES);
+    }
+    // SVMDIS.
+    if vm_cr() & 16 != 0 {
+        return Err(virt_reject::DISABLED_BY_FIRMWARE);
+    }
+    Ok(())
+}
+
+fn init_svm(bsp: bool) -> Result<(), u64> {
+    let max_ext = cpu::cpuid(0x8000_0000, 0).eax;
+    let ecx = cpu::cpuid(0x8000_0001, 0).ecx;
     let c = cpu::cpuid(0x8000_000a, 0);
-    if c.edx & 9 != 9 || c.ebx < 2 || cpu::rdmsr(0xc001_0114) & 16 != 0 {
-        return false;
-    }
+    svm_usable(max_ext, ecx, spec::vmexit().is_some(), c, || cpu::rdmsr(0xc001_0114))?;
     if !bsp && !svm_ap_compatible(SVM_FEATURES.load(Ordering::Relaxed) as u32, c.edx) {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     }
     if bsp {
         SVM_FEATURES.store(c.edx as u64, Ordering::Relaxed);
@@ -470,7 +519,7 @@ fn init_svm(bsp: bool) -> bool {
     }
     cpu::wrmsr(cpu::msr::EFER, cpu::rdmsr(cpu::msr::EFER) | (1 << 12));
     cpu::wrmsr(0xc001_0117, physical(local().enable.0.as_ptr() as u64));
-    true
+    Ok(())
 }
 fn control_msr(field: u32, true_controls: bool) -> u32 {
     if true_controls {
@@ -546,16 +595,29 @@ fn read_vmx_capabilities(
     Some(caps)
 }
 
-fn init_vmx(bsp: bool) -> bool {
-    if cpu::cpuid(1, 0).ecx & (1 << 5) == 0 {
-        return false;
+/// IA32_FEATURE_CONTROL read as `feature`: the value to write first if it
+/// is not locked yet, or why VMX cannot be used (locked with VMXON outside
+/// SMX off).
+fn vmx_feature_control(feature: u64) -> Result<Option<u64>, u64> {
+    if feature & 1 == 0 {
+        Ok(Some(feature | 5))
+    } else if feature & 4 == 0 {
+        Err(virt_reject::DISABLED_BY_FIRMWARE)
+    } else {
+        Ok(None)
     }
-    let Some(_) = spec::vmexit() else {
-        return false;
-    };
+}
+
+fn init_vmx(bsp: bool) -> Result<(), u64> {
+    if cpu::cpuid(1, 0).ecx & (1 << 5) == 0 {
+        return Err(virt_reject::NO_HW);
+    }
+    if spec::vmexit().is_none() {
+        return Err(virt_reject::SPEC_POLICY_REJECTED);
+    }
     let basic = cpu::rdmsr(0x480);
     if (basic >> 32) & 0x1fff > 4096 || (basic >> 50) & 15 != 6 {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     }
     let true_controls = basic & (1 << 55) != 0;
     let max_leaf = cpu::cpuid(0, 0).eax;
@@ -566,13 +628,13 @@ fn init_vmx(bsp: bool) -> bool {
     };
     let perf_global_ctrl = has_perf_global_ctrl(max_leaf, pmu_eax);
     let Some(caps) = read_vmx_capabilities(true_controls, perf_global_ctrl, cpu::rdmsr) else {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     };
     for (saved, value) in CAPS.iter().zip(caps) {
         if bsp {
             saved.store(value, Ordering::Relaxed);
         } else if saved.load(Ordering::Relaxed) != value {
-            return false;
+            return Err(virt_reject::MISSING_FEATURES);
         }
     }
     let cap = |f: u64| CAPS[(f - 0x480) as usize].load(Ordering::Relaxed);
@@ -584,21 +646,21 @@ fn init_vmx(bsp: bool) -> bool {
         (0x484, 1 << 9),
     ] {
         if (cap(f) >> 32) & required != required {
-            return false;
+            return Err(virt_reject::MISSING_FEATURES);
         }
     }
     // Reading EPT_VPID_CAP is safe only after verifying EPT support.
     let ept = cpu::rdmsr(0x48c);
     let required = (1 << 6) | (1 << 14) | (1 << 16) | (1 << 20);
     if ept & required != required || ept & ((1 << 25) | (1 << 26)) == 0 {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     }
     if bsp {
         BASIC.store(basic, Ordering::Relaxed);
         EPT_CAP.store(ept, Ordering::Relaxed);
         VPID_MODE.store(vpid_mode(cap(0x48b), ept), Ordering::Relaxed);
     } else if BASIC.load(Ordering::Relaxed) != basic || EPT_CAP.load(Ordering::Relaxed) != ept {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     }
     let cr0 = cpu::read_cr0();
     let cr4 = cpu::read_cr4() | (1 << 13);
@@ -607,14 +669,10 @@ fn init_vmx(bsp: bool) -> bool {
         || cr4 & cap(0x488) != cap(0x488)
         || cr4 & !cap(0x489) != 0
     {
-        return false;
+        return Err(virt_reject::MISSING_FEATURES);
     }
-    let feature = cpu::rdmsr(0x3a);
-    if feature & 1 != 0 && feature & 4 == 0 {
-        return false;
-    }
-    if feature & 1 == 0 {
-        cpu::wrmsr(0x3a, feature | 5);
+    if let Some(feature) = vmx_feature_control(cpu::rdmsr(0x3a))? {
+        cpu::wrmsr(0x3a, feature);
     }
     let c = local();
     c.enable.0[..4].copy_from_slice(&(basic as u32 & 0x7fff_ffff).to_le_bytes());
@@ -627,7 +685,7 @@ fn init_vmx(bsp: bool) -> bool {
     }
     if fail != 0 {
         cpu::write_cr4(cr4 & !(1 << 13));
-        return false;
+        return Err(virt_reject::VMXON_FAILED);
     }
     if bsp {
         let m = unsafe { &mut *MAPS.0.get() };
@@ -635,11 +693,26 @@ fn init_vmx(bsp: bool) -> bool {
             pass_msr(&mut m.msr, msr, false);
         }
     }
-    true
+    Ok(())
 }
+/// Why a system with the skim window or in a confidential VM is not probed
+/// for a backend.
+fn unprobed(skim: bool, cvm: bool) -> Option<u64> {
+    if cvm {
+        Some(virt_reject::CVM_ACTIVE)
+    } else if skim {
+        Some(virt_reject::SKIM_ACTIVE)
+    } else {
+        None
+    }
+}
+
 /// BSP picks the backend, APs must be able to provide the same interface.
 pub fn init(bsp: bool) -> bool {
-    if tlb::skim() || crate::cvm::active() {
+    if let Some(why) = unprobed(tlb::skim(), crate::cvm::active()) {
+        if bsp {
+            REJECT.store(why, Ordering::Relaxed);
+        }
         return true;
     }
     if !bsp && backend() == 0 {
@@ -659,10 +732,11 @@ pub fn init(bsp: bool) -> bool {
         init_svm(bsp)
     };
     if bsp {
-        BACKEND.store(if ok { chosen } else { 0 }, Ordering::Release);
+        REJECT.store(ok.err().unwrap_or(virt_reject::NONE), Ordering::Relaxed);
+        BACKEND.store(if ok.is_ok() { chosen } else { 0 }, Ordering::Release);
         true
     } else {
-        ok
+        ok.is_ok()
     }
 }
 
@@ -1246,6 +1320,56 @@ mod tests {
 
     /// VPID only with "enable VPID" and INVVPID of type 1 or 2; type 1
     /// (one VPID) preferred; never type 3 alone.
+    /// `virt_reject`: what a boot core without a backend is missing.
+    #[test]
+    fn virtualization_rejections_are_classified() {
+        assert_eq!(unprobed(false, false), None);
+        assert_eq!(unprobed(true, false), Some(virt_reject::SKIM_ACTIVE));
+        assert_eq!(unprobed(false, true), Some(virt_reject::CVM_ACTIVE));
+        assert_eq!(unprobed(true, true), Some(virt_reject::CVM_ACTIVE));
+
+        let svm = |ebx, edx| cpu::Cpuid { eax: 1, ebx, ecx: 0, edx };
+        let full = svm(8, 9);
+        let no_read = || -> u64 { panic!("VM_CR read on a CPU that may not have it") };
+        let max = 0x8000_0020;
+        assert_eq!(svm_usable(max, 4, true, full, || 0), Ok(()));
+        assert_eq!(svm_usable(0x8000_0008, 4, true, full, no_read), Err(virt_reject::NO_HW));
+        assert_eq!(svm_usable(max, !4, true, full, no_read), Err(virt_reject::NO_HW));
+        // No hardware is the reason even where the policy would refuse it.
+        assert_eq!(svm_usable(max, 0, false, full, no_read), Err(virt_reject::NO_HW));
+        assert_eq!(svm_usable(max, 4, false, full, no_read), Err(virt_reject::SPEC_POLICY_REJECTED));
+        for missing in [svm(8, 1), svm(8, 8), svm(1, 9), svm(0, 0)] {
+            assert_eq!(svm_usable(max, 4, true, missing, no_read), Err(virt_reject::MISSING_FEATURES));
+        }
+        assert_eq!(svm_usable(max, 4, true, full, || 16), Err(virt_reject::DISABLED_BY_FIRMWARE));
+        assert_eq!(svm_usable(max, 4, true, full, || !16), Ok(()));
+
+        // IA32_FEATURE_CONTROL: locked on, locked off, locked for SMX only,
+        // not locked (locked on now).
+        assert_eq!(vmx_feature_control(5), Ok(None));
+        assert_eq!(vmx_feature_control(1), Err(virt_reject::DISABLED_BY_FIRMWARE));
+        assert_eq!(vmx_feature_control(3), Err(virt_reject::DISABLED_BY_FIRMWARE));
+        assert_eq!(vmx_feature_control(0), Ok(Some(5)));
+        assert_eq!(vmx_feature_control(1 << 20), Ok(Some(1 << 20 | 5)));
+    }
+
+    #[test]
+    fn virtualization_features_are_the_chosen_backends() {
+        let (single, all) = (1 << 25, 1 << 26);
+        let pmu = 1 << (32 + 13);
+        assert_eq!(features_of(1, 0, all, 0, 0), 0);
+        assert_eq!(features_of(1, 1, all, 0, 0), virt_features::X86_VPID_SINGLE);
+        assert_eq!(features_of(1, 2, all, 0, 0), virt_features::X86_VPID_ALL);
+        assert_eq!(features_of(1, 0, single, 0, 0), virt_features::X86_INVEPT_SINGLE);
+        assert_eq!(features_of(1, 0, 0, pmu, 0), virt_features::X86_VMX_PERF_GLOBAL_CTRL);
+        // Only the allowed-1 half counts.
+        assert_eq!(features_of(1, 0, 0, 1 << 13, 0), 0);
+        assert_eq!(features_of(1, 1, single, pmu, !0), 1 | 4 | 16);
+        assert_eq!(features_of(2, 1, single, pmu, 1 << 5), virt_features::X86_SVM_VMCB_CLEAN);
+        assert_eq!(features_of(2, 1, single, pmu, !(1 << 5)), 0);
+        assert_eq!(features_of(0, 1, single, pmu, !0), 0);
+    }
+
     #[test]
     fn vpid_mode_needs_enable_vpid_and_a_usable_invvpid() {
         let sec = 1u64 << (32 + 5);

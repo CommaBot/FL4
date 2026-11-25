@@ -169,6 +169,12 @@ fn calibrate_apic() {
     APIC_RATIO.store(((apic_ticks as u128) << 32).checked_div(tsc as u128).unwrap_or(1 << 32) as u64, Ordering::Relaxed);
 }
 
+/// Where the TSC rate came from, as `kernel_config::x86_tsc_source`
+/// numbers it (`Source`).
+pub(crate) fn source_id() -> u64 {
+    SOURCE.load(Ordering::Relaxed) as u64
+}
+
 /// Where the TSC rate came from, for the boot banner.
 pub fn source() -> &'static str {
     match SOURCE.load(Ordering::Relaxed) {

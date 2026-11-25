@@ -5,7 +5,8 @@ use crate::{
     percpu,
 };
 use core::fmt;
-use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use fl4_abi::consts::kernel_config::spec_msr_valid;
 
 pub mod policy;
 use policy::*;
@@ -40,6 +41,25 @@ static BOOT_VENDOR: AtomicU32 = AtomicU32::new(0);
 static BOOT_IBPB: AtomicBool = AtomicBool::new(false);
 /// The boot core's `select` succeeded.
 static BOOT_PLAN: AtomicBool = AtomicBool::new(false);
+/// What `init_core` applied on the boot core (its plan's, or
+/// `native_only`'s), for `facts`: the entry actions, the IA32_SPEC_CTRL
+/// bits, AutoIBRS, TSX off; and the microcode revision it read.
+static BOOT_ENTRY: AtomicU32 = AtomicU32::new(0);
+static BOOT_SPEC_CTRL: AtomicU64 = AtomicU64::new(0);
+static BOOT_AUTO_IBRS: AtomicBool = AtomicBool::new(false);
+static BOOT_TSX_OFF: AtomicBool = AtomicBool::new(false);
+static BOOT_MICROCODE: AtomicU32 = AtomicU32::new(0);
+/// The boot core's MSRs of `spec_msr_valid` after `init_core`, by bit
+/// number, and which of them it has read or written.
+static BOOT_MSRS: [AtomicU64; MSRS] = [const { AtomicU64::new(0) }; MSRS];
+static BOOT_MSR_VALID: AtomicU64 = AtomicU64::new(0);
+pub(crate) const MSRS: usize = 7;
+
+/// Record the boot core's MSR of `bit` (`spec_msr_valid`).
+fn record_msr(bit: u64, value: u64) {
+    BOOT_MSRS[bit.trailing_zeros() as usize].store(value, Ordering::Relaxed);
+    BOOT_MSR_VALID.fetch_or(bit, Ordering::Relaxed);
+}
 
 fn caps() -> Caps {
     let root = cpuid(0, 0);
@@ -228,7 +248,7 @@ pub fn init_core(bsp: bool) -> bool {
     }
     // On bare metal explicitly make LFENCE dispatch-serializing. A nested
     // VMM requires the architected CPUID promise from L0 instead.
-    if c.vendor == Vendor::Amd && !c.hypervisor && (zen2(&c) || c.family >= 0x19) {
+    if sets_de_cfg(&c) {
         let mut de_cfg = rdmsr(0xc001_1029) | 2;
         if zen2(&c) {
             // Zenbleed software workaround, unless known fixed by this
@@ -247,7 +267,7 @@ pub fn init_core(bsp: bool) -> bool {
             }
         }
         wrmsr(0xc001_1029, de_cfg);
-        if zen4(&c) {
+        if sets_bp_cfg(&c) {
             // Linux init_amd_zen4: fix shared-BTB SMT interaction on Zen 4
             // (MSR_ZEN4_BP_CFG = 0xc001_102e, SHARED_BTB_FIX_BIT = bit 5).
             wrmsr(0xc001_102e, rdmsr(0xc001_102e) | (1 << 5));
@@ -293,6 +313,13 @@ pub fn init_core(bsp: bool) -> bool {
     // A TD may not write these MSRs: the TDX module owns TSX, MCU and
     // microcode state.
     let tdx = crate::tdx::active();
+    if bsp {
+        BOOT_ENTRY.store(entry, Ordering::Relaxed);
+        BOOT_SPEC_CTRL.store(spec_ctrl, Ordering::Relaxed);
+        BOOT_AUTO_IBRS.store(auto, Ordering::Relaxed);
+        BOOT_TSX_OFF.store(disable_tsx && !tdx, Ordering::Relaxed);
+        BOOT_MICROCODE.store(c.microcode, Ordering::Relaxed);
+    }
     if disable_tsx && !tdx {
         wrmsr(0x122, rdmsr(0x122) | 3);
     }
@@ -302,22 +329,48 @@ pub fn init_core(bsp: bool) -> bool {
     RETPOLINE.fetch_or(safe_ret && native_retpoline(&c), Ordering::Relaxed);
     NO_SMT.fetch_or(needs_no_smt, Ordering::Relaxed);
     if spec_ctrl != 0 {
-        wrmsr(0x48, rdmsr(0x48) | spec_ctrl);
+        let value = rdmsr(0x48) | spec_ctrl;
+        wrmsr(0x48, value);
+        if bsp {
+            record_msr(spec_msr_valid::SPEC_CTRL, value);
+        }
+    } else if bsp && spec_ctrl_readable(&c, crate::cvm::hardened()) {
+        record_msr(spec_msr_valid::SPEC_CTRL, rdmsr(0x48));
     }
     if auto {
         wrmsr(msr::EFER, rdmsr(msr::EFER) | (1 << 21));
     }
     // VERW must not be disabled via FB_CLEAR_DIS. Also retain the
     // enumerated microcode mitigation for Gather Data Sampling.
-    if !tdx && c.vendor == Vendor::Intel && c.arch & ((1 << 18) | GDS_CTRL) != 0 {
+    if has_mcu_opt_ctrl(&c, tdx) {
         let mut mcu = rdmsr(0x123);
-        if c.arch & (1 << 18) != 0 {
+        if c.arch & FB_CLEAR_CTRL != 0 {
             mcu &= !(1 << 3);
         }
         if c.arch & GDS_CTRL != 0 {
             mcu &= !(1 << 4);
         }
         wrmsr(0x123, mcu);
+    }
+    // For `kconfig`, read back, as bits may be locked: MSRs this core has
+    // just used or enumerates, none of them in a TD or an SNP guest. EFER is
+    // read once AMD-V may be on too (`kconfig::freeze`).
+    if bsp {
+        if has_arch_capabilities(&c) {
+            record_msr(spec_msr_valid::ARCH_CAPABILITIES, c.arch);
+        }
+        if has_tsx_ctrl(&c, tdx) {
+            record_msr(spec_msr_valid::TSX_CTRL, rdmsr(0x122));
+        }
+        if has_mcu_opt_ctrl(&c, tdx) {
+            record_msr(spec_msr_valid::MCU_OPT_CTRL, rdmsr(0x123));
+        }
+        if sets_de_cfg(&c) {
+            record_msr(spec_msr_valid::AMD_DE_CFG, rdmsr(0xc001_1029));
+        }
+        if sets_bp_cfg(&c) {
+            record_msr(spec_msr_valid::AMD_BP_CFG, rdmsr(0xc001_102e));
+        }
     }
     FL4_SPEC_ENTRY.fetch_or(entry, Ordering::Relaxed);
     true
@@ -408,6 +461,56 @@ pub fn skim() -> bool {
 }
 pub fn no_smt() -> bool {
     NO_SMT.load(Ordering::Acquire)
+}
+
+/// What the policy came to, for `kconfig`: final once every core has
+/// contributed and `finish_native_entry_policy` has run.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Facts {
+    /// The boot core's plan, or why `select` rejected it.
+    pub plan: Option<Plan>,
+    pub rejected: Option<Rejected>,
+    /// What the boot core applied, with a plan or without.
+    pub boot: NativeOnly,
+    /// The entry actions and buffer clearing of every core.
+    pub entry: u32,
+    pub buffers: bool,
+    pub vm: bool,
+    pub skim: bool,
+    pub safe_ret: bool,
+    pub retpoline: bool,
+    pub no_smt: bool,
+    pub microcode: u32,
+    /// By `spec_msr_valid` bit number; the valid ones in `msr_valid`.
+    pub msrs: [u64; MSRS],
+    pub msr_valid: u64,
+}
+
+/// The policy's `Facts`, read on the boot core.
+pub(crate) fn facts() -> Facts {
+    let pc = percpu::get();
+    let safe_ret = FL4_SAFE_RET.load(Ordering::Acquire);
+    Facts {
+        plan: pc.spec_plan.get(),
+        rejected: pc.spec_rejected.get(),
+        boot: NativeOnly {
+            entry: BOOT_ENTRY.load(Ordering::Relaxed),
+            spec_ctrl: BOOT_SPEC_CTRL.load(Ordering::Relaxed),
+            auto_ibrs: BOOT_AUTO_IBRS.load(Ordering::Relaxed),
+            disable_tsx: BOOT_TSX_OFF.load(Ordering::Relaxed),
+        },
+        entry: FL4_SPEC_ENTRY.load(Ordering::Relaxed),
+        buffers: FL4_SPEC_BUFFERS.load(Ordering::Relaxed) != 0,
+        vm: VM_ENABLED.load(Ordering::Acquire),
+        skim: skim(),
+        safe_ret,
+        // The thunk is patched only with Safe RET.
+        retpoline: safe_ret && RETPOLINE.load(Ordering::Relaxed),
+        no_smt: no_smt(),
+        microcode: BOOT_MICROCODE.load(Ordering::Relaxed),
+        msrs: core::array::from_fn(|i| BOOT_MSRS[i].load(Ordering::Relaxed)),
+        msr_valid: BOOT_MSR_VALID.load(Ordering::Relaxed),
+    }
 }
 
 /// Low APIC-ID bits representing SMT siblings. Unknown topology under a
