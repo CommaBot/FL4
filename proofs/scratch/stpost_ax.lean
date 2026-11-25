@@ -1,6 +1,7 @@
 import Fl4Proofs.P2.SlJStPost
 import Fl4Proofs.P3.StPostRRLink
 import Fl4Proofs.P3.StPostReply
+import Fl4Proofs.P3.StPostTmo
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -23,3 +24,5 @@ import Fl4Proofs.P3.StPostReply
 #print axioms Fl4Proofs.P3.replyRestTmoJSt
 #print axioms Fl4Proofs.P3.replyXferJSt
 #print axioms Fl4Proofs.P3.replyLeafJSt
+#print axioms Fl4Proofs.P3.JAtZ.runTmoRecvJSt
+#print axioms Fl4Proofs.P3.runTmoP_recvSt
