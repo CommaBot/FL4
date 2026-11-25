@@ -59,6 +59,7 @@ import Fl4Proofs.P2.FootTimerFireMk
 import Fl4Proofs.P2.FootTimerIrqLPP
 import Fl4Proofs.P2.FootTimerFireSx
 import Fl4Proofs.P2.FootTimerFireSy0
+import Fl4Proofs.P2.FootTimerFireSy1
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -322,3 +323,15 @@ import Fl4Proofs.P2.FootTimerFireSy0
 #print axioms Fl4Proofs.P2.Grow.refl
 #print axioms Fl4Proofs.P2.Grow.pre
 #print axioms Fl4Proofs.P2.Grow.app
+#print axioms Fl4Proofs.P2.swn_tcb
+#print axioms Fl4Proofs.P2.swn_node
+#print axioms Fl4Proofs.P2.swn_out
+#print axioms Fl4Proofs.P2.swn_ks
+#print axioms Fl4Proofs.P2.grow_enq
+#print axioms Fl4Proofs.P2.grow_app
+#print axioms Fl4Proofs.P2.enq_ne
+#print axioms Fl4Proofs.P2.app_ne
+#print axioms Fl4Proofs.P2.pick_cases
+#print axioms Fl4Proofs.P2.schedSwB_cases
+#print axioms Fl4Proofs.P2.choose_run
+#print axioms Fl4Proofs.P2.schedSw_run
