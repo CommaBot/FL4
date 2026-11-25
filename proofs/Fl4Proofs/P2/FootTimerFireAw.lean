@@ -268,7 +268,7 @@ def AwFacts (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H :
   (∀ c ∈ Scs, c ≠ L.mem s (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem s b) ∧
   RelNone st Y ∧ FireStop st R Y now ∧ L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME) = now ∧
   w ∈ T ∧ Blocked (L.mem s (stA w)) ∧ L.mem s (affA w) = L.cpu s ∧ w ≠ L.curW s ∧
-  (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w)
+  (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ L.mem Y (stA w) = sched.TS_RUNNING
 
 end help
 
@@ -726,7 +726,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       (by rw [act_val]; omega) (by rw [act_val]; omega)]
     exact hact0
   have eN3 : L.mem s3 (boundA TM) = N := by rw [← eN]; exact htcb3 hTMs.1 (K := 3368#u64) (by simp) (by simp)
-  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur⟩ :=
+  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur, wrun⟩ :=
     fire_wk_step ar hA (s := s) a3 (t := TM) (Lk := Lk) (U := U) (s1 := s1) (cpu := L.cpu s) (ct := L.curW s)
       (p := p) hT3 hBA hNt hAffSc k3 c3 (fun y hy K hK h8 _ => htcb3 hy hK h8) tm3 hne hTMs.1 haffTM ct3
       (by rw [d3]; exact not_lt.mpr hdue1) eN3 hN0 hac3 hwk hpTM
@@ -825,7 +825,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
         (by unfold ctA; rw [eYN]; exact nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])) relY,
         awaken_loop_none Y _ relY])
   exact fire_tail_of_aw ar hawg haw (hTail Y aY w haw ⟨TY, kY, cY, nY, tY, scY, relY, hstY, ctY, hwT, wbl', waf',
-    wcur', actY⟩)
+    wcur', actY, wrun⟩)
 
 end main
 

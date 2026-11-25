@@ -39,7 +39,7 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
     a' = a ∧
       WritesIn st X X' (fun b => EpFoot (EQ n) n b ∨ WkD st X w b ∨ InRing (L.mem X (scA w)) sb b ∨
         b = L.nodeA X layout.node.REPROGRAM) ∧
-      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) := by
+      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) ∧ L.mem X' (stA w) = sched.TS_RUNNING := by
   obtain ⟨hE, hEN, hq⟩ := hEW.1 n he
   have hT := h.tcbs
   have hw : w ∈ T := hq.mem w hmem
@@ -138,7 +138,7 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
     · rw [scA_eq]; exact tK Y 3464#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3432#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3520#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
-  obtain ⟨ea, wT, acT⟩ := wakeTail_st (R' := R) (W' := W) ar X1 a w n badge (sb := sb) (by rw [hcur1]; exact hcur)
+  obtain ⟨ea, wT, acT, rT⟩ := wakeTail_st (R' := R) (W' := W) ar X1 a w n badge (sb := sb) (by rw [hcur1]; exact hcur)
     aS aR aA
     (fun e => nF _ 3328#u64 (by rw [act_val]; omega) (by simp) (by rw [← stA_eq]; exact e))
     (fun e => nF _ KB (by rw [act_val]; omega) (by omega) (by rw [← eKB]; exact e)) aC
@@ -152,8 +152,13 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
       rw [scA_eq]
       exact (tK Y 3464#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)).trans
         (kT w hw _ (by simp) (by simp) (by simp) (by simp)).symm)
-    (by rw [hac1]; exact hac) hY hr
-  refine ⟨ea, (wi.trans wT).mono fun b hb => ?_, acT⟩
+    (by rw [hac1]; exact hac) hY
+    (by rw [eKB, stA_eq]; exact tcb_word_ne ht' ht' (by omega) (by simp) (fun _ h => by simp at h; omega))
+    (by
+      rw [sc1]; intro h0 b hb e; subst e
+      exact out_ne_field (h.omega _ (hscΩ h0 _ aS hb.inSC)) hw ht' (K := 3328#u64) (by simp) (by rw [← stA_eq]))
+    (fun e => nF layout.node.REPROGRAM 3328#u64 (by simp [layout.node.REPROGRAM]) (by simp) (by rw [← stA_eq]; exact e)) hr
+  refine ⟨ea, (wi.trans wT).mono fun b hb => ?_, acT, rT⟩
   rcases hb with hb | hb | hb | hb
   · exact Or.inl hb
   · refine Or.inr (Or.inl ?_)
@@ -186,7 +191,7 @@ theorem wake_recv_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge t
     a' = a ∧
       WritesIn st X X' (fun b => CnD (EQ ep) ep t r b ∨ WkD st X t b ∨ InRing (L.mem X (scA t)) sb b ∨
         b = L.nodeA X layout.node.REPROGRAM) ∧
-      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = t) := by
+      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = t) ∧ L.mem X' (stA t) = sched.TS_RUNNING := by
   obtain ⟨hE, hEN, hq⟩ := hEW.1 ep hep
   have hT := h.tcbs
   have ht : t ∈ T := hq.mem t hmem
@@ -427,7 +432,7 @@ theorem wake_recv_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge t
   have hac4 : L.actionW X4 = sched.ACTION_RESUME_CURRENT := by
     have : L.actionW X4 = L.actionW X := nodeK X4 wX4 layout.node.SCHED_ACTION (by rw [act_val]; omega) (by rw [act_val])
     rw [this]; exact hac
-  obtain ⟨ea2, wT, acT⟩ := wakeTail_st (R' := R) (W' := W) ar X4 a t n badge (sb := sb) hcur4 aS aR
+  obtain ⟨ea2, wT, acT, rT⟩ := wakeTail_st (R' := R) (W' := W) ar X4 a t n badge (sb := sb) hcur4 aS aR
     (nodeAt_aligned hN4 (by rw [act_val]; omega) (by rw [act_val]))
     (fun e => nF _ 3328#u64 (by rw [act_val]; omega) (by simp) (by rw [← stA_eq]; exact e))
     (fun e => nF _ KB (by rw [act_val]; omega) (by omega) (by rw [← eKB]; exact e))
@@ -443,8 +448,12 @@ theorem wake_recv_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge t
       exact (tK Y 3464#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)).trans
         (tK X4 3464#u64 (WritesIn.refl _ _) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
           (by simp)).symm)
-    hac4 hY hrun
-  refine ⟨ea2, (wX4.trans wT).mono fun b hb => ?_, acT⟩
+    hac4 hY (Ne.symm nSR)
+    (by
+      rw [sc4]; intro h0 b hb e; subst e
+      exact out_ne_field (h.omega _ (hscΩ h0 _ aS hb.inSC)) ht ht' (K := 3328#u64) (by simp) (by rw [← stA_eq]))
+    (fun e => nF layout.node.REPROGRAM 3328#u64 (by simp [layout.node.REPROGRAM]) (by simp) (by rw [← stA_eq]; exact e)) hrun
+  refine ⟨ea2, (wX4.trans wT).mono fun b hb => ?_, acT, rT⟩
   rcases hb with hb | hb | hb | hb
   · exact Or.inl hb
   · refine Or.inr (Or.inl ?_)

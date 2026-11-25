@@ -203,7 +203,8 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     ∀ X2 a2, notification.send_signal st ar X a N badge = ok (X2, a2) →
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac X2 ∧ TAgree st T Cs X X2 ∧ L.ksb X2 = L.ksb X ∧ L.cpu X2 = L.cpu X ∧
       ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Scs Z X X2 w ∧
-        Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X := by
+        Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
+        L.mem X2 (stA w) = sched.TS_RUNNING := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, hBd, hXX, hSS, hSgX⟩ := hTX
   obtain ⟨E, EQ, hEW⟩ := hq.eps
@@ -236,11 +237,11 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨-, -, hbl⟩ := hEW.2.2.2.1 N he w hmem
     have hwT : w ∈ T := hqr.mem w hmem
     obtain ⟨P, hscΩ, hAo⟩ := wkpre_true (N := N) hTX' hAffSc kX cX kT hwT hbl haf hdom hnd
-    obtain ⟨-, wi, act⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
+    obtain ⟨-, wi, act, wrun⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
     obtain ⟨dΩ, dN, dT⟩ := epfoot_nd (n := N) hq hEW he (fun y hy => hqr.mem y hy)
     exact ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
       (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin)),
-      hbl, haf, hcur⟩
+      hbl, haf, hcur, wrun⟩
   · -- idle-bound `Recv`
     obtain ⟨ep, heq⟩ : ∃ ep, L.mem X (blockA t) = ep := ⟨_, rfl⟩
     obtain ⟨r, hr⟩ : ∃ r, L.mem X (replyA t) = r := ⟨_, rfl⟩
@@ -257,7 +258,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨hep, hmem⟩ := hEW.2.2.2.2.1 t htT (by simp) hblk
     rw [heq] at hep hmem
     obtain ⟨P, hscΩ, hAo⟩ := wkpre_true (N := N) hTX' hAffSc kX cX kT htT hblk haf hdom hnd
-    obtain ⟨-, wi, act⟩ := wake_recv_st ar X a N badge t ep r hq hEW hidle hbt ht0 hrecv heq hep hmem hr
+    obtain ⟨-, wi, act, wrun⟩ := wake_recv_st ar X a N badge t ep r hq hEW hidle hbt ht0 hrecv heq hep hmem hr
       (fun hr0 => (recv_rt (Z := Z) hTX' hNN htT hrecv hr hr0).1) hcur hac P hnsΩ hscΩ
       (fun hr0 => (recv_rt (Z := Z) hTX' hNN htT hrecv hr hr0).2) hAo hrun
     have hN : NodePlaced st T X (L.cpu X) := hq.nodes _ hq.cur
@@ -271,7 +272,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
       obtain ⟨-, rv, -, -⟩ := rp_facts hXX.1 hrp
       exact ⟨hq.omega _ (hSgX.sub _ (hXX.1.tcbW hrp)), rv, hXX.1.rpSc r hrp⟩
-    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur⟩
+    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur, wrun⟩
     · intro o ho h8
       rintro (e | hf | ⟨hr0, e⟩ | e)
       · unfold faultA at e; exact node_ne_field hN ho htT ht' (by simp) e

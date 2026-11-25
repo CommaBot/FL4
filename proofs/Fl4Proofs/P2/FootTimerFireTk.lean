@@ -73,7 +73,7 @@ theorem aw_resume {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS s
     rw [← hsct]
     exact hI.2.1.sact _ hcT (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hact0.trans resume_val, rfl⟩))))) hsc0
   have hmx0 : L.rmax s (L.cscW s) ≠ 0#u64 := (hS.act _ hcs).1 hAc
-  obtain ⟨TY, kY, cY, nY, tY, scY, -, hstY, -, hwT, wbl, -, wcur, -⟩ := hF
+  obtain ⟨TY, kY, cY, nY, tY, scY, -, hstY, -, hwT, wbl, -, wcur, -, -⟩ := hF
   have eYN : ∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt s (L.cpu s) o := fun o => by rw [cY, nodeAt_of_ksb kY]
   have hNY : NodePlaced st T Y (L.cpu Y) := by rw [cY]; exact hN.ksb kY
   have hcCY : L.cpu Y ∈ Cs := by rw [cY]; exact hcC
@@ -238,7 +238,7 @@ theorem fire_tail_wk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
     FireTailG st gS ar s3 a3 :=
   fire_wk_aw ar hA hI hNt hok gRd gWr hD2 hwS hwH hwD hWk hAffSc rL wL rS wS lkL rCD hSW hLkN hLkE wNt rwE wRt etip
     eb eq eok eu enow erel ei2 eb4 edue efo ecb emx hle ei1 ehi hBA (fun Y aY w haw hF =>
-      hF.2.2.2.2.2.2.2.2.2.2.2.2.2.elim
+      hF.2.2.2.2.2.2.2.2.2.2.2.2.2.1.elim
         (fun hact => aw_resume ar hA hI hok gRd gWr hD2 hwS eq eok hF hact)
         (fun hact => hSwT Y aY w now hF hact))
 

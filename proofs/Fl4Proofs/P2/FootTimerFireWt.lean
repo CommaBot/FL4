@@ -49,11 +49,15 @@ theorem wakeTail_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
     (eSc : ∀ Y, WritesIn st X Y (WkD st X w) → L.mem Y (scA w) = L.mem X (scA w))
     (hac : L.actionW X = sched.ACTION_RESUME_CURRENT)
     (hY : ∀ Y, WritesIn st X Y (WkD st X w) → WkPre st R' W' Y w n sb)
+    (nBS : regA w layout.reg.BADGE ≠ stA w)
+    (nRg : L.mem X (scA w) ≠ 0#u64 → ∀ b, InRing (L.mem X (scA w)) sb b → b ≠ stA w)
+    (nRP : L.nodeA X layout.node.REPROGRAM ≠ stA w)
     (h : wakeTail st ar X a w n badge = ok (X', a')) :
     a' = a ∧
       WritesIn st X X' (fun b => WkD st X w b ∨ InRing (L.mem X (scA w)) sb b ∨
         b = L.nodeA X layout.node.REPROGRAM) ∧
-      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) := by
+      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) ∧
+      L.mem X' (stA w) = sched.TS_RUNNING := by
   have wi2 : WritesIn st X (L.wr X (stA w) sched.TS_RUNNING) (WkD st X w) :=
     ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb hb' => mem_wr_ne' aS hb (fun e => hb' (Or.inl e.symm))⟩
   unfold wakeTail at h
@@ -67,6 +71,9 @@ theorem wakeTail_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
       rw [mem_wr_ne' aR hb (fun e => hb' (Or.inr (Or.inl e.symm)))]
       exact wi2.2.2 b hb hb'⟩
   have P3 := hY _ wi3
+  have r3 : L.mem (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) (stA w) =
+      sched.TS_RUNNING := by
+    rw [mem_wr_ne' aR aS nBS]; exact L.mem_wr_same aS
   rw [donate_nd_st ar _ a w n P3.nd] at h
   simp only [bind_ok, Aeneas.Std.uncurry_apply_pair] at h
   have hac3 : L.actionW (L.wr (L.wr X (stA w) sched.TS_RUNNING) (regA w layout.reg.BADGE) badge) =
@@ -82,28 +89,30 @@ theorem wakeTail_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
   obtain ⟨rfl, rfl⟩ := e
   -- `possible_switch_to`: nothing, or the action set to `w`
   have wi5 : WritesIn st X X5 (WkD st X w) ∧
-      (L.actionW X5 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X5 = w) := by
+      (L.actionW X5 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X5 = w) ∧ L.mem X5 (stA w) = sched.TS_RUNNING := by
     by_cases hb : b = true
     · rw [if_pos hb] at h5
       rcases possible_switch_to_here_st _ w P3.dom P3.aff hac3 with e | e
-      · rw [e] at h5; rw [← ok_inj_ff h5]; exact ⟨wi3, Or.inl hac3⟩
+      · rw [e] at h5; rw [← ok_inj_ff h5]; exact ⟨wi3, Or.inl hac3, r3⟩
       · rw [e] at h5
         rw [← ok_inj_ff h5]
-        refine ⟨⟨by rw [L.ksb_wr]; exact wi3.1, by rw [L.cpu_wr]; exact wi3.2.1, fun c hc hc' => ?_⟩, Or.inr ?_⟩
+        refine ⟨⟨by rw [L.ksb_wr]; exact wi3.1, by rw [L.cpu_wr]; exact wi3.2.1, fun c hc hc' => ?_⟩, Or.inr ?_, ?_⟩
         · rw [nodeAt_wr, nodeAt_wr, L.cpu_wr, L.cpu_wr, mem_wr_ne' aA hc (fun e => hc' (Or.inr (Or.inr e.symm)))]
           exact wi3.2.2 c hc hc'
         · unfold LawfulStore.actionW
           simp only [nodeAt_wr, LawfulStore.cpu_wr]
           exact L.mem_wr_same aA
-    · rw [if_neg hb] at h5; rw [← ok_inj_ff h5]; exact ⟨wi3, Or.inl hac3⟩
-  obtain ⟨w5, ac5⟩ := wi5
+        · rw [nodeAt_wr, nodeAt_wr, L.cpu_wr, L.cpu_wr, mem_wr_ne' aA aS nA1]; exact r3
+    · rw [if_neg hb] at h5; rw [← ok_inj_ff h5]; exact ⟨wi3, Or.inl hac3, r3⟩
+  obtain ⟨w5, ac5, r5⟩ := wi5
   have P5 := hY X5 w5
   have nA5 : ∀ o, L.nodeA X5 o = L.nodeA X o := fun o => by
     show L.nodeAt X5 (L.cpu X5) o = L.nodeAt X (L.cpu X) o
     rw [w5.2.1, nodeAt_of_ksb w5.1]
   have sc5 : L.mem X5 (scA w) = L.mem X (scA w) := eSc X5 w5
   -- `unblock_sporadic`: nothing, or `refill_unblock_check` of `w`'s SC
-  have w56 : WritesIn st X5 X6 (fun b => InRing (L.mem X (scA w)) sb b ∨ b = L.nodeA X layout.node.REPROGRAM) := by
+  have w56 : WritesIn st X5 X6 (fun b => InRing (L.mem X (scA w)) sb b ∨ b = L.nodeA X layout.node.REPROGRAM) ∧
+      L.mem X6 (stA w) = sched.TS_RUNNING := by
     unfold notification.unblock_sporadic at h6
     rw [tcb_sc_ok] at h6
     simp only [bind_ok] at h6
@@ -118,10 +127,16 @@ theorem wakeTail_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (w n badge 
         have := sporadic.unblock_check.fr (st := st) (P5.wf h0) (P5.rep h0)
         rw [h6, WP.spec_ok] at this
         rw [sc5, nA5] at this
-        exact this
-      · rw [if_neg hb2] at h6; rw [← ok_inj_ff h6]; exact WritesIn.refl _ _
-    · rw [if_neg hb1] at h6; rw [← ok_inj_ff h6]; exact WritesIn.refl _ _
-  refine ⟨rfl, (w5.trans w56).mono fun b hb => ?_, ?_⟩
+        refine ⟨this, ?_⟩
+        rw [this.mem_eq aS ?_]
+        · exact r5
+        rintro (hr | e)
+        · exact nRg (by rw [← sc5]; exact h0) _ hr rfl
+        · exact nRP e.symm
+      · rw [if_neg hb2] at h6; rw [← ok_inj_ff h6]; exact ⟨WritesIn.refl _ _, r5⟩
+    · rw [if_neg hb1] at h6; rw [← ok_inj_ff h6]; exact ⟨WritesIn.refl _ _, r5⟩
+  obtain ⟨w56, r6⟩ := w56
+  refine ⟨rfl, (w5.trans w56).mono fun b hb => ?_, ?_, r6⟩
   · rcases hb with hb | hb | hb
     · exact Or.inl hb
     · exact Or.inr (Or.inl hb)
