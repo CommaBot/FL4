@@ -28,10 +28,17 @@ Premises:
 * `hra` [W]: `read_aligned` from the alternatives of an entry state that does not accept;
 * `huf` [J] (`PathSide.user_free`).
 
-`sl_pathObl_dr` / `sl_pathSide_dr` discharge `hna` / `hra` (`sl_hna`, `sl_hra`) from one
-per-state premise, `DecRd` [W] (as stated false when the receiver / replied thread is on another core: see
-`DecRd`): a run declining at the entry state reads only `SlRS s` and writes only `SlDS s`; then at every alternative the guarded run agrees (`interp_agree`) and so
-declines with the same flag; `hra` also uses P0 totality (`StoreTotal` [P]).
+`sl_pathObl_dr` / `sl_pathSide_dr` discharge `hna` / `hra` (`sl_hna`, `sl_hra`) from `SlThr`
+[W], facts about the *decided thread* of each arm (the trap arm's receiver, the ReplyRecv
+arm's replied thread), split on its `AFFINITY` (gate-owned, in the read set, so equal at every
+alternative): homed here, a declining run reads only `SlRS s` and writes only `SlDS s` and the
+guarded run agrees at alternatives (`interp_agree`); homed elsewhere, an accepting run would
+need `schedulable_here` on it, so every alternative declines. `hra` also uses P0 totality
+(`StoreTotal` [P]). The case split is needed because both arms read home-owned words of that
+thread (`REPLY_OBJ`; `STATE`, `fault_type`, `SC`) before `schedulable_here` checks it; a
+kernel reorder (`schedulable_here` right after reading the thread pointer in `fastpath.fault`,
+`reply_recv_found`, `reply_recv_vm_found`) would make the "homed elsewhere" case trivial
+(possible later PR; not done, to avoid another re-extraction).
 -/
 import Fl4Proofs.P2.DecSl
 import Fl4Proofs.P2.PathAgree
@@ -232,23 +239,33 @@ theorem sl_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.
     exact interp_mono (fun _ hw => hw.1) (fun _ _ => trivial) p hz s' a _ hg'
   · exact hra s s' a r hE Al hac h
 
-/-- `DecRd` [W]: a run declining at the entry state `s` reads only words of `SlRS s` and writes
-only the prefix words `SlDS s` (it succeeds the same on `guard st (SlRS s) (SlDS s)`).
-**Not true in every reachable state as stated** (finding, p2sl13): both arms read words of a
-thread that may be homed on another core (owner `.core` of that core, so not in `SlRS s`)
-before `schedulable_here` checks its `AFFINITY`: `fastpath.fault` reads the receiver's
-`REPLY_OBJ` (`obj.Tcb.reply_obj`, the home core's by OwnMap v4) and declines if it is 0;
-`fastpath.reply_recv_found` reads the replied thread's `STATE`, `fault_type` and `SC`
-(`obj.Tcb.state` / `fault_type` / `sc` of `Reply.tcb`) and declines on them. E.g. a thread of
-core 1 with a cap fault blocked on a reply object of core 0's handler, which calls ReplyRecv:
-the run declines at `fault_type ≠ UnknownSyscall` after reading core 1's words. Holds when
-the receiver / replied thread is on this core; otherwise those runs decline at
-`schedulable_here` whatever the earlier reads give (its `AFFINITY` is gate-owned, in `SlRS`).
-Either move `schedulable_here` before those reads in fl4-core, or prove `hna` by a case
-split on that `AFFINITY`. -/
-def DecRd (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) : Prop :=
-  ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
+/-- **The decided thread** [W] (module docstring): `thr s` is the thread on whose home core an
+arm's acceptance depends (the trap arm's receiver, the handler endpoint's head; the ReplyRecv
+arm's replied thread, `Reply.tcb found.1`), `TW t` the words of `t` a run reads before
+`schedulable_here` checks `t`. Each field is a statement about the code of one arm:
+* `alt`: `thr` is read from the read set, so it is the same at every alternative;
+* `affR`: its `AFFINITY` (gate-owned, so `RPerm`) is in the read set;
+* `acc`: an accepting run passes `schedulable_here` on it (`AFFINITY = cur_cpu`);
+* `home`: homed here, a declining run reads only `SlRS s` and writes only `SlDS s` (its words
+  are then this core's);
+* `away`: homed elsewhere, a run at an alternative reads only `SlRS s` and `TW (thr s)`
+  (aligned, `twA`) before it declines at `schedulable_here`. -/
+structure SlThr (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) (thr : S → U64)
+    (TW : U64 → U64 → Prop) : Prop where
+  alt : ∀ s s', P s →
+    Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' → thr s' = thr s
+  affR : ∀ s, P s → SlRS (st := st) K Locks s (affA (thr s))
+  acc : ∀ x a r, syscall.handle_syscall_local st ar x a n found = ok r → r.1 = true →
+    L.mem x (affA (thr x)) = L.cpu x
+  home : ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
+    L.mem s (affA (thr s)) = L.cpu s →
     syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found = ok r
+  twA : ∀ t b, TW t b → Aligned b
+  away : ∀ s s' a r, P s →
+    Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
+    L.mem s (affA (thr s)) ≠ L.cpu s → syscall.handle_syscall_local st ar s' a n found = ok r →
+    syscall.handle_syscall_local (guard st (fun b => SlRS (st := st) K Locks s b ∨ TW (thr s) b) (fun _ => True))
+      ar s' a n found = ok r
 
 /-- A declined run at `s` is, at every alternative `s'`, a run on `guard st (SlRS s) (SlDS s)`
 declining with the same flag and Arch state (`interp_agree`), and then on `st` (`interp_to`). -/
@@ -273,67 +290,83 @@ theorem sl_dec_alt_run (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st :
   exact interp_to (st := st) (st' := st) (fun _ _ _ => rfl) (fun _ _ _ _ => rfl) (fun _ _ _ _ => rfl)
     rfl rfl rfl p hz s' a _ hg'
 
-/-- **`hna` from `DecRd`**: a run declining at the entry state declines at every alternative. -/
+/-- **`hna` from `SlThr`**: a run declining at the entry state declines at every alternative
+(decided thread homed here: the guarded run agrees; elsewhere: an accepting run would need
+its `AFFINITY`, a read-set word, to be this core). -/
 theorem sl_hna (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    {thr : S → U64} {TW : U64 → U64 → Prop}
+    (Th : SlThr (st := st) ar (n := n) (found := found) (m0 := m0) P K Locks thr TW) :
     ∀ s a r s' r', P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
       Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
       syscall.handle_syscall_local st ar s' a n found = ok r' → r'.1 ≠ true := by
   intro s a r s' r' hP h hn Al h'
-  obtain ⟨b, s1, a1⟩ := r
-  obtain ⟨s1', -, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (hdr s a _ hP h hn)
-  rw [h2] at h'
-  obtain rfl := Result.ok_injective h'
-  exact hn
+  by_cases hh : L.mem s (affA (thr s)) = L.cpu s
+  · obtain ⟨b, s1, a1⟩ := r
+    obtain ⟨s1', -, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (Th.home s a _ hP h hn hh)
+    rw [h2] at h'
+    obtain rfl := Result.ok_injective h'
+    exact hn
+  · intro e
+    apply hh
+    have ha := Th.acc s' a r' h' e
+    rw [Th.alt s s' hP Al, Al.read _ (Th.affR s hP), Al.cpu] at ha
+    exact ha
 
-/-- **`hra` from `DecRd`** and P0 totality: at an alternative of an entry state that does not
+/-- **`hra` from `SlThr`** and P0 totality: at an alternative of an entry state that does not
 accept, the run reads only aligned words. -/
 theorem sl_hra (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar)
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    {thr : S → U64} {TW : U64 → U64 → Prop}
+    (Th : SlThr (st := st) ar (n := n) (found := found) (m0 := m0) P K Locks thr TW) :
     ∀ s s' a r, P s →
       Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
       (¬ ∃ s1 a1, syscall.handle_syscall_local st ar s a n found = ok (true, s1, a1)) →
       syscall.handle_syscall_local st ar s' a n found = ok r →
       syscall.handle_syscall_local (guard st (fun b => Aligned b) (fun _ => True)) ar s' a n found = ok r := by
   intro s s' a r hP Al hna h
-  obtain ⟨⟨b, s1, a1⟩, h0, -⟩ := spec_ex_fd (Fl4Proofs.P0.syscall.handle_syscall_local.p0 st ar s a n found hS hA)
-  have hb : b ≠ true := fun e => hna ⟨s1, a1, by rw [h0, e]⟩
-  obtain ⟨s1', hg, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (hdr s a _ hP h0 hb)
-  rw [h2] at h
-  obtain rfl := Result.ok_injective h
   have hp : ∀ (m : machine.Store S) (x : S) (a : A),
       syscall.handle_syscall_local m ar x a n found = interp m ar p x a :=
     fun m x a => congrFun (congrFun (hFp A ar m) x) a
-  rw [hp] at hg ⊢
-  exact interp_mono (fun _ hq => hq.1) (fun _ _ => trivial) p hz s' a _ hg
+  by_cases hh : L.mem s (affA (thr s)) = L.cpu s
+  · obtain ⟨⟨b, s1, a1⟩, h0, -⟩ := spec_ex_fd (Fl4Proofs.P0.syscall.handle_syscall_local.p0 st ar s a n found hS hA)
+    have hb : b ≠ true := fun e => hna ⟨s1, a1, by rw [h0, e]⟩
+    obtain ⟨s1', hg, h2⟩ := sl_dec_alt_run ar hFp hz hm (hPE s hP).preG Al (Th.home s a _ hP h0 hb hh)
+    rw [h2] at h
+    obtain rfl := Result.ok_injective h
+    rw [hp] at hg ⊢
+    exact interp_mono (fun _ hq => hq.1) (fun _ _ => trivial) p hz s' a _ hg
+  · have hg := Th.away s s' a r hP Al hh h
+    rw [hp] at hg ⊢
+    exact interp_mono (fun q hq => hq.elim (fun h1 => h1.1) (Th.twA _ q)) (fun _ _ => trivial) p hz s' a _ hg
 
-/-- **`PathObl` of the syscall entry from `DecRd`** (`sl_pathObl` with `hna := sl_hna`). -/
+/-- **`PathObl` of the syscall entry from `SlThr`** (`sl_pathObl` with `hna := sl_hna`). -/
 theorem sl_pathObl_dr (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : Fl4Proofs.P2.E2E.UserOK K)
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks) :
+    {thr : S → U64} {TW : U64 → U64 → Prop}
+    (Th : SlThr (st := st) ar (n := n) (found := found) (m0 := m0) P K Locks thr TW) :
     PathObl st (fun m s a => syscall.handle_syscall_local m ar s a n found) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathObl ar hA hK hU hFp hPE (sl_hna ar hFp hz hm hPE hdr)
+  sl_pathObl ar hA hK hU hFp hPE (sl_hna ar hFp hz hm hPE Th)
 
-/-- **`PathSide` of the syscall entry from `DecRd`** (`sl_pathSide` with `hra := sl_hra`). -/
+/-- **`PathSide` of the syscall entry from `SlThr`** (`sl_pathSide` with `hra := sl_hra`). -/
 theorem sl_pathSide_dr (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : RegionOK K)
     (hU : Fl4Proofs.P2.E2E.UserOK K)
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hdr : DecRd (st := st) ar (n := n) (found := found) P K Locks)
+    {thr : S → U64} {TW : U64 → U64 → Prop}
+    (Th : SlThr (st := st) ar (n := n) (found := found) (m0 := m0) P K Locks thr TW)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
@@ -342,7 +375,7 @@ theorem sl_pathSide_dr (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regi
     PathSide st (fun m s a => syscall.handle_syscall_local m ar s a n found)
       (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathSide ar hA hK hU hFp hz hm hPE (sl_hra ar hS hA hFp hz hm hPE hdr) huf
+  sl_pathSide ar hA hK hU hFp hz hm hPE (sl_hra ar hS hA hFp hz hm hPE Th) huf
 
 end
 
