@@ -81,14 +81,11 @@ theorem own_tcb_home (hL : IoLay K) {t off : U64} (ht : K.heap t = some .tcb) (h
   have q1 : ¬ OwnMap.QueuedState (m (stA t)) := by
     unfold OwnMap.QueuedState
     rcases hs with e | e <;> rw [e] <;> simp [sched.TS_RESTART, sched.TS_RUNNING]
-  have q2 : ¬ OwnMap.ReplyState (m (stA t)) := by
-    unfold OwnMap.ReplyState
-    rcases hs with e | e <;> rw [e] <;> simp [sched.TS_RESTART, sched.TS_RUNNING]
   unfold tcbOwner
   rw [if_neg hg, if_neg htm, e1, e2]
   unfold OwnMap.gOwner
   by_cases hG : GField off.val
-  · rw [if_pos hG, if_neg q1, if_neg q2]
+  · rw [if_pos hG, if_neg q1]
   · rw [if_neg hG]
 
 theorem own_sc (hL : IoLay K) {p b : U64} {z : Nat} (hp : K.heap p = some (.sc z)) (hb : InW p (2 ^ z) b)

@@ -56,6 +56,9 @@ theorem inv_true {s : S} {t cptr : U64} {info : msginfo.MessageInfo}
   cases res with
   | Err e => cases ok_inj_ff h
   | Ok r1 =>
+    dsimp only at h
+    split at h
+    · cases ok_inj_ff h
     obtain ⟨c, hc, h⟩ := bind_eq_ok h
     cases c <;> try cases ok_inj_ff h
     rename_i f l x

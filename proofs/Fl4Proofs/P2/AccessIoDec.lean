@@ -55,6 +55,7 @@ theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.Messag
   | Ok r1 =>
     obtain ⟨h0, h8⟩ := hRf r1 hres
     dsimp only
+    refine tr_ite (fun _ h => h) (fun _ => ?_)
     rw [obj.Slot.cap.guard _ s h0 h8]
     refine tr_bind_same (fun c _ => ?_)
     cases c <;> try exact fun h => h
