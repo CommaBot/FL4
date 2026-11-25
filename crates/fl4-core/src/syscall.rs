@@ -41,7 +41,7 @@ fn finish<S: Store, A: Arch>(s: &mut S, a: &mut A) {
 }
 
 /// seL4 `replyFromKernel_error` with `setMRs_syscall_error`.
-pub fn reply_error<S: Store>(s: &mut S, t: Tcb, e: SysError) {
+pub(crate) fn reply_error<S: Store>(s: &mut S, t: Tcb, e: SysError) {
     let buf = msg::lookup_ipc_buffer(s, true, t);
     t.set_reg(s, reg::BADGE, 0);
     let len = error_mrs(s, t, buf, e);

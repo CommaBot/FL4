@@ -1,4 +1,4 @@
-//! The AArch64 local paths of hardware virtualization (`fl4_sync::localvm`,
+//! The AArch64 local paths of hardware virtualization (`fl4_core::localvm`,
 //! `ARMVCPURun`): refinement against the general path (word for word, with
 //! the same `Arch` effects), decline (only `FAULT_IP` and the clock), and
 //! locks held by another core (nothing written).
@@ -471,7 +471,7 @@ fn the_timer_while_a_guest_runs_beside_the_gate_refines_handle_interrupt_entry()
 /// did not run beside it takes it too.
 #[test]
 fn a_stale_address_space_takes_the_gate_even_after_a_local_vm_check() {
-    use fl4_sync::localvm::arm_exit_takes_gate as takes;
+    use fl4_sync::arm_exit_takes_gate as takes;
     // (multi, gate held, stale, checked, running a VM)
     assert!(takes(true, false, true, true, true), "set while the local check waited");
     assert!(takes(true, false, true, false, false));

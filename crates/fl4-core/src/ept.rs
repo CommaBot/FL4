@@ -55,8 +55,8 @@ pub fn mark_core<S: Store>(s: &mut S, root: u64) {
 /// Whether `mark_core` has recorded this core for `root`: then a VM entry
 /// on it needs no write, and every unmap or deletion of the root reaches
 /// this core (`invalidate`), which lets the entry be prepared beside the
-/// serial gate (fl4-sync `localvm`).
-pub fn core_marked<S: Store>(s: &S, root: u64) -> bool {
+/// serial gate (`localvm`).
+pub(crate) fn core_marked<S: Store>(s: &S, root: u64) -> bool {
     let cpu = s.cur_cpu();
     let addr = root.wrapping_add(CORES).wrapping_add((cpu / 32) * 8);
     s.read(addr) & (1 << (32 + cpu % 32)) != 0

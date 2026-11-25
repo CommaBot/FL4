@@ -712,7 +712,7 @@ pub fn exit() -> ! {
             // Register the nested root before releasing the gate. An
             // unmap must then interrupt this core even if it has not yet
             // executed its entry instruction. Beside the gate when that
-            // changes nothing (`fl4_sync::localvm::vm_entry_ready`): this
+            // changes nothing (`fl4_core::localvm::vm_entry_ready`): this
             // core is registered already, and the checks write nothing.
             let mut ready = None;
             if !percpu::get().gate_held.get() {

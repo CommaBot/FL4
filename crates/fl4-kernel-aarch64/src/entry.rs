@@ -739,7 +739,7 @@ pub fn exit() -> ! {
         }
         // `vspace_stale` read again: a remote call serviced while the local
         // check waited for the gate may have set it.
-        if fl4_sync::localvm::arm_exit_takes_gate(
+        if fl4_sync::arm_exit_takes_gate(
             smp::multi(),
             pc.gate_held.get(),
             pc.vspace_stale.get(),

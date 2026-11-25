@@ -1,9 +1,10 @@
-//! The x86 local paths of hardware virtualization (`fl4_sync::localvm`):
-//! refinement (from the same state, a local path that runs ends where the
-//! general path does, word for word, with the same `Arch` effects), decline
-//! (one that declines has written only `FAULT_IP` and the clock, and the
-//! general path from there ends as from the start), and locks (an object
-//! another core holds makes the local path give up having written nothing).
+//! The x86 local paths of hardware virtualization (`fl4_core::localvm`,
+//! run through `fl4-sync`): refinement (from the same state, a local path
+//! that runs ends where the general path does, word for word, with the same
+//! `Arch` effects), decline (one that declines has written only `FAULT_IP`
+//! and the clock, and the general path from there ends as from the start),
+//! and locks (an object another core holds makes the local path give up
+//! having written nothing).
 #![cfg(not(feature = "aarch64"))]
 
 use fl4_abi::label;

@@ -27,10 +27,16 @@
 compile_error!("fl4-sync's mutant features are for the host simulator (cargo xtask mutants), never for a kernel");
 
 use core::sync::atomic::{AtomicU64, Ordering};
-use fl4_core::localtimer;
+use fl4_core::{localtimer, localvm};
 use fl4_store::lock::{self, Mem};
 
-pub mod localvm;
+/// Bytes of a VCPU object (fl4-core `vcpu`), as `observe` reports it: on
+/// x86 the VMCB, VMCS image, registers and exit frame, and I/O bitmap.
+#[cfg(not(feature = "aarch64"))]
+pub const VCPU_BYTES: u64 = 0x8000;
+/// Bytes of a VCPU object (fl4-core `vcpu`), as `observe` reports it.
+#[cfg(feature = "aarch64")]
+pub const VCPU_BYTES: u64 = 0x1000;
 
 /// Cores the runtime supports. Do not scan flags for cores it cannot run.
 pub const MAX_CPUS: usize = lock::MAX_CPUS;
@@ -825,7 +831,7 @@ fn local_vm_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: 
     let done = if number == fl4_abi::syscall::SysVMEnter {
         let v = fl4_core::vcpu::bound(s, t);
         lock_if(m, v, &mut held) && lock_if(m, n, &mut held) && {
-            observe(s, &[(v, localvm::VCPU_BYTES), (n, 64)]);
+            observe(s, &[(v, VCPU_BYTES), (n, 64)]);
             localvm::handle_vm_enter_local(s, a, number, v, n)
         }
     } else {
@@ -833,7 +839,7 @@ fn local_vm_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: 
         match lookup_slot_locked(s, m, t, cptr, &mut held) {
             Some(slot) => match slot.cap(s) {
                 fl4_core::capability::Cap::Vcpu { ptr } => lock_object(m, ptr, &mut held) && {
-                    observe(s, &[(ptr, localvm::VCPU_BYTES)]);
+                    observe(s, &[(ptr, VCPU_BYTES)]);
                     localvm::handle_vcpu_invocation_local(s, a, number, slot, ptr)
                 },
                 _ => false,
@@ -889,11 +895,11 @@ pub fn local_vm_exit<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
     let mut held = lock::Held::new();
     let done = if irq == fl4_core::syscall::NO_IRQ {
         lock_if(m, v, &mut held) && lock_if(m, n, &mut held) && {
-            observe(s, &[(v, localvm::VCPU_BYTES), (n, 64)]);
+            observe(s, &[(v, VCPU_BYTES), (n, 64)]);
             localvm::handle_vcpu_exit_local(s, a, v, n)
         }
     } else {
-        local_vm_timer_irq(s, a, m, irq, v, localvm::VCPU_BYTES, n, &mut held, observe)
+        local_vm_timer_irq(s, a, m, irq, v, VCPU_BYTES, n, &mut held, observe)
     };
     lock::unlock_held(m, &mut held);
     done
@@ -947,8 +953,10 @@ const _: () = assert!(localtimer::MAX_TIMER_LOCKS + 2 <= lock::MAX_HELD);
 /// AArch64: an `ARMVCPURun` beside the gate
 /// (`localvm::handle_arm_vcpu_run_local`), on the VCPU its capability
 /// register names, found with the slots of its lookup locked, with the
-/// VCPU and the caller's bound notification locked; `hw_ok` is the
-/// kernel's check of the VCPU's hardware state (there). True if it ran.
+/// VCPU and the caller's bound notification locked; `hw_ok(s, vc, guest)`
+/// is the kernel's check of the VCPU's hardware state (there), asked with
+/// those locks held and passed to the local path as its premise. True if
+/// it ran.
 #[cfg(feature = "aarch64")]
 #[inline(always)]
 pub fn local_arm_vcpu_run<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
@@ -967,8 +975,14 @@ pub fn local_arm_vcpu_run<S: fl4_core::machine::Store, A: fl4_core::machine::Arc
         Some(slot) => match slot.cap(s) {
             fl4_core::capability::Cap::Vcpu { ptr } => {
                 lock_object(m, ptr, &mut held) && lock_if(m, n, &mut held) && {
-                    observe(s, &[(ptr, localvm::VCPU_BYTES), (n, 64)]);
-                    localvm::handle_arm_vcpu_run_local(s, a, number, slot, ptr, n, hw_ok)
+                    observe(s, &[(ptr, VCPU_BYTES), (n, 64)]);
+                    // The kernel's word on the VCPU's hardware state, for
+                    // the guest thread the VCPU names (read under its
+                    // lock); asked only when it names one, as the local
+                    // path declines when it names none.
+                    let guest = fl4_core::obj::Tcb(s.read(ptr.wrapping_add(fl4_core::vcpu::TCB)));
+                    let hw = !guest.is_null() && hw_ok(s, ptr, guest);
+                    localvm::handle_arm_vcpu_run_local(s, a, number, slot, ptr, n, hw)
                 }
             }
             _ => false,
@@ -977,6 +991,21 @@ pub fn local_arm_vcpu_run<S: fl4_core::machine::Store, A: fl4_core::machine::Arc
     };
     lock::unlock_held(m, &mut held);
     done
+}
+
+/// Whether AArch64 `exit` must take the serial gate (and go round its
+/// loop again) before it goes on, on a core with several cores
+/// running: not holding it, with the address space this core ran gone
+/// stale (`vspace_stale`, which `set_vm_root` then rebuilds from caps a
+/// serial entry may be deleting), or with a thread in a VM whose
+/// `vcpu::check` has not run beside the gate (`checked`, from
+/// `local_arm_vm_entry`). The stale mark is read after that local check:
+/// a remote call serviced while it waited for the gate to open may have
+/// set it, and a local check does not cover it.
+#[cfg(feature = "aarch64")]
+#[inline(always)]
+pub fn arm_exit_takes_gate(multi: bool, gate_held: bool, vspace_stale: bool, checked: bool, running_vm: bool) -> bool {
+    multi && !gate_held && (vspace_stale || (!checked && running_vm))
 }
 
 /// AArch64: the check before an `ARMVCPURun` caller's guest runs, beside
@@ -1011,7 +1040,7 @@ pub fn local_arm_vcpu_run_exit<S: fl4_core::machine::Store, A: fl4_core::machine
     let vc = localvm::run_vcpu(s, t);
     let mut held = lock::Held::new();
     let done = vc != 0 && lock_object(m, vc, &mut held) && {
-        observe(s, &[(vc, localvm::VCPU_BYTES)]);
+        observe(s, &[(vc, VCPU_BYTES)]);
         localvm::handle_arm_vcpu_run_exit_local(s, a, vc, stop, w.0, w.1, w.2, hvc)
     };
     lock::unlock_held(m, &mut held);
@@ -1034,7 +1063,7 @@ pub fn local_arm_vm_timer_irq<S: fl4_core::machine::Store, A: fl4_core::machine:
     let vc = localvm::run_vcpu(s, t);
     let n = t.bound_ntfn(s);
     let mut held = lock::Held::new();
-    let done = vc != 0 && local_vm_timer_irq(s, a, m, irq, vc, localvm::VCPU_BYTES, n, &mut held, observe);
+    let done = vc != 0 && local_vm_timer_irq(s, a, m, irq, vc, VCPU_BYTES, n, &mut held, observe);
     lock::unlock_held(m, &mut held);
     done
 }
