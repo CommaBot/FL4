@@ -14,6 +14,9 @@ cores), and `OwnMap.ok_of_JAtZ` gives `RegionOK` and `UserOK` for it.
   conclusion (`RegionOK ∧ UserOK ∧ Maps`).
 * `ser_of_reach`: the same at every `JReachU17` state, i.e. at the exit of every
   serial entry P3 covers, with the ghosts `kernel_entry_reachU17V` provides.
+* `ser_of_reachU29`: the same against the top of record, `kernel_entry_reachU29`
+  (its premises verbatim; its exits, and `U29T`'s accepted local runs, end in
+  `JReachU17`, so the bridge applies at each).
 * `ser_step_of_JAtZ`: `Fl4Step.ser` for a serial step of `Serial` whose result is
   such a configuration.
 
@@ -24,7 +27,18 @@ Premises:
   `PortInValMR`, `StoreExt`, `SetDlDetR`), as tagged there;
 * `hn` [J]: the `n` cores the layout counts are among the joint invariant's cores
   `Cs` (`JKern.cs0` gives it for `n = 1`; for more cores it is the boot fact that the
-  running cores are `Cs`, `JKern.csLt` bounds them by 64);
+  running cores are `Cs`, `JKern.csLt` bounds them by 64). Not dischargeable from
+  P3 as stated: `JAt` (and so `RJ`, `JReachU3.step`) re-quantifies `Cs` at every
+  exit, and `JKern` pins it only by `cs0`, `cpuCs` (the entering core) and
+  `csLt`; nothing ties it to the running cores or keeps it across entries.
+  The fact that would discharge it is sound on the kernel side: the running
+  count is the kernel-global word `ks::NUM_NODES` (offset 0, `layout.rs`), whose
+  only writer is boot (`boot.rs` `init_core_state`, `ks_set(s, ks::NUM_NODES,
+  num_nodes)`, the same `num_nodes` the boot loops and bootinfo use); every other
+  `ks_set` with a computed offset lands at offset ≥ 192 (IRQ state, I/O-port
+  bitmap, ASID table, domain schedule), and x86 never reads it. Tying `Cs` to
+  that word in `JKern` (fixed across entries by that frame) is a P3 change
+  through every `JKern` producer, scheduled separately;
 * `ExitGhost` [P]: the model's link: `Serial`'s memory is the store's memory
   `L.mem s` at the exit on aligned kernel words, and the ghost maps a serial step
   installs are those of the layout read off the exit state (the ghost's
@@ -32,6 +46,7 @@ Premises:
 -/
 import Fl4Proofs.P2.OwnJAtZ
 import Fl4Proofs.P3.XTopJointKEntryU17
+import Fl4Proofs.P3.XTopJointKEntryU29
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.SerExit
@@ -89,6 +104,31 @@ theorem ser_of_reach [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : 
           E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
   obtain ⟨Z, H, Cs, Ac, Lst, D, -, J, -⟩ :=
     kernel_entry_reachU17V arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
+  exact ⟨Z, H, Cs, Ac, Lst, D, J, fun n hn c hG => ser_of_JAtZ J hn hG⟩
+
+/-- **`Fl4Step.ser`'s conclusion at every `JReachU17` state, by the top of record**
+`kernel_entry_reachU29` (premises verbatim, statement unchanged): the `JAtZ` its
+conclusion opens with gives the layout. Every exit of `U29` / `U29T` (accepted
+local runs) / `U29TD` lands in `JReachU17`, so this applies at the exit of every
+serial entry P3 covers. -/
+theorem ser_of_reachU29 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
+    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
+    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
+    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
+      ∀ n : Nat, (∀ c : U64, c.val < n → c ∈ Cs) → ∀ c : Serial.Cfg U64 U64 U64 U64,
+        ExitGhost (L := L) (OwnMap.layoutJ Z H (L.ksb s) n) s c →
+        OwnMap.RegionOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
+          E2E.UserOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
+          E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ :=
+    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
   exact ⟨Z, H, Cs, Ac, Lst, D, J, fun n hn c hG => ser_of_JAtZ J hn hG⟩
 
 /-- With one core counted, `hn` is `JKern.cs0`. -/
