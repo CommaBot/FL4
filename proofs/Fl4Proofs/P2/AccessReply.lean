@@ -219,8 +219,8 @@ theorem reply_next_ok (s : S) (r : U64) : obj.Reply.next st r s = ok (L.mem s (r
 theorem reply_prev_ok (s : S) (r : U64) : obj.Reply.prev st r s = ok (L.mem s (rPrevA r) &&& ~~~1#u64) := by
   unfold obj.Reply.prev obj.Reply.prev_raw rPrevA; simp only [lift, bind_ok, L.read_eq]
 
-theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
-    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+theorem ipc.reply_unlink.guardV (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
+    (hw : SWr gS st t sched.TS_INACTIVE) (h1 : R (stA t)) (h2 : R (scA t))
     (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
     (h3 : ∀ X : S, WritesIn st s X (fun b => b = rTcbA r ∨ b = stA t) → R (maxA (L.mem X (scA t))))
     (h4 : R (inqA t)) :
@@ -232,16 +232,16 @@ theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) 
     unfold obj.Reply.set_tcb at hs1; simp only [lift, bind_ok, L.write_eq] at hs1
     exact (ok_inj_ff hs1).symm
   subst e
-  exact sched.set_thread_state.guard _ t _ hn.wr hw h1 h2
+  exact sched.set_thread_state.guardV _ t _ hn.wr hw h1 h2
     (h3 _ ((writesIn_wr aT).trans (writesIn_wr aS))) h4
 
 /-- **`reply_remove` of a reply object with no neighbours** (`NEXT` and
 `PREV` are 0 up to the head bit). -/
-theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A) (r t : U64)
+theorem ipc.reply_remove.guardZV {A : Type} (ar : machine.Arch A) (s : S) (a : A) (r t : U64)
     (hz : L.mem s (rNextA r) &&& ~~~1#u64 = 0#u64 ∧ L.mem s (rPrevA r) &&& ~~~1#u64 = 0#u64)
     (hrn : R (rNextA r)) (hrp : R (rPrevA r)) (hwn : W (rNextA r)) (hwp : W (rPrevA r))
     (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
-    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+    (hw : SWr gS st t sched.TS_INACTIVE) (h1 : R (stA t)) (h2 : R (scA t))
     (aP : Aligned (rPrevA r)) (aN : Aligned (rNextA r)) (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
     (h3 : ∀ X : S, WritesIn st s X (fun b => b = rPrevA r ∨ b = rNextA r ∨ b = rTcbA r ∨ b = stA t) →
       R (maxA (L.mem X (scA t))))
@@ -270,12 +270,32 @@ theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     simp only [lift, bind_ok, L.write_eq, Bool.false_eq_true, ↓reduceIte] at hs4
     cases ok_inj_ff hs4
     exact (writesIn_wr aP).trans (writesIn_wr aN)
-  rw [ipc.reply_unlink.guard s4 r t hn4 hrt hw h1 h2 aT aS (fun X hX => h3 X ((hw4.trans hX).mono fun b hb => by
+  rw [ipc.reply_unlink.guardV s4 r t hn4 hrt hw h1 h2 aT aS (fun X hX => h3 X ((hw4.trans hX).mono fun b hb => by
     rcases hb with (h | h) | (h | h)
     · exact Or.inl h
     · exact Or.inr (Or.inl h)
     · exact Or.inr (Or.inr (Or.inl h))
     · exact Or.inr (Or.inr (Or.inr h)))) h4]
+
+theorem ipc.reply_unlink.guard (s : S) (r t : U64) (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
+    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+    (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
+    (h3 : ∀ X : S, WritesIn st s X (fun b => b = rTcbA r ∨ b = stA t) → R (maxA (L.mem X (scA t))))
+    (h4 : R (inqA t)) :
+    ipc.reply_unlink gS s r t = ipc.reply_unlink st s r t :=
+  ipc.reply_unlink.guardV s r t hn hrt (SWr.of_W hw) h1 h2 aT aS h3 h4
+
+theorem ipc.reply_remove.guardZ {A : Type} (ar : machine.Arch A) (s : S) (a : A) (r t : U64)
+    (hz : L.mem s (rNextA r) &&& ~~~1#u64 = 0#u64 ∧ L.mem s (rPrevA r) &&& ~~~1#u64 = 0#u64)
+    (hrn : R (rNextA r)) (hrp : R (rPrevA r)) (hwn : W (rNextA r)) (hwp : W (rPrevA r))
+    (hn : NodeSt (L := L) R W s) (hrt : W (rTcbA r))
+    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+    (aP : Aligned (rPrevA r)) (aN : Aligned (rNextA r)) (aT : Aligned (rTcbA r)) (aS : Aligned (stA t))
+    (h3 : ∀ X : S, WritesIn st s X (fun b => b = rPrevA r ∨ b = rNextA r ∨ b = rTcbA r ∨ b = stA t) →
+      R (maxA (L.mem X (scA t))))
+    (h4 : R (inqA t)) :
+    ipc.reply_remove gS ar s a r t = ipc.reply_remove st ar s a r t :=
+  ipc.reply_remove.guardZV ar s a r t hz hrn hrp hwn hwp hn hrt (SWr.of_W hw) h1 h2 aP aN aT aS h3 h4
 
 theorem faults.clear_fault.guard (s : S) (t : U64) (h : W (core.num.U64.wrapping_add t 3376#u64)) :
     faults.clear_fault gS s t = faults.clear_fault st s t := by

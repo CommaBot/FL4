@@ -118,8 +118,8 @@ theorem faultTail2G.guard_eq (X : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
     (hsr : Regs R t) (hrw : Regs W dest) (hbw : BufW W rb)
     (hmw : W (regA dest layout.reg.MSG_INFO)) (hbd : W (regA dest layout.reg.BADGE))
     (hrt : W (core.num.U64.wrapping_add r layout.reply.TCB))
-    (hsd : W (core.num.U64.wrapping_add dest layout.tcb.STATE))
-    (hst : W (core.num.U64.wrapping_add t layout.tcb.STATE))
+    (hsd : ∀ v, (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING) → SWr gS st dest v)
+    (hst : SWr gS st t sched.TS_BLOCKED_ON_REPLY)
     (hrp : W (core.num.U64.wrapping_add t 3360#u64)) :
     faultTail2G gS ar X a t fl4_abi.consts.fault.UnknownSyscall dest r badge =
       faultTail3 gS ar (fS14 (L := L) S8 t dest r) a dest := by
@@ -132,15 +132,15 @@ theorem faultTail2G.guard_eq (X : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
   rw [obj.Tcb.set_reg.guard dest S7 _ _ hbd, hS8]; simp only [bind_ok]
   rw [obj.Reply.set_tcb.guard r _ _ hrt, eq_of_spec_fd (obj.Reply.set_tcb.spec (L := L) _ r _)]
   simp only [bind_ok]
-  rw [obj.Tcb.set_state.guard dest _ _ hsd, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]
+  rw [obj.Tcb.set_state.guardV dest _ _ (hsd _ (Or.inl rfl)), eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]
   simp only [bind_ok]
   rw [obj.Reply.set_tcb.guard r _ _ hrt, eq_of_spec_fd (obj.Reply.set_tcb.spec (L := L) _ r _)]
   simp only [bind_ok]
-  rw [obj.Tcb.set_state.guard t _ _ hst, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ t _)]
+  rw [obj.Tcb.set_state.guardV t _ _ hst, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ t _)]
   simp only [bind_ok]
   rw [obj.Tcb.set_reply_obj.guard t _ _ hrp, eq_of_spec_fd (obj.Tcb.set_reply_obj.wr (L := L) _ t _)]
   simp only [bind_ok]
-  rw [obj.Tcb.set_state.guard dest _ _ hsd, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]
+  rw [obj.Tcb.set_state.guardV dest _ _ (hsd _ (Or.inr rfl)), eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]
   simp only [bind_ok]
   unfold faultTail3 fS14 fS13 fS10; rfl
 
@@ -201,7 +201,6 @@ structure FltAcc (Z : U64 → Nat) (R W : U64 → Prop) (s : S) (t ptr dest r : 
   tf : ∀ K : U64, (K.val = 3376 ∨ K.val = 3384 ∨ K.val = 3392 ∨ K.val = 3400) →
     R (core.num.U64.wrapping_add t K) ∧ W (core.num.U64.wrapping_add t K)
   treg : Regs R t
-  tst : W (stA t)
   trp : W (replyA t)
   /-- `dest`: the words read. -/
   drp : R (replyA dest)
@@ -218,7 +217,7 @@ structure FltAcc (Z : U64 → Nat) (R W : U64 → Prop) (s : S) (t ptr dest r : 
   dvt : R (vtA dest) ∧ R (core.num.U64.wrapping_add (vtA dest) 8#u64)
   dbs : ∀ sl, obj.Tcb.slot dest layout.tcb.SLOT_BUFFER = ok sl → R sl ∧ R (core.num.U64.wrapping_add sl 8#u64)
   /-- `dest`: the words written. -/
-  dw : W (nextA .Ep dest) ∧ W (prevA .Ep dest) ∧ W (nextA .Sched dest) ∧ W (prevA .Sched dest) ∧ W (stA dest)
+  dw : W (nextA .Ep dest) ∧ W (prevA .Ep dest) ∧ W (nextA .Sched dest) ∧ W (prevA .Sched dest)
   dreg : Regs W dest
   /-- The next queued thread's `EP_PREV`, when `dest` is not the tail. -/
   nxt : (L.epQ s ptr).end ≠ dest → W (prevA .Ep (L.mem s (nextA .Ep dest)))
@@ -248,6 +247,8 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     (hy0 : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r → L.mem s (yieldA dest) = 0#u64)
     (hTm : TimerOK st T Cs s) (hAs : AsidOff (L := L) Ω Sg s)
     (hRW : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r → FltAcc (L := L) Z R W s t ptr dest r)
+    (hSW : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r →
+      SWr gS st t sched.TS_BLOCKED_ON_REPLY ∧ ∀ v, (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING) → SWr gS st dest v)
     {sF : S} {aF : A} (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) :
     fastpath.fault gS ar s a t n = fastpath.fault st ar s a t n := by
   rw [h]
@@ -567,7 +568,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [eNY]; exact K.nd o ho h8
   have hSw := fastpath.switch_to.guard (gS := gS) hA Y a P hcY htY hactY (by rw [eyY]; exact hy0 hc) hrhG htmG hRV hNdY
     (by rw [kY]; exact K.dt) (by rw [ecY]; exact K.csc) (fun _ => by rw [escY]; exact K.dsc)
-    K.dsc0 K.dyt K.dst K.dfi (K.dreg _ (by simp [layout.reg.NEXT_IP])) K.dw.2.2.2.2 K.diq
+    K.dsc0 K.dyt K.dst K.dfi (K.dreg _ (by simp [layout.reg.NEXT_IP])) ((hSW hc).2 _ (Or.inr rfl)) K.diq
   /- The checks. -/
   obtain ⟨sl, x, y, g, gr, hsl, hcap, hg⟩ := hc.cap
   obtain ⟨dm, p, hdm, hp, hhp⟩ := hc.prio
@@ -584,7 +585,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [faultTail2G.guard_eq ar _ a t dest r badge hbuf hmrs hmi hS7 hS8 hslb K.dib (K.dbs slb hslb).1
       (K.dbs slb hslb).2 RR.hR5 (tf 3376#u64 (by simp)).1 (tf 3384#u64 (by simp)).1 (tf 3392#u64 (by simp)).1
       (tf 3400#u64 (by simp)).1 K.treg K.dreg (K.buf rb hbs) (K.dreg _ (by simp [layout.reg.MSG_INFO]))
-      (K.dreg _ (by simp [layout.reg.BADGE])) K.rt K.dw.2.2.2.2 K.tst K.trp]
+      (K.dreg _ (by simp [layout.reg.BADGE])) K.rt (hSW hc).2 (hSW hc).1 K.trp]
     rw [faultTail3_split ar gS]
     have h15f : endpoint.unblock_sporadic st (fS14 (L := L) S8 t dest r) dest = ok s15 := h15
     rw [endpoint.unblock_sporadic.guard _ dest K.dsc0 (by rw [esc14]; exact K.spo)
@@ -596,7 +597,7 @@ theorem fastpath.fault.guard {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
           exact (K.nd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).2), h15f]
     simp only [bind_ok]
     rw [obj.Tcb.set_sched_next.guard dest s15 _ K.dw.2.2.1, obj.Tcb.set_sched_next.ok]; simp only [bind_ok]
-    rw [obj.Tcb.set_sched_prev.guard dest _ _ K.dw.2.2.2.1, obj.Tcb.set_sched_prev.ok]; simp only [bind_ok]
+    rw [obj.Tcb.set_sched_prev.guard dest _ _ K.dw.2.2.2, obj.Tcb.set_sched_prev.ok]; simp only [bind_ok]
     rw [hY, hSw, hsw]
     simp only [bind_ok]
     rfl
