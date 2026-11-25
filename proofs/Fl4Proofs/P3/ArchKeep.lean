@@ -8,7 +8,10 @@ SchedContext paths keeps `AR` at every CR3 (and succeeds):
 
 * `now`, `set_deadline` (the timer), `send_reschedule`, `remote_stall` (the
   IPIs), `fpu_flush`, `fpu_release`, `fpu_sanitise`, `fpu_reload` (the lazy
-  FPU), `vcpu_barrier`.
+  FPU), `vcpu_barrier`, and `vcpu_release` ([P], #106: `vcpu::finalise`
+  drops the deleted VCPU's hardware VMCS wherever it is active; the trusted
+  backend changes no store-visible word, so it is required to keep `AR` like
+  `vcpu_barrier`).
 
 The queries (`ticks_to_us`, `us_to_ticks`, `kernel_wcet_ticks`, `max_us`,
 ...) return no new arch state, so need no field.
@@ -38,6 +41,7 @@ structure ARKeep (AR : A → C → Prop) : Prop where
   fpu_sanitise : ∀ a t c, AR a c → arI.fpu_sanitise a t ⦃ a' => AR a' c ⦄
   fpu_reload : ∀ a t c, AR a c → arI.fpu_reload a t ⦃ a' => AR a' c ⦄
   vcpu_barrier : ∀ a c, AR a c → arI.vcpu_barrier a ⦃ a' => AR a' c ⦄
+  vcpu_release : ∀ a v c, AR a c → arI.vcpu_release a v ⦃ a' => AR a' c ⦄
 
 end
 

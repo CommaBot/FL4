@@ -257,9 +257,10 @@ pub mod sc_flag {
 
 /// `seL4_ARM_VMAttributes`.
 /// FL4 AArch64: the TTBR1 addresses an `ArmHighVSpace` may map, level-0
-/// entry 511, level-1 entries 384-495 (112 GiB): clear of the kernel window
-/// (`PPTR_BASE..PPTR_TOP`), the device mappings below this window and the
-/// kernel image at `KERNEL_VBASE`.
+/// entry 511, level-1 entries 384-495 (112 GiB). The kernel's own TTBR1
+/// leaves level-0 entry 511 invalid: its window over RAM
+/// (`PPTR_BASE..PPTR_TOP`) is entries 256-509, its device mappings and
+/// image (`KERNEL_VBASE`) entry 510, below `0xffff_ff80_0000_0000`.
 #[cfg(feature = "aarch64")]
 pub const HIGH_VSPACE_BASE: u64 = 0xffff_ffe0_0000_0000;
 #[cfg(feature = "aarch64")]
@@ -368,4 +369,264 @@ pub mod tpm_event_log_flag {
 pub mod cc_event_log_flag {
     pub const TRUNCATED: u64 = super::tpm_event_log_flag::TRUNCATED;
     pub const TCG_1_2: u64 = super::tpm_event_log_flag::TCG_1_2;
+}
+
+/// `SysKernelConfig` (libsel4 `seL4_KernelConfig`, whose constants
+/// `seL4_KernelConfig_*` these are): what the kernel found and chose at
+/// boot, one word per key. A key the kernel does not know, or one of the
+/// other architecture, is `error::InvalidArgument`.
+pub mod kernel_config {
+    /// What `seL4_KernelConfig` can be asked for.
+    pub mod keys {
+        // Both architectures.
+        pub const ARCH: u64 = 0x0001;
+        pub const BUILD_FLAGS: u64 = 0x0002;
+        /// Cores running the kernel.
+        pub const ONLINE_CPUS: u64 = 0x0003;
+        /// The most cores this kernel was built for (`CONFIG_MAX_NUM_NODES`).
+        pub const MAX_CPUS: u64 = 0x0004;
+        // Virtualization.
+        pub const VIRT_BACKEND: u64 = 0x0100;
+        pub const VIRT_REJECT: u64 = 0x0101;
+        pub const VIRT_FEATURES: u64 = 0x0102;
+        // Virtualization, AArch64 only.
+        /// Stage-2 IPA width.
+        pub const VIRT_S2_IPA_BITS: u64 = 0x0103;
+        /// VGIC list registers (at most 16).
+        pub const VIRT_VGIC_LRS: u64 = 0x0104;
+        // Confidential VM (0 on AArch64).
+        pub const CVM_TYPE: u64 = 0x0200;
+        pub const CVM_FLAGS: u64 = 0x0201;
+        // Mitigations, x86_64 only.
+        pub const SPEC_STATUS: u64 = 0x0300;
+        pub const SPEC_REJECT: u64 = 0x0301;
+        pub const SPEC_FLAGS: u64 = 0x0302;
+        /// `spec_actions` at native kernel entries (all cores').
+        pub const SPEC_ENTRY_ACTIONS: u64 = 0x0303;
+        /// The boot core's `spec_actions` at VM exits; 0 without a backend.
+        pub const SPEC_VMEXIT_ACTIONS: u64 = 0x0304;
+        // The boot core's MSRs as the kernel left them at boot; 0 for one
+        // it does not have or may not read (`SPEC_MSR_VALID`).
+        /// IA32_SPEC_CTRL.
+        pub const SPEC_CTRL_MSR: u64 = 0x0305;
+        /// IA32_TSX_CTRL.
+        pub const SPEC_TSX_CTRL_MSR: u64 = 0x0306;
+        /// IA32_MCU_OPT_CTRL.
+        pub const SPEC_MCU_OPT_CTRL_MSR: u64 = 0x0307;
+        /// IA32_EFER.
+        pub const SPEC_EFER_MSR: u64 = 0x0308;
+        /// MSR_AMD64_DE_CFG.
+        pub const SPEC_AMD_DE_CFG_MSR: u64 = 0x0309;
+        /// MSR_ZEN4_BP_CFG.
+        pub const SPEC_AMD_BP_CFG_MSR: u64 = 0x030a;
+        /// `spec_msr_valid`.
+        pub const SPEC_MSR_VALID: u64 = 0x030b;
+        // Mitigations, AArch64 only.
+        pub const ARM_MITIGATIONS: u64 = 0x0380;
+        // CPU and platform, x86_64 only.
+        pub const X86_CPU_VENDOR: u64 = 0x0400;
+        pub const X86_CPU_FEATURES: u64 = 0x0401;
+        /// XCR0 (0 without XSAVE).
+        pub const X86_FPU_XCR0: u64 = 0x0402;
+        pub const X86_FPU_SAVE_INSN: u64 = 0x0403;
+        /// TSC rate in MHz.
+        pub const X86_TSC_MHZ: u64 = 0x0404;
+        pub const X86_TSC_SOURCE: u64 = 0x0405;
+        /// The boot core's microcode revision where the mitigation policy reads
+        /// it; 0 otherwise (a hypervisor, TDX).
+        pub const X86_MICROCODE_REV: u64 = 0x0406;
+        /// The boot core's physical address width.
+        pub const X86_MAX_PADDR_BITS: u64 = 0x0407;
+        /// IOAPICs the kernel drives.
+        pub const X86_IOAPIC_COUNT: u64 = 0x0408;
+        /// The boot core's IA32_ARCH_CAPABILITIES (Intel's; 0 on others, or
+        /// without the MSR).
+        pub const X86_ARCH_CAPABILITIES: u64 = 0x0409;
+        // CPU and platform, AArch64 only.
+        pub const ARM_PLATFORM_FLAGS: u64 = 0x0480;
+        /// Physical address bits (at most 48).
+        pub const ARM_PA_BITS: u64 = 0x0481;
+        /// 2 or 3.
+        pub const ARM_GIC_VERSION: u64 = 0x0482;
+        /// The highest SPI's INTID.
+        pub const ARM_MAX_SPI: u64 = 0x0483;
+        pub const ARM_PSCI_METHOD: u64 = 0x0484;
+        /// CNTFRQ_EL0.
+        pub const ARM_TIMER_FREQ_HZ: u64 = 0x0485;
+    }
+    /// `keys::ARCH`.
+    pub mod arch {
+        pub const X86_64: u64 = 1;
+        pub const AARCH64: u64 = 2;
+    }
+    /// `keys::BUILD_FLAGS`: the settings the kernel was built with.
+    pub mod build_flags {
+        pub const DEBUG_BUILD: u64 = 1 << 0;
+        pub const PRINTING: u64 = 1 << 1;
+        pub const SMP: u64 = 1 << 2;
+        pub const HW_DEBUG_API: u64 = 1 << 3;
+        pub const EXPORT_PMC_USER: u64 = 1 << 4;
+        pub const DANGEROUS_MSR: u64 = 1 << 5;
+    }
+    /// `keys::VIRT_BACKEND`.
+    pub mod virt_backend {
+        pub const NONE: u64 = 0;
+        pub const VTX: u64 = 1;
+        pub const AMDV: u64 = 2;
+        pub const EL2_VHE: u64 = 3;
+        pub const EL2_NVHE: u64 = 4;
+    }
+    /// `keys::VIRT_REJECT`: why `VIRT_BACKEND` is `NONE`; `NONE` exactly when
+    /// a backend is active.
+    pub mod virt_reject {
+        pub const NONE: u64 = 0;
+        pub const NO_HW: u64 = 1;
+        pub const DISABLED_BY_FIRMWARE: u64 = 2;
+        pub const MISSING_FEATURES: u64 = 3;
+        pub const SPEC_POLICY_REJECTED: u64 = 4;
+        pub const SKIM_ACTIVE: u64 = 5;
+        pub const CVM_ACTIVE: u64 = 6;
+        pub const VMXON_FAILED: u64 = 7;
+        pub const NOVIRT_CMDLINE: u64 = 8;
+        pub const NO_VGIC: u64 = 9;
+        pub const EL1_ONLY: u64 = 10;
+    }
+    /// `keys::VIRT_FEATURES`: the x86_64 bits (`X86_*`) and, the same bits
+    /// meaning something else, the AArch64 ones (`ARM_*`).
+    pub mod virt_features {
+        pub const X86_VPID_SINGLE: u64 = 1 << 0;
+        pub const X86_VPID_ALL: u64 = 1 << 1;
+        pub const X86_INVEPT_SINGLE: u64 = 1 << 2;
+        pub const X86_SVM_VMCB_CLEAN: u64 = 1 << 3;
+        pub const X86_VMX_PERF_GLOBAL_CTRL: u64 = 1 << 4;
+        pub const ARM_VIRT_READY: u64 = 1 << 0;
+        pub const ARM_VMID16: u64 = 1 << 1;
+        pub const ARM_GICV2_VGIC: u64 = 1 << 2;
+        pub const ARM_GICV3_VGIC: u64 = 1 << 3;
+    }
+    /// `keys::CVM_TYPE`.
+    pub mod cvm_type {
+        pub const NONE: u64 = 0;
+        pub const SEV: u64 = 1;
+        pub const SEV_SNP: u64 = 2;
+        pub const TDX: u64 = 3;
+    }
+    /// `keys::CVM_FLAGS`.
+    pub mod cvm_flags {
+        pub const HARDENED: u64 = 1 << 0;
+        pub const SHARED_DMA: u64 = 1 << 1;
+    }
+    /// `keys::SPEC_STATUS`.
+    pub mod spec_status {
+        pub const INCOMPLETE: u64 = 0;
+        pub const COMPLETE: u64 = 1;
+    }
+    /// `keys::SPEC_REJECT`: why `SPEC_STATUS` is `INCOMPLETE`.
+    pub mod spec_reject {
+        pub const NONE: u64 = 0;
+        pub const VENDOR: u64 = 1;
+        pub const MELTDOWN: u64 = 2;
+        pub const SMEP: u64 = 3;
+        pub const BEFORE_ZEN2: u64 = 4;
+        pub const IBPB: u64 = 5;
+        pub const SRSO_MICROCODE: u64 = 6;
+        pub const BUFFER_MICROCODE: u64 = 7;
+        pub const ITS_MICROCODE: u64 = 8;
+        pub const LFENCE: u64 = 9;
+    }
+    /// `keys::SPEC_FLAGS`.
+    pub mod spec_flags {
+        pub const SKIM: u64 = 1 << 0;
+        pub const SAFE_RET: u64 = 1 << 1;
+        pub const RETPOLINE: u64 = 1 << 2;
+        pub const EIBRS: u64 = 1 << 3;
+        pub const AUTO_IBRS: u64 = 1 << 4;
+        pub const LEGACY_IBRS: u64 = 1 << 5;
+        pub const STIBP: u64 = 1 << 6;
+        pub const BHI_DIS_S: u64 = 1 << 7;
+        pub const VERW_BUFFERS: u64 = 1 << 8;
+        pub const NO_SMT: u64 = 1 << 9;
+        pub const DISABLE_TSX: u64 = 1 << 10;
+        pub const VMEXIT_IBPB_DEFERRED: u64 = 1 << 11;
+        pub const EAGER_FPU: u64 = 1 << 12;
+    }
+    /// `keys::SPEC_ENTRY_ACTIONS` and `keys::SPEC_VMEXIT_ACTIONS`.
+    pub mod spec_actions {
+        pub const IBPB: u64 = 1 << 0;
+        pub const RSB: u64 = 1 << 1;
+        pub const PBRSB: u64 = 1 << 2;
+        pub const LEGACY_IBRS: u64 = 1 << 3;
+        pub const BHB: u64 = 1 << 4;
+        pub const IBHF: u64 = 1 << 5;
+    }
+    /// `keys::SPEC_MSR_VALID`: the MSRs read or written at boot, so that
+    /// their keys (`SPEC_*_MSR`, `X86_ARCH_CAPABILITIES`) are values.
+    pub mod spec_msr_valid {
+        pub const ARCH_CAPABILITIES: u64 = 1 << 0;
+        pub const SPEC_CTRL: u64 = 1 << 1;
+        pub const TSX_CTRL: u64 = 1 << 2;
+        pub const MCU_OPT_CTRL: u64 = 1 << 3;
+        pub const EFER: u64 = 1 << 4;
+        pub const AMD_DE_CFG: u64 = 1 << 5;
+        pub const AMD_BP_CFG: u64 = 1 << 6;
+    }
+    /// `keys::ARM_MITIGATIONS`.
+    pub mod arm_mitigations {
+        pub const PAN: u64 = 1 << 0;
+        pub const PAUTH: u64 = 1 << 1;
+        pub const CLRBHB: u64 = 1 << 2;
+    }
+    /// `keys::X86_CPU_VENDOR`.
+    pub mod x86_vendor {
+        pub const OTHER: u64 = 0;
+        pub const INTEL: u64 = 1;
+        pub const AMD: u64 = 2;
+        pub const HYGON: u64 = 3;
+    }
+    /// `keys::X86_CPU_FEATURES`: what the kernel turned on, but `HYPERVISOR`
+    /// (CPUID.1:ECX\[31\]).
+    pub mod x86_features {
+        pub const NX: u64 = 1 << 0;
+        pub const SMEP: u64 = 1 << 1;
+        pub const SMAP: u64 = 1 << 2;
+        pub const FSGSBASE: u64 = 1 << 3;
+        pub const HUGE_PAGES_1G: u64 = 1 << 4;
+        pub const PCID: u64 = 1 << 5;
+        pub const INVPCID: u64 = 1 << 6;
+        pub const X2APIC: u64 = 1 << 7;
+        pub const TSC_DEADLINE: u64 = 1 << 8;
+        pub const IDLE_POLL: u64 = 1 << 9;
+        pub const HYPERVISOR: u64 = 1 << 10;
+    }
+    /// `keys::X86_FPU_SAVE_INSN`.
+    pub mod x86_fpu_insn {
+        pub const FXSAVE: u64 = 0;
+        pub const XSAVE: u64 = 1;
+        pub const XSAVEOPT: u64 = 2;
+        pub const XSAVEC: u64 = 3;
+        pub const XSAVES: u64 = 4;
+    }
+    /// `keys::X86_TSC_SOURCE`.
+    pub mod x86_tsc_source {
+        pub const CPUID: u64 = 1;
+        pub const HYPERVISOR: u64 = 2;
+        pub const PIT: u64 = 3;
+        pub const KVM: u64 = 4;
+    }
+    /// `keys::ARM_PLATFORM_FLAGS`.
+    pub mod arm_platform_flags {
+        pub const ASID16: u64 = 1 << 0;
+        pub const HW_AF: u64 = 1 << 1;
+        pub const GICV3_SRE: u64 = 1 << 2;
+        pub const ITS_ACTIVE: u64 = 1 << 3;
+        pub const TIMER_LOCAL_ACK: u64 = 1 << 4;
+        pub const EL2_VHE: u64 = 1 << 5;
+        pub const EL2_NVHE: u64 = 1 << 6;
+    }
+    /// `keys::ARM_PSCI_METHOD`.
+    pub mod arm_psci {
+        pub const ABSENT: u64 = 0;
+        pub const SMC: u64 = 1;
+        pub const HVC: u64 = 2;
+    }
 }

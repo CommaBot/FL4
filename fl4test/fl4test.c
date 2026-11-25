@@ -305,6 +305,325 @@ static int test_trap_syscall_sweep(env_t env)
 DEFINE_TEST(FL4TRAP0003, "trapSyscalls: every RDX from -1 to -64 faults, SetTLSBase included (l4h 0001)",
             test_trap_syscall_sweep, true)
 
+/* ---- seL4_KernelConfig ---------------------------------------------- */
+
+/* The value of a key this kernel knows. */
+static seL4_Word kernel_config(seL4_Word key)
+{
+    seL4_KernelConfig_Result_t r = seL4_KernelConfig(key);
+    if (r.error != seL4_NoError) {
+        ZF_LOGE("key %#lx: error %d", (unsigned long) key, (int) r.error);
+        _sel4test_failure("seL4_KernelConfig failed", __FILE__, __LINE__);
+    }
+    return r.value;
+}
+
+static int kernel_config_refused(seL4_Word key)
+{
+    seL4_KernelConfig_Result_t r = seL4_KernelConfig(key);
+    return r.error == seL4_InvalidArgument && r.value == 0;
+}
+
+static int has(seL4_Word flags, seL4_Word flag)
+{
+    return (flags & flag) != 0;
+}
+
+static int test_kernel_config(env_t env)
+{
+    /* Both architectures. */
+#ifdef CONFIG_ARCH_AARCH64
+    test_eq(kernel_config(seL4_KernelConfig_Arch), (seL4_Word) seL4_KernelConfig_Arch_AArch64);
+#else
+    test_eq(kernel_config(seL4_KernelConfig_Arch), (seL4_Word) seL4_KernelConfig_Arch_X86_64);
+#endif
+    seL4_Word build = kernel_config(seL4_KernelConfig_BuildFlags);
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_DebugBuild), config_set(CONFIG_DEBUG_BUILD));
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_Printing), config_set(CONFIG_PRINTING));
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_Smp), config_set(CONFIG_ENABLE_SMP_SUPPORT));
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_HwDebugApi), config_set(CONFIG_HARDWARE_DEBUG_API));
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_ExportPmcUser), config_set(CONFIG_EXPORT_PMC_USER));
+    test_eq(has(build, seL4_KernelConfig_BuildFlag_DangerousMsr), config_set(CONFIG_KERNEL_X86_DANGEROUS_MSR));
+    test_eq(build >> 6, (seL4_Word) 0);
+    seL4_Word online = kernel_config(seL4_KernelConfig_OnlineCpus);
+    test_eq(online, (seL4_Word) env->cores);
+    test_geq(online, (seL4_Word) 1);
+    test_leq(online, kernel_config(seL4_KernelConfig_MaxCpus));
+    test_eq(kernel_config(seL4_KernelConfig_MaxCpus), (seL4_Word) CONFIG_MAX_NUM_NODES);
+
+    /* A backend exactly when none of the reasons against one holds. */
+    seL4_Word backend = kernel_config(seL4_KernelConfig_VirtBackend);
+    seL4_Word reject = kernel_config(seL4_KernelConfig_VirtReject);
+    seL4_Word virt = kernel_config(seL4_KernelConfig_VirtFeatures);
+    test_eq(backend == seL4_KernelConfig_VirtBackend_None, reject != seL4_KernelConfig_VirtReject_None);
+    test_leq(reject, (seL4_Word) seL4_KernelConfig_VirtReject_El1Only);
+
+    seL4_Word cvm = kernel_config(seL4_KernelConfig_CvmType);
+    seL4_Word cvm_flags = kernel_config(seL4_KernelConfig_CvmFlags);
+    test_leq(cvm, (seL4_Word) seL4_KernelConfig_CvmType_Tdx);
+    test_eq(has(cvm_flags, seL4_KernelConfig_CvmFlag_SharedDma), cvm != seL4_KernelConfig_CvmType_None);
+    test_eq(has(cvm_flags, seL4_KernelConfig_CvmFlag_Hardened),
+            cvm == seL4_KernelConfig_CvmType_SevSnp || cvm == seL4_KernelConfig_CvmType_Tdx);
+
+    printf("FL4KCFG0001: build %#lx, %lu of %lu cores, virt %lu (reject %lu, features %#lx), cvm %lu (%#lx)\n",
+           (unsigned long) build, (unsigned long) online,
+           (unsigned long) kernel_config(seL4_KernelConfig_MaxCpus), (unsigned long) backend,
+           (unsigned long) reject, (unsigned long) virt, (unsigned long) cvm, (unsigned long) cvm_flags);
+
+    /* The other architecture's keys and ones no kernel has. */
+#ifdef CONFIG_ARCH_AARCH64
+    for (seL4_Word k = seL4_KernelConfig_SpecStatus; k <= seL4_KernelConfig_SpecMsrValid; k++) {
+        test_check(kernel_config_refused(k));
+    }
+    for (seL4_Word k = seL4_KernelConfig_X86CpuVendor; k <= seL4_KernelConfig_X86ArchCapabilities; k++) {
+        test_check(kernel_config_refused(k));
+    }
+#else
+    test_check(kernel_config_refused(seL4_KernelConfig_VirtS2IpaBits));
+    test_check(kernel_config_refused(seL4_KernelConfig_VirtVgicLrs));
+    test_check(kernel_config_refused(seL4_KernelConfig_ArmMitigations));
+    for (seL4_Word k = seL4_KernelConfig_ArmPlatformFlags; k <= seL4_KernelConfig_ArmTimerFreqHz; k++) {
+        test_check(kernel_config_refused(k));
+    }
+#endif
+    test_check(kernel_config_refused(0xdeadbeef));
+    test_check(kernel_config_refused(0));
+    test_check(kernel_config_refused(~0ul));
+    test_check(kernel_config_refused(seL4_KernelConfig_Arch | BIT(32)));
+
+#ifdef CONFIG_ARCH_AARCH64
+    seL4_Word mitigations = kernel_config(seL4_KernelConfig_ArmMitigations);
+    seL4_Word platform = kernel_config(seL4_KernelConfig_ArmPlatformFlags);
+    seL4_Word gic = kernel_config(seL4_KernelConfig_ArmGicVersion);
+    seL4_Word lrs = kernel_config(seL4_KernelConfig_VirtVgicLrs);
+    seL4_Word ipa = kernel_config(seL4_KernelConfig_VirtS2IpaBits);
+    int vhe = has(platform, seL4_KernelConfig_ArmPlatformFlag_El2Vhe);
+    int nvhe = has(platform, seL4_KernelConfig_ArmPlatformFlag_El2Nvhe);
+    test_eq(mitigations >> 3, (seL4_Word) 0);
+    test_eq(platform >> 7, (seL4_Word) 0);
+    test_check(!(vhe && nvhe));
+    /* The kernel does not boot without 16-bit ASIDs (l4h 0016). */
+    test_check(has(platform, seL4_KernelConfig_ArmPlatformFlag_Asid16));
+    test_check(gic == 2 || gic == 3);
+    if (gic == 2) {
+        test_check(!has(platform, seL4_KernelConfig_ArmPlatformFlag_Gicv3Sre));
+        test_check(!has(platform, seL4_KernelConfig_ArmPlatformFlag_ItsActive));
+    }
+    test_leq(kernel_config(seL4_KernelConfig_ArmMaxSpi), (seL4_Word) 1019);
+    test_leq(kernel_config(seL4_KernelConfig_ArmPaBits), (seL4_Word) 48);
+    test_geq(kernel_config(seL4_KernelConfig_ArmPaBits), (seL4_Word) 32);
+    test_leq(kernel_config(seL4_KernelConfig_ArmPsciMethod), (seL4_Word) seL4_KernelConfig_ArmPsci_Hvc);
+    test_check(online == 1 || kernel_config(seL4_KernelConfig_ArmPsciMethod) != seL4_KernelConfig_ArmPsci_Absent);
+    seL4_Word hz;
+    __asm__ volatile("mrs %0, cntfrq_el0" : "=r"(hz));
+    test_eq(kernel_config(seL4_KernelConfig_ArmTimerFreqHz), hz & 0xffffffff);
+    test_check(ipa == 40 || ipa == 44 || ipa == 48);
+    test_leq(lrs, (seL4_Word) 16);
+    /* Guests run only at EL2, in the kernel's mode of it, with a VGIC. */
+    test_eq(backend == seL4_KernelConfig_VirtBackend_El2Vhe, vhe && reject == seL4_KernelConfig_VirtReject_None);
+    test_eq(backend == seL4_KernelConfig_VirtBackend_El2Nvhe, nvhe && reject == seL4_KernelConfig_VirtReject_None);
+    test_eq(reject == seL4_KernelConfig_VirtReject_El1Only, !vhe && !nvhe);
+    test_eq(has(virt, seL4_KernelConfig_VirtFeature_ArmVirtReady), backend != seL4_KernelConfig_VirtBackend_None);
+    test_eq(has(virt, seL4_KernelConfig_VirtFeature_ArmGicv2Vgic),
+            backend != seL4_KernelConfig_VirtBackend_None && gic == 2);
+    test_eq(has(virt, seL4_KernelConfig_VirtFeature_ArmGicv3Vgic),
+            backend != seL4_KernelConfig_VirtBackend_None && gic == 3);
+    test_check(backend == seL4_KernelConfig_VirtBackend_None || lrs > 0);
+    test_check(vhe || nvhe || !has(virt, seL4_KernelConfig_VirtFeature_ArmVmid16));
+    test_eq(cvm, (seL4_Word) seL4_KernelConfig_CvmType_None);
+    printf("FL4KCFG0001: mitigations %#lx, platform %#lx, GICv%lu, %lu LRs, IPA %lu, timer %lu Hz\n",
+           (unsigned long) mitigations, (unsigned long) platform, (unsigned long) gic, (unsigned long) lrs,
+           (unsigned long) ipa, (unsigned long) hz);
+#else
+    seL4_Word status = kernel_config(seL4_KernelConfig_SpecStatus);
+    seL4_Word spec_reject = kernel_config(seL4_KernelConfig_SpecReject);
+    seL4_Word flags = kernel_config(seL4_KernelConfig_SpecFlags);
+    seL4_Word entry = kernel_config(seL4_KernelConfig_SpecEntryActions);
+    seL4_Word vmexit = kernel_config(seL4_KernelConfig_SpecVmexitActions);
+    seL4_Word ctrl = kernel_config(seL4_KernelConfig_SpecCtrlMsr);
+    seL4_Word efer = kernel_config(seL4_KernelConfig_SpecEferMsr);
+    seL4_Word valid = kernel_config(seL4_KernelConfig_SpecMsrValid);
+    seL4_Word vendor = kernel_config(seL4_KernelConfig_X86CpuVendor);
+    seL4_Word features = kernel_config(seL4_KernelConfig_X86CpuFeatures);
+    int skim = has(flags, seL4_KernelConfig_SpecFlag_Skim);
+    test_leq(status, (seL4_Word) seL4_KernelConfig_SpecStatus_Complete);
+    test_eq(status == seL4_KernelConfig_SpecStatus_Complete, spec_reject == seL4_KernelConfig_SpecReject_None);
+    test_leq(spec_reject, (seL4_Word) seL4_KernelConfig_SpecReject_Lfence);
+    test_eq(flags >> 13, (seL4_Word) 0);
+    test_eq(entry >> 6, (seL4_Word) 0);
+    test_eq(vmexit >> 6, (seL4_Word) 0);
+    /* What the flags say of IA32_SPEC_CTRL (where firmware may have set
+     * more) and EFER, and of each other. */
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_Eibrs | seL4_KernelConfig_SpecFlag_LegacyIbrs) || has(ctrl, 1));
+    test_check(!(has(flags, seL4_KernelConfig_SpecFlag_Eibrs) && has(flags, seL4_KernelConfig_SpecFlag_LegacyIbrs)));
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_LegacyIbrs)
+               || has(entry, seL4_KernelConfig_SpecAction_LegacyIbrs));
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_Stibp) || has(ctrl, 2));
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_BhiDisS) || has(ctrl, 1 << 10));
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_AutoIbrs) || has(efer, 1 << 21));
+    test_check(!has(flags, seL4_KernelConfig_SpecFlag_Retpoline) || has(flags, seL4_KernelConfig_SpecFlag_SafeRet));
+    test_eq(has(flags, seL4_KernelConfig_SpecFlag_EagerFpu), vendor == seL4_KernelConfig_X86Vendor_Intel);
+    /* Long mode with SYSCALL, and NX and AMD-V as the kernel says. */
+    test_eq(efer & 0x501, (seL4_Word) 0x501);
+    test_eq(has(efer, 1 << 11), has(features, seL4_KernelConfig_X86Feature_Nx));
+    test_eq(has(efer, 1 << 12), backend == seL4_KernelConfig_VirtBackend_AmdV);
+    /* An MSR that is not valid reads 0; EFER always is. */
+    test_eq(valid >> 7, (seL4_Word) 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_Efer));
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_SpecCtrl) || ctrl == 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_ArchCapabilities)
+               || kernel_config(seL4_KernelConfig_X86ArchCapabilities) == 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_TsxCtrl)
+               || kernel_config(seL4_KernelConfig_SpecTsxCtrlMsr) == 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_McuOptCtrl)
+               || kernel_config(seL4_KernelConfig_SpecMcuOptCtrlMsr) == 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_AmdDeCfg)
+               || kernel_config(seL4_KernelConfig_SpecAmdDeCfgMsr) == 0);
+    test_check(has(valid, seL4_KernelConfig_SpecMsrValid_AmdBpCfg)
+               || kernel_config(seL4_KernelConfig_SpecAmdBpCfgMsr) == 0);
+    /* Intel's and AMD's own. */
+    test_check(vendor == seL4_KernelConfig_X86Vendor_Intel
+               || !has(valid, seL4_KernelConfig_SpecMsrValid_ArchCapabilities
+                       | seL4_KernelConfig_SpecMsrValid_TsxCtrl | seL4_KernelConfig_SpecMsrValid_McuOptCtrl));
+    test_check((vendor == seL4_KernelConfig_X86Vendor_Amd
+                && !has(features, seL4_KernelConfig_X86Feature_Hypervisor))
+               || !has(valid, seL4_KernelConfig_SpecMsrValid_AmdDeCfg | seL4_KernelConfig_SpecMsrValid_AmdBpCfg));
+    /* Without a plan the kernel clears the buffers, and runs no guest. */
+    test_check(status == seL4_KernelConfig_SpecStatus_Complete
+               || has(flags, seL4_KernelConfig_SpecFlag_VerwBuffers));
+    test_check(backend == seL4_KernelConfig_VirtBackend_None || status == seL4_KernelConfig_SpecStatus_Complete);
+    test_check(backend == seL4_KernelConfig_VirtBackend_None || (!skim && cvm == seL4_KernelConfig_CvmType_None));
+    test_eq(vmexit != 0, backend != seL4_KernelConfig_VirtBackend_None);
+    test_check(backend != seL4_KernelConfig_VirtBackend_None
+               || !has(flags, seL4_KernelConfig_SpecFlag_VmexitIbpbDeferred | seL4_KernelConfig_SpecFlag_NoSmt));
+    test_leq(backend, (seL4_Word) seL4_KernelConfig_VirtBackend_AmdV);
+    test_eq(reject == seL4_KernelConfig_VirtReject_CvmActive, cvm != seL4_KernelConfig_CvmType_None);
+    test_eq(reject == seL4_KernelConfig_VirtReject_SkimActive, skim && cvm == seL4_KernelConfig_CvmType_None);
+    test_check(backend != seL4_KernelConfig_VirtBackend_None || virt == 0);
+
+    test_leq(vendor, (seL4_Word) seL4_KernelConfig_X86Vendor_Hygon);
+    test_eq(features >> 11, (seL4_Word) 0);
+    test_check(!has(features, seL4_KernelConfig_X86Feature_Invpcid)
+               || has(features, seL4_KernelConfig_X86Feature_Pcid));
+    test_check(!has(features, seL4_KernelConfig_X86Feature_IdlePoll)
+               || (has(features, seL4_KernelConfig_X86Feature_Hypervisor) && online > 1));
+    test_leq(kernel_config(seL4_KernelConfig_X86FpuSaveInsn), (seL4_Word) seL4_KernelConfig_X86FpuInsn_Xsaves);
+    test_eq(kernel_config(seL4_KernelConfig_X86FpuXcr0) == 0,
+            kernel_config(seL4_KernelConfig_X86FpuSaveInsn) == seL4_KernelConfig_X86FpuInsn_Fxsave);
+    test_geq(kernel_config(seL4_KernelConfig_X86TscMhz), (seL4_Word) 1);
+    test_geq(kernel_config(seL4_KernelConfig_X86TscSource), (seL4_Word) seL4_KernelConfig_X86TscSource_Cpuid);
+    test_leq(kernel_config(seL4_KernelConfig_X86TscSource), (seL4_Word) seL4_KernelConfig_X86TscSource_Kvm);
+    test_geq(kernel_config(seL4_KernelConfig_X86MaxPaddrBits), (seL4_Word) 36);
+    test_leq(kernel_config(seL4_KernelConfig_X86MaxPaddrBits), (seL4_Word) 52);
+    test_check(!has(features, seL4_KernelConfig_X86Feature_Hypervisor)
+               || kernel_config(seL4_KernelConfig_X86MicrocodeRev) == 0);
+    (void) kernel_config(seL4_KernelConfig_X86IoapicCount);
+    /* IA32_ARCH_CAPABILITIES is read on Intel only, where RDCL_NO (bit 0)
+     * decides the skim window. */
+    seL4_Word arch = kernel_config(seL4_KernelConfig_X86ArchCapabilities);
+    if (vendor == seL4_KernelConfig_X86Vendor_Intel) {
+        test_eq(skim, !has(arch, 1));
+    } else {
+        test_eq(arch, (seL4_Word) 0);
+    }
+    printf("FL4KCFG0001: spec %lu (reject %lu), flags %#lx, entry %#lx, vmexit %#lx, SPEC_CTRL %#lx, "
+           "vendor %lu, features %#lx, xcr0 %#lx (%lu), TSC %lu MHz (%lu), microcode %#lx, "
+           "%lu bits, %lu IOAPIC(s), ARCH_CAPABILITIES %#lx, EFER %#lx, "
+           "MSRs valid %#lx\n",
+           (unsigned long) status, (unsigned long) spec_reject, (unsigned long) flags, (unsigned long) entry,
+           (unsigned long) vmexit, (unsigned long) ctrl, (unsigned long) vendor, (unsigned long) features,
+           (unsigned long) kernel_config(seL4_KernelConfig_X86FpuXcr0),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86FpuSaveInsn),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86TscMhz),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86TscSource),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86MicrocodeRev),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86MaxPaddrBits),
+           (unsigned long) kernel_config(seL4_KernelConfig_X86IoapicCount), (unsigned long) arch,
+           (unsigned long) efer, (unsigned long) valid);
+#endif
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4KCFG0001, "seL4_KernelConfig answers every key of this architecture, and no other", test_kernel_config, true)
+
+/* The call by registers: the error in the capability register, a message
+ * info of length 1 and the value in the first message register; the other
+ * message registers and the IPC buffer are the caller's. */
+static int test_kernel_config_registers(env_t env)
+{
+    seL4_IPCBuffer *buffer = seL4_GetIPCBuffer();
+    seL4_Word before[seL4_MsgMaxLength];
+    for (int i = 0; i < seL4_MsgMaxLength; i++) {
+        buffer->msg[i] = 0x5a5a0000 + i;
+        before[i] = buffer->msg[i];
+    }
+    for (int known = 0; known <= 1; known++) {
+        seL4_Word key = known ? seL4_KernelConfig_MaxCpus : 0xdeadbeef;
+        seL4_Word error = ~0ul, info = ~0ul;
+        seL4_Word mr0 = 0x1111, mr1 = 0x2222, mr2 = 0x3333, mr3 = 0x4444;
+#ifdef CONFIG_ARCH_AARCH64
+        arm_sys_send_recv(seL4_SysKernelConfig, key, &error, 0x7f, &info, &mr0, &mr1, &mr2, &mr3, 0);
+#else
+        x64_sys_send_recv(seL4_SysKernelConfig, key, &error, 0x7f, &info, &mr0, &mr1, &mr2, &mr3, 0);
+#endif
+        test_eq(error, (seL4_Word)(known ? seL4_NoError : seL4_InvalidArgument));
+        test_eq(info, seL4_MessageInfo_new(0, 0, 0, 1).words[0]);
+        test_eq(mr0, (seL4_Word)(known ? CONFIG_MAX_NUM_NODES : 0));
+        test_eq(mr1, (seL4_Word) 0x2222);
+        test_eq(mr2, (seL4_Word) 0x3333);
+        test_eq(mr3, (seL4_Word) 0x4444);
+    }
+    for (int i = 0; i < seL4_MsgMaxLength; i++) {
+        test_eq(buffer->msg[i], before[i]);
+    }
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4KCFG0002, "seL4_KernelConfig answers in registers and leaves the IPC buffer alone",
+            test_kernel_config_registers, true)
+
+static int kernel_config_once(seL4_Word key, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_KernelConfig_Result_t r = seL4_KernelConfig(key);
+    /* Not reached under trapSyscalls. */
+    return r.error == seL4_NoError ? 1 : 2;
+}
+
+/* A thread with trapSyscalls set makes no seL4 calls, this one included:
+ * its fault handler gets it, not the kernel's answer. */
+static int test_trap_kernel_config(env_t env)
+{
+    for (int known = 0; known <= 1; known++) {
+        helper_thread_t t;
+        vka_object_t reply;
+        test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+        seL4_CPtr fault_ep = vka_alloc_endpoint_leaky(&env->vka);
+        create_helper_thread(env, &t);
+        int error = api_tcb_set_space(get_helper_tcb(&t), fault_ep, env->cspace_root,
+                                      api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                      env->page_directory, seL4_NilData);
+        test_error_eq(error, seL4_NoError);
+        seL4_TCB_SetFlags_t f = seL4_TCB_SetFlags(get_helper_tcb(&t), 0, seL4_TCBFlag_trapSyscalls);
+        test_error_eq(f.error, seL4_NoError);
+        seL4_Word key = known ? seL4_KernelConfig_Arch : 0xdeadbeef;
+        start_helper(env, &t, kernel_config_once, key, 0, 0, 0);
+        seL4_Word badge;
+        seL4_MessageInfo_t tag = api_recv(fault_ep, &badge, reply.cptr);
+        test_eq(seL4_MessageInfo_get_label(tag), (seL4_Word) seL4_Fault_UnknownSyscall);
+        /* The call's own registers, unanswered. */
+#ifdef CONFIG_ARCH_AARCH64
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X7), (seL4_Word) seL4_SysKernelConfig);
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X0), key);
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_X1), (seL4_Word) 0);
+#else
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_Syscall), (seL4_Word) seL4_SysKernelConfig);
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_RDI), key);
+        test_eq((seL4_Word) seL4_GetMR(seL4_UnknownSyscall_RSI), (seL4_Word) 0);
+#endif
+        cleanup_helper(env, &t);
+    }
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4KCFG0003, "trapSyscalls sends seL4_KernelConfig to the fault handler", test_trap_kernel_config, true)
+
 #ifdef CONFIG_ARCH_AARCH64
 /* PACGA x0, x1, x2 (FEAT_PAuth), as an encoding so any assembler takes it.
  * Unlike PACIA and AUTIA, PACGA has no SCTLR_EL1 enable: at EL0 it runs,

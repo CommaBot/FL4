@@ -9,15 +9,40 @@
 
 pub mod elf;
 
-/// Where the kernel region is mapped.
-pub const KERNEL_VBASE: u64 = 0xffff_ffff_8000_0000;
+/// Where the kernel region is mapped (in TTBR1 L0[510], leaving L0[511]
+/// exclusively for `ArmHighVSpace` so KERNEL_TTBR1.L0[511] stays invalid).
+pub const KERNEL_VBASE: u64 = 0xffff_ff7f_8000_0000;
+/// The kernel region ends at or below this address, the start of TTBR1
+/// level-0 entry 511 (`ArmHighVSpace`s'): 2 GiB from `KERNEL_VBASE`.
+pub const KERNEL_REGION_TOP: u64 = 0xffff_ff80_0000_0000;
+const _: () = assert!(KERNEL_VBASE < KERNEL_REGION_TOP && (KERNEL_VBASE >> 39) & 511 == 510 && (KERNEL_REGION_TOP >> 39) & 511 == 511);
+
+/// Whether a kernel region of `len` bytes at `KERNEL_VBASE` is not empty and
+/// ends at or below `KERNEL_REGION_TOP`.
+pub fn kernel_region_fits(len: u64) -> bool {
+    len > 0 && KERNEL_VBASE.checked_add(len).is_some_and(|end| end <= KERNEL_REGION_TOP)
+}
+
+/// Where the loader puts things in the kernel region for an image of
+/// `image_len` bytes, then `tables_len` bytes of boot tables, then a boot
+/// record of `bi_size` bytes (rounded up to `page`), the whole rounded up
+/// to `align` (powers of two): the tables' and the record's offsets and the
+/// region's length; None if any of it wraps or the region does not fit
+/// (`kernel_region_fits`).
+pub fn kernel_region_layout(image_len: u64, tables_len: u64, bi_size: u64, page: u64, align: u64) -> Option<(u64, u64, u64)> {
+    let tables_off = image_len;
+    let bi_off = tables_off.checked_add(tables_len)?;
+    let bi_len = bi_size.checked_add(page - 1)? & !(page - 1);
+    let region_len = bi_off.checked_add(bi_len)?.checked_add(align - 1)? & !(align - 1);
+    kernel_region_fits(region_len).then_some((tables_off, bi_off, region_len))
+}
 pub const MAGIC: u64 = 0x464c_345f_424f_4f54; // "FL4_BOOT"
 pub const VERSION: u64 = 2;
 
 /// Everything the loader allocates (the kernel region, the root task, the
 /// boot modules) lies below this physical address: the reach of the
 /// kernel's window over RAM (`fl4_core::layout::PADDR_TOP` on AArch64).
-pub const LOAD_TOP: u64 = 0x0000_7f80_0000_0000;
+pub const LOAD_TOP: u64 = 0x0000_7f00_0000_0000;
 /// The end of user space (`fl4_abi::consts::USER_TOP` + 1): the root task's
 /// segments end at or below it.
 pub const USER_END: u64 = 0x0000_8000_0000_0000;
@@ -187,6 +212,33 @@ pub fn fdt_header(h: &[u8; 40]) -> Option<Fdt> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_kernel_region_stays_below_the_high_window() {
+        const MB2: u64 = 2 << 20;
+        let room = KERNEL_REGION_TOP - KERNEL_VBASE;
+        assert_eq!(room, 2 << 30);
+        assert!(kernel_region_fits(room));
+        assert!(kernel_region_fits(0x1000));
+        assert!(!kernel_region_fits(room + 1));
+        assert!(!kernel_region_fits(room + 0x1000));
+        assert!(!kernel_region_fits(0));
+        assert!(!kernel_region_fits(u64::MAX));
+        assert!(!kernel_region_fits(u64::MAX - KERNEL_VBASE + 1));
+        // An ordinary image: tables and the record after it, 2 MiB rounded.
+        assert_eq!(kernel_region_layout(0x30_0000, 0xa000, 0x1800, 0x1000, MB2), Some((0x30_0000, 0x30_a000, 0x40_0000)));
+        // Exactly to the boundary, and a tail one page past it.
+        let image = room - 0xa000 - 0x1000;
+        assert_eq!(kernel_region_layout(image, 0xa000, 0x1000, 0x1000, MB2), Some((image, image + 0xa000, room)));
+        assert_eq!(kernel_region_layout(image + 0x1000, 0xa000, 0x1000, 0x1000, MB2), None);
+        // The record's page rounding takes it past.
+        assert_eq!(kernel_region_layout(image, 0xa000, 0x1001, 0x1000, MB2), None);
+        // Additions that wrap.
+        assert_eq!(kernel_region_layout(u64::MAX - 0x1000, 0xa000, 0x1000, 0x1000, MB2), None);
+        assert_eq!(kernel_region_layout(0, u64::MAX, 0x1000, 0x1000, MB2), None);
+        assert_eq!(kernel_region_layout(0, 0, u64::MAX, 0x1000, MB2), None);
+        assert_eq!(kernel_region_layout(u64::MAX - MB2 - 0x2000, 0x1000, 0x1000, 0x1000, MB2), None);
+    }
 
     #[test]
     fn root_task_boot_frames_stay_in_user_space() {

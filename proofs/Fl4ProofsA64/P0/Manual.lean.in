@@ -327,3 +327,8 @@
     -- the pair's `let` is `uncurry _ (fs, b)` (Aeneas): unfold it to its body
     simp only [Aeneas.Std.uncurry_apply_pair]
     p0_structural
+
+-- The cap comparison steps with Specs.lean's `capability.Cap.ne_total`.
+@[step] theorem localvm.handle_arm_vcpu_run_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (slot : obj.Slot) (vc : Std.U64) (n : Std.U64) (hw_ok : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_arm_vcpu_run_local machineStoreInst machineArchInst s a number slot vc n hw_ok ⦃ _ => True ⦄ := by
+  unfold localvm.handle_arm_vcpu_run_local; set_option maxHeartbeats 4000000 in p0_structural

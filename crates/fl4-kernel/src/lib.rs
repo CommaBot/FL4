@@ -24,7 +24,7 @@ mod user_trap;
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, cvm, fbcon, fpu, ioapic, percpu, pic, serial, sev, spec, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, cvm, fbcon, fpu, ioapic, kconfig, percpu, pic, serial, sev, spec, timer, tlb};
 use bootmem::Ranges;
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr};
@@ -695,6 +695,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         Some(true) => kprintln!("FL4: native entry uses retpolines and Safe RET"),
         None => {}
     }
+    // Everything SysKernelConfig answers is decided now.
+    kconfig::freeze(kconfig::Paging { nx, smep, smap, huge });
     kprintln!("FL4: starting the root task at {:#x}", image.entry);
     entry::lock();
     smp::release_aps();

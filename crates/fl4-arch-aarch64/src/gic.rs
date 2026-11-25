@@ -126,6 +126,11 @@ pub fn gich() -> u64 {
     GICH.load(Ordering::Relaxed)
 }
 
+/// ICC_SRE_EL1.SRE read back as set on a core (`GICV3_SRE`).
+pub fn sre() -> bool {
+    GICV3_SRE.load(Ordering::Relaxed)
+}
+
 /// The GICv3 system register interface: ID_AA64PFR0_EL1.GIC, or SRE set.
 pub fn has_sysregs() -> bool {
     cpu::has_gic_sysregs() || GICV3_SRE.load(Ordering::Relaxed)

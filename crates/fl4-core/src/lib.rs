@@ -79,6 +79,7 @@ pub mod ipc;
 pub mod layout;
 pub mod localinv;
 pub mod localtimer;
+pub mod localvm;
 pub mod machine;
 pub mod msg;
 pub mod msginfo;

@@ -13,7 +13,11 @@ use crate::obj::{ks_get, ks_set, node_get, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_ID
 use crate::{sched, smp};
 use fl4_abi::label;
 
-// 32 KiB: VMCB, VMCS software image, metadata/registers, I/O bitmap.
+// 32 KiB: VMCB (SVM) or the hardware VMCS (VMX), VMCS software image,
+// metadata/registers, the VMX backend's own state, I/O bitmap.
+/// The hardware VMCS region (VMX): the VMCB's page, which kernel logic
+/// leaves to the backend on VMX.
+pub const VMCS: u64 = 0;
 pub const SHADOW: u64 = 0x1000;
 pub const TCB: u64 = 0x5000;
 pub const NEXT: u64 = 0x5008;
@@ -22,8 +26,10 @@ pub const XCR0: u64 = 0x5018;
 pub const CR2: u64 = 0x5020;
 pub const PENDING: u64 = 0x5028;
 pub const VALID: u64 = 0x5030;
-/// Hardware backend's last SVM core (index + 1); zero forces a TLB flush.
-/// Retype clears it, and software paging changes revoke the cached ASID.
+/// Hardware backend's last core (index + 1) to run this VCPU with its
+/// translations tagged (SVM ASID 1, VMX VPID 1); zero forces a TLB flush.
+/// Retype clears it, and software paging changes, explicit flushes and
+/// unbinding revoke the cached ASID or VPID.
 pub const SVM_CPU: u64 = 0x5038;
 /// Whether this VCPU's exits may leave their IBPB to the next switch to
 /// another address space (`fl4_arch_x86_64::spec::vm_ibpb_deferred`):
@@ -37,6 +43,9 @@ pub const MSR_VM_IBPB_DEFER: u64 = 0xffff_fffd;
 pub const REGS: u64 = 0x5100;
 pub const MSRS: u64 = 0x5180;
 pub const EXIT: u64 = 0x5200;
+/// The VMX backend's bookkeeping for the VCPU's hardware VMCS (zero after
+/// retype), up to `IO`. Kernel logic neither reads nor writes it.
+pub const VMX_STATE: u64 = 0x5300;
 pub const IO: u64 = 0x6000;
 pub const NUM_MRS: u64 = 30;
 pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21) | (1 << 22);
@@ -522,7 +531,8 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         CONTROL_PRIMARY_PROCESSOR_CONTROLS => {
             controls(a, 0x482, value, PRIMARY_FORCED, PRIMARY_ALLOWED)
         }
-        // VPIDs are deliberately disabled: each VM entry flushes guest translations.
+        // "Enable VPID" (bit 5) is the kernel's: the backend sets it on
+        // entry when it tags guest translations (VPID 1, `SVM_CPU`).
         CONTROL_SECONDARY_PROCESSOR_CONTROLS => controls(
             a,
             0x48b,
@@ -721,9 +731,12 @@ pub fn detach<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     }
     set(s, v, TCB, 0);
     s.write(t.0.wrapping_add(tl::VCPU), 0);
+    // The next binding starts from clean guest translations.
+    set(s, v, SVM_CPU, 0);
 }
 pub fn finalise<S: Store, A: Arch>(s: &mut S, a: &mut A, v: u64) {
     stall(s, a, v);
+    a.vcpu_release(v);
     let t = Tcb(get(s, v, TCB));
     if !t.is_null() {
         detach(s, a, t);
@@ -860,7 +873,7 @@ pub fn decode<S: Store, A: Arch>(
             set(s, v, svm::RAX, val);
         }
     } else if lbl == label::X86VCPUFlushTLB {
-        // VMX has no VPID. SVM must discard its retained ASID on re-entry.
+        // The retained ASID (SVM) or VPID (VMX) is flushed on re-entry.
         set(s, v, SVM_CPU, 0);
     } else if lbl == label::X86VCPUReadVMCS || lbl == label::X86VCPUWriteVMCS {
         if amd {
@@ -871,12 +884,32 @@ pub fn decode<S: Store, A: Arch>(
         }
         if lbl == label::X86VCPUWriteVMCS {
             let val = sanitize_vmcs(a, f, value)?;
+            a.vcpu_sync(v, f);
             write_vmcs(s, v, f, val);
+            // As WriteVMCB: a software write of the guest's paging state
+            // (its paging registers, the PAE PDPTEs VM entry loads, and the
+            // entry controls that set IA-32e mode or load EFER and PAT)
+            // performs none of the guest's own TLB invalidation, so its
+            // VPID's translations are flushed on re-entry.
+            if f == GUEST_CR0
+                || f == GUEST_CR3
+                || f == GUEST_CR4
+                || f == GUEST_EFER
+                || f == GUEST_PAT
+                || f == GUEST_PDPTE0
+                || f == GUEST_PDPTE1
+                || f == GUEST_PDPTE2
+                || f == GUEST_PDPTE3
+                || f == CONTROL_ENTRY_CONTROLS
+            {
+                set(s, v, SVM_CPU, 0);
+            }
             reply(s, call, val);
         } else {
             if !contains(&READ_FIELDS, f) {
                 return illegal();
             }
+            a.vcpu_sync(v, f);
             let supported =
                 if f == GUEST_PERF_GLOBAL_CTRL && a.vcpu_capability(0x484) >> 32 & (1 << 13) == 0 {
                     false

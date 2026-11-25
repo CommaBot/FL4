@@ -15,8 +15,8 @@ use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_aarch64::arch::PhysArch;
 use bootmem::Ranges;
-use fl4_arch_aarch64::{cpu, fpu, gic, percpu, serial, timer};
-use fl4_bootinfo::{mem, BootInfo, KERNEL_VBASE, MAGIC};
+use fl4_arch_aarch64::{cpu, fpu, gic, kconfig, percpu, serial, timer};
+use fl4_bootinfo::{BootInfo, KERNEL_VBASE, MAGIC};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -185,28 +185,16 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     let pa_top = (1u64 << cpu::pa_bits()).min(PADDR_USER_DEVICE_TOP);
 
     // RAM in the window: everything the memory map calls write-back memory.
-    let mut ram = Ranges::new();
-    let mut usable = Ranges::new();
-    let mut zeroed = Ranges::new();
-    for e in &bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)] {
-        let Some((start, end)) = bootmem::entry_pages(e.base, e.len, PADDR_TOP.min(pa_top)) else { continue };
-        let wb = e.cacheable & 1 != 0;
-        if wb && (e.kind == mem::FREE || e.kind == mem::FIRMWARE) {
-            ram.add(start, end);
-        }
-        if wb && e.kind == mem::FREE {
-            usable.add(start, end);
-            if e.cacheable & mem::ZEROED != 0 {
-                zeroed.add(start, end);
-            }
-        }
-    }
+    // Free RAM past the window (all_usable) is neither handed out as
+    // free memory nor as device memory (`dev` below).
+    let bootmem::MemLists { ram, usable, mut zeroed, all_usable } =
+        bootmem::classify(&bi.mmap[..(bi.n_mmap as usize).min(fl4_bootinfo::MAX_MMAP)], PADDR_TOP, pa_top);
     if zeroed.lost {
         zeroed = Ranges::new();
     }
     // RAM a full list left out would go to user space as device memory,
     // or be handed out as free memory the window does not map.
-    if ram.lost || usable.lost {
+    if ram.lost || usable.lost || all_usable.lost {
         fail("too many memory map ranges");
     }
     let mut window = [(0u64, 0u64); bootmem::MAX_RANGES];
@@ -475,14 +463,18 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     fpu::init();
     fl4_arch_aarch64::smp::set_psci(h.psci);
-    let virt_ready = cpu::has_el2()
-        && !has_option(bi, b"novirt")
-        && ((h.gic_version == 3 && gic::has_sysregs())
-            || (h.gic_version == 2 && gic::gich() != 0 && h.gicv != 0))
-        && gic::vgic_num_lrs() > 0
-        && (h.vgic_maint == 0 || h.vgic_maint == fl4_core::layout::irq::VGIC_MAINT_ID)
-        && (h.vtimer == 0 || h.vtimer == fl4_core::layout::irq::TIMER_ID)
-        && (h.n_cpus <= 1 || h.psci != fl4_arch_aarch64::smp::PSCI_HVC);
+    let vgic_lrs = gic::vgic_num_lrs();
+    let virt_reject = kconfig::virt_reject_of(&kconfig::Virt {
+        has_el2: cpu::has_el2(),
+        novirt: has_option(bi, b"novirt"),
+        vgic: (h.gic_version == 3 && gic::has_sysregs())
+            || (h.gic_version == 2 && gic::gich() != 0 && h.gicv != 0),
+        lrs: vgic_lrs as u64,
+        ppis_ok: (h.vgic_maint == 0 || h.vgic_maint == fl4_core::layout::irq::VGIC_MAINT_ID)
+            && (h.vtimer == 0 || h.vtimer == fl4_core::layout::irq::TIMER_ID),
+        psci_ok: h.n_cpus <= 1 || h.psci != fl4_arch_aarch64::smp::PSCI_HVC,
+    });
+    let virt_ready = virt_reject == fl4_abi::consts::kernel_config::virt_reject::NONE;
     fl4_arch_aarch64::arch::set_virt_ready(virt_ready);
     match cpu::el_mode() {
         cpu::ElMode::El2Vhe => {
@@ -550,8 +542,8 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     let mut dev = Ranges::new();
     dev.add(0, pa_top);
-    for i in 0..usable.n {
-        dev.remove(usable.r[i].start, usable.r[i].end);
+    for i in 0..all_usable.n {
+        dev.remove(all_usable.r[i].start, all_usable.r[i].end);
     }
     // A kernel device range the list lost would be user space's.
     if dev_used.lost {
@@ -762,6 +754,29 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
             ks_set(&mut s, ks::IRQ_STATE + vgic * 8, IRQ_RESERVED);
         }
     }
+    // Everything SysKernelConfig answers is decided now.
+    kconfig::freeze(&kconfig::Facts {
+        online: fl4_arch_aarch64::smp::num_online(),
+        el2_vhe: cpu::is_el2_vhe(),
+        el2_nvhe: cpu::is_el2_nvhe(),
+        virt_reject,
+        vmid16: cpu::has_el2() && cpu::vmid16(),
+        s2_ipa_bits: fl4_arch_aarch64::mmu::s2_ipa_bits(),
+        vgic_lrs: vgic_lrs as u64,
+        pan: cpu::has_pan(),
+        pauth: cpu::has_pauth(),
+        clrbhb: cpu::has_clrbhb(),
+        asid16: cpu::has_asid16(),
+        hw_af: cpu::has_hw_af(),
+        gicv3_sre: gic::sre(),
+        its: msi.is_some(),
+        timer_local_ack: gic::can_ack_timer_only(),
+        pa_bits: cpu::pa_bits(),
+        gic_version: gic::version(),
+        max_spi: gic::max_spi(),
+        psci: fl4_arch_aarch64::smp::psci(),
+        timer_hz: timer::freq(),
+    });
     kprintln!("FL4: starting the root task at {:#x}", root.entry);
     // With kernel printing disabled, the root task owns the UART page.
     if !fl4_abi::config::PRINTING {

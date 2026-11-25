@@ -117,7 +117,7 @@ structure boot.Boot where
   ut_lost : Bool
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-141:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-149:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -126,6 +126,8 @@ structure machine.Arch (Self : Type _) where
   virtualization : Self → Result Std.U64
   vcpu_capability : Self → Std.U64 → Result Std.U64
   vcpu_barrier : Self → Result Self
+  vcpu_sync : Self → Std.U64 → Std.U64 → Result Self
+  vcpu_release : Self → Std.U64 → Result Self
   invalidate_ept : Self → Std.U64 → Std.U64 → Result Self
   tdx_active : Self → Result Bool
   tdx_report : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Std.U64
@@ -368,7 +370,7 @@ structure cdt.Finalised where
   cleanup : capability.Cap
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 631:0-640:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 639:0-648:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -466,7 +468,7 @@ structure localinv.Plan where
   ok_words : Bool
 
 /-- [fl4_core::localtimer::TimerIrqPlan]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 314:0-331:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 316:0-333:1
     Visibility: public -/
 structure localtimer.TimerIrqPlan where
   tm : Std.U64
@@ -476,6 +478,14 @@ structure localtimer.TimerIrqPlan where
   reply : Std.U64
   objects : Array (Std.U64 × Std.U64) 3#usize
   n : Std.Usize
+
+/-- [fl4_core::localvm::VmLocks]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 94:0-103:1
+    Visibility: public -/
+structure localvm.VmLocks where
+  vcpu : Std.U64
+  ntfn : Std.U64
+  objects : Array (Std.U64 × Std.U64) 5#usize
 
 /-- [fl4_core::untyped::UntypedCap]
     Source: 'crates/fl4-core/src/untyped.rs', lines 192:0-197:1 -/

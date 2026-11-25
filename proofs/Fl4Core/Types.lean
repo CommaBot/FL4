@@ -116,7 +116,7 @@ structure boot.Boot where
   ut_lost : Bool
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-141:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-149:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -125,6 +125,8 @@ structure machine.Arch (Self : Type _) where
   virtualization : Self → Result Std.U64
   vcpu_capability : Self → Std.U64 → Result Std.U64
   vcpu_barrier : Self → Result Self
+  vcpu_sync : Self → Std.U64 → Std.U64 → Result Self
+  vcpu_release : Self → Std.U64 → Result Self
   invalidate_ept : Self → Std.U64 → Std.U64 → Result Self
   tdx_active : Self → Result Bool
   tdx_report : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Std.U64
@@ -306,7 +308,7 @@ structure vspace.FrameCap where
   vaddr : Std.U64
 
 /-- [fl4_core::ept::slot::{closure}]
-    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 86:40-86:99 -/
 @[reducible]
 def ept.slot.closure (S : Type _) := Unit
 
@@ -444,7 +446,7 @@ structure localinv.Plan where
   ok_words : Bool
 
 /-- [fl4_core::localtimer::TimerIrqPlan]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 314:0-331:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 316:0-333:1
     Visibility: public -/
 structure localtimer.TimerIrqPlan where
   tm : Std.U64
@@ -455,13 +457,21 @@ structure localtimer.TimerIrqPlan where
   objects : Array (Std.U64 × Std.U64) 3#usize
   n : Std.Usize
 
+/-- [fl4_core::localvm::VmLocks]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 94:0-103:1
+    Visibility: public -/
+structure localvm.VmLocks where
+  vcpu : Std.U64
+  ntfn : Std.U64
+  objects : Array (Std.U64 × Std.U64) 5#usize
+
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 805:20-805:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 818:20-818:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 800:30-800:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 813:30-813:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 

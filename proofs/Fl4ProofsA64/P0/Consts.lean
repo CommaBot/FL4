@@ -278,12 +278,6 @@ open fl4_core_a64
 @[step] theorem layout.tcb.END.spec : layout.tcb.END ⦃ v => v = 3680#u64 ⦄ := by
   unfold layout.tcb.END; step*
 
-@[step] theorem vspace.HIGH_L1_FIRST.spec : vspace.HIGH_L1_FIRST ⦃ v => v = 384#u64 ⦄ := by
-  unfold vspace.HIGH_L1_FIRST; simp only [fl4_abi.consts.HIGH_VSPACE_BASE]; step*
-
-@[step] theorem vspace.HIGH_L1_END.spec : vspace.HIGH_L1_END ⦃ v => v = 496#u64 ⦄ := by
-  unfold vspace.HIGH_L1_END; simp only [fl4_abi.consts.HIGH_VSPACE_BASE, fl4_abi.consts.HIGH_VSPACE_TOP]; step*
-
 @[step] theorem vcpu.HCR_FORCED_1.spec : vcpu.HCR_FORCED_1 ⦃ v => v = 19331022907#u64 ⦄ := by
   unfold vcpu.HCR_FORCED_1; step*
 
@@ -319,6 +313,12 @@ open fl4_core_a64
 @[step] theorem vspace.MAIR.spec : vspace.MAIR ⦃ v => v = 71565567#u64 ⦄ := by
   unfold vspace.MAIR; step*
 
+@[step] theorem vspace.HIGH_L1_FIRST.spec : vspace.HIGH_L1_FIRST ⦃ v => v = 384#u64 ⦄ := by
+  unfold vspace.HIGH_L1_FIRST; simp only [fl4_abi.consts.HIGH_VSPACE_BASE]; step*
+
+@[step] theorem vspace.HIGH_L1_END.spec : vspace.HIGH_L1_END ⦃ v => v = 496#u64 ⦄ := by
+  unfold vspace.HIGH_L1_END; simp only [fl4_abi.consts.HIGH_VSPACE_BASE, fl4_abi.consts.HIGH_VSPACE_TOP]; step*
+
 @[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
   unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
 
@@ -328,7 +328,7 @@ open fl4_core_a64
 @[step] theorem domain.MAX_DURATION.spec : domain.MAX_DURATION ⦃ v => v = 72057594037927935#u64 ⦄ := by
   unfold domain.MAX_DURATION; step*
 
-@[step] theorem layout.PADDR_TOP.spec : layout.PADDR_TOP ⦃ v => v = 140187732541440#u64 ⦄ := by
+@[step] theorem layout.PADDR_TOP.spec : layout.PADDR_TOP ⦃ v => v = 139637976727552#u64 ⦄ := by
   unfold layout.PADDR_TOP; simp only [layout.PPTR_BASE, layout.PPTR_TOP]; step*
 
 @[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
@@ -336,6 +336,9 @@ open fl4_core_a64
 
 @[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 432384#u64 ⦄ := by
   unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
+
+@[step] theorem localvm.MAX_VM_LOCKS.spec : localvm.MAX_VM_LOCKS ⦃ v => v = 5#usize ⦄ := by
+  unfold localvm.MAX_VM_LOCKS; simp only [localtimer.MAX_TIMER_LOCKS]; step*
 
 @[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
   unfold sporadic.min_budget_us; step*
@@ -1237,7 +1240,7 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem cspace.WORD_BITS.val_eq : cspace.WORD_BITS.val = 64 := by
   unfold cspace.WORD_BITS; rfl
 
-@[simp, scalar_tac_simps] theorem layout.PPTR_TOP.val_eq : layout.PPTR_TOP.val = 18446743523953737728 := by
+@[simp, scalar_tac_simps] theorem layout.PPTR_TOP.val_eq : layout.PPTR_TOP.val = 18446742974197923840 := by
   unfold layout.PPTR_TOP; rfl
 
 @[simp, scalar_tac_simps] theorem layout.tcb.SLOT_CTABLE.val_eq : layout.tcb.SLOT_CTABLE.val = 0 := by
@@ -1666,6 +1669,15 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem localtimer.MAX_TIMER_LOCKS.val_eq : localtimer.MAX_TIMER_LOCKS.val = 3 := by
   unfold localtimer.MAX_TIMER_LOCKS; rfl
 
+@[simp, scalar_tac_simps] theorem localvm.VCPU_BYTES.val_eq : localvm.VCPU_BYTES.val = 4096 := by
+  unfold localvm.VCPU_BYTES; rfl
+
+@[simp, scalar_tac_simps] theorem localvm.NTFN_BYTES.val_eq : localvm.NTFN_BYTES.val = 64 := by
+  unfold localvm.NTFN_BYTES; rfl
+
+@[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
+  unfold syscall.DEBUG_MESSAGE_START; rfl
+
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl
 
@@ -1680,9 +1692,6 @@ open fl4_core_a64
 
 @[simp, scalar_tac_simps] theorem objects.CHILD_NAME_MAX.val_eq : objects.CHILD_NAME_MAX.val = 51 := by
   unfold objects.CHILD_NAME_MAX; rfl
-
-@[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
-  unfold syscall.DEBUG_MESSAGE_START; rfl
 
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
   unfold untyped.RESET_CHUNK; rfl

@@ -315,3 +315,14 @@
   unfold localtimer.in_core_timer_tree
   repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
   all_goals p0_close
+
+-- `static_assertions`-style check on the syscall numbers: the constants'
+-- values decide it.
+@[step] theorem localvm.__1.p0  :
+    localvm.__1 ⦃ _ => True ⦄ := by
+  unfold localvm.__1 fl4_abi.syscall.SysVMEnter fl4_abi.syscall.SYSCALL_MIN fl4_abi.syscall.SYSCALL_MAX; p0_auto
+
+-- The cap comparison steps with Specs.lean's `capability.Cap.ne_total`.
+@[step] theorem localvm.handle_vcpu_invocation_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (slot : obj.Slot) (v : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_vcpu_invocation_local machineStoreInst machineArchInst s a number slot v ⦃ _ => True ⦄ := by
+  unfold localvm.handle_vcpu_invocation_local; set_option maxHeartbeats 4000000 in p0_structural

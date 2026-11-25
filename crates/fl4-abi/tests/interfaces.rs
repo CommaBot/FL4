@@ -181,3 +181,243 @@ fn aarch64_tcb_methods_and_constants() {
         assert_eq!((pac_flag::EN_IA, pac_flag::EN_IB, pac_flag::EN_DA, pac_flag::EN_DB, pac_flag::MASK), (1, 2, 4, 8, 0xf));
     }
 }
+
+const CONSTANTS: &str = include_str!("../../../libsel4/include/sel4/constants.h");
+
+/// FL4's syscall is the last one, in every build configuration: no number
+/// before it moves.
+#[test]
+fn kernel_config_is_syscall_minus_24_in_every_configuration() {
+    use fl4_abi::syscall as s;
+    assert_eq!(s::SysKernelConfig, -24);
+    assert_eq!(s::SysSetTLSBase, -20);
+    #[cfg(not(feature = "aarch64"))]
+    assert_eq!(s::SysVMEnter, -23);
+    // Outside the API's range: never decoded as one of its syscalls.
+    assert!(s::SysKernelConfig < s::SYSCALL_MIN);
+    let last = SYSCALLS.rfind("<syscall name=\"").unwrap();
+    assert!(SYSCALLS[last..].starts_with("<syscall name=\"KernelConfig\"/>"));
+    let config = &SYSCALLS[SYSCALLS.rfind("<config>").unwrap()..];
+    assert!(config.contains("<condition><config var=\"CONFIG_KERNEL_MCS\"/></condition>"));
+}
+
+/// Every key, value and flag of seL4_KernelConfig by its libsel4 name: the
+/// two sides agree, and neither has one the other lacks.
+#[test]
+fn kernel_config_constants_match_libsel4() {
+    use fl4_abi::consts::kernel_config as k;
+    let table: &[(&str, u64)] = &[
+        ("Arch", k::keys::ARCH),
+        ("BuildFlags", k::keys::BUILD_FLAGS),
+        ("OnlineCpus", k::keys::ONLINE_CPUS),
+        ("MaxCpus", k::keys::MAX_CPUS),
+        ("VirtBackend", k::keys::VIRT_BACKEND),
+        ("VirtReject", k::keys::VIRT_REJECT),
+        ("VirtFeatures", k::keys::VIRT_FEATURES),
+        ("VirtS2IpaBits", k::keys::VIRT_S2_IPA_BITS),
+        ("VirtVgicLrs", k::keys::VIRT_VGIC_LRS),
+        ("CvmType", k::keys::CVM_TYPE),
+        ("CvmFlags", k::keys::CVM_FLAGS),
+        ("SpecStatus", k::keys::SPEC_STATUS),
+        ("SpecReject", k::keys::SPEC_REJECT),
+        ("SpecFlags", k::keys::SPEC_FLAGS),
+        ("SpecEntryActions", k::keys::SPEC_ENTRY_ACTIONS),
+        ("SpecVmexitActions", k::keys::SPEC_VMEXIT_ACTIONS),
+        ("SpecCtrlMsr", k::keys::SPEC_CTRL_MSR),
+        ("SpecTsxCtrlMsr", k::keys::SPEC_TSX_CTRL_MSR),
+        ("SpecMcuOptCtrlMsr", k::keys::SPEC_MCU_OPT_CTRL_MSR),
+        ("SpecEferMsr", k::keys::SPEC_EFER_MSR),
+        ("SpecAmdDeCfgMsr", k::keys::SPEC_AMD_DE_CFG_MSR),
+        ("SpecAmdBpCfgMsr", k::keys::SPEC_AMD_BP_CFG_MSR),
+        ("SpecMsrValid", k::keys::SPEC_MSR_VALID),
+        ("ArmMitigations", k::keys::ARM_MITIGATIONS),
+        ("X86CpuVendor", k::keys::X86_CPU_VENDOR),
+        ("X86CpuFeatures", k::keys::X86_CPU_FEATURES),
+        ("X86FpuXcr0", k::keys::X86_FPU_XCR0),
+        ("X86FpuSaveInsn", k::keys::X86_FPU_SAVE_INSN),
+        ("X86TscMhz", k::keys::X86_TSC_MHZ),
+        ("X86TscSource", k::keys::X86_TSC_SOURCE),
+        ("X86MicrocodeRev", k::keys::X86_MICROCODE_REV),
+        ("X86MaxPaddrBits", k::keys::X86_MAX_PADDR_BITS),
+        ("X86IoapicCount", k::keys::X86_IOAPIC_COUNT),
+        ("X86ArchCapabilities", k::keys::X86_ARCH_CAPABILITIES),
+        ("ArmPlatformFlags", k::keys::ARM_PLATFORM_FLAGS),
+        ("ArmPaBits", k::keys::ARM_PA_BITS),
+        ("ArmGicVersion", k::keys::ARM_GIC_VERSION),
+        ("ArmMaxSpi", k::keys::ARM_MAX_SPI),
+        ("ArmPsciMethod", k::keys::ARM_PSCI_METHOD),
+        ("ArmTimerFreqHz", k::keys::ARM_TIMER_FREQ_HZ),
+        ("Arch_X86_64", k::arch::X86_64),
+        ("Arch_AArch64", k::arch::AARCH64),
+        ("BuildFlag_DebugBuild", k::build_flags::DEBUG_BUILD),
+        ("BuildFlag_Printing", k::build_flags::PRINTING),
+        ("BuildFlag_Smp", k::build_flags::SMP),
+        ("BuildFlag_HwDebugApi", k::build_flags::HW_DEBUG_API),
+        ("BuildFlag_ExportPmcUser", k::build_flags::EXPORT_PMC_USER),
+        ("BuildFlag_DangerousMsr", k::build_flags::DANGEROUS_MSR),
+        ("VirtBackend_None", k::virt_backend::NONE),
+        ("VirtBackend_Vtx", k::virt_backend::VTX),
+        ("VirtBackend_AmdV", k::virt_backend::AMDV),
+        ("VirtBackend_El2Vhe", k::virt_backend::EL2_VHE),
+        ("VirtBackend_El2Nvhe", k::virt_backend::EL2_NVHE),
+        ("VirtReject_None", k::virt_reject::NONE),
+        ("VirtReject_NoHw", k::virt_reject::NO_HW),
+        ("VirtReject_DisabledByFirmware", k::virt_reject::DISABLED_BY_FIRMWARE),
+        ("VirtReject_MissingFeatures", k::virt_reject::MISSING_FEATURES),
+        ("VirtReject_SpecPolicyRejected", k::virt_reject::SPEC_POLICY_REJECTED),
+        ("VirtReject_SkimActive", k::virt_reject::SKIM_ACTIVE),
+        ("VirtReject_CvmActive", k::virt_reject::CVM_ACTIVE),
+        ("VirtReject_VmxonFailed", k::virt_reject::VMXON_FAILED),
+        ("VirtReject_NovirtCmdline", k::virt_reject::NOVIRT_CMDLINE),
+        ("VirtReject_NoVgic", k::virt_reject::NO_VGIC),
+        ("VirtReject_El1Only", k::virt_reject::EL1_ONLY),
+        ("VirtFeature_X86VpidSingle", k::virt_features::X86_VPID_SINGLE),
+        ("VirtFeature_X86VpidAll", k::virt_features::X86_VPID_ALL),
+        ("VirtFeature_X86InveptSingle", k::virt_features::X86_INVEPT_SINGLE),
+        ("VirtFeature_X86SvmVmcbClean", k::virt_features::X86_SVM_VMCB_CLEAN),
+        ("VirtFeature_X86VmxPerfGlobalCtrl", k::virt_features::X86_VMX_PERF_GLOBAL_CTRL),
+        ("VirtFeature_ArmVirtReady", k::virt_features::ARM_VIRT_READY),
+        ("VirtFeature_ArmVmid16", k::virt_features::ARM_VMID16),
+        ("VirtFeature_ArmGicv2Vgic", k::virt_features::ARM_GICV2_VGIC),
+        ("VirtFeature_ArmGicv3Vgic", k::virt_features::ARM_GICV3_VGIC),
+        ("CvmType_None", k::cvm_type::NONE),
+        ("CvmType_Sev", k::cvm_type::SEV),
+        ("CvmType_SevSnp", k::cvm_type::SEV_SNP),
+        ("CvmType_Tdx", k::cvm_type::TDX),
+        ("CvmFlag_Hardened", k::cvm_flags::HARDENED),
+        ("CvmFlag_SharedDma", k::cvm_flags::SHARED_DMA),
+        ("SpecStatus_Incomplete", k::spec_status::INCOMPLETE),
+        ("SpecStatus_Complete", k::spec_status::COMPLETE),
+        ("SpecReject_None", k::spec_reject::NONE),
+        ("SpecReject_Vendor", k::spec_reject::VENDOR),
+        ("SpecReject_Meltdown", k::spec_reject::MELTDOWN),
+        ("SpecReject_Smep", k::spec_reject::SMEP),
+        ("SpecReject_BeforeZen2", k::spec_reject::BEFORE_ZEN2),
+        ("SpecReject_Ibpb", k::spec_reject::IBPB),
+        ("SpecReject_SrsoMicrocode", k::spec_reject::SRSO_MICROCODE),
+        ("SpecReject_BufferMicrocode", k::spec_reject::BUFFER_MICROCODE),
+        ("SpecReject_ItsMicrocode", k::spec_reject::ITS_MICROCODE),
+        ("SpecReject_Lfence", k::spec_reject::LFENCE),
+        ("SpecFlag_Skim", k::spec_flags::SKIM),
+        ("SpecFlag_SafeRet", k::spec_flags::SAFE_RET),
+        ("SpecFlag_Retpoline", k::spec_flags::RETPOLINE),
+        ("SpecFlag_Eibrs", k::spec_flags::EIBRS),
+        ("SpecFlag_AutoIbrs", k::spec_flags::AUTO_IBRS),
+        ("SpecFlag_LegacyIbrs", k::spec_flags::LEGACY_IBRS),
+        ("SpecFlag_Stibp", k::spec_flags::STIBP),
+        ("SpecFlag_BhiDisS", k::spec_flags::BHI_DIS_S),
+        ("SpecFlag_VerwBuffers", k::spec_flags::VERW_BUFFERS),
+        ("SpecFlag_NoSmt", k::spec_flags::NO_SMT),
+        ("SpecFlag_DisableTsx", k::spec_flags::DISABLE_TSX),
+        ("SpecFlag_VmexitIbpbDeferred", k::spec_flags::VMEXIT_IBPB_DEFERRED),
+        ("SpecFlag_EagerFpu", k::spec_flags::EAGER_FPU),
+        ("SpecAction_Ibpb", k::spec_actions::IBPB),
+        ("SpecAction_Rsb", k::spec_actions::RSB),
+        ("SpecAction_Pbrsb", k::spec_actions::PBRSB),
+        ("SpecAction_LegacyIbrs", k::spec_actions::LEGACY_IBRS),
+        ("SpecAction_Bhb", k::spec_actions::BHB),
+        ("SpecAction_Ibhf", k::spec_actions::IBHF),
+        ("SpecMsrValid_ArchCapabilities", k::spec_msr_valid::ARCH_CAPABILITIES),
+        ("SpecMsrValid_SpecCtrl", k::spec_msr_valid::SPEC_CTRL),
+        ("SpecMsrValid_TsxCtrl", k::spec_msr_valid::TSX_CTRL),
+        ("SpecMsrValid_McuOptCtrl", k::spec_msr_valid::MCU_OPT_CTRL),
+        ("SpecMsrValid_Efer", k::spec_msr_valid::EFER),
+        ("SpecMsrValid_AmdDeCfg", k::spec_msr_valid::AMD_DE_CFG),
+        ("SpecMsrValid_AmdBpCfg", k::spec_msr_valid::AMD_BP_CFG),
+        ("ArmMitigation_Pan", k::arm_mitigations::PAN),
+        ("ArmMitigation_Pauth", k::arm_mitigations::PAUTH),
+        ("ArmMitigation_Clrbhb", k::arm_mitigations::CLRBHB),
+        ("X86Vendor_Other", k::x86_vendor::OTHER),
+        ("X86Vendor_Intel", k::x86_vendor::INTEL),
+        ("X86Vendor_Amd", k::x86_vendor::AMD),
+        ("X86Vendor_Hygon", k::x86_vendor::HYGON),
+        ("X86Feature_Nx", k::x86_features::NX),
+        ("X86Feature_Smep", k::x86_features::SMEP),
+        ("X86Feature_Smap", k::x86_features::SMAP),
+        ("X86Feature_Fsgsbase", k::x86_features::FSGSBASE),
+        ("X86Feature_HugePages1G", k::x86_features::HUGE_PAGES_1G),
+        ("X86Feature_Pcid", k::x86_features::PCID),
+        ("X86Feature_Invpcid", k::x86_features::INVPCID),
+        ("X86Feature_X2apic", k::x86_features::X2APIC),
+        ("X86Feature_TscDeadline", k::x86_features::TSC_DEADLINE),
+        ("X86Feature_IdlePoll", k::x86_features::IDLE_POLL),
+        ("X86Feature_Hypervisor", k::x86_features::HYPERVISOR),
+        ("X86FpuInsn_Fxsave", k::x86_fpu_insn::FXSAVE),
+        ("X86FpuInsn_Xsave", k::x86_fpu_insn::XSAVE),
+        ("X86FpuInsn_Xsaveopt", k::x86_fpu_insn::XSAVEOPT),
+        ("X86FpuInsn_Xsavec", k::x86_fpu_insn::XSAVEC),
+        ("X86FpuInsn_Xsaves", k::x86_fpu_insn::XSAVES),
+        ("X86TscSource_Cpuid", k::x86_tsc_source::CPUID),
+        ("X86TscSource_Hypervisor", k::x86_tsc_source::HYPERVISOR),
+        ("X86TscSource_Pit", k::x86_tsc_source::PIT),
+        ("X86TscSource_Kvm", k::x86_tsc_source::KVM),
+        ("ArmPlatformFlag_Asid16", k::arm_platform_flags::ASID16),
+        ("ArmPlatformFlag_HwAf", k::arm_platform_flags::HW_AF),
+        ("ArmPlatformFlag_Gicv3Sre", k::arm_platform_flags::GICV3_SRE),
+        ("ArmPlatformFlag_ItsActive", k::arm_platform_flags::ITS_ACTIVE),
+        ("ArmPlatformFlag_TimerLocalAck", k::arm_platform_flags::TIMER_LOCAL_ACK),
+        ("ArmPlatformFlag_El2Vhe", k::arm_platform_flags::EL2_VHE),
+        ("ArmPlatformFlag_El2Nvhe", k::arm_platform_flags::EL2_NVHE),
+        ("ArmPsci_Absent", k::arm_psci::ABSENT),
+        ("ArmPsci_Smc", k::arm_psci::SMC),
+        ("ArmPsci_Hvc", k::arm_psci::HVC),
+    ];
+    let mut defined = 0;
+    for line in CONSTANTS.lines() {
+        let Some(rest) = line.strip_prefix("#define seL4_KernelConfig_") else { continue };
+        let (name, value) = rest.split_once(' ').unwrap();
+        let word = |t: &str| {
+            let t = t.strip_suffix("UL").unwrap_or(t);
+            match t.strip_prefix("0x") {
+                Some(h) => u64::from_str_radix(h, 16).unwrap(),
+                None => t.parse().unwrap(),
+            }
+        };
+        let value = match value.strip_prefix('(') {
+            Some(v) => {
+                let (a, b) = v.strip_suffix(')').unwrap().split_once(" << ").unwrap();
+                word(a) << word(b)
+            }
+            None => word(value),
+        };
+        let (_, want) = table.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("{name} is not the kernel's"));
+        assert_eq!(value, *want, "{name}");
+        defined += 1;
+    }
+    assert_eq!(defined, table.len());
+    // Visible in every build: the block is after the last conditional.
+    let block = CONSTANTS.find("#define seL4_KernelConfig_").unwrap();
+    assert!(!CONSTANTS[block..].contains("#if") && !CONSTANTS[block..].contains("#endif"));
+    let open = |w: &str| CONSTANTS[..block].lines().filter(|l| l.starts_with(w)).count();
+    assert_eq!(open("#if"), open("#endif"));
+}
+
+#[test]
+fn kernel_config_keys_are_unique() {
+    use fl4_abi::consts::kernel_config::keys::*;
+    let mut all = [
+        ARCH, BUILD_FLAGS, ONLINE_CPUS, MAX_CPUS, VIRT_BACKEND, VIRT_REJECT, VIRT_FEATURES, VIRT_S2_IPA_BITS,
+        VIRT_VGIC_LRS, CVM_TYPE, CVM_FLAGS, SPEC_STATUS, SPEC_REJECT, SPEC_FLAGS, SPEC_ENTRY_ACTIONS,
+        SPEC_VMEXIT_ACTIONS, SPEC_CTRL_MSR, SPEC_TSX_CTRL_MSR, SPEC_MCU_OPT_CTRL_MSR, SPEC_EFER_MSR,
+        SPEC_AMD_DE_CFG_MSR, SPEC_AMD_BP_CFG_MSR, SPEC_MSR_VALID, ARM_MITIGATIONS, X86_CPU_VENDOR, X86_CPU_FEATURES, X86_FPU_XCR0,
+        X86_FPU_SAVE_INSN, X86_TSC_MHZ, X86_TSC_SOURCE, X86_MICROCODE_REV, X86_MAX_PADDR_BITS, X86_IOAPIC_COUNT,
+        X86_ARCH_CAPABILITIES, ARM_PLATFORM_FLAGS, ARM_PA_BITS, ARM_GIC_VERSION, ARM_MAX_SPI, ARM_PSCI_METHOD, ARM_TIMER_FREQ_HZ,
+    ];
+    // All the header has: the keys are the ones written in hex.
+    assert_eq!(CONSTANTS.lines().filter(|l| l.starts_with("#define seL4_KernelConfig_") && l.contains(" 0x")).count(), all.len());
+    all.sort_unstable();
+    assert!(all.windows(2).all(|w| w[0] < w[1]));
+}
+
+/// The C stubs: the key in the capability register, the error in the badge
+/// register and the value in the first message register.
+#[test]
+fn kernel_config_stubs_use_the_fast_message_registers() {
+    for (text, call) in [
+        (include_str!("../../../libsel4/sel4_arch_include/x86_64/sel4/sel4_arch/syscalls.h"), "x64_sys_send_recv"),
+        (include_str!("../../../libsel4/arch_include/arm/sel4/arch/syscalls.h"), "arm_sys_send_recv"),
+    ] {
+        let line = format!("{call}(seL4_SysKernelConfig, key, &error, 0, &info, &value, &unused0, &unused1, &unused2, 0);");
+        assert!(text.contains(&line), "{line}");
+    }
+}

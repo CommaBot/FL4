@@ -476,7 +476,7 @@ def fl4_abi.consts.tcb_flag.MASK : Std.U64 :=
 def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 294:4-294:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 295:4-295:32
     Name pattern: [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -484,7 +484,7 @@ def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 
 /-- [fl4_abi::consts::vm_attr::DEFER_FLUSH]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 296:4-296:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 297:4-297:30
     Name pattern: [fl4_abi::consts::vm_attr::DEFER_FLUSH]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -492,7 +492,7 @@ def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadTCB]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 302:4-302:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 303:4-303:32
     Name pattern: [fl4_abi::consts::root_slot::InitThreadTCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -500,7 +500,7 @@ def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadCNode]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 303:4-303:34
+    Source: 'crates/fl4-abi/src/consts.rs', lines 304:4-304:34
     Name pattern: [fl4_abi::consts::root_slot::InitThreadCNode]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -508,7 +508,7 @@ def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadVSpace]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 304:4-304:35
+    Source: 'crates/fl4-abi/src/consts.rs', lines 305:4-305:35
     Name pattern: [fl4_abi::consts::root_slot::InitThreadVSpace]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -516,7 +516,7 @@ def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::root_slot::IRQControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 305:4-305:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 306:4-306:29
     Name pattern: [fl4_abi::consts::root_slot::IRQControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -524,7 +524,7 @@ def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::root_slot::ASIDControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 306:4-306:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 307:4-307:30
     Name pattern: [fl4_abi::consts::root_slot::ASIDControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -532,7 +532,7 @@ def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadASIDPool]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 307:4-307:37
+    Source: 'crates/fl4-abi/src/consts.rs', lines 308:4-308:37
     Name pattern: [fl4_abi::consts::root_slot::InitThreadASIDPool]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -540,7 +540,7 @@ def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::root_slot::IOPortControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 308:4-308:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 309:4-309:32
     Name pattern: [fl4_abi::consts::root_slot::IOPortControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -548,7 +548,7 @@ def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 
 /-- [fl4_abi::consts::root_slot::BootInfoFrame]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 310:4-310:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 311:4-311:32
     Name pattern: [fl4_abi::consts::root_slot::BootInfoFrame]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -556,7 +556,7 @@ def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 311:4-311:38
+    Source: 'crates/fl4-abi/src/consts.rs', lines 312:4-312:38
     Name pattern: [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -564,14 +564,14 @@ def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 def fl4_abi.consts.root_slot.InitThreadIPCBuffer : Std.U64 := 10#u64
 
 /-- [fl4_abi::consts::root_slot::Domain]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 312:4-312:25
+    Source: 'crates/fl4-abi/src/consts.rs', lines 313:4-313:25
     Name pattern: [fl4_abi::consts::root_slot::Domain]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::root_slot::Domain"]
 def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadSC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 315:4-315:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 316:4-316:31
     Name pattern: [fl4_abi::consts::root_slot::InitThreadSC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -579,14 +579,14 @@ def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 def fl4_abi.consts.root_slot.InitThreadSC : Std.U64 := 14#u64
 
 /-- [fl4_abi::consts::root_slot::SMC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 316:4-316:22
+    Source: 'crates/fl4-abi/src/consts.rs', lines 317:4-317:22
     Name pattern: [fl4_abi::consts::root_slot::SMC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::root_slot::SMC"]
 def fl4_abi.consts.root_slot.SMC : Std.U64 := 15#u64
 
 /-- [fl4_abi::consts::root_slot::NumInitialCaps]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 317:4-317:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 318:4-318:33
     Name pattern: [fl4_abi::consts::root_slot::NumInitialCaps]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -594,7 +594,7 @@ def fl4_abi.consts.root_slot.SMC : Std.U64 := 15#u64
 def fl4_abi.consts.root_slot.NumInitialCaps : Std.U64 := 16#u64
 
 /-- [fl4_abi::consts::bootinfo_header::PADDING]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 331:4-331:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 332:4-332:26
     Name pattern: [fl4_abi::consts::bootinfo_header::PADDING]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -602,7 +602,7 @@ def fl4_abi.consts.root_slot.NumInitialCaps : Std.U64 := 16#u64
 def fl4_abi.consts.bootinfo_header.PADDING : Std.U64 := 0#u64
 
 /-- [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 343:4-343:37
+    Source: 'crates/fl4-abi/src/consts.rs', lines 344:4-344:37
     Name pattern: [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1431,35 +1431,35 @@ def fl4_abi.syscall.SysSetTLSBase : Std.I64 := (-20)#i64
 def fl4_abi.syscall.SysVMEnter : Std.I64 := (-23)#i64
 
 /-- [fl4_abi::syscall::SYSCALL_MAX]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 134:4-134:30
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 135:4-135:30
     Name pattern: [fl4_abi::syscall::SYSCALL_MAX]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SYSCALL_MAX"]
 def fl4_abi.syscall.SYSCALL_MAX : Std.I64 := (-1)#i64
 
 /-- [fl4_abi::syscall::SYSCALL_MIN]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 135:4-135:30
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 136:4-136:30
     Name pattern: [fl4_abi::syscall::SYSCALL_MIN]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SYSCALL_MIN"]
 def fl4_abi.syscall.SYSCALL_MIN : Std.I64 := (-11)#i64
 
 /-- [fl4_abi::config::DEBUG_BUILD]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 140:4-140:31
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 141:4-141:31
     Name pattern: [fl4_abi::config::DEBUG_BUILD]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::DEBUG_BUILD"]
 def fl4_abi.config.DEBUG_BUILD : Bool := true
 
 /-- [fl4_abi::config::PRINTING]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 141:4-141:28
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 142:4-142:28
     Name pattern: [fl4_abi::config::PRINTING]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::PRINTING"]
 def fl4_abi.config.PRINTING : Bool := true
 
 /-- [fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 143:4-143:54
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 144:4-144:54
     Name pattern: [fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1467,28 +1467,28 @@ def fl4_abi.config.PRINTING : Bool := true
 def fl4_abi.config.KERNEL_INVOCATION_REPORT_ERROR_IPC : Bool := true
 
 /-- [fl4_abi::config::ENABLE_SMP_SUPPORT]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 145:4-145:38
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 146:4-146:38
     Name pattern: [fl4_abi::config::ENABLE_SMP_SUPPORT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::ENABLE_SMP_SUPPORT"]
 def fl4_abi.config.ENABLE_SMP_SUPPORT : Bool := true
 
 /-- [fl4_abi::config::SET_TLS_BASE_SELF]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 146:4-146:37
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 147:4-147:37
     Name pattern: [fl4_abi::config::SET_TLS_BASE_SELF]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::SET_TLS_BASE_SELF"]
 def fl4_abi.config.SET_TLS_BASE_SELF : Bool := true
 
 /-- [fl4_abi::config::NUM_DOMAINS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 149:4-149:30
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 150:4-150:30
     Name pattern: [fl4_abi::config::NUM_DOMAINS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::NUM_DOMAINS"]
 def fl4_abi.config.NUM_DOMAINS : Std.U64 := 1#u64
 
 /-- [fl4_abi::config::NUM_DOMAIN_SCHEDULES]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 150:4-150:39
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 151:4-151:39
     Name pattern: [fl4_abi::config::NUM_DOMAIN_SCHEDULES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1496,14 +1496,14 @@ def fl4_abi.config.NUM_DOMAINS : Std.U64 := 1#u64
 def fl4_abi.config.NUM_DOMAIN_SCHEDULES : Std.U64 := 2#u64
 
 /-- [fl4_abi::config::MAX_NUM_NODES]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 151:4-151:32
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 152:4-152:32
     Name pattern: [fl4_abi::config::MAX_NUM_NODES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::MAX_NUM_NODES"]
 def fl4_abi.config.MAX_NUM_NODES : Std.U64 := 64#u64
 
 /-- [fl4_abi::config::ROOT_CNODE_SIZE_BITS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 152:4-152:39
+    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 153:4-153:39
     Name pattern: [fl4_abi::config::ROOT_CNODE_SIZE_BITS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -5263,7 +5263,7 @@ def objects.init_fpu
   machineStoreInst.write s1 i 281470681751424#u64
 
 /-- [fl4_core::vcpu::set]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 451:0-453:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 460:0-462:1
     Visibility: public -/
 def vcpu.set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -5274,65 +5274,65 @@ def vcpu.set
   machineStoreInst.write s i x
 
 /-- [fl4_core::vcpu::svm::SAVE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 251:4-251:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 260:4-260:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.SAVE : Std.U64 := 1024#u64
 
 /-- [fl4_core::vcpu::svm::END]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 283:4-283:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 292:4-292:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.END : Result Std.U64 := vcpu.svm.SAVE + 744#u64
 
 /-- [fl4_core::vcpu::svm::G_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 282:4-282:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 291:4-291:40
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.G_PAT : Result Std.U64 := vcpu.svm.SAVE + 616#u64
 
 /-- [fl4_core::vcpu::svm::RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 270:4-270:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 279:4-279:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RIP : Result Std.U64 := vcpu.svm.SAVE + 376#u64
 
 /-- [fl4_core::vcpu::svm::RFLAGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 269:4-269:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 278:4-278:41
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RFLAGS : Result Std.U64 := vcpu.svm.SAVE + 368#u64
 
 /-- [fl4_core::vcpu::svm::DR6]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 268:4-268:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 277:4-277:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DR6 : Result Std.U64 := vcpu.svm.SAVE + 360#u64
 
 /-- [fl4_core::vcpu::svm::DR7]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 267:4-267:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 276:4-276:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DR7 : Result Std.U64 := vcpu.svm.SAVE + 352#u64
 
 /-- [fl4_core::vcpu::svm::CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 266:4-266:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 275:4-275:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR0 : Result Std.U64 := vcpu.svm.SAVE + 344#u64
 
 /-- [fl4_core::vcpu::svm::EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 263:4-263:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 272:4-272:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.EFER : Result Std.U64 := vcpu.svm.SAVE + 208#u64
 
 /-- [fl4_core::vcpu::SVM_CPU]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 27:0-27:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 33:0-33:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_CPU : Std.U64 := 20536#u64
 
 /-- [fl4_core::vcpu::reset_svm]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 673:4-685:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 683:4-695:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.reset_svm_loop.body
@@ -5359,7 +5359,7 @@ def vcpu.reset_svm_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::reset_svm]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 673:4-685:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 683:4-695:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.reset_svm_loop
@@ -5372,7 +5372,7 @@ def vcpu.reset_svm_loop
     (s, off)
 
 /-- [fl4_core::vcpu::reset_svm]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 669:0-695:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 679:0-705:1
     Visibility: public -/
 def vcpu.reset_svm
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) :
@@ -5403,416 +5403,416 @@ def vcpu.reset_svm
   vcpu.set machineStoreInst s11 v i10 1974748653749254#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 206:4-206:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 215:4-215:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_EIP : Std.U64 := 26662#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 205:4-205:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 214:4-214:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_ESP : Std.U64 := 26660#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PENDING_DEBUG_EXCEPTIONS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 204:4-204:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 213:4-213:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS : Std.U64 := 26658#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RFLAGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 203:4-203:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 212:4-212:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RFLAGS : Std.U64 := 26656#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 202:4-202:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 211:4-211:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RIP : Std.U64 := 26654#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 201:4-201:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 210:4-210:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_RSP : Std.U64 := 26652#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DR7]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 200:4-200:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 209:4-209:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DR7 : Std.U64 := 26650#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_IDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 199:4-199:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 208:4-208:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_IDTR_BASE : Std.U64 := 26648#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 198:4-198:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GDTR_BASE : Std.U64 := 26646#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 197:4-197:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 206:4-206:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_TR_BASE : Std.U64 := 26644#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 196:4-196:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 205:4-205:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_BASE : Std.U64 := 26642#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 195:4-195:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 204:4-204:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_GS_BASE : Std.U64 := 26640#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 194:4-194:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 203:4-203:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_FS_BASE : Std.U64 := 26638#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 193:4-193:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 202:4-202:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DS_BASE : Std.U64 := 26636#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 192:4-192:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 201:4-201:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SS_BASE : Std.U64 := 26634#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 191:4-191:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 200:4-200:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CS_BASE : Std.U64 := 26632#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 190:4-190:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 199:4-199:46
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ES_BASE : Std.U64 := 26630#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 189:4-189:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 198:4-198:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR4 : Std.U64 := 26628#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 188:4-188:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 197:4-197:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR3 : Std.U64 := 26626#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 187:4-187:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 196:4-196:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CR0 : Std.U64 := 26624#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR4_READ_SHADOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 176:4-176:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 185:4-185:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR4_READ_SHADOW : Std.U64 := 24582#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR0_READ_SHADOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 175:4-175:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 184:4-184:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR0_READ_SHADOW : Std.U64 := 24580#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR4_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 174:4-174:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 183:4-183:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR4_MASK : Std.U64 := 24578#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR0_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 173:4-173:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 182:4-182:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR0_MASK : Std.U64 := 24576#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PREEMPTION_TIMER_VALUE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 171:4-171:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 180:4-180:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE : Std.U64 := 18478#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 170:4-170:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 179:4-179:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SYSENTER_CS : Std.U64 := 18474#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SMBASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 169:4-169:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 178:4-178:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SMBASE : Std.U64 := 18472#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ACTIVITY]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 168:4-168:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 177:4-177:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ACTIVITY : Std.U64 := 18470#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_INTERRUPTABILITY]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 167:4-167:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 176:4-176:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_INTERRUPTABILITY : Std.U64 := 18468#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 166:4-166:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 175:4-175:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_TR_ACCESS_RIGHTS : Std.U64 := 18466#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 165:4-165:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 174:4-174:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_ACCESS_RIGHTS : Std.U64 := 18464#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 164:4-164:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 173:4-173:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GS_ACCESS_RIGHTS : Std.U64 := 18462#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 163:4-163:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 172:4-172:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_FS_ACCESS_RIGHTS : Std.U64 := 18460#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 162:4-162:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 171:4-171:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DS_ACCESS_RIGHTS : Std.U64 := 18458#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 161:4-161:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 170:4-170:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SS_ACCESS_RIGHTS : Std.U64 := 18456#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 160:4-160:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 169:4-169:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_CS_ACCESS_RIGHTS : Std.U64 := 18454#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_ACCESS_RIGHTS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 159:4-159:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 168:4-168:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_ES_ACCESS_RIGHTS : Std.U64 := 18452#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_IDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 158:4-158:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 167:4-167:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_IDTR_LIMIT : Std.U64 := 18450#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 157:4-157:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 166:4-166:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GDTR_LIMIT : Std.U64 := 18448#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 156:4-156:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 165:4-165:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_TR_LIMIT : Std.U64 := 18446#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 155:4-155:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 164:4-164:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_LIMIT : Std.U64 := 18444#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 154:4-154:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 163:4-163:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_GS_LIMIT : Std.U64 := 18442#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 153:4-153:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 162:4-162:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_FS_LIMIT : Std.U64 := 18440#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 152:4-152:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 161:4-161:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_DS_LIMIT : Std.U64 := 18438#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 151:4-151:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 160:4-160:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_SS_LIMIT : Std.U64 := 18436#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 150:4-150:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 159:4-159:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_CS_LIMIT : Std.U64 := 18434#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_LIMIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 149:4-149:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 158:4-158:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_ES_LIMIT : Std.U64 := 18432#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_SECONDARY_PROCESSOR_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 138:4-138:69
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 147:4-147:69
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_SECONDARY_PROCESSOR_CONTROLS : Std.U64 := 16414#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_INSTRUCTION_LENGTH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 136:4-136:65
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 145:4-145:65
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_INSTRUCTION_LENGTH : Std.U64 := 16410#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_EXCEPTION_ERROR_CODE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 135:4-135:67
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 144:4-144:67
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_EXCEPTION_ERROR_CODE : Std.U64 := 16408#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_INTERRUPTION_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 134:4-134:64
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 143:4-143:64
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO : Std.U64 := 16406#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 132:4-132:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 141:4-141:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_CONTROLS : Std.U64 := 16402#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 129:4-129:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 138:4-138:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_CONTROLS : Std.U64 := 16396#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXCEPTION_BITMAP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 125:4-125:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 134:4-134:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXCEPTION_BITMAP : Std.U64 := 16388#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PRIMARY_PROCESSOR_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 124:4-124:67
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 133:4-133:67
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS : Std.U64 := 16386#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PIN_EXECUTION_CONTROLS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 123:4-123:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 132:4-132:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS : Std.U64 := 16384#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 119:4-119:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 128:4-128:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE3 : Std.U64 := 10256#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 118:4-118:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 127:4-127:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE2 : Std.U64 := 10254#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 117:4-117:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 126:4-126:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE1 : Std.U64 := 10252#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PDPTE0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 116:4-116:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 125:4-125:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PDPTE0 : Std.U64 := 10250#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PERF_GLOBAL_CTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 115:4-115:55
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 124:4-124:55
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_PERF_GLOBAL_CTRL : Std.U64 := 10248#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 114:4-114:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 123:4-123:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_EFER : Std.U64 := 10246#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 113:4-113:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 122:4-122:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.GUEST_PAT : Std.U64 := 10244#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DEBUGCTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 112:4-112:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 121:4-121:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DEBUGCTRL : Std.U64 := 10242#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_TSC_OFFSET]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 105:4-105:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 114:4-114:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_TSC_OFFSET : Std.U64 := 8208#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_TR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 90:4-90:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 99:4-99:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_TR_SELECTOR : Std.U64 := 2062#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_LDTR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 89:4-89:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 98:4-98:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_LDTR_SELECTOR : Std.U64 := 2060#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_GS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 88:4-88:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 97:4-97:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_GS_SELECTOR : Std.U64 := 2058#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_FS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 87:4-87:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 96:4-96:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_FS_SELECTOR : Std.U64 := 2056#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_DS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 86:4-86:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 95:4-95:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_DS_SELECTOR : Std.U64 := 2054#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_SS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 85:4-85:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 94:4-94:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_SS_SELECTOR : Std.U64 := 2052#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_CS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 84:4-84:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 93:4-93:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_CS_SELECTOR : Std.U64 := 2050#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_ES_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 83:4-83:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 92:4-92:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_ES_SELECTOR : Std.U64 := 2048#u64
 
 /-- [fl4_core::vcpu::WRITE_FIELDS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 286:0-360:2
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 295:0-369:2
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.WRITE_FIELDS : Array Std.U64 73#usize :=
@@ -5855,17 +5855,17 @@ def vcpu.WRITE_FIELDS : Array Std.U64 73#usize :=
     ]
 
 /-- [fl4_core::vcpu::SVM_I2_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 582:0-582:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 592:0-592:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_I2_FORCED : Std.U64 := 32381#u64
 
 /-- [fl4_core::vcpu::SVM_I1_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 580:0-580:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 590:0-590:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_I1_FORCED : Std.U64 := 2621472815#u64
 
 /-- [fl4_core::vcpu::controls]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 502:0-506:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 511:0-515:1 -/
 def vcpu.controls
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (msr : Std.U64)
   (value : Std.U64) (forced : Std.U64) (allowed : Std.U64) :
@@ -5881,7 +5881,7 @@ def vcpu.controls
   ok (i3 &&& i4)
 
 /-- [fl4_core::vcpu::contains]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 494:4-499:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 503:4-508:5 -/
 @[rust_loop_body]
 def vcpu.contains_loop.body
   (fields : Slice Std.U64) (f : Std.U64) (i : Std.Usize) (found : Bool) :
@@ -5899,7 +5899,7 @@ def vcpu.contains_loop.body
   else ok (done found)
 
 /-- [fl4_core::vcpu::contains]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 494:4-499:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 503:4-508:5 -/
 @[rust_loop]
 def vcpu.contains_loop
   (fields : Slice Std.U64) (f : Std.U64) (i : Std.Usize) (found : Bool) :
@@ -5910,13 +5910,13 @@ def vcpu.contains_loop
     (i, found)
 
 /-- [fl4_core::vcpu::contains]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 491:0-501:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 500:0-510:1 -/
 @[reducible]
 def vcpu.contains (fields : Slice Std.U64) (f : Std.U64) : Result Bool := do
   vcpu.contains_loop fields f 0#usize false
 
 /-- [fl4_core::vcpu::EXIT_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 79:0-79:97
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 88:0-88:97
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.EXIT_FORCED : Result Std.U64 := do
@@ -5933,7 +5933,7 @@ def vcpu.EXIT_FORCED : Result Std.U64 := do
   ok (i8 ||| i9)
 
 /-- [fl4_core::vcpu::SECONDARY_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 70:0-78:16
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 79:0-87:16
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SECONDARY_ALLOWED : Result Std.U64 := do
@@ -5956,7 +5956,7 @@ def vcpu.SECONDARY_ALLOWED : Result Std.U64 := do
   ok (i14 ||| i15)
 
 /-- [fl4_core::vcpu::PRIMARY_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 61:0-69:16
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 70:0-78:16
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PRIMARY_FORCED : Result Std.U64 := do
@@ -5979,13 +5979,13 @@ def vcpu.PRIMARY_FORCED : Result Std.U64 := do
   ok (i14 ||| i15)
 
 /-- [fl4_core::vcpu::PRIMARY_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 60:0-60:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 69:0-69:45
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PRIMARY_ALLOWED : Std.U64 := 4225343116#u64
 
 /-- [fl4_core::vcpu::PIN_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 59:0-59:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 68:0-68:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.PIN_ALLOWED : Result Std.U64 := do
@@ -5996,13 +5996,13 @@ def vcpu.PIN_ALLOWED : Result Std.U64 := do
   ok (i2 ||| i3)
 
 /-- [fl4_core::vcpu::DEBUGCTL_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 58:0-58:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 67:0-67:41
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.DEBUGCTL_ALLOWED : Result Std.U64 := 1#u64 <<< 1#i32
 
 /-- [fl4_core::vcpu::EXCEPTIONS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 51:0-51:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 60:0-60:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.EXCEPTIONS : Result Std.U64 := do
@@ -6013,7 +6013,7 @@ def vcpu.EXCEPTIONS : Result Std.U64 := do
   ok (i2 ||| i3)
 
 /-- [fl4_core::vcpu::CR0_OWNED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 50:0-50:80
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 59:0-59:80
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.CR0_OWNED : Result Std.U64 := do
@@ -6026,7 +6026,7 @@ def vcpu.CR0_OWNED : Result Std.U64 := do
   ok (i4 ||| i5)
 
 /-- [fl4_core::vcpu::CR4_ALLOWED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 42:0-42:108
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 51:0-51:108
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.CR4_ALLOWED : Result Std.U64 := do
@@ -6044,7 +6044,7 @@ def vcpu.CR4_ALLOWED : Result Std.U64 := do
   ok (i9 ||| i10)
 
 /-- [fl4_core::vcpu::cr4_allowed]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 47:0-49:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 56:0-58:1
     Visibility: public -/
 def vcpu.cr4_allowed
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) :
@@ -6070,7 +6070,7 @@ def error.invalid_arg
     arg)))
 
 /-- [fl4_core::vcpu::sanitize_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 507:0-576:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 516:0-586:1
     Visibility: public -/
 def vcpu.sanitize_vmcs
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
@@ -6295,12 +6295,12 @@ def vcpu.sanitize_vmcs
   else error.illegal Std.U64
 
 /-- [fl4_core::vcpu::SHADOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 17:0-17:31
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 21:0-21:31
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SHADOW : Std.U64 := 4096#u64
 
 /-- [fl4_core::vcpu::vmcs_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 457:0-460:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 466:0-469:1
     Visibility: public -/
 def vcpu.vmcs_addr (v : Std.U64) (f : Std.U64) : Result Std.U64 := do
   let i ← lift (f &&& 255#u64)
@@ -6318,7 +6318,7 @@ def vcpu.vmcs_addr (v : Std.U64) (f : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add i10 i11)
 
 /-- [fl4_core::vcpu::write_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 464:0-466:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 473:0-475:1
     Visibility: public -/
 def vcpu.write_vmcs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -6329,32 +6329,32 @@ def vcpu.write_vmcs
   machineStoreInst.write s i value
 
 /-- [fl4_core::vcpu::svm::NESTED_CTL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 238:4-238:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 247:4-247:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NESTED_CTL : Std.U64 := 144#u64
 
 /-- [fl4_core::vcpu::svm::INT_CTL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 232:4-232:35
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 241:4-241:35
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INT_CTL : Std.U64 := 96#u64
 
 /-- [fl4_core::vcpu::IO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 40:0-40:27
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 49:0-49:27
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.IO : Std.U64 := 24576#u64
 
 /-- [fl4_core::vcpu::XCR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 21:0-21:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 25:0-25:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.XCR0 : Std.U64 := 20504#u64
 
 /-- [fl4_core::vcpu::PREV]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 20:0-20:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 24:0-24:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.PREV : Std.U64 := 20496#u64
 
 /-- [fl4_core::vcpu::NEXT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 19:0-19:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 23:0-23:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.NEXT : Std.U64 := 20488#u64
 
@@ -6364,7 +6364,7 @@ def vcpu.write_vmcs
 @[global_simps, irreducible] def layout.ks.VCPU_HEAD : Std.U64 := 80#u64
 
 /-- [fl4_core::vcpu::init]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 643:4-646:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 653:4-656:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop0.body
@@ -6382,7 +6382,7 @@ def vcpu.init_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 643:4-646:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 653:4-656:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop0
@@ -6395,7 +6395,7 @@ def vcpu.init_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::init]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 656:8-662:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 666:8-672:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop1.body
@@ -6420,7 +6420,7 @@ def vcpu.init_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 656:8-662:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 666:8-672:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop1
@@ -6435,7 +6435,7 @@ def vcpu.init_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::init]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 634:0-668:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 644:0-678:1
     Visibility: public -/
 def vcpu.init
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -7243,7 +7243,7 @@ def msg.set_mr
     else ok (msg.N_MSG_REGISTERS, s)
 
 /-- [fl4_core::vcpu::finish_notification]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1123:0-1144:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1156:0-1177:1 -/
 def vcpu.finish_notification
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -7290,12 +7290,12 @@ def vcpu.finish_notification
     sched.set_thread_state machineStoreInst s9 t sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::NUM_MRS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 41:0-41:28
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 50:0-50:28
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.NUM_MRS : Std.U64 := 30#u64
 
 /-- [fl4_core::vcpu::full_reply]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1035:0-1037:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1068:0-1070:1 -/
 def vcpu.full_reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result Bool
@@ -7304,7 +7304,7 @@ def vcpu.full_reply
   ok (i = vcpu.NUM_MRS)
 
 /-- [fl4_core::vcpu::read_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 461:0-463:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 470:0-472:1
     Visibility: public -/
 def vcpu.read_vmcs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -7315,7 +7315,7 @@ def vcpu.read_vmcs
   machineStoreInst.read s i
 
 /-- [fl4_core::vcpu::bound]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 454:0-456:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 463:0-465:1
     Visibility: public -/
 def vcpu.bound
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -7326,7 +7326,7 @@ def vcpu.bound
   machineStoreInst.read s i1
 
 /-- [fl4_core::vcpu::get]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 448:0-450:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 457:0-459:1
     Visibility: public -/
 def vcpu.get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -7337,54 +7337,54 @@ def vcpu.get
   machineStoreInst.read s i
 
 /-- [fl4_core::vcpu::svm::CR2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 281:4-281:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 290:4-290:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR2 : Result Std.U64 := vcpu.svm.SAVE + 576#u64
 
 /-- [fl4_core::vcpu::svm::CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 265:4-265:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 274:4-274:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR3 : Result Std.U64 := vcpu.svm.SAVE + 336#u64
 
 /-- [fl4_core::vcpu::svm::EVENT_INJ]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 241:4-241:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 250:4-250:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EVENT_INJ : Std.U64 := 168#u64
 
 /-- [fl4_core::vcpu::svm::INT_STATE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 233:4-233:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 242:4-242:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INT_STATE : Std.U64 := 104#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_EXC]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 223:4-223:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 232:4-232:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_EXC : Std.U64 := 8#u64
 
 /-- [fl4_core::vcpu::EXIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 39:0-39:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 45:0-45:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.EXIT : Std.U64 := 20992#u64
 
 /-- [fl4_core::vcpu::REGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 37:0-37:29
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 43:0-43:29
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.REGS : Std.U64 := 20736#u64
 
 /-- [fl4_core::vcpu::VALID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 24:0-24:30
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 28:0-28:30
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.VALID : Std.U64 := 20528#u64
 
 /-- [fl4_core::vcpu::PENDING]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 23:0-23:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 27:0-27:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.PENDING : Std.U64 := 20520#u64
 
 /-- [fl4_core::vcpu::CR2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 22:0-22:28
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 26:0-26:28
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.CR2 : Std.U64 := 20512#u64
 
@@ -7485,7 +7485,7 @@ def msg.lookup_ipc_buffer
   | capability.Cap.TdxControl => ok 0#u64
 
 /-- [fl4_core::vcpu::report]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1186:4-1196:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1219:4-1229:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop0.body
@@ -7519,7 +7519,7 @@ def vcpu.report_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1186:4-1196:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1219:4-1229:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop0
@@ -7533,7 +7533,7 @@ def vcpu.report_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::report]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1223:8-1226:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop1.body
@@ -7553,7 +7553,7 @@ def vcpu.report_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1223:8-1226:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop1
@@ -7566,7 +7566,7 @@ def vcpu.report_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::report]: loop body 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1186:4-1196:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1219:4-1229:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop2.body
@@ -7600,7 +7600,7 @@ def vcpu.report_loop2.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1186:4-1196:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1219:4-1229:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop2
@@ -7614,7 +7614,7 @@ def vcpu.report_loop2
     (s, i)
 
 /-- [fl4_core::vcpu::report]: loop body 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1223:8-1226:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop3.body
@@ -7634,7 +7634,7 @@ def vcpu.report_loop3.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1223:8-1226:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop3
@@ -7647,7 +7647,7 @@ def vcpu.report_loop3
     (s, j)
 
 /-- [fl4_core::vcpu::report]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1147:0-1268:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1180:0-1301:1
     Visibility: public -/
 def vcpu.report
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8199,7 +8199,7 @@ def obj.Tcb.bound_ntfn
   machineStoreInst.read s i1
 
 /-- [fl4_core::vcpu::check]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1092:0-1109:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1125:0-1142:1
     Visibility: public -/
 def vcpu.check
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -10785,7 +10785,7 @@ def obj.Tcb.timer_badge
   machineStoreInst.read s i1
 
 /-- [fl4_core::vcpu::signal_completes]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1112:0-1118:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1145:0-1151:1
     Visibility: public -/
 def vcpu.signal_completes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -15272,13 +15272,13 @@ def syscall.handle_user_exception
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::vcpu::SVM_EVENT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 583:0-583:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 593:0-593:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SVM_EVENT : Std.U64 := 18446744071562072063#u64
 
 /-- [fl4_core::vcpu::SVM_I1_WRITABLE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 581:0-581:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 591:0-591:45
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SVM_I1_WRITABLE : Std.U64 := 1673494480#u64
@@ -15326,7 +15326,7 @@ def notification.complete_signal
       else ok (s3, a1)
 
 /-- [fl4_core::vcpu::enter]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1040:0-1087:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1073:0-1120:1
     Visibility: public -/
 def vcpu.enter
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -17474,7 +17474,7 @@ def vspace.unmap_pdpt
 @[global_simps, irreducible] def ept.CORES : Result Std.U64 := 510#u64 * 8#u64
 
 /-- [fl4_core::ept::invalidate]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 55:0-62:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 64:0-71:1
     Visibility: public -/
 def ept.invalidate
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -17876,7 +17876,7 @@ def vspace.as_frame
 @[global_simps, irreducible] def ept.ADDRESS : Std.U64 := 4503599627366400#u64
 
 /-- [fl4_core::ept::lookup]: loop body 0:
-    Source: 'crates/fl4-core/src/ept.rs', lines 66:4-75:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 75:4-84:1
     Visibility: public -/
 @[rust_loop_body]
 def ept.lookup_loop.body
@@ -17927,7 +17927,7 @@ def ept.lookup_loop.body
     ok (done (core.result.Result.Ok i4))
 
 /-- [fl4_core::ept::lookup]: loop 0:
-    Source: 'crates/fl4-core/src/ept.rs', lines 66:4-75:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 75:4-84:1
     Visibility: public -/
 @[rust_loop]
 def ept.lookup_loop
@@ -17941,7 +17941,7 @@ def ept.lookup_loop
     (table, shift)
 
 /-- [fl4_core::ept::lookup]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 63:0-75:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 72:0-84:1
     Visibility: public -/
 @[reducible]
 def ept.lookup
@@ -17974,7 +17974,7 @@ def ept.find
       Std.U64 (core.convert.FromSame error.LookupFault) residual
 
 /-- [fl4_core::ept::unmap]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 181:0-210:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 190:0-219:1
     Visibility: public -/
 def ept.unmap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18034,7 +18034,7 @@ def ept.unmap
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::ept::memory_type]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 79:0-85:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 88:0-94:1 -/
 def ept.memory_type (attr : Std.U64) : Result Std.U64 := do
   let b ←
     match attr with
@@ -18048,7 +18048,7 @@ def ept.memory_type (attr : Std.U64) : Result Std.U64 := do
   else ok 6#u64
 
 /-- [fl4_core::ept::frame_entry]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 86:0-107:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 95:0-116:1 -/
 def ept.frame_entry
   (amd : Bool) (ptr : Std.U64) (rights : Std.U64) (attr : Std.U64)
   (large : Bool) :
@@ -18102,7 +18102,7 @@ def ept.frame_entry
       ok (i4 ||| i6)
 
 /-- [fl4_core::ept::slot::{impl core::ops::function::FnOnce<(fl4_core::error::LookupFault,), fl4_core::error::Exc> for fl4_core::ept::slot::{closure}<S>}::call_once]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 86:40-86:99 -/
 def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc.call_once
   {S : Type _} (machineStoreInst : machine.Store S) (c : ept.slot.closure S)
   (tupled_args : error.LookupFault) :
@@ -18111,7 +18111,7 @@ def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc.call_once
   ok (error.Exc.Sys (error.SysError.FailedLookup false tupled_args))
 
 /-- Trait implementation: [fl4_core::ept::slot::{impl core::ops::function::FnOnce<(fl4_core::error::LookupFault,), fl4_core::error::Exc> for fl4_core::ept::slot::{closure}<S>}]
-    Source: 'crates/fl4-core/src/ept.rs', lines 77:40-77:99 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 86:40-86:99 -/
 @[reducible]
 def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc {S :
   Type _} (machineStoreInst : machine.Store S) : core.ops.function.FnOnce
@@ -18122,7 +18122,7 @@ def ept.slot.closure.Insts.CoreOpsFunctionFnOnceTupleLookupFaultExc {S :
 }
 
 /-- [fl4_core::ept::slot]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 76:0-78:1 -/
+    Source: 'crates/fl4-core/src/ept.rs', lines 85:0-87:1 -/
 def ept.slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (gpa : Std.U64) (level : Std.U64) :
@@ -18269,7 +18269,7 @@ def capability.Rights.from_word (w : Std.U64) : Result capability.Rights := do
     }
 
 /-- [fl4_core::ept::map_frame]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 110:0-180:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 119:0-189:1
     Visibility: public -/
 def ept.map_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19614,7 +19614,7 @@ def sched.preemption_point
   else ok (core.result.Result.Ok (), s1, a)
 
 /-- [fl4_core::vcpu::ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 744:4-750:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 757:4-763:5 -/
 @[rust_loop_body]
 def vcpu.ports_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
@@ -19648,7 +19648,7 @@ def vcpu.ports_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 744:4-750:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 757:4-763:5 -/
 @[rust_loop]
 def vcpu.ports_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -19661,7 +19661,7 @@ def vcpu.ports_loop
     (s, port)
 
 /-- [fl4_core::vcpu::ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 742:0-751:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 755:0-764:1 -/
 @[reducible]
 def vcpu.ports
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -19671,12 +19671,12 @@ def vcpu.ports
   vcpu.ports_loop machineStoreInst s v high disable low
 
 /-- [fl4_core::vcpu::TCB]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 18:0-18:28
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 22:0-22:28
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.TCB : Std.U64 := 20480#u64
 
 /-- [fl4_core::vcpu::stall]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 696:0-702:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 706:0-712:1
     Visibility: public -/
 def vcpu.stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19691,7 +19691,7 @@ def vcpu.stall
   else smp.remote_tcb_stall machineStoreInst machineArchInst s a1 i
 
 /-- [fl4_core::vcpu::revoke_ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 761:4-768:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 774:4-781:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.revoke_ports_loop.body
@@ -19719,7 +19719,7 @@ def vcpu.revoke_ports_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::revoke_ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 761:4-768:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 774:4-781:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.revoke_ports_loop
@@ -19734,7 +19734,7 @@ def vcpu.revoke_ports_loop
     (s, a, v, fuel)
 
 /-- [fl4_core::vcpu::revoke_ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 754:0-769:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 767:0-782:1
     Visibility: public -/
 def vcpu.revoke_ports
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19751,7 +19751,7 @@ def vcpu.revoke_ports
       v layout.WALK_FUEL
 
 /-- [fl4_core::vcpu::detach]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 713:0-724:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 723:0-736:1
     Visibility: public -/
 def vcpu.detach
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19772,10 +19772,11 @@ def vcpu.detach
     let i1 ← layout.tcb.VCPU
     let i2 ← lift (core.num.U64.wrapping_add t i1)
     let s4 ← machineStoreInst.write s3 i2 0#u64
-    ok (s4, a1)
+    let s5 ← vcpu.set machineStoreInst s4 v vcpu.SVM_CPU 0#u64
+    ok (s5, a1)
 
 /-- [fl4_core::vcpu::finalise]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 725:0-741:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 737:0-754:1
     Visibility: public -/
 def vcpu.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19783,12 +19784,13 @@ def vcpu.finalise
   Result (S × A)
   := do
   let (s1, a1) ← vcpu.stall machineStoreInst machineArchInst s a v
+  let a2 ← machineArchInst.vcpu_release a1 v
   let i ← vcpu.get machineStoreInst s1 v vcpu.TCB
   let b ← obj.Tcb.is_null i
-  let (s2, a2) ←
+  let (s2, a3) ←
     if b
-    then ok (s1, a1)
-    else vcpu.detach machineStoreInst machineArchInst s1 a1 i
+    then ok (s1, a2)
+    else vcpu.detach machineStoreInst machineArchInst s1 a2 i
   let prev ← vcpu.get machineStoreInst s2 v vcpu.PREV
   let next ← vcpu.get machineStoreInst s2 v vcpu.NEXT
   let s3 ←
@@ -19797,8 +19799,8 @@ def vcpu.finalise
     else vcpu.set machineStoreInst s2 prev vcpu.NEXT next
   if next != 0#u64
   then let s4 ← vcpu.set machineStoreInst s3 next vcpu.PREV prev
-       ok (s4, a2)
-  else ok (s3, a2)
+       ok (s4, a3)
+  else ok (s3, a3)
 
 /-- [fl4_core::schedcontext::unbind_reply]:
     Source: 'crates/fl4-core/src/schedcontext.rs', lines 100:0-106:1
@@ -19927,7 +19929,7 @@ def schedcontext.unbind_all_tcbs
   else ok (s, a)
 
 /-- [fl4_core::vcpu::cancel_run]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1089:0-1089:72
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1122:0-1122:72
     Visibility: public -/
 def vcpu.cancel_run
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20221,7 +20223,7 @@ def ipc.reply_remove
     ok (s5, a)
 
 /-- [fl4_core::ept::finalise]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 211:0-226:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 220:0-235:1
     Visibility: public -/
 def ept.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27690,8 +27692,27 @@ def ept.mark_core
   then machineStoreInst.write s addr new
   else ok s
 
+/-- [fl4_core::ept::core_marked]:
+    Source: 'crates/fl4-core/src/ept.rs', lines 59:0-63:1 -/
+def ept.core_marked
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) :
+  Result Bool
+  := do
+  let cpu ← machineStoreInst.cur_cpu s
+  let i ← ept.CORES
+  let i1 ← lift (core.num.U64.wrapping_add root i)
+  let i2 ← cpu / 32#u64
+  let i3 ← i2 * 8#u64
+  let addr ← lift (core.num.U64.wrapping_add i1 i3)
+  let i4 ← machineStoreInst.read s addr
+  let i5 ← cpu % 32#u64
+  let i6 ← 32#u64 + i5
+  let i7 ← 1#u64 <<< i6
+  let i8 ← lift (i4 &&& i7)
+  ok (i8 != 0#u64)
+
 /-- [fl4_core::ept::decode]:
-    Source: 'crates/fl4-core/src/ept.rs', lines 227:0-306:1
+    Source: 'crates/fl4-core/src/ept.rs', lines 236:0-315:1
     Visibility: public -/
 def ept.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -33628,7 +33649,7 @@ def localtimer.sched_quiet
   else ok false
 
 /-- [fl4_core::localtimer::may_run_here]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 173:0-180:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 175:0-182:1 -/
 def localtimer.may_run_here
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (t : obj.Tcb) :
@@ -33647,21 +33668,17 @@ def localtimer.may_run_here
         let i2 ← obj.Tcb.yield_to machineStoreInst t s
         if i2 = 0#u64
         then
-          let i3 ← vcpu.bound machineStoreInst s t
+          let i3 ← obj.Tcb.sc machineStoreInst t s
           if i3 = 0#u64
-          then
-            let i4 ← obj.Tcb.sc machineStoreInst t s
-            if i4 = 0#u64
-            then ok true
-            else let i5 ← obj.Sc.cpu machineStoreInst i4 s
-                 ok (i5 = cpu)
-          else ok false
+          then ok true
+          else let i4 ← obj.Sc.cpu machineStoreInst i3 s
+               ok (i4 = cpu)
         else ok false
       else ok false
     else ok false
 
 /-- [fl4_core::localtimer::current_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 184:0-189:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 186:0-191:1 -/
 def localtimer.current_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (ct : obj.Tcb) (csc : obj.Sc) :
@@ -33689,7 +33706,7 @@ def localtimer.current_ok
   else ok false
 
 /-- [fl4_core::localtimer::cnode_mask]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 193:0-199:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 195:0-201:1 -/
 def localtimer.cnode_mask (bits : Std.U64) : Result Std.U64 := do
   if bits >= 64#u64
   then ok core.num.U64.MAX
@@ -33699,7 +33716,7 @@ def localtimer.cnode_mask (bits : Std.U64) : Result Std.U64 := do
     ok (core.num.U64.wrapping_sub i1 1#u64)
 
 /-- [fl4_core::localtimer::cspace_step]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 207:0-223:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 209:0-225:1
     Visibility: public -/
 def localtimer.cspace_step
   (node_cap : capability.Cap) (cptr : Std.U64) (bits_left : Std.U64) :
@@ -33758,7 +33775,7 @@ def localtimer.cspace_step
   | capability.Cap.TdxControl => ok none
 
 /-- [fl4_core::localtimer::set_timer_target_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 229:0-235:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 231:0-237:1 -/
 def localtimer.set_timer_target_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (target : obj.Tcb) :
@@ -33988,7 +34005,7 @@ def msg.reply_success_empty
   msg.set_msg_info machineStoreInst s1 t mi
 
 /-- [fl4_core::localtimer::handle_set_timer_local]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 246:0-301:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 248:0-303:1
     Visibility: public -/
 def localtimer.handle_set_timer_local
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -34128,20 +34145,20 @@ def localtimer.handle_set_timer_local
               else ok (false, s, a)
 
 /-- [fl4_core::localtimer::MAX_TIMER_LOCKS]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 308:0-308:37
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 310:0-310:37
     Visibility: public -/
 @[global_simps, irreducible]
 def localtimer.MAX_TIMER_LOCKS : Std.Usize := 3#usize
 
 /-- [fl4_core::localtimer::{impl core::clone::Clone for fl4_core::localtimer::TimerIrqPlan}::clone]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:9-313:14
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 315:9-315:14
     Visibility: public -/
 def localtimer.TimerIrqPlan.Insts.CoreCloneClone.clone
   (self : localtimer.TimerIrqPlan) : Result localtimer.TimerIrqPlan := do
   ok self
 
 /-- Trait implementation: [fl4_core::localtimer::{impl core::clone::Clone for fl4_core::localtimer::TimerIrqPlan}]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:9-313:14 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 315:9-315:14 -/
 @[reducible]
 def localtimer.TimerIrqPlan.Insts.CoreCloneClone : core.clone.Clone
   localtimer.TimerIrqPlan := {
@@ -34149,7 +34166,7 @@ def localtimer.TimerIrqPlan.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [fl4_core::localtimer::{impl core::marker::Copy for fl4_core::localtimer::TimerIrqPlan}]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 313:16-313:20 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 315:16-315:20 -/
 @[reducible]
 def localtimer.TimerIrqPlan.Insts.CoreMarkerCopy : core.marker.Copy
   localtimer.TimerIrqPlan := {
@@ -34157,7 +34174,7 @@ def localtimer.TimerIrqPlan.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- [fl4_core::localtimer::plan_objects]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 333:0-367:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 335:0-369:1 -/
 def localtimer.plan_objects
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
   Result localtimer.TimerIrqPlan
@@ -34313,7 +34330,7 @@ def localtimer.plan_objects
                       }
 
 /-- [fl4_core::localtimer::same_plan]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 369:0-371:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 371:0-373:1 -/
 def localtimer.same_plan
   (x : localtimer.TimerIrqPlan) (y : localtimer.TimerIrqPlan) :
   Result Bool
@@ -34334,7 +34351,7 @@ def localtimer.same_plan
   else ok false
 
 /-- [fl4_core::localtimer::plan_timer_irq]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 375:0-380:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 377:0-382:1
     Visibility: public -/
 def localtimer.plan_timer_irq
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (irq : Std.U64) :
@@ -34354,7 +34371,7 @@ def localtimer.plan_timer_irq
            ok (some tip)
 
 /-- [fl4_core::localtimer::top_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 384:0-391:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 386:0-393:1 -/
 def localtimer.top_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
   Result Bool
@@ -34372,7 +34389,7 @@ def localtimer.top_ok
     localtimer.may_run_here machineStoreInst s cpu i5
 
 /-- [fl4_core::localtimer::round_robin_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 398:0-413:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 400:0-415:1 -/
 def localtimer.round_robin_ok
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64)
@@ -34422,7 +34439,7 @@ def localtimer.round_robin_ok
     else ok false
 
 /-- [fl4_core::localtimer::wake_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 419:0-426:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 421:0-428:1 -/
 def localtimer.wake_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (ct : obj.Tcb) (w : obj.Tcb) (n : obj.Ntfn) :
@@ -34456,7 +34473,7 @@ def localtimer.wake_ok
   else ok false
 
 /-- [fl4_core::localtimer::fire_ok]: loop body 0:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 444:8-447:9 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 446:8-449:9 -/
 @[rust_loop_body]
 def localtimer.fire_ok_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -34473,7 +34490,7 @@ def localtimer.fire_ok_loop.body
   else ok (done i)
 
 /-- [fl4_core::localtimer::fire_ok]: loop 0:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 444:8-447:9 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 446:8-449:9 -/
 @[rust_loop]
 def localtimer.fire_ok_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -34486,7 +34503,7 @@ def localtimer.fire_ok_loop
     (i, fuel)
 
 /-- [fl4_core::localtimer::fire_ok]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 433:0-481:1 -/
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 435:0-483:1 -/
 def localtimer.fire_ok
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (ct : obj.Tcb) (p : localtimer.TimerIrqPlan) (now : Std.U64) :
@@ -34668,7 +34685,7 @@ def localtimer.fire_ok
                 else ok false
 
 /-- [fl4_core::localtimer::handle_timer_irq_local]:
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 491:0-532:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 493:0-534:1
     Visibility: public -/
 def localtimer.handle_timer_irq_local
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -34757,6 +34774,5543 @@ def localtimer.handle_timer_irq_local
           else ok (false, s, a)
         else ok (false, s, a)
 
+/-- [fl4_core::localvm::VCPU_BYTES]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 81:0-81:35
+    Visibility: public -/
+@[global_simps, irreducible] def localvm.VCPU_BYTES : Std.U64 := 32768#u64
+
+/-- [fl4_core::localvm::NTFN_BYTES]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 86:0-86:31
+    Visibility: public -/
+@[global_simps, irreducible] def localvm.NTFN_BYTES : Std.U64 := 64#u64
+
+/-- [fl4_core::localvm::MAX_VM_LOCKS]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 89:0-89:64
+    Visibility: public -/
+@[global_simps, irreducible]
+def localvm.MAX_VM_LOCKS : Result Std.Usize :=
+  localtimer.MAX_TIMER_LOCKS + 2#usize
+
+/-- [fl4_core::localvm::_]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 90:0-90:56 -/
+@[global_simps, irreducible]
+def localvm._ : Result Unit := massert (localtimer.MAX_TIMER_LOCKS = 3#usize)
+
+/-- [fl4_core::localvm::{impl core::clone::Clone for fl4_core::localvm::VmLocks}::clone]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 93:9-93:14
+    Visibility: public -/
+def localvm.VmLocks.Insts.CoreCloneClone.clone
+  (self : localvm.VmLocks) : Result localvm.VmLocks := do
+  ok self
+
+/-- Trait implementation: [fl4_core::localvm::{impl core::clone::Clone for fl4_core::localvm::VmLocks}]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 93:9-93:14 -/
+@[reducible]
+def localvm.VmLocks.Insts.CoreCloneClone : core.clone.Clone localvm.VmLocks
+  := {
+  clone := localvm.VmLocks.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [fl4_core::localvm::{impl core::marker::Copy for fl4_core::localvm::VmLocks}]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 93:16-93:20 -/
+@[reducible]
+def localvm.VmLocks.Insts.CoreMarkerCopy : core.marker.Copy localvm.VmLocks
+  := {
+  cloneInst := localvm.VmLocks.Insts.CoreCloneClone
+}
+
+/-- [fl4_core::localvm::vm_locks]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 107:0-110:1
+    Visibility: public -/
+def localvm.vm_locks
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) :
+  Result localvm.VmLocks
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let n ← obj.Tcb.bound_ntfn machineStoreInst t s
+  ok
+    {
+      vcpu := vc,
+      ntfn := n,
+      objects :=
+        (Array.make 5#usize [
+          (0#u64, 0#u64), (0#u64, 0#u64), (0#u64, 0#u64), (vc,
+          localvm.VCPU_BYTES), (n, localvm.NTFN_BYTES)
+          ])
+    }
+
+/-- [fl4_core::localvm::planned]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 129:0-135:1 -/
+def localvm.planned
+  (p : localtimer.TimerIrqPlan) (i : Std.Usize) :
+  Result (Std.U64 × Std.U64)
+  := do
+  if i < p.n
+  then
+    if i < localtimer.MAX_TIMER_LOCKS
+    then Array.index_usize p.objects i
+    else ok (0#u64, 0#u64)
+  else ok (0#u64, 0#u64)
+
+/-- [fl4_core::localvm::vm_timer_locks]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 114:0-121:1
+    Visibility: public -/
+def localvm.vm_timer_locks
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
+  (p : localtimer.TimerIrqPlan) :
+  Result localvm.VmLocks
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let n ← obj.Tcb.bound_ntfn machineStoreInst t s
+  let p1 ← localvm.planned p 0#usize
+  let p2 ← localvm.planned p 1#usize
+  let p3 ← localvm.planned p 2#usize
+  ok
+    {
+      vcpu := vc,
+      ntfn := n,
+      objects :=
+        (Array.make 5#usize [
+          p1, p2, p3, (vc, localvm.VCPU_BYTES), (n, localvm.NTFN_BYTES)
+          ])
+    }
+
+/-- [fl4_core::localvm::vcpu_locks]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 124:0-126:1
+    Visibility: public -/
+def localvm.vcpu_locks (vc : Std.U64) : Result localvm.VmLocks := do
+  ok
+    {
+      vcpu := vc,
+      ntfn := 0#u64,
+      objects :=
+        (Array.make 5#usize [
+          (0#u64, 0#u64), (0#u64, 0#u64), (0#u64, 0#u64), (vc,
+          localvm.VCPU_BYTES), (0#u64, 0#u64)
+          ])
+    }
+
+/-- [fl4_core::localvm::current_vm_ok]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 143:0-152:1 -/
+def localvm.current_vm_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (ct : obj.Tcb) (csc : obj.Sc) :
+  Result Bool
+  := do
+  let b ← obj.Tcb.is_null ct
+  if b
+  then ok false
+  else
+    let t ← sched.idle_thread machineStoreInst s
+    let b1 ←
+      core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb ct
+        t
+    if b1
+    then
+      let i ← obj.Tcb.affinity machineStoreInst ct s
+      if i = cpu
+      then
+        let i1 ← obj.Tcb.yield_to machineStoreInst ct s
+        if i1 = 0#u64
+        then
+          let b2 ← obj.Sc.is_null csc
+          if b2
+          then ok false
+          else
+            let i2 ← obj.Tcb.sc machineStoreInst ct s
+            if i2 = csc
+            then
+              let i3 ← obj.Sc.cpu machineStoreInst csc s
+              if i3 = cpu
+              then
+                let i4 ← obj.Tcb.domain machineStoreInst ct s
+                let i5 ← sched.cur_domain machineStoreInst s
+                ok (i4 = i5)
+              else ok false
+            else ok false
+        else ok false
+      else ok false
+    else ok false
+
+/-- [fl4_core::localvm::awaken_quiet]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 156:0-158:1 -/
+def localvm.awaken_quiet
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
+  (now : Std.U64) :
+  Result Bool
+  := do
+  let b ← localtimer.timer_due machineStoreInst s cpu now
+  if b
+  then ok false
+  else let b1 ← localtimer.release_due machineStoreInst s cpu
+       ok (¬ b1)
+
+/-- [fl4_core::localvm::ntfn_quiet]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 161:0-163:1 -/
+def localvm.ntfn_quiet
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : Std.U64) :
+  Result Bool
+  := do
+  if n = 0#u64
+  then ok true
+  else let i ← obj.Ntfn.state machineStoreInst n s
+       ok (i != obj.NTFN_ACTIVE)
+
+/-- [fl4_core::localvm::finish]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 166:0-170:1 -/
+def localvm.finish
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (S × A)
+  := do
+  let (s1, a1) ← sched.schedule machineStoreInst machineArchInst s a
+  let (s2, a2) ← sched.activate_thread machineStoreInst machineArchInst s1 a1
+  let t ← sched.cur_thread machineStoreInst s2
+  vcpu.check machineStoreInst machineArchInst s2 a2 t
+
+/-- [fl4_core::localvm::syscall_prefix]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 174:0-178:1 -/
+def localvm.syscall_prefix
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (ct : obj.Tcb) :
+  Result (S × A)
+  := do
+  let next ← obj.Tcb.reg machineStoreInst ct s layout.reg.NEXT_IP
+  let i ← lift (core.num.U64.wrapping_sub next localtimer.SYSCALL_INSN_LEN)
+  let s1 ← obj.Tcb.set_reg machineStoreInst ct s layout.reg.FAULT_IP i
+  sched.update_timestamp machineStoreInst machineArchInst s1 a
+
+/-- [fl4_core::localvm::vm_running]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 268:0-271:1 -/
+def localvm.vm_running
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ct : obj.Tcb) :
+  Result Bool
+  := do
+  let v ← vcpu.bound machineStoreInst s ct
+  if v != 0#u64
+  then let i ← vcpu.get machineStoreInst s v vcpu.PENDING
+       ok (i = 0#u64)
+  else ok false
+
+/-- [fl4_core::localvm::handle_vm_timer_irq_local]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 190:0-250:1
+    Visibility: public -/
+def localvm.handle_vm_timer_irq_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64)
+  (p : localtimer.TimerIrqPlan) (n : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let cpu ← machineStoreInst.cur_cpu s
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    let i ← layout.irq.MAX
+    if irq > i
+    then ok (false, s, a)
+    else
+      let i1 ← interrupt.irq_state machineStoreInst s irq
+      if i1 != interrupt.IRQ_TIMER
+      then ok (false, s, a)
+      else
+        let tip ← localtimer.plan_objects machineStoreInst s
+        let b ← localtimer.same_plan tip p
+        if b
+        then
+          let ct ← sched.cur_thread machineStoreInst s
+          let csc ← sched.cur_sc machineStoreInst s
+          let i2 ← obj.Tcb.state machineStoreInst ct s
+          if i2 != sched.TS_RUNNING_VM
+          then ok (false, s, a)
+          else
+            let i3 ← obj.Tcb.bound_ntfn machineStoreInst ct s
+            if i3 != n
+            then ok (false, s, a)
+            else
+              let b1 ← localvm.ntfn_quiet machineStoreInst s n
+              if b1
+              then
+                let b2 ← localvm.vm_running machineStoreInst s ct
+                if b2
+                then
+                  let b3 ←
+                    localvm.current_vm_ok machineStoreInst s cpu ct csc
+                  if b3
+                  then
+                    let b4 ← localtimer.sched_quiet machineStoreInst s cpu
+                    if b4
+                    then
+                      let (s1, a1) ←
+                        sched.update_timestamp machineStoreInst machineArchInst
+                          s a
+                      let now ← sched.cur_time machineStoreInst s1
+                      let b5 ← localtimer.release_due machineStoreInst s1 cpu
+                      if b5
+                      then ok (false, s1, a1)
+                      else
+                        let i4 ← sched.consumed machineStoreInst s1
+                        let b6 ←
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s1 a1 csc i4
+                        let due ←
+                          localtimer.timer_due machineStoreInst s1 cpu now
+                        let ok1 ←
+                          if ¬ b6
+                          then
+                            if due
+                            then ok false
+                            else
+                              if ¬ b6
+                              then
+                                localtimer.round_robin_ok machineStoreInst
+                                  machineArchInst s1 a1 cpu ct csc now
+                              else
+                                if due
+                                then
+                                  do
+                                  let b7 ←
+                                    localtimer.fire_ok machineStoreInst s1 cpu
+                                      ct p now
+                                  if b7
+                                  then ok true
+                                  else ok false
+                                else ok true
+                          else
+                            if ¬ b6
+                            then
+                              localtimer.round_robin_ok machineStoreInst
+                                machineArchInst s1 a1 cpu ct csc now
+                            else
+                              if due
+                              then
+                                do
+                                let b7 ←
+                                  localtimer.fire_ok machineStoreInst s1 cpu ct
+                                    p now
+                                if b7
+                                then ok true
+                                else ok false
+                              else ok true
+                        if ok1
+                        then
+                          let (s2, a2) ←
+                            vcpu.check machineStoreInst machineArchInst s1 a1
+                              ct
+                          let (_, s3, a3) ←
+                            sched.check_budget machineStoreInst machineArchInst
+                              s2 a2
+                          let (s4, a4) ←
+                            interrupt.handle_interrupt machineStoreInst
+                              machineArchInst s3 a3 irq
+                          let (s5, a5) ←
+                            localvm.finish machineStoreInst machineArchInst s4
+                              a4
+                          ok (true, s5, a5)
+                        else ok (false, s1, a1)
+                    else ok (false, s, a)
+                  else ok (false, s, a)
+                else ok (false, s, a)
+              else ok (false, s, a)
+        else ok (false, s, a)
+
+/-- [fl4_core::localvm::cur_vcpu]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 254:0-256:1
+    Visibility: public -/
+def localvm.cur_vcpu
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
+  Result Std.U64
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  vcpu.bound machineStoreInst s t
+
+/-- [fl4_core::localvm::_#1]
+    Source: 'crates/fl4-core/src/localvm.rs', lines 284:0-284:92 -/
+@[global_simps, irreducible]
+def localvm.__1 : Result Unit := do
+  massert ((fl4_abi.syscall.SysVMEnter < fl4_abi.syscall.SYSCALL_MIN) ||
+    (fl4_abi.syscall.SysVMEnter > fl4_abi.syscall.SYSCALL_MAX))
+  if fl4_abi.syscall.SysVMEnter < fl4_abi.syscall.SYSCALL_MIN
+  then ok ()
+  else ok ()
+
+/-- [fl4_core::localvm::handle_vm_enter_local]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 294:0-327:1
+    Visibility: public -/
+def localvm.handle_vm_enter_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (v : Std.U64) (n : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let cpu ← machineStoreInst.cur_cpu s
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    if number != fl4_abi.syscall.SysVMEnter
+    then ok (false, s, a)
+    else
+      let i ← obj.Tcb.flags machineStoreInst ct s
+      let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+      if i1 != 0#u64
+      then ok (false, s, a)
+      else
+        let i2 ← machineArchInst.virtualization a
+        if i2 = 0#u64
+        then ok (false, s, a)
+        else
+          if v = 0#u64
+          then ok (false, s, a)
+          else
+            let i3 ← vcpu.bound machineStoreInst s ct
+            if i3 != v
+            then ok (false, s, a)
+            else
+              let i4 ← obj.Tcb.bound_ntfn machineStoreInst ct s
+              if i4 != n
+              then ok (false, s, a)
+              else
+                let b ← localvm.ntfn_quiet machineStoreInst s n
+                if b
+                then
+                  let csc ← sched.cur_sc machineStoreInst s
+                  let b1 ←
+                    localvm.current_vm_ok machineStoreInst s cpu ct csc
+                  if b1
+                  then
+                    let i5 ← obj.Tcb.state machineStoreInst ct s
+                    if i5 != sched.TS_RUNNING
+                    then ok (false, s, a)
+                    else
+                      let b2 ← sched.is_schedulable machineStoreInst s ct
+                      if b2
+                      then
+                        let b3 ←
+                          localtimer.sched_quiet machineStoreInst s cpu
+                        if b3
+                        then
+                          let (s1, a1) ←
+                            localvm.syscall_prefix machineStoreInst
+                              machineArchInst s a ct
+                          let now ← sched.cur_time machineStoreInst s1
+                          let i6 ← sched.consumed machineStoreInst s1
+                          let b4 ←
+                            sporadic.sufficient machineStoreInst
+                              machineArchInst s1 a1 csc i6
+                          if b4
+                          then
+                            let b5 ←
+                              localvm.awaken_quiet machineStoreInst s1 cpu now
+                            if b5
+                            then
+                              let (_, s2, a2) ←
+                                sched.check_budget_restart machineStoreInst
+                                  machineArchInst s1 a1
+                              let (s3, a3) ←
+                                vcpu.enter machineStoreInst machineArchInst s2
+                                  a2 ct
+                              let (s4, a4) ←
+                                localvm.finish machineStoreInst machineArchInst
+                                  s3 a3
+                              ok (true, s4, a4)
+                            else ok (false, s1, a1)
+                          else ok (false, s1, a1)
+                        else ok (false, s, a)
+                      else ok (false, s, a)
+                  else ok (false, s, a)
+                else ok (false, s, a)
+
+/-- [fl4_core::localvm::vm_entry_ready]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 345:0-366:1
+    Visibility: public -/
+def localvm.vm_entry_ready
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (n : Std.U64) :
+  Result (Option Std.U64)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let i ← obj.Tcb.state machineStoreInst ct s
+  if i != sched.TS_RUNNING_VM
+  then ok none
+  else
+    if v = 0#u64
+    then ok none
+    else
+      let i1 ← vcpu.bound machineStoreInst s ct
+      if i1 != v
+      then ok none
+      else
+        let i2 ← vcpu.get machineStoreInst s v vcpu.PENDING
+        if i2 != 0#u64
+        then ok none
+        else
+          let i3 ← obj.Tcb.bound_ntfn machineStoreInst ct s
+          if i3 != n
+          then ok none
+          else
+            let b ← localvm.ntfn_quiet machineStoreInst s n
+            if b
+            then
+              let s1 ← obj.Tcb.slot ct layout.tcb.SLOT_EPT
+              let c ← obj.Slot.cap machineStoreInst s1 s
+              let r ← ept.root machineStoreInst s c
+              match r with
+              | core.result.Result.Ok p =>
+                let (root, _) := p
+                let b1 ← ept.core_marked machineStoreInst s root
+                if b1
+                then ok (some root)
+                else ok none
+              | core.result.Result.Err _ => ok (some 0#u64)
+            else ok none
+
+/-- [fl4_core::localvm::handle_vcpu_exit_local]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 378:0-404:1
+    Visibility: public -/
+def localvm.handle_vcpu_exit_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (v : Std.U64)
+  (n : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let cpu ← machineStoreInst.cur_cpu s
+  let csc ← sched.cur_sc machineStoreInst s
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    let i ← obj.Tcb.state machineStoreInst ct s
+    if i != sched.TS_RUNNING_VM
+    then ok (false, s, a)
+    else
+      if v = 0#u64
+      then ok (false, s, a)
+      else
+        let i1 ← vcpu.bound machineStoreInst s ct
+        if i1 != v
+        then ok (false, s, a)
+        else
+          let i2 ← obj.Tcb.bound_ntfn machineStoreInst ct s
+          if i2 != n
+          then ok (false, s, a)
+          else
+            let i3 ← vcpu.get machineStoreInst s v vcpu.PENDING
+            if i3 = 0#u64
+            then
+              let b ← localvm.ntfn_quiet machineStoreInst s n
+              if b
+              then
+                let b1 ← localvm.current_vm_ok machineStoreInst s cpu ct csc
+                if b1
+                then
+                  let b2 ← sched.is_schedulable machineStoreInst s ct
+                  if b2
+                  then
+                    let b3 ← localtimer.sched_quiet machineStoreInst s cpu
+                    if b3
+                    then
+                      let (s1, a1) ←
+                        sched.update_timestamp machineStoreInst machineArchInst
+                          s a
+                      let now ← sched.cur_time machineStoreInst s1
+                      let i4 ← sched.consumed machineStoreInst s1
+                      let b4 ←
+                        sporadic.sufficient machineStoreInst machineArchInst s1
+                          a1 csc i4
+                      if b4
+                      then
+                        let b5 ←
+                          localvm.awaken_quiet machineStoreInst s1 cpu now
+                        if b5
+                        then
+                          let (s2, a2) ←
+                            vcpu.check machineStoreInst machineArchInst s1 a1
+                              ct
+                          let (_, s3, a3) ←
+                            sched.check_budget machineStoreInst machineArchInst
+                              s2 a2
+                          let (s4, a4) ←
+                            localvm.finish machineStoreInst machineArchInst s3
+                              a3
+                          ok (true, s4, a4)
+                        else ok (false, s1, a1)
+                      else ok (false, s1, a1)
+                    else ok (false, s, a)
+                  else ok (false, s, a)
+                else ok (false, s, a)
+              else ok (false, s, a)
+            else
+              let b ← localvm.current_vm_ok machineStoreInst s cpu ct csc
+              if b
+              then
+                let b1 ← sched.is_schedulable machineStoreInst s ct
+                if b1
+                then
+                  let b2 ← localtimer.sched_quiet machineStoreInst s cpu
+                  if b2
+                  then
+                    let (s1, a1) ←
+                      sched.update_timestamp machineStoreInst machineArchInst s
+                        a
+                    let now ← sched.cur_time machineStoreInst s1
+                    let i4 ← sched.consumed machineStoreInst s1
+                    let b3 ←
+                      sporadic.sufficient machineStoreInst machineArchInst s1
+                        a1 csc i4
+                    if b3
+                    then
+                      let b4 ←
+                        localvm.awaken_quiet machineStoreInst s1 cpu now
+                      if b4
+                      then
+                        let (s2, a2) ←
+                          vcpu.check machineStoreInst machineArchInst s1 a1 ct
+                        let (_, s3, a3) ←
+                          sched.check_budget machineStoreInst machineArchInst
+                            s2 a2
+                        let (s4, a4) ←
+                          localvm.finish machineStoreInst machineArchInst s3 a3
+                        ok (true, s4, a4)
+                      else ok (false, s1, a1)
+                    else ok (false, s1, a1)
+                  else ok (false, s, a)
+                else ok (false, s, a)
+              else ok (false, s, a)
+
+/-- [fl4_core::localvm::is_vcpu_state_label]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 418:0-427:1
+    Visibility: public -/
+def localvm.is_vcpu_state_label (l : Std.U64) : Result Bool := do
+  if l = fl4_abi.label.X86VCPUWriteRegisters
+  then ok true
+  else
+    if l = fl4_abi.label.X86VCPUFlushTLB
+    then ok true
+    else
+      if l = fl4_abi.label.X86VCPUReadVMCS
+      then ok true
+      else
+        if l = fl4_abi.label.X86VCPUWriteVMCS
+        then ok true
+        else
+          if l = fl4_abi.label.X86VCPUReadVMCB
+          then ok true
+          else
+            if l = fl4_abi.label.X86VCPUWriteVMCB
+            then ok true
+            else
+              if l = fl4_abi.label.X86VCPUReadMSR
+              then ok true
+              else ok (l = fl4_abi.label.X86VCPUWriteMSR)
+
+/-- [fl4_core::localvm::is_vm_syscall]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 409:0-412:1
+    Visibility: public -/
+def localvm.is_vm_syscall
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (number : Std.I64) :
+  Result Bool
+  := do
+  if number = fl4_abi.syscall.SysVMEnter
+  then
+    let i ← vcpu.bound machineStoreInst s t
+    if i != 0#u64
+    then ok true
+    else
+      if number = fl4_abi.syscall.SysCall
+      then
+        let mi ← msg.msg_info machineStoreInst s t
+        localvm.is_vcpu_state_label mi.label
+      else
+        if number = fl4_abi.syscall.SysSend
+        then
+          let mi ← msg.msg_info machineStoreInst s t
+          localvm.is_vcpu_state_label mi.label
+        else ok false
+  else
+    if number = fl4_abi.syscall.SysCall
+    then
+      let mi ← msg.msg_info machineStoreInst s t
+      localvm.is_vcpu_state_label mi.label
+    else
+      if number = fl4_abi.syscall.SysSend
+      then
+        let mi ← msg.msg_info machineStoreInst s t
+        localvm.is_vcpu_state_label mi.label
+      else ok false
+
+/-- [fl4_core::vcpu::vmx::DATA_GUEST_LINEAR_ADDRESS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 195:4-195:58
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS : Std.U64 := 25610#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IO_RIP]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 194:4-194:44
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RIP : Std.U64 := 25608#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IO_RDI]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 193:4-193:44
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RDI : Std.U64 := 25606#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IO_RSI]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 192:4-192:44
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RSI : Std.U64 := 25604#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IO_RCX]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 191:4-191:44
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RCX : Std.U64 := 25602#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_INFO]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 157:4-157:59
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_EXIT_INSTRUCTION_INFO : Std.U64 := 17422#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_LENGTH]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 156:4-156:61
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_EXIT_INSTRUCTION_LENGTH : Std.U64 := 17420#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_ERROR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 155:4-155:54
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_IDT_VECTOR_ERROR : Std.U64 := 17418#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_INFO]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 154:4-154:53
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_IDT_VECTOR_INFO : Std.U64 := 17416#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_ERROR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 153:4-153:58
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_EXIT_INTERRUPT_ERROR : Std.U64 := 17414#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_INFO]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 152:4-152:57
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_EXIT_INTERRUPT_INFO : Std.U64 := 17412#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_INSTRUCTION_ERROR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 150:4-150:55
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_INSTRUCTION_ERROR : Std.U64 := 17408#u64
+
+/-- [fl4_core::vcpu::vmx::DATA_GUEST_PHYSICAL]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 118:4-118:52
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.vmx.DATA_GUEST_PHYSICAL : Std.U64 := 9216#u64
+
+/-- [fl4_core::vcpu::READ_FIELDS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 370:0-455:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
+  Array.make 84#usize [
+    vcpu.vmx.GUEST_RIP, vcpu.vmx.GUEST_RSP, vcpu.vmx.GUEST_ES_SELECTOR,
+    vcpu.vmx.GUEST_CS_SELECTOR, vcpu.vmx.GUEST_SS_SELECTOR,
+    vcpu.vmx.GUEST_DS_SELECTOR, vcpu.vmx.GUEST_FS_SELECTOR,
+    vcpu.vmx.GUEST_GS_SELECTOR, vcpu.vmx.GUEST_LDTR_SELECTOR,
+    vcpu.vmx.GUEST_TR_SELECTOR, vcpu.vmx.GUEST_DEBUGCTRL, vcpu.vmx.GUEST_PAT,
+    vcpu.vmx.GUEST_EFER, vcpu.vmx.GUEST_PERF_GLOBAL_CTRL,
+    vcpu.vmx.GUEST_PDPTE0, vcpu.vmx.GUEST_PDPTE1, vcpu.vmx.GUEST_PDPTE2,
+    vcpu.vmx.GUEST_PDPTE3, vcpu.vmx.GUEST_ES_LIMIT, vcpu.vmx.GUEST_CS_LIMIT,
+    vcpu.vmx.GUEST_SS_LIMIT, vcpu.vmx.GUEST_DS_LIMIT, vcpu.vmx.GUEST_FS_LIMIT,
+    vcpu.vmx.GUEST_GS_LIMIT, vcpu.vmx.GUEST_LDTR_LIMIT,
+    vcpu.vmx.GUEST_TR_LIMIT, vcpu.vmx.GUEST_GDTR_LIMIT,
+    vcpu.vmx.GUEST_IDTR_LIMIT, vcpu.vmx.GUEST_ES_ACCESS_RIGHTS,
+    vcpu.vmx.GUEST_CS_ACCESS_RIGHTS, vcpu.vmx.GUEST_SS_ACCESS_RIGHTS,
+    vcpu.vmx.GUEST_DS_ACCESS_RIGHTS, vcpu.vmx.GUEST_FS_ACCESS_RIGHTS,
+    vcpu.vmx.GUEST_GS_ACCESS_RIGHTS, vcpu.vmx.GUEST_LDTR_ACCESS_RIGHTS,
+    vcpu.vmx.GUEST_TR_ACCESS_RIGHTS, vcpu.vmx.GUEST_INTERRUPTABILITY,
+    vcpu.vmx.GUEST_ACTIVITY, vcpu.vmx.GUEST_SMBASE, vcpu.vmx.GUEST_SYSENTER_CS,
+    vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE, vcpu.vmx.GUEST_ES_BASE,
+    vcpu.vmx.GUEST_CS_BASE, vcpu.vmx.GUEST_SS_BASE, vcpu.vmx.GUEST_DS_BASE,
+    vcpu.vmx.GUEST_FS_BASE, vcpu.vmx.GUEST_GS_BASE, vcpu.vmx.GUEST_LDTR_BASE,
+    vcpu.vmx.GUEST_TR_BASE, vcpu.vmx.GUEST_GDTR_BASE, vcpu.vmx.GUEST_IDTR_BASE,
+    vcpu.vmx.GUEST_DR7, vcpu.vmx.GUEST_RFLAGS,
+    vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS, vcpu.vmx.GUEST_SYSENTER_ESP,
+    vcpu.vmx.GUEST_SYSENTER_EIP, vcpu.vmx.CONTROL_CR0_MASK,
+    vcpu.vmx.CONTROL_CR4_MASK, vcpu.vmx.CONTROL_CR0_READ_SHADOW,
+    vcpu.vmx.CONTROL_CR4_READ_SHADOW, vcpu.vmx.DATA_INSTRUCTION_ERROR,
+    vcpu.vmx.DATA_EXIT_INTERRUPT_INFO, vcpu.vmx.DATA_EXIT_INTERRUPT_ERROR,
+    vcpu.vmx.DATA_IDT_VECTOR_INFO, vcpu.vmx.DATA_IDT_VECTOR_ERROR,
+    vcpu.vmx.DATA_EXIT_INSTRUCTION_LENGTH, vcpu.vmx.DATA_EXIT_INSTRUCTION_INFO,
+    vcpu.vmx.DATA_GUEST_PHYSICAL, vcpu.vmx.DATA_IO_RCX, vcpu.vmx.DATA_IO_RSI,
+    vcpu.vmx.DATA_IO_RDI, vcpu.vmx.DATA_IO_RIP,
+    vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS,
+    vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO, vcpu.vmx.CONTROL_TSC_OFFSET,
+    vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS,
+    vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS,
+    vcpu.vmx.CONTROL_SECONDARY_PROCESSOR_CONTROLS,
+    vcpu.vmx.CONTROL_EXCEPTION_BITMAP, vcpu.vmx.CONTROL_ENTRY_CONTROLS,
+    vcpu.vmx.CONTROL_EXIT_CONTROLS, vcpu.vmx.GUEST_CR0, vcpu.vmx.GUEST_CR3,
+    vcpu.vmx.GUEST_CR4
+    ]
+
+/-- [fl4_core::vcpu::MSRS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 44:0-44:29
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.MSRS : Std.U64 := 20864#u64
+
+/-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}::call_once]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 818:20-818:76 -/
+def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
+  (c : vcpu.msr_addr.closure_1) (tupled_args : Std.U64) : Result Std.U64 := do
+  let i ← lift (core.num.U64.wrapping_add c vcpu.MSRS)
+  let i1 ← lift (core.num.U64.wrapping_mul tupled_args 8#u64)
+  ok (core.num.U64.wrapping_add i i1)
+
+/-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 818:20-818:76 -/
+@[reducible]
+def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
+  core.ops.function.FnOnce vcpu.msr_addr.closure_1 Std.U64 Std.U64 := {
+  call_once :=
+    vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
+}
+
+/-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}::call_once]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 813:30-813:55 -/
+def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
+  (c : vcpu.msr_addr.closure) (tupled_args : Std.U64) : Result Std.U64 := do
+  ok (core.num.U64.wrapping_add c tupled_args)
+
+/-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 813:30-813:55 -/
+@[reducible]
+def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
+  core.ops.function.FnOnce vcpu.msr_addr.closure Std.U64 Std.U64 := {
+  call_once :=
+    vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
+}
+
+/-- [fl4_core::vcpu::svm::KERNEL_GS_BASE]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 286:4-286:49
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.KERNEL_GS_BASE : Result Std.U64 := vcpu.svm.SAVE + 544#u64
+
+/-- [fl4_core::vcpu::svm::SFMASK]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 285:4-285:41
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.SFMASK : Result Std.U64 := vcpu.svm.SAVE + 536#u64
+
+/-- [fl4_core::vcpu::svm::CSTAR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 284:4-284:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.CSTAR : Result Std.U64 := vcpu.svm.SAVE + 528#u64
+
+/-- [fl4_core::vcpu::svm::LSTAR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 283:4-283:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.LSTAR : Result Std.U64 := vcpu.svm.SAVE + 520#u64
+
+/-- [fl4_core::vcpu::svm::STAR]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 282:4-282:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.STAR : Result Std.U64 := vcpu.svm.SAVE + 512#u64
+
+/-- [fl4_core::vcpu::svm_msr]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 794:0-804:1 -/
+def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
+  match f with
+  | 3221225601#uscalar => let i ← vcpu.svm.STAR
+                          ok (some i)
+  | 3221225602#uscalar => let i ← vcpu.svm.LSTAR
+                          ok (some i)
+  | 3221225603#uscalar => let i ← vcpu.svm.CSTAR
+                          ok (some i)
+  | 3221225604#uscalar => let i ← vcpu.svm.SFMASK
+                          ok (some i)
+  | 3221225730#uscalar => let i ← vcpu.svm.KERNEL_GS_BASE
+                          ok (some i)
+  | 4294967295#uscalar => let i ← vcpu.svm.CR2
+                          ok (some i)
+  | _ => ok none
+
+/-- [fl4_core::vcpu::msr_slot]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 784:0-793:1 -/
+def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
+  match f with
+  | 3221225601#uscalar => ok (some 0#u64)
+  | 3221225602#uscalar => ok (some 1#u64)
+  | 3221225603#uscalar => ok (some 2#u64)
+  | 3221225604#uscalar => ok (some 3#u64)
+  | 3221225730#uscalar => ok (some 4#u64)
+  | _ => ok none
+
+/-- [fl4_core::vcpu::MSR_VM_IBPB_DEFER]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 42:0-42:47
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.MSR_VM_IBPB_DEFER : Std.U64 := 4294967293#u64
+
+/-- [fl4_core::vcpu::VM_IBPB_DEFER]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 39:0-39:38
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.VM_IBPB_DEFER : Std.U64 := 20544#u64
+
+/-- [fl4_core::vcpu::msr_addr]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 805:0-819:1 -/
+def vcpu.msr_addr
+  (v : Std.U64) (f : Std.U64) (amd : Bool) : Result (Option Std.U64) := do
+  if f = 4294967294#u64
+  then let i ← lift (core.num.U64.wrapping_add v vcpu.XCR0)
+       ok (some i)
+  else
+    if f = vcpu.MSR_VM_IBPB_DEFER
+    then
+      let i ← lift (core.num.U64.wrapping_add v vcpu.VM_IBPB_DEFER)
+      ok (some i)
+    else
+      if amd
+      then
+        let o ← vcpu.svm_msr f
+        core.option.Option.map
+          vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
+      else
+        if f = 4294967295#u64
+        then let i ← lift (core.num.U64.wrapping_add v vcpu.CR2)
+             ok (some i)
+        else
+          let o ← vcpu.msr_slot f
+          core.option.Option.map
+            vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
+
+/-- [fl4_core::vcpu::reply]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 713:0-722:1 -/
+def vcpu.reply
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (call : Bool)
+  (value : Std.U64) :
+  Result S
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let s1 ←
+    if call
+    then
+      do
+      let b ← msg.lookup_ipc_buffer machineStoreInst s true ct
+      let (_, s2) ← msg.set_mr machineStoreInst s ct b 0#u64 value
+      let s3 ← obj.Tcb.set_reg machineStoreInst ct s2 layout.reg.BADGE 0#u64
+      let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 1#u64
+      msg.set_msg_info machineStoreInst s3 ct mi
+    else ok s
+  sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
+
+/-- [fl4_core::vcpu::vmcb_hidden]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 637:0-642:1
+    Visibility: public -/
+def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
+  match f with
+  | 64#uscalar => ok true
+  | 72#uscalar => ok true
+  | 88#uscalar => ok true
+  | 152#uscalar => ok true
+  | 160#uscalar => ok true
+  | 176#uscalar => ok true
+  | 192#uscalar => ok true
+  | 224#uscalar => ok true
+  | 240#uscalar => ok true
+  | 248#uscalar => ok true
+  | 264#uscalar => ok true
+  | _ => ok false
+
+/-- [fl4_core::vcpu::valid_pat]: loop body 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 493:4-497:5
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.valid_pat_loop.body
+  (pat : Std.U64) (i : Std.U64) (ok1 : Bool) :
+  Result (ControlFlow (Std.U64 × Bool) Bool)
+  := do
+  if i < 8#u64
+  then
+    let i1 ← i * 8#u64
+    let i2 ← pat >>> i1
+    let t ← lift (i2 &&& 255#u64)
+    let ok2 ←
+      if ok1
+      then
+        if t <= 1#u64
+        then ok true
+        else if t >= 4#u64
+             then ok (t <= 7#u64)
+             else ok false
+      else ok false
+    let i3 ← i + 1#u64
+    ok (cont (i3, ok2))
+  else ok (done ok1)
+
+/-- [fl4_core::vcpu::valid_pat]: loop 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 493:4-497:5
+    Visibility: public -/
+@[rust_loop]
+def vcpu.valid_pat_loop
+  (pat : Std.U64) (i : Std.U64) (ok1 : Bool) : Result Bool := do
+  loop
+    (fun (i1, ok2) => vcpu.valid_pat_loop.body pat i1 ok2)
+    (i, ok1)
+
+/-- [fl4_core::vcpu::valid_pat]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 490:0-499:1
+    Visibility: public -/
+@[reducible]
+def vcpu.valid_pat (pat : Std.U64) : Result Bool := do
+  vcpu.valid_pat_loop pat 0#u64 true
+
+/-- [fl4_core::vcpu::canonical]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 476:0-480:1
+    Visibility: public -/
+def vcpu.canonical (value : Std.U64) (width : Std.U64) : Result Bool := do
+  let shift ← if width = 57#u64
+                then ok 56#i32
+                else ok 47#i32
+  let top ← value >>> shift
+  if top = 0#u64
+  then ok true
+  else let i ← core.num.U64.MAX >>> shift
+       ok (top = i)
+
+/-- [fl4_core::vcpu::sanitize_vmcb]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 596:0-630:1
+    Visibility: public -/
+def vcpu.sanitize_vmcb
+  {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
+  (old : Std.U64) (value : Std.U64) :
+  Result (core.result.Result Std.U64 error.Exc)
+  := do
+  match f with
+  | 0#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 4294967295#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 4294967295#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 18446744069415632896#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 4294967295#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 4294967295#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 18446744069415632896#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 8#uscalar =>
+    let i ← vcpu.SVM_I1_WRITABLE <<< 32#i32
+    let mask ← lift (4294967295#u64 ||| i)
+    let i1 ← vcpu.SVM_I1_FORCED <<< 32#i32
+    let i2 ← vcpu.EXCEPTIONS
+    let forced ← lift (i2 ||| i1)
+    let i3 ← vcpu.svm.G_PAT
+    if f = i3
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i4 ← lift (~~~ mask)
+        let i5 ← lift (old &&& i4)
+        let i6 ← lift (value &&& mask)
+        let i7 ← lift (i5 ||| i6)
+        let v ← lift (i7 ||| forced)
+        let i8 ← vcpu.svm.CR0
+        if f = i8
+        then
+          let i9 ← vcpu.CR0_OWNED
+          let i10 ← lift (~~~ i9)
+          let v1 ← lift (v &&& i10)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i4 ← lift (~~~ mask)
+      let i5 ← lift (old &&& i4)
+      let i6 ← lift (value &&& mask)
+      let i7 ← lift (i5 ||| i6)
+      let v ← lift (i7 ||| forced)
+      let i8 ← vcpu.svm.CR0
+      if f = i8
+      then
+        let i9 ← vcpu.CR0_OWNED
+        let i10 ← lift (~~~ i9)
+        let v1 ← lift (v &&& i10)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 16#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 386#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 386#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 386#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 386#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 56#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 18446744069414584320#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 18446744069414584320#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 18446744069414584320#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 18446744069414584320#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 80#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 96#uscalar =>
+    let forced ← 1#u64 <<< 24#i32
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 1095218692607#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 1095218692607#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| forced)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 1095218692607#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 1095218692607#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| forced)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 104#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 1#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 1#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 1#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 1#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 168#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ vcpu.SVM_EVENT)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& vcpu.SVM_EVENT)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ vcpu.SVM_EVENT)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& vcpu.SVM_EVENT)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 200#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1224#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ 4278190080#u64)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& 4278190080#u64)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ 4278190080#u64)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& 4278190080#u64)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1232#uscalar =>
+    let forced ← 1#u64 <<< 12#i32
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| forced)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| forced)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1352#uscalar =>
+    let mask ← vcpu.cr4_allowed machineArchInst a
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ mask)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& mask)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ mask)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& mask)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1024#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1040#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1056#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1072#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1088#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1104#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1120#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1136#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1152#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1168#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1360#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1368#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1376#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1384#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1392#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1400#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1496#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1528#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1536#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1560#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1576#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1600#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1640#uscalar =>
+    let i ← vcpu.svm.G_PAT
+    if f = i
+    then
+      let b ← vcpu.valid_pat value
+      if b
+      then
+        let i1 ← lift (~~~ core.num.U64.MAX)
+        let i2 ← lift (old &&& i1)
+        let i3 ← lift (value &&& core.num.U64.MAX)
+        let i4 ← lift (i2 ||| i3)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+      else error.invalid_arg Std.U64 1#u64
+    else
+      let i1 ← lift (~~~ core.num.U64.MAX)
+      let i2 ← lift (old &&& i1)
+      let i3 ← lift (value &&& core.num.U64.MAX)
+      let i4 ← lift (i2 ||| i3)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
+  | 1032#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1048#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1064#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1080#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1096#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1112#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1128#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1144#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1160#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1176#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1544#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1552#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1568#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1584#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | 1592#uscalar =>
+    let i ← machineArchInst.vcpu_capability a 1#u64
+    let b ← vcpu.canonical value i
+    if b
+    then
+      let i1 ← vcpu.svm.G_PAT
+      if f = i1
+      then
+        let b1 ← vcpu.valid_pat value
+        if b1
+        then
+          let i2 ← lift (~~~ core.num.U64.MAX)
+          let i3 ← lift (old &&& i2)
+          let i4 ← lift (value &&& core.num.U64.MAX)
+          let i5 ← lift (i3 ||| i4)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
+        else error.invalid_arg Std.U64 1#u64
+      else
+        let i2 ← lift (~~~ core.num.U64.MAX)
+        let i3 ← lift (old &&& i2)
+        let i4 ← lift (value &&& core.num.U64.MAX)
+        let i5 ← lift (i3 ||| i4)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
+    else error.invalid_arg Std.U64 1#u64
+  | _ => error.illegal Std.U64
+
+/-- [fl4_core::vcpu::valid_xcr0]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 481:0-489:1
+    Visibility: public -/
+def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
+  let i ← lift (~~~ host)
+  let i1 ← lift (x &&& i)
+  if i1 != 0#u64
+  then ok false
+  else
+    let i2 ← lift (x &&& 1#u64)
+    if i2 = 0#u64
+    then ok false
+    else
+      let i3 ← lift (x &&& 4#u64)
+      if i3 != 0#u64
+      then
+        let i4 ← lift (x &&& 2#u64)
+        if i4 = 0#u64
+        then ok false
+        else
+          let avx512 ← lift (x &&& 224#u64)
+          if avx512 = 0#u64
+          then
+            let i5 ← lift (x &&& 24#u64)
+            if i5 = 0#u64
+            then
+              let i6 ← lift (x &&& 393216#u64)
+              if i6 = 0#u64
+              then ok true
+              else let i7 ← lift (x &&& 393216#u64)
+                   ok (i7 = 393216#u64)
+            else
+              let i6 ← lift (x &&& 24#u64)
+              if i6 = 24#u64
+              then
+                let i7 ← lift (x &&& 393216#u64)
+                if i7 = 0#u64
+                then ok true
+                else let i8 ← lift (x &&& 393216#u64)
+                     ok (i8 = 393216#u64)
+              else ok false
+          else
+            if avx512 = 224#u64
+            then
+              let i5 ← lift (x &&& 6#u64)
+              if i5 = 6#u64
+              then
+                let i6 ← lift (x &&& 24#u64)
+                if i6 = 0#u64
+                then
+                  let i7 ← lift (x &&& 393216#u64)
+                  if i7 = 0#u64
+                  then ok true
+                  else let i8 ← lift (x &&& 393216#u64)
+                       ok (i8 = 393216#u64)
+                else
+                  let i7 ← lift (x &&& 24#u64)
+                  if i7 = 24#u64
+                  then
+                    let i8 ← lift (x &&& 393216#u64)
+                    if i8 = 0#u64
+                    then ok true
+                    else
+                      let i9 ← lift (x &&& 393216#u64)
+                      ok (i9 = 393216#u64)
+                  else ok false
+              else ok false
+            else ok false
+      else
+        let avx512 ← lift (x &&& 224#u64)
+        if avx512 = 0#u64
+        then
+          let i4 ← lift (x &&& 24#u64)
+          if i4 = 0#u64
+          then
+            let i5 ← lift (x &&& 393216#u64)
+            if i5 = 0#u64
+            then ok true
+            else let i6 ← lift (x &&& 393216#u64)
+                 ok (i6 = 393216#u64)
+          else
+            let i5 ← lift (x &&& 24#u64)
+            if i5 = 24#u64
+            then
+              let i6 ← lift (x &&& 393216#u64)
+              if i6 = 0#u64
+              then ok true
+              else let i7 ← lift (x &&& 393216#u64)
+                   ok (i7 = 393216#u64)
+            else ok false
+        else
+          if avx512 = 224#u64
+          then
+            let i4 ← lift (x &&& 6#u64)
+            if i4 = 6#u64
+            then
+              let i5 ← lift (x &&& 24#u64)
+              if i5 = 0#u64
+              then
+                let i6 ← lift (x &&& 393216#u64)
+                if i6 = 0#u64
+                then ok true
+                else let i7 ← lift (x &&& 393216#u64)
+                     ok (i7 = 393216#u64)
+              else
+                let i6 ← lift (x &&& 24#u64)
+                if i6 = 24#u64
+                then
+                  let i7 ← lift (x &&& 393216#u64)
+                  if i7 = 0#u64
+                  then ok true
+                  else let i8 ← lift (x &&& 393216#u64)
+                       ok (i8 = 393216#u64)
+                else ok false
+            else ok false
+          else ok false
+
+/-- [fl4_core::vcpu::svm::RAX]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 281:4-281:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.RAX : Result Std.U64 := vcpu.svm.SAVE + 504#u64
+
+/-- [fl4_core::vcpu::decode]: loop body 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 866:8-870:9
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.decode_loop0.body
+  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
+  (buf : Std.U64) (ct : obj.Tcb) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < 15#u64
+  then
+    let val ← msg.syscall_arg machineStoreInst s ct buf i
+    let i1 ← i * 8#u64
+    let i2 ← vcpu.REGS + i1
+    let s1 ← vcpu.set machineStoreInst s v i2 val
+    let i3 ← i + 1#u64
+    ok (cont (s1, i3))
+  else ok (done s)
+
+/-- [fl4_core::vcpu::decode]: loop 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 866:8-870:9
+    Visibility: public -/
+@[rust_loop]
+def vcpu.decode_loop0
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (buf : Std.U64) (ct : obj.Tcb) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => vcpu.decode_loop0.body machineStoreInst v buf ct s1 i1)
+    (s, i)
+
+/-- [fl4_core::vcpu::decode]: loop body 1:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 960:16-971:17
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.decode_loop1.body
+  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
+  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (s : S)
+  (i : Std.U64) (n : Std.U64) :
+  Result (ControlFlow (S × Std.U64 × Std.U64) (S × Std.U64))
+  := do
+  if i < value
+  then
+    let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
+    let off ← lift (core.num.U64.wrapping_add f i1)
+    let b1 ← vcpu.vmcb_hidden off
+    let val ←
+      if b1
+      then ok 0#u64
+      else
+        do
+        let i2 ← vcpu.svm.RAX
+        if off = i2
+        then vcpu.get machineStoreInst s v vcpu.REGS
+        else vcpu.get machineStoreInst s v off
+    let (n1, s1) ← msg.set_mr machineStoreInst s ct b i val
+    let i2 ← i + 1#u64
+    ok (cont (s1, i2, n1))
+  else ok (done (s, n))
+
+/-- [fl4_core::vcpu::decode]: loop 1:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 960:16-971:17
+    Visibility: public -/
+@[rust_loop]
+def vcpu.decode_loop1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (i : Std.U64)
+  (n : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, i1, n1) => vcpu.decode_loop1.body machineStoreInst v ct f value b
+      s1 i1 n1)
+    (s, i, n)
+
+/-- [fl4_core::vcpu::decode]: loop body 2:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 960:16-971:17
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.decode_loop2.body
+  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
+  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (s : S)
+  (i : Std.U64) (n : Std.U64) :
+  Result (ControlFlow (S × Std.U64 × Std.U64) (S × Std.U64))
+  := do
+  if i < value
+  then
+    let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
+    let off ← lift (core.num.U64.wrapping_add f i1)
+    let b1 ← vcpu.vmcb_hidden off
+    let val ←
+      if b1
+      then ok 0#u64
+      else
+        do
+        let i2 ← vcpu.svm.RAX
+        if off = i2
+        then vcpu.get machineStoreInst s v vcpu.REGS
+        else vcpu.get machineStoreInst s v off
+    let (n1, s1) ← msg.set_mr machineStoreInst s ct b i val
+    let i2 ← i + 1#u64
+    ok (cont (s1, i2, n1))
+  else ok (done (s, n))
+
+/-- [fl4_core::vcpu::decode]: loop 2:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 960:16-971:17
+    Visibility: public -/
+@[rust_loop]
+def vcpu.decode_loop2
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (i : Std.U64)
+  (n : Std.U64) :
+  Result (S × Std.U64)
+  := do
+  loop
+    (fun (s1, i1, n1) => vcpu.decode_loop2.body machineStoreInst v ct f value b
+      s1 i1 n1)
+    (s, i, n)
+
+/-- [fl4_core::vcpu::decode]: loop body 3:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1038:20-1045:21
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.decode_loop3.body
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (first : Std.U64) (last : Std.U64)
+  (prior : Std.U64) (s : S) (a : A) (old : Std.U64) (fuel : Std.U64) :
+  Result (ControlFlow (S × A × Std.U64 × Std.U64) (S × A))
+  := do
+  if old != 0#u64
+  then
+    if fuel > 0#u64
+    then
+      let fuel1 ← fuel - 1#u64
+      let (s1, a1) ←
+        if old = prior
+        then
+          do
+          let (s2, a2) ← vcpu.stall machineStoreInst machineArchInst s a old
+          let s3 ← vcpu.ports machineStoreInst s2 old first last true
+          ok (s3, a2)
+        else ok (s, a)
+      let old1 ← vcpu.get machineStoreInst s1 old vcpu.NEXT
+      ok (cont (s1, a1, old1, fuel1))
+    else ok (done (s, a))
+  else ok (done (s, a))
+
+/-- [fl4_core::vcpu::decode]: loop 3:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1038:20-1045:21
+    Visibility: public -/
+@[rust_loop]
+def vcpu.decode_loop3
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (first : Std.U64)
+  (last : Std.U64) (prior : Std.U64) (old : Std.U64) (fuel : Std.U64) :
+  Result (S × A)
+  := do
+  loop
+    (fun (s1, a1, old1, fuel1) => vcpu.decode_loop3.body machineStoreInst
+      machineArchInst first last prior s1 a1 old1 fuel1)
+    (s, a, old, fuel)
+
+/-- [fl4_core::vcpu::decode]: loop body 4:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1038:20-1045:21
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.decode_loop4.body
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (first : Std.U64) (last : Std.U64)
+  (prior : Std.U64) (s : S) (a : A) (old : Std.U64) (fuel : Std.U64) :
+  Result (ControlFlow (S × A × Std.U64 × Std.U64) (S × A))
+  := do
+  if old != 0#u64
+  then
+    if fuel > 0#u64
+    then
+      let fuel1 ← fuel - 1#u64
+      let (s1, a1) ←
+        if old = prior
+        then
+          do
+          let (s2, a2) ← vcpu.stall machineStoreInst machineArchInst s a old
+          let s3 ← vcpu.ports machineStoreInst s2 old first last true
+          ok (s3, a2)
+        else ok (s, a)
+      let old1 ← vcpu.get machineStoreInst s1 old vcpu.NEXT
+      ok (cont (s1, a1, old1, fuel1))
+    else ok (done (s, a))
+  else ok (done (s, a))
+
+/-- [fl4_core::vcpu::decode]: loop 4:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1038:20-1045:21
+    Visibility: public -/
+@[rust_loop]
+def vcpu.decode_loop4
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (first : Std.U64)
+  (last : Std.U64) (prior : Std.U64) (old : Std.U64) (fuel : Std.U64) :
+  Result (S × A)
+  := do
+  loop
+    (fun (s1, a1, old1, fuel1) => vcpu.decode_loop4.body machineStoreInst
+      machineArchInst first last prior s1 a1 old1 fuel1)
+    (s, a, old, fuel)
+
+/-- [fl4_core::vcpu::decode]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 822:0-1064:1
+    Visibility: public -/
+def vcpu.decode
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
+  (length : Std.U64) (v : Std.U64) (call : Bool) (buf : Std.U64)
+  (ex : Array obj.Slot 3#usize) :
+  Result ((core.result.Result Unit error.Exc) × S × A)
+  := do
+  let (s1, a1) ← vcpu.stall machineStoreInst machineArchInst s a v
+  let ct ← sched.cur_thread machineStoreInst s1
+  let i ← machineArchInst.virtualization a1
+  let f ←
+    if length > 0#u64
+    then msg.syscall_arg machineStoreInst s1 ct buf 0#u64
+    else ok 0#u64
+  let value ←
+    if length > 1#u64
+    then msg.syscall_arg machineStoreInst s1 ct buf 1#u64
+    else ok 0#u64
+  if lbl = fl4_abi.label.X86VCPUSetTCB
+  then
+    let s2 ← Array.index_usize ex 0#usize
+    let b ← obj.Slot.is_null s2
+    if b
+    then let r ← error.truncated Unit
+         ok (r, s1, a1)
+    else
+      let c ← obj.Slot.cap machineStoreInst s2 s1
+      match c with
+      | capability.Cap.Null => let r ← error.illegal Unit
+                               ok (r, s1, a1)
+      | capability.Cap.Untyped _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Endpoint _ _ _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Notification _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Reply _ _ => let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+      | capability.Cap.CNode _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Thread ptr =>
+        let (s3, a2) ←
+          smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 ptr
+        let (s4, a3) ← vcpu.detach machineStoreInst machineArchInst s3 a2 ptr
+        let i1 ← vcpu.get machineStoreInst s4 v vcpu.TCB
+        let b1 ← obj.Tcb.is_null i1
+        let (s5, a4) ←
+          if b1
+          then ok (s4, a3)
+          else vcpu.detach machineStoreInst machineArchInst s4 a3 i1
+        let s6 ← vcpu.set machineStoreInst s5 v vcpu.TCB ptr
+        let i2 ← layout.tcb.VCPU
+        let i3 ← lift (core.num.U64.wrapping_add ptr i2)
+        let s7 ← machineStoreInst.write s6 i3 v
+        let s8 ←
+          sched.set_thread_state machineStoreInst s7 ct sched.TS_RESTART
+        ok (core.result.Result.Ok (), s8, a4)
+      | capability.Cap.IrqControl =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.IrqHandler _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Zombie _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Domain => let r ← error.illegal Unit
+                                 ok (r, s1, a1)
+      | capability.Cap.SchedContext _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.SchedControl _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.PageTable _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.PageDirectory _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Pdpt _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Pml4 _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.Vcpu _ => let r ← error.illegal Unit
+                                 ok (r, s1, a1)
+      | capability.Cap.Ept _ _ _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.AsidControl =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.AsidPool _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.IoPortControl =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.IoPort _ _ _ =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+      | capability.Cap.TdxControl =>
+        let r ← error.illegal Unit
+        ok (r, s1, a1)
+  else
+    if lbl = fl4_abi.label.X86VCPUWriteRegisters
+    then
+      if length < 15#u64
+      then let r ← error.truncated Unit
+           ok (r, s1, a1)
+      else
+        let s2 ← vcpu.decode_loop0 machineStoreInst s1 v buf ct 0#u64
+        let s3 ←
+          if i = 2#u64
+          then
+            do
+            let val ← vcpu.get machineStoreInst s2 v vcpu.REGS
+            let i1 ← vcpu.svm.RAX
+            vcpu.set machineStoreInst s2 v i1 val
+          else ok s2
+        let s4 ←
+          sched.set_thread_state machineStoreInst s3 ct sched.TS_RESTART
+        ok (core.result.Result.Ok (), s4, a1)
+    else
+      if lbl = fl4_abi.label.X86VCPUFlushTLB
+      then
+        let s2 ← vcpu.set machineStoreInst s1 v vcpu.SVM_CPU 0#u64
+        let s3 ←
+          sched.set_thread_state machineStoreInst s2 ct sched.TS_RESTART
+        ok (core.result.Result.Ok (), s3, a1)
+      else
+        if lbl = fl4_abi.label.X86VCPUReadVMCS
+        then
+          if i = 2#u64
+          then let r ← error.illegal Unit
+               ok (r, s1, a1)
+          else
+            let i1 ←
+              if lbl = fl4_abi.label.X86VCPUWriteVMCS
+              then ok 2#u64
+              else ok 1#u64
+            if length < i1
+            then let r ← error.illegal Unit
+                 ok (r, s1, a1)
+            else
+              if lbl = fl4_abi.label.X86VCPUWriteVMCS
+              then
+                let r ← vcpu.sanitize_vmcs machineArchInst a1 f value
+                let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                match cf with
+                | core.ops.control_flow.ControlFlow.Continue val =>
+                  let a2 ← machineArchInst.vcpu_sync a1 v f
+                  let s2 ← vcpu.write_vmcs machineStoreInst s1 v f val
+                  let s3 ←
+                    if f = vcpu.vmx.GUEST_CR0
+                    then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                    else
+                      if f = vcpu.vmx.GUEST_CR3
+                      then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                      else
+                        if f = vcpu.vmx.GUEST_CR4
+                        then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                        else
+                          if f = vcpu.vmx.GUEST_EFER
+                          then
+                            vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                          else
+                            if f = vcpu.vmx.GUEST_PAT
+                            then
+                              vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                            else
+                              if f = vcpu.vmx.GUEST_PDPTE0
+                              then
+                                vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                  0#u64
+                              else
+                                if f = vcpu.vmx.GUEST_PDPTE1
+                                then
+                                  vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                    0#u64
+                                else
+                                  if f = vcpu.vmx.GUEST_PDPTE2
+                                  then
+                                    vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                      0#u64
+                                  else
+                                    if f = vcpu.vmx.GUEST_PDPTE3
+                                    then
+                                      vcpu.set machineStoreInst s2 v
+                                        vcpu.SVM_CPU 0#u64
+                                    else
+                                      if f = vcpu.vmx.CONTROL_ENTRY_CONTROLS
+                                      then
+                                        vcpu.set machineStoreInst s2 v
+                                          vcpu.SVM_CPU 0#u64
+                                      else ok s2
+                  let s4 ← vcpu.reply machineStoreInst s3 call val
+                  ok (core.result.Result.Ok (), s4, a2)
+                | core.ops.control_flow.ControlFlow.Break residual =>
+                  let r1 ←
+                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                      Unit (core.convert.FromSame error.Exc) residual
+                  ok (r1, s1, a1)
+              else
+                let s2 ← lift (Array.to_slice vcpu.READ_FIELDS)
+                let b ← vcpu.contains s2 f
+                if b
+                then
+                  let a2 ← machineArchInst.vcpu_sync a1 v f
+                  let supported ←
+                    if f = vcpu.vmx.GUEST_PERF_GLOBAL_CTRL
+                    then
+                      do
+                      let i2 ← machineArchInst.vcpu_capability a2 1156#u64
+                      let i3 ← i2 >>> 32#i32
+                      let i4 ← 1#u64 <<< 13#i32
+                      let i5 ← lift (i3 &&& i4)
+                      if i5 = 0#u64
+                      then ok false
+                      else
+                        if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
+                        then
+                          let i6 ←
+                            machineArchInst.vcpu_capability a2 1153#u64
+                          let i7 ← i6 >>> 32#i32
+                          let i8 ← 1#u64 <<< 6#i32
+                          let i9 ← lift (i7 &&& i8)
+                          if i9 = 0#u64
+                          then ok false
+                          else ok true
+                        else ok true
+                    else
+                      if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
+                      then
+                        do
+                        let i2 ← machineArchInst.vcpu_capability a2 1153#u64
+                        let i3 ← i2 >>> 32#i32
+                        let i4 ← 1#u64 <<< 6#i32
+                        let i5 ← lift (i3 &&& i4)
+                        if i5 = 0#u64
+                        then ok false
+                        else ok true
+                      else ok true
+                  let val ←
+                    if supported
+                    then vcpu.read_vmcs machineStoreInst s1 v f
+                    else ok 0#u64
+                  let s3 ← vcpu.reply machineStoreInst s1 call val
+                  ok (core.result.Result.Ok (), s3, a2)
+                else let r ← error.illegal Unit
+                     ok (r, s1, a1)
+        else
+          if lbl = fl4_abi.label.X86VCPUWriteVMCS
+          then
+            if i = 2#u64
+            then let r ← error.illegal Unit
+                 ok (r, s1, a1)
+            else
+              let i1 ←
+                if lbl = fl4_abi.label.X86VCPUWriteVMCS
+                then ok 2#u64
+                else ok 1#u64
+              if length < i1
+              then let r ← error.illegal Unit
+                   ok (r, s1, a1)
+              else
+                if lbl = fl4_abi.label.X86VCPUWriteVMCS
+                then
+                  let r ← vcpu.sanitize_vmcs machineArchInst a1 f value
+                  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                  match cf with
+                  | core.ops.control_flow.ControlFlow.Continue val =>
+                    let a2 ← machineArchInst.vcpu_sync a1 v f
+                    let s2 ← vcpu.write_vmcs machineStoreInst s1 v f val
+                    let s3 ←
+                      if f = vcpu.vmx.GUEST_CR0
+                      then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                      else
+                        if f = vcpu.vmx.GUEST_CR3
+                        then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                        else
+                          if f = vcpu.vmx.GUEST_CR4
+                          then
+                            vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                          else
+                            if f = vcpu.vmx.GUEST_EFER
+                            then
+                              vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                            else
+                              if f = vcpu.vmx.GUEST_PAT
+                              then
+                                vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                  0#u64
+                              else
+                                if f = vcpu.vmx.GUEST_PDPTE0
+                                then
+                                  vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                    0#u64
+                                else
+                                  if f = vcpu.vmx.GUEST_PDPTE1
+                                  then
+                                    vcpu.set machineStoreInst s2 v vcpu.SVM_CPU
+                                      0#u64
+                                  else
+                                    if f = vcpu.vmx.GUEST_PDPTE2
+                                    then
+                                      vcpu.set machineStoreInst s2 v
+                                        vcpu.SVM_CPU 0#u64
+                                    else
+                                      if f = vcpu.vmx.GUEST_PDPTE3
+                                      then
+                                        vcpu.set machineStoreInst s2 v
+                                          vcpu.SVM_CPU 0#u64
+                                      else
+                                        if f = vcpu.vmx.CONTROL_ENTRY_CONTROLS
+                                        then
+                                          vcpu.set machineStoreInst s2 v
+                                            vcpu.SVM_CPU 0#u64
+                                        else ok s2
+                    let s4 ← vcpu.reply machineStoreInst s3 call val
+                    ok (core.result.Result.Ok (), s4, a2)
+                  | core.ops.control_flow.ControlFlow.Break residual =>
+                    let r1 ←
+                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                        Unit (core.convert.FromSame error.Exc) residual
+                    ok (r1, s1, a1)
+                else
+                  let s2 ← lift (Array.to_slice vcpu.READ_FIELDS)
+                  let b ← vcpu.contains s2 f
+                  if b
+                  then
+                    let a2 ← machineArchInst.vcpu_sync a1 v f
+                    let supported ←
+                      if f = vcpu.vmx.GUEST_PERF_GLOBAL_CTRL
+                      then
+                        do
+                        let i2 ← machineArchInst.vcpu_capability a2 1156#u64
+                        let i3 ← i2 >>> 32#i32
+                        let i4 ← 1#u64 <<< 13#i32
+                        let i5 ← lift (i3 &&& i4)
+                        if i5 = 0#u64
+                        then ok false
+                        else
+                          if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
+                          then
+                            let i6 ←
+                              machineArchInst.vcpu_capability a2 1153#u64
+                            let i7 ← i6 >>> 32#i32
+                            let i8 ← 1#u64 <<< 6#i32
+                            let i9 ← lift (i7 &&& i8)
+                            if i9 = 0#u64
+                            then ok false
+                            else ok true
+                          else ok true
+                      else
+                        if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
+                        then
+                          do
+                          let i2 ←
+                            machineArchInst.vcpu_capability a2 1153#u64
+                          let i3 ← i2 >>> 32#i32
+                          let i4 ← 1#u64 <<< 6#i32
+                          let i5 ← lift (i3 &&& i4)
+                          if i5 = 0#u64
+                          then ok false
+                          else ok true
+                        else ok true
+                    let val ←
+                      if supported
+                      then vcpu.read_vmcs machineStoreInst s1 v f
+                      else ok 0#u64
+                    let s3 ← vcpu.reply machineStoreInst s1 call val
+                    ok (core.result.Result.Ok (), s3, a2)
+                  else let r ← error.illegal Unit
+                       ok (r, s1, a1)
+          else
+            if lbl = fl4_abi.label.X86VCPUReadVMCB
+            then
+              if i = 2#u64
+              then
+                if length < 2#u64
+                then let r ← error.truncated Unit
+                     ok (r, s1, a1)
+                else
+                  if lbl = fl4_abi.label.X86VCPUWriteVMCB
+                  then
+                    let i1 ← vcpu.svm.END
+                    let old ←
+                      if f < i1
+                      then
+                        do
+                        let i2 ← lift (f &&& 7#u64)
+                        if i2 = 0#u64
+                        then vcpu.get machineStoreInst s1 v f
+                        else ok 0#u64
+                      else ok 0#u64
+                    let r ← vcpu.sanitize_vmcb machineArchInst a1 f old value
+                    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                    match cf with
+                    | core.ops.control_flow.ControlFlow.Continue val =>
+                      let s2 ← vcpu.set machineStoreInst s1 v f val
+                      let b ←
+                        match f with
+                        | 1368#uscalar => ok true
+                        | 1360#uscalar => ok true
+                        | 1352#uscalar => ok true
+                        | 1232#uscalar => ok true
+                        | 1640#uscalar => ok true
+                        | _ => ok false
+                      let s3 ←
+                        if b
+                        then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                        else ok s2
+                      let i2 ← vcpu.svm.RAX
+                      let s4 ←
+                        if f = i2
+                        then vcpu.set machineStoreInst s3 v vcpu.REGS val
+                        else ok s3
+                      let s5 ← vcpu.reply machineStoreInst s4 call val
+                      ok (core.result.Result.Ok (), s5, a1)
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      let r1 ←
+                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                          Unit (core.convert.FromSame error.Exc) residual
+                      ok (r1, s1, a1)
+                  else
+                    let i1 ← lift (f &&& 7#u64)
+                    if i1 != 0#u64
+                    then let r ← error.invalid_arg Unit 0#u64
+                         ok (r, s1, a1)
+                    else
+                      let i2 ← vcpu.svm.END
+                      if f >= i2
+                      then
+                        let r ← error.invalid_arg Unit 0#u64
+                        ok (r, s1, a1)
+                      else
+                        if value = 0#u64
+                        then
+                          let r ← error.invalid_arg Unit 0#u64
+                          ok (r, s1, a1)
+                        else
+                          if value > 64#u64
+                          then
+                            let r ← error.invalid_arg Unit 0#u64
+                            ok (r, s1, a1)
+                          else
+                            let i3 ← i2 - f
+                            let i4 ← i3 / 8#u64
+                            if value > i4
+                            then
+                              let r ← error.invalid_arg Unit 0#u64
+                              ok (r, s1, a1)
+                            else
+                              if call
+                              then
+                                let b ←
+                                  msg.lookup_ipc_buffer machineStoreInst s1
+                                    true ct
+                                let (s2, n) ←
+                                  vcpu.decode_loop1 machineStoreInst s1 v ct f
+                                    value b 0#u64 0#u64
+                                let s3 ←
+                                  obj.Tcb.set_reg machineStoreInst ct s2
+                                    layout.reg.BADGE 0#u64
+                                let mi ←
+                                  msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
+                                let s4 ←
+                                  msg.set_msg_info machineStoreInst s3 ct mi
+                                let s5 ←
+                                  sched.set_thread_state machineStoreInst s4 ct
+                                    sched.TS_RUNNING
+                                ok (core.result.Result.Ok (), s5, a1)
+                              else
+                                let s2 ←
+                                  sched.set_thread_state machineStoreInst s1 ct
+                                    sched.TS_RUNNING
+                                ok (core.result.Result.Ok (), s2, a1)
+              else let r ← error.illegal Unit
+                   ok (r, s1, a1)
+            else
+              if lbl = fl4_abi.label.X86VCPUWriteVMCB
+              then
+                if i = 2#u64
+                then
+                  if length < 2#u64
+                  then let r ← error.truncated Unit
+                       ok (r, s1, a1)
+                  else
+                    if lbl = fl4_abi.label.X86VCPUWriteVMCB
+                    then
+                      let i1 ← vcpu.svm.END
+                      let old ←
+                        if f < i1
+                        then
+                          do
+                          let i2 ← lift (f &&& 7#u64)
+                          if i2 = 0#u64
+                          then vcpu.get machineStoreInst s1 v f
+                          else ok 0#u64
+                        else ok 0#u64
+                      let r ←
+                        vcpu.sanitize_vmcb machineArchInst a1 f old value
+                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+                      match cf with
+                      | core.ops.control_flow.ControlFlow.Continue val =>
+                        let s2 ← vcpu.set machineStoreInst s1 v f val
+                        let b ←
+                          match f with
+                          | 1368#uscalar => ok true
+                          | 1360#uscalar => ok true
+                          | 1352#uscalar => ok true
+                          | 1232#uscalar => ok true
+                          | 1640#uscalar => ok true
+                          | _ => ok false
+                        let s3 ←
+                          if b
+                          then
+                            vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
+                          else ok s2
+                        let i2 ← vcpu.svm.RAX
+                        let s4 ←
+                          if f = i2
+                          then vcpu.set machineStoreInst s3 v vcpu.REGS val
+                          else ok s3
+                        let s5 ← vcpu.reply machineStoreInst s4 call val
+                        ok (core.result.Result.Ok (), s5, a1)
+                      | core.ops.control_flow.ControlFlow.Break residual =>
+                        let r1 ←
+                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+                            Unit (core.convert.FromSame error.Exc) residual
+                        ok (r1, s1, a1)
+                    else
+                      let i1 ← lift (f &&& 7#u64)
+                      if i1 != 0#u64
+                      then
+                        let r ← error.invalid_arg Unit 0#u64
+                        ok (r, s1, a1)
+                      else
+                        let i2 ← vcpu.svm.END
+                        if f >= i2
+                        then
+                          let r ← error.invalid_arg Unit 0#u64
+                          ok (r, s1, a1)
+                        else
+                          if value = 0#u64
+                          then
+                            let r ← error.invalid_arg Unit 0#u64
+                            ok (r, s1, a1)
+                          else
+                            if value > 64#u64
+                            then
+                              let r ← error.invalid_arg Unit 0#u64
+                              ok (r, s1, a1)
+                            else
+                              let i3 ← i2 - f
+                              let i4 ← i3 / 8#u64
+                              if value > i4
+                              then
+                                let r ← error.invalid_arg Unit 0#u64
+                                ok (r, s1, a1)
+                              else
+                                if call
+                                then
+                                  let b ←
+                                    msg.lookup_ipc_buffer machineStoreInst s1
+                                      true ct
+                                  let (s2, n) ←
+                                    vcpu.decode_loop2 machineStoreInst s1 v ct
+                                      f value b 0#u64 0#u64
+                                  let s3 ←
+                                    obj.Tcb.set_reg machineStoreInst ct s2
+                                      layout.reg.BADGE 0#u64
+                                  let mi ←
+                                    msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
+                                  let s4 ←
+                                    msg.set_msg_info machineStoreInst s3 ct mi
+                                  let s5 ←
+                                    sched.set_thread_state machineStoreInst s4
+                                      ct sched.TS_RUNNING
+                                  ok (core.result.Result.Ok (), s5, a1)
+                                else
+                                  let s2 ←
+                                    sched.set_thread_state machineStoreInst s1
+                                      ct sched.TS_RUNNING
+                                  ok (core.result.Result.Ok (), s2, a1)
+                else let r ← error.illegal Unit
+                     ok (r, s1, a1)
+              else
+                if lbl = fl4_abi.label.X86VCPUReadMSR
+                then
+                  let i1 ←
+                    if lbl = fl4_abi.label.X86VCPUWriteMSR
+                    then ok 2#u64
+                    else ok 1#u64
+                  if length < i1
+                  then let r ← error.illegal Unit
+                       ok (r, s1, a1)
+                  else
+                    if f = 1157#u64
+                    then
+                      if lbl = fl4_abi.label.X86VCPUWriteMSR
+                      then
+                        let o ← vcpu.msr_addr v f (i = 2#u64)
+                        match o with
+                        | none => let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                        | some x =>
+                          if lbl = fl4_abi.label.X86VCPUWriteMSR
+                          then
+                            if f = 3221225602#u64
+                            then
+                              let i2 ←
+                                machineArchInst.vcpu_capability a1 1#u64
+                              let b ← vcpu.canonical value i2
+                              if b
+                              then
+                                if f = 4294967294#u64
+                                then
+                                  let i3 ←
+                                    machineArchInst.vcpu_capability a1 0#u64
+                                  let b1 ← vcpu.valid_xcr0 value i3
+                                  if b1
+                                  then
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i4 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i4
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = vcpu.MSR_VM_IBPB_DEFER
+                                  then
+                                    if value > 1#u64
+                                    then
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i3 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i3
+                                    ok (core.result.Result.Ok (), s3, a1)
+                              else
+                                let r ← error.invalid_arg Unit 1#u64
+                                ok (r, s1, a1)
+                            else
+                              if f = 3221225603#u64
+                              then
+                                let i2 ←
+                                  machineArchInst.vcpu_capability a1 1#u64
+                                let b ← vcpu.canonical value i2
+                                if b
+                                then
+                                  if f = 4294967294#u64
+                                  then
+                                    let i3 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b1 ← vcpu.valid_xcr0 value i3
+                                    if b1
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let r ← error.invalid_arg Unit 1#u64
+                                  ok (r, s1, a1)
+                              else
+                                if f = 3221225730#u64
+                                then
+                                  let i2 ←
+                                    machineArchInst.vcpu_capability a1 1#u64
+                                  let b ← vcpu.canonical value i2
+                                  if b
+                                  then
+                                    if f = 4294967294#u64
+                                    then
+                                      let i3 ←
+                                        machineArchInst.vcpu_capability a1
+                                          0#u64
+                                      let b1 ← vcpu.valid_xcr0 value i3
+                                      if b1
+                                      then
+                                        if f = vcpu.MSR_VM_IBPB_DEFER
+                                        then
+                                          if value > 1#u64
+                                          then
+                                            let r ←
+                                              error.invalid_arg Unit 1#u64
+                                            ok (r, s1, a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i4 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i4
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                    else
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = 4294967294#u64
+                                  then
+                                    let i2 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b ← vcpu.valid_xcr0 value i2
+                                    if b
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i2 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i2
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i2 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i2
+                                      ok (core.result.Result.Ok (), s3, a1)
+                          else
+                            let i2 ← machineStoreInst.read s1 x
+                            let s2 ← vcpu.reply machineStoreInst s1 call i2
+                            ok (core.result.Result.Ok (), s2, a1)
+                      else
+                        if i = 2#u64
+                        then
+                          let s2 ← vcpu.reply machineStoreInst s1 call 0#u64
+                          ok (core.result.Result.Ok (), s2, a1)
+                        else
+                          let i2 ← machineArchInst.vcpu_capability a1 f
+                          let s2 ← vcpu.reply machineStoreInst s1 call i2
+                          ok (core.result.Result.Ok (), s2, a1)
+                    else
+                      let o ← vcpu.msr_addr v f (i = 2#u64)
+                      match o with
+                      | none => let r ← error.illegal Unit
+                                ok (r, s1, a1)
+                      | some x =>
+                        if lbl = fl4_abi.label.X86VCPUWriteMSR
+                        then
+                          if f = 3221225602#u64
+                          then
+                            let i2 ← machineArchInst.vcpu_capability a1 1#u64
+                            let b ← vcpu.canonical value i2
+                            if b
+                            then
+                              if f = 4294967294#u64
+                              then
+                                let i3 ←
+                                  machineArchInst.vcpu_capability a1 0#u64
+                                let b1 ← vcpu.valid_xcr0 value i3
+                                if b1
+                                then
+                                  if f = vcpu.MSR_VM_IBPB_DEFER
+                                  then
+                                    if value > 1#u64
+                                    then
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i4 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i4
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i4 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i4
+                                    ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let r ← error.invalid_arg Unit 1#u64
+                                  ok (r, s1, a1)
+                              else
+                                if f = vcpu.MSR_VM_IBPB_DEFER
+                                then
+                                  if value > 1#u64
+                                  then
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i3 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i3
+                                    ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let s2 ← machineStoreInst.write s1 x value
+                                  let i3 ← machineStoreInst.read s2 x
+                                  let s3 ←
+                                    vcpu.reply machineStoreInst s2 call i3
+                                  ok (core.result.Result.Ok (), s3, a1)
+                            else
+                              let r ← error.invalid_arg Unit 1#u64
+                              ok (r, s1, a1)
+                          else
+                            if f = 3221225603#u64
+                            then
+                              let i2 ←
+                                machineArchInst.vcpu_capability a1 1#u64
+                              let b ← vcpu.canonical value i2
+                              if b
+                              then
+                                if f = 4294967294#u64
+                                then
+                                  let i3 ←
+                                    machineArchInst.vcpu_capability a1 0#u64
+                                  let b1 ← vcpu.valid_xcr0 value i3
+                                  if b1
+                                  then
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i4 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i4
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = vcpu.MSR_VM_IBPB_DEFER
+                                  then
+                                    if value > 1#u64
+                                    then
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i3 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i3
+                                    ok (core.result.Result.Ok (), s3, a1)
+                              else
+                                let r ← error.invalid_arg Unit 1#u64
+                                ok (r, s1, a1)
+                            else
+                              if f = 3221225730#u64
+                              then
+                                let i2 ←
+                                  machineArchInst.vcpu_capability a1 1#u64
+                                let b ← vcpu.canonical value i2
+                                if b
+                                then
+                                  if f = 4294967294#u64
+                                  then
+                                    let i3 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b1 ← vcpu.valid_xcr0 value i3
+                                    if b1
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let r ← error.invalid_arg Unit 1#u64
+                                  ok (r, s1, a1)
+                              else
+                                if f = 4294967294#u64
+                                then
+                                  let i2 ←
+                                    machineArchInst.vcpu_capability a1 0#u64
+                                  let b ← vcpu.valid_xcr0 value i2
+                                  if b
+                                  then
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = vcpu.MSR_VM_IBPB_DEFER
+                                  then
+                                    if value > 1#u64
+                                    then
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i2 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i2
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i2 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i2
+                                    ok (core.result.Result.Ok (), s3, a1)
+                        else
+                          let i2 ← machineStoreInst.read s1 x
+                          let s2 ← vcpu.reply machineStoreInst s1 call i2
+                          ok (core.result.Result.Ok (), s2, a1)
+                else
+                  if lbl = fl4_abi.label.X86VCPUWriteMSR
+                  then
+                    let i1 ←
+                      if lbl = fl4_abi.label.X86VCPUWriteMSR
+                      then ok 2#u64
+                      else ok 1#u64
+                    if length < i1
+                    then let r ← error.illegal Unit
+                         ok (r, s1, a1)
+                    else
+                      if f = 1157#u64
+                      then
+                        if lbl = fl4_abi.label.X86VCPUWriteMSR
+                        then
+                          let o ← vcpu.msr_addr v f (i = 2#u64)
+                          match o with
+                          | none => let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                          | some x =>
+                            if lbl = fl4_abi.label.X86VCPUWriteMSR
+                            then
+                              if f = 3221225602#u64
+                              then
+                                let i2 ←
+                                  machineArchInst.vcpu_capability a1 1#u64
+                                let b ← vcpu.canonical value i2
+                                if b
+                                then
+                                  if f = 4294967294#u64
+                                  then
+                                    let i3 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b1 ← vcpu.valid_xcr0 value i3
+                                    if b1
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let r ← error.invalid_arg Unit 1#u64
+                                  ok (r, s1, a1)
+                              else
+                                if f = 3221225603#u64
+                                then
+                                  let i2 ←
+                                    machineArchInst.vcpu_capability a1 1#u64
+                                  let b ← vcpu.canonical value i2
+                                  if b
+                                  then
+                                    if f = 4294967294#u64
+                                    then
+                                      let i3 ←
+                                        machineArchInst.vcpu_capability a1
+                                          0#u64
+                                      let b1 ← vcpu.valid_xcr0 value i3
+                                      if b1
+                                      then
+                                        if f = vcpu.MSR_VM_IBPB_DEFER
+                                        then
+                                          if value > 1#u64
+                                          then
+                                            let r ←
+                                              error.invalid_arg Unit 1#u64
+                                            ok (r, s1, a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i4 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i4
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                    else
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = 3221225730#u64
+                                  then
+                                    let i2 ←
+                                      machineArchInst.vcpu_capability a1 1#u64
+                                    let b ← vcpu.canonical value i2
+                                    if b
+                                    then
+                                      if f = 4294967294#u64
+                                      then
+                                        let i3 ←
+                                          machineArchInst.vcpu_capability a1
+                                            0#u64
+                                        let b1 ← vcpu.valid_xcr0 value i3
+                                        if b1
+                                        then
+                                          if f = vcpu.MSR_VM_IBPB_DEFER
+                                          then
+                                            if value > 1#u64
+                                            then
+                                              let r ←
+                                                error.invalid_arg Unit 1#u64
+                                              ok (r, s1, a1)
+                                            else
+                                              let s2 ←
+                                                machineStoreInst.write s1 x
+                                                  value
+                                              let i4 ←
+                                                machineStoreInst.read s2 x
+                                              let s3 ←
+                                                vcpu.reply machineStoreInst s2
+                                                  call i4
+                                              ok (core.result.Result.Ok (), s3,
+                                                a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i4 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i4
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                      else
+                                        if f = vcpu.MSR_VM_IBPB_DEFER
+                                        then
+                                          if value > 1#u64
+                                          then
+                                            let r ←
+                                              error.invalid_arg Unit 1#u64
+                                            ok (r, s1, a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i3 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i3
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = 4294967294#u64
+                                    then
+                                      let i2 ←
+                                        machineArchInst.vcpu_capability a1
+                                          0#u64
+                                      let b ← vcpu.valid_xcr0 value i2
+                                      if b
+                                      then
+                                        if f = vcpu.MSR_VM_IBPB_DEFER
+                                        then
+                                          if value > 1#u64
+                                          then
+                                            let r ←
+                                              error.invalid_arg Unit 1#u64
+                                            ok (r, s1, a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i3 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i3
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                    else
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i2 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i2
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i2 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i2
+                                        ok (core.result.Result.Ok (), s3, a1)
+                            else
+                              let i2 ← machineStoreInst.read s1 x
+                              let s2 ← vcpu.reply machineStoreInst s1 call i2
+                              ok (core.result.Result.Ok (), s2, a1)
+                        else
+                          if i = 2#u64
+                          then
+                            let s2 ←
+                              vcpu.reply machineStoreInst s1 call 0#u64
+                            ok (core.result.Result.Ok (), s2, a1)
+                          else
+                            let i2 ← machineArchInst.vcpu_capability a1 f
+                            let s2 ← vcpu.reply machineStoreInst s1 call i2
+                            ok (core.result.Result.Ok (), s2, a1)
+                      else
+                        let o ← vcpu.msr_addr v f (i = 2#u64)
+                        match o with
+                        | none => let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                        | some x =>
+                          if lbl = fl4_abi.label.X86VCPUWriteMSR
+                          then
+                            if f = 3221225602#u64
+                            then
+                              let i2 ←
+                                machineArchInst.vcpu_capability a1 1#u64
+                              let b ← vcpu.canonical value i2
+                              if b
+                              then
+                                if f = 4294967294#u64
+                                then
+                                  let i3 ←
+                                    machineArchInst.vcpu_capability a1 0#u64
+                                  let b1 ← vcpu.valid_xcr0 value i3
+                                  if b1
+                                  then
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i4 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i4
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = vcpu.MSR_VM_IBPB_DEFER
+                                  then
+                                    if value > 1#u64
+                                    then
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let s2 ←
+                                      machineStoreInst.write s1 x value
+                                    let i3 ← machineStoreInst.read s2 x
+                                    let s3 ←
+                                      vcpu.reply machineStoreInst s2 call i3
+                                    ok (core.result.Result.Ok (), s3, a1)
+                              else
+                                let r ← error.invalid_arg Unit 1#u64
+                                ok (r, s1, a1)
+                            else
+                              if f = 3221225603#u64
+                              then
+                                let i2 ←
+                                  machineArchInst.vcpu_capability a1 1#u64
+                                let b ← vcpu.canonical value i2
+                                if b
+                                then
+                                  if f = 4294967294#u64
+                                  then
+                                    let i3 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b1 ← vcpu.valid_xcr0 value i3
+                                    if b1
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i4 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i4
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i3 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i3
+                                      ok (core.result.Result.Ok (), s3, a1)
+                                else
+                                  let r ← error.invalid_arg Unit 1#u64
+                                  ok (r, s1, a1)
+                              else
+                                if f = 3221225730#u64
+                                then
+                                  let i2 ←
+                                    machineArchInst.vcpu_capability a1 1#u64
+                                  let b ← vcpu.canonical value i2
+                                  if b
+                                  then
+                                    if f = 4294967294#u64
+                                    then
+                                      let i3 ←
+                                        machineArchInst.vcpu_capability a1
+                                          0#u64
+                                      let b1 ← vcpu.valid_xcr0 value i3
+                                      if b1
+                                      then
+                                        if f = vcpu.MSR_VM_IBPB_DEFER
+                                        then
+                                          if value > 1#u64
+                                          then
+                                            let r ←
+                                              error.invalid_arg Unit 1#u64
+                                            ok (r, s1, a1)
+                                          else
+                                            let s2 ←
+                                              machineStoreInst.write s1 x value
+                                            let i4 ←
+                                              machineStoreInst.read s2 x
+                                            let s3 ←
+                                              vcpu.reply machineStoreInst s2
+                                                call i4
+                                            ok (core.result.Result.Ok (), s3,
+                                              a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i4 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i4
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                    else
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                  else
+                                    let r ← error.invalid_arg Unit 1#u64
+                                    ok (r, s1, a1)
+                                else
+                                  if f = 4294967294#u64
+                                  then
+                                    let i2 ←
+                                      machineArchInst.vcpu_capability a1 0#u64
+                                    let b ← vcpu.valid_xcr0 value i2
+                                    if b
+                                    then
+                                      if f = vcpu.MSR_VM_IBPB_DEFER
+                                      then
+                                        if value > 1#u64
+                                        then
+                                          let r ←
+                                            error.invalid_arg Unit 1#u64
+                                          ok (r, s1, a1)
+                                        else
+                                          let s2 ←
+                                            machineStoreInst.write s1 x value
+                                          let i3 ← machineStoreInst.read s2 x
+                                          let s3 ←
+                                            vcpu.reply machineStoreInst s2 call
+                                              i3
+                                          ok (core.result.Result.Ok (), s3, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i3 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i3
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let r ← error.invalid_arg Unit 1#u64
+                                      ok (r, s1, a1)
+                                  else
+                                    if f = vcpu.MSR_VM_IBPB_DEFER
+                                    then
+                                      if value > 1#u64
+                                      then
+                                        let r ← error.invalid_arg Unit 1#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let s2 ←
+                                          machineStoreInst.write s1 x value
+                                        let i2 ← machineStoreInst.read s2 x
+                                        let s3 ←
+                                          vcpu.reply machineStoreInst s2 call
+                                            i2
+                                        ok (core.result.Result.Ok (), s3, a1)
+                                    else
+                                      let s2 ←
+                                        machineStoreInst.write s1 x value
+                                      let i2 ← machineStoreInst.read s2 x
+                                      let s3 ←
+                                        vcpu.reply machineStoreInst s2 call i2
+                                      ok (core.result.Result.Ok (), s3, a1)
+                          else
+                            let i2 ← machineStoreInst.read s1 x
+                            let s2 ← vcpu.reply machineStoreInst s1 call i2
+                            ok (core.result.Result.Ok (), s2, a1)
+                  else
+                    if lbl = fl4_abi.label.X86VCPUEnableIOPort
+                    then
+                      if i = 2#u64
+                      then let r ← error.illegal Unit
+                           ok (r, s1, a1)
+                      else
+                        if length < 2#u64
+                        then let r ← error.truncated Unit
+                             ok (r, s1, a1)
+                        else
+                          let low ← lift (f &&& 65535#u64)
+                          let high ← lift (value &&& 65535#u64)
+                          if low > high
+                          then
+                            let r ← error.invalid_arg Unit 0#u64
+                            ok (r, s1, a1)
+                          else
+                            if lbl = fl4_abi.label.X86VCPUEnableIOPort
+                            then
+                              let s2 ← Array.index_usize ex 0#usize
+                              let b ← obj.Slot.is_null s2
+                              if b
+                              then
+                                let r ← error.truncated Unit
+                                ok (r, s1, a1)
+                              else
+                                let c ← obj.Slot.cap machineStoreInst s2 s1
+                                match c with
+                                | capability.Cap.Null =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Untyped _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Endpoint _ _ _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Notification _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Reply _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.CNode _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Thread _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.IrqControl =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.IrqHandler _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Zombie _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Domain =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.SchedContext _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.SchedControl _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.PageTable _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.PageDirectory _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Pdpt _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Pml4 _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Vcpu _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.Ept _ _ _ _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.AsidControl =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.AsidPool _ _ =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.IoPortControl =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                                | capability.Cap.IoPort first last prior =>
+                                  if low < first
+                                  then
+                                    let r ← error.invalid_arg Unit 0#u64
+                                    ok (r, s1, a1)
+                                  else
+                                    if high > last
+                                    then
+                                      let r ← error.invalid_arg Unit 0#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      let old ←
+                                        obj.ks_get machineStoreInst s1
+                                          layout.ks.VCPU_HEAD
+                                      let (s3, a2) ←
+                                        vcpu.decode_loop3 machineStoreInst
+                                          machineArchInst s1 a1 first last
+                                          prior old layout.WALK_FUEL
+                                      let s4 ← Array.index_usize ex 0#usize
+                                      let s5 ←
+                                        obj.Slot.set_cap machineStoreInst s4 s3
+                                          (capability.Cap.IoPort first last v)
+                                      let s6 ←
+                                        vcpu.ports machineStoreInst s5 v low
+                                          high (¬ (lbl =
+                                          fl4_abi.label.X86VCPUEnableIOPort))
+                                      let s7 ←
+                                        sched.set_thread_state machineStoreInst
+                                          s6 ct sched.TS_RESTART
+                                      ok (core.result.Result.Ok (), s7, a2)
+                                | capability.Cap.TdxControl =>
+                                  let r ← error.illegal Unit
+                                  ok (r, s1, a1)
+                            else
+                              let s2 ←
+                                vcpu.ports machineStoreInst s1 v low high (¬
+                                  (lbl = fl4_abi.label.X86VCPUEnableIOPort))
+                              let s3 ←
+                                sched.set_thread_state machineStoreInst s2 ct
+                                  sched.TS_RESTART
+                              ok (core.result.Result.Ok (), s3, a1)
+                    else
+                      if lbl = fl4_abi.label.X86VCPUDisableIOPort
+                      then
+                        if i = 2#u64
+                        then let r ← error.illegal Unit
+                             ok (r, s1, a1)
+                        else
+                          if length < 2#u64
+                          then let r ← error.truncated Unit
+                               ok (r, s1, a1)
+                          else
+                            let low ← lift (f &&& 65535#u64)
+                            let high ← lift (value &&& 65535#u64)
+                            if low > high
+                            then
+                              let r ← error.invalid_arg Unit 0#u64
+                              ok (r, s1, a1)
+                            else
+                              if lbl = fl4_abi.label.X86VCPUEnableIOPort
+                              then
+                                let s2 ← Array.index_usize ex 0#usize
+                                let b ← obj.Slot.is_null s2
+                                if b
+                                then
+                                  let r ← error.truncated Unit
+                                  ok (r, s1, a1)
+                                else
+                                  let c ← obj.Slot.cap machineStoreInst s2 s1
+                                  match c with
+                                  | capability.Cap.Null =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Untyped _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Endpoint _ _ _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Notification _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Reply _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.CNode _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Thread _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.IrqControl =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.IrqHandler _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Zombie _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Domain =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.SchedContext _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.SchedControl _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.PageTable _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.PageDirectory _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Pdpt _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Pml4 _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Vcpu _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.Ept _ _ _ _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.AsidControl =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.AsidPool _ _ =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.IoPortControl =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                                  | capability.Cap.IoPort first last prior =>
+                                    if low < first
+                                    then
+                                      let r ← error.invalid_arg Unit 0#u64
+                                      ok (r, s1, a1)
+                                    else
+                                      if high > last
+                                      then
+                                        let r ← error.invalid_arg Unit 0#u64
+                                        ok (r, s1, a1)
+                                      else
+                                        let old ←
+                                          obj.ks_get machineStoreInst s1
+                                            layout.ks.VCPU_HEAD
+                                        let (s3, a2) ←
+                                          vcpu.decode_loop4 machineStoreInst
+                                            machineArchInst s1 a1 first last
+                                            prior old layout.WALK_FUEL
+                                        let s4 ← Array.index_usize ex 0#usize
+                                        let s5 ←
+                                          obj.Slot.set_cap machineStoreInst s4
+                                            s3 (capability.Cap.IoPort first
+                                            last v)
+                                        let s6 ←
+                                          vcpu.ports machineStoreInst s5 v low
+                                            high (¬ (lbl =
+                                            fl4_abi.label.X86VCPUEnableIOPort))
+                                        let s7 ←
+                                          sched.set_thread_state
+                                            machineStoreInst s6 ct
+                                            sched.TS_RESTART
+                                        ok (core.result.Result.Ok (), s7, a2)
+                                  | capability.Cap.TdxControl =>
+                                    let r ← error.illegal Unit
+                                    ok (r, s1, a1)
+                              else
+                                let s2 ←
+                                  vcpu.ports machineStoreInst s1 v low high (¬
+                                    (lbl = fl4_abi.label.X86VCPUEnableIOPort))
+                                let s3 ←
+                                  sched.set_thread_state machineStoreInst s2 ct
+                                    sched.TS_RESTART
+                                ok (core.result.Result.Ok (), s3, a1)
+                      else let r ← error.illegal Unit
+                           ok (r, s1, a1)
+
+/-- [fl4_core::syscall::DEBUG_MESSAGE_START]
+    Source: 'crates/fl4-core/src/syscall.rs', lines 219:0-219:35 -/
+@[global_simps, irreducible] def syscall.DEBUG_MESSAGE_START : Std.U64 := 6#u64
+
+/-- [fl4_core::syscall::error_mrs]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 62:0-77:1 -/
+def syscall.error_mrs
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (buf : Std.U64) (e : error.SysError) :
+  Result (Std.U64 × S)
+  := do
+  match e with
+  | error.SysError.InvalidArgument arg =>
+    msg.set_mr machineStoreInst s t buf 0#u64 arg
+  | error.SysError.InvalidCapability arg =>
+    msg.set_mr machineStoreInst s t buf 0#u64 arg
+  | error.SysError.IllegalOperation => ok (0#u64, s)
+  | error.SysError.RangeError min max =>
+    let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 min
+    msg.set_mr machineStoreInst s1 t buf 1#u64 max
+  | error.SysError.AlignmentError => ok (0#u64, s)
+  | error.SysError.FailedLookup source lf =>
+    if source
+    then
+      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 1#u64
+      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
+    else
+      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 0#u64
+      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
+  | error.SysError.TruncatedMessage => ok (0#u64, s)
+  | error.SysError.DeleteFirst => ok (0#u64, s)
+  | error.SysError.RevokeFirst => ok (0#u64, s)
+  | error.SysError.NotEnoughMemory bytes =>
+    msg.set_mr machineStoreInst s t buf 0#u64 bytes
+
+/-- [fl4_core::syscall::reply_error]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 44:0-59:1 -/
+def syscall.reply_error
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (e : error.SysError) :
+  Result S
+  := do
+  let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
+  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
+  let (len, s2) ← syscall.error_mrs machineStoreInst s1 t buf e
+  let (s3, len1) ←
+    if fl4_abi.config.KERNEL_INVOCATION_REPORT_ERROR_IPC
+    then
+      if buf != 0#u64
+      then
+        do
+        let i ← syscall.DEBUG_MESSAGE_START + 1#u64
+        let w ← msg.buf_get machineStoreInst s2 buf i
+        let i1 ← lift (~~~ 255#u64)
+        let i2 ← lift (w &&& i1)
+        let s4 ← msg.buf_set machineStoreInst s2 buf i i2
+        let len2 ← lift (core.num.U64.wrapping_add len 1#u64)
+        ok (s4, len2)
+      else ok (s2, len)
+    else ok (s2, len)
+  let i ← error.SysError.code e
+  let mi ← msginfo.MessageInfo.new i 0#u64 0#u64 len1
+  msg.set_msg_info machineStoreInst s3 t mi
+
+/-- [fl4_core::localvm::handle_vcpu_invocation_local]:
+    Source: 'crates/fl4-core/src/localvm.rs', lines 441:0-501:1
+    Visibility: public -/
+def localvm.handle_vcpu_invocation_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (slot : obj.Slot) (v : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let ct ← sched.cur_thread machineStoreInst s
+  let cpu ← machineStoreInst.cur_cpu s
+  let info ← msg.msg_info machineStoreInst s ct
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    let i ← obj.Tcb.flags machineStoreInst ct s
+    let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+    if i1 != 0#u64
+    then ok (false, s, a)
+    else
+      if number != fl4_abi.syscall.SysCall
+      then
+        if number != fl4_abi.syscall.SysSend
+        then ok (false, s, a)
+        else
+          let b ← localvm.is_vcpu_state_label info.label
+          if b
+          then
+            if info.extra_caps != 0#u64
+            then ok (false, s, a)
+            else
+              let i2 ← machineArchInst.virtualization a
+              if i2 = 0#u64
+              then ok (false, s, a)
+              else
+                if v = 0#u64
+                then ok (false, s, a)
+                else
+                  let c ← obj.Slot.cap machineStoreInst slot s
+                  let b1 ←
+                    core.cmp.PartialEq.ne.trait_default
+                      capability.Cap.Insts.CoreCmpPartialEqCap c
+                      (capability.Cap.Vcpu v)
+                  if b1
+                  then ok (false, s, a)
+                  else
+                    let i3 ← vcpu.get machineStoreInst s v vcpu.TCB
+                    if i3 != ct
+                    then ok (false, s, a)
+                    else
+                      let i4 ← vcpu.bound machineStoreInst s ct
+                      if i4 != v
+                      then ok (false, s, a)
+                      else
+                        let csc ← sched.cur_sc machineStoreInst s
+                        let b2 ←
+                          localvm.current_vm_ok machineStoreInst s cpu ct csc
+                        if b2
+                        then
+                          let i5 ← obj.Tcb.state machineStoreInst ct s
+                          if i5 != sched.TS_RUNNING
+                          then ok (false, s, a)
+                          else
+                            let b3 ←
+                              sched.is_schedulable machineStoreInst s ct
+                            if b3
+                            then
+                              let b4 ←
+                                localtimer.sched_quiet machineStoreInst s cpu
+                              if b4
+                              then
+                                let (s1, a1) ←
+                                  localvm.syscall_prefix machineStoreInst
+                                    machineArchInst s a ct
+                                let now ← sched.cur_time machineStoreInst s1
+                                let i6 ← sched.consumed machineStoreInst s1
+                                let b5 ←
+                                  sporadic.sufficient machineStoreInst
+                                    machineArchInst s1 a1 csc i6
+                                if b5
+                                then
+                                  let b6 ←
+                                    localvm.awaken_quiet machineStoreInst s1
+                                      cpu now
+                                  if b6
+                                  then
+                                    let buf ←
+                                      msg.lookup_ipc_buffer machineStoreInst s1
+                                        false ct
+                                    let r ←
+                                      ipc.lookup_extra_caps machineStoreInst s1
+                                        ct buf info
+                                    match r with
+                                    | core.result.Result.Ok e =>
+                                      let length ←
+                                        if info.length > msg.N_MSG_REGISTERS
+                                        then
+                                          if buf = 0#u64
+                                          then ok msg.N_MSG_REGISTERS
+                                          else ok info.length
+                                        else ok info.length
+                                      let (r1, s2, a2) ←
+                                        vcpu.decode machineStoreInst
+                                          machineArchInst s1 a1 info.label
+                                          length v (number =
+                                          fl4_abi.syscall.SysCall) buf e
+                                      let (s3, a3) ←
+                                        match r1 with
+                                        | core.result.Result.Ok _ =>
+                                          do
+                                          let i7 ←
+                                            obj.Tcb.state machineStoreInst ct
+                                              s2
+                                          if i7 = sched.TS_RESTART
+                                          then
+                                            let s4 ←
+                                              if number =
+                                                fl4_abi.syscall.SysCall
+                                              then
+                                                msg.reply_success_empty
+                                                  machineStoreInst s2 ct
+                                              else ok s2
+                                            let s5 ←
+                                              sched.set_thread_state
+                                                machineStoreInst s4 ct
+                                                sched.TS_RUNNING
+                                            ok (s5, a2)
+                                          else ok (s2, a2)
+                                        | core.result.Result.Err e1 =>
+                                          match e1 with
+                                          | error.Exc.Fault _ => ok (s2, a2)
+                                          | error.Exc.Lookup _ => ok (s2, a2)
+                                          | error.Exc.Sys e2 =>
+                                            do
+                                            let t ←
+                                              if number =
+                                                fl4_abi.syscall.SysCall
+                                              then
+                                                syscall.reply_error
+                                                  machineStoreInst s2 ct e2
+                                              else ok s2
+                                            ok (t, a2)
+                                          | error.Exc.Preempted => ok (s2, a2)
+                                      let (s4, a4) ←
+                                        localvm.finish machineStoreInst
+                                          machineArchInst s3 a3
+                                      ok (true, s4, a4)
+                                    | core.result.Result.Err _ =>
+                                      ok (false, s1, a1)
+                                  else ok (false, s1, a1)
+                                else ok (false, s1, a1)
+                              else ok (false, s, a)
+                            else ok (false, s, a)
+                        else ok (false, s, a)
+          else ok (false, s, a)
+      else
+        let b ← localvm.is_vcpu_state_label info.label
+        if b
+        then
+          if info.extra_caps != 0#u64
+          then ok (false, s, a)
+          else
+            let i2 ← machineArchInst.virtualization a
+            if i2 = 0#u64
+            then ok (false, s, a)
+            else
+              if v = 0#u64
+              then ok (false, s, a)
+              else
+                let c ← obj.Slot.cap machineStoreInst slot s
+                let b1 ←
+                  core.cmp.PartialEq.ne.trait_default
+                    capability.Cap.Insts.CoreCmpPartialEqCap c
+                    (capability.Cap.Vcpu v)
+                if b1
+                then ok (false, s, a)
+                else
+                  let i3 ← vcpu.get machineStoreInst s v vcpu.TCB
+                  if i3 != ct
+                  then ok (false, s, a)
+                  else
+                    let i4 ← vcpu.bound machineStoreInst s ct
+                    if i4 != v
+                    then ok (false, s, a)
+                    else
+                      let csc ← sched.cur_sc machineStoreInst s
+                      let b2 ←
+                        localvm.current_vm_ok machineStoreInst s cpu ct csc
+                      if b2
+                      then
+                        let i5 ← obj.Tcb.state machineStoreInst ct s
+                        if i5 != sched.TS_RUNNING
+                        then ok (false, s, a)
+                        else
+                          let b3 ← sched.is_schedulable machineStoreInst s ct
+                          if b3
+                          then
+                            let b4 ←
+                              localtimer.sched_quiet machineStoreInst s cpu
+                            if b4
+                            then
+                              let (s1, a1) ←
+                                localvm.syscall_prefix machineStoreInst
+                                  machineArchInst s a ct
+                              let now ← sched.cur_time machineStoreInst s1
+                              let i6 ← sched.consumed machineStoreInst s1
+                              let b5 ←
+                                sporadic.sufficient machineStoreInst
+                                  machineArchInst s1 a1 csc i6
+                              if b5
+                              then
+                                let b6 ←
+                                  localvm.awaken_quiet machineStoreInst s1 cpu
+                                    now
+                                if b6
+                                then
+                                  let buf ←
+                                    msg.lookup_ipc_buffer machineStoreInst s1
+                                      false ct
+                                  let r ←
+                                    ipc.lookup_extra_caps machineStoreInst s1
+                                      ct buf info
+                                  match r with
+                                  | core.result.Result.Ok e =>
+                                    let length ←
+                                      if info.length > msg.N_MSG_REGISTERS
+                                      then
+                                        if buf = 0#u64
+                                        then ok msg.N_MSG_REGISTERS
+                                        else ok info.length
+                                      else ok info.length
+                                    let (r1, s2, a2) ←
+                                      vcpu.decode machineStoreInst
+                                        machineArchInst s1 a1 info.label length
+                                        v (number = fl4_abi.syscall.SysCall)
+                                        buf e
+                                    let (s3, a3) ←
+                                      match r1 with
+                                      | core.result.Result.Ok _ =>
+                                        do
+                                        let i7 ←
+                                          obj.Tcb.state machineStoreInst ct s2
+                                        if i7 = sched.TS_RESTART
+                                        then
+                                          let s4 ←
+                                            if number = fl4_abi.syscall.SysCall
+                                            then
+                                              msg.reply_success_empty
+                                                machineStoreInst s2 ct
+                                            else ok s2
+                                          let s5 ←
+                                            sched.set_thread_state
+                                              machineStoreInst s4 ct
+                                              sched.TS_RUNNING
+                                          ok (s5, a2)
+                                        else ok (s2, a2)
+                                      | core.result.Result.Err e1 =>
+                                        match e1 with
+                                        | error.Exc.Fault _ => ok (s2, a2)
+                                        | error.Exc.Lookup _ => ok (s2, a2)
+                                        | error.Exc.Sys e2 =>
+                                          do
+                                          let t ←
+                                            if number = fl4_abi.syscall.SysCall
+                                            then
+                                              syscall.reply_error
+                                                machineStoreInst s2 ct e2
+                                            else ok s2
+                                          ok (t, a2)
+                                        | error.Exc.Preempted => ok (s2, a2)
+                                    let (s4, a4) ←
+                                      localvm.finish machineStoreInst
+                                        machineArchInst s3 a3
+                                    ok (true, s4, a4)
+                                  | core.result.Result.Err _ =>
+                                    ok (false, s1, a1)
+                                else ok (false, s1, a1)
+                              else ok (false, s1, a1)
+                            else ok (false, s, a)
+                          else ok (false, s, a)
+                      else ok (false, s, a)
+        else ok (false, s, a)
+
 /-- [fl4_core::machine::Store::frame_masks]:
     Source: 'crates/fl4-core/src/machine.rs', lines 14:4-14:50
     Visibility: public -/
@@ -34832,8 +40386,26 @@ def machine.Arch.vcpu_barrier.default
   {Self : Type _} (self : Self) : Result Self := do
   ok self
 
+/-- [fl4_core::machine::Arch::vcpu_sync]:
+    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:52
+    Visibility: public -/
+@[trait_default]
+def machine.Arch.vcpu_sync.default
+  {Self : Type _} (self : Self) (_v : Std.U64) (_field : Std.U64) :
+  Result Self
+  := do
+  ok self
+
+/-- [fl4_core::machine::Arch::vcpu_release]:
+    Source: 'crates/fl4-core/src/machine.rs', lines 64:4-64:42
+    Visibility: public -/
+@[trait_default]
+def machine.Arch.vcpu_release.default
+  {Self : Type _} (self : Self) (_v : Std.U64) : Result Self := do
+  ok self
+
 /-- [fl4_core::machine::Arch::invalidate_ept]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 58:4-58:59
+    Source: 'crates/fl4-core/src/machine.rs', lines 66:4-66:59
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_ept.default
@@ -34843,7 +40415,7 @@ def machine.Arch.invalidate_ept.default
   ok self
 
 /-- [fl4_core::machine::Arch::tdx_active]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:42
+    Source: 'crates/fl4-core/src/machine.rs', lines 69:4-69:42
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_active.default
@@ -34851,7 +40423,7 @@ def machine.Arch.tdx_active.default
   ok false
 
 /-- [fl4_core::machine::Arch::tdx_report]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 65:4-65:145
+    Source: 'crates/fl4-core/src/machine.rs', lines 73:4-73:145
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_report.default
@@ -34863,7 +40435,7 @@ def machine.Arch.tdx_report.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_extend_rtmr]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 68:4-68:126
+    Source: 'crates/fl4-core/src/machine.rs', lines 76:4-76:126
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_extend_rtmr.default
@@ -34875,7 +40447,7 @@ def machine.Arch.tdx_extend_rtmr.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_get_quote]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 71:4-71:83
+    Source: 'crates/fl4-core/src/machine.rs', lines 79:4-79:83
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_get_quote.default
@@ -34885,7 +40457,7 @@ def machine.Arch.tdx_get_quote.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::irq_free]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 92:4-92:40
+    Source: 'crates/fl4-core/src/machine.rs', lines 100:4-100:40
     Visibility: public -/
 @[trait_default]
 def machine.Arch.irq_free.default
@@ -36742,4503 +42314,6 @@ def sporadic.Refill.Insts.CoreCmpEq : core.cmp.Eq sporadic.Refill := {
   partialEqInst := sporadic.Refill.Insts.CoreCmpPartialEqRefill
   assert_fields_are_eq := sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq
 }
-
-/-- [fl4_core::syscall::DEBUG_MESSAGE_START]
-    Source: 'crates/fl4-core/src/syscall.rs', lines 219:0-219:35 -/
-@[global_simps, irreducible] def syscall.DEBUG_MESSAGE_START : Std.U64 := 6#u64
-
-/-- [fl4_core::syscall::error_mrs]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 62:0-77:1 -/
-def syscall.error_mrs
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (buf : Std.U64) (e : error.SysError) :
-  Result (Std.U64 × S)
-  := do
-  match e with
-  | error.SysError.InvalidArgument arg =>
-    msg.set_mr machineStoreInst s t buf 0#u64 arg
-  | error.SysError.InvalidCapability arg =>
-    msg.set_mr machineStoreInst s t buf 0#u64 arg
-  | error.SysError.IllegalOperation => ok (0#u64, s)
-  | error.SysError.RangeError min max =>
-    let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 min
-    msg.set_mr machineStoreInst s1 t buf 1#u64 max
-  | error.SysError.AlignmentError => ok (0#u64, s)
-  | error.SysError.FailedLookup source lf =>
-    if source
-    then
-      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 1#u64
-      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
-    else
-      let (_, s1) ← msg.set_mr machineStoreInst s t buf 0#u64 0#u64
-      faults.set_mrs_lookup_failure_at machineStoreInst s1 t buf lf 1#u64
-  | error.SysError.TruncatedMessage => ok (0#u64, s)
-  | error.SysError.DeleteFirst => ok (0#u64, s)
-  | error.SysError.RevokeFirst => ok (0#u64, s)
-  | error.SysError.NotEnoughMemory bytes =>
-    msg.set_mr machineStoreInst s t buf 0#u64 bytes
-
-/-- [fl4_core::syscall::reply_error]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 44:0-59:1 -/
-def syscall.reply_error
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (e : error.SysError) :
-  Result S
-  := do
-  let buf ← msg.lookup_ipc_buffer machineStoreInst s true t
-  let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE 0#u64
-  let (len, s2) ← syscall.error_mrs machineStoreInst s1 t buf e
-  let (s3, len1) ←
-    if fl4_abi.config.KERNEL_INVOCATION_REPORT_ERROR_IPC
-    then
-      if buf != 0#u64
-      then
-        do
-        let i ← syscall.DEBUG_MESSAGE_START + 1#u64
-        let w ← msg.buf_get machineStoreInst s2 buf i
-        let i1 ← lift (~~~ 255#u64)
-        let i2 ← lift (w &&& i1)
-        let s4 ← msg.buf_set machineStoreInst s2 buf i i2
-        let len2 ← lift (core.num.U64.wrapping_add len 1#u64)
-        ok (s4, len2)
-      else ok (s2, len)
-    else ok (s2, len)
-  let i ← error.SysError.code e
-  let mi ← msginfo.MessageInfo.new i 0#u64 0#u64 len1
-  msg.set_msg_info machineStoreInst s3 t mi
-
-/-- [fl4_core::vcpu::vmx::DATA_GUEST_LINEAR_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 186:4-186:58
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS : Std.U64 := 25610#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IO_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 185:4-185:44
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RIP : Std.U64 := 25608#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IO_RDI]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 184:4-184:44
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RDI : Std.U64 := 25606#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IO_RSI]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 183:4-183:44
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RSI : Std.U64 := 25604#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IO_RCX]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 182:4-182:44
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.vmx.DATA_IO_RCX : Std.U64 := 25602#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 148:4-148:59
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_EXIT_INSTRUCTION_INFO : Std.U64 := 17422#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_EXIT_INSTRUCTION_LENGTH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 147:4-147:61
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_EXIT_INSTRUCTION_LENGTH : Std.U64 := 17420#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 146:4-146:54
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_IDT_VECTOR_ERROR : Std.U64 := 17418#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_IDT_VECTOR_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 145:4-145:53
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_IDT_VECTOR_INFO : Std.U64 := 17416#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 144:4-144:58
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_EXIT_INTERRUPT_ERROR : Std.U64 := 17414#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_EXIT_INTERRUPT_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 143:4-143:57
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_EXIT_INTERRUPT_INFO : Std.U64 := 17412#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_INSTRUCTION_ERROR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 141:4-141:55
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_INSTRUCTION_ERROR : Std.U64 := 17408#u64
-
-/-- [fl4_core::vcpu::vmx::DATA_GUEST_PHYSICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 109:4-109:52
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.vmx.DATA_GUEST_PHYSICAL : Std.U64 := 9216#u64
-
-/-- [fl4_core::vcpu::READ_FIELDS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 361:0-446:2
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
-  Array.make 84#usize [
-    vcpu.vmx.GUEST_RIP, vcpu.vmx.GUEST_RSP, vcpu.vmx.GUEST_ES_SELECTOR,
-    vcpu.vmx.GUEST_CS_SELECTOR, vcpu.vmx.GUEST_SS_SELECTOR,
-    vcpu.vmx.GUEST_DS_SELECTOR, vcpu.vmx.GUEST_FS_SELECTOR,
-    vcpu.vmx.GUEST_GS_SELECTOR, vcpu.vmx.GUEST_LDTR_SELECTOR,
-    vcpu.vmx.GUEST_TR_SELECTOR, vcpu.vmx.GUEST_DEBUGCTRL, vcpu.vmx.GUEST_PAT,
-    vcpu.vmx.GUEST_EFER, vcpu.vmx.GUEST_PERF_GLOBAL_CTRL,
-    vcpu.vmx.GUEST_PDPTE0, vcpu.vmx.GUEST_PDPTE1, vcpu.vmx.GUEST_PDPTE2,
-    vcpu.vmx.GUEST_PDPTE3, vcpu.vmx.GUEST_ES_LIMIT, vcpu.vmx.GUEST_CS_LIMIT,
-    vcpu.vmx.GUEST_SS_LIMIT, vcpu.vmx.GUEST_DS_LIMIT, vcpu.vmx.GUEST_FS_LIMIT,
-    vcpu.vmx.GUEST_GS_LIMIT, vcpu.vmx.GUEST_LDTR_LIMIT,
-    vcpu.vmx.GUEST_TR_LIMIT, vcpu.vmx.GUEST_GDTR_LIMIT,
-    vcpu.vmx.GUEST_IDTR_LIMIT, vcpu.vmx.GUEST_ES_ACCESS_RIGHTS,
-    vcpu.vmx.GUEST_CS_ACCESS_RIGHTS, vcpu.vmx.GUEST_SS_ACCESS_RIGHTS,
-    vcpu.vmx.GUEST_DS_ACCESS_RIGHTS, vcpu.vmx.GUEST_FS_ACCESS_RIGHTS,
-    vcpu.vmx.GUEST_GS_ACCESS_RIGHTS, vcpu.vmx.GUEST_LDTR_ACCESS_RIGHTS,
-    vcpu.vmx.GUEST_TR_ACCESS_RIGHTS, vcpu.vmx.GUEST_INTERRUPTABILITY,
-    vcpu.vmx.GUEST_ACTIVITY, vcpu.vmx.GUEST_SMBASE, vcpu.vmx.GUEST_SYSENTER_CS,
-    vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE, vcpu.vmx.GUEST_ES_BASE,
-    vcpu.vmx.GUEST_CS_BASE, vcpu.vmx.GUEST_SS_BASE, vcpu.vmx.GUEST_DS_BASE,
-    vcpu.vmx.GUEST_FS_BASE, vcpu.vmx.GUEST_GS_BASE, vcpu.vmx.GUEST_LDTR_BASE,
-    vcpu.vmx.GUEST_TR_BASE, vcpu.vmx.GUEST_GDTR_BASE, vcpu.vmx.GUEST_IDTR_BASE,
-    vcpu.vmx.GUEST_DR7, vcpu.vmx.GUEST_RFLAGS,
-    vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS, vcpu.vmx.GUEST_SYSENTER_ESP,
-    vcpu.vmx.GUEST_SYSENTER_EIP, vcpu.vmx.CONTROL_CR0_MASK,
-    vcpu.vmx.CONTROL_CR4_MASK, vcpu.vmx.CONTROL_CR0_READ_SHADOW,
-    vcpu.vmx.CONTROL_CR4_READ_SHADOW, vcpu.vmx.DATA_INSTRUCTION_ERROR,
-    vcpu.vmx.DATA_EXIT_INTERRUPT_INFO, vcpu.vmx.DATA_EXIT_INTERRUPT_ERROR,
-    vcpu.vmx.DATA_IDT_VECTOR_INFO, vcpu.vmx.DATA_IDT_VECTOR_ERROR,
-    vcpu.vmx.DATA_EXIT_INSTRUCTION_LENGTH, vcpu.vmx.DATA_EXIT_INSTRUCTION_INFO,
-    vcpu.vmx.DATA_GUEST_PHYSICAL, vcpu.vmx.DATA_IO_RCX, vcpu.vmx.DATA_IO_RSI,
-    vcpu.vmx.DATA_IO_RDI, vcpu.vmx.DATA_IO_RIP,
-    vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS,
-    vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO, vcpu.vmx.CONTROL_TSC_OFFSET,
-    vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS,
-    vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS,
-    vcpu.vmx.CONTROL_SECONDARY_PROCESSOR_CONTROLS,
-    vcpu.vmx.CONTROL_EXCEPTION_BITMAP, vcpu.vmx.CONTROL_ENTRY_CONTROLS,
-    vcpu.vmx.CONTROL_EXIT_CONTROLS, vcpu.vmx.GUEST_CR0, vcpu.vmx.GUEST_CR3,
-    vcpu.vmx.GUEST_CR4
-    ]
-
-/-- [fl4_core::vcpu::MSRS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 38:0-38:29
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.MSRS : Std.U64 := 20864#u64
-
-/-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 805:20-805:76 -/
-def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
-  (c : vcpu.msr_addr.closure_1) (tupled_args : Std.U64) : Result Std.U64 := do
-  let i ← lift (core.num.U64.wrapping_add c vcpu.MSRS)
-  let i1 ← lift (core.num.U64.wrapping_mul tupled_args 8#u64)
-  ok (core.num.U64.wrapping_add i i1)
-
-/-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 805:20-805:76 -/
-@[reducible]
-def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
-  core.ops.function.FnOnce vcpu.msr_addr.closure_1 Std.U64 Std.U64 := {
-  call_once :=
-    vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
-}
-
-/-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 800:30-800:55 -/
-def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
-  (c : vcpu.msr_addr.closure) (tupled_args : Std.U64) : Result Std.U64 := do
-  ok (core.num.U64.wrapping_add c tupled_args)
-
-/-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 800:30-800:55 -/
-@[reducible]
-def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
-  core.ops.function.FnOnce vcpu.msr_addr.closure Std.U64 Std.U64 := {
-  call_once :=
-    vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
-}
-
-/-- [fl4_core::vcpu::svm::KERNEL_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 277:4-277:49
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.KERNEL_GS_BASE : Result Std.U64 := vcpu.svm.SAVE + 544#u64
-
-/-- [fl4_core::vcpu::svm::SFMASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 276:4-276:41
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.SFMASK : Result Std.U64 := vcpu.svm.SAVE + 536#u64
-
-/-- [fl4_core::vcpu::svm::CSTAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 275:4-275:40
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.CSTAR : Result Std.U64 := vcpu.svm.SAVE + 528#u64
-
-/-- [fl4_core::vcpu::svm::LSTAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 274:4-274:40
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.LSTAR : Result Std.U64 := vcpu.svm.SAVE + 520#u64
-
-/-- [fl4_core::vcpu::svm::STAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 273:4-273:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.STAR : Result Std.U64 := vcpu.svm.SAVE + 512#u64
-
-/-- [fl4_core::vcpu::svm_msr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:0-791:1 -/
-def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
-  match f with
-  | 3221225601#uscalar => let i ← vcpu.svm.STAR
-                          ok (some i)
-  | 3221225602#uscalar => let i ← vcpu.svm.LSTAR
-                          ok (some i)
-  | 3221225603#uscalar => let i ← vcpu.svm.CSTAR
-                          ok (some i)
-  | 3221225604#uscalar => let i ← vcpu.svm.SFMASK
-                          ok (some i)
-  | 3221225730#uscalar => let i ← vcpu.svm.KERNEL_GS_BASE
-                          ok (some i)
-  | 4294967295#uscalar => let i ← vcpu.svm.CR2
-                          ok (some i)
-  | _ => ok none
-
-/-- [fl4_core::vcpu::msr_slot]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 771:0-780:1 -/
-def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
-  match f with
-  | 3221225601#uscalar => ok (some 0#u64)
-  | 3221225602#uscalar => ok (some 1#u64)
-  | 3221225603#uscalar => ok (some 2#u64)
-  | 3221225604#uscalar => ok (some 3#u64)
-  | 3221225730#uscalar => ok (some 4#u64)
-  | _ => ok none
-
-/-- [fl4_core::vcpu::MSR_VM_IBPB_DEFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 36:0-36:47
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.MSR_VM_IBPB_DEFER : Std.U64 := 4294967293#u64
-
-/-- [fl4_core::vcpu::VM_IBPB_DEFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 33:0-33:38
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.VM_IBPB_DEFER : Std.U64 := 20544#u64
-
-/-- [fl4_core::vcpu::msr_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 792:0-806:1 -/
-def vcpu.msr_addr
-  (v : Std.U64) (f : Std.U64) (amd : Bool) : Result (Option Std.U64) := do
-  if f = 4294967294#u64
-  then let i ← lift (core.num.U64.wrapping_add v vcpu.XCR0)
-       ok (some i)
-  else
-    if f = vcpu.MSR_VM_IBPB_DEFER
-    then
-      let i ← lift (core.num.U64.wrapping_add v vcpu.VM_IBPB_DEFER)
-      ok (some i)
-    else
-      if amd
-      then
-        let o ← vcpu.svm_msr f
-        core.option.Option.map
-          vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
-      else
-        if f = 4294967295#u64
-        then let i ← lift (core.num.U64.wrapping_add v vcpu.CR2)
-             ok (some i)
-        else
-          let o ← vcpu.msr_slot f
-          core.option.Option.map
-            vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
-
-/-- [fl4_core::vcpu::reply]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 703:0-712:1 -/
-def vcpu.reply
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (call : Bool)
-  (value : Std.U64) :
-  Result S
-  := do
-  let ct ← sched.cur_thread machineStoreInst s
-  let s1 ←
-    if call
-    then
-      do
-      let b ← msg.lookup_ipc_buffer machineStoreInst s true ct
-      let (_, s2) ← msg.set_mr machineStoreInst s ct b 0#u64 value
-      let s3 ← obj.Tcb.set_reg machineStoreInst ct s2 layout.reg.BADGE 0#u64
-      let mi ← msginfo.MessageInfo.new 0#u64 0#u64 0#u64 1#u64
-      msg.set_msg_info machineStoreInst s3 ct mi
-    else ok s
-  sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
-
-/-- [fl4_core::vcpu::vmcb_hidden]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 627:0-632:1
-    Visibility: public -/
-def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
-  match f with
-  | 64#uscalar => ok true
-  | 72#uscalar => ok true
-  | 88#uscalar => ok true
-  | 152#uscalar => ok true
-  | 160#uscalar => ok true
-  | 176#uscalar => ok true
-  | 192#uscalar => ok true
-  | 224#uscalar => ok true
-  | 240#uscalar => ok true
-  | 248#uscalar => ok true
-  | 264#uscalar => ok true
-  | _ => ok false
-
-/-- [fl4_core::vcpu::valid_pat]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 484:4-488:5
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.valid_pat_loop.body
-  (pat : Std.U64) (i : Std.U64) (ok1 : Bool) :
-  Result (ControlFlow (Std.U64 × Bool) Bool)
-  := do
-  if i < 8#u64
-  then
-    let i1 ← i * 8#u64
-    let i2 ← pat >>> i1
-    let t ← lift (i2 &&& 255#u64)
-    let ok2 ←
-      if ok1
-      then
-        if t <= 1#u64
-        then ok true
-        else if t >= 4#u64
-             then ok (t <= 7#u64)
-             else ok false
-      else ok false
-    let i3 ← i + 1#u64
-    ok (cont (i3, ok2))
-  else ok (done ok1)
-
-/-- [fl4_core::vcpu::valid_pat]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 484:4-488:5
-    Visibility: public -/
-@[rust_loop]
-def vcpu.valid_pat_loop
-  (pat : Std.U64) (i : Std.U64) (ok1 : Bool) : Result Bool := do
-  loop
-    (fun (i1, ok2) => vcpu.valid_pat_loop.body pat i1 ok2)
-    (i, ok1)
-
-/-- [fl4_core::vcpu::valid_pat]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 481:0-490:1
-    Visibility: public -/
-@[reducible]
-def vcpu.valid_pat (pat : Std.U64) : Result Bool := do
-  vcpu.valid_pat_loop pat 0#u64 true
-
-/-- [fl4_core::vcpu::canonical]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 467:0-471:1
-    Visibility: public -/
-def vcpu.canonical (value : Std.U64) (width : Std.U64) : Result Bool := do
-  let shift ← if width = 57#u64
-                then ok 56#i32
-                else ok 47#i32
-  let top ← value >>> shift
-  if top = 0#u64
-  then ok true
-  else let i ← core.num.U64.MAX >>> shift
-       ok (top = i)
-
-/-- [fl4_core::vcpu::sanitize_vmcb]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 586:0-620:1
-    Visibility: public -/
-def vcpu.sanitize_vmcb
-  {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
-  (old : Std.U64) (value : Std.U64) :
-  Result (core.result.Result Std.U64 error.Exc)
-  := do
-  match f with
-  | 0#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 4294967295#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 4294967295#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 18446744069415632896#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 4294967295#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 4294967295#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 18446744069415632896#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 8#uscalar =>
-    let i ← vcpu.SVM_I1_WRITABLE <<< 32#i32
-    let mask ← lift (4294967295#u64 ||| i)
-    let i1 ← vcpu.SVM_I1_FORCED <<< 32#i32
-    let i2 ← vcpu.EXCEPTIONS
-    let forced ← lift (i2 ||| i1)
-    let i3 ← vcpu.svm.G_PAT
-    if f = i3
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i4 ← lift (~~~ mask)
-        let i5 ← lift (old &&& i4)
-        let i6 ← lift (value &&& mask)
-        let i7 ← lift (i5 ||| i6)
-        let v ← lift (i7 ||| forced)
-        let i8 ← vcpu.svm.CR0
-        if f = i8
-        then
-          let i9 ← vcpu.CR0_OWNED
-          let i10 ← lift (~~~ i9)
-          let v1 ← lift (v &&& i10)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i4 ← lift (~~~ mask)
-      let i5 ← lift (old &&& i4)
-      let i6 ← lift (value &&& mask)
-      let i7 ← lift (i5 ||| i6)
-      let v ← lift (i7 ||| forced)
-      let i8 ← vcpu.svm.CR0
-      if f = i8
-      then
-        let i9 ← vcpu.CR0_OWNED
-        let i10 ← lift (~~~ i9)
-        let v1 ← lift (v &&& i10)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 16#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 386#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 386#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 386#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 386#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 56#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 18446744069414584320#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 18446744069414584320#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 18446744069414584320#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 18446744069414584320#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 80#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 96#uscalar =>
-    let forced ← 1#u64 <<< 24#i32
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 1095218692607#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 1095218692607#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| forced)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 1095218692607#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 1095218692607#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| forced)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 104#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 1#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 1#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 1#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 1#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 168#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ vcpu.SVM_EVENT)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& vcpu.SVM_EVENT)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ vcpu.SVM_EVENT)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& vcpu.SVM_EVENT)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 200#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1224#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ 4278190080#u64)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& 4278190080#u64)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ 4278190080#u64)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& 4278190080#u64)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1232#uscalar =>
-    let forced ← 1#u64 <<< 12#i32
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| forced)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| forced)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1352#uscalar =>
-    let mask ← vcpu.cr4_allowed machineArchInst a
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ mask)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& mask)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ mask)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& mask)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1024#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1040#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1056#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1072#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1088#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1104#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1120#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1136#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1152#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1168#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1360#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1368#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1376#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1384#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1392#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1400#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1496#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1528#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1536#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1560#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1576#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1600#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1640#uscalar =>
-    let i ← vcpu.svm.G_PAT
-    if f = i
-    then
-      let b ← vcpu.valid_pat value
-      if b
-      then
-        let i1 ← lift (~~~ core.num.U64.MAX)
-        let i2 ← lift (old &&& i1)
-        let i3 ← lift (value &&& core.num.U64.MAX)
-        let i4 ← lift (i2 ||| i3)
-        let v ← lift (i4 ||| 0#u64)
-        let i5 ← vcpu.svm.CR0
-        if f = i5
-        then
-          let i6 ← vcpu.CR0_OWNED
-          let i7 ← lift (~~~ i6)
-          let v1 ← lift (v &&& i7)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-      else error.invalid_arg Std.U64 1#u64
-    else
-      let i1 ← lift (~~~ core.num.U64.MAX)
-      let i2 ← lift (old &&& i1)
-      let i3 ← lift (value &&& core.num.U64.MAX)
-      let i4 ← lift (i2 ||| i3)
-      let v ← lift (i4 ||| 0#u64)
-      let i5 ← vcpu.svm.CR0
-      if f = i5
-      then
-        let i6 ← vcpu.CR0_OWNED
-        let i7 ← lift (~~~ i6)
-        let v1 ← lift (v &&& i7)
-        ok (core.result.Result.Ok v1)
-      else ok (core.result.Result.Ok v)
-  | 1032#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1048#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1064#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1080#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1096#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1112#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1128#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1144#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1160#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1176#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1544#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1552#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1568#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1584#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | 1592#uscalar =>
-    let i ← machineArchInst.vcpu_capability a 1#u64
-    let b ← vcpu.canonical value i
-    if b
-    then
-      let i1 ← vcpu.svm.G_PAT
-      if f = i1
-      then
-        let b1 ← vcpu.valid_pat value
-        if b1
-        then
-          let i2 ← lift (~~~ core.num.U64.MAX)
-          let i3 ← lift (old &&& i2)
-          let i4 ← lift (value &&& core.num.U64.MAX)
-          let i5 ← lift (i3 ||| i4)
-          let v ← lift (i5 ||| 0#u64)
-          let i6 ← vcpu.svm.CR0
-          if f = i6
-          then
-            let i7 ← vcpu.CR0_OWNED
-            let i8 ← lift (~~~ i7)
-            let v1 ← lift (v &&& i8)
-            ok (core.result.Result.Ok v1)
-          else ok (core.result.Result.Ok v)
-        else error.invalid_arg Std.U64 1#u64
-      else
-        let i2 ← lift (~~~ core.num.U64.MAX)
-        let i3 ← lift (old &&& i2)
-        let i4 ← lift (value &&& core.num.U64.MAX)
-        let i5 ← lift (i3 ||| i4)
-        let v ← lift (i5 ||| 0#u64)
-        let i6 ← vcpu.svm.CR0
-        if f = i6
-        then
-          let i7 ← vcpu.CR0_OWNED
-          let i8 ← lift (~~~ i7)
-          let v1 ← lift (v &&& i8)
-          ok (core.result.Result.Ok v1)
-        else ok (core.result.Result.Ok v)
-    else error.invalid_arg Std.U64 1#u64
-  | _ => error.illegal Std.U64
-
-/-- [fl4_core::vcpu::valid_xcr0]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 472:0-480:1
-    Visibility: public -/
-def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
-  let i ← lift (~~~ host)
-  let i1 ← lift (x &&& i)
-  if i1 != 0#u64
-  then ok false
-  else
-    let i2 ← lift (x &&& 1#u64)
-    if i2 = 0#u64
-    then ok false
-    else
-      let i3 ← lift (x &&& 4#u64)
-      if i3 != 0#u64
-      then
-        let i4 ← lift (x &&& 2#u64)
-        if i4 = 0#u64
-        then ok false
-        else
-          let avx512 ← lift (x &&& 224#u64)
-          if avx512 = 0#u64
-          then
-            let i5 ← lift (x &&& 24#u64)
-            if i5 = 0#u64
-            then
-              let i6 ← lift (x &&& 393216#u64)
-              if i6 = 0#u64
-              then ok true
-              else let i7 ← lift (x &&& 393216#u64)
-                   ok (i7 = 393216#u64)
-            else
-              let i6 ← lift (x &&& 24#u64)
-              if i6 = 24#u64
-              then
-                let i7 ← lift (x &&& 393216#u64)
-                if i7 = 0#u64
-                then ok true
-                else let i8 ← lift (x &&& 393216#u64)
-                     ok (i8 = 393216#u64)
-              else ok false
-          else
-            if avx512 = 224#u64
-            then
-              let i5 ← lift (x &&& 6#u64)
-              if i5 = 6#u64
-              then
-                let i6 ← lift (x &&& 24#u64)
-                if i6 = 0#u64
-                then
-                  let i7 ← lift (x &&& 393216#u64)
-                  if i7 = 0#u64
-                  then ok true
-                  else let i8 ← lift (x &&& 393216#u64)
-                       ok (i8 = 393216#u64)
-                else
-                  let i7 ← lift (x &&& 24#u64)
-                  if i7 = 24#u64
-                  then
-                    let i8 ← lift (x &&& 393216#u64)
-                    if i8 = 0#u64
-                    then ok true
-                    else
-                      let i9 ← lift (x &&& 393216#u64)
-                      ok (i9 = 393216#u64)
-                  else ok false
-              else ok false
-            else ok false
-      else
-        let avx512 ← lift (x &&& 224#u64)
-        if avx512 = 0#u64
-        then
-          let i4 ← lift (x &&& 24#u64)
-          if i4 = 0#u64
-          then
-            let i5 ← lift (x &&& 393216#u64)
-            if i5 = 0#u64
-            then ok true
-            else let i6 ← lift (x &&& 393216#u64)
-                 ok (i6 = 393216#u64)
-          else
-            let i5 ← lift (x &&& 24#u64)
-            if i5 = 24#u64
-            then
-              let i6 ← lift (x &&& 393216#u64)
-              if i6 = 0#u64
-              then ok true
-              else let i7 ← lift (x &&& 393216#u64)
-                   ok (i7 = 393216#u64)
-            else ok false
-        else
-          if avx512 = 224#u64
-          then
-            let i4 ← lift (x &&& 6#u64)
-            if i4 = 6#u64
-            then
-              let i5 ← lift (x &&& 24#u64)
-              if i5 = 0#u64
-              then
-                let i6 ← lift (x &&& 393216#u64)
-                if i6 = 0#u64
-                then ok true
-                else let i7 ← lift (x &&& 393216#u64)
-                     ok (i7 = 393216#u64)
-              else
-                let i6 ← lift (x &&& 24#u64)
-                if i6 = 24#u64
-                then
-                  let i7 ← lift (x &&& 393216#u64)
-                  if i7 = 0#u64
-                  then ok true
-                  else let i8 ← lift (x &&& 393216#u64)
-                       ok (i8 = 393216#u64)
-                else ok false
-            else ok false
-          else ok false
-
-/-- [fl4_core::vcpu::svm::RAX]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 272:4-272:38
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.RAX : Result Std.U64 := vcpu.svm.SAVE + 504#u64
-
-/-- [fl4_core::vcpu::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 853:8-857:9
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.decode_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
-  (buf : Std.U64) (ct : obj.Tcb) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < 15#u64
-  then
-    let val ← msg.syscall_arg machineStoreInst s ct buf i
-    let i1 ← i * 8#u64
-    let i2 ← vcpu.REGS + i1
-    let s1 ← vcpu.set machineStoreInst s v i2 val
-    let i3 ← i + 1#u64
-    ok (cont (s1, i3))
-  else ok (done s)
-
-/-- [fl4_core::vcpu::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 853:8-857:9
-    Visibility: public -/
-@[rust_loop]
-def vcpu.decode_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
-  (buf : Std.U64) (ct : obj.Tcb) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => vcpu.decode_loop0.body machineStoreInst v buf ct s1 i1)
-    (s, i)
-
-/-- [fl4_core::vcpu::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 927:16-938:17
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.decode_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
-  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (s : S)
-  (i : Std.U64) (n : Std.U64) :
-  Result (ControlFlow (S × Std.U64 × Std.U64) (S × Std.U64))
-  := do
-  if i < value
-  then
-    let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
-    let off ← lift (core.num.U64.wrapping_add f i1)
-    let b1 ← vcpu.vmcb_hidden off
-    let val ←
-      if b1
-      then ok 0#u64
-      else
-        do
-        let i2 ← vcpu.svm.RAX
-        if off = i2
-        then vcpu.get machineStoreInst s v vcpu.REGS
-        else vcpu.get machineStoreInst s v off
-    let (n1, s1) ← msg.set_mr machineStoreInst s ct b i val
-    let i2 ← i + 1#u64
-    ok (cont (s1, i2, n1))
-  else ok (done (s, n))
-
-/-- [fl4_core::vcpu::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 927:16-938:17
-    Visibility: public -/
-@[rust_loop]
-def vcpu.decode_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
-  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (i : Std.U64)
-  (n : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, i1, n1) => vcpu.decode_loop1.body machineStoreInst v ct f value b
-      s1 i1 n1)
-    (s, i, n)
-
-/-- [fl4_core::vcpu::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 927:16-938:17
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.decode_loop2.body
-  {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
-  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (s : S)
-  (i : Std.U64) (n : Std.U64) :
-  Result (ControlFlow (S × Std.U64 × Std.U64) (S × Std.U64))
-  := do
-  if i < value
-  then
-    let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
-    let off ← lift (core.num.U64.wrapping_add f i1)
-    let b1 ← vcpu.vmcb_hidden off
-    let val ←
-      if b1
-      then ok 0#u64
-      else
-        do
-        let i2 ← vcpu.svm.RAX
-        if off = i2
-        then vcpu.get machineStoreInst s v vcpu.REGS
-        else vcpu.get machineStoreInst s v off
-    let (n1, s1) ← msg.set_mr machineStoreInst s ct b i val
-    let i2 ← i + 1#u64
-    ok (cont (s1, i2, n1))
-  else ok (done (s, n))
-
-/-- [fl4_core::vcpu::decode]: loop 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 927:16-938:17
-    Visibility: public -/
-@[rust_loop]
-def vcpu.decode_loop2
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
-  (ct : obj.Tcb) (f : Std.U64) (value : Std.U64) (b : Std.U64) (i : Std.U64)
-  (n : Std.U64) :
-  Result (S × Std.U64)
-  := do
-  loop
-    (fun (s1, i1, n1) => vcpu.decode_loop2.body machineStoreInst v ct f value b
-      s1 i1 n1)
-    (s, i, n)
-
-/-- [fl4_core::vcpu::decode]: loop body 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1005:20-1012:21
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.decode_loop3.body
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (first : Std.U64) (last : Std.U64)
-  (prior : Std.U64) (s : S) (a : A) (old : Std.U64) (fuel : Std.U64) :
-  Result (ControlFlow (S × A × Std.U64 × Std.U64) (S × A))
-  := do
-  if old != 0#u64
-  then
-    if fuel > 0#u64
-    then
-      let fuel1 ← fuel - 1#u64
-      let (s1, a1) ←
-        if old = prior
-        then
-          do
-          let (s2, a2) ← vcpu.stall machineStoreInst machineArchInst s a old
-          let s3 ← vcpu.ports machineStoreInst s2 old first last true
-          ok (s3, a2)
-        else ok (s, a)
-      let old1 ← vcpu.get machineStoreInst s1 old vcpu.NEXT
-      ok (cont (s1, a1, old1, fuel1))
-    else ok (done (s, a))
-  else ok (done (s, a))
-
-/-- [fl4_core::vcpu::decode]: loop 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1005:20-1012:21
-    Visibility: public -/
-@[rust_loop]
-def vcpu.decode_loop3
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (first : Std.U64)
-  (last : Std.U64) (prior : Std.U64) (old : Std.U64) (fuel : Std.U64) :
-  Result (S × A)
-  := do
-  loop
-    (fun (s1, a1, old1, fuel1) => vcpu.decode_loop3.body machineStoreInst
-      machineArchInst first last prior s1 a1 old1 fuel1)
-    (s, a, old, fuel)
-
-/-- [fl4_core::vcpu::decode]: loop body 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1005:20-1012:21
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.decode_loop4.body
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (first : Std.U64) (last : Std.U64)
-  (prior : Std.U64) (s : S) (a : A) (old : Std.U64) (fuel : Std.U64) :
-  Result (ControlFlow (S × A × Std.U64 × Std.U64) (S × A))
-  := do
-  if old != 0#u64
-  then
-    if fuel > 0#u64
-    then
-      let fuel1 ← fuel - 1#u64
-      let (s1, a1) ←
-        if old = prior
-        then
-          do
-          let (s2, a2) ← vcpu.stall machineStoreInst machineArchInst s a old
-          let s3 ← vcpu.ports machineStoreInst s2 old first last true
-          ok (s3, a2)
-        else ok (s, a)
-      let old1 ← vcpu.get machineStoreInst s1 old vcpu.NEXT
-      ok (cont (s1, a1, old1, fuel1))
-    else ok (done (s, a))
-  else ok (done (s, a))
-
-/-- [fl4_core::vcpu::decode]: loop 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1005:20-1012:21
-    Visibility: public -/
-@[rust_loop]
-def vcpu.decode_loop4
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (first : Std.U64)
-  (last : Std.U64) (prior : Std.U64) (old : Std.U64) (fuel : Std.U64) :
-  Result (S × A)
-  := do
-  loop
-    (fun (s1, a1, old1, fuel1) => vcpu.decode_loop4.body machineStoreInst
-      machineArchInst first last prior s1 a1 old1 fuel1)
-    (s, a, old, fuel)
-
-/-- [fl4_core::vcpu::decode]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 809:0-1031:1
-    Visibility: public -/
-def vcpu.decode
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
-  (length : Std.U64) (v : Std.U64) (call : Bool) (buf : Std.U64)
-  (ex : Array obj.Slot 3#usize) :
-  Result ((core.result.Result Unit error.Exc) × S × A)
-  := do
-  let (s1, a1) ← vcpu.stall machineStoreInst machineArchInst s a v
-  let ct ← sched.cur_thread machineStoreInst s1
-  let i ← machineArchInst.virtualization a1
-  let f ←
-    if length > 0#u64
-    then msg.syscall_arg machineStoreInst s1 ct buf 0#u64
-    else ok 0#u64
-  let value ←
-    if length > 1#u64
-    then msg.syscall_arg machineStoreInst s1 ct buf 1#u64
-    else ok 0#u64
-  if lbl = fl4_abi.label.X86VCPUSetTCB
-  then
-    let s2 ← Array.index_usize ex 0#usize
-    let b ← obj.Slot.is_null s2
-    if b
-    then let r ← error.truncated Unit
-         ok (r, s1, a1)
-    else
-      let c ← obj.Slot.cap machineStoreInst s2 s1
-      match c with
-      | capability.Cap.Null => let r ← error.illegal Unit
-                               ok (r, s1, a1)
-      | capability.Cap.Untyped _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Endpoint _ _ _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Notification _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Reply _ _ => let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-      | capability.Cap.CNode _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Thread ptr =>
-        let (s3, a2) ←
-          smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 ptr
-        let (s4, a3) ← vcpu.detach machineStoreInst machineArchInst s3 a2 ptr
-        let i1 ← vcpu.get machineStoreInst s4 v vcpu.TCB
-        let b1 ← obj.Tcb.is_null i1
-        let (s5, a4) ←
-          if b1
-          then ok (s4, a3)
-          else vcpu.detach machineStoreInst machineArchInst s4 a3 i1
-        let s6 ← vcpu.set machineStoreInst s5 v vcpu.TCB ptr
-        let i2 ← layout.tcb.VCPU
-        let i3 ← lift (core.num.U64.wrapping_add ptr i2)
-        let s7 ← machineStoreInst.write s6 i3 v
-        let s8 ←
-          sched.set_thread_state machineStoreInst s7 ct sched.TS_RESTART
-        ok (core.result.Result.Ok (), s8, a4)
-      | capability.Cap.IrqControl =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.IrqHandler _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Zombie _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Domain => let r ← error.illegal Unit
-                                 ok (r, s1, a1)
-      | capability.Cap.SchedContext _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.SchedControl _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.PageTable _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.PageDirectory _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Pdpt _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Pml4 _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.Vcpu _ => let r ← error.illegal Unit
-                                 ok (r, s1, a1)
-      | capability.Cap.Ept _ _ _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.AsidControl =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.AsidPool _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.IoPortControl =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.IoPort _ _ _ =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-      | capability.Cap.TdxControl =>
-        let r ← error.illegal Unit
-        ok (r, s1, a1)
-  else
-    if lbl = fl4_abi.label.X86VCPUWriteRegisters
-    then
-      if length < 15#u64
-      then let r ← error.truncated Unit
-           ok (r, s1, a1)
-      else
-        let s2 ← vcpu.decode_loop0 machineStoreInst s1 v buf ct 0#u64
-        let s3 ←
-          if i = 2#u64
-          then
-            do
-            let val ← vcpu.get machineStoreInst s2 v vcpu.REGS
-            let i1 ← vcpu.svm.RAX
-            vcpu.set machineStoreInst s2 v i1 val
-          else ok s2
-        let s4 ←
-          sched.set_thread_state machineStoreInst s3 ct sched.TS_RESTART
-        ok (core.result.Result.Ok (), s4, a1)
-    else
-      if lbl = fl4_abi.label.X86VCPUFlushTLB
-      then
-        let s2 ← vcpu.set machineStoreInst s1 v vcpu.SVM_CPU 0#u64
-        let s3 ←
-          sched.set_thread_state machineStoreInst s2 ct sched.TS_RESTART
-        ok (core.result.Result.Ok (), s3, a1)
-      else
-        if lbl = fl4_abi.label.X86VCPUReadVMCS
-        then
-          if i = 2#u64
-          then let r ← error.illegal Unit
-               ok (r, s1, a1)
-          else
-            let i1 ←
-              if lbl = fl4_abi.label.X86VCPUWriteVMCS
-              then ok 2#u64
-              else ok 1#u64
-            if length < i1
-            then let r ← error.illegal Unit
-                 ok (r, s1, a1)
-            else
-              if lbl = fl4_abi.label.X86VCPUWriteVMCS
-              then
-                let r ← vcpu.sanitize_vmcs machineArchInst a1 f value
-                let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                match cf with
-                | core.ops.control_flow.ControlFlow.Continue val =>
-                  let s2 ← vcpu.write_vmcs machineStoreInst s1 v f val
-                  let s3 ← vcpu.reply machineStoreInst s2 call val
-                  ok (core.result.Result.Ok (), s3, a1)
-                | core.ops.control_flow.ControlFlow.Break residual =>
-                  let r1 ←
-                    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                      Unit (core.convert.FromSame error.Exc) residual
-                  ok (r1, s1, a1)
-              else
-                let s2 ← lift (Array.to_slice vcpu.READ_FIELDS)
-                let b ← vcpu.contains s2 f
-                if b
-                then
-                  let supported ←
-                    if f = vcpu.vmx.GUEST_PERF_GLOBAL_CTRL
-                    then
-                      do
-                      let i2 ← machineArchInst.vcpu_capability a1 1156#u64
-                      let i3 ← i2 >>> 32#i32
-                      let i4 ← 1#u64 <<< 13#i32
-                      let i5 ← lift (i3 &&& i4)
-                      if i5 = 0#u64
-                      then ok false
-                      else
-                        if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
-                        then
-                          let i6 ←
-                            machineArchInst.vcpu_capability a1 1153#u64
-                          let i7 ← i6 >>> 32#i32
-                          let i8 ← 1#u64 <<< 6#i32
-                          let i9 ← lift (i7 &&& i8)
-                          if i9 = 0#u64
-                          then ok false
-                          else ok true
-                        else ok true
-                    else
-                      if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
-                      then
-                        do
-                        let i2 ← machineArchInst.vcpu_capability a1 1153#u64
-                        let i3 ← i2 >>> 32#i32
-                        let i4 ← 1#u64 <<< 6#i32
-                        let i5 ← lift (i3 &&& i4)
-                        if i5 = 0#u64
-                        then ok false
-                        else ok true
-                      else ok true
-                  let val ←
-                    if supported
-                    then vcpu.read_vmcs machineStoreInst s1 v f
-                    else ok 0#u64
-                  let s3 ← vcpu.reply machineStoreInst s1 call val
-                  ok (core.result.Result.Ok (), s3, a1)
-                else let r ← error.illegal Unit
-                     ok (r, s1, a1)
-        else
-          if lbl = fl4_abi.label.X86VCPUWriteVMCS
-          then
-            if i = 2#u64
-            then let r ← error.illegal Unit
-                 ok (r, s1, a1)
-            else
-              let i1 ←
-                if lbl = fl4_abi.label.X86VCPUWriteVMCS
-                then ok 2#u64
-                else ok 1#u64
-              if length < i1
-              then let r ← error.illegal Unit
-                   ok (r, s1, a1)
-              else
-                if lbl = fl4_abi.label.X86VCPUWriteVMCS
-                then
-                  let r ← vcpu.sanitize_vmcs machineArchInst a1 f value
-                  let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                  match cf with
-                  | core.ops.control_flow.ControlFlow.Continue val =>
-                    let s2 ← vcpu.write_vmcs machineStoreInst s1 v f val
-                    let s3 ← vcpu.reply machineStoreInst s2 call val
-                    ok (core.result.Result.Ok (), s3, a1)
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    let r1 ←
-                      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                        Unit (core.convert.FromSame error.Exc) residual
-                    ok (r1, s1, a1)
-                else
-                  let s2 ← lift (Array.to_slice vcpu.READ_FIELDS)
-                  let b ← vcpu.contains s2 f
-                  if b
-                  then
-                    let supported ←
-                      if f = vcpu.vmx.GUEST_PERF_GLOBAL_CTRL
-                      then
-                        do
-                        let i2 ← machineArchInst.vcpu_capability a1 1156#u64
-                        let i3 ← i2 >>> 32#i32
-                        let i4 ← 1#u64 <<< 13#i32
-                        let i5 ← lift (i3 &&& i4)
-                        if i5 = 0#u64
-                        then ok false
-                        else
-                          if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
-                          then
-                            let i6 ←
-                              machineArchInst.vcpu_capability a1 1153#u64
-                            let i7 ← i6 >>> 32#i32
-                            let i8 ← 1#u64 <<< 6#i32
-                            let i9 ← lift (i7 &&& i8)
-                            if i9 = 0#u64
-                            then ok false
-                            else ok true
-                          else ok true
-                      else
-                        if f = vcpu.vmx.GUEST_PREEMPTION_TIMER_VALUE
-                        then
-                          do
-                          let i2 ←
-                            machineArchInst.vcpu_capability a1 1153#u64
-                          let i3 ← i2 >>> 32#i32
-                          let i4 ← 1#u64 <<< 6#i32
-                          let i5 ← lift (i3 &&& i4)
-                          if i5 = 0#u64
-                          then ok false
-                          else ok true
-                        else ok true
-                    let val ←
-                      if supported
-                      then vcpu.read_vmcs machineStoreInst s1 v f
-                      else ok 0#u64
-                    let s3 ← vcpu.reply machineStoreInst s1 call val
-                    ok (core.result.Result.Ok (), s3, a1)
-                  else let r ← error.illegal Unit
-                       ok (r, s1, a1)
-          else
-            if lbl = fl4_abi.label.X86VCPUReadVMCB
-            then
-              if i = 2#u64
-              then
-                if length < 2#u64
-                then let r ← error.truncated Unit
-                     ok (r, s1, a1)
-                else
-                  if lbl = fl4_abi.label.X86VCPUWriteVMCB
-                  then
-                    let i1 ← vcpu.svm.END
-                    let old ←
-                      if f < i1
-                      then
-                        do
-                        let i2 ← lift (f &&& 7#u64)
-                        if i2 = 0#u64
-                        then vcpu.get machineStoreInst s1 v f
-                        else ok 0#u64
-                      else ok 0#u64
-                    let r ← vcpu.sanitize_vmcb machineArchInst a1 f old value
-                    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                    match cf with
-                    | core.ops.control_flow.ControlFlow.Continue val =>
-                      let s2 ← vcpu.set machineStoreInst s1 v f val
-                      let b ←
-                        match f with
-                        | 1368#uscalar => ok true
-                        | 1360#uscalar => ok true
-                        | 1352#uscalar => ok true
-                        | 1232#uscalar => ok true
-                        | 1640#uscalar => ok true
-                        | _ => ok false
-                      let s3 ←
-                        if b
-                        then vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
-                        else ok s2
-                      let i2 ← vcpu.svm.RAX
-                      let s4 ←
-                        if f = i2
-                        then vcpu.set machineStoreInst s3 v vcpu.REGS val
-                        else ok s3
-                      let s5 ← vcpu.reply machineStoreInst s4 call val
-                      ok (core.result.Result.Ok (), s5, a1)
-                    | core.ops.control_flow.ControlFlow.Break residual =>
-                      let r1 ←
-                        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                          Unit (core.convert.FromSame error.Exc) residual
-                      ok (r1, s1, a1)
-                  else
-                    let i1 ← lift (f &&& 7#u64)
-                    if i1 != 0#u64
-                    then let r ← error.invalid_arg Unit 0#u64
-                         ok (r, s1, a1)
-                    else
-                      let i2 ← vcpu.svm.END
-                      if f >= i2
-                      then
-                        let r ← error.invalid_arg Unit 0#u64
-                        ok (r, s1, a1)
-                      else
-                        if value = 0#u64
-                        then
-                          let r ← error.invalid_arg Unit 0#u64
-                          ok (r, s1, a1)
-                        else
-                          if value > 64#u64
-                          then
-                            let r ← error.invalid_arg Unit 0#u64
-                            ok (r, s1, a1)
-                          else
-                            let i3 ← i2 - f
-                            let i4 ← i3 / 8#u64
-                            if value > i4
-                            then
-                              let r ← error.invalid_arg Unit 0#u64
-                              ok (r, s1, a1)
-                            else
-                              if call
-                              then
-                                let b ←
-                                  msg.lookup_ipc_buffer machineStoreInst s1
-                                    true ct
-                                let (s2, n) ←
-                                  vcpu.decode_loop1 machineStoreInst s1 v ct f
-                                    value b 0#u64 0#u64
-                                let s3 ←
-                                  obj.Tcb.set_reg machineStoreInst ct s2
-                                    layout.reg.BADGE 0#u64
-                                let mi ←
-                                  msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
-                                let s4 ←
-                                  msg.set_msg_info machineStoreInst s3 ct mi
-                                let s5 ←
-                                  sched.set_thread_state machineStoreInst s4 ct
-                                    sched.TS_RUNNING
-                                ok (core.result.Result.Ok (), s5, a1)
-                              else
-                                let s2 ←
-                                  sched.set_thread_state machineStoreInst s1 ct
-                                    sched.TS_RUNNING
-                                ok (core.result.Result.Ok (), s2, a1)
-              else let r ← error.illegal Unit
-                   ok (r, s1, a1)
-            else
-              if lbl = fl4_abi.label.X86VCPUWriteVMCB
-              then
-                if i = 2#u64
-                then
-                  if length < 2#u64
-                  then let r ← error.truncated Unit
-                       ok (r, s1, a1)
-                  else
-                    if lbl = fl4_abi.label.X86VCPUWriteVMCB
-                    then
-                      let i1 ← vcpu.svm.END
-                      let old ←
-                        if f < i1
-                        then
-                          do
-                          let i2 ← lift (f &&& 7#u64)
-                          if i2 = 0#u64
-                          then vcpu.get machineStoreInst s1 v f
-                          else ok 0#u64
-                        else ok 0#u64
-                      let r ←
-                        vcpu.sanitize_vmcb machineArchInst a1 f old value
-                      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-                      match cf with
-                      | core.ops.control_flow.ControlFlow.Continue val =>
-                        let s2 ← vcpu.set machineStoreInst s1 v f val
-                        let b ←
-                          match f with
-                          | 1368#uscalar => ok true
-                          | 1360#uscalar => ok true
-                          | 1352#uscalar => ok true
-                          | 1232#uscalar => ok true
-                          | 1640#uscalar => ok true
-                          | _ => ok false
-                        let s3 ←
-                          if b
-                          then
-                            vcpu.set machineStoreInst s2 v vcpu.SVM_CPU 0#u64
-                          else ok s2
-                        let i2 ← vcpu.svm.RAX
-                        let s4 ←
-                          if f = i2
-                          then vcpu.set machineStoreInst s3 v vcpu.REGS val
-                          else ok s3
-                        let s5 ← vcpu.reply machineStoreInst s4 call val
-                        ok (core.result.Result.Ok (), s5, a1)
-                      | core.ops.control_flow.ControlFlow.Break residual =>
-                        let r1 ←
-                          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-                            Unit (core.convert.FromSame error.Exc) residual
-                        ok (r1, s1, a1)
-                    else
-                      let i1 ← lift (f &&& 7#u64)
-                      if i1 != 0#u64
-                      then
-                        let r ← error.invalid_arg Unit 0#u64
-                        ok (r, s1, a1)
-                      else
-                        let i2 ← vcpu.svm.END
-                        if f >= i2
-                        then
-                          let r ← error.invalid_arg Unit 0#u64
-                          ok (r, s1, a1)
-                        else
-                          if value = 0#u64
-                          then
-                            let r ← error.invalid_arg Unit 0#u64
-                            ok (r, s1, a1)
-                          else
-                            if value > 64#u64
-                            then
-                              let r ← error.invalid_arg Unit 0#u64
-                              ok (r, s1, a1)
-                            else
-                              let i3 ← i2 - f
-                              let i4 ← i3 / 8#u64
-                              if value > i4
-                              then
-                                let r ← error.invalid_arg Unit 0#u64
-                                ok (r, s1, a1)
-                              else
-                                if call
-                                then
-                                  let b ←
-                                    msg.lookup_ipc_buffer machineStoreInst s1
-                                      true ct
-                                  let (s2, n) ←
-                                    vcpu.decode_loop2 machineStoreInst s1 v ct
-                                      f value b 0#u64 0#u64
-                                  let s3 ←
-                                    obj.Tcb.set_reg machineStoreInst ct s2
-                                      layout.reg.BADGE 0#u64
-                                  let mi ←
-                                    msginfo.MessageInfo.new 0#u64 0#u64 0#u64 n
-                                  let s4 ←
-                                    msg.set_msg_info machineStoreInst s3 ct mi
-                                  let s5 ←
-                                    sched.set_thread_state machineStoreInst s4
-                                      ct sched.TS_RUNNING
-                                  ok (core.result.Result.Ok (), s5, a1)
-                                else
-                                  let s2 ←
-                                    sched.set_thread_state machineStoreInst s1
-                                      ct sched.TS_RUNNING
-                                  ok (core.result.Result.Ok (), s2, a1)
-                else let r ← error.illegal Unit
-                     ok (r, s1, a1)
-              else
-                if lbl = fl4_abi.label.X86VCPUReadMSR
-                then
-                  let i1 ←
-                    if lbl = fl4_abi.label.X86VCPUWriteMSR
-                    then ok 2#u64
-                    else ok 1#u64
-                  if length < i1
-                  then let r ← error.illegal Unit
-                       ok (r, s1, a1)
-                  else
-                    if f = 1157#u64
-                    then
-                      if lbl = fl4_abi.label.X86VCPUWriteMSR
-                      then
-                        let o ← vcpu.msr_addr v f (i = 2#u64)
-                        match o with
-                        | none => let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                        | some x =>
-                          if lbl = fl4_abi.label.X86VCPUWriteMSR
-                          then
-                            if f = 3221225602#u64
-                            then
-                              let i2 ←
-                                machineArchInst.vcpu_capability a1 1#u64
-                              let b ← vcpu.canonical value i2
-                              if b
-                              then
-                                if f = 4294967294#u64
-                                then
-                                  let i3 ←
-                                    machineArchInst.vcpu_capability a1 0#u64
-                                  let b1 ← vcpu.valid_xcr0 value i3
-                                  if b1
-                                  then
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i4 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i4
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = vcpu.MSR_VM_IBPB_DEFER
-                                  then
-                                    if value > 1#u64
-                                    then
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i3 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i3
-                                    ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let r ← error.invalid_arg Unit 1#u64
-                                ok (r, s1, a1)
-                            else
-                              if f = 3221225603#u64
-                              then
-                                let i2 ←
-                                  machineArchInst.vcpu_capability a1 1#u64
-                                let b ← vcpu.canonical value i2
-                                if b
-                                then
-                                  if f = 4294967294#u64
-                                  then
-                                    let i3 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b1 ← vcpu.valid_xcr0 value i3
-                                    if b1
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let r ← error.invalid_arg Unit 1#u64
-                                  ok (r, s1, a1)
-                              else
-                                if f = 3221225730#u64
-                                then
-                                  let i2 ←
-                                    machineArchInst.vcpu_capability a1 1#u64
-                                  let b ← vcpu.canonical value i2
-                                  if b
-                                  then
-                                    if f = 4294967294#u64
-                                    then
-                                      let i3 ←
-                                        machineArchInst.vcpu_capability a1
-                                          0#u64
-                                      let b1 ← vcpu.valid_xcr0 value i3
-                                      if b1
-                                      then
-                                        if f = vcpu.MSR_VM_IBPB_DEFER
-                                        then
-                                          if value > 1#u64
-                                          then
-                                            let r ←
-                                              error.invalid_arg Unit 1#u64
-                                            ok (r, s1, a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i4 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i4
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                    else
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = 4294967294#u64
-                                  then
-                                    let i2 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b ← vcpu.valid_xcr0 value i2
-                                    if b
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i2 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i2
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i2 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i2
-                                      ok (core.result.Result.Ok (), s3, a1)
-                          else
-                            let i2 ← machineStoreInst.read s1 x
-                            let s2 ← vcpu.reply machineStoreInst s1 call i2
-                            ok (core.result.Result.Ok (), s2, a1)
-                      else
-                        if i = 2#u64
-                        then
-                          let s2 ← vcpu.reply machineStoreInst s1 call 0#u64
-                          ok (core.result.Result.Ok (), s2, a1)
-                        else
-                          let i2 ← machineArchInst.vcpu_capability a1 f
-                          let s2 ← vcpu.reply machineStoreInst s1 call i2
-                          ok (core.result.Result.Ok (), s2, a1)
-                    else
-                      let o ← vcpu.msr_addr v f (i = 2#u64)
-                      match o with
-                      | none => let r ← error.illegal Unit
-                                ok (r, s1, a1)
-                      | some x =>
-                        if lbl = fl4_abi.label.X86VCPUWriteMSR
-                        then
-                          if f = 3221225602#u64
-                          then
-                            let i2 ← machineArchInst.vcpu_capability a1 1#u64
-                            let b ← vcpu.canonical value i2
-                            if b
-                            then
-                              if f = 4294967294#u64
-                              then
-                                let i3 ←
-                                  machineArchInst.vcpu_capability a1 0#u64
-                                let b1 ← vcpu.valid_xcr0 value i3
-                                if b1
-                                then
-                                  if f = vcpu.MSR_VM_IBPB_DEFER
-                                  then
-                                    if value > 1#u64
-                                    then
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i4 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i4
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i4 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i4
-                                    ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let r ← error.invalid_arg Unit 1#u64
-                                  ok (r, s1, a1)
-                              else
-                                if f = vcpu.MSR_VM_IBPB_DEFER
-                                then
-                                  if value > 1#u64
-                                  then
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i3 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i3
-                                    ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let s2 ← machineStoreInst.write s1 x value
-                                  let i3 ← machineStoreInst.read s2 x
-                                  let s3 ←
-                                    vcpu.reply machineStoreInst s2 call i3
-                                  ok (core.result.Result.Ok (), s3, a1)
-                            else
-                              let r ← error.invalid_arg Unit 1#u64
-                              ok (r, s1, a1)
-                          else
-                            if f = 3221225603#u64
-                            then
-                              let i2 ←
-                                machineArchInst.vcpu_capability a1 1#u64
-                              let b ← vcpu.canonical value i2
-                              if b
-                              then
-                                if f = 4294967294#u64
-                                then
-                                  let i3 ←
-                                    machineArchInst.vcpu_capability a1 0#u64
-                                  let b1 ← vcpu.valid_xcr0 value i3
-                                  if b1
-                                  then
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i4 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i4
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = vcpu.MSR_VM_IBPB_DEFER
-                                  then
-                                    if value > 1#u64
-                                    then
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i3 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i3
-                                    ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let r ← error.invalid_arg Unit 1#u64
-                                ok (r, s1, a1)
-                            else
-                              if f = 3221225730#u64
-                              then
-                                let i2 ←
-                                  machineArchInst.vcpu_capability a1 1#u64
-                                let b ← vcpu.canonical value i2
-                                if b
-                                then
-                                  if f = 4294967294#u64
-                                  then
-                                    let i3 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b1 ← vcpu.valid_xcr0 value i3
-                                    if b1
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let r ← error.invalid_arg Unit 1#u64
-                                  ok (r, s1, a1)
-                              else
-                                if f = 4294967294#u64
-                                then
-                                  let i2 ←
-                                    machineArchInst.vcpu_capability a1 0#u64
-                                  let b ← vcpu.valid_xcr0 value i2
-                                  if b
-                                  then
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = vcpu.MSR_VM_IBPB_DEFER
-                                  then
-                                    if value > 1#u64
-                                    then
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i2 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i2
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i2 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i2
-                                    ok (core.result.Result.Ok (), s3, a1)
-                        else
-                          let i2 ← machineStoreInst.read s1 x
-                          let s2 ← vcpu.reply machineStoreInst s1 call i2
-                          ok (core.result.Result.Ok (), s2, a1)
-                else
-                  if lbl = fl4_abi.label.X86VCPUWriteMSR
-                  then
-                    let i1 ←
-                      if lbl = fl4_abi.label.X86VCPUWriteMSR
-                      then ok 2#u64
-                      else ok 1#u64
-                    if length < i1
-                    then let r ← error.illegal Unit
-                         ok (r, s1, a1)
-                    else
-                      if f = 1157#u64
-                      then
-                        if lbl = fl4_abi.label.X86VCPUWriteMSR
-                        then
-                          let o ← vcpu.msr_addr v f (i = 2#u64)
-                          match o with
-                          | none => let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                          | some x =>
-                            if lbl = fl4_abi.label.X86VCPUWriteMSR
-                            then
-                              if f = 3221225602#u64
-                              then
-                                let i2 ←
-                                  machineArchInst.vcpu_capability a1 1#u64
-                                let b ← vcpu.canonical value i2
-                                if b
-                                then
-                                  if f = 4294967294#u64
-                                  then
-                                    let i3 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b1 ← vcpu.valid_xcr0 value i3
-                                    if b1
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let r ← error.invalid_arg Unit 1#u64
-                                  ok (r, s1, a1)
-                              else
-                                if f = 3221225603#u64
-                                then
-                                  let i2 ←
-                                    machineArchInst.vcpu_capability a1 1#u64
-                                  let b ← vcpu.canonical value i2
-                                  if b
-                                  then
-                                    if f = 4294967294#u64
-                                    then
-                                      let i3 ←
-                                        machineArchInst.vcpu_capability a1
-                                          0#u64
-                                      let b1 ← vcpu.valid_xcr0 value i3
-                                      if b1
-                                      then
-                                        if f = vcpu.MSR_VM_IBPB_DEFER
-                                        then
-                                          if value > 1#u64
-                                          then
-                                            let r ←
-                                              error.invalid_arg Unit 1#u64
-                                            ok (r, s1, a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i4 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i4
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                    else
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = 3221225730#u64
-                                  then
-                                    let i2 ←
-                                      machineArchInst.vcpu_capability a1 1#u64
-                                    let b ← vcpu.canonical value i2
-                                    if b
-                                    then
-                                      if f = 4294967294#u64
-                                      then
-                                        let i3 ←
-                                          machineArchInst.vcpu_capability a1
-                                            0#u64
-                                        let b1 ← vcpu.valid_xcr0 value i3
-                                        if b1
-                                        then
-                                          if f = vcpu.MSR_VM_IBPB_DEFER
-                                          then
-                                            if value > 1#u64
-                                            then
-                                              let r ←
-                                                error.invalid_arg Unit 1#u64
-                                              ok (r, s1, a1)
-                                            else
-                                              let s2 ←
-                                                machineStoreInst.write s1 x
-                                                  value
-                                              let i4 ←
-                                                machineStoreInst.read s2 x
-                                              let s3 ←
-                                                vcpu.reply machineStoreInst s2
-                                                  call i4
-                                              ok (core.result.Result.Ok (), s3,
-                                                a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i4 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i4
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                      else
-                                        if f = vcpu.MSR_VM_IBPB_DEFER
-                                        then
-                                          if value > 1#u64
-                                          then
-                                            let r ←
-                                              error.invalid_arg Unit 1#u64
-                                            ok (r, s1, a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i3 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i3
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = 4294967294#u64
-                                    then
-                                      let i2 ←
-                                        machineArchInst.vcpu_capability a1
-                                          0#u64
-                                      let b ← vcpu.valid_xcr0 value i2
-                                      if b
-                                      then
-                                        if f = vcpu.MSR_VM_IBPB_DEFER
-                                        then
-                                          if value > 1#u64
-                                          then
-                                            let r ←
-                                              error.invalid_arg Unit 1#u64
-                                            ok (r, s1, a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i3 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i3
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                    else
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i2 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i2
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i2 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i2
-                                        ok (core.result.Result.Ok (), s3, a1)
-                            else
-                              let i2 ← machineStoreInst.read s1 x
-                              let s2 ← vcpu.reply machineStoreInst s1 call i2
-                              ok (core.result.Result.Ok (), s2, a1)
-                        else
-                          if i = 2#u64
-                          then
-                            let s2 ←
-                              vcpu.reply machineStoreInst s1 call 0#u64
-                            ok (core.result.Result.Ok (), s2, a1)
-                          else
-                            let i2 ← machineArchInst.vcpu_capability a1 f
-                            let s2 ← vcpu.reply machineStoreInst s1 call i2
-                            ok (core.result.Result.Ok (), s2, a1)
-                      else
-                        let o ← vcpu.msr_addr v f (i = 2#u64)
-                        match o with
-                        | none => let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                        | some x =>
-                          if lbl = fl4_abi.label.X86VCPUWriteMSR
-                          then
-                            if f = 3221225602#u64
-                            then
-                              let i2 ←
-                                machineArchInst.vcpu_capability a1 1#u64
-                              let b ← vcpu.canonical value i2
-                              if b
-                              then
-                                if f = 4294967294#u64
-                                then
-                                  let i3 ←
-                                    machineArchInst.vcpu_capability a1 0#u64
-                                  let b1 ← vcpu.valid_xcr0 value i3
-                                  if b1
-                                  then
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i4 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i4
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = vcpu.MSR_VM_IBPB_DEFER
-                                  then
-                                    if value > 1#u64
-                                    then
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let s2 ←
-                                      machineStoreInst.write s1 x value
-                                    let i3 ← machineStoreInst.read s2 x
-                                    let s3 ←
-                                      vcpu.reply machineStoreInst s2 call i3
-                                    ok (core.result.Result.Ok (), s3, a1)
-                              else
-                                let r ← error.invalid_arg Unit 1#u64
-                                ok (r, s1, a1)
-                            else
-                              if f = 3221225603#u64
-                              then
-                                let i2 ←
-                                  machineArchInst.vcpu_capability a1 1#u64
-                                let b ← vcpu.canonical value i2
-                                if b
-                                then
-                                  if f = 4294967294#u64
-                                  then
-                                    let i3 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b1 ← vcpu.valid_xcr0 value i3
-                                    if b1
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i4 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i4
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i3 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i3
-                                      ok (core.result.Result.Ok (), s3, a1)
-                                else
-                                  let r ← error.invalid_arg Unit 1#u64
-                                  ok (r, s1, a1)
-                              else
-                                if f = 3221225730#u64
-                                then
-                                  let i2 ←
-                                    machineArchInst.vcpu_capability a1 1#u64
-                                  let b ← vcpu.canonical value i2
-                                  if b
-                                  then
-                                    if f = 4294967294#u64
-                                    then
-                                      let i3 ←
-                                        machineArchInst.vcpu_capability a1
-                                          0#u64
-                                      let b1 ← vcpu.valid_xcr0 value i3
-                                      if b1
-                                      then
-                                        if f = vcpu.MSR_VM_IBPB_DEFER
-                                        then
-                                          if value > 1#u64
-                                          then
-                                            let r ←
-                                              error.invalid_arg Unit 1#u64
-                                            ok (r, s1, a1)
-                                          else
-                                            let s2 ←
-                                              machineStoreInst.write s1 x value
-                                            let i4 ←
-                                              machineStoreInst.read s2 x
-                                            let s3 ←
-                                              vcpu.reply machineStoreInst s2
-                                                call i4
-                                            ok (core.result.Result.Ok (), s3,
-                                              a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i4 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i4
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                    else
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                  else
-                                    let r ← error.invalid_arg Unit 1#u64
-                                    ok (r, s1, a1)
-                                else
-                                  if f = 4294967294#u64
-                                  then
-                                    let i2 ←
-                                      machineArchInst.vcpu_capability a1 0#u64
-                                    let b ← vcpu.valid_xcr0 value i2
-                                    if b
-                                    then
-                                      if f = vcpu.MSR_VM_IBPB_DEFER
-                                      then
-                                        if value > 1#u64
-                                        then
-                                          let r ←
-                                            error.invalid_arg Unit 1#u64
-                                          ok (r, s1, a1)
-                                        else
-                                          let s2 ←
-                                            machineStoreInst.write s1 x value
-                                          let i3 ← machineStoreInst.read s2 x
-                                          let s3 ←
-                                            vcpu.reply machineStoreInst s2 call
-                                              i3
-                                          ok (core.result.Result.Ok (), s3, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i3 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i3
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let r ← error.invalid_arg Unit 1#u64
-                                      ok (r, s1, a1)
-                                  else
-                                    if f = vcpu.MSR_VM_IBPB_DEFER
-                                    then
-                                      if value > 1#u64
-                                      then
-                                        let r ← error.invalid_arg Unit 1#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let s2 ←
-                                          machineStoreInst.write s1 x value
-                                        let i2 ← machineStoreInst.read s2 x
-                                        let s3 ←
-                                          vcpu.reply machineStoreInst s2 call
-                                            i2
-                                        ok (core.result.Result.Ok (), s3, a1)
-                                    else
-                                      let s2 ←
-                                        machineStoreInst.write s1 x value
-                                      let i2 ← machineStoreInst.read s2 x
-                                      let s3 ←
-                                        vcpu.reply machineStoreInst s2 call i2
-                                      ok (core.result.Result.Ok (), s3, a1)
-                          else
-                            let i2 ← machineStoreInst.read s1 x
-                            let s2 ← vcpu.reply machineStoreInst s1 call i2
-                            ok (core.result.Result.Ok (), s2, a1)
-                  else
-                    if lbl = fl4_abi.label.X86VCPUEnableIOPort
-                    then
-                      if i = 2#u64
-                      then let r ← error.illegal Unit
-                           ok (r, s1, a1)
-                      else
-                        if length < 2#u64
-                        then let r ← error.truncated Unit
-                             ok (r, s1, a1)
-                        else
-                          let low ← lift (f &&& 65535#u64)
-                          let high ← lift (value &&& 65535#u64)
-                          if low > high
-                          then
-                            let r ← error.invalid_arg Unit 0#u64
-                            ok (r, s1, a1)
-                          else
-                            if lbl = fl4_abi.label.X86VCPUEnableIOPort
-                            then
-                              let s2 ← Array.index_usize ex 0#usize
-                              let b ← obj.Slot.is_null s2
-                              if b
-                              then
-                                let r ← error.truncated Unit
-                                ok (r, s1, a1)
-                              else
-                                let c ← obj.Slot.cap machineStoreInst s2 s1
-                                match c with
-                                | capability.Cap.Null =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Untyped _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Notification _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Reply _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.CNode _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Thread _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IrqControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IrqHandler _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Zombie _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Domain =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.SchedContext _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.SchedControl _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.PageTable _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.PageDirectory _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Pdpt _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Pml4 _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Vcpu _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.Ept _ _ _ _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.AsidControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.AsidPool _ _ =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IoPortControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                                | capability.Cap.IoPort first last prior =>
-                                  if low < first
-                                  then
-                                    let r ← error.invalid_arg Unit 0#u64
-                                    ok (r, s1, a1)
-                                  else
-                                    if high > last
-                                    then
-                                      let r ← error.invalid_arg Unit 0#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      let old ←
-                                        obj.ks_get machineStoreInst s1
-                                          layout.ks.VCPU_HEAD
-                                      let (s3, a2) ←
-                                        vcpu.decode_loop3 machineStoreInst
-                                          machineArchInst s1 a1 first last
-                                          prior old layout.WALK_FUEL
-                                      let s4 ← Array.index_usize ex 0#usize
-                                      let s5 ←
-                                        obj.Slot.set_cap machineStoreInst s4 s3
-                                          (capability.Cap.IoPort first last v)
-                                      let s6 ←
-                                        vcpu.ports machineStoreInst s5 v low
-                                          high (¬ (lbl =
-                                          fl4_abi.label.X86VCPUEnableIOPort))
-                                      let s7 ←
-                                        sched.set_thread_state machineStoreInst
-                                          s6 ct sched.TS_RESTART
-                                      ok (core.result.Result.Ok (), s7, a2)
-                                | capability.Cap.TdxControl =>
-                                  let r ← error.illegal Unit
-                                  ok (r, s1, a1)
-                            else
-                              let s2 ←
-                                vcpu.ports machineStoreInst s1 v low high (¬
-                                  (lbl = fl4_abi.label.X86VCPUEnableIOPort))
-                              let s3 ←
-                                sched.set_thread_state machineStoreInst s2 ct
-                                  sched.TS_RESTART
-                              ok (core.result.Result.Ok (), s3, a1)
-                    else
-                      if lbl = fl4_abi.label.X86VCPUDisableIOPort
-                      then
-                        if i = 2#u64
-                        then let r ← error.illegal Unit
-                             ok (r, s1, a1)
-                        else
-                          if length < 2#u64
-                          then let r ← error.truncated Unit
-                               ok (r, s1, a1)
-                          else
-                            let low ← lift (f &&& 65535#u64)
-                            let high ← lift (value &&& 65535#u64)
-                            if low > high
-                            then
-                              let r ← error.invalid_arg Unit 0#u64
-                              ok (r, s1, a1)
-                            else
-                              if lbl = fl4_abi.label.X86VCPUEnableIOPort
-                              then
-                                let s2 ← Array.index_usize ex 0#usize
-                                let b ← obj.Slot.is_null s2
-                                if b
-                                then
-                                  let r ← error.truncated Unit
-                                  ok (r, s1, a1)
-                                else
-                                  let c ← obj.Slot.cap machineStoreInst s2 s1
-                                  match c with
-                                  | capability.Cap.Null =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Untyped _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Endpoint _ _ _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Notification _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Reply _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.CNode _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Thread _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.IrqControl =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.IrqHandler _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Zombie _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Domain =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.SchedContext _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.SchedControl _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Frame _ _ _ _ _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.PageTable _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.PageDirectory _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Pdpt _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Pml4 _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Vcpu _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.Ept _ _ _ _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.AsidControl =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.AsidPool _ _ =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.IoPortControl =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                                  | capability.Cap.IoPort first last prior =>
-                                    if low < first
-                                    then
-                                      let r ← error.invalid_arg Unit 0#u64
-                                      ok (r, s1, a1)
-                                    else
-                                      if high > last
-                                      then
-                                        let r ← error.invalid_arg Unit 0#u64
-                                        ok (r, s1, a1)
-                                      else
-                                        let old ←
-                                          obj.ks_get machineStoreInst s1
-                                            layout.ks.VCPU_HEAD
-                                        let (s3, a2) ←
-                                          vcpu.decode_loop4 machineStoreInst
-                                            machineArchInst s1 a1 first last
-                                            prior old layout.WALK_FUEL
-                                        let s4 ← Array.index_usize ex 0#usize
-                                        let s5 ←
-                                          obj.Slot.set_cap machineStoreInst s4
-                                            s3 (capability.Cap.IoPort first
-                                            last v)
-                                        let s6 ←
-                                          vcpu.ports machineStoreInst s5 v low
-                                            high (¬ (lbl =
-                                            fl4_abi.label.X86VCPUEnableIOPort))
-                                        let s7 ←
-                                          sched.set_thread_state
-                                            machineStoreInst s6 ct
-                                            sched.TS_RESTART
-                                        ok (core.result.Result.Ok (), s7, a2)
-                                  | capability.Cap.TdxControl =>
-                                    let r ← error.illegal Unit
-                                    ok (r, s1, a1)
-                              else
-                                let s2 ←
-                                  vcpu.ports machineStoreInst s1 v low high (¬
-                                    (lbl = fl4_abi.label.X86VCPUEnableIOPort))
-                                let s3 ←
-                                  sched.set_thread_state machineStoreInst s2 ct
-                                    sched.TS_RESTART
-                                ok (core.result.Result.Ok (), s3, a1)
-                      else let r ← error.illegal Unit
-                           ok (r, s1, a1)
 
 /-- [fl4_core::untyped::RESET_CHUNK]
     Source: 'crates/fl4-core/src/untyped.rs', lines 222:0-222:31 -/
@@ -49975,516 +51050,526 @@ def untyped._ : Result Unit := do
   let i ← 1#u64 <<< untyped.RESET_CHUNK_BITS
   massert (untyped.RESET_CHUNK = i)
 
+/-- [fl4_core::vcpu::VMCS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 20:0-20:24
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.VMCS : Std.U64 := 0#u64
+
+/-- [fl4_core::vcpu::VMX_STATE]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 48:0-48:34
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.VMX_STATE : Std.U64 := 21248#u64
+
 /-- [fl4_core::vcpu::vmx::CONTROL_VPID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 82:4-82:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 91:4-91:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.CONTROL_VPID : Std.U64 := 0#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_ES_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 91:4-91:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 100:4-100:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_ES_SELECTOR : Std.U64 := 3072#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 92:4-92:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 101:4-101:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_CS_SELECTOR : Std.U64 := 3074#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 93:4-93:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 102:4-102:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SS_SELECTOR : Std.U64 := 3076#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_DS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 94:4-94:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 103:4-103:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_DS_SELECTOR : Std.U64 := 3078#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_FS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 95:4-95:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 104:4-104:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_FS_SELECTOR : Std.U64 := 3080#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GS_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 96:4-96:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 105:4-105:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_GS_SELECTOR : Std.U64 := 3082#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_TR_SELECTOR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 97:4-97:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 106:4-106:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_TR_SELECTOR : Std.U64 := 3084#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_IOA_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 98:4-98:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 107:4-107:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_IOA_ADDRESS : Std.U64 := 8192#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_IOB_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 99:4-99:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 108:4-108:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_IOB_ADDRESS : Std.U64 := 8194#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_MSR_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 100:4-100:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 109:4-109:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_MSR_ADDRESS : Std.U64 := 8196#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_STORE_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 101:4-101:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 110:4-110:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_STORE_ADDRESS : Std.U64 := 8198#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_LOAD_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 102:4-102:62
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 111:4-111:62
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_LOAD_ADDRESS : Std.U64 := 8200#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_MSR_LOAD_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 103:4-103:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 112:4-112:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_MSR_LOAD_ADDRESS : Std.U64 := 8202#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXECUTIVE_VMCS_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 104:4-104:63
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 113:4-113:63
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXECUTIVE_VMCS_POINTER : Std.U64 := 8204#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_VIRTUAL_APIC_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 106:4-106:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 115:4-115:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_VIRTUAL_APIC_ADDRESS : Std.U64 := 8210#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_APIC_ACCESS_ADDRESS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 107:4-107:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 116:4-116:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_APIC_ACCESS_ADDRESS : Std.U64 := 8212#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EPT_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 108:4-108:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 117:4-117:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EPT_POINTER : Std.U64 := 8218#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_VMCS_LINK_POINTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 110:4-110:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 119:4-119:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_VMCS_LINK_POINTER : Std.U64 := 10240#u64
 
 /-- [fl4_core::vcpu::vmx::GUEST_VMCS_LINK_POINTER_HIGH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 111:4-111:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 120:4-120:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.GUEST_VMCS_LINK_POINTER_HIGH : Std.U64 := 10241#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_PAT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 120:4-120:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 129:4-129:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_PAT : Std.U64 := 11264#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_EFER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 121:4-121:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 130:4-130:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_EFER : Std.U64 := 11266#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_PERF_GLOBAL_CTRL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 122:4-122:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 131:4-131:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_PERF_GLOBAL_CTRL : Std.U64 := 11268#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PAGE_FAULT_MASK]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 126:4-126:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 135:4-135:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PAGE_FAULT_MASK : Std.U64 := 16390#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PAGE_FAULT_MATCH]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 127:4-127:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 136:4-136:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PAGE_FAULT_MATCH : Std.U64 := 16392#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 128:4-128:57
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 137:4-137:57
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET_COUNT : Std.U64 := 16394#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_STORE_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 130:4-130:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 139:4-139:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_STORE_COUNT : Std.U64 := 16398#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_EXIT_MSR_LOAD_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 131:4-131:60
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 140:4-140:60
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_EXIT_MSR_LOAD_COUNT : Std.U64 := 16400#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_ENTRY_MSR_LOAD_COUNT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 133:4-133:61
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 142:4-142:61
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_ENTRY_MSR_LOAD_COUNT : Std.U64 := 16404#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_TPR_THRESHOLD]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 137:4-137:54
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 146:4-146:54
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_TPR_THRESHOLD : Std.U64 := 16412#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PLE_GAP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 139:4-139:48
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 148:4-148:48
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PLE_GAP : Std.U64 := 16416#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_PLE_WINDOW]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 140:4-140:51
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 149:4-149:51
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_PLE_WINDOW : Std.U64 := 16418#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_REASON]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 142:4-142:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 151:4-151:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_REASON : Std.U64 := 17410#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 172:4-172:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 181:4-181:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_CS : Std.U64 := 19456#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 177:4-177:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 186:4-186:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET0 : Std.U64 := 24584#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 178:4-178:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 187:4-187:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET1 : Std.U64 := 24586#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 179:4-179:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 188:4-188:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET2 : Std.U64 := 24588#u64
 
 /-- [fl4_core::vcpu::vmx::CONTROL_CR3_TARGET3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 180:4-180:52
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 189:4-189:52
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.CONTROL_CR3_TARGET3 : Std.U64 := 24590#u64
 
 /-- [fl4_core::vcpu::vmx::DATA_EXIT_QUALIFICATION]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 181:4-181:56
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 190:4-190:56
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.DATA_EXIT_QUALIFICATION : Std.U64 := 25600#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR0]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 216:4-216:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR0 : Std.U64 := 27648#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 208:4-208:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR3 : Std.U64 := 27650#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 209:4-209:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 218:4-218:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_CR4 : Std.U64 := 27652#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_FS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 210:4-210:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 219:4-219:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_FS_BASE : Std.U64 := 27654#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GS_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 211:4-211:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 220:4-220:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_GS_BASE : Std.U64 := 27656#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_TR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 212:4-212:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 221:4-221:45
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_TR_BASE : Std.U64 := 27658#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_GDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 213:4-213:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 222:4-222:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_GDTR_BASE : Std.U64 := 27660#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_IDTR_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 214:4-214:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 223:4-223:47
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_IDTR_BASE : Std.U64 := 27662#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 215:4-215:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 224:4-224:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_ESP : Std.U64 := 27664#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 216:4-216:50
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:50
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.vmx.HOST_SYSENTER_EIP : Std.U64 := 27666#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 226:4-226:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_RSP : Std.U64 := 27668#u64
 
 /-- [fl4_core::vcpu::vmx::HOST_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 218:4-218:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 227:4-227:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.vmx.HOST_RIP : Std.U64 := 27670#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_CR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 221:4-221:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 230:4-230:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_CR : Std.U64 := 0#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_DR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 222:4-222:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 231:4-231:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_DR : Std.U64 := 4#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 224:4-224:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 233:4-233:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC1 : Std.U64 := 12#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 234:4-234:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC2 : Std.U64 := 16#u64
 
 /-- [fl4_core::vcpu::svm::INTERCEPT_MISC3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 226:4-226:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 235:4-235:43
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INTERCEPT_MISC3 : Std.U64 := 20#u64
 
 /-- [fl4_core::vcpu::svm::PAUSE_FILTER]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 227:4-227:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 236:4-236:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.PAUSE_FILTER : Std.U64 := 56#u64
 
 /-- [fl4_core::vcpu::svm::IOPM_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 228:4-228:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 237:4-237:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.IOPM_BASE : Std.U64 := 64#u64
 
 /-- [fl4_core::vcpu::svm::MSRPM_BASE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 229:4-229:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 238:4-238:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.MSRPM_BASE : Std.U64 := 72#u64
 
 /-- [fl4_core::vcpu::svm::TSC_OFFSET]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 230:4-230:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 239:4-239:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.TSC_OFFSET : Std.U64 := 80#u64
 
 /-- [fl4_core::vcpu::svm::ASID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 231:4-231:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 240:4-240:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.ASID : Std.U64 := 88#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_CODE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 234:4-234:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 243:4-243:37
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_CODE : Std.U64 := 112#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INFO1]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 235:4-235:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 244:4-244:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INFO1 : Std.U64 := 120#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INFO2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 236:4-236:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 245:4-245:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INFO2 : Std.U64 := 128#u64
 
 /-- [fl4_core::vcpu::svm::EXIT_INT_INFO]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 237:4-237:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 246:4-246:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.EXIT_INT_INFO : Std.U64 := 136#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_VAPIC_BAR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 239:4-239:42
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 248:4-248:42
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_VAPIC_BAR : Std.U64 := 152#u64
 
 /-- [fl4_core::vcpu::svm::GHCB]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 240:4-240:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.GHCB : Std.U64 := 160#u64
 
 /-- [fl4_core::vcpu::svm::NESTED_CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 242:4-242:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 251:4-251:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NESTED_CR3 : Std.U64 := 176#u64
 
 /-- [fl4_core::vcpu::svm::VIRT_EXT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 243:4-243:36
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 252:4-252:36
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.VIRT_EXT : Std.U64 := 184#u64
 
 /-- [fl4_core::vcpu::svm::CLEAN]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 244:4-244:33
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 253:4-253:33
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.CLEAN : Std.U64 := 192#u64
 
 /-- [fl4_core::vcpu::svm::NEXT_RIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 245:4-245:36
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 254:4-254:36
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.NEXT_RIP : Std.U64 := 200#u64
 
 /-- [fl4_core::vcpu::svm::INSN_BYTES]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 246:4-246:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 255:4-255:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.INSN_BYTES : Std.U64 := 208#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_BACKING]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 247:4-247:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 256:4-256:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_BACKING : Std.U64 := 224#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_LOGICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 248:4-248:40
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 257:4-257:40
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_LOGICAL : Std.U64 := 240#u64
 
 /-- [fl4_core::vcpu::svm::AVIC_PHYSICAL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:41
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 258:4-258:41
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.AVIC_PHYSICAL : Std.U64 := 248#u64
 
 /-- [fl4_core::vcpu::svm::VMSA]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 250:4-250:32
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 259:4-259:32
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.svm.VMSA : Std.U64 := 264#u64
 
 /-- [fl4_core::vcpu::svm::ES]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 252:4-252:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 261:4-261:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.ES : Result Std.U64 := vcpu.svm.SAVE + 0#u64
 
 /-- [fl4_core::vcpu::svm::CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 253:4-253:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 262:4-262:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CS : Result Std.U64 := vcpu.svm.SAVE + 16#u64
 
 /-- [fl4_core::vcpu::svm::SS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 254:4-254:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 263:4-263:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SS : Result Std.U64 := vcpu.svm.SAVE + 32#u64
 
 /-- [fl4_core::vcpu::svm::DS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 255:4-255:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 264:4-264:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.DS : Result Std.U64 := vcpu.svm.SAVE + 48#u64
 
 /-- [fl4_core::vcpu::svm::FS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 256:4-256:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 265:4-265:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.FS : Result Std.U64 := vcpu.svm.SAVE + 64#u64
 
 /-- [fl4_core::vcpu::svm::GS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 257:4-257:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 266:4-266:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.GS : Result Std.U64 := vcpu.svm.SAVE + 80#u64
 
 /-- [fl4_core::vcpu::svm::GDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 258:4-258:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 267:4-267:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.GDTR : Result Std.U64 := vcpu.svm.SAVE + 96#u64
 
 /-- [fl4_core::vcpu::svm::LDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 259:4-259:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 268:4-268:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.LDTR : Result Std.U64 := vcpu.svm.SAVE + 112#u64
 
 /-- [fl4_core::vcpu::svm::IDTR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 260:4-260:39
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 269:4-269:39
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.IDTR : Result Std.U64 := vcpu.svm.SAVE + 128#u64
 
 /-- [fl4_core::vcpu::svm::TR]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 261:4-261:37
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 270:4-270:37
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.TR : Result Std.U64 := vcpu.svm.SAVE + 144#u64
 
 /-- [fl4_core::vcpu::svm::CPL]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 262:4-262:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 271:4-271:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CPL : Result Std.U64 := vcpu.svm.SAVE + 200#u64
 
 /-- [fl4_core::vcpu::svm::CR4]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 264:4-264:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 273:4-273:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.CR4 : Result Std.U64 := vcpu.svm.SAVE + 328#u64
 
 /-- [fl4_core::vcpu::svm::RSP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 271:4-271:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 280:4-280:38
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.RSP : Result Std.U64 := vcpu.svm.SAVE + 472#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_CS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 278:4-278:46
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 287:4-287:46
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_CS : Result Std.U64 := vcpu.svm.SAVE + 552#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_ESP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 279:4-279:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 288:4-288:47
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_ESP : Result Std.U64 := vcpu.svm.SAVE + 560#u64
 
 /-- [fl4_core::vcpu::svm::SYSENTER_EIP]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 280:4-280:47
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 289:4-289:47
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.svm.SYSENTER_EIP : Result Std.U64 := vcpu.svm.SAVE + 568#u64

@@ -1,9 +1,10 @@
-/// AArch64 kernel window: the lower 127.5 TiB of the TTBR1 half, since RAM
-/// often sits high in the physical address space. The kernel image and
-/// device mappings are above it.
+/// AArch64 kernel window: the lower 127 TiB of the TTBR1 half (L0[256..509]),
+/// since RAM often sits high in the physical address space. Device mappings
+/// and the kernel image occupy L0[510], leaving L0[511] exclusively for
+/// `ArmHighVSpace`.
 pub const PPTR_BASE: u64 = 0xffff_8000_0000_0000;
 
-pub const PPTR_TOP: u64 = 0xffff_ff80_0000_0000;
+pub const PPTR_TOP: u64 = 0xffff_ff00_0000_0000;
 
 /// AArch64 TCB, 4 KiB: the same fields, with the 37 registers, the
 /// breakpoint state and the FP/SIMD image laid out for AArch64.

@@ -85,4 +85,27 @@ theorem bvTrailingZeros_le {w : Nat} (x : BitVec w) : bvTrailingZeros x ≤ w :=
     exact Nat.mod_eq_of_lt hp
   exact ⟨hv, rfl, by rw [show (⟨1#64 <<< n.val⟩ : U64).val = (1#64 <<< n.val).toNat from rfl, hv]; positivity⟩
 
+/-- The derived `PartialEq` on frame sizes (a `Cap::Frame` field) never
+fails (its generated P0 theorem comes after this module). -/
+theorem capability.FrameSize.eq_total (a b : capability.FrameSize) :
+    capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq a b ⦃ _ => True ⦄ :=
+  (WP.spec_ok _).2 trivial
+
+/-- The derived `PartialEq` on caps never fails (#104's `localvm`
+compares a slot's cap with `Cap::Vcpu`). -/
+theorem capability.Cap.eq_total (a b : capability.Cap) :
+    capability.Cap.Insts.CoreCmpPartialEqCap.eq a b ⦃ _ => True ⦄ := by
+  unfold capability.Cap.Insts.CoreCmpPartialEqCap.eq
+  cases a <;> cases b <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;>
+    (try step*) <;> (try exact capability.FrameSize.eq_total _ _)
+
+/-- `!=` on caps never fails. P0 needs only that, and the generic `ne` step
+lemma would need `eq`'s meaning (`r = true ↔ a = b`), which `Cap` has no
+spec for; declared after it, step picks this one. -/
+@[step] theorem capability.Cap.ne_total (a b : capability.Cap) :
+    core.cmp.PartialEq.ne.trait_default capability.Cap.Insts.CoreCmpPartialEqCap a b ⦃ _ => True ⦄ := by
+  unfold core.cmp.PartialEq.ne.trait_default core.cmp.PartialEq.ne.default
+  exact WP.spec_bind (capability.Cap.eq_total a b) fun _ _ => (WP.spec_ok _).2 trivial
+
 end Fl4ProofsA64.P0

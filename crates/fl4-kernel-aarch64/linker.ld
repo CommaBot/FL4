@@ -5,7 +5,7 @@
 OUTPUT_FORMAT(elf64-littleaarch64)
 ENTRY(_start)
 
-KERNEL_VBASE = 0xffffffff80000000;
+KERNEL_VBASE = 0xffffff7f80000000;
 
 PHDRS {
     text PT_LOAD FLAGS(5);

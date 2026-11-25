@@ -3,7 +3,7 @@
 use crate::kprintln;
 use crate::user_trap;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, cvm, fpu, percpu, tdx, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, cvm, fpu, kconfig, percpu, tdx, timer, tlb};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -566,6 +566,18 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
             }
         }
     }
+    // SysKernelConfig: one boot-frozen word (kconfig.rs), answered from the
+    // caller's registers alone, in a confidential VM too. A thread with
+    // trapSyscalls takes the ordinary path to its fault handler.
+    if v == VEC_SYSCALL && f.rdx as i64 == fl4_abi::syscall::SysKernelConfig {
+        let s = store();
+        if sched::cur_thread(&s).flags(&s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS == 0 {
+            (f.rdi, f.r10) = kconfig::reply(f.rdi);
+            // seL4_MessageInfo_new(0, 0, 0, 1).
+            f.rsi = 1;
+            return resume_user();
+        }
+    }
     save_user(&mut store(), f);
     trace(f);
     if v == smp::REMOTE_CALL_VECTOR as u64 {
@@ -711,20 +723,52 @@ pub fn exit() -> ! {
         if ct.state(s) == sched::TS_RUNNING_VM {
             // Register the nested root before releasing the gate. An
             // unmap must then interrupt this core even if it has not yet
-            // executed its entry instruction.
+            // executed its entry instruction. Beside the gate when that
+            // changes nothing (`fl4_core::localvm::vm_entry_ready`): this
+            // core is registered already, and the checks write nothing.
+            let mut ready = None;
             if !percpu::get().gate_held.get() {
-                lock();
-                ct = sched::cur_thread(s);
+                if smp::multi() {
+                    let found = core::cell::Cell::new(None);
+                    match fl4_sync::try_local(&KernelEnv, &GATE, |s, _| {
+                        found.set(fl4_sync::local_vm_entry(s, &Phys));
+                        found.get().is_some()
+                    }) {
+                        fl4_sync::Local::Done => ready = found.get(),
+                        // The thread is no longer this core's to enter.
+                        fl4_sync::Local::Stalled => continue,
+                        fl4_sync::Local::Closed | fl4_sync::Local::Declined => {}
+                    }
+                }
+                // A VCPU whose VMCS another core last loaded is entered
+                // under the gate, which clears it there first (below).
+                if ready.is_some() && !fl4_arch_x86_64::vm::loadable_here(fl4_core::vcpu::bound(s, ct)) {
+                    ready = None;
+                }
+                if ready.is_none() {
+                    lock();
+                    ct = sched::cur_thread(s);
+                }
             }
             let mut a = PhysArch;
-            fl4_core::vcpu::check(s, &mut a, ct);
-            if ct.state(s) == sched::TS_RUNNING_VM {
+            if ready.is_none() {
+                fl4_core::vcpu::check(s, &mut a, ct);
+                if ct.state(s) == sched::TS_RUNNING_VM {
+                    let cap = ct.slot(tl::SLOT_EPT).cap(s);
+                    ready = Some(match fl4_core::ept::root(s, cap) {
+                        Ok((root, _)) => { fl4_core::ept::mark_core(s, root); root }
+                        Err(_) => 0,
+                    });
+                }
+            }
+            if let Some(root) = ready {
+                let root = if root == 0 { fl4_arch_x86_64::vm::empty_root() } else { root };
                 let v = fl4_core::vcpu::bound(s, ct);
-                let cap = ct.slot(tl::SLOT_EPT).cap(s);
-                let root = match fl4_core::ept::root(s, cap) {
-                    Ok((root, _)) => { fl4_core::ept::mark_core(s, root); root }
-                    Err(_) => fl4_arch_x86_64::vm::empty_root(),
-                };
+                // Still under the gate where it is held: `run` makes no
+                // remote call (fl4-arch-x86_64's smp module comment).
+                if percpu::get().gate_held.get() {
+                    fl4_arch_x86_64::vm::evict(v);
+                }
                 unlock();
                 let vector = fl4_arch_x86_64::vm::run(s, v, ct.0, root);
                 let irq = if vector == 0x100 {
@@ -746,13 +790,32 @@ pub fn exit() -> ! {
                 };
                 // Results are already durable if this call stalls us.
                 let stalled = service_remote();
-                // Always acquire, even if the first call stalled us: an
-                // accepted host IRQ still needs handling under the gate.
-                let resumed = lock();
-                syscall::handle_vcpu_exit(s, &mut a, irq, stalled || !resumed);
-                // That ran the scheduler, and the next round has no gate.
+                // An exit without a host interrupt, or the kernel timer's,
+                // first beside the gate (`fl4_sync::local_vm_exit`). The
+                // timer's interrupt has been accepted: if the local path
+                // declines or a stall comes while it waits for the gate,
+                // it is handled under the gate, as any other.
+                let local = !stalled
+                    && smp::multi()
+                    && (irq == syscall::NO_IRQ || irq == TIMER_VECTOR as u64 - VEC_IRQ_MIN);
+                let res = if local {
+                    fl4_sync::try_local(&KernelEnv, &GATE, |s, a| fl4_sync::local_vm_exit(s, a, &Phys, irq, |_, _| {}))
+                } else {
+                    fl4_sync::Local::Declined
+                };
+                if !matches!(res, fl4_sync::Local::Done) {
+                    // Always acquire, even if the first call stalled us: an
+                    // accepted host IRQ still needs handling under the gate.
+                    let resumed = lock();
+                    let local_stalled = matches!(res, fl4_sync::Local::Stalled);
+                    syscall::handle_vcpu_exit(s, &mut a, irq, stalled || !resumed || local_stalled);
+                }
+                // That ran the scheduler. A thread it made current may hold
+                // a user trap (`check_user_trap`). The gate, if held, is
+                // kept for the next round: a guest re-entered at once is
+                // prepared under it, and anything else leaves through the
+                // release below, one release per exit.
                 percpu::get().check_user_trap.set(true);
-                unlock();
                 continue;
             }
         }
