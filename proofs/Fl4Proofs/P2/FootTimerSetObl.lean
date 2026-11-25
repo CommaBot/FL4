@@ -126,7 +126,7 @@ theorem StEnt.dec {s : S} (h : StEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac target s) 
 theorem nodeR {s : S} (h : StEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac target s) {o : U64} (h1 : o.val < 4288)
     (h2 : o.val % 8 = 0) : MaxR K st lk s (L.nodeAt s (L.cpu s) o) := by
   have h0 := h.inv.1.choose_spec.choose_spec
-  exact ⟨Or.inl (held_core (h.lay.own_node _ h1)), nodeAt_aligned (h0.nodes _ h0.cur) h1 h2⟩
+  exact ⟨Or.inl (held_core (h.lay.own_node _ h1)), nodeAt_aligned (h0.nodes _ h0.cur) h1 h2, h.lay.nu_node h1⟩
 
 variable {A : Type} (ar : machine.Arch A) (n : I64)
 variable {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop} {p : SProg Bool}
@@ -152,7 +152,7 @@ theorem set_timer_alt (hA : P0.ArchTotal ar)
       localtimer.handle_set_timer_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s' a n target = ok r') ∨
     (∃ s1 a1, localtimer.handle_set_timer_local st ar s a n target = ok (false, s1, a1) ∧ r'.1 = false ∧
       localtimer.handle_set_timer_local (guard st Aligned (StDec st s)) ar s' a n target = ok r') := by
-  have hR1 : ∀ w, MaxR K st lk s w → Aligned w := fun _ hw => hw.2
+  have hR1 : ∀ w, MaxR K st lk s w → Aligned w := fun _ hw => hw.2.1
   have hW1 : ∀ w, MaxW K st lk s w → Aligned w := fun _ hw => hw.2
   have hW2 : ∀ w, StDec st s w → Aligned w := fun _ hw => (hE.dec hw).1
   have eP : ∀ (m : machine.Store S) (x : S), localtimer.handle_set_timer_local m ar x a n target = interp m ar p x a :=
@@ -196,7 +196,8 @@ theorem set_timer_alt (hA : P0.ArchTotal ar)
     have keyR : ∀ y ∈ W0.keys, ∀ k : U64, 3528 ≤ k.val → k.val < 3576 → k.val % 8 = 0 →
         L.mem s' (core.num.U64.wrapping_add y k) = L.mem s (core.num.U64.wrapping_add y k) := by
       intro y hy k h1 h2 h3
-      refine hAlt.read _ ⟨Or.inl (held_core ?_), field_aligned (hT y (ct.inT y hy)) (by omega) h3⟩
+      refine hAlt.read _ ⟨Or.inl (held_core ?_), field_aligned (hT y (ct.inT y hy)) (by omega) h3,
+        hE.lay.nu_tcb (ct.inT y hy) (by omega) (by omega)⟩
       have e := hE.lay.own_tcb hT (L.mem s) (ct.inT y hy) (k := k) (by omega) (by omega)
       unfold fld at e
       rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
@@ -309,14 +310,14 @@ theorem set_timer_pathSide (hA : P0.ArchTotal ar)
         StDec st (L.wr s b v) = StDec st s) :
     PathObl.PathSide st (fun m s a => localtimer.handle_set_timer_local m ar s a n target) cls ko User lk
       P (MaxR K st lk) (MaxW K st lk) (StDec st) := by
-  refine ⟨?_, fun s x _ hx => hx.2, hkoA, huf⟩
+  refine ⟨?_, fun s x _ hx => hx.2.1, hkoA, huf⟩
   intro s s' a r hE hAlt h
   have eP : ∀ (m : machine.Store S) (x : S), localtimer.handle_set_timer_local m ar x a n target = interp m ar p x a :=
     fun m x => congrFun (congrFun (hp m) x) a
   rcases set_timer_alt (lk := lk) ar n hA hp hz hm (hcls s hE) (hko s hE) (hU s hE) (hPE s hE) hAlt h with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
   · show localtimer.handle_set_timer_local _ ar s' a n target = ok r
     rw [eP] at h2 ⊢
-    exact interp_mono (fun _ hw => hw.2) (fun _ _ => trivial) p hz s' a r h2
+    exact interp_mono (fun _ hw => hw.2.1) (fun _ _ => trivial) p hz s' a r h2
   · show localtimer.handle_set_timer_local _ ar s' a n target = ok r
     rw [eP] at h2 ⊢
     exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) p hz s' a r h2
