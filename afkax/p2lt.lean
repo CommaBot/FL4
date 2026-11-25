@@ -61,6 +61,8 @@ import Fl4Proofs.P2.FootTimerFireSx
 import Fl4Proofs.P2.FootTimerFireSy0
 import Fl4Proofs.P2.FootTimerFireSy1
 import Fl4Proofs.P2.FootTimerFireSy2
+import Fl4Proofs.P2.FootTimerFireSy
+import Fl4Proofs.P2.FootTimerIrqLPP2
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -349,3 +351,11 @@ import Fl4Proofs.P2.FootTimerFireSy2
 #print axioms Fl4Proofs.P2.sw_guard
 #print axioms Fl4Proofs.P2.choose_guard
 #print axioms Fl4Proofs.P2.schedSw_guard
+#print axioms Fl4Proofs.P2.scacc_of
+#print axioms Fl4Proofs.P2.aw_tail_sw
+#print axioms Fl4Proofs.P2.fire_tail_wk2
+#print axioms Fl4Proofs.P2.SlotLay
+#print axioms Fl4Proofs.P2.slot_maxR
+#print axioms Fl4Proofs.P2.irq_acc_fire_wk2
+#print axioms Fl4Proofs.P2.irq_move_fire_wk2
+#print axioms Fl4Proofs.P2.irq_localPathP2
