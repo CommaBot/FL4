@@ -352,14 +352,14 @@ theorem VmMidF.preRW {A : Type} (ar : machine.Arch A) (a1 : A) (w0 w1 : U64) (in
       by_cases htl : (L.epQ s2 ptr).end = dest
       · rw [if_pos htl, obj.Ep.set_queue.ok] at e3
         obtain rfl := ok_inj_ff e3
-        unfold epFast; simp only [htl, ↓reduceIte]; try rfl
+        unfold epFast; simp only [htl, ↓reduceIte]
       · rw [if_neg htl, obj.Tcb.ep_next.ok] at e3
         simp only [bind_ok] at e3
         rw [obj.Tcb.set_ep_prev.ok] at e3
         simp only [bind_ok] at e3
         rw [obj.Ep.set_queue.ok] at e3
         obtain rfl := ok_inj_ff e3
-        unfold epFast; simp only [htl, ↓reduceIte]; try rfl
+        unfold epFast; simp only [htl, ↓reduceIte]
     subst e45
     rw [fault_type_ok]
     congr 1

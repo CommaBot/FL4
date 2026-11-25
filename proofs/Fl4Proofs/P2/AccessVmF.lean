@@ -46,16 +46,15 @@ theorem fastFaultG_checks {A : Type} (m : machine.Store S) (ar : machine.Arch A)
   rw [hcap]; simp only [bind_ok]
   cases g <;> cases gr <;> simp only [Bool.false_eq_true, or_self] at hg
   all_goals
-    simp only [Bool.false_eq_true, eq_self_iff_true, ↓reduceIte]
+    simp only [Bool.false_eq_true, ↓reduceIte]
     rw [hep]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
     rw [hhd]; simp only [bind_ok]
     rw [hrp]; simp only [bind_ok, if_neg hr0]
-    rw [hhere]; simp only [bind_ok, eq_self_iff_true, ↓reduceIte]
+    rw [hhere]; simp only [bind_ok, ↓reduceIte]
     rw [hd]; simp only [bind_ok]
     rw [hp]; simp only [bind_ok]
-    rw [hhi]
-    try simp only [bind_ok, ↓reduceIte]
-    try rfl
+    simp only [hhi, bind_ok, ↓reduceIte]
+    rfl
 
 end
 
@@ -96,8 +95,7 @@ theorem faults.set_fault.guard_vm (s : S) (t : obj.Tcb) (w0 w1 : U64) (ins : Boo
   unfold faults.set_fault
   cases ins <;> simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
   all_goals
-    try simp only [uncurry_apply_pair]
-    try dsimp only
+    simp only [uncurry_apply_pair]
     rw [obj.Tcb.set_fault_type.guard t s _ h0]
     refine bind_guard_congr rfl (fun s2 _ => ?_)
     rw [obj.Tcb.set_fault_w0.guard t s2 _ h1]
@@ -155,15 +153,15 @@ theorem faults.set_mrs_fault.guard_vm {A : Type} (ar : machine.Arch A) (s : S) (
   rw [msg.set_mr.guard_reg s rcv buf 0#u64 pc (n_msg_lt (by decide)) (h.mr 0#u64 (by decide))]
   refine bind_guard_congr rfl (fun x1 _ => ?_)
   obtain ⟨_, s1⟩ := x1
-  try simp only [uncurry_apply_pair]
+  simp only [uncurry_apply_pair]
   rw [msg.set_mr.guard_reg s1 rcv buf 1#u64 w0 (n_msg_lt (by decide)) (h.mr 1#u64 (by decide))]
   refine bind_guard_congr rfl (fun x2 _ => ?_)
   obtain ⟨_, s2⟩ := x2
-  try simp only [uncurry_apply_pair]
+  simp only [uncurry_apply_pair]
   rw [msg.set_mr.guard_reg s2 rcv buf 2#u64 w2 (n_msg_lt (by decide)) (h.mr 2#u64 (by decide))]
   refine bind_guard_congr rfl (fun x3 _ => ?_)
   obtain ⟨_, s3⟩ := x3
-  try simp only [uncurry_apply_pair]
+  simp only [uncurry_apply_pair]
   rw [msg.set_mr.guard_reg s3 rcv buf 3#u64 w1 (n_msg_lt (by decide)) (h.mr 3#u64 (by decide))]
 
 theorem sporadic.sc_sporadic.guard (s : S) (sc : obj.Sc)
@@ -173,7 +171,7 @@ theorem sporadic.sc_sporadic.guard (s : S) (sc : obj.Sc)
   by_cases h0 : sc = 0#u64
   · subst h0
     have hn : obj.Sc.is_null 0#u64 = ok true := by unfold obj.Sc.is_null; simp
-    simp only [hn, bind_ok, eq_self_iff_true, ↓reduceIte]
+    simp only [hn, bind_ok, ↓reduceIte]
   · have hn : obj.Sc.is_null sc = ok false := by
       unfold obj.Sc.is_null; simp [h0]
     rw [hn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
@@ -246,11 +244,7 @@ theorem faultTailG_split {A : Type} (m : machine.Store S) (ar : machine.Arch A) 
   iterate 7 (congr 1; funext _)
   rename_i x
   obtain ⟨sent, s6⟩ := x
-  first
-    | rfl
-    | (simp only [uncurry_apply_pair, Std.bind_assoc]; done)
-    | (dsimp only; simp only [Std.bind_assoc]; done)
-    | (dsimp only; done)
+  simp only [uncurry_apply_pair, Std.bind_assoc]
 
 /-- The words `vmPre14` reads and writes (`t` the faulting thread, `ptr` the
 endpoint, `dest` its head, `r` the handler's reply object). The link `EP_PREV`
@@ -314,7 +308,7 @@ theorem vmPre14.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) (t : obj.
   rw [faults.set_mrs_fault.guard_vm ar s5 a t dest rb (H.ty s2 tl s3 s4 s5 e2 etl e3 e4 e5) H.mrs]
   refine bind_guard_congr rfl (fun x6 _ => ?_)
   obtain ⟨sent, s6⟩ := x6
-  try simp only [uncurry_apply_pair]
+  simp only [uncurry_apply_pair]
   refine bind_guard_congr rfl (fun mi _ => ?_)
   rw [msg.set_msg_info.guard s6 dest mi H.mi]
   refine bind_guard_congr rfl (fun s7 _ => ?_)
@@ -423,7 +417,7 @@ theorem syscall.handle_vm_fault_local.guard_acc {A : Type} (ar : machine.Arch A)
   refine tr_bind (fun x hx _ => by rw [sched.update_timestamp.guard ar s a hct hwct hcn hwcn]; exact hx)
     (fun x eu => ?_)
   obtain ⟨s1, a1⟩ := x
-  try simp only [uncurry_apply_pair]
+  simp only [uncurry_apply_pair]
   obtain ⟨h1, h2, h3⟩ := hcsc s1 a1 eu
   rw [sched.cur_sc.guard s1 h1]
   refine tr_bind_same (fun csc ecsc => ?_)
