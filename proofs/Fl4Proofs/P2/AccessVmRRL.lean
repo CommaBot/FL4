@@ -4,7 +4,7 @@
 `syscall.handle_reply_recv_vm_local.guard_acc`: an accepted run (`true`) of the VM ReplyRecv local
 path on any store `gS` answering as `st` on the words it reads (`GRd gS st R`) and writes
 (`GWr gS st W`) ends exactly as the real run, given the fast path after the prefix agrees on `gS`
-(`hmid`, `fastpath_vm.reply_recv_vm_found.guard` of `P2/AccessVmRR.lean` at the post-prefix state).
+(`hmid`, for the real `FAULT_IP` value `NEXT_IP - 2`; `fastpath_vm.reply_recv_vm_found.guard` of `P2/AccessVmRR.lean` at the post-prefix state).
 The prefix: the current thread, its `FLAGS` (`TRAP_SYSCALLS`) and `NEXT_IP`, the `FAULT_IP` write,
 `update_timestamp` (the node's `CUR_TIME` / `CONSUMED`), the current SC's budget check
 (`CUR_SC`, `CONSUMED`, its head refill).
@@ -38,7 +38,8 @@ theorem syscall.handle_reply_recv_vm_local.guard_acc {A : Type} (ar : machine.Ar
     (hsuf : ∀ v s1 s2 a1 csc, obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP v = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) → sched.cur_sc st s2 = ok csc →
       RdHead (L := L) R s2 csc)
-    (hmid : ∀ v s1 s2 a1, obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP v = ok s1 →
+    (hmid : ∀ nx s1 s2 a1, obj.Tcb.reg st (L.curW s) s layout.reg.NEXT_IP = ok nx →
+      obj.Tcb.set_reg st (L.curW s) s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
       sched.update_timestamp st ar s1 a = ok (s2, a1) →
       fastpath_vm.reply_recv_vm_found st ar s2 a1 (L.curW s) rptr ep = ok (true, s', a') →
       fastpath_vm.reply_recv_vm_found gS ar s2 a1 (L.curW s) rptr ep =
@@ -57,24 +58,26 @@ theorem syscall.handle_reply_recv_vm_local.guard_acc {A : Type} (ar : machine.Ar
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   rw [obj.Tcb.reg.guard (gS := gS) (L.curW s) s _ hni]
-  refine tr_bind_same (fun nx _ => ?_)
-  refine tr_bind_same (fun v _ => ?_)
+  refine tr_bind_same (fun nx enx => ?_)
+  refine tr_bind_same (fun v ev => ?_)
+  have ev' : core.num.U64.wrapping_sub nx 2#u64 = v := ok_inj_ff ev
+  subst ev'
   rw [obj.Tcb.set_reg.guard (gS := gS) (L.curW s) s _ _ hfi]
   refine tr_bind_same (fun s1 e1 => ?_)
-  obtain ⟨r1, w1, r2, w2⟩ := hut v s1 e1
+  obtain ⟨r1, w1, r2, w2⟩ := hut _ s1 e1
   refine tr_bind (fun x hx _ => by rw [sched.update_timestamp.guard (gS := gS) ar s1 a r1 w1 r2 w2]; exact hx)
     (fun x eu => ?_)
   obtain ⟨s2, a1⟩ := x
   simp only [uncurry_apply_pair]
-  obtain ⟨h1, h2⟩ := hcsc v s1 s2 a1 e1 eu
+  obtain ⟨h1, h2⟩ := hcsc _ s1 s2 a1 e1 eu
   rw [sched.cur_sc.guard (gS := gS) s2 h1]
   refine tr_bind_same (fun csc ecsc => ?_)
   rw [sched.consumed.guard (gS := gS) s2 h2]
   refine tr_bind_same (fun u _ => ?_)
-  rw [sporadic.sufficient.guard (gS := gS) ar s2 a1 csc u (hsuf v s1 s2 a1 csc e1 eu ecsc)]
+  rw [sporadic.sufficient.guard (gS := gS) ar s2 a1 csc u (hsuf _ s1 s2 a1 csc e1 eu ecsc)]
   refine tr_bind_same (fun b _ => ?_)
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  exact fun h' => (hmid v s1 s2 a1 e1 eu h').trans h'
+  exact fun h' => (hmid nx s1 s2 a1 enx e1 eu h').trans h'
 
 end
 
