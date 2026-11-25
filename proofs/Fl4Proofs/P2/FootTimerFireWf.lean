@@ -79,7 +79,8 @@ theorem wake_wait_fire {A : Type} (ar : machine.Arch A) {s X : S} (a : A) {N bad
     (rL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ TimerField K.val →
       ¬ GField K.val → R (core.num.U64.wrapping_add y K))
     (wL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ GateField K.val →
-      ¬ TimerField K.val → ¬ GField K.val → K.val ≠ 3328 → W (core.num.U64.wrapping_add y K))
+      ¬ TimerField K.val → ¬ GField K.val → K.val ≠ 3328 → K.val ≠ 3336 →
+      W (core.num.U64.wrapping_add y K))
     (rS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → R b)
     (wS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → b.val ≠ p.val + 16 → W b)
     (lkL : ∀ y ∈ T, QueuedState (L.mem s (stA y)) → Lk (L.mem s (blockA y)) → ∀ k : U64,
@@ -217,7 +218,7 @@ theorem wake_wait_fire {A : Type} (ar : machine.Arch A) {s X : S} (a : A) {N bad
     (by rw [inqA_eq]; exact rw' 3592#u64 (by simp) (by simp) (by simp) (by simp [TimerField]) (by simp [GField]))
     (rw' 3432#u64 (by simp) (by simp) (by simp) (by simp [TimerField]) (by simp [GField]))
     (rw' 3520#u64 (by simp) (by simp) (by simp) (by simp [TimerField]) (by simp [GField]))
-    (by rw [eKB]; exact wL w hloc KB (by omega) (by omega) (by omega) gB1 gB2 gB3 (by omega)) hac ?_ P
+    (by rw [eKB]; exact wL w hloc KB (by omega) (by omega) (by omega) gB1 gB2 gB3 (by omega) (by omega)) hac ?_ P
     (hSgX.sub _ (hXX.1.ntW N hNN)) (fun h0 b hb hin => hXX.1.scW _ (scF h0).1 b hb hin)
   intro Y wY
   obtain ⟨kT', -, -⟩ := epfoot_keep hq hEW he (fun y hy => hqr.mem y hy) wY

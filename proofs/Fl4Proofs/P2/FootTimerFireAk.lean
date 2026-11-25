@@ -122,7 +122,7 @@ theorem irq_acc_fire_wk (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a
       hW hAff
       (fun y hy K h1 h2 h3 ht hg => ⟨loc_rd_own hI hL (Or.inr (Or.inl ⟨y, hy, K, h1, h2, h3, ht, hg, rfl⟩)),
         field_aligned (hT y hy.1) h2 h3⟩)
-      (fun y hy K h1 h2 h3 hga ht hg _ =>
+      (fun y hy K h1 h2 h3 hga ht hg _ _ =>
         ⟨loc_wr_own hI hL (Or.inr (Or.inl ⟨y, hy, K, h1, h2, h3, hga, ht, hg, rfl⟩)),
           field_aligned (hT y hy.1) h2 h3⟩)
       (fun q hq hc b ha hb => ⟨loc_rd_own hI hL (Or.inr (Or.inr ⟨q, hq, hc, hb⟩)), ha⟩)
