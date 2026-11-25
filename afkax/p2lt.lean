@@ -60,6 +60,7 @@ import Fl4Proofs.P2.FootTimerIrqLPP
 import Fl4Proofs.P2.FootTimerFireSx
 import Fl4Proofs.P2.FootTimerFireSy0
 import Fl4Proofs.P2.FootTimerFireSy1
+import Fl4Proofs.P2.FootTimerFireSy2
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -335,3 +336,16 @@ import Fl4Proofs.P2.FootTimerFireSy1
 #print axioms Fl4Proofs.P2.schedSwB_cases
 #print axioms Fl4Proofs.P2.choose_run
 #print axioms Fl4Proofs.P2.schedSw_run
+#print axioms Fl4Proofs.P2.swacc_mono
+#print axioms Fl4Proofs.P2.rq_head_info
+#print axioms Fl4Proofs.P2.getLastD_mem'
+#print axioms Fl4Proofs.P2.rq_tail_info
+#print axioms Fl4Proofs.P2.enq_cur
+#print axioms Fl4Proofs.P2.requeue_run
+#print axioms Fl4Proofs.P2.enq_guard
+#print axioms Fl4Proofs.P2.app_guard
+#print axioms Fl4Proofs.P2.deq_guard_head
+#print axioms Fl4Proofs.P2.deq_guard_unq
+#print axioms Fl4Proofs.P2.sw_guard
+#print axioms Fl4Proofs.P2.choose_guard
+#print axioms Fl4Proofs.P2.schedSw_guard
