@@ -177,6 +177,7 @@ import Fl4Proofs.P2.FootN5
 import Fl4Proofs.P2.FootN6
 import Fl4Proofs.P2.FootN7
 import Fl4Proofs.P2.AllSched
+import Fl4Proofs.P2.FootN8
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
