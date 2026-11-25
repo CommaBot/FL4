@@ -10,13 +10,13 @@
   the IRQ range / state (`IrqLay.iq`), the plan (`plan_objects.guard`, `TmWords` readable by `tmw_own`), the current
   thread (`current_ok.guardC`: its `AFFINITY` the gate's, the rest its home core's once homed here), `sched_quiet`,
   the timestamp (`IrqDec`), `release_due`, the budget / due checks and `round_robin_ok` (after `current_ok`, every
-  read is `IrqRd`'s, readable by `irq_rd_own`). The fire case is a premise (`hFd`, as `irq_acc_own`'s `hF`).
+  read is `IrqRd`'s, readable by `irq_rd_own`), and a declined `fire_ok` (`fire_rd`: the plan's notification is
+  the due thread's bound one, its words that thread's home core's; no lock needed).
 
-Premises: `StLay` [J], `IrqLay` [J], `hAff` [J] (p2j `AffSc`), `hFd` (the fire case, p2j's line: `fire_ok` reads
-the plan's notification head and its waiters' words, which a lock owns; discharging it needs the glue premise
-that the plan's objects (`p.objects`) are among the locks held, `PlanLk` [P] of p2j's glue).
+Premises: `StLay` [J], `IrqLay` [J], `hAff` [J] (p2j `AffSc`); `hNt` (P1's `Nt` are notifications of its heap `H`,
+`fun _ h => h` at the canonical instantiation `Nt = H.ntfns`).
 -/
-import Fl4Proofs.P2.FootTimerIrqOwn
+import Fl4Proofs.P2.FootTimerIrqFC
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2
@@ -90,13 +90,10 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
     {p : localtimer.TimerIrqPlan} {lk : S → U64 → Prop}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s)
     (hAff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
-    (hFd : IrqFire st ar s a → localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a
-      irq p = ok (false, s', a'))
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     (h : localtimer.handle_timer_irq_local st ar s a irq p = ok (false, s', a')) :
     localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a irq p =
       ok (false, s', a') := by
-  by_cases hfire : IrqFire st ar s a
-  · exact hFd hfire
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
   have hcC : L.cpu s ∈ Cs := h0.cur
@@ -220,9 +217,10 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   rw [gtip]
-  refine tr_bind_same (fun tip _ => ?_)
-  refine tr_bind_same (fun b _ => ?_)
-  refine tr_ite (fun _ => ?_) (fun _ h => h)
+  refine tr_bind_same (fun tip etip => ?_)
+  refine tr_bind_same (fun b eb => ?_)
+  refine tr_ite (fun hb => ?_) (fun _ h => h)
+  subst hb
   rw [PathObl.sched.cur_thread.guard (gS := guard st R W) s (nR _ (by rw [curth_val]; omega) (by rw [curth_val])),
     cur_thread_ok]
   simp only [bind_ok]
@@ -373,6 +371,9 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
         ndR s1 e1N _ (by simp; omega) (by simp)⟩
       (cR 3448#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp))
     rwa [c1] at this
+  have gfire : localtimer.fire_ok (guard st R W) s1 (L.cpu s) (L.curW s) p now =
+      localtimer.fire_ok st s1 (L.cpu s) (L.curW s) p now :=
+    fire_rd hK hI hL hY hNt k1 c1 m1 etip eb (L.curW s) now
   refine tr_bind (fun ok1 e1 _ => ?_) (fun ok1 _ hk => ?_)
   · cases b4 <;> cases due
     · simp only [Bool.false_eq_true, not_false_eq_true, ↓reduceIte] at e1 ⊢
@@ -381,18 +382,8 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
       exact e1
     · simp only [Bool.false_eq_true, not_true_eq_false, ↓reduceIte] at e1 ⊢
       exact e1
-    · exact absurd (fun s1' a1' now' i2' b4' due' eu' enow' ei2' eb4' edue' => by
-        rw [eu] at eu'
-        have e := ok_inj_ff eu'
-        simp only [Prod.mk.injEq] at e
-        obtain ⟨rfl, rfl⟩ := e
-        rw [enow] at enow'
-        obtain rfl := ok_inj_ff enow'
-        rw [ei2] at ei2'
-        obtain rfl := ok_inj_ff ei2'
-        rw [eb4] at eb4'
-        rw [edue] at edue'
-        exact ⟨(ok_inj_ff eb4').symm, (ok_inj_ff edue').symm⟩) hfire
+    · simp only [Bool.false_eq_true, not_true_eq_false, ↓reduceIte] at e1 ⊢
+      rw [gfire]; exact e1
   · cases ok1
     · rw [if_neg Bool.false_ne_true] at hk ⊢; exact hk
     · exfalso

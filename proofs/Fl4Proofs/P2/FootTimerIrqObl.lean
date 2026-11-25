@@ -14,8 +14,9 @@ For the ownership map `OwnMap.own K`, `localtimer.handle_timer_irq_local` with t
 
 Premises: `hp` [P] (`IsProg`), `hz` [W] (`NoZero`), `hm` [P] (`MasksWr`), `hro` [W] (`ReadOnce`); in `IrqEnt`:
 `StLay` [J], `IrqLay` [J], `AsidOff` [J], `aff` [J] (p2j `AffSc`); `hEU` [J] (`IrqEnt` survives a user write),
-`hlk` [P] (so do the glue's locks); `hF` / `hFm` / `hFd` (the fire case, p2j's line: accepted `acc` / `move`, and the
-declined run on the guarded store, which needs the glue premise that the plan's objects are held, `PlanLk` [P]).
+`hlk` [P] (so do the glue's locks); `hF` / `hFm` (the fire case, p2j's line: accepted `acc` / `move`). A declined
+fire run needs no premise (`irq_dec_guard` / `fire_rd`); `IrqEnt.nth` is P1's `Nt` typed in its heap `H` (`fun _ h => h`
+at the canonical instantiation `Nt = H.ntfns`).
 -/
 import Fl4Proofs.P2.FootTimerIrqDec
 import Fl4Proofs.P2.FootTimerSetLP
@@ -42,6 +43,8 @@ structure IrqEnt (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T Cs
   ly : IrqLay K st Nt irq s
   asid : AsidOff (L := L) Ω Sg s
   aff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t)
+  /-- P1's notifications are its heap's (`fun _ h => h` for `Nt = H.ntfns`). -/
+  nth : ∀ n ∈ Nt, H n = some .ntfn
 
 /-- `IrqEnt` and the store agreeing with the model memory `m` on aligned kernel words. -/
 structure IrqEntM (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
@@ -78,7 +81,7 @@ variable {A : Type} (ar : machine.Arch A) {pl : localtimer.TimerIrqPlan}
 variable {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop} {p : SProg Bool}
 variable {lk : S → U64 → Prop}
 
-/-- **Every run at an alternative is the entry's** (module docstring), the fire case premises `hF` / `hFd`. -/
+/-- **Every run at an alternative is the entry's** (module docstring), the fire case premise `hF`. -/
 theorem irq_alt (hA : P0.ArchTotal ar) (hK : RegionOK K)
     (hp : ∀ mm : machine.Store S, irqBody S irq pl ar mm = interp mm ar p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
@@ -86,8 +89,6 @@ theorem irq_alt (hA : P0.ArchTotal ar) (hK : RegionOK K)
     (hE : IrqEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac irq s)
     (hF : ∀ s1 a1, IrqFire st ar s a → localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq pl = ok (true, s1, a1))
-    (hFd : ∀ s1 a1, IrqFire st ar s a → localtimer.handle_timer_irq_local st ar s a irq pl = ok (false, s1, a1) →
-      localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a irq pl = ok (false, s1, a1))
     (hAlt : PathObl.Alt st (MaxR K st lk s) cls ko User s s')
     (h' : localtimer.handle_timer_irq_local st ar s' a irq pl = ok r') :
     (∃ s1 a1, localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) ∧ r'.1 = true ∧
@@ -124,7 +125,7 @@ theorem irq_alt (hA : P0.ArchTotal ar) (hK : RegionOK K)
     exact ⟨s1, a1, hr, h1, h2⟩
   · right
     obtain ⟨h1, h2⟩ := tr hW2 (irq_dec_guard ar hA hK (lk := lk) hE.inv hE.lay hE.ly hE.aff
-      (fun hf => hFd s1 a1 hf hr) hr)
+      hE.nth hr)
     refine ⟨s1, a1, hr, h1, ?_⟩
     rw [eP] at h2 ⊢
     exact interp_mono hR1 (fun _ h => h) p hz s' a r' h2
@@ -139,9 +140,6 @@ theorem irq_pathObl (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K
     (hF : ∀ s a s1 a1, P s → IrqFire st ar s a →
       localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq pl = ok (true, s1, a1))
-    (hFd : ∀ s a s1 a1, P s → IrqFire st ar s a →
-      localtimer.handle_timer_irq_local st ar s a irq pl = ok (false, s1, a1) →
-      localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a irq pl = ok (false, s1, a1))
     (hmv : ∀ s a s1 a1, P s →
       localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (mguard st
@@ -171,7 +169,7 @@ theorem irq_pathObl (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K
       localtimer.handle_timer_irq_local (mguard st
         (fun x y => StepOK (own K) cls ko User (L.cpu s) (lk s) (L.mem x) (L.mem y))) ar s' a irq pl = ok r' := by
     intro s a r hE hr hn s' r' hAlt h'
-    rcases irq_alt ar hA hK hp hz hm (hPE s hE) (fun s1 a1 => hF s a s1 a1 hE) (fun s1 a1 => hFd s a s1 a1 hE)
+    rcases irq_alt ar hA hK hp hz hm (hPE s hE) (fun s1 a1 => hF s a s1 a1 hE)
       hAlt h' with ⟨s1, a1, e, -, -⟩ | ⟨s1, a1, -, h1, h2⟩
     · rw [hr] at e
       exact absurd (by rw [Result.ok_injective e]) hn
@@ -207,9 +205,6 @@ theorem irq_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K)
     (hF : ∀ s a s1 a1, P s → IrqFire st ar s a →
       localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq pl = ok (true, s1, a1))
-    (hFd : ∀ s a s1 a1, P s → IrqFire st ar s a →
-      localtimer.handle_timer_irq_local st ar s a irq pl = ok (false, s1, a1) →
-      localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a irq pl = ok (false, s1, a1))
     (huf : ∀ s b v, P s → User b → Aligned b →
       P (L.wr s b v) ∧ lk (L.wr s b v) = lk s ∧
         MaxR K st lk (L.wr s b v) = MaxR K st lk s ∧ MaxW K st lk (L.wr s b v) = MaxW K st lk s ∧
@@ -221,7 +216,7 @@ theorem irq_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K)
   have eP : ∀ (mm : machine.Store S) (x : S),
       localtimer.handle_timer_irq_local mm ar x a irq pl = interp mm ar p x a :=
     fun mm x => congrFun (congrFun (hp mm) x) a
-  rcases irq_alt ar hA hK hp hz hm (hPE s hE) (fun s1 a1 => hF s a s1 a1 hE) (fun s1 a1 => hFd s a s1 a1 hE)
+  rcases irq_alt ar hA hK hp hz hm (hPE s hE) (fun s1 a1 => hF s a s1 a1 hE)
     hAlt h with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
   · show localtimer.handle_timer_irq_local _ ar s' a irq pl = ok r
     rw [eP] at h2 ⊢
@@ -231,7 +226,7 @@ theorem irq_pathSide (hA : P0.ArchTotal ar) (hK : RegionOK K)
     exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) p hz s' a r h2
 
 /-- **The timer interrupt is a local path** (module docstring); `move` of accepted quiet / round-robin runs is
-`irq_move_acc`, the fire case premises `hF` / `hFm` / `hFd`. -/
+`irq_move_acc`, the fire case premises `hF` / `hFm`. -/
 noncomputable def irq_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K)
     (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hro : E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
@@ -242,9 +237,6 @@ noncomputable def irq_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : 
     (hF : ∀ s a s1 a1, IrqEntM K st T Cs Ω H Sg Rp Scs Nt Z Ac irq m s → IrqFire st ar s a →
       localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq pl = ok (true, s1, a1))
-    (hFd : ∀ s a s1 a1, IrqEntM K st T Cs Ω H Sg Rp Scs Nt Z Ac irq m s → IrqFire st ar s a →
-      localtimer.handle_timer_irq_local st ar s a irq pl = ok (false, s1, a1) →
-      localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (IrqDec st s)) ar s a irq pl = ok (false, s1, a1))
     (hFm : ∀ s a s1 a1, IrqEntM K st T Cs Ω H Sg Rp Scs Nt Z Ac irq m s → IrqFire st ar s a →
       localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1) →
       localtimer.handle_timer_irq_local (mguard st
@@ -267,9 +259,9 @@ noncomputable def irq_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : 
   DS := IrqDec st
   isProg := hp
   obl := irq_pathObl ar hA hK hUO (fun s h => h.ent) (fun mm => hp A ar mm) hz hm
-    (fun s h q hq => irq_koF h.ent hq) (ko_aligned hK hUO) hF hFd
+    (fun s h q hq => irq_koF h.ent hq) (ko_aligned hK hUO) hF
     (fun s a s1 a1 hE h => irq_move_acc ar hA hK hUO hp hE.k (hFm s a s1 a1 hE · h) h)
-  side := irq_pathSide ar hA hK (fun s h => h.ent) (fun mm => hp A ar mm) hz hm (ko_aligned hK hUO) hF hFd
+  side := irq_pathSide ar hA hK (fun s h => h.ent) (fun mm => hp A ar mm) hz hm (ko_aligned hK hUO) hF
     (fun s b v h hb hba => by
       have keep : ∀ x, Aligned x → x ∉ K.user → L.mem (L.wr s b v) x = L.mem s x :=
         fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb))
