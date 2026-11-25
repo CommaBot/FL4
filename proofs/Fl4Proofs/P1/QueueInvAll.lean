@@ -271,7 +271,9 @@ structure InvGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
 
 /-- The facts at an invocation (P3's): the current thread is runnable and to
 be resumed, and the caps it invokes (the slot's and the extra caps) are
-typed. -/
+typed.
+**Contradictory** (p1g, P1/EntryVacuous): no `EntAt` `BXI` state satisfies it (`cur`); not a
+specification of the kernel. -/
 structure InvHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop where
   cur : ∀ (Ac : Set U64) (s : S), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
@@ -516,7 +518,9 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
 /-- The P3 placement facts the kernel entry rests on (with `InvGaps`):
 the transfer's (`XferHyps`), the invocation's (`InvHyps`), `tmoOK`,
 `blkU`, `recvOK` and `irqcap` (as in `EntryHyps`), `dbg`: the thread caps the
-debug syscalls invoke name TCBs, and `tmoAny`. -/
+debug syscalls invoke name TCBs, and `tmoAny`.
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`, `tmoAny`); not a
+specification of the kernel. -/
 structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok

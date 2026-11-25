@@ -47,7 +47,10 @@ ends over some admissible set tuple.  The hypotheses not proved in P1 are
 collected in `EntryHyps`, for every admissible tuple (`EH`), and the start
 tuple's transfer placement facts `XH` (P3's); `hA` is P0's arch totality,
 `TX` / `IK` are P1 lemmas (`tmoXG_holds`, `ibKeep_holds`). (int6: moved from
-QueueEntry; `kernel_entry.entryXG` with `finish.entry`.) -/
+QueueEntry; `kernel_entry.entryXG` with `finish.entry`.)
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (IK : IbKeep st ar) {Adm : PSets → Prop}
     (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
     (XH : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
@@ -64,7 +67,10 @@ theorem kernel_entry.entry (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (IK : IbKee
 
 /-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry
-ends over some admissible tuple. (int6: moved from QueueInvAll.) -/
+ends over some admissible tuple. (int6: moved from QueueInvAll.)
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (TX : TmoXG st ar) (IK : IbKeep st ar)
     (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
@@ -79,7 +85,10 @@ theorem kernel_entry.entry_of {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF σ h').2.1, (GF σ h').2.2⟩) hσ (GF _ hσ).1.xfer s a hP h
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps2`, `CdtHyps`
-and `P3Place` of every admissible tuple. (int6: moved from QueueEntryGaps.) -/
+and `P3Place` of every admissible tuple. (int6: moved from QueueEntryGaps.)
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of2 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (TX : TmoXG st ar) (IK : IbKeep st ar)
     (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ CdtHyps st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z P3Ok ∧

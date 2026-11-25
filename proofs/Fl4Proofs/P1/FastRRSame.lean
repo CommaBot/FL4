@@ -343,7 +343,10 @@ path's reads** (m66 (R-d)): `entry_of7` with `hRR : FastRRP` [P] (a "the fast
 path keeps `P`" premise) replaced by `hRP : RRPreAt` (the general path's
 reads along an accepted ReplyRecv run, `rr_same`). `hX : StoreExt` [P] stays
 for the fault half, `hAs : AsidOff` [J] and `hNv : FaultNvmPre` [J] as in
-`entry_of7`. -/
+`entry_of7`.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of7r {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

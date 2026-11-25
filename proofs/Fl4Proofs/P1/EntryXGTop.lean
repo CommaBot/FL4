@@ -548,7 +548,10 @@ theorem syscall.handle_interrupt_entry.entryXG (hA : P0.ArchTotal ar) (TX : TmoX
 /-- **Native kernel entries with `XG` at `finish`** (`kernel_entry.entry`'s
 shape, with the `finish` calls as the hypothesis `hfin` and the direct
 returns `hpost`); the IRQ entry uses `SigXG` and the transfer placement facts
-of the start tuple. -/
+of the start tuple.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entryXG (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (SX : SigXG st ar) {Adm : PSets → Prop}
     (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
     (XH : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)

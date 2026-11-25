@@ -483,7 +483,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 fewer** (m67 (R-a') first batch): `entry_of7r` with `hRP : RRPreAt` replaced
 by `hRP : RRPreAt2` (`RRReads2`: `sch1`, `rt1`, `us1`, `run6`, `r0`, `ucn`,
 `ns15` derived from the P1 invariants at the dispatch state, `rrEnt_of`, and
-the run's writes, `RRReads.of_ent`). -/
+the run's writes, `RRReads.of_ent`).
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of7r2 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
