@@ -19,3 +19,7 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.sched.set_thread_state.fk
 #print axioms Fl4Proofs.P2.Stall.vcpu.report.fk
 #print axioms Fl4Proofs.P2.Stall.ipc.cancel_ipc.kwNR
+#print axioms Fl4Proofs.P2.Stall.FFoot.fki
+#print axioms Fl4Proofs.P2.Stall.FCtx.step
+#print axioms Fl4Proofs.P2.Stall.vcpu.report.fki
+#print axioms Fl4Proofs.P2.Stall.notification.send_signal.fk

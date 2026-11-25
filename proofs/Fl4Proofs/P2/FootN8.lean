@@ -888,6 +888,475 @@ theorem ipc.cancel_ipc.kwNR {Nd : Prop} {A : Type _} {ar : machine.Arch A} (s : 
   · rename_i _ hnr
     exact absurd (ev.trans st1) hnr
 
+/-! ## `send_signal` as an `FKI` step (p2j16): the other cores' threads and the
+executing core's idle thread protected -/
+
+theorem curAt_def (c : U64) (s : S) : curAt st c s = L.mem s (L.nodeAt s c layout.node.CUR_THREAD) := rfl
+
+theorem tsIdle_nb : ¬ Blocked sched.TS_IDLE := by
+  unfold Blocked sched.TS_IDLE sched.TS_BLOCKED_ON_SEND sched.TS_BLOCKED_ON_RECV sched.TS_BLOCKED_ON_NTFN; decide
+
+theorem tsIdle_nr : ¬ Runnable sched.TS_IDLE := by
+  unfold Runnable sched.TS_IDLE sched.TS_RUNNING sched.TS_RESTART sched.TS_RUNNING_VM; decide
+
+theorem tsIdle_ne_vm : sched.TS_IDLE ≠ sched.TS_RUNNING_VM := by
+  unfold sched.TS_IDLE sched.TS_RUNNING_VM; decide
+
+/-- `fire`'s protected threads on core `e`: the other cores' idle, current and
+action threads, and `e`'s idle thread. -/
+def KI (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (e : U64) (s : S) : Set U64 :=
+  {y | y ∈ OtherK st T Cs e s ∨ y = idleAt st e s}
+
+/-- `FK` with the executing core's idle thread's `STATE` kept. -/
+structure FKI (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (e : U64) (s0 s : S) : Prop where
+  fk : FK st T Cs e s0 s
+  idl : L.mem s (stA (idleAt st e s0)) = L.mem s0 (stA (idleAt st e s0))
+
+theorem FKI.refl (e : U64) (s : S) : FKI st T Cs e s s := ⟨FK.refl e s, rfl⟩
+
+theorem FKI.trans {e : U64} {s0 s1 s2 : S} (he : e ∈ Cs) (k1 : FKI st T Cs e s0 s1) (k2 : FKI st T Cs e s1 s2) :
+    FKI st T Cs e s0 s2 := by
+  have i2 := k2.idl
+  rw [k1.fk.keep.idle_eq he] at i2
+  exact ⟨k1.fk.trans k2.fk, i2.trans k1.idl⟩
+
+theorem FKI.kiEq {e : U64} {s s' : S} (k : FKI st T Cs e s s') (he : e ∈ Cs) :
+    KI st T Cs e s' = KI st T Cs e s := by
+  unfold KI; rw [k.fk.keep.otherK, k.fk.keep.idle_eq he]
+
+theorem FKI.ilEq {e : U64} {s s' : S} (k : FKI st T Cs e s s') : IlAt st Cs s' = IlAt st Cs s := by
+  ext y; constructor
+  · rintro ⟨c, hc, h⟩; exact ⟨c, hc, by rw [h, k.fk.keep.idle_eq hc]⟩
+  · rintro ⟨c, hc, h⟩; exact ⟨c, hc, by rw [h, k.fk.keep.idle_eq hc]⟩
+
+/-- `FFoot` is antitone in the protected set. -/
+theorem FFoot.monoK {Kp' : Set U64} {s s' : S} (hsub : ∀ y, y ∈ Kp → y ∈ Kp')
+    (f : FFoot st Kp' Il Ks T Cs Sg Scs Z Es U s s') : FFoot st Kp Il Ks T Cs Sg Scs Z Es U s s' := by
+  refine (f.w.mono fun b hb => ?_).a (fun hT hK => f.ac hT (hsub _ hK))
+  rcases hb with ⟨hw, hn⟩ | ⟨y, hy, hk, hi, e⟩ | hd
+  · refine Or.inl ⟨hw, fun hi => hn ?_⟩
+    rcases hi with h | ⟨y, hy, ha, hk, e⟩ | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl ⟨y, hy, ha, hsub _ hk, e⟩)
+    · exact Or.inr (Or.inr h)
+  · exact Or.inr (Or.inl ⟨y, hy, fun h => hk (hsub _ h), hi, e⟩)
+  · exact Or.inr (Or.inr hd)
+
+/-- An `FFoot` over `KI` is an `FKI` step. -/
+theorem FFoot.fki {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s' : S}
+    (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hKT : ∀ y ∈ OtherK st T Cs (L.cpu s) s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs)
+    (f : FFoot st (KI st T Cs (L.cpu s) s) (IlAt st Cs s) (KsAt st Cs s) T Cs Sg Scs Z Es U s s') :
+    FKI st T Cs (L.cpu s) s s' := by
+  have hT := hq.tcbs
+  have hiE : idleAt st (L.cpu s) s ∈ T := hiT _ hq.cur
+  refine ⟨FFoot.fk hq hO hKT hiT hiS (f.monoK fun y hy => Or.inl hy), ?_⟩
+  refine f.mem_eq (by rw [stA_eq]; exact field_aligned (hT _ hiE) (by simp) (by simp)) ?_
+  rintro (⟨-, hn⟩ | ⟨y, hyT, -, -, e | e⟩ | ⟨k, hk, -, e⟩)
+  · exact hn (Or.inr (Or.inl ⟨_, hiE, hT _ hiE, Or.inr rfl, Or.inl rfl⟩))
+  · rw [stA_eq, scA_eq] at e
+    exact field_ne (hT _ hiE) (hT y hyT) (by simp) (by simp) (fun _ => by simp) e
+  · rw [stA_eq, affA_eq] at e
+    exact field_ne (hT _ hiE) (hT y hyT) (by simp) (by simp) (fun _ => by simp) e
+  · obtain ⟨-, ⟨a2, i2⟩⟩ := sclink_in hO hk
+    exact out_ne_field (K := 3328#u64) (hq.omega _ (hO.scW _ hk _ a2 i2)) hiE (hT _ hiE) (by simp)
+      (by rw [← stA_eq, e])
+
+/-- The facts about the other cores' threads and the idle threads `fire`'s
+pieces need, at a state on core `e`. -/
+structure FCtx (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (e : U64) (s : S) : Prop where
+  cpu : L.cpu s = e
+  he : e ∈ Cs
+  KT : ∀ y ∈ OtherK st T Cs e s, y ∈ T
+  iT : ∀ c ∈ Cs, idleAt st c s ∈ T
+  iS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs
+  iS0 : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ≠ 0#u64
+  iSt : ∀ c ∈ Cs, L.mem s (stA (idleAt st c s)) = sched.TS_IDLE
+  curNB : ∀ c ∈ Cs, c ≠ e → ¬ Blocked (L.mem s (stA (curAt st c s)))
+  curAff : ∀ c ∈ Cs, c ≠ e → L.mem s (affA (curAt st c s)) = c
+  actNT : ∀ c ∈ Cs, c ≠ e → actAt st c s ∉ T
+  ao : ActOut st T (OtherK st T Cs e s) s
+
+theorem FCtx.step {e : U64} {s s' : S} (c : FCtx st T Cs Scs e s) (k : FKI st T Cs e s s')
+    (hc : L.cpu s' = L.cpu s) : FCtx st T Cs Scs e s' := by
+  have ks := k.fk.keep
+  have hK : OtherK st T Cs e s' = OtherK st T Cs e s := ks.otherK
+  refine ⟨hc.trans c.cpu, c.he, fun y hy => ?_, fun c' hc' => ?_, fun c' hc' => ?_, fun c' hc' => ?_,
+    fun c' hc' => ?_, fun c' hc' hne => ?_, fun c' hc' hne => ?_, fun c' hc' hne => ?_, ?_⟩
+  · rw [hK] at hy; exact c.KT y hy
+  · rw [ks.idle_eq hc']; exact c.iT c' hc'
+  · rw [ks.idle_eq hc', ks.isc c' hc']; exact c.iS c' hc'
+  · rw [ks.idle_eq hc', ks.isc c' hc']; exact c.iS0 c' hc'
+  · rw [ks.idle_eq hc']
+    by_cases e' : c' = e
+    · rw [e', k.idl]; exact c.iSt e c.he
+    · exact (ks.kp _ ⟨c', hc', e', Or.inl rfl⟩).idle (c.iSt c' hc')
+  · rw [(ks.words hc' hne).2.1]; exact (ks.kp _ ⟨c', hc', hne, Or.inr (Or.inl rfl)⟩).nb (c.curNB c' hc' hne)
+  · rw [(ks.words hc' hne).2.1, ks.af _ ⟨c', hc', hne, Or.inr (Or.inl rfl)⟩]; exact c.curAff c' hc' hne
+  · rw [(ks.words hc' hne).1]; exact c.actNT c' hc' hne
+  · rw [hK]; exact c.ao.step k.fk.ac
+
+/-- A blocked thread is no protected thread and no idle thread. -/
+theorem FCtx.blk {e y : U64} {s : S} (c : FCtx st T Cs Scs e s) (hb : Blocked (L.mem s (stA y))) :
+    y ∉ KI st T Cs e s ∧ y ∉ IlAt st Cs s := by
+  have hI : ∀ c' ∈ Cs, y ≠ idleAt st c' s := fun c' hc' h => by
+    rw [h, c.iSt c' hc'] at hb; exact tsIdle_nb hb
+  refine ⟨?_, fun ⟨c', hc', h⟩ => hI c' hc' h⟩
+  rintro (⟨c', hc', hne, h | h | ⟨h, hT⟩⟩ | h)
+  · exact hI c' hc' h
+  · rw [h] at hb; exact c.curNB c' hc' hne hb
+  · exact c.actNT c' hc' hne (by rw [← h]; exact hT)
+  · exact hI e c.he h
+
+/-- A `RUNNING_VM` thread `signal_completes` accepts (its core is `e`, or it is
+not its core's current thread) is no protected thread and no idle thread. -/
+theorem FCtx.vm {e y : U64} {s : S} (c : FCtx st T Cs Scs e s) (hst : L.mem s (stA y) = sched.TS_RUNNING_VM)
+    (hsc : L.mem s (affA y) = e ∨ curAt st (L.mem s (affA y)) s ≠ y) :
+    y ∉ KI st T Cs e s ∧ y ∉ IlAt st Cs s := by
+  have hI : ∀ c' ∈ Cs, y ≠ idleAt st c' s := fun c' hc' h => by
+    rw [h, c.iSt c' hc'] at hst; exact tsIdle_ne_vm hst
+  refine ⟨?_, fun ⟨c', hc', h⟩ => hI c' hc' h⟩
+  rintro (⟨c', hc', hne, h | h | ⟨h, hT⟩⟩ | h)
+  · exact hI c' hc' h
+  · have hA : L.mem s (affA y) = c' := by rw [h]; exact c.curAff c' hc' hne
+    rw [hA] at hsc
+    rcases hsc with e' | e'
+    · exact hne e'
+    · exact e' h.symm
+  · exact c.actNT c' hc' hne (by rw [← h]; exact hT)
+  · exact hI e c.he h
+
+theorem FCtx.aoK {e : U64} {s : S} {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (c : FCtx st T Cs Scs e s) (hq : SchedQueuesInvX st T Cs Ω H X s Q R) : ActOut st T (KI st T Cs e s) s := by
+  rintro hT (hK | hK)
+  · exact c.ao hT hK
+  · have r := (hq.actOK hT).1
+    rw [hK, c.iSt e c.he] at r
+    exact tsIdle_nr r
+
+theorem FCtx.ksS {e : U64} {s : S} (c : FCtx st T Cs Scs e s) : ∀ k ∈ KsAt st Cs s, k ∈ Scs := by
+  rintro k ⟨c', hc', rfl⟩; exact c.iS c' hc'
+
+theorem FCtx.ks0 {e : U64} {s : S} (c : FCtx st T Cs Scs e s) (hT : TcbPlaced T)
+    (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) : ∀ k ∈ KsAt st Cs s, L.mem s (scTcbA k) ≠ 0#u64 := by
+  rintro k ⟨c', hc', rfl⟩
+  rw [(hX.2.2.bound _ (c.iT c' hc') (c.iS0 c' hc')).2.1]
+  exact fun h0 => (hT _ (c.iT c' hc')).ne0 (by rw [h0]; simp)
+
+theorem FCtx.fki {e : U64} {s s' : S} {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (c : FCtx st T Cs Scs e s) (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (f : FFoot st (KI st T Cs e s) (IlAt st Cs s) (KsAt st Cs s) T Cs Sg Scs Z Es U s s') :
+    FKI st T Cs e s s' := by
+  have hKT := c.KT
+  rw [← c.cpu] at hKT f ⊢
+  exact FFoot.fki hq hO hKT c.iT c.iS f
+
+theorem FCtx.fkiN {e : U64} {s s' : S} {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
+    (c : FCtx st T Cs Scs e s) (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (f : FootN st (KI st T Cs e s) True T Cs Sg Scs Z Es s s') : FKI st T Cs e s s' :=
+  c.fki (U := ∅) hq hO (FootN.ff f)
+
+/-- `vcpu.report` keeps every other thread's `STATE`, and the core. -/
+theorem vcpu.report.stk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
+    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
+    (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄) :
+    vcpu.report st ar s a t badge ⦃ s' => (∀ y ∈ T, y ≠ t → L.mem s' (stA y) = L.mem s (stA y)) ∧
+      L.cpu s' = L.cpu s ⦄ := by
+  have hT : TcbPlaced T := h.1.choose_spec.choose_spec.tcbs
+  refine WP.spec_mono (vcpu.report.xf hA s a t badge h ht hvm hc hU hbuf) ?_
+  rintro s' ⟨s1, h1, -, w1, e⟩
+  obtain ⟨⟨Q1, R1, hq1⟩, -⟩ := h1
+  have hN1 := hq1.nodes _ hq1.cur
+  have w2 := sched.set_thread_state.w2 s1 t sched.TS_RUNNING hT hN1 ht
+  rw [e, WP.spec_ok] at w2
+  refine ⟨fun y hy hne => ?_, w2.1.2.1.trans w1.2.1⟩
+  have a1 : Aligned (stA y) := by rw [stA_eq]; exact field_aligned (hT y hy) (by simp) (by simp)
+  have n1 : ¬ RepW t U (stA y) := by
+    rintro (⟨K, h1, h2, -, e'⟩ | hu)
+    · rw [stA_eq] at e'
+      exact field_ne (hT y hy) (hT t ht) (by simp) (by omega)
+        (fun _ => by have : (3328#u64).val = 3328 := by simp
+                     omega) e'
+    · exact out_ne_field (K := 3328#u64) (hU _ hu).out hy (hT y hy) (by simp) (by rw [stA_eq])
+  have n2 : ¬ (stA y = stA t ∨ stA y = L.nodeAt s1 (L.cpu s1) layout.node.SCHED_ACTION) := by
+    rintro (e' | e')
+    · rw [stA_eq, stA_eq] at e'
+      exact field_ne (hT y hy) (hT t ht) (by simp) (by simp) (fun h => absurd h hne) e'
+    · rw [stA_eq] at e'
+      exact node_ne_field (K := 3328#u64) hN1 (by rw [act_val]; omega) hy (hT y hy) (by simp) e'.symm
+  rw [w2.1.mem_eq a1 n2, w1.mem_eq a1 n1]
+
+/-- **`vcpu.report` as an `FKI` step**: the reported thread is not the
+executing core's idle thread (`TS_IDLE`). -/
+theorem vcpu.report.fki {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (t badge : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
+    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
+    (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64)
+    (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b) (hbuf : msg.lookup_ipc_buffer st s true t ⦃ b => BufOK U b ⦄)
+    (hKT : ∀ y ∈ OtherK st T Cs (L.cpu s) s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs)
+    (hiI : L.mem s (stA (idleAt st (L.cpu s) s)) = sched.TS_IDLE) :
+    vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      L.mem s' (stA t) = sched.TS_RUNNING ∧ FKI st T Cs (L.cpu s) s s' ⦄ := by
+  refine WP.spec_mono (WP.spec_and (vcpu.report.fk hA s a t badge h ht hvm hc hU hbuf hKT hiT hiS)
+    (vcpu.report.stk hA s a t badge h ht hvm hc hU hbuf)) ?_
+  rintro s' ⟨⟨hb, st', k⟩, hs, -⟩
+  have hc0 : L.cpu s ∈ Cs := h.1.choose_spec.choose_spec.cur
+  refine ⟨hb, st', k, hs _ (hiT _ hc0) fun e => ?_⟩
+  rw [e, hvm] at hiI
+  exact tsIdle_ne_vm hiI.symm
+
+/-- `signal_completes` (#85): the thread's core is the executing one, or the
+thread is not its core's current thread. -/
+theorem vcpu.signal_completes.aff (s : S) (t : U64) :
+    vcpu.signal_completes st s t ⦃ b => b = true →
+      L.mem s (affA t) = L.cpu s ∨ curAt st (L.mem s (affA t)) s ≠ t ⦄ := by
+  have hS0 : P0.StoreTotal st := L.total
+  unfold vcpu.signal_completes vcpu.bound
+  step as ⟨o, ho⟩
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
+  subst ho
+  refine WP.spec_bind (obj.Tcb.affinity.spec s t) fun cpu ecpu => ?_
+  split
+  · unfold vcpu.get
+    simp only [lift, bind_ok]
+    refine WP.spec_bind (LawfulStore.read_spec s _) fun i ei => ?_
+    split
+    · refine WP.spec_bind (L.cur_cpu_spec s) fun c ec => ?_
+      split
+      · rename_i hcc
+        exact (WP.spec_ok _).2 fun _ => Or.inl (by rw [← ecpu, hcc, ec])
+      refine WP.spec_bind (Fl4Proofs.P0.vcpu.full_reply.p0 _ _ _ hS0) fun f _ => ?_
+      split
+      · refine WP.spec_bind (obj.node_get.spec s _ _) fun i2 ei2 => (WP.spec_ok _).2 fun hb => Or.inr ?_
+        rw [curAt_def, ← ecpu, ← ei2]
+        simpa using hb
+      · exact (WP.spec_ok _).2 fun hb => absurd hb (by simp)
+    · exact (WP.spec_ok _).2 fun hb => absurd hb (by simp)
+  · exact (WP.spec_ok _).2 fun hb => absurd hb (by simp)
+
+/-- A notification's `TAIL_STATE` word write, in `KWN`. -/
+theorem ntfn_ts.fn {Nd : Prop} {Q : U64 → U64 → List U64} {R : U64 → List U64} (s : S) (n v : U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω)
+    (hH : H n = some .ntfn) : FootN st Kp Nd T Cs Sg Scs Z (EH H) s (L.wr s (epTSA n) v) := by
+  obtain ⟨E, EQ, hEW⟩ := h.eps
+  have he : n ∈ E := (hEW.2.2.2.2.2.2.2.1 n).2 (Or.inr hH)
+  obtain ⟨hE, hEN, -⟩ := hEW.1 n he
+  have w : WritesIn st s (L.wr s (epTSA n) v) (EpFoot [] n) :=
+    (writesIn_wr (ep_aligned hE).2).mono fun b hb => Or.inr (Or.inr hb)
+  exact FootN.of' w (fun b _ hb => EpFoot.kwN h.tcbs h.nodes (by simp) (Or.inr hH) hE hEN (hEW.2.2.1 n he)
+    (hdrΩ_of hX hsub) hb) (AcK.of_eq (EpFoot.act h.tcbs h.nodes h.cur (by simp) hE hEN w))
+
+/-- A notification's `BADGE` word write, in `KWN`. -/
+theorem ntfn_bd.fn {Nd : Prop} {s : S} (n v : U64) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs)
+    (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) (hn : n ∈ Nt) (hout : OutsideObjs st T Cs s (ntfnBdA n)) :
+    FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (ntfnBdA n) v) :=
+  footN_wr hout.1 ⟨kw_sg (hO.ntB n hn).1, notIdW_out NP hout (noHdr_outSc hO fun c hc' => by
+    rw [ntfnBdA_val (hO.ntP n hn)]; have := hO.ntOSc n hn c hc'; omega)⟩ (actionW_out NP hc hout)
+
+/-- `set_active` in `KWN`. -/
+theorem notification.set_active.fn {Nd : Prop} {Q : U64 → U64 → List U64} {R : U64 → List U64} (s : S)
+    (n badge : U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hSg : SgOK st Ω Sg s) (hn : n ∈ Nt) (hH : H n = some .ntfn) :
+    notification.set_active st s n badge ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
+  unfold notification.set_active
+  refine WP.spec_bind (obj.Ntfn.set_state.val s n _) fun s1 e1 => ?_
+  subst e1
+  refine WP.spec_mono (obj.Ntfn.set_badge.wr _ n badge) fun s2 e2 => ?_
+  subst e2
+  have hm := hSg.sub _ (hX.1.ntB n hn).1
+  exact (ntfn_ts.fn s n _ h hX hSg.sub hH).trans (ntfn_bd.fn n badge (fun c hc => (h.nodes c hc).ksb (L.ksb_wr _ _ _))
+    (by rw [L.cpu_wr]; exact h.cur) hX.1.ksb hn ((h.omega _ hm).ksb (L.ksb_wr _ _ _)))
+
+/-- **`send_signal` is an `FKI` step** (P1 `send_signal.tinvFK`): the woken
+thread is blocked or a `RUNNING_VM` thread `signal_completes` accepts, so none
+of `KI` and no idle thread (`FCtx.blk`, `FCtx.vm`). -/
+theorem notification.send_signal.fk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
+    (hH : H n = some .ntfn) (hU : ∀ b ∈ U, UsrW st T Cs H Sg Scs Z s b)
+    (hbuf : ∀ y ∈ T, msg.lookup_ipc_buffer st s true y ⦃ b => BufOK U b ⦄)
+    (c : FCtx st T Cs Scs (L.cpu s) s) :
+    notification.send_signal st ar s a n badge ⦃ s' _ => FKI st T Cs (L.cpu s) s s' ⦄ := by
+  have hI := h
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  have hNb := hX.2.2.ntb
+  have hT := h0.tcbs
+  have hb0 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩
+  have he := c.he
+  have saK : notification.set_active st s n badge ⦃ s' => FKI st T Cs (L.cpu s) s s' ⦄ :=
+    WP.spec_mono (notification.set_active.fn (Kp := KI st T Cs (L.cpu s) s) (Nd := True) s n badge h0 hX hSg hn hH)
+      fun s' f => c.fkiN h0 hX.1 f
+  unfold notification.send_signal
+  step with obj.Ntfn.state.spec as ⟨v, hv⟩
+  refine sig_if _ _ _ _ (fun hidl => ?_) (fun hnidl => ?_)
+  · -- an idle notification
+    step with obj.Ntfn.bound_tcb.val as ⟨i, ei⟩
+    step with obj.Tcb.is_null.spec as ⟨b, eb⟩
+    have OLD : (do
+        let s1 ← notification.set_active st s n badge
+        if b = true then ok (s1, a)
+        else do
+          let i2 ← obj.Tcb.state st i s1
+          if i2 = sched.TS_RUNNING_VM then notification.kick_guest st ar s1 a i else ok (s1, a))
+        ⦃ s' _ => FKI st T Cs (L.cpu s) s s' ⦄ := by
+      refine WP.spec_bind saK fun s1 k1 => ?_
+      refine sig_if _ _ _ _ (fun _ => (WP.spec_ok _).2 k1) (fun _ => ?_)
+      step with obj.Tcb.state.spec
+      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => (WP.spec_ok _).2 k1)
+      refine WP.spec_mono (notification.kick_guest.same hA s1 a i) fun r hr => ?_
+      obtain ⟨s', a'⟩ := r
+      simp only at hr
+      subst hr
+      exact k1
+    by_cases hb : b = true
+    · rw [if_pos hb, if_pos hb]
+      refine WP.spec_bind saK fun s1 k1 => ?_
+      rw [if_pos hb]
+      exact (WP.spec_ok _).2 k1
+    rw [if_neg hb]
+    have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
+    have hiT : i ∈ T := by
+      rcases hNb n hn with e | e
+      · rw [← ei] at e; exact absurd e hi0
+      · rw [← ei] at e; exact e
+    have hta := hT i hiT
+    step with obj.Tcb.state.spec as ⟨i1, ei1⟩
+    refine sig_if _ _ _ _ (fun hrecv => ?_) (fun hnrecv => ?_)
+    · have hst : L.mem s (stA i) = sched.TS_BLOCKED_ON_RECV := by rw [← ei1, hrecv]
+      have hbl : Blocked (L.mem s (stA i)) := by rw [hst]; exact Or.inr (Or.inl rfl)
+      obtain ⟨hiK, hiI⟩ := c.blk hbl
+      obtain ⟨dq, dr, da⟩ := blocked_out h0 hiT (not_runnable_of_blocked hbl)
+      refine WP.spec_bind (WP.spec_and (ipc.cancel_ipc.all s a i Q R h0 hiT hB hX hSg.sub)
+        (ipc.cancel_ipc.kwNR (Kp := KI st T Cs (L.cpu s) s) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) s a i h0
+          hiT hX hSg.sub hst (fun h0' => (hX.2.1.recv i hiT hst h0').1) hiK)) ?_
+      rintro ⟨s1, a1⟩ ⟨⟨h1, hB1, hX1, nb1, nr1, -, k1, -⟩, F1⟩
+      try simp only [WP.uncurry'_pair]
+      have hS1 := hS.keepT hX k1
+      have hSg1 : SgOK st Ω Sg s1 := ⟨hSg.sub, fun b hb => by rw [k1.ksb]; exact hSg.ks b hb,
+        fun o h1' h2' => by rw [k1.ksb]; exact hSg.ksΩ o h1' h2'⟩
+      have K1 : FKI st T Cs (L.cpu s) s s1 := c.fkiN h0 hX.1 F1
+      have c1 := c.step K1 F1.2.1
+      have dq1 : (L.mem s1 (inqA i) &&& sched.Q_QUEUED) = 0#u64 := by rw [k1.inqf hiT]; exact dq
+      have dr1 : (L.mem s1 (inqA i) &&& sched.Q_RELEASE) = 0#u64 := by rw [k1.inqf hiT]; exact dr
+      have da1 : L.actionW s1 ≠ i := by
+        rcases k1.act with e | e
+        · rw [e]; exact da
+        · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hiT)
+      refine WP.spec_bind (WP.spec_and (sts_all s1 i _ Q R h1 hB1 hX1 hS1 hSg1 hiT not_blocked_running running_ne
+        (Or.inr nb1) (hX1.noref hta nr1 (fun e => nb1 (by rw [e]; exact Or.inr (Or.inl rfl))))
+        ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩)
+        (sched.set_thread_state.kwNP (Sg := Sg) (Kp := KI st T Cs (L.cpu s) s1) (Nd := True) (Scs := Scs) (Z := Z)
+          (Es := ∅) s1 i _ hT h1.nodes h1.cur hiT (by rw [K1.kiEq he]; exact hiK))) ?_
+      rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, st2, k2⟩, F2⟩
+      have h2' : SchedQueuesInv st T Cs Ω H s2 Q R := h2.congrX empty_congr
+      have K2 : FKI st T Cs (L.cpu s) s1 s2 := c1.fkiN h1 hX1.1 F2
+      have c2 := c1.step K2 F2.2.1
+      have K02 := K1.trans he K2
+      have dq2 : (L.mem s2 (inqA i) &&& sched.Q_QUEUED) = 0#u64 := by rw [k2.inqf hiT]; exact dq1
+      have dr2 : (L.mem s2 (inqA i) &&& sched.Q_RELEASE) = 0#u64 := by rw [k2.inqf hiT]; exact dr1
+      have da2 : L.actionW s2 ≠ i := by
+        rcases k2.act with e | e
+        · rw [e]; exact da1
+        · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hiT)
+      refine WP.spec_mono (signal_tail.ff (Kp := KI st T Cs (L.cpu s) s2) (Il := IlAt st Cs s2) (Ks := KsAt st Cs s2)
+        (Es := ∅) (U := ∅) hA s2 a1 i n badge Q R h2' hB2 hX2 hS2 hSg2 hiT hn dq2 dr2 da2
+        (fun e => hB.idleNB (by rw [← k1.idleW, ← k2.idleW, e]; exact Or.inl hbl))
+        (by rw [st2]; rintro (hb | hb); exact not_blocked_running hb; exact running_ne.1 hb)
+        (by rw [K02.kiEq he]; exact hiK) (by rw [K02.ilEq]; exact hiI) c2.ksS (c2.ks0 hT hX2) (c2.aoK h2')) ?_
+      rintro ⟨s', a'⟩ ⟨-, F'⟩
+      exact K02.trans he (c2.fki h2' hX2.1 F')
+    · -- not receiving: the `RunningVM` completion, else active (and kicked)
+      rw [if_neg hb]
+      refine sig_if _ _ _ _ (fun hvm => ?_) (fun _ => OLD)
+      refine WP.spec_bind (WP.spec_and (vcpu.signal_completes.blk s i) (vcpu.signal_completes.aff s i)) ?_
+      rintro b1 ⟨hb1, ha1⟩
+      refine sig_if _ _ _ _ (fun hb1t => ?_) (fun _ => OLD)
+      have hvmS : L.mem s (stA i) = sched.TS_RUNNING_VM := by rw [← ei1]; exact hvm
+      obtain ⟨hiK, hiI⟩ := c.vm hvmS (ha1 hb1t)
+      refine WP.spec_bind (WP.spec_and (vcpu.report.fki hA s a i badge hb0 hiT hvmS (hb1 hb1t) hU (hbuf i hiT)
+        c.KT c.iT c.iS (c.iSt _ h0.cur)) (vcpu.report.stk hA s a i badge hb0 hiT hvmS (hb1 hb1t) hU (hbuf i hiT))) ?_
+      rintro s1 ⟨⟨h1, st1, K1⟩, -, hc1⟩
+      have c1 := c.step K1 hc1
+      have h1' := h1
+      obtain ⟨⟨Q1, R1, q1⟩, -, hX1, -, -⟩ := h1'
+      refine WP.spec_mono (signal_vm.ff (Kp := KI st T Cs (L.cpu s) s1) (Il := IlAt st Cs s1) (Ks := KsAt st Cs s1)
+        (Es := ∅) (U := ∅) hA s1 a i n h1 hiT hn st1 (by rw [K1.kiEq he]; exact hiK) (by rw [K1.ilEq]; exact hiI)
+        c1.ksS (c1.ks0 hT hX1) (c1.aoK q1)) ?_
+      rintro ⟨s', a'⟩ ⟨-, F'⟩
+      exact K1.trans he (c1.fki q1 hX1.1 F')
+  · split
+    · -- a waiting notification
+      rename_i hwait
+      have hst1 : L.epState s n = 1#u64 := by rw [← hv, hwait]; unfold obj.NTFN_WAITING; rfl
+      obtain ⟨hdT, hbe, hds⟩ := ntfn_head h0 hH hst1
+      step with notification.get_queue.spec as ⟨q, eq⟩
+      subst eq
+      set hd := (L.epQ s n).head with hhd
+      have hta := hT hd hdT
+      have hbl : Blocked (L.mem s (stA hd)) := by rw [hds]; exact Or.inr (Or.inr rfl)
+      obtain ⟨hdK, hdI⟩ := c.blk hbl
+      obtain ⟨dq, dr, da⟩ := blocked_out h0 hdT (not_runnable_of_blocked hbl)
+      obtain ⟨E, EQ, hEW⟩ := h0.eps
+      obtain ⟨he', hmem⟩ := hEW.2.2.2.2.1 hd hdT (by simp) hbl
+      obtain ⟨hE, hEN, hq⟩ := hEW.1 _ he'
+      have hHe : L.mem s (blockA hd) ∈ EH H := (hEW.2.2.2.2.2.2.2.1 _).1 he'
+      have hEΩ := hEW.2.2.1 _ he'
+      rw [hbe] at hE hEN hq hHe hEΩ hmem
+      have hinv := notification.ntfn_dequeue.inv s hd Q R h0 hdT (by simp) hbl
+      rw [hbe] at hinv
+      refine WP.spec_bind (WP.spec_and hinv (notification.ntfn_dequeue.foot s n hd _ hT hE hq hmem)) ?_
+      rintro s1 ⟨⟨h1, f1, o1, n1, k1, -, nc1⟩, w1⟩
+      have F1 : FootN st (KI st T Cs (L.cpu s) s) True T Cs Sg Scs Z (EH H) s s1 :=
+        FootN.of' w1 (fun b _ hb => EpFoot.kwN hT h0.nodes hq.mem hHe hE hEN hEΩ (hdrΩ_of hX hSg.sub) hb)
+          (AcK.of_eq (EpFoot.act hT h0.nodes h0.cur hq.mem hE hEN w1))
+      have K1 : FKI st T Cs (L.cpu s) s s1 := c.fkiN h0 hX.1 F1
+      have cc1 := c.step K1 F1.2.1
+      have tm1 : TmFr st T Cs Nt s s1 := TmFr.mk0 ⟨k1, fun y hy K a b c => f1 y hy K (by omega) c (by omega) (by omega),
+        fun c hc o ho => nc1 c hc o (by omega) (by omega), fun n' hn' => o1 _ (hSg.sub _ (hX.1.ntB n' hn').2)⟩
+      obtain ⟨hB1, hX1, hS1, hSg1, ea1, ec1, ei1⟩ := frame_bx h0 hB hX hS hSg f1 o1 n1 k1 tm1
+      have st1 : L.mem s1 (stA hd) = sched.TS_BLOCKED_ON_NTFN := by
+        rw [stA_eq, f1 hd hdT _ (by simp) (by simp) (by simp) (by simp), ← stA_eq]; exact hds
+      have iq1 : L.mem s1 (inqA hd) = L.mem s (inqA hd) := by
+        rw [inqA_eq]; exact f1 hd hdT _ (by simp) (by simp) (by simp) (by simp)
+      obtain ⟨-, -, r3, -, r6⟩ := ts_vals
+      refine WP.spec_bind (WP.spec_and (sts_all s1 hd _ Q R h1 hB1 hX1 hS1 hSg1 hdT not_blocked_running running_ne
+        (Or.inl (Or.inr rfl)) (hX1.noref hta (by rw [st1]; exact blocked_ne_reply (Or.inr (Or.inr rfl)))
+          (by rw [st1, r3, r6]; decide))
+        ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩)
+        (sched.set_thread_state.kwNP (Sg := Sg) (Kp := KI st T Cs (L.cpu s) s1) (Nd := True) (Scs := Scs) (Z := Z)
+          (Es := ∅) s1 hd _ hT h1.nodes h1.cur hdT (by rw [K1.kiEq he]; exact hdK))) ?_
+      rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, st2, k2⟩, F2⟩
+      have h2' : SchedQueuesInv st T Cs Ω H s2 Q R := h2.congrX empty_congr'
+      have K2 : FKI st T Cs (L.cpu s) s1 s2 := cc1.fkiN h1 hX1.1 F2
+      have cc2 := cc1.step K2 F2.2.1
+      have K02 := K1.trans he K2
+      have dq2 : (L.mem s2 (inqA hd) &&& sched.Q_QUEUED) = 0#u64 := by rw [k2.inqf hdT, iq1]; exact dq
+      have dr2 : (L.mem s2 (inqA hd) &&& sched.Q_RELEASE) = 0#u64 := by rw [k2.inqf hdT, iq1]; exact dr
+      have da2 : L.actionW s2 ≠ hd := by
+        rcases k2.act with e | e
+        · rw [e, ea1]; exact da
+        · rw [e]; exact fun e' => notT_small hT (by simp) (e' ▸ hdT)
+      refine WP.spec_mono (signal_tail.ff (Kp := KI st T Cs (L.cpu s) s2) (Il := IlAt st Cs s2) (Ks := KsAt st Cs s2)
+        (Es := ∅) (U := ∅) hA s2 a hd n badge Q R h2' hB2 hX2 hS2 hSg2 hdT hn dq2 dr2 da2
+        (fun e => hB.idleNB (by rw [← ei1, ← k2.idleW, e]; exact Or.inl hbl))
+        (by rw [st2]; rintro (hb | hb); exact not_blocked_running hb; exact running_ne.1 hb)
+        (by rw [K02.kiEq he]; exact hdK) (by rw [K02.ilEq]; exact hdI) cc2.ksS (cc2.ks0 hT hX2) (cc2.aoK h2')) ?_
+      rintro ⟨s', a'⟩ ⟨-, F'⟩
+      exact K02.trans he (cc2.fki h2' hX2.1 F')
+    · -- an active notification
+      step with obj.Ntfn.badge.val as ⟨i, ei⟩
+      simp only [lift, Aeneas.Std.bind_ok]
+      refine WP.spec_bind (obj.Ntfn.set_badge.wr s n _) fun s1 e1 => ?_
+      subst e1
+      exact (WP.spec_ok _).2 (c.fkiN h0 hX.1 (ntfn_bd.fn (Kp := KI st T Cs (L.cpu s) s) (Nd := True) (Sg := Sg)
+        (Scs := Scs) (Z := Z) (Es := ∅) n _ h0.nodes h0.cur hX.1 hn (h0.omega _ (hSg.sub _ (hX.1.ntB n hn).1))))
+
 end
 
 end Fl4Proofs.P2.Stall
