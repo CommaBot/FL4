@@ -368,7 +368,7 @@ structure cdt.Finalised where
   cleanup : capability.Cap
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 609:0-618:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 631:0-640:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -453,7 +453,7 @@ structure boot.RootLayout where
   total : Std.U64
 
 /-- [fl4_core::localinv::Plan]
-    Source: 'crates/fl4-core/src/localinv.rs', lines 47:0-59:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 57:0-69:1
     Visibility: public -/
 structure localinv.Plan where
   slot : obj.Slot

@@ -407,19 +407,41 @@ pub fn copy_global_mappings<S: Store>(s: &mut S, new_root: u64) {
 
 // ---- unmapping -----------------------------------------------------------------
 
-/// seL4 `unmapPage`, in a VSpace or an `ArmHighVSpace`.
-pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid: u64, vaddr: u64, pptr: u64) {
-    let (root, high) = match find_asid_raw(s, asid) {
+/// The tables `unmap_page` walks for a frame mapped with ASID `asid`, and
+/// whether they are an `ArmHighVSpace`'s; None if it unmaps nothing.
+pub fn unmap_root<S: Store>(s: &S, asid: u64) -> Option<(u64, bool)> {
+    match find_asid_raw(s, asid) {
         Ok(r) => {
             if r & ROOT_TAG == ROOT_S1 {
-                (r, false)
+                Some((r, false))
             } else if r & ROOT_TAG == ROOT_HIGH {
-                (r & !ROOT_TAG, true)
+                Some((r & !ROOT_TAG, true))
             } else {
-                return;
+                None
             }
         }
-        Err(_) => return,
+        Err(_) => None,
+    }
+}
+
+/// The level-3 entry a small page at `vaddr` in the tables at `root` uses,
+/// if they reach level 3 (`localinv`, which locks it): the one entry
+/// `unmap_page` may clear and `decode_page_map` may write for a small
+/// frame, which otherwise write none.
+pub fn small_page_entry<S: Store>(s: &S, root: u64, vaddr: u64) -> Option<u64> {
+    let lu = lookup_pt_slot(s, root, vaddr);
+    if lu.shift == PAGE_BITS {
+        Some(lu.slot)
+    } else {
+        None
+    }
+}
+
+/// seL4 `unmapPage`, in a VSpace or an `ArmHighVSpace`.
+pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid: u64, vaddr: u64, pptr: u64) {
+    let (root, high) = match unmap_root(s, asid) {
+        Some(x) => x,
+        None => return,
     };
     let lu = lookup_pt_slot(s, root, vaddr);
     if lu.shift != page_shift(size) {
@@ -1619,6 +1641,138 @@ mod tests {
         // And through the descriptors: no read right means execute-never.
         assert_ne!(make_user_page(FRAME, VM_READ_WRITE, false, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
         assert_eq!(make_user_page(FRAME, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
+    }
+
+    fn set_frame(w: &mut World, f: FrameCap) {
+        w.fslot.set_cap(&mut w.s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: f.mapped, is_ept: false, asid: f.asid, vaddr: f.vaddr });
+    }
+
+    fn map_plan(w: &World) -> Option<crate::localinv::Plan> {
+        let t = sched::cur_thread(&w.s);
+        crate::localinv::plan_with(&w.s, t, label::ARMPageMap, w.fslot, w.ex)
+    }
+
+    /// `localinv`'s plan for an ARMPageMap beside the gate locks the
+    /// frame's slot and the very descriptor `decode_page_map` then writes,
+    /// for a new mapping and a remap; and its map writes no other
+    /// descriptor and makes no Arch operation but the remap's TLBI.
+    #[test]
+    fn local_map_plan_locks_the_descriptor_the_map_writes() {
+        let cacheable = arm_vm_attr::PAGE_CACHEABLE;
+        for mapped in [false, true] {
+            let mut w = world(FrameSize::Small, cacheable);
+            let f = frame(FrameSize::Small, false, mapped);
+            if mapped {
+                w.s.write(w.pte, entry(0, 12));
+            }
+            set_frame(&mut w, f);
+            let p = map_plan(&w).expect("a local plan");
+            assert_eq!(&p.locks[..p.n], &[w.fslot.0, w.pte]);
+            assert_eq!(p.pte, 1);
+            assert!(p.still_holds(&w.s));
+            let before = w.s.words.clone();
+            let ev = map(&mut w, f);
+            assert!(ev.iter().all(|x| matches!(x, Ev::Write(a, _) if *a == w.pte) || *x == Ev::InvalidatePage(ASID, VADDR)), "{ev:?}");
+            assert_eq!(w.s.read(w.pte), entry(cacheable, 12));
+            // Of all kernel words, only the locked ones, the caller's and
+            // this core's node state changed.
+            let t = sched::cur_thread(&w.s).0;
+            let tcb = t..t + (1u64 << bits::TCB);
+            let nb = crate::obj::node_base(&w.s, 0);
+            let node = nb..nb + crate::layout::node::SIZE;
+            for (&a, &v) in &w.s.words {
+                if before.get(&a) != Some(&v) {
+                    assert!(a == w.pte || a == w.fslot.0 + crate::layout::cte::CAP0 || a == w.fslot.0 + crate::layout::cte::CAP1 || tcb.contains(&a) || node.contains(&a), "{a:#x} written");
+                }
+            }
+            assert!(before.keys().all(|a| w.s.words.contains_key(a)));
+        }
+    }
+
+    /// What the plan leaves to the gate: a non-cacheable map (it cleans
+    /// the frame's lines first), a device frame, a large frame, tables
+    /// that do not reach level 3, an address above USER_TOP, and a map into
+    /// anything but a VSpace.
+    #[test]
+    fn local_map_plan_declines_what_the_gate_must_do() {
+        let small = frame(FrameSize::Small, false, false);
+        let cacheable = arm_vm_attr::PAGE_CACHEABLE;
+        let mut w = world(FrameSize::Small, 0);
+        set_frame(&mut w, small);
+        assert!(map_plan(&w).is_none(), "non-cacheable");
+        let mut w = world(FrameSize::Small, cacheable);
+        set_frame(&mut w, frame(FrameSize::Small, true, false));
+        assert!(map_plan(&w).is_none(), "device");
+        let mut w = world(FrameSize::Large, cacheable);
+        set_frame(&mut w, frame(FrameSize::Large, false, false));
+        assert!(map_plan(&w).is_none(), "large frame");
+        set_frame(&mut w, small);
+        assert!(map_plan(&w).is_none(), "no level-3 table");
+        let mut w = world(FrameSize::Small, cacheable);
+        set_frame(&mut w, small);
+        let t = sched::cur_thread(&w.s);
+        t.set_reg(&mut w.s, msg::msg_register(0), USER_TOP + 1);
+        assert!(map_plan(&w).is_none(), "above USER_TOP");
+        t.set_reg(&mut w.s, msg::msg_register(0), VADDR);
+        assert!(map_plan(&w).is_some());
+        w.ex[0].set_cap(&mut w.s, Cap::HighVSpace { ptr: layout::pptr(ROOT), mapped: true, asid: ASID });
+        assert!(map_plan(&w).is_none(), "ArmHighVSpace");
+    }
+
+    /// `localinv`'s plan for a CNode Delete of a mapped small RAM frame
+    /// locks the slot and the very descriptor `unmap_page` clears; with
+    /// tables that do not reach level 3 or an ASID that names nothing, it
+    /// locks no descriptor, and `unmap_page` writes none.
+    #[test]
+    fn local_delete_plan_locks_the_descriptor_unmap_clears() {
+        let cacheable = arm_vm_attr::PAGE_CACHEABLE;
+        // A CNode of 16 slots, slot 3 holding the frame cap.
+        let cnode = layout::pptr(0x90_0000);
+        let dest = Slot(cnode + 3 * 32);
+        let plan = |w: &World, asid: u64| {
+            let t = sched::cur_thread(&w.s);
+            let mut s2 = Mem { words: w.s.words.clone(), watch: 0, log: w.log.clone() };
+            Slot(w.fslot.0).set_cap(&mut s2, Cap::CNode { ptr: cnode, radix: 4, guard_size: 0, guard: 0 });
+            dest.set_cap(&mut s2, Cap::Frame { ptr: layout::pptr(FRAME), size: FrameSize::Small, rights: VM_READ_WRITE, is_device: false, mapped: true, is_ept: false, asid, vaddr: VADDR });
+            t.set_reg(&mut s2, msg::msg_register(0), 3);
+            t.set_reg(&mut s2, msg::msg_register(1), 4);
+            crate::localinv::plan_with(&s2, t, label::CNodeDelete, w.fslot, w.ex)
+        };
+        let mut w = world(FrameSize::Small, cacheable);
+        w.s.write(w.pte, entry(cacheable, 12));
+        let p = plan(&w, ASID).expect("a local plan");
+        assert_eq!(&p.locks[..p.n], &[dest.0, w.pte]);
+        assert_eq!(p.pte, 1);
+        w.log.borrow_mut().clear();
+        unmap_page(&mut w.s, &mut w.a, FrameSize::Small, ASID, VADDR, layout::pptr(FRAME));
+        assert_eq!(*w.log.borrow(), vec![Ev::Write(w.pte, 0), Ev::InvalidatePage(ASID, VADDR)]);
+        // No level-3 table: no descriptor to lock or clear.
+        let mut w = world(FrameSize::Large, cacheable);
+        w.s.write(w.pte, entry(cacheable, 21));
+        let p = plan(&w, ASID).expect("a local plan");
+        assert_eq!(&p.locks[..p.n], &[dest.0]);
+        assert!(p.pte >= p.n);
+        w.log.borrow_mut().clear();
+        unmap_page(&mut w.s, &mut w.a, FrameSize::Small, ASID, VADDR, layout::pptr(FRAME));
+        assert!(w.log.borrow().is_empty());
+        assert_eq!(w.s.read(w.pte), entry(cacheable, 21));
+        // A frame mapped in an ArmHighVSpace: the same walk from its
+        // level-0 table, and `invalidate_high_page`.
+        let mut w = world(FrameSize::Small, cacheable);
+        w.s.write(w.pte, entry(cacheable, 12));
+        let pool = asid_table(&w.s, ASID >> ASID_LOW_BITS);
+        w.s.write(pool + (ASID & 511) * 8, layout::pptr(ROOT) | ROOT_HIGH);
+        assert_eq!(unmap_root(&w.s, ASID), Some((layout::pptr(ROOT), true)));
+        let p = plan(&w, ASID).expect("a local plan");
+        assert_eq!(&p.locks[..p.n], &[dest.0, w.pte]);
+        assert_eq!(p.pte, 1);
+        w.log.borrow_mut().clear();
+        unmap_page(&mut w.s, &mut w.a, FrameSize::Small, ASID, VADDR, layout::pptr(FRAME));
+        assert_eq!(*w.log.borrow(), vec![Ev::Write(w.pte, 0)]);
+        // An ASID naming nothing.
+        let p = plan(&w, ASID + 1).expect("a local plan");
+        assert_eq!(&p.locks[..p.n], &[dest.0]);
+        assert!(unmap_root(&w.s, ASID + 1).is_none());
     }
 }
 

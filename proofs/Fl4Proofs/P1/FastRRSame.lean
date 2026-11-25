@@ -9,7 +9,8 @@ from a dispatch state `X0` (`reply_recv_acc`, `reply_recv_found_acc`,
 
 (`do_reply_transfer_rr`, `handle_invocation_rr`, `ep_append_empty`,
 `handle_recv_rr`, `rr_sync_of`, `schedule_sw`, `finish_rr`): equality of
-states, no `StoreExt` on this half.
+states, under `StoreExt` [P] (the fast path writes `t`'s BLOCK_OBJ before its
+STATE, `wait_for_sender` STATE first: one `wr_comm`).
 
 The general path's reads at the fast run's intermediate states are the
 hypothesis bundle `RRPre` (fields `RRR3` / `RRReads`, one per read the general
@@ -53,6 +54,10 @@ abbrev RRR3 (X3 : S) (t u : U64) : Prop := RRR3G (st := st) fl4_abi.consts.fault
 `X1 … X15` are the binds of `rrTail`, restart = true). Each is a read the
 general path makes that is not one of the fast path's checks at `X0`. -/
 structure RRReads (t rptr ep u usc : U64) (X1 X2 X6 X7 X8 X11 X12 X15 : S) (a2 : A) : Prop where
+  /-- `t`'s state and blocking-object words are aligned and distinct: the fast
+  path writes BLOCK_OBJ then STATE, `wait_for_sender` STATE then BLOCK_OBJ
+  (`rr_found_sameG` swaps them). -/
+  tw : Aligned (stA t) ∧ Aligned (blockA t) ∧ stA t ≠ blockA t
   sch1 : sched.is_schedulable st X1 t = ok true
   rt1 : obj.Reply.tcb st rptr X1 = ok u
   us1 : obj.Tcb.state st u X1 = ok sched.TS_BLOCKED_ON_REPLY
@@ -127,8 +132,8 @@ def RRPreG (ty : U64) (X0 : S) (a : A) : Prop :=
       obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6 →
       sched.set_action st X6 u = ok X7 →
       obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 →
-      obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 →
-      obj.Tcb.set_block_obj st t X9 ep = ok X10 →
+      obj.Tcb.set_block_obj st t X8 ep = ok X9 →
+      obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 →
       obj.Tcb.set_reply_obj st t X10 rptr = ok X11 →
       obj.Reply.set_tcb st rptr X11 t = ok X12 →
       obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 →
@@ -142,8 +147,8 @@ abbrev RRPre (X0 : S) (a : A) : Prop := RRPreG (L := L) ar fl4_abi.consts.fault.
 /-- **`rr_same` from the checks, over the fault type** (pf1): an accepted run
 `rrTail` after the checks `RRChecksG ty` (with `(rptr, ep)` what `reply_caps`
 returns at `X0`) ends where `dispatch_syscall … SysReplyRecv` + `finish` end,
-given `RRPreG ty` and the restart flag `HfrRestart ty`. -/
-theorem rr_found_sameG {ty : U64} [HfrRestart st ar ty] (hty0 : ¬ ty = fl4_abi.consts.fault.NullFault)
+given `StoreExt` [P], `RRPreG ty` and the restart flag `HfrRestart ty`. -/
+theorem rr_found_sameG (hX : StoreExt st) {ty : U64} [HfrRestart st ar ty] (hty0 : ¬ ty = fl4_abi.consts.fault.NullFault)
     {X0 s' : S} {a a' : A} {t rptr ep u usc : U64}
     (hct : sched.cur_thread st X0 = ok t) (hrc : fastpath.reply_caps st X0 t = ok (some (rptr, ep)))
     (hC : RRChecksG st ar ty X0 a t rptr ep u usc) (hT : rrTail st ar X0 a t rptr ep u usc = ok (true, s', a'))
@@ -182,7 +187,17 @@ theorem rr_found_sameG {ty : U64} [HfrRestart st ar ty] (hty0 : ¬ ty = fl4_abi.
   obtain ⟨q, hq, hq0⟩ := R.q12
   obtain ⟨p, hp, -⟩ := spec_ex_fd (P0.obj.Tcb.prio.p0 st t X12 L.total)
   have hap := ep_append_empty st hq hq0 ⟨p, hp⟩ e13 e14 e15
-  have hrecv := handle_recv_rr st ar (a := a2) R.ct8 hj1 hlk1 hj hlk2 R.rt8 hbn hnc R.ep8 e9 e10 e11
+  -- the two writes in the general path's order (`wr_comm`)
+  obtain ⟨tS, tB, tne⟩ := R.tw
+  have w9 : X9 = L.wr X8 (blockA t) ep := by
+    have := obj.Tcb.set_block_obj.wr (L := L) X8 t ep; rw [e9, WP.spec_ok] at this; exact this
+  have w10 : X10 = L.wr (L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV) (blockA t) ep := by
+    have := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV; rw [e10, WP.spec_ok] at this
+    rw [this, w9]; exact wr_comm hX X8 _ _ tB tS (Ne.symm tne)
+  have g9 := eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV)
+  have g10 : obj.Tcb.set_block_obj st t (L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV) ep = ok X10 := by
+    rw [w10]; exact eq_of_spec_fd (obj.Tcb.set_block_obj.wr (L := L) _ t ep)
+  have hrecv := handle_recv_rr st ar (a := a2) R.ct8 hj1 hlk1 hj hlk2 R.rt8 hbn hnc R.ep8 g9 g10 e11
     (schedule_tcb_nr (L := L) X11 t R.act11) R.r0 e12 hap
   have hdisp := rr_sync_of st ar hct hi1 hi hinv hrecv
   have hu0 : (u != sched.ACTION_RESUME_CURRENT) = true := by
@@ -197,14 +212,15 @@ theorem rr_found_sameG {ty : U64} [HfrRestart st ar ty] (hty0 : ¬ ty = fl4_abi.
 
 /-- **(R-d) The accepted ReplyRecv fast path ends where the general path
 ends**: from the dispatch state `X0`, `dispatch_syscall … SysReplyRecv` then
-`finish` reach the fast path's result, given the read bundle `RRPre`. -/
-theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok (true, s', a'))
+`finish` reach the fast path's result, given the read bundle `RRPre` and
+`StoreExt` [P]. -/
+theorem rr_same (hX : StoreExt st) {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok (true, s', a'))
     (hP : RRPre (L := L) ar X0 a) :
     ∃ X a'', syscall.dispatch_syscall st ar X0 a fl4_abi.syscall.SysReplyRecv = ok (X, a'') ∧
       syscall.finish st ar X a'' = ok (s', a') := by
   obtain ⟨t, rptr, ep, hct, hrc, hf⟩ := reply_recv_acc st ar h
   obtain ⟨u, usc, hC, hT⟩ := reply_recv_found_acc st ar hf
-  exact rr_found_sameG ar unknown_ne_null hct hrc hC hT hP
+  exact rr_found_sameG ar hX unknown_ne_null hct hrc hC hT hP
 
 omit L in
 /-- **The general `syscall` on the fast entry's ReplyRecv route**: the same
@@ -312,7 +328,7 @@ theorem FastAcc.of_split_rr (hX : StoreExt st) {s : S} {a : A} {n : I64} {P : S 
   rcases hsyn with hs | ⟨t, nx, s1, i1, s2, a2, et, enx, es1, ef, c1, c2, c3, c4, eb, er⟩
   · rw [hgen hs, WP.spec_ok] at hg; exact hg
   · subst c4
-    obtain ⟨X, a'', hd, hf⟩ := rr_same ar er (hR t nx s1 s2 a2 et enx es1 eb)
+    obtain ⟨X, a'', hd, hf⟩ := rr_same ar hX er (hR t nx s1 s2 a2 et enx es1 eb)
     rw [hgen (syscall_rr_general ar et enx es1 ef c1 c2 c3 eb hd hf), WP.spec_ok] at hg; exact hg
 
 end
@@ -327,7 +343,10 @@ path's reads** (m66 (R-d)): `entry_of7` with `hRR : FastRRP` [P] (a "the fast
 path keeps `P`" premise) replaced by `hRP : RRPreAt` (the general path's
 reads along an accepted ReplyRecv run, `rr_same`). `hX : StoreExt` [P] stays
 for the fault half, `hAs : AsidOff` [J] and `hNv : FaultNvmPre` [J] as in
-`entry_of7`. -/
+`entry_of7`.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of7r {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

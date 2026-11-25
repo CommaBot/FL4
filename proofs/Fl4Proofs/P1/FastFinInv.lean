@@ -1018,7 +1018,10 @@ replaced by `FastFaultPre` (m63 (d4)): placement facts at the state where
 `FaultEnt` for the accepted checks (to be derived from that state's P1
 invariants and Hyps4's cap typing, KENTRY-PLAN m63 (d3) handoff). The P1
 invariants there come from `budget_ok.bxc`. `StoreExt` [P] and the
-ReplyRecv half `FastRRP` [P] unchanged. -/
+ReplyRecv half `FastRRP` [P] unchanged.
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of6 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

@@ -195,7 +195,7 @@ pub mod irq {
     /// The GIC interrupt ID of `irq`.
     pub fn id(irq: u64) -> u64 {
         if irq >= LPI_BASE {
-            irq - LPI_BASE + LPI_ID_BASE
+            (irq - LPI_BASE).wrapping_add(LPI_ID_BASE)
         } else if irq >= BANKED_BASE {
             (irq - BANKED_BASE) % NUM_BANKED
         } else {

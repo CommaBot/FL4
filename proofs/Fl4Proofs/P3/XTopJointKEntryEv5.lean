@@ -169,7 +169,9 @@ theorem handle_syscall_unk_eq (hA : P0.ArchTotal arI) (hX : P1.StoreExt st) {s :
 `kernel_entry.entry_of7`): at a state where P1's `EntryInv` holds (with the
 `Hyps4` admissibility of its sets), `AsidOff` [J] and `FaultNvmPre` [J]
 give the general path's reads `FastFaultOK`. This is where the premise of
-`jEvRef_sysU` is checked to hold in P1-reachable states. -/
+`jEvRef_sysU` is checked to hold in P1-reachable states.
+**Vacuous** (p1g): `GF`'s `Hyps4` is contradictory (P1/EntryVacuous); not used by the
+`kernel_entry_reach*` tops. -/
 theorem fastFaultOK_of_p1 {T Ω Cs Sg Rp Scs Nt U : Set U64} {H : P1.Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     {Adm : P1.PSets → Prop} (hA : P0.ArchTotal arI)
     (GF : ∀ σ : P1.PSets, Adm σ → P1.Hyps4 st arI Adm Cs U P3Ok σ)

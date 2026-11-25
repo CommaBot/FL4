@@ -1,6 +1,6 @@
 {
- "functions": 1179,
- "proved": 1178,
+ "functions": 1182,
+ "proved": 1182,
  "manual": [
   "boot.create_untypeds",
   "boot.init_irq_states_loop",
@@ -37,12 +37,11 @@
   "vcpu.write_state_from_frame",
   "vcpu.write_state_from_frame_loop0",
   "vcpu.write_state_from_frame_loop2",
+  "vspace.decode_test_and_clear_accessed",
   "vspace.lookup_pt_slot_loop"
  ],
  "preconditions": {
-  "localtimer.in_core_timer_tree_loop": "`sp \u2264 32` (the stack's length). Its one caller, `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.",
-  "layout.irq.id": "`irq \u2264 irq::MAX` (3327). Callers: `boot.init_irq_states_loop` (its loop condition) and `smp.handle_ipi` (its own precondition, from `interrupt.handle_interrupt`'s `irq > MAX` check).",
-  "smp.handle_ipi": "`irq \u2264 irq::MAX` (`layout.irq.id`'s). Its one caller, `interrupt.handle_interrupt`, checks `irq > MAX` first."
+  "localtimer.in_core_timer_tree_loop": "`sp \u2264 32` (the stack's length). Its one caller, `localtimer.in_core_timer_tree`, passes `sp` 0 or 1."
  },
  "loops_automatic": [
   "boot.all_zero_loop",
@@ -139,10 +138,5 @@
   "vspace.insert_subframes_loop",
   "vspace.unmap_page_table_loop"
  ],
- "sorry": {
-  "vspace.decode_test_and_clear_accessed": [
-   "fun",
-   "(let (fs, b) := (capability.FrameSize.Small, false) if b = true then do let r \u2190 error.illegal Unit ok (r, s, a) else do let b1 \u2190 machineArchInst.hw_access_flag a if b1 = true then do let r \u2190 vspace.frame_root machineStoreInst s f.asid match r with | core.result.Result.Ok p => let (r1, _) := p do let"
-  ]
- }
+ "sorry": {}
 }

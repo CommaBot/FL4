@@ -25,8 +25,8 @@ variable {T Cs Ω Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 `t`'s TCB, the endpoint and the reply's `TCB` word. -/
 theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
     (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -40,10 +40,10 @@ theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
   have aSt := P.aS P.ht
   have hrΩ := P.hSg.sub _ P.rtS
   have aR : Aligned (rTcbA rptr) := (P.hΩ _ hrΩ).1
-  have w9 : X9 = L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV := by
-    have := obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV; rw [e9, WP.spec_ok] at this; exact this
-  have w10 : X10 = L.wr X9 (blockA t) ep := by
-    have := obj.Tcb.set_block_obj.wr (L := L) X9 t ep; rw [e10, WP.spec_ok] at this; exact this
+  have w9 : X9 = L.wr X8 (blockA t) ep := by
+    have := obj.Tcb.set_block_obj.wr (L := L) X8 t ep; rw [e9, WP.spec_ok] at this; exact this
+  have w10 : X10 = L.wr X9 (stA t) sched.TS_BLOCKED_ON_RECV := by
+    have := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV; rw [e10, WP.spec_ok] at this; exact this
   have w11 : X11 = L.wr X10 (replyA t) rptr := by
     have := obj.Tcb.set_reply_obj.wr (L := L) X10 t rptr; rw [e11, WP.spec_ok] at this; exact this
   have w12 : X12 = L.wr X11 (rTcbA rptr) t := by
@@ -77,7 +77,7 @@ theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
   rw [L.mem_wr_ne aTS hb (by rw [vTS]; omega), L.mem_wr_ne aH hb (by rw [vH]; omega),
     w14, L.mem_wr_ne aP hb (by rw [vP]; omega), w13, L.mem_wr_ne aN hb (by rw [vN]; omega),
     w12, L.mem_wr_ne aR hb (Ne.symm h3), w11, L.mem_wr_ne aRp hb (by rw [vRp]; omega),
-    w10, L.mem_wr_ne aB hb (by rw [vB]; omega), w9, L.mem_wr_ne aSt hb (by rw [vS]; omega)]
+    w10, L.mem_wr_ne aSt hb (by rw [vS]; omega), w9, L.mem_wr_ne aB hb (by rw [vB]; omega)]
 
 /-- The writes `X3 → X8` (the reply transfer's end) miss `Ω`, and `u` is
 `Restart` at `X8`. -/
@@ -316,7 +316,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 /-- **Native kernel entries keep `EntryInv`, the fast paths' end-state reads
 derived** (m70): `entry_of9` without m67's `hNv : FaultNvmPre` [J] and
 `hRP : RRPreAt5` [J] (`FaultNvmPre.of_asid`, `RRPreAt5.of_inv`). Left:
-`StoreExt` [P], `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J]. -/
+`StoreExt` [P], `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J].
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of10 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

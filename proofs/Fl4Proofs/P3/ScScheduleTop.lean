@@ -261,7 +261,14 @@ theorem sni_foot {T : Set U64} {c : U64} {s : S} {a : A} {r : S × A} (hN : Node
   · split at h
     · have h' : (s, a) = r := by simpa using h
       subst h'; exact WritesIn.refl _ _
-    · rw [node_set_tail h]; exact hw
+    · split at h
+      · obtain ⟨t1, -, h⟩ := bind_ok_inv h
+        obtain ⟨b1, -, h⟩ := bind_ok_inv h
+        split at h
+        · have h' : (s, a) = r := by simpa using h
+          subst h'; exact WritesIn.refl _ _
+        · rw [node_set_tail h]; exact hw
+      · rw [node_set_tail h]; exact hw
   · rw [node_set_tail h]; exact hw
 
 /-- **`send_pending`'s footprint**: the node's `IPI_PENDING` word. -/

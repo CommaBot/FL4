@@ -20,7 +20,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {MR : A → Fl4Spec.MachineState → Prop}
 
 set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ42` without `hRP5`** (module docstring). -/
+/-- **`kernel_entryJ42` without `hRP5`** (module docstring).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ42H [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
@@ -48,11 +49,11 @@ theorem kernel_entryJ42H [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) :
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostU (L := L) arI AR MR c σ r ⦄ := by
   have hni := hX.entered hct
   exact kernel_entryJ42 (MR := MR) s a σ J hct hR hX hI hLF n c hn hflag hK hDL hFin hARI hA hnd hM hKD hIo hIoa
-    hPA hIA hmrt hmb hT hmax htu hRef hPI (fun _ => J.rrPre5At hni hR hX.sb hX.ctQ
+    hPA hIA hmrt hmb hT hmax htu hRef hPI hSX (fun _ => J.rrPre5At hni hR hX.sb hX.ctQ
       (fun _ _ => offReady_faultIPSt hX.offReady) hARI hA hnd hM hmrt hmb hmax htu (Fl4Proofs.P3.SInvW.rv hX.w))
 
 end

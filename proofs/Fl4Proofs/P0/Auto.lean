@@ -4112,6 +4112,10 @@ theorem layout.ks.SIZE.p0  :
     obj.Slot.next_of_word w ⦃ _ => True ⦄ := by
   unfold obj.Slot.next_of_word; p0_auto
 
+@[step] theorem localinv.map_attr_local.p0 (_attr : Std.U64) :
+    localinv.map_attr_local _attr ⦃ _ => True ⦄ := by
+  unfold localinv.map_attr_local; p0_auto
+
 @[step] theorem localinv.page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
     localinv.page_entry machineStoreInst s root vaddr ⦃ _ => True ⦄ := by
   unfold localinv.page_entry; p0_auto

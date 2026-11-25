@@ -38,6 +38,7 @@ theorem AK.sched_switch_sched_context {s : S} {a : A} (h : AR a c) :
     sched.switch_sched_context st arI s a ⦃ r => AR r.2 c ⦄ := by
   unfold sched.switch_sched_context; ak_walk
 
+set_option maxHeartbeats 4000000 in
 theorem AK.sched_set_next_interrupt {s : S} {a : A} (h : AR a c) :
     sched.set_next_interrupt st arI s a ⦃ r => AR r.2 c ⦄ := by
   unfold sched.set_next_interrupt; ak_walk

@@ -293,8 +293,8 @@ def RRPre5G (ty : U64) (X0 : S) (a : A) : Prop :=
       obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6 →
       sched.set_action st X6 u = ok X7 →
       obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 →
-      obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 →
-      obj.Tcb.set_block_obj st t X9 ep = ok X10 →
+      obj.Tcb.set_block_obj st t X8 ep = ok X9 →
+      obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 →
       obj.Tcb.set_reply_obj st t X10 rptr = ok X11 →
       obj.Reply.set_tcb st rptr X11 t = ok X12 →
       obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 →
@@ -401,7 +401,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 /-- **Native kernel entries keep `EntryInv`, ReplyRecv half from one read**
 (m68): `entry_of8` with `hRP : RRPreAt3` (`lk8`, `nvm`) replaced by
 `hRP : RRPreAt5` (m67's `nvm` only) and the CNode placement `hCn : CnOffAt`
-[J] at the dispatch states (`lk8_of`). -/
+[J] at the dispatch states (`lk8_of`).
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of9 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
