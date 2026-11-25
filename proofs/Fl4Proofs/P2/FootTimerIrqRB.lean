@@ -10,7 +10,8 @@ and SC at the current time and the budget is insufficient, `check_budget` is the
 (`check_budget_ins`, `charge_budget_rr_run` with `rr_tail_F` for its `F`); it writes only `RrW`
 (`rr_run_writes`), leaves the action `CHOOSE_NEW`, the current thread schedulable (`is_schedulable_rel`) and
 queued, and alone in its ready queue, whose priority is the highest marked one (`highest_prio_app` after
-`append`, carried by `highest_prio_agree` across the action and `REPROGRAM` writes).
+`append`, carried by `highest_prio_agree` across the action and `REPROGRAM` writes); the bitmap stays well formed
+and the current SC's ring well formed (`cbRR_frame`, then only node and TCB words are written).
 
 No named premises.
 -/
@@ -90,7 +91,8 @@ theorem rr_cb_state {A : Type} (ar : machine.Arch A) {s1 s2 : S} {a1 a2 : A} {x 
       (L.mem s2 (inqA (L.curW s1)) &&& sched.Q_QUEUED) ≠ 0#u64 ∧
       sched.highest_prio st s2 0#u64 = ok (L.mem s1 (prioA (L.curW s1))) ∧ L.l1W s2 (L.cpu s1) ≠ 0#u64 ∧
       L.mem s2 (L.nodeAt s1 (L.cpu s1) (rqOff (L.mem s1 (prioA (L.curW s1))))) = L.curW s1 ∧
-      L.mem s2 (L.nodeAt s1 (L.cpu s1) (rqTailOff (L.mem s1 (prioA (L.curW s1))))) = L.curW s1 := by
+      L.mem s2 (L.nodeAt s1 (L.cpu s1) (rqTailOff (L.mem s1 (prioA (L.curW s1))))) = L.curW s1 ∧
+      (∃ NE, BitmapOK st s2 (L.cpu s1) NE) ∧ RefillsWF st s2 (L.cscW s1) (Z (L.cscW s1)) := by
   obtain ⟨Qq, Rq, h1⟩ := hI.1
   have hB1 := hI.2.1
   have hX1 := hI.2.2.1
@@ -201,6 +203,7 @@ theorem rr_cb_state {A : Type} (ar : machine.Arch A) {s1 s2 : S} {a1 a2 : A} {x 
   -- `append`: the current thread alone in its queue, the highest
   obtain ⟨xs, hr, hq⟩ := F3.rel
   obtain ⟨k4, c4, -⟩ := append_keep F3.hT F3.ct F3.prio F3.aff F3.hN hr hq ea
+  have ea0 := ea
   rw [cur3] at ea
   have hN3 : NodePlaced st T s3' (L.cpu s3') := h3.nodes _ h3.cur
   have pr3 : L.mem s3' (prioA (L.curW s1)) = L.mem s1 (prioA (L.curW s1)) := by
@@ -272,7 +275,42 @@ theorem rr_cb_state {A : Type} (ar : machine.Arch A) {s1 s2 : S} {a1 a2 : A} {x 
     rw [c4]; exact hRQ4.2
   rw [c3, nodeAt_of_ksb k4s, pr3] at hh4 he4
   rw [pr3] at hp4
-  refine ⟨ha, wY, hactY, hsch2, hq2, ?_, ?_, ?_, ?_⟩
+  -- the current SC's ring stays well formed
+  have hWF : RefillsWF st s2 (L.cscW s1) (Z (L.cscW s1)) := by
+    obtain ⟨w2', hW2⟩ := cbRR_frame hW hal e2
+    have e3' : s3' = L.wr s2' (L.nodeAt s1 (L.cpu s1) layout.node.CONSUMED) 0#u64 := by
+      have e := e3
+      rw [eq_of_spec_fd (sched.set_consumed.spec (L := L) s2' _)] at e
+      rw [← ok_inj_ff e]
+      unfold LawfulStore.nodeA
+      rw [w2'.2.1, nodeAt_of_ksb w2'.1]
+    obtain ⟨wa, -⟩ := PathObl.post_of_ok (sched.append.foot (L := L) s3' (L.curW s3') xs F3.hT F3.ct F3.prio
+      (by rw [F3.aff]; exact F3.hN) F3.hN (by rw [F3.aff]; exact hr) hq) ea0
+    refine hW2.agree fun b hb hi => ?_
+    have ho := h1.omega b (hX1.1.scW _ hcS b hb hi)
+    have ho3 : OutsideObjs st T Cs s3' b := ho.ksb k3
+    have e43 : L.mem s4' b = L.mem s3' b := by
+      refine wa.mem_eq hb fun hh => ?_
+      rcases hh with ⟨y, hy, hb' | hb'⟩ | ⟨o, -, ho', -, e⟩ | e | ⟨o, -, ho', -, e⟩
+      · have hyT : y ∈ T := by
+          rcases List.mem_cons.1 hy with rfl | hy
+          · exact F3.ct
+          · exact hr.mem _ hy
+        exact out_ne_field ho3 hyT (F3.hT y hyT) (K := 3480#u64) (by simp) (congrArg UScalar.val hb').symm
+      · have hyT : y ∈ T := by
+          rcases List.mem_cons.1 hy with rfl | hy
+          · exact F3.ct
+          · exact hr.mem _ hy
+        exact out_ne_field ho3 hyT (F3.hT y hyT) (K := 3488#u64) (by simp) (congrArg UScalar.val hb').symm
+      · exact out_ne_node ho3 (h3.aff _ F3.ct) (h3.nodes _ (h3.aff _ F3.ct)) ho' (congrArg UScalar.val e).symm
+      · exact out_ne_field ho3 F3.ct (F3.hT _ F3.ct) (K := 3592#u64) (by simp) (congrArg UScalar.val e).symm
+      · exact out_ne_node ho3 h3.cur (h3.nodes _ h3.cur) ho' (congrArg UScalar.val e).symm
+    rw [e6', mem_wr_ne' aR hb (fun e => out_ne_node ho hcC hN1 (by rw [hro]; omega) (congrArg UScalar.val e)),
+      mem_wr_ne' aA hb (fun e => out_ne_node ho hcC hN1 (by rw [act_val]; omega) (congrArg UScalar.val e)), e43,
+      e3', mem_wr_ne' aC hb (fun e => out_ne_node ho hcC hN1 (by rw [hco]; omega) (congrArg UScalar.val e))]
+  have hB2 := hB4.agree hl1 hl2
+  rw [c4s] at hB2
+  refine ⟨ha, wY, hactY, hsch2, hq2, ?_, ?_, ?_, ?_, ⟨_, hB2⟩, hWF⟩
   · rw [highest_prio_agree (Z := s2) _ hN4 hB4 hl4 (k2s.trans k4s.symm) (c2s.trans c4s.symm) hl1 hl2]
     exact hp4
   · rw [← c4s, hl1]; exact hl4
