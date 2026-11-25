@@ -818,6 +818,20 @@ end
 section
 end
 
+-- from scratch/lay_ax.lean
+section
+#print axioms Fl4Proofs.P2.PathObl.layoutJ_mv
+#print axioms Fl4Proofs.P2.PathObl.slJAt_of_JAtZ_stable
+#print axioms Fl4Proofs.P2.PathObl.slJAt_of_reachU17_stable
+#print axioms Fl4Proofs.P2.PathObl.sl_localPathK
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsK
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsK_startAt
+#print axioms Fl4Proofs.P2.SerExit.ser_of_JAtZN
+#print axioms Fl4Proofs.P2.SerExit.ser_of_reachN
+#print axioms Fl4Proofs.P2.SerExit.ser_of_reachU29N
+#print axioms Fl4Proofs.P2.SerExit.ser_step_of_JAtZN
+end
+
 -- from scratch/ndd_ax.lean
 section
 #print axioms Fl4Proofs.P3.ndDomOK_of
@@ -936,6 +950,16 @@ section
 #print axioms Fl4Proofs.P2.PathObl.rs_ks
 end
 
+-- from scratch/vmchk_ax.lean
+section
+#print axioms Fl4Proofs.P1.vcpu.check.vck
+#print axioms Fl4Proofs.P1.EntryHyps0.vmchk
+#print axioms Fl4Proofs.P1.syscall.finish.entry
+#print axioms Fl4Proofs.P1.EntryHyps.of
+#print axioms Fl4Proofs.P1.EntryHyps.of_gaps
+#print axioms Fl4Proofs.P3.fastFaultOK_of_p1N
+end
+
 -- from scratch/wire_ax.lean
 section
 end
@@ -1015,6 +1039,22 @@ section
 #print axioms Fl4Proofs.P2.sched.schedule_tcb.guardC
 #print axioms Fl4Proofs.P2.sched.set_thread_state.guardVC
 #print axioms Fl4Proofs.P2.set_thread_state.gwC
+#print axioms Fl4Proofs.P2.schedule_act_eq
+#print axioms Fl4Proofs.P2.fire_tail_of_aw
+#print axioms Fl4Proofs.P2.actTail.guard
+#print axioms Fl4Proofs.P2.aw_tail_resume
+#print axioms Fl4Proofs.P2.qmem_nbrs
+#print axioms Fl4Proofs.P2.StW
+#print axioms Fl4Proofs.P2.wake_wait_fire
+#print axioms Fl4Proofs.P2.scSb_ne
+#print axioms Fl4Proofs.P2.recv_rt
+#print axioms Fl4Proofs.P2.wake_recv_fire
+#print axioms Fl4Proofs.P2.wkpre_fire
+#print axioms Fl4Proofs.P2.wkpre_true
+#print axioms Fl4Proofs.P2.WkCase
+#print axioms Fl4Proofs.P2.wk_sig
+#print axioms Fl4Proofs.P2.node_not_tw
+#print axioms Fl4Proofs.P2.fire_wk_step
 end
 
 -- from P2ltAx.lean
