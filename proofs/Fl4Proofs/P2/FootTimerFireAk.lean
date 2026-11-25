@@ -8,11 +8,12 @@ thread (`¬ NoWake`): `irq_accG_fire_pre` with `fire_tail_wk` (`P2/FootTimerFire
 plan's endpoint / reply words by `lkw_own` with the lock set `Lk := lk s` (`PlanLk` gives the plan's notification and
 endpoint), endpoint / reply words placed by `ObjLay`, the bound notification's words by `fire_wr_own` (`FNtW`).
 
-Lemma hypotheses (discharged by the caller): `hPE` (the plan's endpoint is a heap endpoint whose words are aligned),
-`hPR` (the plan's reply is a P1 reply object, its TCB word aligned), `hBA` (`BufAt` after `handle_interrupt`),
+The plan's endpoint / reply facts come from `plan_pe_pr` (`P2/FootTimerFirePe`). Lemma hypotheses (discharged by
+the caller): `hBA` (`BufAt` after `handle_interrupt`),
 `hSwT` (`SwTailP`: the tail when the action is the woken thread). Named premises used: `PlanLk` [P], `ObjLay` [J].
 -/
 import Fl4Proofs.P2.FootTimerFireTk
+import Fl4Proofs.P2.FootTimerFirePe
 import Fl4Proofs.P2.FootTimerFireLoc
 open Aeneas Aeneas.Std Result
 
@@ -52,9 +53,6 @@ theorem irq_acc_fire_wk (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a
     (hE : IrqEntK K st T Cs Ω H Sg Rp Scs Nt Z Ac m s) (hY : IrqLay K st Nt irq s)
     (hAff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hOL : ObjLay K H Rp) (hPL : PlanLk lk p)
-    (hPE : p.ep ≠ 0#u64 → H p.ep = some .ep ∧
-      ∀ k : U64, k.val < 16 → k.val % 8 = 0 → Aligned (core.num.U64.wrapping_add p.ep k))
-    (hPR : p.reply ≠ 0#u64 → p.reply ∈ Rp ∧ Aligned (rTcbA p.reply))
     (hBA : ∀ s2 a2 s3 a3, interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3) →
       BufAt st T Cs H Sg Scs Z U s3)
     (hSwT : SwTailP st (guard st (MaxR K st lk s) (MaxW K st lk s)) ar T Cs Ω H Sg Rp Scs Nt Z Ac
@@ -73,6 +71,7 @@ theorem irq_acc_fire_wk (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a
   have hO := hX.1
   obtain ⟨mx, now, i2, tip, x, s1, s2, s3, a1, a2, a3, emx, hle, ei1, etip, eb, eok, eq, eu, enow, erel, ei2, eb4,
     edue, efo, ecb, ehi⟩ := fire_eqs ar hA hq h
+  obtain ⟨hPE, hPR⟩ := plan_pe_pr hI etip eb
   have hTm := fire_tmHere etip eb efo
   obtain ⟨hTM0, hpN⟩ := plan_ntfn etip eb efo
   have hTMs := tmin_facts (BXI.blk hI) h0.cur hTM0
