@@ -26,6 +26,7 @@ import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueBudgetG
 import Fl4Proofs.P1.VcpuHooks
+import Fl4Proofs.P1.VcpuCheckInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -454,18 +455,39 @@ structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.A
   /-- `activate_thread`, after `schedule`. -/
   act : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     sched.activate_thread st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
-  /-- (#57) `finish`'s `vcpu.check` of a `TS_RUNNING_VM` current thread (the
-  completion of its VMEnter; off `TS_RUNNING_VM` it does nothing,
-  `check_of_ne`). `P3Place.vmchk` [P]. -/
-  vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  /-- **[P] (vmchk) The placement `finish`'s `vcpu.check` needs** of a
+  `TS_RUNNING_VM` current thread at an `EntryInv` state (the completion of its
+  VMEnter, `vcpu.check.entry`; off `TS_RUNNING_VM` it does nothing,
+  `check_of_ne`): its IPC buffer lies in the user words `U` (`hbuf`, as
+  `bufAt`'s, here after `schedule`), and its bound VCPU's `PENDING` word is a
+  user-class word (`hpw`, `UsrW`; P2's `VcpuUsr`). Replaces the former
+  behavioural field `vmchk` (now the theorem `EntryHyps0.vmchk`).
+  `P3Place.vmpl` [P]. -/
+  vmpl : ∀ (Ac : Set U64) (s : S), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
-    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
+    msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄ ∧
+    (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
+      UsrW st T Cs H Sg Scs Z s
+        (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING))
   /-- (int6; from `P3Place.xfer.buf` and `P3Place.blkU`, `EntryHyps.of_gaps`)
   At an `XG` state the TCBs' IPC buffers lie in the user words (`BufAt`):
   what `send_signal`'s VMEnter completion (#80 / #85) needs, in
   `handle_interrupt` and `schedule`. -/
   bufAt : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     BufAt st T Cs H Sg Scs Z U s
+
+/-- **(vmchk) `finish`'s `vcpu.check` of a `TS_RUNNING_VM` current thread keeps
+`EntryInv`** (the former field `EntryHyps0.vmchk`), from `vcpu.check.entry`
+with the user words `UsrW` (from `blkU`'s `UserOK`) and `vmpl`. -/
+theorem EntryHyps0.vmchk (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hA : P0.ArchTotal ar)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (Ac : Set U64) (s : S) (a : A)
+    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hv : L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM) :
+    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
+  have hb := EntryInv.bxi h
+  have hUs := (E.blkU Ac s hb).2.usrW hb.blk
+  obtain ⟨hbuf, hpw⟩ := E.vmpl Ac s h hv
+  exact vcpu.check.entry (U := {b | UsrW st T Cs H Sg Scs Z s b}) hA hNt s a h (fun b hb => hb)
+    (WP.spec_mono hbuf fun b hb h0 i hi => hUs _ (hb h0 i hi)) hpw
 
 /-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`.
 **Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`); not a
@@ -739,7 +761,7 @@ theorem syscall.finish.entry (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : �
     show (do let t ← sched.cur_thread st s2; vcpu.check st ar s2 a2 t) ⦃ _ ⦄
     rw [cur_thread_ok]; simp only [bind_ok]
     by_cases hv : L.mem s2 (stA (L.curW s2)) = sched.TS_RUNNING_VM
-    · exact WP.spec_mono (E.vmchk Ac s2 a2 h2 hv) fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, hr⟩
+    · exact WP.spec_mono (E.vmchk hA hNt Ac s2 a2 h2 hv) fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, hr⟩
     · rw [check_of_ne ar s2 a2 _ hv]; exact (WP.spec_ok _).2 ⟨Ac, h2⟩
 
 /-- `after_invocation`: the preemption point of a preempted invocation, with
