@@ -6,9 +6,10 @@ entry state:
 
 * `timer.earliest.guard`: the node's `TIMER_MIN` and the timer-min thread's
   deadline;
-* `sched.set_next_interrupt.guard` (this branch's body, before main #99):
-  the node's words (`CUR_TIME`, `CUR_THREAD`, `RELEASE_HEAD`, `TIMER_MIN`,
-  `ARMED`, read; `ARMED`, written), the kernel's `DOMAIN_TIME`, the current
+* `sched.set_next_interrupt.guard` (the body after main #99, which re-arms an
+  earlier `ARMED` only for the idle thread): the node's words (`CUR_TIME`,
+  `CUR_THREAD`, `IDLE_THREAD`, `RELEASE_HEAD`, `TIMER_MIN`, `ARMED`, read;
+  `ARMED`, written), the kernel's `DOMAIN_TIME`, the current
   thread's SC word and head refill, the release head's SC word and head
   refill, the timer-min thread's deadline;
 * `sched.activate_thread.guard`, for a current thread that yields to no SC
@@ -61,7 +62,8 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
   simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_get.guard s _ layout.node.RELEASE_HEAD (hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1,
     obj.node_get.guard s _ layout.node.ARMED (hNd layout.node.ARMED (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])).1,
-    node_get_ok s _ layout.node.RELEASE_HEAD]
+    node_get_ok s _ layout.node.RELEASE_HEAD,
+    sched.idle_thread.guard s (hNd layout.node.IDLE_THREAD (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])).1]
   simp only [bind_ok, is_null_ok,
     obj.node_set.guard s (L.cpu s) layout.node.ARMED _ (hNd layout.node.ARMED (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])).2]
   by_cases h1 : L.mem s (rhA (L := L) s) = 0#u64
