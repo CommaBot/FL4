@@ -40,6 +40,13 @@ queue operations take `t ∉ Kp`. `reschedule_required` queues the executing
 core's action thread, so the footprint also carries `AcK` (a new
 `SCHED_ACTION` is no thread of `Kp`; `WritesA`), and it and
 `possible_switch_to` take `ActOut` (the action is no thread of `Kp`).
+
+**(vk)** Under `Nd`, `PrW` also protects every thread's VCPU word (offset
+3664; written only by `vcpu::detach` and `X86VCPUSetTCB`, never in a
+no-donation footprint), and `PrF` asks `K ≠ 3664` under `Nd` (an auto-param
+of `PrF.of_ne`/`PrF.of_nk`). So every `FootN … True`, `SFootN` and `FFoot`
+footprint keeps the TCBs' VCPU words (P2/FootN8 `FFoot.vc`, `FK.vc`;
+P2/FootN11 `sched.schedule.vk`).
 -/
 import Fl4Proofs.P1.QueueFoot
 open Aeneas Aeneas.Std Result
@@ -81,13 +88,15 @@ def IdN (st : machine.Store S) [L : LawfulStore st] (Nd : Prop) (Cs : Set U64) (
 layer): the `STATE` and `IN_QUEUES` words of the threads `Kp` (the other
 cores' threads, during a stall), and, when `Nd` (no
 donation), every thread's `SC` and `AFFINITY` words and every SC's `REPLY` and `TCB` words.
+(vk) Under `Nd` also every thread's VCPU word (offset 3664).
 The witnesses carry their placement (`TcbAddr`, `OutsideObjs`), so a node or
 TCB-field write is seen to miss them without further hypotheses. -/
 def PrW (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (T Cs Scs : Set U64) (s0 : S)
     (b : U64) : Prop :=
   (∃ y ∈ T, TcbAddr y ∧ y ∈ Kp ∧ (b = stA y ∨ b = inqA y)) ∨
   (Nd ∧ ((∃ y ∈ T, TcbAddr y ∧ (b = scA y ∨ b = affA y)) ∨
-    (∃ c ∈ Scs, (b = scReplyA c ∨ b = scTcbA c) ∧ OutsideObjs st T Cs s0 b)))
+    (∃ c ∈ Scs, (b = scReplyA c ∨ b = scTcbA c) ∧ OutsideObjs st T Cs s0 b) ∨
+    (∃ y ∈ T, TcbAddr y ∧ b = core.num.U64.wrapping_add y 3664#u64)))
 
 /-- The words no `KWN` step writes: the node identity words (`IdN`) and the
 protected words (`PrW`). With `Kp = ∅` and `Nd = False` these are exactly the
@@ -196,10 +205,11 @@ theorem IdN.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (hc : L.cpu s1 
 
 theorem PrW.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (h : PrW st Kp Nd T Cs Scs s0 b) :
     PrW st Kp Nd T Cs Scs s1 b := by
-  rcases h with h | ⟨hn, h | ⟨c, hc, e, ho⟩⟩
+  rcases h with h | ⟨hn, h | ⟨c, hc, e, ho⟩ | h⟩
   · exact Or.inl h
   · exact Or.inr ⟨hn, Or.inl h⟩
-  · exact Or.inr ⟨hn, Or.inr ⟨c, hc, e, ho.ksb hk⟩⟩
+  · exact Or.inr ⟨hn, Or.inr (Or.inl ⟨c, hc, e, ho.ksb hk⟩)⟩
+  · exact Or.inr ⟨hn, Or.inr (Or.inr h)⟩
 
 theorem IdW.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (hc : L.cpu s1 = L.cpu s0)
     (h : IdW st Kp Nd T Cs Scs s0 b) : IdW st Kp Nd T Cs Scs s1 b :=
@@ -235,24 +245,25 @@ theorem IdN.lt {s : S} {b : U64} (h : IdN st Nd Cs s b) :
 /-- What a write to field `K` of `y` must avoid: `STATE` and `IN_QUEUES` of a
 protected thread, `SC` and `AFFINITY` under `Nd`. -/
 def PrF (Kp : Set U64) (Nd : Prop) (y K : U64) : Prop :=
-  (y ∈ Kp → K.val ≠ 3328 ∧ K.val ≠ 3592) ∧ (Nd → K.val ≠ 3464 ∧ K.val ≠ 3520)
-
-theorem PrF.of_ne {y K : U64} (h1 : K.val ≠ 3328) (h2 : K.val ≠ 3592) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520) :
-    PrF Kp Nd y K := ⟨fun _ => ⟨h1, h2⟩, fun _ => ⟨h3, h4⟩⟩
-
-theorem PrF.of_nk {y K : U64} (hy : y ∉ Kp) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520) : PrF Kp Nd y K :=
-  ⟨fun h => absurd h hy, fun _ => ⟨h3, h4⟩⟩
+  (y ∈ Kp → K.val ≠ 3328 ∧ K.val ≠ 3592) ∧ (Nd → K.val ≠ 3464 ∧ K.val ≠ 3520 ∧ K.val ≠ 3664)
 
 /-- Discharges a literal offset inequality. -/
 macro "xf_ne" : tactic =>
   `(tactic| first | decide | omega | (simp; done) | (simp only [nextOff, prevOff]; decide) | (cases ‹tcbqueue.Link› <;> simp [nextOff, prevOff]; done))
+
+theorem PrF.of_ne {y K : U64} (h1 : K.val ≠ 3328) (h2 : K.val ≠ 3592) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520)
+    (h5 : K.val ≠ 3664 := by xf_ne) : PrF Kp Nd y K := ⟨fun _ => ⟨h1, h2⟩, fun _ => ⟨h3, h4, h5⟩⟩
+
+theorem PrF.of_nk {y K : U64} (hy : y ∉ Kp) (h3 : K.val ≠ 3464) (h4 : K.val ≠ 3520)
+    (h5 : K.val ≠ 3664 := by xf_ne) : PrF Kp Nd y K :=
+  ⟨fun h => absurd h hy, fun _ => ⟨h3, h4, h5⟩⟩
 
 /-- Tries `PrF.of_ne` on literal offsets. -/
 macro "xf_auto" : tactic => `(tactic| exact PrF.of_ne (by xf_ne) (by xf_ne) (by xf_ne) (by xf_ne))
 
 theorem notPrW_field {s : S} {y K : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hK : K.val < 4096)
     (hx : PrF Kp Nd y K) : ¬ PrW st Kp Nd T Cs Scs s (core.num.U64.wrapping_add y K) := by
-  rintro (⟨y', hy', hya', hk, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, -, ho⟩⟩)
+  rintro (⟨y', hy', hya', hk, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, -, ho⟩ | ⟨y', hy', hya', e⟩⟩)
   · rw [stA_eq] at e
     exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.1 hk).1) e
   · rw [inqA_eq] at e
@@ -260,8 +271,9 @@ theorem notPrW_field {s : S} {y K : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hK :
   · rw [scA_eq] at e
     exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).1) e
   · rw [affA_eq] at e
-    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).2) e
+    exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).2.1) e
   · exact out_ne_field ho hy (hT y hy) hK rfl
+  · exact field_ne (hT y hy) hya' hK (by decide) (fun h => by subst h; exact (hx.2 hn).2.2) e
 
 theorem notIdW_field {s : S} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c) {y K : U64} (hy : y ∈ T)
     (hK : K.val < 4096) (hx : PrF Kp Nd y K := by xf_auto) :
@@ -273,12 +285,13 @@ theorem notIdW_field {s : S} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced s
 
 theorem notPrW_node {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {c o : U64} (hc : c ∈ Cs)
     (ho : o.val < 4288) : ¬ PrW st Kp Nd T Cs Scs s (L.nodeAt s c o) := by
-  rintro (⟨y', hy', hya', -, e | e⟩ | ⟨-, ⟨y', hy', hya', e | e⟩ | ⟨c', -, -, hout⟩⟩)
+  rintro (⟨y', hy', hya', -, e | e⟩ | ⟨-, ⟨y', hy', hya', e | e⟩ | ⟨c', -, -, hout⟩ | ⟨y', hy', hya', e⟩⟩)
   · rw [stA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · rw [inqA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · rw [scA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · rw [affA_eq] at e; exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
   · exact out_ne_node hout hc (NP c hc) ho rfl
+  · exact node_ne_field (NP c hc) ho hy' hya' (by decide) e
 
 theorem notIdW_node {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {c o : U64} (hc : c ∈ Cs)
     (ho : o.val < 4288) (hn : ¬ IdOff (c = L.cpu s) Nd o.val) : ¬ IdW st Kp Nd T Cs Scs s (L.nodeAt s c o) := by
@@ -300,13 +313,14 @@ theorem notIdW_out {s : S} (NP : ∀ c ∈ Cs, NodePlaced st T s c) {a : U64} (h
   rintro (h | h)
   · obtain ⟨c, hc, o, -, ho, e⟩ := h.lt
     exact out_ne_node ha hc (NP c hc) (by omega) (congrArg UScalar.val e).symm
-  · rcases h with ⟨y', hy', hya', -, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, e | e, -⟩⟩
+  · rcases h with ⟨y', hy', hya', -, e | e⟩ | ⟨hn, ⟨y', hy', hya', e | e⟩ | ⟨c, hc, e | e, -⟩ | ⟨y', hy', hya', e⟩⟩
     · rw [stA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · rw [inqA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · rw [scA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · rw [affA_eq] at e; exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
     · exact (hh hn c hc).1 e
     · exact (hh hn c hc).2 e
+    · exact out_ne_field ha hy' hya' (by decide) (congrArg UScalar.val e).symm
 
 theorem NoHdr.of_not {a : U64} (h : ¬ Nd) : NoHdr Nd Scs a := fun hn => absurd hn h
 

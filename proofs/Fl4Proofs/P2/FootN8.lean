@@ -149,9 +149,9 @@ theorem locW2_idW {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List
     obtain ⟨⟨a1, i1⟩, ⟨a2, i2⟩⟩ := sclink_in hO hsc
     rcases e with e | e
     · subst e
-      exact Or.inr (Or.inr ⟨trivial, Or.inr ⟨_, hsc, Or.inl rfl, hq.omega _ (hO.scW _ hsc _ a1 i1)⟩⟩)
+      exact Or.inr (Or.inr ⟨trivial, Or.inr (Or.inl ⟨_, hsc, Or.inl rfl, hq.omega _ (hO.scW _ hsc _ a1 i1)⟩)⟩)
     · subst e
-      exact Or.inr (Or.inr ⟨trivial, Or.inr ⟨_, hsc, Or.inr rfl, hq.omega _ (hO.scW _ hsc _ a2 i2)⟩⟩)
+      exact Or.inr (Or.inr ⟨trivial, Or.inr (Or.inl ⟨_, hsc, Or.inr rfl, hq.omega _ (hO.scW _ hsc _ a2 i2)⟩)⟩)
 
 /-- **No donation word is a `LocW2` word.** -/
 theorem donW_not {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s : S}
@@ -593,6 +593,24 @@ theorem signal_vm.ff {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (
   obtain ⟨q5, hB5, hX5, hS5, hSg5, -⟩ := hh
   exact (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, q5⟩, hB5, hX5, hS5, hSg5⟩, F2.trans (FootN.ff (F3.trans F5))⟩
 
+/-- (vk) **An `FFoot` footprint keeps every TCB's VCPU word** (offset 3664):
+under `Nd` it is a protected word (`PrW`), and no donation word. -/
+theorem FFoot.vc {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s' : S}
+    (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (f : FFoot st Kp Il Ks T Cs Sg Scs Z Es U s s') :
+    ∀ y ∈ T, L.mem s' (core.num.U64.wrapping_add y 3664#u64) = L.mem s (core.num.U64.wrapping_add y 3664#u64) := by
+  intro y hy
+  have hT := hq.tcbs
+  refine f.mem_eq (field_aligned (hT y hy) (by simp) (by simp)) ?_
+  rintro (⟨-, hn⟩ | ⟨z, hzT, -, -, e | e⟩ | ⟨k, hk, -, e⟩)
+  · exact hn (Or.inr (Or.inr ⟨trivial, Or.inr (Or.inr ⟨y, hy, hT y hy, rfl⟩)⟩))
+  · rw [scA_eq] at e
+    exact field_ne (hT y hy) (hT z hzT) (by simp) (by simp) (fun _ => by simp) e
+  · rw [affA_eq] at e
+    exact field_ne (hT y hy) (hT z hzT) (by simp) (by simp) (fun _ => by simp) e
+  · obtain ⟨-, ⟨a2, i2⟩⟩ := sclink_in hO hk
+    exact out_ne_field (K := 3664#u64) (hq.omega _ (hO.scW _ hk _ a2 i2)) hy (hT y hy) (by simp) (by rw [e])
+
 /-- **The composable frame of `fire`'s pieces** on core `e` from `s0`:
 `OKeep2`, no other core's thread made the action, the current thread kept.
 Unlike `FFoot` it admits the `StK` step of a remote VMEnter completion
@@ -601,15 +619,17 @@ structure FK (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (e : U
   keep : OKeep2 st T Cs e s0 s
   ac : AcK st T (OtherK st T Cs e s0) s0 s
   cur : L.curW s = L.curW s0
+  /-- (vk) every TCB's VCPU word kept. -/
+  vc : ∀ y ∈ T, L.mem s (core.num.U64.wrapping_add y 3664#u64) = L.mem s0 (core.num.U64.wrapping_add y 3664#u64)
 
-theorem FK.refl (e : U64) (s : S) : FK st T Cs e s s := ⟨OKeep2.refl e s, AcK.of_eq rfl, rfl⟩
+theorem FK.refl (e : U64) (s : S) : FK st T Cs e s s := ⟨OKeep2.refl e s, AcK.of_eq rfl, rfl, fun _ _ => rfl⟩
 
 theorem FK.trans {e : U64} {s0 s1 s2 : S} (k1 : FK st T Cs e s0 s1) (k2 : FK st T Cs e s1 s2) :
     FK st T Cs e s0 s2 := by
   have hK := k1.keep.otherK
   have a2 := k2.ac
   rw [hK] at a2
-  exact ⟨k1.keep.trans k2.keep, k1.ac.trans a2, k2.cur.trans k1.cur⟩
+  exact ⟨k1.keep.trans k2.keep, k1.ac.trans a2, k2.cur.trans k1.cur, fun y hy => (k2.vc y hy).trans (k1.vc y hy)⟩
 
 /-- An `FFoot` footprint over the other cores' threads is an `FK` step. -/
 theorem FFoot.fk {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s' : S}
@@ -618,7 +638,7 @@ theorem FFoot.fk {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List 
     (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs)
     (f : FFoot st (OtherK st T Cs (L.cpu s) s) (IlAt st Cs s) (KsAt st Cs s) T Cs Sg Scs Z Es U s s') :
     FK st T Cs (L.cpu s) s s' :=
-  ⟨FFoot.okeep hq hO hKT hiT hiS f, f.ac, FFoot.cur hq hO f⟩
+  ⟨FFoot.okeep hq hO hKT hiT hiS f, f.ac, FFoot.cur hq hO f, FFoot.vc hq hO f⟩
 
 /-- **`FireKeep` from an `FK` frame of `fire`.** -/
 theorem FireKeep.ofFK {e : U64} {s s' : S} (k : FK st T Cs e s s') (ha : ActOut st T (OtherK st T Cs e s) s)
@@ -759,7 +779,7 @@ theorem sched.set_thread_state.fk {X : Set U64} {Q : U64 → U64 → List U64} {
       (locW2_idW hq hO hKT hiT hiS hl)
   refine ⟨OKeep2.ofWst hq hO hKT hiT hiS ht w
     (fun b hb hne => hb.elim (fun e => absurd e hne) (fun e => by rw [e]; exact hna)) hr (by rw [hst]; exact hv),
-    ?_, ?_⟩
+    ?_, ?_, ?_⟩
   · rcases ha with e | e
     · exact AcK.of_eq e
     · exact AcK.of_nT (by rw [e, choose_val]; exact notT_small hT (by simp))
@@ -770,6 +790,12 @@ theorem sched.set_thread_state.fk {X : Set U64} {Q : U64 → U64 → List U64} {
     rintro (e | e)
     · exact node_ne_field (K := 3328#u64) hN hc0 ht (hT t ht) (by simp) (e.trans (stA_eq t))
     · exact nodeAt_ne hN hc0 (by rw [act_val]; omega) (by rw [curth0, act_val]; omega) e
+  · intro y hy
+    refine w.mem_eq (field_aligned (hT y hy) (by simp) (by simp)) ?_
+    rintro (e | e)
+    · rw [stA_eq] at e
+      exact field_ne (hT y hy) (hT t ht) (by simp) (by simp) (fun _ => by simp) e
+    · exact node_ne_field (K := 3664#u64) hN (by rw [act_val]; omega) hy (hT y hy) (by simp) e.symm
 
 /-- **`vcpu.report` of a `TS_RUNNING_VM` thread (`signal_completes`) is an
 `FK` step**, also when the thread is another core's (P1 `vcpu.report.xf`: its

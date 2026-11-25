@@ -16,6 +16,16 @@ Entry facts (inputs): `AllCores s0`, `L.cpu s0 ∈ Cs`, P1's `EntryInv` and
 `BufAt` at the entry (`hI0`, `hBA0`), `hD0 : DomInv st T s0`.
 Named premise: `V : VcpuEnt … s0` **[P]** (P3's placement facts over P1's
 heap at the entry state; `P2/EntryVcpu.lean`).
+
+**Note (vk, 2026-11-26): `VcpuEnt` is unsatisfiable.** Its `pl : VcpuPl … s0`
+quantifies over every `s` with `Fr0 s0 s` and `BXI s`; `VcpuPl.bound` fails
+at `s := L.wr s0 (t + 3664) x` for a TCB `t` and any `x ≠ 0` with
+`H x ≠ some (.other 15)` (e.g. a TCB address): the write is a `KW` word, so
+`Fr0`, and no invariant of `BXI` reads a TCB's VCPU word (vent's finding,
+`P2/EntryVent.lean`; rechecked by vk). So the theorems taking `VcpuEnt`
+(`timer_irq_local.allCoresExitF`, `set_timer_local.allCoresExitF`) hold
+vacuously; they are superseded by `…allCoresExitJ2` (`P2/EntryVent.lean`,
+no run premise) and kept only for reference.
 -/
 import Fl4Proofs.P2.EntryWire
 import Fl4Proofs.P2.EntryVcpu
@@ -45,7 +55,7 @@ theorem timer_irq_local.allCoresExitF (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (V : VcpuEnt st T Cs Ω H Sg Rp Scs Nt Z s0)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, B03, esc, W, E, -⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, B03, esc, W, -, E, -⟩ :=
     timer_irq_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0
@@ -64,7 +74,7 @@ theorem set_timer_local.allCoresExitF (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (V : VcpuEnt st T Cs Ω H Sg Rp Scs Nt Z s0)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, B03, esc, W, E, -⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, B03, esc, W, -, E, -⟩ :=
     set_timer_local.allCoresBW hA IK hNt h0 hcpu hI0 hBA0 htg hD0 e
   have hS0 : (0#u64) ∉ Scs := by
     obtain ⟨-, -, hX0, -⟩ := hI0

@@ -31,6 +31,16 @@ heap: `HeapOK H` (`JPlaced.heap`), P1's sets convention (`T = H.tcbs`,
 `Ω = H.omega`, `Sg = H.frame`, the SCs `H`'s with their sizes, as
 `UtRetypeP3.sets` / `SlSets`), `H`'s `other` objects off or inside the
 kernel-global block (`JPlaced.ksIn`), and `VcpuPl` (`VcpuPlace.pl`).
+
+**Note (vk, 2026-11-26): `VcpuEnt` is unsatisfiable.** Its `pl : VcpuPl … s0`
+quantifies over every `s` with `Fr0 s0 s` and `BXI s`; `VcpuPl.bound` fails
+at `s := L.wr s0 (t + 3664) x` for a TCB `t` and any `x ≠ 0` with
+`H x ≠ some (.other 15)` (e.g. a TCB address): the write is a `KW` word, so
+`Fr0`, and no invariant of `BXI` reads a TCB's VCPU word (vent's finding,
+`P2/EntryVent.lean`; rechecked by vk). So the theorems taking `VcpuEnt`
+(`AllCores.tailV`/`exitV`, `…allCoresExitV`, `vcpu.check.entryV`) hold
+vacuously; they are superseded by `…allCoresExitJ2` (`P2/EntryVent.lean`,
+no run premise) and kept only for reference.
 -/
 import Fl4Proofs.P2.EntryExit
 import Fl4Proofs.P1.QueueVcpu

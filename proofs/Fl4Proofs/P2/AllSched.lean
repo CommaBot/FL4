@@ -74,9 +74,9 @@ theorem OKeep2.ofSN {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
     obtain ⟨⟨a1, i1⟩, ⟨a2, i2⟩⟩ := sclink_in hO hsc
     rcases e with e | e
     · subst e
-      exact hb.2.2 (Or.inr ⟨trivial, Or.inr ⟨_, hsc, Or.inl rfl, hq.omega _ (hO.scW _ hsc _ a1 i1)⟩⟩)
+      exact hb.2.2 (Or.inr ⟨trivial, Or.inr (Or.inl ⟨_, hsc, Or.inl rfl, hq.omega _ (hO.scW _ hsc _ a1 i1)⟩)⟩)
     · subst e
-      exact hb.2.2 (Or.inr ⟨trivial, Or.inr ⟨_, hsc, Or.inr rfl, hq.omega _ (hO.scW _ hsc _ a2 i2)⟩⟩)
+      exact hb.2.2 (Or.inr ⟨trivial, Or.inr (Or.inl ⟨_, hsc, Or.inr rfl, hq.omega _ (hO.scW _ hsc _ a2 i2)⟩)⟩)
 
 /-- The other cores' threads have other affinities, along `OKeep2`. -/
 theorem KpAff.ofKeep {s0 s : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
