@@ -5,7 +5,11 @@
   entry state when the plan names an endpoint (`plan_objects`, localtimer.rs:333-367).
 * `ks_ne_tcb`, `ntfn_wait_head`, `WkCase.tr` (`WkCase` across a run keeping the words it reads), `rel_head_run`,
   `rel_agree1` (`rel_agree` keeping only the SCs of no runnable thread).
+* `top_ok_head`: the head `top_ok` checked, read on the ghost ready queues of a later state with the same bitmap and
+  ready-queue words (it may run here: yield 0, not running a VM, this core's).
 * `AwFacts`: what the waking case knows at the state `Y` after `awaken`, relative to the entry state `s`.
+  Its last conjunct: the head of the highest non-empty ready queue at `Y` has yield 0, is not running a VM and is
+  this core's at `s` (`top_ok` at `s1`, from `wake_ok`).
 * `fire_wk_aw`: `fire_tail_nw`'s prefix (copied), then the waking case at `s1` (`fireTail_wake`, `wake_ok_true`,
   `plan_ep` for the endpoint / reply under `Lk`), `fire_wk_step`, `RelNone` at `Y` (`rel_agree1`: the release head
   is runnable, the woken thread blocked, so their SCs differ) and `awaken` on both stores; the tail after `awaken`
@@ -256,6 +260,60 @@ theorem rel_agree1 {cx : U64} {X Y : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac
   exact h
 
 
+set_option maxHeartbeats 4000000 in
+/-- **The head `top_ok` checked, read on the ghost queues of a later state** whose bitmap and ready-queue node words
+are those of `X`: the head of the highest non-empty queue may run here. -/
+theorem top_ok_head {T : Set U64} {X Y : S} {Q1 Q : U64 → List U64} {h : U64}
+    (htop : localtimer.top_ok st X (L.cpu X) = ok true) (hN : NodePlaced st T X (L.cpu X))
+    (hR1 : ReadyQueues st T X (L.cpu X) Q1) (hR : ReadyQueues st T Y (L.cpu Y) Q)
+    (kY : L.ksb Y = L.ksb X) (cY : L.cpu Y = L.cpu X)
+    (nY : ∀ o : U64, 128 ≤ o.val → o.val < 4288 → o.val % 8 = 0 →
+      L.mem Y (L.nodeAt X (L.cpu X) o) = L.mem X (L.nodeAt X (L.cpu X) o))
+    (hh : h.val < 256) (hne : Q h ≠ []) (hmax : ∀ p : U64, p.val < 256 → Q p ≠ [] → p.val ≤ h.val) :
+    localtimer.may_run_here st X (L.cpu X) ((Q h).headD 0#u64) = ok true := by
+  have eN : ∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt X (L.cpu X) o := fun o => by rw [cY, nodeAt_of_ksb kY]
+  have e2 : ∀ g < 4, L.l2W Y (L.cpu Y) g = L.l2W X (L.cpu X) g := fun g hg => by
+    unfold LawfulStore.l2W
+    rw [eN]
+    exact nY _ (by rw [l2Off_val hg]; omega) (by rw [l2Off_val hg]; omega) (by rw [l2Off_val hg]; omega)
+  have hiff : ∀ p : U64, p.val < 256 → (Q p ≠ [] ↔ Q1 p ≠ []) := fun p hp => by
+    rw [← hR.2.l2 p hp, ← hR1.2.l2 p hp, e2 _ (by omega)]
+  have hne1 : Q1 h ≠ [] := (hiff h hh).1 hne
+  have hmax1 : ∀ p : U64, p.val < 256 → Q1 p ≠ [] → p.val ≤ h.val := fun p hp hq => hmax p hp ((hiff p hp).2 hq)
+  have ehd : (Q h).headD 0#u64 = (Q1 h).headD 0#u64 := by
+    rw [← (hR.1.rel h hh).head, ← (hR1.1.rel h hh).head]
+    show L.mem Y (L.nodeAt Y (L.cpu Y) (rqOff h)) = L.mem X (L.nodeAt X (L.cpu X) (rqOff h))
+    rw [eN]
+    exact nY _ (by rw [rqOff_val hh]; omega) (by rw [rqOff_val hh]; omega) (by rw [rqOff_val hh]; omega)
+  have hl1 : L.l1W X (L.cpu X) ≠ 0#u64 := by
+    have hb := (hR1.2.l2 h hh).2 hne1
+    have hw : L.l2W X (L.cpu X) (h.val / 64) ≠ 0#u64 := (ne_zero_iff_bit _).2 ⟨_, by omega, hb⟩
+    have hl := (hR1.2.l1 (h.val / 64) (by omega)).2 ⟨by omega, hw⟩
+    exact (ne_zero_iff_bit _).2 ⟨_, by omega, hl⟩
+  have eL1 : layout.node.L1_BITMAP = l1Off := by unfold layout.node.L1_BITMAP l1Off w64; rfl
+  unfold localtimer.top_ok at htop
+  rw [node_get_ok, eL1] at htop
+  simp only [bind_ok] at htop
+  rw [if_neg (show L.mem X (L.nodeAt X (L.cpu X) l1Off) ≠ 0#u64 from hl1), cur_domain_ok] at htop
+  simp only [bind_ok] at htop
+  obtain ⟨q, hq, hq1, hq2, hq3⟩ := spec_ex_fd (sched.highest_prio.spec (L := L) X
+    (L.mem X (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN)) _ hN hR1.2 hl1)
+  have eqh : q = h := UScalar.eq_of_val_eq (Nat.le_antisymm (hmax1 q hq1 hq2) (hq3 h hh hne1))
+  subst eqh
+  rw [hq] at htop
+  simp only [lift, bind_ok] at htop
+  obtain ⟨rq, erq, htop⟩ := bind_eq_ok htop
+  have eo : core.num.U64.wrapping_add rq (core.num.U64.wrapping_mul q 16#u64) = rqOff q := by
+    obtain ⟨off, hoff, ho1, -⟩ := spec_ex_fd (sched.rq_head_off.spec 0#u64 q hq1)
+    unfold sched.rq_head_off at hoff
+    simp only [rq_index_one, lift, bind_ok, erq] at hoff
+    rw [← ho1]
+    exact ok_inj_ff hoff
+  rw [eo, node_get_ok] at htop
+  simp only [bind_ok] at htop
+  rw [ehd, ← (hR1.1.rel q hq1).head]
+  exact htop
+
 /-- **What the waking fire case knows after `awaken`** (module docstring), relative to the entry state `s`. -/
 def AwFacts (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (R : U64 → Prop) (s Y : S) (now w : U64) : Prop :=
@@ -270,7 +328,11 @@ def AwFacts (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H :
   RelNone st Y ∧ FireStop st R Y now ∧ L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME) = now ∧
   w ∈ T ∧ Blocked (L.mem s (stA w)) ∧ L.mem s (affA w) = L.cpu s ∧ w ≠ L.curW s ∧
   (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ L.mem Y (stA w) = sched.TS_RUNNING ∧
-  L.mem s (yieldA w) = 0#u64
+  L.mem s (yieldA w) = 0#u64 ∧
+  (∀ Q : U64 → List U64, ReadyQueues st T Y (L.cpu Y) Q → ∀ h : U64, h.val < 256 → Q h ≠ [] →
+    (∀ p : U64, p.val < 256 → Q p ≠ [] → p.val ≤ h.val) →
+    L.mem s (yieldA ((Q h).headD 0#u64)) = 0#u64 ∧ L.mem s (stA ((Q h).headD 0#u64)) ≠ sched.TS_RUNNING_VM ∧
+    L.mem s (affA ((Q h).headD 0#u64)) = L.cpu s)
 
 end help
 
@@ -650,6 +712,11 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       refine Or.inr ⟨hi, hbt, hne, hrv, by rw [hcur1]; exact wne, aff, dom, scn, by rw [eBl]; exact hLkE hep,
         fun k hk h8 => by rw [eBl]; exact rwE hep k hk h8, fun h => by rw [eRp] at h ⊢; exact wRt h,
         mrh_yield mrh⟩
+  have htop1 : localtimer.top_ok st s1 (L.cpu s1) = ok true := by
+    rw [c1]
+    rcases fireTail_wake (fire_ok_tail efo) pn0 hw1 with ⟨-, wok⟩ | ⟨-, -, -, -, -, wok⟩
+    · exact (wake_ok_true wok).2.2.2.2.2
+    · exact (wake_ok_true wok).2.2.2.2.2
   -- `WkCase` at every state `remove` may reach
   obtain ⟨Q3, R3, hq3⟩ := hT3.1
   have hCD : layout.ks.CUR_DOMAIN.val < 13568 := by simp [layout.ks.CUR_DOMAIN]
@@ -828,8 +895,27 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
         (ndR Y eYN _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])) hrs
         (by unfold ctA; rw [eYN]; exact nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])) relY,
         awaken_loop_none Y _ relY])
+  have htopY : ∀ Q : U64 → List U64, ReadyQueues st T Y (L.cpu Y) Q → ∀ h : U64, h.val < 256 → Q h ≠ [] →
+      (∀ p : U64, p.val < 256 → Q p ≠ [] → p.val ≤ h.val) →
+      L.mem s (yieldA ((Q h).headD 0#u64)) = 0#u64 ∧ L.mem s (stA ((Q h).headD 0#u64)) ≠ sched.TS_RUNNING_VM ∧
+      L.mem s (affA ((Q h).headD 0#u64)) = L.cpu s := by
+    intro Q hRQ h hh hne hmax
+    have hdT : (Q h).headD 0#u64 ∈ T := (hRQ.1.rel h hh).mem _ (headD_mem hne _)
+    obtain ⟨Q1, R1, hq1⟩ := hB1.1
+    have nY' : ∀ o : U64, 128 ≤ o.val → o.val < 4288 → o.val % 8 = 0 →
+        L.mem Y (L.nodeAt s1 (L.cpu s1) o) = L.mem s1 (L.nodeAt s1 (L.cpu s1) o) := by
+      intro o h1 h2 h3
+      rw [e1N, nY o h2 h3 (by omega) (by omega) (by omega) (by omega) (by omega) (by omega) (by omega),
+        hnode1 o h2 h3 (by omega) (by omega)]
+    have mrh := top_ok_head htop1 hN1 (hq1.ready _ hq1.cur) hRQ (kY.trans k1.symm) (cY.trans c1.symm) nY' hh hne hmax
+    obtain ⟨-, haf, hvm, -⟩ := may_run_here_true mrh
+    have hyl := mrh_yield mrh
+    refine ⟨?_, ?_, ?_⟩
+    · exact (htcb1 hdT (K := 3472#u64) (by simp) (by simp)).symm.trans hyl
+    · rw [stA_eq, ← htcb1 hdT (K := 3328#u64) (by simp) (by simp), ← stA_eq]; exact hvm
+    · exact (htcb1 hdT (K := 3520#u64) (by simp) (by simp)).symm.trans (haf.trans c1)
   exact fire_tail_of_aw ar hawg haw (hTail Y aY w haw ⟨TY, kY, cY, nY, tY, scY, relY, hstY, ctY, hwT, wbl', waf',
-    wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm⟩)
+    wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm, htopY⟩)
 
 end main
 

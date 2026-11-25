@@ -308,3 +308,4 @@ import Fl4Proofs.P2.FootTimerFireSx
 #print axioms Fl4Proofs.P2.aw_of_sw
 #print axioms Fl4Proofs.P2.schedTail_fpS
 #print axioms Fl4Proofs.P2.sw_tail
+#print axioms Fl4Proofs.P2.top_ok_head
