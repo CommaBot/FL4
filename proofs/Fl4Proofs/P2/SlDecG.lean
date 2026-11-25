@@ -180,7 +180,7 @@ structure UDec (R : U64 → Prop) (X : S) (u : U64) : Prop where
   af : R (affA u)
   rest : L.mem X (affA u) = L.cpu X →
     R (core.num.U64.wrapping_add u 3432#u64) ∧ R (inqA u) ∧ R (prioA u) ∧
-      ∀ usc, obj.Tcb.sc st u X = ok usc → RdHead (L := L) R X usc
+      ∀ usc, obj.Tcb.sc st u X = ok usc → usc ≠ 0#u64 → RdHead (L := L) R X usc
 
 /-- **The words a declining ReplyRecv arm reads** at its entry state `X` (current thread `t`,
 reply object `rptr`, endpoint `ep`). -/
@@ -255,11 +255,12 @@ theorem fastpath.reply_recv_found.guard_dec {X : S} {a : A} {t rptr ep : U64} {r
     refine tr_ite (fun hbt => ?_) (fun _ h' => h')
     have HF := here_facts (L := L) (show fastpath.schedulable_here st X u = ok true by rw [hb4, hbt])
     obtain ⟨-, -, hpu, hhd⟩ := U.rest HF.aff
-    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5)
+    have hn5 : i5 ≠ 0#u64 := by rw [tcb_sc_ok] at e5; rw [← ok_inj_ff e5]; exact HF.sc
+    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5 hn5)
       (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
     refine tr_bind_same (fun b5 _ => ?_)
     refine tr_ite (fun _ => ?_) (fun _ h' => h')
-    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5)]
+    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5 hn5)]
     refine tr_bind_same (fun b6 _ => ?_)
     refine tr_ite (fun _ => ?_) (fun _ h' => h')
     rw [obj.Tcb.bound_ntfn.guard (gS := gS) t X D.tBn]
@@ -356,11 +357,12 @@ theorem fastpath.reply_recv_found.guard_dec {X : S} {a : A} {t rptr ep : U64} {r
     refine tr_ite (fun hbt => ?_) (fun _ h' => h')
     have HF := here_facts (L := L) (show fastpath.schedulable_here st X u = ok true by rw [hb4, hbt])
     obtain ⟨-, -, hpu, hhd⟩ := U.rest HF.aff
-    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5)
+    have hn5 : i5 ≠ 0#u64 := by rw [tcb_sc_ok] at e5; rw [← ok_inj_ff e5]; exact HF.sc
+    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5 hn5)
       (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
     refine tr_bind_same (fun b5 _ => ?_)
     refine tr_ite (fun _ => ?_) (fun _ h' => h')
-    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5)]
+    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5 hn5)]
     refine tr_bind_same (fun b6 _ => ?_)
     refine tr_ite (fun _ => ?_) (fun _ h' => h')
     rw [obj.Tcb.bound_ntfn.guard (gS := gS) t X D.tBn]

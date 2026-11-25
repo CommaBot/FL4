@@ -13,8 +13,8 @@ set `SlRS` as defined (aligned words this path may read by `OwnMap.own`):
 
 Premises:
 * `RegionOKX K` [J]: companion of `OwnMap.RegionOK` (p2c's shared file, not edited here): where
-  TCB slots, TCB words from offset 192, endpoint / reply / SC words, node words and the kernel
-  globals lie, and their alignment. To be folded into `RegionOK` later; P3's layout lemmas
+  TCB slots, TCB words from offset 192, endpoint / reply / SC / notification words, node words and
+  the kernel globals lie, and their alignment. To be folded into `RegionOK` later; P3's layout lemmas
   (placed objects, `HeapOK` disjointness) are the intended discharge.
 * `SlEnt` at the entry state: [J] `dsR` (prefix words: node words and the current thread's
   `FAULT_IP`), `hep` (the handler cap names a heap endpoint), `hrp` (fl4-sync's reply object is a
@@ -47,10 +47,15 @@ structure RegionOKX (K : KLayout) : Prop where
   /-- A reply object's four words. -/
   rpW : ∀ p, K.heap p = some .reply → ∀ o : U64, o.val < 32 → o.val % 8 = 0 →
     region K (core.num.U64.wrapping_add p o) = .obj p ∧ Aligned (core.num.U64.wrapping_add p o)
-  /-- A scheduling context's words. -/
-  scW : ∀ p z, K.heap p = some (.sc z) → ∀ o : U64, o.val < 2 ^ z → o.val % 8 = 0 →
-    region K (core.num.U64.wrapping_add p o) = .sc p ∧
-    (core.num.U64.wrapping_add p o).val = p.val + o.val ∧ Aligned (core.num.U64.wrapping_add p o)
+  /-- A scheduling context's words (`[p, p + 2 ^ z)`). -/
+  scW : ∀ p z, K.heap p = some (.sc z) → ∀ b, InSC p z b → region K b = .sc p
+  /-- A scheduling context is aligned, at least 128 bytes (seL4's minimum SC size is 2 ^ 8),
+  and does not wrap. -/
+  scP : ∀ p z, K.heap p = some (.sc z) → p.val % 8 = 0 ∧ 128 ≤ 2 ^ z ∧ p.val + 2 ^ z ≤ 2 ^ 64
+  /-- A notification's eight words. -/
+  ntW : ∀ p, K.heap p = some .ntfn → ∀ o : U64, o.val < 64 → o.val % 8 = 0 →
+    region K (core.num.U64.wrapping_add p o) = .ntfn p ∧
+    (core.num.U64.wrapping_add p o).val - p.val = o.val ∧ Aligned (core.num.U64.wrapping_add p o)
   /-- Node words. -/
   node : ∀ c b, InNode K c b → region K b = .node c
   /-- The kernel globals below the nodes. -/
