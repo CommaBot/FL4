@@ -4,8 +4,10 @@ accepts** (KEntryU's `kernel_entryJ13PUGMD4S` restricted to `SysReplyRecv` at a 
 whose `fastpath.reply_recv` accepts).
 
 * `kernel_entry_rrSt`: the general path `handle_syscall_old` from a `JAtZ Z H Cs` entry state with
-  the trap flag clear and `SysReplyRecv`, under `kernel_entryJ13PUGMD4S`'s inputs (its `hK`,
-  `hFin`, platform premises; no `hDL`: the Reply cap's decode is StPostInv's, not `JDecMRLK`),
+  the trap flag clear and `SysReplyRecv`, under `kernel_entryJ13PUGMD4S`'s inputs (`hFin`, platform premises; no `hDL`: the Reply cap's
+  decode is StPostInv's, not `JDecMRLK`; no `hK`: the dispatch state's `cnf`, `ctnq` and
+  `JMidPerfHypQ` are derived from `hS : SInvB σ` and `hQ` as `KDispHypsKV27.to26`,
+  `KDispHypsKV27b.to27` and `KDispHyps28M.to27M` derive them),
   given `hacc` (the passing budget check of this entry reaches a dispatch state where
   `fastpath.reply_recv` accepts), `hRPd : P1.RRPreAt` (`JAtZ.rrPreAt` gives it) and `hRV` (as `JAtZ.rrPreAt`):
   every outcome is a `fl4KernelEntrySyscall true .sysReplyRecv` outcome with `RJ`, `MR` **and**
@@ -17,8 +19,8 @@ whose `fastpath.reply_recv` accepts).
   `jat_finishJRNMSt`.
 
 Premises: `kernel_entryJ13PUGMD4S`'s (a subset) and `hacc` / `hRPd` / `hRV` above; the receive's
-[W] `JMidRecvHypSt` is gone (StPostRecv). `hK`'s mid field supplies JEntryAt's `cnf` / `ctnq` and
-`JMidPerfHypQ` [W] as in the template.
+[W] `JMidRecvHypSt` is gone (StPostRecv), and no [W] is left: `JMidPerfHypQ` comes from
+`jMidPerfHypQ_of2` with `jPerfRegHyp_27b` / `jPerfIrqSlotHyp_27b`.
 -/
 import Fl4Proofs.P3.StPostRRMid
 import Fl4Proofs.P3.StPostTop
@@ -130,10 +132,7 @@ theorem kernel_entry_rrSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-      (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-        KDispHyps13PU (L := L) arI AR MR (Z.mv Z.G V') H Cs D' s' a' σb fl4_abi.syscall.SysReplyRecv .sysReplyRecv)
+    (hS : SInvAll.SInvB σ) (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hFin : ∀ x ∈ (specFront .sysReplyRecv σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A),
         KFrontF (L := L) arI fl4_abi.syscall.SysReplyRecv s a s' a' →
@@ -246,9 +245,20 @@ theorem kernel_entry_rrSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
       (J'.rrSum (rv_faultIP ekh hRV))
     have e23 : t3 = t2 := P1.ok_inj_ff (hct3.symm.trans hct2)
     subst e23
-    obtain ⟨-, hE, -, hPQ, -⟩ := (hK σb hBA V0 Ac' Lst' D' s2 a1 hfr J').mid t3 layout.reg.REPLY
-      Fl4Spec.replyRegister true hct2 (Or.inl ⟨rfl, rfl, rfl, rfl, rfl⟩)
-    refine WP.spec_bind (spec_and_eq (dispatch_replyRecvJStF s2 a1 σb J' hnib hE.cnf hE.ctnq hA hmax htu hmb hM hKD
+    -- the dispatch state's entry facts (`KDispHypsKV27.to26`, `KDispHypsKV27b.to27`, `KDispHyps28M.to27M`)
+    obtain ⟨x0, hk0, -⟩ := hS.1.2
+    obtain ⟨-, ek0, ect0, -, -, eq0⟩ := BudgetAt.shape27 hnd hk0 hBA
+    have ek0' : σb.kheap = Function.update σ.kheap σ.curThread
+        (some (.tcb (setReg x0 .faultIP (x0.tcbArch.tcbContext.userRegs .nextIP - 2)))) := ek0
+    obtain ⟨-, hcnf⟩ := SInvAll.sinvB_disp (x' := setReg x0 .faultIP (x0.tcbArch.tcbContext.userRegs .nextIP - 2))
+      hS hni.1 hk0 rfl rfl ek0' ect0
+    have hqb : ∀ d p, σb.curThread ∉ σb.readyQueues d p := by rw [ect0, eq0]; exact hQ
+    have hME := J'.midEntry hnib hcnf
+    have hcq : MidRun.CQ σb.curThread σb :=
+      ⟨⟨rfl, fun x hx => ⟨hME.run x hx, hME.nf x hx⟩⟩, hqb, by rw [hnib.2]; intro e; cases e⟩
+    have hPQ : MidRun.JMidPerfHypQ true (Fl4Spec.toBl (L.mem s2 (regA t3 layout.reg.REPLY)).bv) σb :=
+      MidRun.jMidPerfHypQ_of2 hcq hME.nq (jPerfRegHyp_27b hnd hS hni.1 hBA _) (jPerfIrqSlotHyp_27b hnd hS hBA _)
+    refine WP.spec_bind (spec_and_eq (dispatch_replyRecvJStF s2 a1 σb J' hnib hcnf hqb hA hmax htu hmb hM hKD
       hMRσb t3 hct2 found hls hcap hPQ ⟨X8, a8, rptr, ep, hinv, hMs⟩) fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨⟨⟨u, σm⟩, hy, hy1, hRm, hJm, hMy⟩, hdeq⟩
     simp only at hy1; subst hy1
@@ -280,10 +290,7 @@ theorem kernel_entry_rr_localSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-      (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-        KDispHyps13PU (L := L) arI AR MR (Z.mv Z.G V') H Cs D' s' a' σb fl4_abi.syscall.SysReplyRecv .sysReplyRecv)
+    (hS : SInvAll.SInvB σ) (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hFin : ∀ x ∈ (specFront .sysReplyRecv σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
       (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A),
         KFrontF (L := L) arI fl4_abi.syscall.SysReplyRecv s a s' a' →
@@ -309,7 +316,7 @@ theorem kernel_entry_rr_localSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec
   subst hb
   have hs := P1.syscall_local_same arI hA J.bxi (fun _ et => J.cnOff et) hfd e
   have hacc := P1.syscall_local_rr_acc arI hA J.bxi (fun _ et => J.cnOff et) hfd hflag e
-  have hG := kernel_entry_rrSt s a σ J hni hR hVI hNS0 hn hflag hB hK hFin hacc hRPd hRV hARI hA hnd hM hKD hmrt
+  have hG := kernel_entry_rrSt s a σ J hni hR hVI hNS0 hn hflag hB hS hQ hFin hacc hRPd hRV hARI hA hnd hM hKD hmrt
     hmb hT hmax htu
   have hG' := P1.FastAgree.spec st arI (P1.FastAgree.of_acc st arI P1.LawfulStore.total hA
     (FastAcc.of_rrpre hSX hflag hn.range rfl hRPd)) hG
