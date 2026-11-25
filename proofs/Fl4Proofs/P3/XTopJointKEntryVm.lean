@@ -158,7 +158,7 @@ theorem kernel_entry_reachU15Vm [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI
       (J.vmFaultOK (hX.entered hct) hR hX.sb hX.ctQ hX.offReady hARI hA hnd hM (fun a => hT.mrt a)
         hPA.minBudget hmax htu)
       (hVm ad c ft hct hV hFin)
-  · exact P1.rr_vm_local_triple arI hA
+  · exact P1.rr_vm_local_triple arI hSX hA
       (J.rrPreAtG (ty := fl4_abi.consts.fault.VMFault) (hX.entered hct) hR hX.sb hX.ctQ
         (fun _ _ => offReady_faultIPSt hX.offReady) hARI hA hnd hM
         (fun a => hT.mrt a) hPA.minBudget hmax htu (Fl4Proofs.P3.SInvW.rv hW))

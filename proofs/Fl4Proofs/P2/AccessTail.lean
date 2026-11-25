@@ -73,10 +73,10 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
     rw [sporadic.head.guard s _ hs2]
 
 /-- **`activate_thread`** of a current thread `t` that yields to no SC. -/
-theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
+theorem sched.activate_thread.guardV {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
     (hcur : L.curW s = t) (hT : TcbAddr t) (hy0 : L.mem s (yieldA t) = 0#u64) (hn : NodeSt (L := L) R W s)
     (hyt : R (yieldA t)) (hst : R (stA t)) (hrg : R (regA t layout.reg.FAULT_IP))
-    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : W (stA t)) (h2 : R (scA t))
+    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : SWr gS st t sched.TS_RUNNING) (h2 : R (scA t))
     (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
     sched.activate_thread gS ar s a = sched.activate_thread st ar s a := by
   unfold sched.activate_thread
@@ -91,9 +91,17 @@ theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a 
     refine bind_guard_congr rfl fun pc _ => ?_
     rw [obj.Tcb.set_reg.guard t s _ _ hwr, set_reg_ok' s t layout.reg.NEXT_IP pc]
     simp only [bind_ok]
-    rw [sched.set_thread_state.guard _ t _ hn.wr hw hst h2 (by
+    rw [sched.set_thread_state.guardV _ t _ hn.wr hw hst h2 (by
       rw [st_wr_sc hT, reg_wr_sc hT (by simp [layout.reg.NEXT_IP])]; exact h3) h4]
   · rfl
+
+theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
+    (hcur : L.curW s = t) (hT : TcbAddr t) (hy0 : L.mem s (yieldA t) = 0#u64) (hn : NodeSt (L := L) R W s)
+    (hyt : R (yieldA t)) (hst : R (stA t)) (hrg : R (regA t layout.reg.FAULT_IP))
+    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : W (stA t)) (h2 : R (scA t))
+    (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
+    sched.activate_thread gS ar s a = sched.activate_thread st ar s a :=
+  sched.activate_thread.guardV ar s a hcur hT hy0 hn hyt hst hrg hwr (SWr.of_W hw) h2 h3 h4
 
 end
 

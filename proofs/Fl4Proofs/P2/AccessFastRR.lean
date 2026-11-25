@@ -24,6 +24,10 @@ reply's thread `u` and its SC `usc`).
 Premises of `fastpath.reply_recv_found.guard`: `sl_rr_foot`'s `hy0` [J] (the
 receiver yields to no SC) and fl4-sync's `hrz` (its check that the reply
 object has no neighbours), and P1's `AsidOff` [J] (`P1/FastFinInv.lean`).
+The `STATE` / `BLOCK_OBJ` writes are leaf hypotheses of the store (`RrSW`:
+for `guard st R W` from `W`, for the ownership check from `P2/MoveSyscall.lean`);
+the caller's `BLOCK_OBJ` is written before its `STATE := BLOCKED_ON_RECV`
+(the kernel's order since the write-order swap).
 -/
 import Fl4Proofs.P2.AccessFastFault
 import Fl4Proofs.P2.FootSlRR
@@ -42,8 +46,8 @@ def rrEnd (st : machine.Store S) (ar : machine.Arch A) (v : U64) (s5 : S) (a2 : 
   let s6 ← obj.Tcb.set_state st i1 s5 v
   let s7 ← sched.set_action st s6 i1
   let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-  let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-  let s10 ← obj.Tcb.set_block_obj st t s9 ep_ptr
+  let s9 ← obj.Tcb.set_block_obj st t s8 ep_ptr
+  let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
   let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
   let s12 ← obj.Reply.set_tcb st rptr s11 t
   let s13 ← obj.Tcb.set_ep_next st t s12 0#u64
@@ -65,8 +69,12 @@ theorem rrEnd.guard (v : U64) (X5 : S) (a2 : A) (t : obj.Tcb) (rptr ep u : U64)
     (aSt : Aligned (stA t)) (aBl : Aligned (blockA t)) (aRp : Aligned (replyA t)) (aRt : Aligned (rTcbA rptr))
     (aEn : Aligned (nextA .Ep t)) (aEp : Aligned (prevA .Ep t)) (aEh : Aligned (epHeadA ep))
     (aEt : Aligned (epTSA ep))
-    (wSu : W (stA u)) (wAc : W (L.nodeAt X5 (L.cpu X5) layout.node.SCHED_ACTION)) (wSt : W (stA t))
-    (wBl : W (blockA t)) (wRp : W (replyA t)) (wRt : W (rTcbA rptr)) (wEn : W (nextA .Ep t))
+    (wSu : SWr gS st u v) (wAc : W (L.nodeAt X5 (L.cpu X5) layout.node.SCHED_ACTION))
+    (wSt : SWr gS st t sched.TS_RUNNING)
+    (wBl : ∀ X : S, gS.write X (blockA t) ep = st.write X (blockA t) ep)
+    (wSR : ∀ X : S, L.mem X (blockA t) = ep →
+      gS.write X (stA t) sched.TS_BLOCKED_ON_RECV = st.write X (stA t) sched.TS_BLOCKED_ON_RECV)
+    (wRp : W (replyA t)) (wRt : W (rTcbA rptr)) (wEn : W (nextA .Ep t))
     (wEp : W (prevA .Ep t)) (wEh : W (epHeadA ep)) (wEt : W (epTSA ep))
     (hsw : ∀ X15, WritesIn st X5 X15 (RrN5 (L := L) X5 t u rptr ep) →
       fastpath.switch_to gS ar X15 a2 u = fastpath.switch_to st ar X15 a2 u) :
@@ -75,16 +83,16 @@ theorem rrEnd.guard (v : U64) (X5 : S) (a2 : A) (t : obj.Tcb) (rptr ep u : U64)
       L.nodeAt X (L.cpu X) layout.node.SCHED_ACTION := fun X b w => by
     rw [LawfulStore.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
   unfold rrEnd
-  rw [obj.Tcb.set_state.guard u X5 v wSu, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) X5 u v)]
+  rw [obj.Tcb.set_state.guardV u X5 v wSu, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) X5 u v)]
   simp only [bind_ok]
   rw [sched.set_action.guard _ u (by rw [eN]; exact wAc), eq_of_spec_fd (sched.set_action.spec (L := L) _ u)]
   simp only [bind_ok]
-  rw [obj.Tcb.set_state.guard t _ _ wSt, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ t sched.TS_RUNNING)]
+  rw [obj.Tcb.set_state.guardV t _ _ wSt, eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ t sched.TS_RUNNING)]
   simp only [bind_ok]
-  rw [obj.Tcb.set_state.guard t _ _ wSt,
+  rw [obj.Tcb.set_block_obj.guardAt t _ _ (wBl _), eq_of_spec_fd (obj.Tcb.set_block_obj.wr (L := L) _ t ep)]
+  simp only [bind_ok]
+  rw [obj.Tcb.set_state.guardAt t _ _ (wSR _ (by rw [L.mem_wr _ _ _ _ aBl aBl, if_pos rfl])),
     eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ t sched.TS_BLOCKED_ON_RECV)]
-  simp only [bind_ok]
-  rw [obj.Tcb.set_block_obj.guard t _ _ wBl, eq_of_spec_fd (obj.Tcb.set_block_obj.wr (L := L) _ t ep)]
   simp only [bind_ok]
   rw [obj.Tcb.set_reply_obj.guard t _ _ wRp, eq_of_spec_fd (obj.Tcb.set_reply_obj.wr (L := L) _ t rptr)]
   simp only [bind_ok]
@@ -102,8 +110,8 @@ theorem rrEnd.guard (v : U64) (X5 : S) (a2 : A) (t : obj.Tcb) (rptr ep u : U64)
       WritesIn st X Y (RrN5 (L := L) X5 t u rptr ep) := fun e ha hb => sl_wr1 e ha hb
   refine (((((((((((b1 rfl aSu (Or.inl rfl)).trans1 (b1 rfl (by rw [eN]; exact aAc)
     (Or.inr (Or.inl (by rw [eN]))))).trans1 (b1 rfl aSt (Or.inr (Or.inr (Or.inl rfl))))).trans1
-    (b1 rfl aSt (Or.inr (Or.inr (Or.inl rfl))))).trans1
     (b1 rfl aBl (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))).trans1
+    (b1 rfl aSt (Or.inr (Or.inr (Or.inl rfl))))).trans1
     (b1 rfl aRp (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))))).trans1
     (b1 rfl aRt (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))))).trans1
     (b1 rfl aEn (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))))))).trans1
@@ -138,8 +146,6 @@ structure RrAcc (Z : U64 → Nat) (R W : U64 → Prop) (X0 : S) (t rptr ep u usc
   tBw : ∀ buf, msg.lookup_ipc_buffer st X0 false t = ok buf → BufW R buf
   ntf : ∀ n, obj.Tcb.bound_ntfn st t X0 = ok n → (n != 0#u64) = true →
     R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE) ∧ R (core.num.U64.wrapping_add n layout.ntfn.SC)
-  wSt : W (stA t)
-  wBl : W (blockA t)
   wRp : W (replyA t)
   wEn : W (nextA .Ep t)
   wEp : W (prevA .Ep t)
@@ -152,7 +158,6 @@ structure RrAcc (Z : U64 → Nat) (R W : U64 → Prop) (X0 : S) (t rptr ep u usc
   wRt : W (rTcbA rptr)
   /-- The receiver `u`. -/
   uSt : R (stA u)
-  wSu : W (stA u)
   uFt : R (core.num.U64.wrapping_add u 3376#u64) ∧ W (core.num.U64.wrapping_add u 3376#u64)
   uSc : R (scA u)
   uPr : R (prioA u)
@@ -182,6 +187,21 @@ structure RrAcc (Z : U64 → Nat) (R W : U64 → Prop) (X0 : S) (t rptr ep u usc
       R b) ∧
     RdHead (L := L) R X0 (L.mem X0 (scA (L.mem X0 (rhA (L := L) X0))))
 
+/-- **The `STATE` / `BLOCK_OBJ` writes of an accepted ReplyRecv fast path**
+(leaf hypotheses whose values matter, `P2/GSt.lean`): the caller `t` made
+Restart, Running and, once its `BLOCK_OBJ` is the endpoint `ep`, blocked on
+receive; the receiver `u` made Inactive (`reply_unlink`), Restart / Inactive and
+Running (`switch_to`). -/
+structure RrSW (gS : machine.Store S) (t ep u : U64) : Prop where
+  tR : SWr gS st t sched.TS_RESTART
+  tN : SWr gS st t sched.TS_RUNNING
+  tB : ∀ X : S, L.mem X (blockA t) = ep →
+    gS.write X (stA t) sched.TS_BLOCKED_ON_RECV = st.write X (stA t) sched.TS_BLOCKED_ON_RECV
+  bl : ∀ X : S, gS.write X (blockA t) ep = st.write X (blockA t) ep
+  uI : SWr gS st u sched.TS_INACTIVE
+  uR : SWr gS st u sched.TS_RESTART
+  uN : SWr gS st u sched.TS_RUNNING
+
 set_option maxHeartbeats 8000000 in
 /-- **The accepted ReplyRecv fast path on the guarded store** (`acc` for the
 ReplyRecv arm): with `R` / `W` holding `RrAcc` for the checks' `u` / `usc`,
@@ -196,6 +216,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
     (hy0 : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → L.mem X0 (yieldA u) = 0#u64)
     (hAs : AsidOff (L := L) Ω Sg X0)
     (hRW : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → RrAcc (L := L) Z R W X0 t rptr ep u usc)
+    (hSW : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → RrSW (L := L) gS t ep u)
     {sF : S} {aF : A} (h : fastpath.reply_recv_found st ar X0 a t rptr ep = ok (true, sF, aF)) :
     fastpath.reply_recv_found gS ar X0 a t rptr ep =
       fastpath.reply_recv_found st ar X0 a t rptr ep := by
@@ -452,6 +473,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
   obtain ⟨aEh, aEt⟩ := ep_aligned P.hE
   /- The guarded run. -/
   have K := hRW u usc C
+  have SW := hSW u usc C
   have hcs : L.cscW X0 ∈ Scs := hX0.cur
   -- the release head: in `T`, its SC among `Scs` and active
   have rhF : L.mem X0 (rhA (L := L) X0) ≠ 0#u64 → L.mem X0 (rhA (L := L) X0) ∈ T ∧
@@ -623,7 +645,7 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
       rw [eN15]; exact K.nd o ho h8
     exact fastpath.switch_to.guard hA X15 a2 P15 hcY htY hactY eyY hrhG htmG hRV hNdY
       (by rw [k15]; exact K.dt) (by rw [ecY]; exact K.csc) (fun _ => by rw [escY]; exact K.uscA)
-      K.uSc K.uYt K.uSt K.uFi (K.uReg _ (by simp [layout.reg.NEXT_IP])) K.wSu K.uIq
+      K.uSc K.uYt K.uSt K.uFi (K.uReg _ (by simp [layout.reg.NEXT_IP])) SW.uN K.uIq
   -- `u`'s fault word up to `X3`
   have aFu : Aligned (faultA u) := field_aligned (K := 3376#u64) hu' (by simp) (by simp)
   have hty0 : L.mem X0 (faultA u) = fl4_abi.consts.fault.UnknownSyscall := by
@@ -687,14 +709,14 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
     · rw [e72]; exact kt 72#u64 (by simp) (by simp) (by simp) (by simp)
   have tailEq : rrTail gS ar X0 a t rptr ep u usc = rrTail st ar X0 a t rptr ep u usc := by
     unfold rrTail
-    rw [obj.Tcb.set_state.guard t X0 _ K.wSt, e1]; simp only [bind_ok]
+    rw [obj.Tcb.set_state.guardV t X0 _ SW.tR, e1]; simp only [bind_ok]
     have hn1 : NodeSt (L := L) R W X1 := by
       refine ⟨?_, ?_, ?_⟩ <;> rw [c1, nodeAt_of_ksb k1]
       · exact (K.nd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1
       · exact (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1
       · exact (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).2
     have aSc : Aligned (scA u) := field_aligned hu' (by simp) (by simp)
-    rw [ipc.reply_remove.guardZ ar X1 a rptr u ⟨ernx, erpv⟩ K.rNx K.rPv K.wNx K.wPv hn1 K.wRt K.wSu K.uSt K.uSc
+    rw [ipc.reply_remove.guardZV ar X1 a rptr u ⟨ernx, erpv⟩ K.rNx K.rPv K.wNx K.wPv hn1 K.wRt SW.uI K.uSt K.uSc
       aPv aNx aRt aSu (fun X hX => by
         rw [hX.mem_eq aSc ?_, hX1, mem_wr_ne' aSt aSc (by
           rw [stA_eq]; exact field_ne ht' hu' (by simp) (by simp) (fun e => absurd e.symm P.hut)), P.husc]
@@ -745,10 +767,10 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
       rw [eNA5 X5 rfl rfl]; exact (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).2
     by_cases hr : restart = true
     · rw [if_pos hr, if_pos hr]
-      exact rrEnd.guard ar _ X5 a2 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt K.wSu wAc5 K.wSt K.wBl
+      exact rrEnd.guard ar _ X5 a2 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt SW.uR wAc5 SW.tN SW.bl SW.tB
         K.wRp K.wRt K.wEn K.wEp K.wEh K.wEt hswG
     · rw [if_neg hr, if_neg hr]
-      exact rrEnd.guard ar _ X5 a2 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt K.wSu wAc5 K.wSt K.wBl
+      exact rrEnd.guard ar _ X5 a2 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt SW.uI wAc5 SW.tN SW.bl SW.tB
         K.wRp K.wRt K.wEn K.wEp K.wEh K.wEt hswG
   /- The checks. -/
   have hrs : L.mem X0 (rhA (L := L) X0) ≠ 0#u64 → R (scA (L.mem X0 (rhA (L := L) X0))) ∧
@@ -783,18 +805,18 @@ theorem fastpath.reply_recv_found.guard {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H :
     rw [obj.Tcb.sc.guard u X0 K.uSc, C.sc]; simp only [bind_ok]
     obtain ⟨b3, hb3, hb3'⟩ := C.sc0
     rw [hb3]; simp only [bind_ok]; rw [if_neg hb3']
-    obtain ⟨b4, hb4, hb4'⟩ := C.rdy
-    rw [sporadic.ready.guard X0 usc K.uHd (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1, hb4]; simp only [bind_ok]
-    rw [if_pos hb4']
-    obtain ⟨b5, hb5, hb5'⟩ := C.suf
-    rw [sporadic.sufficient.guard ar X0 a usc 0#u64 K.uHd, hb5]; simp only [bind_ok]
-    rw [if_pos hb5']
     obtain ⟨b6, hb6, hb6'⟩ := C.here
     rw [fastpath.schedulable_here.guard X0 u (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
       (K.nd _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 (K.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
       K.tm hrs K.dt K.cd K.uAf K.uDo K.uSc K.uIq, hb6]
     simp only [bind_ok]
     rw [if_pos hb6']
+    obtain ⟨b4, hb4, hb4'⟩ := C.rdy
+    rw [sporadic.ready.guard X0 usc K.uHd (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1, hb4]; simp only [bind_ok]
+    rw [if_pos hb4']
+    obtain ⟨b5, hb5, hb5'⟩ := C.suf
+    rw [sporadic.sufficient.guard ar X0 a usc 0#u64 K.uHd, hb5]; simp only [bind_ok]
+    rw [if_pos hb5']
     rw [obj.Tcb.bound_ntfn.guard t X0 K.tBn]
     rcases C.ntfn with ⟨i6, h6, h6'⟩ | ⟨i6, h6, h6', i7, h7, h7', i8, h8, h8'⟩
     on_goal 1 => rw [h6]; simp only [bind_ok]; rw [if_neg h6']

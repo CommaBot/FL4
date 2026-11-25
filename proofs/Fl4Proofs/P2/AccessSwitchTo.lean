@@ -137,7 +137,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     (hdt : R (core.num.U64.wrapping_add (L.ksb Y) layout.ks.DOMAIN_TIME))
     (hSc : ScAcc R W (L.cscW Y) zc) (hSi : L.mem Y (scA d) ≠ L.cscW Y → ScAcc R W (L.mem Y (scA d)) zt)
     (hsc : R (scA d)) (hyt : R (yieldA d)) (hst : R (stA d)) (hrg : R (regA d layout.reg.FAULT_IP))
-    (hwr : W (regA d layout.reg.NEXT_IP)) (hw : W (stA d)) (hinq : R (inqA d)) :
+    (hwr : W (regA d layout.reg.NEXT_IP)) (hw : SWr gS st d sched.TS_RUNNING) (hinq : R (inqA d)) :
     fastpath.switch_to gS ar Y a d = fastpath.switch_to st ar Y a d := by
   have hd' := P.hT d P.hd
   have hcΩ : ∀ x, Aligned x → InSC (L.cscW Y) zc x → x ∈ Ω := hc.2.1
@@ -408,7 +408,7 @@ theorem fastpath.switch_to.guard {A : Type} {ar : machine.Arch A} (hA : P0.ArchT
     unfold NodeSt; rw [n6, n6]
     exact ⟨(hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, (hNd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1,
       (hNd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).2⟩
-  exact sched.activate_thread.guard ar s6 a4 cur6 hd' y6 hn6 hyt hst hrg hwr hw hsc hmx hinq
+  exact sched.activate_thread.guardV ar s6 a4 cur6 hd' y6 hn6 hyt hst hrg hwr hw hsc hmx hinq
 
 end
 

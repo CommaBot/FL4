@@ -97,14 +97,20 @@ theorem sched.schedule_tcb.guard (s : S) (t : obj.Tcb) (hn : NodeSt (L := L) R W
   rw [sched.cur_thread.guard s hc, sched.action.guard s ha, sched.is_schedulable.guard s t h1 h2 h3 h4,
     sched.set_action.guard s _ hwa]
 
-theorem sched.set_thread_state.guard (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
-    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+theorem sched.set_thread_state.guardV (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
+    (hw : SWr gS st t v) (h1 : R (stA t)) (h2 : R (scA t))
     (h3 : R (maxA (L.mem (L.wr s (stA t) v) (scA t)))) (h4 : R (inqA t)) :
     sched.set_thread_state gS s t v = sched.set_thread_state st s t v := by
   unfold sched.set_thread_state
-  rw [obj.Tcb.set_state.guard t s v hw, set_state_ok' s t v]
+  rw [obj.Tcb.set_state.guardV t s v hw, set_state_ok' s t v]
   simp only [bind_ok]
   exact sched.schedule_tcb.guard (L.wr s (stA t) v) t hn.wr h1 h2 h3 h4
+
+theorem sched.set_thread_state.guard (s : S) (t : obj.Tcb) (v : U64) (hn : NodeSt (L := L) R W s)
+    (hw : W (stA t)) (h1 : R (stA t)) (h2 : R (scA t))
+    (h3 : R (maxA (L.mem (L.wr s (stA t) v) (scA t)))) (h4 : R (inqA t)) :
+    sched.set_thread_state gS s t v = sched.set_thread_state st s t v :=
+  sched.set_thread_state.guardV s t v hn (SWr.of_W hw) h1 h2 h3 h4
 
 /-! ## Replies -/
 

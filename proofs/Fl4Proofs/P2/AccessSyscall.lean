@@ -22,7 +22,10 @@ Premises (those of the two arm lemmas, at the prefix's end state `X`, as
   yields to no SC;
 * `AsidOff` [J] (`P1/FastFinInv.lean`);
 * `hrz`: fl4-sync's check that the reply object has no neighbours
-  (`local_syscall`'s `found` check; ReplyRecv arm only).
+  (`local_syscall`'s `found` check; ReplyRecv arm only);
+* `hSWf` / `hSWr`: the `STATE` / `BLOCK_OBJ` writes whose values matter
+  (`SWr`, `RrSW`: leaf hypotheses of the store, discharged per store; for the
+  ownership check by `P2/MoveSyscall.lean`).
 -/
 import Fl4Proofs.P2.AccessFastRR
 import Fl4Proofs.P2.FootSlEntry
@@ -102,6 +105,9 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     (hTm : SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → TimerOK st T Cs X)
     (hRWf : SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
       FaultChecks st X (L.curW s) ptr badge dest r → FltAcc (L := L) Z R W X (L.curW s) ptr dest r)
+    (hSWf : SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
+      FaultChecks st X (L.curW s) ptr badge dest r → SWr gS st (L.curW s) sched.TS_BLOCKED_ON_REPLY ∧
+        ∀ v, (v = sched.TS_INACTIVE ∨ v = sched.TS_RUNNING) → SWr gS st dest v)
     -- the ReplyRecv arm
     (hPl : ¬ SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
       RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
@@ -113,6 +119,8 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     (hRWr : ¬ SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
       RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
       RrAcc (L := L) Z R W X (L.curW s) found.1 found.2 u usc)
+    (hSWr : ¬ SlTrap st s → ∀ X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
+      RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc → RrSW (L := L) gS (L.curW s) found.2 u)
     (h : syscall.handle_syscall_local st ar s a n found = ok (true, s', a')) :
     syscall.handle_syscall_local gS ar s a n found = ok (true, s', a') := by
   have ht' := hT _ hcT
@@ -154,7 +162,7 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     simp only [↓reduceIte, if_pos hf] at h ⊢
     try simp only [lift, bind_ok] at h ⊢
     rw [fastpath.fault.guard ar hA (hI _ _ hP) (hrecv hS _ _ hP) (hF hS _ _ hP) (hy0f hS _ _ hP)
-      (hTm hS _ _ hP) (hAs _ _ hP) (hRWf hS _ _ hP) h]
+      (hTm hS _ _ hP) (hAs _ _ hP) (hRWf hS _ _ hP) (hSWf hS _ _ hP) h]
     exact h
   · have hS : ¬ SlTrap st s := fun ⟨f, ef, hf'⟩ => hf (by rw [ok_inj_ff (ei.symm.trans ef)]; exact hf')
     rw [if_neg hf] at h ⊢
@@ -180,7 +188,7 @@ theorem syscall.handle_syscall_local.guard_acc {T Cs Ω U Sg Rp Scs Nt Ac : Set 
     · simp at h
     simp only [↓reduceIte, if_neg hf] at h ⊢
     rw [fastpath.reply_recv_found.guard ar hA (hI _ _ hP) (hPl hS _ _ hP) (hrz hS _ _ hP) (hy0r hS _ _ hP)
-      (hAs _ _ hP) (hRWr hS _ _ hP) h]
+      (hAs _ _ hP) (hRWr hS _ _ hP) (hSWr hS _ _ hP) h]
     exact h
 
 end

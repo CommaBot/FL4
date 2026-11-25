@@ -102,6 +102,29 @@ theorem obj.Tcb.set_state.guard (self : obj.Tcb)
   simp only [lift, bind_ok]
   rw [gst_write h]
 
+/-- `g` writes the value `v` to `t`'s `STATE` as `st` does, in every state: the
+leaf hypothesis of a `STATE` write whose value matters (`P2/GSt.lean`). -/
+def SWr (g st : machine.Store S) (t v : U64) : Prop :=
+  ∀ X, g.write X (core.num.U64.wrapping_add t layout.tcb.STATE) v = st.write X (core.num.U64.wrapping_add t layout.tcb.STATE) v
+
+theorem SWr.of_W {t v : U64} (h : W (core.num.U64.wrapping_add t layout.tcb.STATE)) : SWr gS st t v := fun _ => gst_write h
+
+theorem obj.Tcb.set_state.guardV (self : obj.Tcb) (s : S) (v : Std.U64) (h : SWr gS st self v) :
+    obj.Tcb.set_state gS self s v = obj.Tcb.set_state st self s v := by
+  unfold obj.Tcb.set_state
+  simp only [lift, bind_ok]
+  rw [show gS.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v =
+    st.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v from h s]
+
+/-- A `STATE` write at one state `s` (the hypothesis may depend on `s`). -/
+theorem obj.Tcb.set_state.guardAt (self : obj.Tcb) (s : S) (v : Std.U64)
+    (h : gS.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v = st.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v) :
+    obj.Tcb.set_state gS self s v = obj.Tcb.set_state st self s v := by
+  unfold obj.Tcb.set_state
+  simp only [lift, bind_ok]
+  rw [show gS.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v =
+    st.write s (core.num.U64.wrapping_add self layout.tcb.STATE) v from h]
+
 theorem obj.Tcb.set_sched_prev.guard (self : obj.Tcb)
   (s : S) (v : Std.U64) (h : W (core.num.U64.wrapping_add self 3488#u64)) :
     obj.Tcb.set_sched_prev gS self s v = obj.Tcb.set_sched_prev st self s v := by
@@ -650,6 +673,16 @@ theorem obj.Tcb.set_block_obj.guard (self : obj.Tcb)
   rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BLOCK_OBJ.spec]
   simp only [lift, bind_ok]
   rw [gst_write h]
+
+/-- A `BLOCK_OBJ` write at one state `s`. -/
+theorem obj.Tcb.set_block_obj.guardAt (self : obj.Tcb) (s : S) (v : Std.U64)
+    (h : gS.write s (core.num.U64.wrapping_add self 3336#u64) v = st.write s (core.num.U64.wrapping_add self 3336#u64) v) :
+    obj.Tcb.set_block_obj gS self s v = obj.Tcb.set_block_obj st self s v := by
+  unfold obj.Tcb.set_block_obj
+  rw [eq_ok_of_spec Fl4Proofs.P0.Consts.layout.tcb.BLOCK_OBJ.spec]
+  simp only [lift, bind_ok]
+  rw [show gS.write s (core.num.U64.wrapping_add self 3336#u64) v =
+    st.write s (core.num.U64.wrapping_add self 3336#u64) v from h]
 
 theorem obj.Tcb.set_reply_obj.guard (self : obj.Tcb)
   (s : S) (v : Std.U64) (h : W (core.num.U64.wrapping_add self 3360#u64)) :

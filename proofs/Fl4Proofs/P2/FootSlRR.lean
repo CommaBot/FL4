@@ -336,9 +336,9 @@ theorem sl_rr_foot {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → N
       rw [e7, WP.spec_ok] at h7
       have h8 := obj.Tcb.set_state.spec (L := L) X7 t sched.TS_RUNNING
       rw [e8, WP.spec_ok] at h8
-      have h9 := obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV
+      have h9 := obj.Tcb.set_block_obj.wr (L := L) X8 t ep
       rw [e9, WP.spec_ok] at h9
-      have h10 := obj.Tcb.set_block_obj.wr (L := L) X9 t ep
+      have h10 := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV
       rw [e10, WP.spec_ok] at h10
       have h11 := obj.Tcb.set_reply_obj.wr (L := L) X10 t rptr
       rw [e11, WP.spec_ok] at h11
@@ -355,8 +355,8 @@ theorem sl_rr_foot {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → N
       have w7 : WritesIn st X6 X7 N := by
         rw [eNA5 X6 w6.1 w6.2.1] at h7; exact sl_wr1 h7 aAc rAc
       have w8 : WritesIn st X7 X8 N := sl_wr1 h8 aSt (by rw [stA_eq]; exact rT _ (by simp))
-      have w9 : WritesIn st X8 X9 N := sl_wr1 h9 aSt (by rw [stA_eq]; exact rT _ (by simp))
-      have w10 : WritesIn st X9 X10 N := sl_wr1 h10 aBl (rT 3336#u64 (by simp))
+      have w9 : WritesIn st X8 X9 N := sl_wr1 h9 aBl (rT 3336#u64 (by simp))
+      have w10 : WritesIn st X9 X10 N := sl_wr1 h10 aSt (by rw [stA_eq]; exact rT _ (by simp))
       have w11 : WritesIn st X10 X11 N := sl_wr1 h11 aRp (rT 3360#u64 (by simp))
       have w12 : WritesIn st X11 X12 N := sl_wr1 h12 aRt rRt
       have w13 : WritesIn st X12 X13 N := sl_wr1 h13 aEn (rT 3496#u64 (by simp))
