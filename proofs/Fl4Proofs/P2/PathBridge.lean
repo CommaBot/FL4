@@ -33,6 +33,11 @@ P2: **the bridge from the per-path obligation to the trace form**
   `p` is meant to be the body's own call tree: the equation `IsProg` states does
   not observe how often a word is read (`IsProg`'s docstring, `P2/ReadGap.lean`).
 * `PathObl` [W], per local path (`PathObl.lean`).
+* The lemmas below take the schema in its **relativised** form `IsProgOn (F ar) ar st G p` [P]: the body
+  is the tree only on the stores narrowing `st` (`Narrow`: `guard`, `mguard`, `gd`), with the path's Arch
+  instance, from the states `G` (for a `LocalPath`, `AltOf`: the entry states and their alternatives).
+  `IsProg.on` gives it from `IsProg`; it is strictly weaker, and needed: the I/O port body is no tree
+  without `zero` on every store, but is one on these (`P2/IoPrune.lean`).
 
 ## Sets fixed at entry, memory moving during the run
 
@@ -374,6 +379,118 @@ theorem Within.mono {st : machine.Store S} {ar : machine.Arch A} {R W R' W' : U6
     intro s a h; simp only [Within] at h ⊢
     exact fun b a' hv => ih b s a' (h b a' hv)
 
+/-! ## The stores and states the bridge runs a body on (`IsProgOn`)
+
+`IsProg F p` asks the body to be the tree on **every** store and Arch instance. That is false for a body
+that re-reads memory it has written and only agrees with itself on lawful stores (`handoff/hpz.md`: the
+I/O port body re-reads `CUR_THREAD` inside `handle_invocation` after the prefix writes, so on an arbitrary
+store every cap type, `zero` / `clear_free` included, is reachable). The bridge (`PathObl.within`…,
+`E2E.body_safe`, the per-path obligations) only ever runs the body
+
+* on `st` (the path's lawful store) and on stores **narrowing** it (`Narrow`: every memory operation
+  answers as `st`'s or fails; `guard`, `mguard`, `GSt.gd`), with the path's own Arch instance, and
+* from the entry states `Pre` and their alternatives (`AltOf`, the states `PathObl.dec_alt` /
+  `PathSide.read_aligned` / `E2E.ReadOnce` quantify over),
+
+so the program premise is relativised to those: `IsProgOn (F ar) ar st G p`. `IsProg.on` recovers it
+from the old schema. -/
+
+/-- `x` is `y`, or a failure. -/
+def Nar {T : Type} (x y : Result T) : Prop := x = y ∨ ∃ e, x = fail e
+
+theorem Nar.refl {T : Type} (x : Result T) : Nar x x := .inl rfl
+
+theorem Nar.fail' {T : Type} (e : Error) (y : Result T) : Nar (fail e) y := .inr ⟨e, rfl⟩
+
+/-- A `Nar` result that succeeds is the other one. -/
+theorem Nar.ok_eq {T : Type} {x y : Result T} {v : T} (h : Nar x y) (hx : x = ok v) : y = ok v := by
+  rcases h with rfl | ⟨e, rfl⟩
+  · exact hx
+  · exact absurd hx fail_not_ok
+
+/-- Every `Result` value is `ok`, `fail` or `div`. -/
+theorem res_tri {T : Type} (r : Result T) : (∃ v, r = ok v) ∨ (∃ e, r = fail e) ∨ r = div := by
+  cases r with
+  | ret v => exact .inl ⟨v, rfl⟩
+  | vis i k =>
+    cases i with
+    | fail e =>
+      refine .inr (.inl ⟨e, ?_⟩)
+      rw [Result.fail_eq_vis]
+      congr 1
+      funext x
+      exact x.elim
+  | div => exact .inr (.inr rfl)
+
+theorem Nar.bind {α β : Type} {m' m : Result α} {k' k : α → Result β} (h : Nar m' m)
+    (hk : ∀ v, m = ok v → Nar (k' v) (k v)) : Nar (Std.bind m' k') (Std.bind m k) := by
+  rcases h with rfl | ⟨e, rfl⟩
+  · rcases res_tri m' with ⟨v, rfl⟩ | ⟨e, rfl⟩ | rfl
+    · simp only [bind_ok]; exact hk v rfl
+    · simp only [bind_fail]; exact .refl _
+    · simp only [bind_div]; exact .refl _
+  · exact .inr ⟨e, by simp only [bind_fail]⟩
+
+/-- A checked step narrows the unchecked one. -/
+theorem Nar.check {α : Type} (m : Result α) (Q : α → Prop) :
+    Nar (do let x ← m; if Q x then ok x else fail .panic) m := by
+  rcases res_tri m with ⟨v, rfl⟩ | ⟨e, rfl⟩ | rfl
+  · simp only [bind_ok]
+    by_cases hq : Q v
+    · rw [if_pos hq]; exact .refl _
+    · rw [if_neg hq]; exact .fail' _ _
+  · exact .inr ⟨e, by simp only [bind_fail]⟩
+  · simp only [bind_div]; exact .refl _
+
+theorem Nar.ite' {T : Type} {c : Prop} [Decidable c] {x : Result T} : Nar (if c then x else fail .panic) x := by
+  by_cases h : c
+  · rw [if_pos h]; exact .refl _
+  · rw [if_neg h]; exact .fail' _ _
+
+/-- **`st'` narrows `st`**: the same constants, and every memory operation answers as `st`'s or fails. -/
+structure Narrow (st st' : machine.Store S) : Prop where
+  masks : st'.frame_masks = st.frame_masks
+  ksb : st'.ks_base = st.ks_base
+  cpu : st'.cur_cpu = st.cur_cpu
+  read : ∀ s a, Nar (st'.read s a) (st.read s a)
+  read_pair : ∀ s a, Nar (st'.read_pair s a) (st.read_pair s a)
+  write : ∀ s a v, Nar (st'.write s a v) (st.write s a v)
+  zero : ∀ s a n, Nar (st'.zero s a n) (st.zero s a n)
+  clear_free : ∀ s a n, Nar (st'.clear_free s a n) (st.clear_free s a n)
+
+theorem Narrow.self (st : machine.Store S) : Narrow st st :=
+  ⟨rfl, rfl, rfl, fun _ _ => .refl _, fun _ _ => .refl _, fun _ _ _ => .refl _, fun _ _ _ => .refl _,
+    fun _ _ _ => .refl _⟩
+
+theorem Narrow.guard (st : machine.Store S) (R W : U64 → Prop) : Narrow st (guard st R W) :=
+  ⟨rfl, rfl, rfl, fun _ _ => Nar.ite', fun _ _ => Nar.ite', fun _ _ _ => Nar.ite', fun _ _ _ => Nar.ite',
+    fun _ _ _ => Nar.ite'⟩
+
+theorem Narrow.mguard (st : machine.Store S) (Q : S → S → Prop) : Narrow st (mguard st Q) :=
+  ⟨rfl, rfl, rfl, fun _ _ => .refl _, fun _ _ => .refl _, fun s _ _ => Nar.check _ (Q s),
+    fun s _ _ => Nar.check _ (Q s), fun s _ _ => Nar.check _ (Q s)⟩
+
+/-- **`IsProgOn f ar st G p`** [P], the program premise the bridge uses: on the Arch instance `ar`, on
+every store narrowing `st` (`Narrow`), from every state of `G`, the body `f` is the tree `p`. For a
+`LocalPath`, `G` is `AltOf` (the entry states and their alternatives). Weaker than `IsProg` (`IsProg.on`);
+the same reading as `IsProg`'s about the tree being the body's own (`P2/ReadGap.lean`). -/
+def IsProgOn (f : machine.Store S → S → A → Result (X × S × A)) (ar : machine.Arch A)
+    (st : machine.Store S) (G : S → Prop) (p : SProg X) : Prop :=
+  ∀ st', Narrow st st' → ∀ s, G s → ∀ a, f st' s a = interp st' ar p s a
+
+theorem IsProg.on {F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A)}
+    {p : SProg X} (h : IsProg F p) (ar : machine.Arch A) (st : machine.Store S) (G : S → Prop) :
+    IsProgOn (F ar) ar st G p := fun st' _ s _ a => congrFun (congrFun (h _ ar st') s) a
+
+/-- The entry states `Pre` and their alternatives (`Alt` for the entry's `RS`). -/
+def AltOf (st : machine.Store S) [L : LawfulStore st] (Pre : S → Prop) (RS : S → U64 → Prop)
+    (cls : U64 → U64 → U64) (ko : U64 → Serial.ClsOwner U64) (User : U64 → Prop) (s' : S) : Prop :=
+  ∃ s, Pre s ∧ Alt st (RS s) cls ko User s s'
+
+theorem AltOf.pre {st : machine.Store S} [L : LawfulStore st] {Pre : S → Prop} {RS : S → U64 → Prop}
+    {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {User : U64 → Prop} {s : S} (h : Pre s) :
+    AltOf st Pre RS cls ko User s := ⟨s, h, Alt.refl s⟩
+
 section obl
 variable {st : machine.Store S} [L : LawfulStore st]
   {F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A)}
@@ -384,28 +501,26 @@ variable {st : machine.Store S} [L : LawfulStore st]
 
 /-- **Accepted runs, trace form**: every access of an accepted sequential run
 lies in its stated sets. -/
-theorem PathObl.within {p : SProg X} (hp : IsProg F p)
+theorem PathObl.within {G : S → Prop} {p : SProg X} (hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) : Within st ar (RS s) (WS s) p s a := by
+    (hpre : Pre s) (hG : G s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
+    Within st ar (RS s) (WS s) p s a := by
   have hg := O.acc s a r hpre h hacc
-  have e : F ar (guard st (RS s) (WS s)) = interp (guard st (RS s) (WS s)) ar p := hp A ar _
-  rw [e] at hg
+  rw [hp _ (Narrow.guard _ _ _) s hG a] at hg
   exact (interp_guard p s a r hg).2
 
 /-- **Declined runs, trace form**: every write of a declined sequential run
 lies in `DecSet`. -/
-theorem PathObl.within_dec {p : SProg X} (hp : IsProg F p)
+theorem PathObl.within_dec {G : S → Prop} {p : SProg X} (hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
+    (hpre : Pre s) (hG : G s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
     Within st ar (fun _ => True) (DS s) p s a := by
   have hg := O.dec hpre h hdec
-  have e : F ar (guard st (fun _ => True) (DS s)) =
-      interp (guard st (fun _ => True) (DS s)) ar p := hp A ar _
-  rw [e] at hg
+  rw [hp _ (Narrow.guard _ _ _) s hG a] at hg
   exact (interp_guard p s a r hg).2
 
 /-- The guarded run is the real one (projection), accepted runs. -/
-theorem PathObl.same {p : SProg X} (hp : IsProg F p)
+theorem PathObl.same {G : S → Prop} {p : SProg X} (_hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
     (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
     F ar (guard st (RS s) (WS s)) s a = F ar st s a := by
@@ -413,12 +528,12 @@ theorem PathObl.same {p : SProg X} (hp : IsProg F p)
 
 /-- **Ownership along an accepted run**: every read is a user word or in
 `RPerm`, every write a user word or in `WPerm`, of the entry state. -/
-theorem PathObl.allowed_steps {p : SProg X} (hp : IsProg F p)
+theorem PathObl.allowed_steps {G : S → Prop} {p : SProg X} (hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
+    (hpre : Pre s) (hG : G s) (h : F ar st s a = ok r) (hacc : Acc r.1) :
     Within st ar (fun b => User b ∨ RPerm own (L.cpu s) (Locks s) (L.mem s) b)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
-  refine Within.mono (fun b hb => ?_) (fun b hb => ?_) p s a (O.within hp hpre h hacc)
+  refine Within.mono (fun b hb => ?_) (fun b hb => ?_) p s a (O.within hp hpre hG h hacc)
   · by_cases hu : User b
     · exact Or.inl hu
     · exact Or.inr (O.read_own s b hpre hb hu)
@@ -428,28 +543,25 @@ theorem PathObl.allowed_steps {p : SProg X} (hp : IsProg F p)
 
 /-- **Ownership along a declined run**: every write is a user word or in
 `WPerm` of the entry state. -/
-theorem PathObl.allowed_steps_dec {p : SProg X} (hp : IsProg F p)
+theorem PathObl.allowed_steps_dec {G : S → Prop} {p : SProg X} (hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
+    (hpre : Pre s) (hG : G s) (h : F ar st s a = ok r) (hdec : ¬ Acc r.1) :
     Within st ar (fun _ => True)
       (fun b => User b ∨ WPerm own (L.cpu s) (Locks s) (L.mem s) b) p s a := by
-  refine Within.mono (fun _ _ => trivial) (fun b hb => ?_) p s a (O.within_dec hp hpre h hdec)
+  refine Within.mono (fun _ _ => trivial) (fun b hb => ?_) p s a (O.within_dec hp hpre hG h hdec)
   by_cases hu : User b
   · exact Or.inl hu
   · exact Or.inr (O.write_own s b hpre (Or.inr hb) hu)
 
 /-- **Owners and classes along the run**: every write of the body's sequential
 run passes `StepOK` (the per-step `Serial.Allowed` write conditions). -/
-theorem PathObl.move_steps {p : SProg X} (hp : IsProg F p)
+theorem PathObl.move_steps {G : S → Prop} {p : SProg X} (hp : IsProgOn (F ar) ar st G p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS) {s : S} {a : A} {r : X × S × A}
-    (hpre : Pre s) (h : F ar st s a = ok r) :
+    (hpre : Pre s) (hG : G s) (h : F ar st s a = ok r) :
     WithinM st ar (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))
       p s a := by
   have hg := O.move s a r hpre h
-  have e : F ar (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))) =
-      interp (mguard st (fun x y => StepOK own cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y)))
-        ar p := hp A ar _
-  rw [e] at hg
+  rw [hp _ (Narrow.mguard _ _) s hG a] at hg
   exact (interp_mguard p s a r hg).2
 
 end obl

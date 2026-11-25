@@ -160,7 +160,7 @@ noncomputable def set_timer_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (
   RS := MaxR K st lk
   WS := MaxW K st lk
   DS := StDec st
-  isProg := hp
+  isProg := IsProg.on hp _ _ _
   obl := set_timer_pathObl ar n hA hK hUO (fun s h => h.ent) (fun mm => hp A ar mm) hz hm
     (fun s h => set_timer_cls h.ent) (fun s h => set_timer_ko hK hUO h)
     (fun s h => set_timer_user hK hUO h.ent) (fun s h q hq => set_timer_koF h.ent hq)
