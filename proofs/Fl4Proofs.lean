@@ -245,6 +245,8 @@ import Fl4Proofs.P2.FootN9
 import Fl4Proofs.P2.FootN10
 import Fl4Proofs.P2.EntryEnd
 import Fl4Proofs.P2.FootN11
+import Fl4Proofs.P2.EntryIrq
+import Fl4Proofs.P2.EntryTmr
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P2.StallFull
 import Fl4Proofs.P2.StallView
