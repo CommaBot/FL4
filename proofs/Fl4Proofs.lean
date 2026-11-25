@@ -215,6 +215,7 @@ import Fl4Proofs.P2.SlAccJ
 import Fl4Proofs.P2.SlHereJ
 import Fl4Proofs.P2.SlEntJ
 import Fl4Proofs.P2.SlLP
+import Fl4Proofs.P2.SlJEnt
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert

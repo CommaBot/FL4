@@ -91,17 +91,18 @@ theorem rs_node (hX : RegionOKX K) {T : Set U64} {s : S} (hN : NodePlaced st T s
       by rw [v]; simp only [LawfulStore.nodeBase, hk]; omega⟩
   exact slRS_of_core (nodeAt_aligned hN ho h8) (by simp only [own, hr])
 
-/-- The kernel globals below the nodes are in the read set. -/
+/-- The kernel globals in the first 256 bytes of the block are in the read set. -/
 theorem rs_ks (hX : RegionOKX K) {T : Set U64} {s : S} (hN : NodePlaced st T s (L.cpu s))
-    (hk : L.ksb s = K.ksb) {o : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
+    (hk : L.ksb s = K.ksb) {o : U64} (ho : o.val < 256) (h8 : o.val % 8 = 0) :
     SlRS (st := st) K Locks s (core.num.U64.wrapping_add (L.ksb s) o) := by
   have hf := hN.fits
   have ha := hN.align
   simp only [LawfulStore.nodeBase] at hf ha
   have e : (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-  refine slRS_of_gate (by unfold Aligned; rw [e]; omega) ?_
-  simp only [own, hX.ks _ (by rw [e, ← hk]; omega) (by rw [e, ← hk]; omega)]
+  have hal : Aligned (core.num.U64.wrapping_add (L.ksb s) o) := by unfold Aligned; rw [e]; omega
+  refine slRS_of_gate hal ?_
+  simp only [own, hX.ks _ hal (by rw [e, ← hk]; omega) (by rw [e, ← hk]; omega)]
 
 /-- A scheduling context homed here: every word readable, ring and `CONSUMED` writable. -/
 theorem scAcc_here (hX : RegionOKX K) {s : S} {sc : U64} {z : Nat} (hz : K.heap sc = some (.sc z))

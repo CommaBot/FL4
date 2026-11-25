@@ -58,8 +58,11 @@ structure RegionOKX (K : KLayout) : Prop where
     (core.num.U64.wrapping_add p o).val - p.val = o.val ∧ Aligned (core.num.U64.wrapping_add p o)
   /-- Node words. -/
   node : ∀ c b, InNode K c b → region K b = .node c
-  /-- The kernel globals below the nodes. -/
-  ks : ∀ b, K.ksb.val ≤ b.val → b.val < K.ksb.val + 13568 → region K b = .none
+  /-- The kernel globals in the first 256 bytes of the kernel-state block (line slj: formerly the
+  whole block `[ksb, ksb + 13568)`, false for P3's layout `OwnMap.layoutJ`, whose slots include the
+  IRQ node's one-slot CNodes at `ksb + 1248 + 32 i`, `IntLayout.node`; the syscall path reads only
+  `CUR_DOMAIN` 8, `DOMAIN_TIME` 16, `KERNEL_ROOT` 48 there). -/
+  ks : ∀ b, Aligned b → K.ksb.val ≤ b.val → b.val < K.ksb.val + 256 → region K b = .none
   /-- Kernel objects are not user memory (P1 `HeapOK`: frames overlap no kernel object; the
   source `E2E.UserOK` cites). -/
   kern : ∀ b, region K b ≠ .none → b ∉ K.user
