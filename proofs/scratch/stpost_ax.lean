@@ -4,6 +4,13 @@ import Fl4Proofs.P3.StPostReply
 import Fl4Proofs.P3.StPostTmo
 import Fl4Proofs.P3.StPostInv
 import Fl4Proofs.P3.StPostMid
+import Fl4Proofs.P3.StPostRecv
+import Fl4Proofs.P3.StPostRRMid
+import Fl4Proofs.P3.StPostRRTop
+import Fl4Proofs.P3.StPostRRReach
+import Fl4Proofs.P2.SlJStPostRR
+import Fl4Proofs.P2.SlJStTop
+import Fl4Proofs.P2.SlJStPostIo
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -31,5 +38,32 @@ import Fl4Proofs.P3.StPostMid
 #print axioms Fl4Proofs.P3.handle_invocation_refinesMXPF
 #print axioms Fl4Proofs.P3.JAtZ.flTailJStF
 #print axioms Fl4Proofs.P3.handle_invocation_replyJSt
-#print axioms Fl4Proofs.P3.mid_invRecvReplyJSt
-#print axioms Fl4Proofs.P3.dispatch_replyRecvJSt
+#print axioms Fl4Proofs.P3.JAtZ.recvIpcBlockJGMSt
+#print axioms Fl4Proofs.P3.JAtZ.recvIpcBlockNJGMSt
+#print axioms Fl4Proofs.P3.handle_recv_rrJSt
+#print axioms Fl4Proofs.P3.mid_invRecvReplyJStF
+#print axioms Fl4Proofs.P3.dispatch_replyRecvJStF
+#print axioms Fl4Proofs.P1.rr_ntfnSc8
+#print axioms Fl4Proofs.P3.rrMid_of
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rrSt
+#print axioms Fl4Proofs.P1.syscall_local_rr_acc
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rr_localSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rr_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_rrSt
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsK_startAt_loc
+#print axioms Fl4Proofs.P3.JAtZ.reply1JSt
+#print axioms Fl4Proofs.P3.JAtZ.replyTailJSt
+#print axioms Fl4Proofs.P3.JAtZ.flTailJSt
+#print axioms Fl4Proofs.P3.JAtZ.replyErrJSt
+#print axioms Fl4Proofs.P3.JAtZ.replyFailJSt
+#print axioms Fl4Proofs.P3.portInTail_jatSt
+#print axioms Fl4Proofs.P3.decode_invocation_ioport_inJSt
+#print axioms Fl4Proofs.P3.decode_invocation_ioportJ_stepsSt
+#print axioms Fl4Proofs.P1.invocation_ok_cap
+#print axioms Fl4Proofs.P1.ioport_local_acc
+#print axioms Fl4Proofs.P3.nativeSys_invC
+#print axioms Fl4Proofs.P3.handle_invocation_ioportJSt
+#print axioms Fl4Proofs.P3.dispatch_ioportJSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_ioSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_io_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_ioSt
