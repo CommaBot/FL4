@@ -91,7 +91,7 @@ theorem timer_irq_local.allCoresExit (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hVW : ∀ s : S, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s → VcpuUsr st T Cs H Sg Scs Z s)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, esc, W, E⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E⟩ :=
     timer_irq_local.allCoresB hA IK hNt h0 hcpu hS0 hKS hI0 hBA0 hR e
   exact AllCores.exit hA IK hNt hS0 hVW hB3 hBA3 esc W E
 
@@ -109,7 +109,7 @@ theorem set_timer_local.allCoresExit (hA : P0.ArchTotal ar) (IK : IbKeep st ar)
     (hVW : ∀ s : S, AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s → VcpuUsr st T Cs H Sg Scs Z s)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
-  obtain ⟨s3, a3, s4, a4, hB3, hBA3, esc, W, E⟩ :=
+  obtain ⟨s3, a3, s4, a4, hB3, hBA3, -, esc, W, E⟩ :=
     set_timer_local.allCoresB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR e
   exact AllCores.exit hA IK hNt hS0 hVW hB3 hBA3 esc W E
 

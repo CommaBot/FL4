@@ -142,7 +142,7 @@ theorem set_timer_tailB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n 
     (es6 : sched.set_thread_state st s5 t sched.TS_RUNNING = ok s6)
     (esc : sched.schedule st ar s6 a1 = ok (s7, a2)) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s6 ∧ BufAt st T Cs H Sg Scs Z U s6 ∧
-      AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
+      FootB st T Cs Sg Scs Z ∅ s0 s6 ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 := by
   have ect' : t = L.curW s0 := by
     obtain ⟨w, ew, hw⟩ := spec_ex_fd (sched.cur_thread.spec (st := st) s0)
     rw [ect] at ew; cases ok_inj_ff ew; exact hw
@@ -237,7 +237,7 @@ theorem set_timer_tailB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n 
   have W := AllCores.schedB hA IK hNt a1 h0 hcpu hS0 hB0 F06 hBlk6 hBA6 hsa6 (hR s6 a1 ⟨hBlk6, F06, B06⟩)
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  exact ⟨hBlk6, hBA6, W⟩
+  exact ⟨hBlk6, hBA6, B06, W⟩
 
 /-- `set_timer_tailB`'s `AllCores` at `schedule`'s end. -/
 theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
@@ -255,7 +255,7 @@ theorem set_timer_tail (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n �
     (es6 : sched.set_thread_state st s5 t sched.TS_RUNNING = ok s6)
     (esc : sched.schedule st ar s6 a1 = ok (s7, a2)) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s7 :=
-  (set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc).2.2
+  (set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc).2.2.2
 
 set_option maxHeartbeats 4000000 in
 /-- **The `TCB_SetTimer` local entry ends `schedule` in `AllCores`**
@@ -268,7 +268,7 @@ theorem set_timer_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
       ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
     (e : localtimer.handle_set_timer_local st ar s0 a0 n target = ok (true, s', a')) :
     ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
-      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      FootB st T Cs Sg Scs Z ∅ s0 s3 ∧ sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -377,8 +377,8 @@ theorem set_timer_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
   have e6 := ok_inj_ff h
   simp only [Prod.mk.injEq, true_and] at e6
   obtain ⟨rfl, rfl⟩ := e6
-  obtain ⟨hB6, hBA6, W⟩ := set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc
-  refine ⟨s6, a1, s7, a2, hB6, hBA6, esc, W, ?_⟩
+  obtain ⟨hB6, hBA6, B06, W⟩ := set_timer_tailB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR ect hrun es1 eu es3 es4 es5 es6 esc
+  refine ⟨s6, a1, s7, a2, hB6, hBA6, B06, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
@@ -399,7 +399,7 @@ theorem set_timer_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
         vcpu.check st ar s5 a5 t) = ok (s', a') := by
-  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := set_timer_local.allCoresB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR e
+  obtain ⟨-, -, s4, a4, -, -, -, -, W, E⟩ := set_timer_local.allCoresB hA IK hNt h0 hcpu hS0 hI0 hBA0 htg hR e
   exact ⟨s4, a4, W, E⟩
 
 end

@@ -533,7 +533,7 @@ theorem timer_irq_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
       ∀ r : S × A, sched.awaken st ar s a = ok r → L.actionW r.1 = 0#u64 → SchCur st r.1)
     (e : localtimer.handle_timer_irq_local st ar s0 a0 irq p = ok (true, s', a')) :
     ∃ s3 a3 s4 a4, BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ BufAt st T Cs H Sg Scs Z U s3 ∧
-      sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
+      FootB st T Cs Sg Scs Z ∅ s0 s3 ∧ sched.schedule st ar s3 a3 = ok (s4, a4) ∧ AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧
       (do
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
@@ -716,7 +716,7 @@ theorem timer_irq_local.allCoresB (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hN
   have W := AllCores.schedB hA IK hNt a3 h0 hcpu hS0 hB0 F03 hBlk3 hBA3 hsa3 (hR s3 a3 ⟨hBlk3, F03, B03⟩)
   rw [esc] at W
   simp only [WP.spec_ok, WP.uncurry'_pair] at W
-  refine ⟨s3, a3, s4, a4, hBlk3, hBA3, esc, W, ?_⟩
+  refine ⟨s3, a3, s4, a4, hBlk3, hBA3, B03, esc, W, ?_⟩
   rw [eac]; simp only [bind_ok, uncurry_apply_pair]
   rw [et]; simp only [bind_ok]
   exact evc
@@ -739,7 +739,7 @@ theorem timer_irq_local.allCores (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt
         let (s5, a5) ← sched.activate_thread st ar s4 a4
         let t ← sched.cur_thread st s5
         vcpu.check st ar s5 a5 t) = ok (s', a') := by
-  obtain ⟨-, -, s4, a4, -, -, -, W, E⟩ := timer_irq_local.allCoresB hA IK hNt h0 hcpu hS0 hKS hI0 hBA0 hR e
+  obtain ⟨-, -, s4, a4, -, -, -, -, W, E⟩ := timer_irq_local.allCoresB hA IK hNt h0 hcpu hS0 hKS hI0 hBA0 hR e
   exact ⟨s4, a4, W, E⟩
 
 end
