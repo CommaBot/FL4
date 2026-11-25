@@ -15,7 +15,7 @@
   caller `RUNNING` / `RESTART`, the receiver `BLOCKED_ON_REPLY`); of the values only the caller's
   `BLOCKED_ON_RECV` is a queued state, written after its `BLOCK_OBJ := ep`, the endpoint whose lock
   `local_syscall` holds; so the accepted run on `gd` ends as the real run;
-* `rr_move`: by `run_gd_mguard`.
+* `rr_move`: by `run_gd_mguard`; `rr_total`: P0's totality.
 
 Premises: `RegionOK` [J], `UserOK` [J] of the layout; `VmRPre`'s and `hTab` [J]
 (`P2/AccessVmRRA.lean`); `hp` [P] (`IsProg`: the body is the tree `p`); `hmA` [J]: `ko`'s memory
@@ -34,6 +34,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : KLayout}
 variable {Locks : S → U64 → Prop} {m0 : U64 → U64}
 variable {A : Type} {ar : machine.Arch A}
+
+/-- P0's totality of the body (`PathObl`'s totality side for `handle_reply_recv_vm_local`). -/
+theorem rr_total (hA : P0.ArchTotal ar) (found : U64 × U64) (s : S) (a : A) :
+    ∃ r, syscall.handle_reply_recv_vm_local st ar s a found = ok r := by
+  obtain ⟨r, e, -⟩ := spec_ex_fd (P0.syscall.handle_reply_recv_vm_local.p0 st ar s a found L.total hA)
+  exact ⟨r, e⟩
 
 /-- **The accepted VM ReplyRecv local path on the checked store `gd` ends as the real run.** -/
 theorem rr_acc_gd (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : A} {rptr ep : U64}
