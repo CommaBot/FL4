@@ -1620,6 +1620,7 @@ import Fl4Proofs.P2.TmoFrD
 import Fl4Proofs.P3.XTopJointDomInv29Q
 import Fl4Proofs.P2.TmoFrE
 import Fl4Proofs.P2.StallAllT
+import Fl4Proofs.P2.StallAllJ
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
