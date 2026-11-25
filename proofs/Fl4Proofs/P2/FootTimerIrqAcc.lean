@@ -93,12 +93,15 @@ def TmWords (st : machine.Store S) [L : LawfulStore st] (s : S) (tm w : U64) : P
             w = core.num.U64.wrapping_add (L.mem s (boundA tm)) layout.ntfn.BOUND_TCB))))
 
 /-- The words an accepted timer interrupt (quiet or round-robin) reads at its entry state `s` (current SC sized
-by `Z`), besides the kernel-global ones: this core's node words, the current thread's words (`CallerW`), the
+by `Z`), besides the kernel-global ones: this core's node words, the current thread's words (`CallerW` without its endpoint queue links `EP_NEXT` /
+`EP_PREV`, which a queue's lock owns while the thread is queued), the
 current SC, the release head's SC word and SC, `TmWords` of the earliest armed thread, and the current thread's
 CNode slot cap words (offsets below 256, the first 16 bytes of a 32-byte slot: the timeout handler slot, the
 `VTABLE` slot; not the CDT links, `lock <slot>`'s). -/
 def IrqRd (st : machine.Store S) [L : LawfulStore st] (Z : U64 → Nat) (s : S) (w : U64) : Prop :=
-  (∃ o : U64, o.val < 4288 ∧ o.val % 8 = 0 ∧ w = L.nodeAt s (L.cpu s) o) ∨ CallerW (L.curW s) w ∨
+  (∃ o : U64, o.val < 4288 ∧ o.val % 8 = 0 ∧ w = L.nodeAt s (L.cpu s) o) ∨
+    (∃ k : U64, 256 ≤ k.val ∧ k.val < 4096 ∧ k.val % 8 = 0 ∧ (k.val < 3528 ∨ 3576 ≤ k.val) ∧ k.val ≠ 3496 ∧
+      k.val ≠ 3504 ∧ w = core.num.U64.wrapping_add (L.curW s) k) ∨
     InSC (L.cscW s) (Z (L.cscW s)) w ∨
     (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) ≠ 0#u64 ∧
       (w = scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)) ∨
@@ -432,8 +435,8 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
     gWr _ (nodeAt_aligned hN h1 h2) (Or.inl ⟨o, h1, h2, rfl⟩) (fun e => by
       rw [stA_eq] at e; exact node_ne_field hN h1 hcT ht' (by simp) e)
   have cR : ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) →
-      R (core.num.U64.wrapping_add (L.curW s) K) := fun K h1 h2 h3 h4 =>
-    gRd _ (field_aligned ht' h2 h3) (Or.inr (Or.inl ⟨K, h1, h2, h3, h4, rfl⟩))
+      K.val ≠ 3496 → K.val ≠ 3504 → R (core.num.U64.wrapping_add (L.curW s) K) := fun K h1 h2 h3 h4 h5 h6 =>
+    gRd _ (field_aligned ht' h2 h3) (Or.inr (Or.inl ⟨K, h1, h2, h3, h4, h5, h6, rfl⟩))
   have cW : ∀ K : U64, 256 ≤ K.val → K.val < 3328 → K.val % 8 = 0 → W (core.num.U64.wrapping_add (L.curW s) K) :=
     fun K h1 h2 h3 =>
     gWr _ (field_aligned ht' (by omega) h3) (Or.inr (Or.inl ⟨K, h1, by omega, h3, rfl⟩)) (fun e => by
@@ -441,7 +444,7 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
       exact tcb_word_ne ht' ht' (by omega) (by simp) (fun _ h => by simp at h; omega) e)
   have rR : ∀ r : U64, r.val < 384 → R (regA (L.curW s) r) := fun r hr => by
     obtain ⟨K, hK, e⟩ := regA_eq ht' hr
-    rw [e]; exact cR K (by omega) (by omega) (by omega) (by omega)
+    rw [e]; exact cR K (by omega) (by omega) (by omega) (by omega) (by omega) (by omega)
   have rW : ∀ r : U64, r.val < 384 → W (regA (L.curW s) r) := fun r hr => by
     obtain ⟨K, hK, e⟩ := regA_eq ht' hr
     rw [e]; exact cW K (by omega) (by omega) (by omega)
@@ -453,10 +456,10 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   have hSc : ScAcc R W (L.cscW s) (Z (L.cscW s)) := ⟨fun b ha hb => scR b hb ha, fun b h1 h2 =>
     gWr _ h1 (Or.inr (Or.inr (Or.inl h2))) (scNS b h1 ⟨by have := h2.1; omega, h2.2⟩),
     gWr _ hcq.2.2.1.2 (Or.inr (Or.inr (Or.inr (Or.inl rfl)))) (scNS _ hcq.2.2.1.2 hcq.2.2.1.1)⟩
-  have rSt : R (stA (L.curW s)) := by rw [stA_eq]; exact cR _ (by simp) (by simp) (by simp) (by simp)
-  have rSc : R (scA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp)
-  have rIq : R (inqA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp)
-  have rYt : R (yieldA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp)
+  have rSt : R (stA (L.curW s)) := by rw [stA_eq]; exact cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+  have rSc : R (scA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+  have rIq : R (inqA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+  have rYt : R (yieldA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
   have rMx : R (maxA (L.cscW s)) := scR _ hcq.2.2.2.1 hcq.2.2.2.2
   have rCore : R (scCoreA (L.cscW s)) := by
     obtain ⟨hP, hz⟩ := hO.sc _ hcs
@@ -588,10 +591,10 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
               exact H2 hn })
   have gcok : localtimer.current_ok gS s (L.cpu s) (L.curW s) (L.cscW s) =
       localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) :=
-    current_ok.guard s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp)) rSt rYt
-      (cR _ (by simp) (by simp) (by simp) (by simp)) rSc (by rw [hsct]; exact rCore) rCore
+    current_ok.guard s (L.cpu s) (L.curW s) (L.cscW s) (cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)) rSt rYt
+      (cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)) rSc (by rw [hsct]; exact rCore) rCore
       (nR _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))
-      (cR _ (by simp) (by simp) (by simp) (by simp)) hD1
+      (cR _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)) hD1
   have gquiet : localtimer.sched_quiet gS s (L.cpu s) = localtimer.sched_quiet st s (L.cpu s) :=
     sched_quiet.guard s (nR _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])) hD2
       (nR _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]))
