@@ -318,7 +318,7 @@ theorem JKern.addP {Aa : Type} {arI : machine.Arch Aa} {th : TypedHeap} {H : P1.
   refine ⟨K.orig, K.cur, K.curT, K.act, K.dwAl, K.dwObj, K.dwNe, K.head, K.gpm, K.ga, K.gf, heapOK_addP A K.heap,
     by rw [hAddP_ne (Ne.symm (A.nz p rfl))]; exact K.h0, fun q k hq hk => K.hks q k ((hAddP_iff hk hp).1 hq) hk,
     fun q z hq => ?_, fun q k hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs,
-    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0, K.tdx⟩
+    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0, K.csN, K.tdx⟩
   · rcases hAddP_cases hq with ⟨rfl, e⟩ | ⟨-, hq⟩
     · cases e
       rcases A.ks _ rfl with e | e

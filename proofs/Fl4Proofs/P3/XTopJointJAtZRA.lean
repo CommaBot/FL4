@@ -871,7 +871,7 @@ theorem JAtZR.kern_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0, K.tdx.frame hpl⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame hpl⟩
   rw [hna, hDbg]; exact K.head
 
 
@@ -1461,7 +1461,7 @@ theorem JAtZR.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     ⟨pt, by rw [hK.gpml4]; exact hT.archObj hpt⟩, by rw [hK.gpml4]; exact K.ga, by rw [hK.gpml4]; exact K.gf,
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
-    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0, K.tdx.frame hK.huge⟩
+    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0, K.csN, K.tdx.frame hK.huge⟩
   rw [hna, hDbg]; exact K.head
 
 

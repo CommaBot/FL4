@@ -200,6 +200,10 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   /-- [carried] Core 0, the boot core, is among the cores (boot; `Cs` never
   shrinks). -/
   cs0 : 0#u64 ∈ Cs
+  /-- [carried] **The cores are numbered from 0** (`Cs = {c | c < n}`: boot starts cores
+  `0 .. ks::NUM_NODES - 1`; `Cs` never changes, so every step keeps it). What P2's ownership
+  layout needs of its core count (P2/SlJEnt.lean `SlJAtZ.cs`, P2/SerExit.lean's `hn`; line slj2). -/
+  csN : ∃ n : Nat, ∀ c : U64, c ∈ Cs ↔ c.val < n
   /-- [carried] **The TDX platform clause** (#68, `TdxRel`): FL4's
   `tdx_active` / `dma_ram` answer the spec's platform record. Set at the start
   state by the choice of `σ.archState.x64Plat` (`TdxRel.adjust`); kept by

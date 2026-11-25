@@ -674,7 +674,7 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     P1.HeapOK.drop K.heap, ?_, fun q k hq hk => K.hks q k (drop_some hq) hk,
     fun q z hq => K.hksIn q z (drop_some hq), fun q k hq c hc => K.hnd q k (drop_some hq) c hc, K.ksbFit,
     K.ksbAl, K.nodeFit, K.cpuCs, drop_keep K.curH hcur, by rw [P1.Heap.drop_of_not hcsc]; exact K.cscH,
-    K.csLt, K.cs0, K.tdx.frame (by rw [harch])⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [harch])⟩
   · rcases K.head with h | ⟨h1, h2⟩
     · exact Or.inl h
     · exact Or.inr ⟨by rw [restrictTh_out hhd]; exact h1, h2⟩

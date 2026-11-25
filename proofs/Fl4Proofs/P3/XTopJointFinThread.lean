@@ -493,7 +493,7 @@ theorem JAtZ.kern_dbg (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0, K.tdx⟩
+    K.csLt, K.cs0, K.csN, K.tdx⟩
   rw [hna]; exact hhead
 
 set_option maxHeartbeats 8000000 in
