@@ -13,7 +13,8 @@ The walks `SlThr.home` / `SlThr.away` need: a declining run of an arm of
 * **`fastpath.fault.guard_dec`**: a declined trap arm on `st` runs the same on `gS` with `R`
   holding `FltDec`;
 * `PreDec`, `sl_pre_dec`, **`syscall.handle_syscall_local.guard_dec`**: the prefix on `gS`
-  (reads `R`, writes `W` of the prefix words), the arms given as hypotheses.
+  (reads `R`, writes `W` of the prefix words), the arms given as hypotheses;
+* `UDec`, `RrDec`, **`fastpath.reply_recv_found.guard_dec`**: the same for the ReplyRecv arm.
 
 No premises (the facts are hypotheses of the lemmas, discharged by the callers).
 -/
@@ -166,6 +167,280 @@ theorem fastpath.fault.guard_dec {X : S} {a : A} {t n : U64} {r : Bool × S × A
       apply hn
       acc_true hk
   all_goals exact fun h' => h'
+
+/-- The replied thread's words a declining ReplyRecv arm reads (`AFFINITY` and the words
+before it; the rest only when it is homed here). -/
+structure UDec (R : U64 → Prop) (X : S) (u : U64) : Prop where
+  ust : R (stA u)
+  ft : R (core.num.U64.wrapping_add u 3376#u64)
+  sc : R (scA u)
+  af : R (affA u)
+  rest : L.mem X (affA u) = L.cpu X →
+    R (core.num.U64.wrapping_add u 3432#u64) ∧ R (inqA u) ∧ R (prioA u) ∧
+      ∀ usc, obj.Tcb.sc st u X = ok usc → RdHead (L := L) R X usc
+
+/-- **The words a declining ReplyRecv arm reads** at its entry state `X` (current thread `t`,
+reply object `rptr`, endpoint `ep`). -/
+structure RrDec (R : U64 → Prop) (X : S) (t rptr ep : U64) : Prop where
+  nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt X (L.cpu X) o)
+  dt : R (core.num.U64.wrapping_add (L.ksb X) layout.ks.DOMAIN_TIME)
+  cd : R (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN)
+  bm : RdBitmap (L := L) R X
+  tm : L.mem X (tmA (L := L) X) ≠ 0#u64 → R (core.num.U64.wrapping_add (L.mem X (tmA (L := L) X)) 3528#u64)
+  rh : L.mem X (rhA (L := L) X) ≠ 0#u64 → R (scA (L.mem X (rhA (L := L) X))) ∧
+    RdHead (L := L) R X (L.mem X (scA (L.mem X (rhA (L := L) X))))
+  tSt : R (stA t)
+  tSc : R (scA t)
+  tMx : R (maxA (L.mem X (scA t)))
+  tIq : R (inqA t)
+  tMi : R (regA t layout.reg.MSG_INFO)
+  tBn : R (core.num.U64.wrapping_add t 3368#u64)
+  tPr : R (prioA t)
+  ntf : ∀ n, obj.Tcb.bound_ntfn st t X = ok n → (n != 0#u64) = true →
+    R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE) ∧ R (core.num.U64.wrapping_add n layout.ntfn.SC)
+  rRt : R (rTcbA rptr)
+  rNx : R (rNextA rptr)
+  eTS : R (epTSA ep)
+  uu : ∀ u, obj.Reply.tcb st rptr X = ok u → UDec (L := L) R X u
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 8000000 in
+/-- **A declined ReplyRecv arm on the guarded store** (`R` holding `RrDec`). -/
+theorem fastpath.reply_recv_found.guard_dec {X : S} {a : A} {t rptr ep : U64} {r : Bool × S × A}
+    (D : RrDec (L := L) R X t rptr ep) (h : fastpath.reply_recv_found st ar X a t rptr ep = ok r)
+    (hn : r.1 ≠ true) :
+    fastpath.reply_recv_found gS ar X a t rptr ep = ok r := by
+  unfold fastpath.reply_recv_found at h ⊢
+  revert h
+  rw [sched.action.guard (gS := gS) X (D.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))]
+  refine tr_bind_same (fun i _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  rw [sched.is_schedulable.guard (gS := gS) X t D.tSt D.tSc D.tMx D.tIq]
+  refine tr_bind_same (fun b _ => ?_)
+  refine tr_ite (fun _ => ?_) (fun _ h' => h')
+  rw [msg.msg_info.guard (gS := gS) X t D.tMi]
+  refine tr_bind_same (fun info _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  rw [obj.Reply.tcb.guard (gS := gS) rptr X D.rRt]
+  refine tr_bind_same (fun u eu => ?_)
+  have U := D.uu u eu
+  refine tr_bind_same (fun b1 _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  rw [obj.Tcb.state.guard (gS := gS) u X U.ust]
+  refine tr_bind_same (fun i2 _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  rw [obj.Tcb.fault_type.guard (gS := gS) u X U.ft]
+  refine tr_bind_same (fun i3 _ => ?_)
+  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  rw [obj.Reply.next.guard (gS := gS) X rptr D.rNx]
+  refine tr_bind_same (fun i4 _ => ?_)
+  refine tr_ite (fun _ => ?_) (fun _ => ?_)
+  · rw [obj.Reply.next_is_head.guard (gS := gS) X rptr D.rNx]
+    refine tr_bind_same (fun b2 _ => ?_)
+    refine tr_ite (fun _ h' => h') (fun _ => ?_)
+    rw [obj.Tcb.sc.guard (gS := gS) u X U.sc]
+    refine tr_bind_same (fun i5 e5 => ?_)
+    refine tr_bind_same (fun b3 _ => ?_)
+    refine tr_ite (fun _ h' => h') (fun _ => ?_)
+    rw [fastpath.schedulable_here.guard' (gS := gS) X u
+      (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+      (D.nd _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN]))
+      (D.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD]))
+      D.tm D.rh D.dt D.cd U.af (fun h => ⟨(U.rest h).1, U.sc, (U.rest h).2.1⟩)]
+    refine tr_bind_same (fun b4 hb4 => ?_)
+    refine tr_ite (fun hbt => ?_) (fun _ h' => h')
+    have HF := here_facts (L := L) (show fastpath.schedulable_here st X u = ok true by rw [hb4, hbt])
+    obtain ⟨-, -, hpu, hhd⟩ := U.rest HF.aff
+    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5)
+      (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
+    refine tr_bind_same (fun b5 _ => ?_)
+    refine tr_ite (fun _ => ?_) (fun _ h' => h')
+    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5)]
+    refine tr_bind_same (fun b6 _ => ?_)
+    refine tr_ite (fun _ => ?_) (fun _ h' => h')
+    rw [obj.Tcb.bound_ntfn.guard (gS := gS) t X D.tBn]
+    refine tr_bind_same (fun i6 e6 => ?_)
+    refine tr_ite (fun h6 => ?_) (fun _ => ?_)
+    · rw [obj.Ntfn.state.guard (gS := gS) i6 X (D.ntf i6 e6 h6).1]
+      refine tr_bind_same (fun i7 _ => ?_)
+      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      rw [obj.Ntfn.sc.guard (gS := gS) i6 X (D.ntf i6 e6 h6).2]
+      refine tr_bind_same (fun i8 _ => ?_)
+      refine tr_ite (fun _ => ?_) (fun _ => ?_)
+      · rw [obj.Tcb.sc.guard (gS := gS) t X D.tSc]
+        refine tr_bind_same (fun i9 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+        refine tr_bind_same (fun i10 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+        refine tr_bind_same (fun t1 _ => ?_)
+        refine tr_bind_same (fun b7 _ => ?_)
+        rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+        refine tr_bind_same (fun ff _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ => ?_)
+        · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+          refine tr_bind_same (fun i11 _ => ?_)
+          refine tr_bind_same (fun i12 _ => ?_)
+          rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+          refine tr_bind_same (fun b8 _ => ?_)
+          refine tr_ite (fun _ => ?_) (fun _ h' => h')
+          intro hk
+          exfalso
+          apply hn
+          acc_true hk
+        · intro hk
+          exfalso
+          apply hn
+          acc_true hk
+      · rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+        refine tr_bind_same (fun i10 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+        refine tr_bind_same (fun t1 _ => ?_)
+        refine tr_bind_same (fun b7 _ => ?_)
+        rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+        refine tr_bind_same (fun ff _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ => ?_)
+        · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+          refine tr_bind_same (fun i11 _ => ?_)
+          refine tr_bind_same (fun i12 _ => ?_)
+          rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+          refine tr_bind_same (fun b8 _ => ?_)
+          refine tr_ite (fun _ => ?_) (fun _ h' => h')
+          intro hk
+          exfalso
+          apply hn
+          acc_true hk
+        · intro hk
+          exfalso
+          apply hn
+          acc_true hk
+    · rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+      refine tr_bind_same (fun i10 _ => ?_)
+      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+      refine tr_bind_same (fun t1 _ => ?_)
+      refine tr_bind_same (fun b7 _ => ?_)
+      rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+      refine tr_bind_same (fun ff _ => ?_)
+      refine tr_ite (fun _ => ?_) (fun _ => ?_)
+      · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+        refine tr_bind_same (fun i11 _ => ?_)
+        refine tr_bind_same (fun i12 _ => ?_)
+        rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+        refine tr_bind_same (fun b8 _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ h' => h')
+        intro hk
+        exfalso
+        apply hn
+        acc_true hk
+      · intro hk
+        exfalso
+        apply hn
+        acc_true hk
+  · rw [obj.Tcb.sc.guard (gS := gS) u X U.sc]
+    refine tr_bind_same (fun i5 e5 => ?_)
+    refine tr_bind_same (fun b3 _ => ?_)
+    refine tr_ite (fun _ h' => h') (fun _ => ?_)
+    rw [fastpath.schedulable_here.guard' (gS := gS) X u
+      (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+      (D.nd _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN]))
+      (D.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD]))
+      D.tm D.rh D.dt D.cd U.af (fun h => ⟨(U.rest h).1, U.sc, (U.rest h).2.1⟩)]
+    refine tr_bind_same (fun b4 hb4 => ?_)
+    refine tr_ite (fun hbt => ?_) (fun _ h' => h')
+    have HF := here_facts (L := L) (show fastpath.schedulable_here st X u = ok true by rw [hb4, hbt])
+    obtain ⟨-, -, hpu, hhd⟩ := U.rest HF.aff
+    rw [sporadic.ready.guard (gS := gS) X i5 (hhd i5 e5)
+      (D.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))]
+    refine tr_bind_same (fun b5 _ => ?_)
+    refine tr_ite (fun _ => ?_) (fun _ h' => h')
+    rw [sporadic.sufficient.guard (gS := gS) ar X a i5 0#u64 (hhd i5 e5)]
+    refine tr_bind_same (fun b6 _ => ?_)
+    refine tr_ite (fun _ => ?_) (fun _ h' => h')
+    rw [obj.Tcb.bound_ntfn.guard (gS := gS) t X D.tBn]
+    refine tr_bind_same (fun i6 e6 => ?_)
+    refine tr_ite (fun h6 => ?_) (fun _ => ?_)
+    · rw [obj.Ntfn.state.guard (gS := gS) i6 X (D.ntf i6 e6 h6).1]
+      refine tr_bind_same (fun i7 _ => ?_)
+      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      rw [obj.Ntfn.sc.guard (gS := gS) i6 X (D.ntf i6 e6 h6).2]
+      refine tr_bind_same (fun i8 _ => ?_)
+      refine tr_ite (fun _ => ?_) (fun _ => ?_)
+      · rw [obj.Tcb.sc.guard (gS := gS) t X D.tSc]
+        refine tr_bind_same (fun i9 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+        refine tr_bind_same (fun i10 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+        refine tr_bind_same (fun t1 _ => ?_)
+        refine tr_bind_same (fun b7 _ => ?_)
+        rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+        refine tr_bind_same (fun ff _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ => ?_)
+        · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+          refine tr_bind_same (fun i11 _ => ?_)
+          refine tr_bind_same (fun i12 _ => ?_)
+          rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+          refine tr_bind_same (fun b8 _ => ?_)
+          refine tr_ite (fun _ => ?_) (fun _ h' => h')
+          intro hk
+          exfalso
+          apply hn
+          acc_true hk
+        · intro hk
+          exfalso
+          apply hn
+          acc_true hk
+      · rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+        refine tr_bind_same (fun i10 _ => ?_)
+        refine tr_ite (fun _ h' => h') (fun _ => ?_)
+        rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+        refine tr_bind_same (fun t1 _ => ?_)
+        refine tr_bind_same (fun b7 _ => ?_)
+        rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+        refine tr_bind_same (fun ff _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ => ?_)
+        · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+          refine tr_bind_same (fun i11 _ => ?_)
+          refine tr_bind_same (fun i12 _ => ?_)
+          rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+          refine tr_bind_same (fun b8 _ => ?_)
+          refine tr_ite (fun _ => ?_) (fun _ h' => h')
+          intro hk
+          exfalso
+          apply hn
+          acc_true hk
+        · intro hk
+          exfalso
+          apply hn
+          acc_true hk
+    · rw [obj.Ep.state.guard (gS := gS) ep X D.eTS]
+      refine tr_bind_same (fun i10 _ => ?_)
+      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      rw [sched.idle_thread.guard (gS := gS) X (D.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD]))]
+      refine tr_bind_same (fun t1 _ => ?_)
+      refine tr_bind_same (fun b7 _ => ?_)
+      rw [obj.Tcb.prio.guard (gS := gS) u X hpu, obj.Tcb.prio.guard (gS := gS) t X D.tPr]
+      refine tr_bind_same (fun ff _ => ?_)
+      refine tr_ite (fun _ => ?_) (fun _ => ?_)
+      · rw [sched.cur_domain.guard (gS := gS) X D.cd]
+        refine tr_bind_same (fun i11 _ => ?_)
+        refine tr_bind_same (fun i12 _ => ?_)
+        rw [sched.is_highest_prio.guard (gS := gS) X _ _ D.bm]
+        refine tr_bind_same (fun b8 _ => ?_)
+        refine tr_ite (fun _ => ?_) (fun _ h' => h')
+        intro hk
+        exfalso
+        apply hn
+        acc_true hk
+      · intro hk
+        exfalso
+        apply hn
+        acc_true hk
 
 /-- The prefix's words for a declined run on a store guarded to reads `R` and writes `W`. -/
 structure PreDec (R W : U64 → Prop) (s : S) : Prop where
