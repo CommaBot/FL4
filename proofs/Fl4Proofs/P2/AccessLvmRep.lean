@@ -6,7 +6,7 @@ thread in `TS_RUNNING_VM` with a pending exit or an active bound notification, r
 extracted text, four loops, `finish_notification`). Here: on any store `gS` answering the listed reads (`R`) and
 writes (`W`) as `st` (`GRd` / `GWr`), `report` and `check` equal the real ones.
 
-* Stateless guards (`VW`: the VCPU's 0x8000 bytes are readable): `lv_get`, `lv_set`, `lv_vmcs`, the four loop
+* Stateless guards (`VW`: the VCPU's aligned words in its 0x8000 bytes are readable): `lv_get`, `lv_set`, `lv_vmcs`, the four loop
   bodies and loops (`lv_loop0` … `lv_loop3`).
 * **`vcpu.report.guardP`** (in `AccessLvmRepR`): for any state predicate `P` that the report's four write kinds keep (P1's
   `RepSteps`, the buffer the one looked up) and at which the final `set_thread_state TS_RUNNING` is guarded
@@ -24,7 +24,8 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1
 
 /-- The words of the VCPU `v` (0x8000 bytes) are in `P`. -/
-def VW (P : U64 → Prop) (v : U64) : Prop := ∀ o : U64, o.val < 32768 → P (core.num.U64.wrapping_add v o)
+def VW (P : U64 → Prop) (v : U64) : Prop :=
+  ∀ o : U64, o.val < 32768 → o.val % 8 = 0 → P (core.num.U64.wrapping_add v o)
 
 theorem lv_mulv {x y z : U64} (h : x * y = ok z) (hb : x.val * y.val ≤ U64.max) : z.val = x.val * y.val := by
   obtain ⟨w, hw, hwv⟩ := spec_ex_fd (U64.mul_spec (x := x) (y := y) hb)
@@ -38,9 +39,9 @@ section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R W : U64 → Prop}
 variable {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
 
-theorem lv_get {v : U64} (hV : VW R v) (s : S) (o : U64) (ho : o.val < 32768) :
+theorem lv_get {v : U64} (hV : VW R v) (s : S) (o : U64) (ho : o.val < 32768) (h8 : o.val % 8 = 0) :
     vcpu.get gS s v o = vcpu.get st s v o :=
-  Fl4Proofs.P2.vcpu.get.guard s v o (hV o ho)
+  Fl4Proofs.P2.vcpu.get.guard s v o (hV o ho h8)
 
 theorem lv_set (s : S) (v x : U64) (h : W (core.num.U64.wrapping_add v vcpu.PENDING)) :
     vcpu.set gS s v vcpu.PENDING x = vcpu.set st s v vcpu.PENDING x := by
@@ -63,16 +64,16 @@ theorem lv_body0 {t v b : U64} {pending saved : Bool} (hV : pending = true ∨ s
     simp only [hi, ↓reduceIte]
     have gmr : ∀ (s' : S) (x : U64), msg.set_mr gS s' t b i x = msg.set_mr st s' t b i x :=
       fun s' x => msg.set_mr.guard s' t b i x (by omega) hWt hBW
-    have hoff : ∀ i1 i2 : U64, i * 8#u64 = ok i1 → vcpu.EXIT + i1 = ok i2 → i2.val < 32768 := by
+    have hoff : ∀ i1 i2 : U64, i * 8#u64 = ok i1 → vcpu.EXIT + i1 = ok i2 → i2.val < 32768 ∧ i2.val % 8 = 0 := by
       intro i1 i2 h1 h2
       have e1 := lv_mulv h1 (by scalar_tac)
       have e2 := lv_addv h2 (by scalar_tac)
-      scalar_tac
+      exact ⟨by scalar_tac, by scalar_tac⟩
     cases pending <;> cases saved <;> simp only [Bool.false_eq_true, eq_self_iff_true, if_true, if_false, ↓reduceIte]
     · rw [gmr]
     all_goals
       refine bind_guard_congr rfl fun i1 h1 => bind_guard_congr rfl fun i2 h2 => ?_
-      rw [lv_get (hV (by simp)) s i2 (hoff i1 i2 h1 h2)]
+      rw [lv_get (hV (by simp)) s i2 (hoff i1 i2 h1 h2).1 (hoff i1 i2 h1 h2).2]
       refine bind_guard_congr rfl fun i3 _ => ?_
       rw [gmr]
   · simp only [hi, ↓reduceIte]
@@ -86,16 +87,16 @@ theorem lv_body2 {t v b : U64} {pending saved : Bool} (hV : pending = true ∨ s
     simp only [hi, ↓reduceIte]
     have gmr : ∀ (s' : S) (x : U64), msg.set_mr gS s' t b i x = msg.set_mr st s' t b i x :=
       fun s' x => msg.set_mr.guard s' t b i x (by omega) hWt hBW
-    have hoff : ∀ i1 i2 : U64, i * 8#u64 = ok i1 → vcpu.EXIT + i1 = ok i2 → i2.val < 32768 := by
+    have hoff : ∀ i1 i2 : U64, i * 8#u64 = ok i1 → vcpu.EXIT + i1 = ok i2 → i2.val < 32768 ∧ i2.val % 8 = 0 := by
       intro i1 i2 h1 h2
       have e1 := lv_mulv h1 (by scalar_tac)
       have e2 := lv_addv h2 (by scalar_tac)
-      scalar_tac
+      exact ⟨by scalar_tac, by scalar_tac⟩
     cases pending <;> cases saved <;> simp only [Bool.false_eq_true, eq_self_iff_true, if_true, if_false, ↓reduceIte]
     · rw [gmr]
     all_goals
       refine bind_guard_congr rfl fun i1 h1 => bind_guard_congr rfl fun i2 h2 => ?_
-      rw [lv_get (hV (by simp)) s i2 (hoff i1 i2 h1 h2)]
+      rw [lv_get (hV (by simp)) s i2 (hoff i1 i2 h1 h2).1 (hoff i1 i2 h1 h2).2]
       refine bind_guard_congr rfl fun i3 _ => ?_
       rw [gmr]
   · simp only [hi, ↓reduceIte]
@@ -110,7 +111,7 @@ theorem lv_body1 {t v b : U64} (hV : VW R v) (hWt : Regs W t) (hBW : BufW W b) (
     have e0 := lv_addv hi (by scalar_tac)
     have e1 := lv_mulv h1 (by scalar_tac)
     have e2 := lv_addv h2 (by scalar_tac)
-    rw [lv_get hV s i2 (by scalar_tac)]
+    rw [lv_get hV s i2 (by scalar_tac) (by scalar_tac)]
     refine bind_guard_congr rfl fun i3 _ => ?_
     rw [msg.set_mr.guard s t b i i3 (by scalar_tac) hWt hBW]
   · simp only [hj, ↓reduceIte]
@@ -125,7 +126,7 @@ theorem lv_body3 {t v b : U64} (hV : VW R v) (hWt : Regs W t) (hBW : BufW W b) (
     have e0 := lv_addv hi (by scalar_tac)
     have e1 := lv_mulv h1 (by scalar_tac)
     have e2 := lv_addv h2 (by scalar_tac)
-    rw [lv_get hV s i2 (by scalar_tac)]
+    rw [lv_get hV s i2 (by scalar_tac) (by scalar_tac)]
     refine bind_guard_congr rfl fun i3 _ => ?_
     rw [msg.set_mr.guard s t b i i3 (by scalar_tac) hWt hBW]
   · simp only [hj, ↓reduceIte]
