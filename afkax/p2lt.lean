@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqLP
 import Fl4Proofs.P2.FootTimerIrqRG
 import Fl4Proofs.P2.FootTimerIrqRSt
 import Fl4Proofs.P2.FootTimerIrqRD
@@ -99,3 +100,7 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.rr_s3
 #print axioms Fl4Proofs.P2.irq_accG_rr_walk
 #print axioms Fl4Proofs.P2.irq_accG_rr
+#print axioms Fl4Proofs.P2.irq_sel
+#print axioms Fl4Proofs.P2.irq_accG
+#print axioms Fl4Proofs.P2.irq_wr_nondec
+#print axioms Fl4Proofs.P2.irq_move_acc
