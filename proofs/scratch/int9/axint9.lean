@@ -909,18 +909,30 @@ section
 #print axioms Fl4Proofs.P2.PathObl.rbuf_of
 end
 
+-- from scratch/slj2_ax.lean
+section
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.ksO
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.vsNone
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.asid
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.pool
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.cscFacts
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.regionOKX
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.hereJ
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.accK
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.of_JAtZ
+#print axioms Fl4Proofs.P2.PathObl.sl_localPathJ
+#print axioms Fl4Proofs.P2.PathObl.slJAt_of_JAtZ
+#print axioms Fl4Proofs.P2.PathObl.slJAt_of_reachU17
+end
+
 -- from scratch/slj_ax.lean
 section
 #print axioms Fl4Proofs.P2.PathObl.regionOKX_of
-#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.regionOKX
 #print axioms Fl4Proofs.P2.PathObl.SlJAtZ.ksNone
 #print axioms Fl4Proofs.P2.PathObl.SlJAtZ.tslots
 #print axioms Fl4Proofs.P2.PathObl.SlJAtZ.dsR
 #print axioms Fl4Proofs.P2.PathObl.SlJAtZ.hep
 #print axioms Fl4Proofs.P2.PathObl.SlJAt.entJ
-#print axioms Fl4Proofs.P2.PathObl.SlJAt.hereJ
-#print axioms Fl4Proofs.P2.PathObl.SlJAt.accK
-#print axioms Fl4Proofs.P2.PathObl.sl_localPathJ
 #print axioms Fl4Proofs.P2.PathObl.rs_ks
 end
 
