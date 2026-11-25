@@ -627,7 +627,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
       by rw [hkb]; exact K.ksbFit, by rw [hkb]; exact K.ksbAl, by rw [hkb, hcpu]; exact K.nodeFit,
       by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-      K.csLt, K.cs0, K.tdx.frame (by rw [F.arch])⟩
+      K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [F.arch])⟩
     rw [hna, hDbg]; exact K.head
   have hutc := J.vsx_utcX hpc hidx hXa hW hVR1 (fun i h => by rw [F.arch]; exact h) hUt F.cdt F.orig
     (by rw [F.arch]) hDbg

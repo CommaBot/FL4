@@ -173,7 +173,7 @@ theorem JKern.hout {Aa : Type} {arI : machine.Arch Aa} {H H' : Heap} {Cs D D' : 
       · rw [K.h0] at h; cases h
   refine ⟨K.orig, K.cur, K.curT, K.act, K.dwAl, K.dwObj, K.dwNe, K.head, K.gpm, K.ga, K.gf, hH', h0',
     fun q kd hq ho => ?_, fun q z hq => ?_, fun q kd hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs, ?_, hcsc,
-    K.csLt, K.cs0, K.tdx⟩
+    K.csLt, K.cs0, K.csN, K.tdx⟩
   · rcases back hq with ⟨hn, hK⟩ | h
     · exact (hnew q kd hn hK).1
     · exact K.hks q kd h ho

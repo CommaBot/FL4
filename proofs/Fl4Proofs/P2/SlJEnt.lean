@@ -24,6 +24,7 @@ as in `sl_localPath`.
 -/
 import Fl4Proofs.P2.SlLP
 import Fl4Proofs.P2.OwnJAtZ
+import Fl4Proofs.P3.XTopJointEntryInv29
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -193,17 +194,11 @@ structure SlJAtZ {A' : Type} (arI : machine.Arch A') (AR : A' → Fl4Spec.Cr3 �
   j : Fl4Proofs.P3.JAtZ (L := L) arI AR Zx K.heap Cx Ax Lst D s a' σ
   /-- `K` is the layout read off that state (`layoutJ`, P2/SerExit.lean). -/
   lay : layoutJ Zx K.heap (L.ksb s) K.ncores = K
-  /-- [J] The layout's cores are `JAtZ`'s `Cs` (the boot fact P2/SerExit.lean's `hn` names: P3's
-  `JKern` pins `Cs` only by `cs0`, `cpuCs`, `csLt`; tying it to `ks::NUM_NODES` is a P3 change). -/
+  /-- The layout's cores are `JAtZ`'s `Cs` (P3: `JKern.csN`, the cores numbered from 0; line slj2). -/
   cs : ∀ c : U64, c ∈ Cx ↔ c.val < K.ncores
-  /-- [J] The kernel globals of the first 256 bytes of the block lie in no object of `Zx.th`
-  (P3's own premise `hksO`, P3/DomDecode.lean, not carried by `JAtZ`). -/
-  ksO : ∀ b : U64, Aligned b → (L.ksb s).val ≤ b.val → b.val < (L.ksb s).val + 256 →
-    Fl4Proofs.P3.OutsideObjects Zx.th b
-  /-- [J] The ASID table lies in no typed object and is aligned (`RegionOKX.asidT`, the p2e VM
-  line's `hTab`: not carried by `JAtZ`, whose ASID-table facts are about device untypeds and
-  table frames, `JCarryDefs`). -/
-  asid : ∀ hi : U64, hi.val < 2048 → region K (atAF K.ksb hi) = .none ∧ Aligned (atAF K.ksb hi)
+  /-- The scheduler action is resume (an entry state: `SInvX`'s `cr`, P3). Gives P1's
+  `EntryInv` at the entry (`JAtZ.entryInv`, P3/XTopJointEntryInv29.lean). -/
+  res : σ.schedulerAction = .resumeCurThread
 
 /-- **The bundled entry premise** [J]: what P3 gives at a kernel entry of the U29 chain
 (`JAt`: `JAtZ` at some ghosts), with `K` that state's layout and the three [J] fields of
@@ -279,6 +274,145 @@ theorem SlJAtZ.userNode (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
   simp only [LawfulStore.nodeBase, hk] at this
   omega
 
+/-- **`SlSets` by the P1 sets convention** (`JAtZ.blk`'s sets). -/
+theorem slSets_conv (K : KLayout) :
+    SlSets K K.heap.tcbs K.heap.replies K.heap.scs K.heap.ntfns K.heap K.heap.scBits :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- **The kernel globals of the first 256 bytes of the block lie in no object of `Zx.th`**
+(formerly the bundle's [J] field `ksO`; P3's `hksO`): `JAtZ.th_dom` (P3/JEntryKs.lean). -/
+theorem SlJAtZ.ksO (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
+    ∀ b : U64, Aligned b → (L.ksb s).val ≤ b.val → b.val < (L.ksb s).val + 256 →
+      Fl4Proofs.P3.OutsideObjects Zx.th b := by
+  intro b ha h1 h2
+  refine ⟨ha, fun p k hp hin => ?_⟩
+  have h := B.j.th_dom hp
+  omega
+
+/-- **A word of the ASID table or of a ghost ASID pool (`Vs.VsWrite`) is in no region of the
+layout but a node, and aligned**: P3's VSpace placement (`TopPlaced.vo`: outside the objects of
+`Zx.th`, so off every slot and TCB; `TopPlaced.disj`: off the endpoints, replies, notifications
+and SCs of the relation's sets, which hold `H`'s by `JAtZ.hset` / `hscC`). -/
+theorem SlJAtZ.vsNone (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) {b : U64}
+    (hb : Fl4Proofs.P3.Vs.VsWrite Zx.P (L.ksb s) b) (hn : ∀ c, ¬ InNode K c b) :
+    region K b = .none ∧ Aligned b := by
+  have hTP := B.j.xtop.fin.1.2
+  have hO := hTP.vo b hb
+  have hV := Fl4Proofs.P3.Vs.vsWrite_vobj (th := Zx.th) (L4 := Zx.L4) (L3 := Zx.L3) (L2 := Zx.L2) (L1 := Zx.L1)
+    hTP.vs hb
+  obtain ⟨Tr, Cq, hJ⟩ := B.j.jpl
+  have hnd : ¬ ∃ c, InNode K c b := fun ⟨c, hc⟩ => hn c hc
+  have hslot : ¬ ∃ p ∈ K.slots, InW p 32 b := by
+    rintro ⟨p, hp, g1, g2⟩
+    rw [B.slots] at hp
+    obtain ⟨q, i, hqi, rfl⟩ := hp
+    obtain ⟨k, hk', hsz⟩ := hqi.size
+    have hv := hqi.val hJ.pl
+    exact hO.2 q k hk' ⟨by omega, by omega⟩
+  have htcb : ¬ ∃ t, K.heap t = some .tcb ∧ InW t (2 ^ 12) b := by
+    rintro ⟨t, ht, g1, g2⟩
+    exact hO.2 t .tcb ((hJ.tcb t).2 ht) ⟨g1, by simp only [Fl4Proofs.P3.objSize]; omega⟩
+  have hnt : ¬ ∃ p, K.heap p = some .ntfn ∧ InW p (2 ^ 6) b := by
+    rintro ⟨p, hp, g1, g2⟩
+    exact hTP.disj b (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
+      ⟨p, B.j.hset.2.1 p hp, g1, by omega⟩)))))) hV
+  have hob : ¬ ∃ p, (K.heap p = some .ep ∧ InW p (2 ^ 4) b) ∨ (K.heap p = some .reply ∧ InW p (2 ^ 5) b) := by
+    rintro ⟨p, ⟨hp, g1, g2⟩ | ⟨hp, g1, g2⟩⟩
+    · exact hTP.disj b (Or.inr (Or.inr (Or.inr (Or.inl ⟨p, B.j.hset.1 p hp, g1, by omega⟩)))) hV
+    · exact hTP.disj b (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨p, B.j.hset.2.2 p hp, g1, by omega⟩))))) hV
+  have hsc : ¬ ∃ p z, K.heap p = some (.sc z) ∧ InW p (2 ^ z) b := by
+    rintro ⟨p, z, hp, g1, g2⟩
+    have hpC := B.j.hscC p z hp
+    obtain ⟨Q, R0, hc, hs⟩ := B.j.xtop.fin.1.1.1.lists
+    obtain ⟨x, n, hk, -⟩ := hs.scs p hpC
+    have e := (hJ.sc p x n (B.j.c0 p hpC) hk).2
+    rw [hp] at e
+    have ez : z = n + Fl4Spec.minSchedContextBits := by
+      injection e with e; injection e
+    exact hTP.disj b (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
+      ⟨p, hpC, x, n, hk, g1, by rw [← ez]; exact g2⟩))))))) hV
+  refine ⟨?_, hO.1⟩
+  unfold region
+  rw [dif_neg hnd, dif_neg hslot, dif_neg htcb, dif_neg hnt, dif_neg hob, dif_neg hsc]
+
+/-- **The ASID table is in no region and aligned** (`RegionOKX.asidT`; formerly the bundle's
+[J] field `asid`): `vsNone`, the table at `[ksb+288000, ksb+304384)` past every node
+(`VsPlaced.ksb_fit`, `JKern.csLt`). -/
+theorem SlJAtZ.asid (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
+    ∀ hi : U64, hi.val < 2048 → region K (atAF K.ksb hi) = .none ∧ Aligned (atAF K.ksb hi) := by
+  intro hi hhi
+  have hk := B.ksb
+  have hvs := B.j.xtop.fin.1.2.vs
+  have e : atAF K.ksb hi = Fl4Proofs.P3.Vs.atA (L.ksb s) hi := by rw [← hk]; rfl
+  have hv : (Fl4Proofs.P3.Vs.atA (L.ksb s) hi).val = (L.ksb s).val + 288000 + 8 * hi.val :=
+    Fl4Proofs.P3.Vs.atA_val hvs.ksb_fit hhi
+  rw [e]
+  refine B.vsNone (Or.inl ⟨hi, hhi, rfl⟩) fun c ⟨hc, h1, h2⟩ => ?_
+  have h64 := B.j.kern.csLt c ((B.cs c).2 hc)
+  rw [hv, ← hk] at h2
+  omega
+
+/-- **The ASID pools the table names are in no region and aligned** (`SlAccIn.pool`; formerly
+the premise `SlAccK.pool` / `SlAccR.pool` [J]): a nonzero table entry is a ghost pool
+(`VsRel.tmem`), whose words are `VsWrite` words (`vsNone`); the pool is a spec ASID pool
+(`VsRel.pool`), so an `other` object of `H` of at least a page (`SpecCover.arch`), off every
+node (`JKern.hnd`). -/
+theorem SlJAtZ.pool (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
+    ∀ hi : U64, hi.val < 2048 → L.mem s (atAF K.ksb hi) ≠ 0#u64 → ∀ lo : U64, lo.val < 512 →
+      Aligned (peAF (L.mem s (atAF K.ksb hi)) lo) ∧ region K (peAF (L.mem s (atAF K.ksb hi)) lo) = .none := by
+  intro hi hhi h0 lo hlo
+  have hk := B.ksb
+  have hTP := B.j.xtop.fin.1.2
+  have e : atAF K.ksb hi = Fl4Proofs.P3.Vs.atA (L.ksb s) hi := by rw [← hk]; rfl
+  rw [e] at h0 ⊢
+  have hP := B.j.xtop.fin.2.1.tmem hi hhi h0
+  generalize L.mem s (Fl4Proofs.P3.Vs.atA (L.ksb s) hi) = p at hP h0 ⊢
+  obtain ⟨f, hf, -⟩ := B.j.xtop.fin.2.1.pool p hP
+  obtain ⟨n, hn12, hH⟩ := B.j.cover.arch _ _ hf
+  have hH' : K.heap p = some (.other n) := hH
+  have hpal := hTP.vs.pal p hP
+  have hv : (peAF p lo).val = p.val + 8 * lo.val := Fl4Proofs.P3.Vs.peA_val hpal.2 hlo
+  have h4 : (4096 : Nat) ≤ 2 ^ n :=
+    calc (4096 : Nat) = 2 ^ 12 := by norm_num
+      _ ≤ 2 ^ n := Nat.pow_le_pow_right (by norm_num) hn12
+  have hR := B.vsNone (b := peAF p lo) (Or.inr ⟨p, hP, lo, hlo, rfl⟩) fun c ⟨hc, h1, h2⟩ => by
+    have hnd := B.j.kern.hnd _ _ hH' c ((B.cs c).2 hc)
+    simp only [HKind.bits, LawfulStore.nodeBase] at hnd
+    rw [hv, ← hk] at h1 h2
+    omega
+  exact ⟨hR.2, hR.1⟩
+
+/-- **The current SC is active and homed here, and it is the current thread's SC**
+(formerly the premises `SlHereJ.cs` / `csc` [J]): P1's `EntryInv` at the entry (`JAtZ.entryInv`
+with `res`: `CUR_SC` an active SC, `SCsOK.act`), P3's `CurInv` (the current thread's SC word is
+`CUR_SC`, nonzero), P3's scheduler relation (every thread of `Zx.T` has this core as its
+`AFFINITY`, `SchedCore.aff`) and P1's `ScAff` (`XInv.core_eq`: the SC's `CORE` word is its
+thread's `AFFINITY`). -/
+theorem SlJAtZ.cscFacts (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
+    ScHere (st := st) K K.heap.scBits K.heap.scs s (L.cscW s) ∧ L.mem s (scA (L.curW s)) = L.cscW s := by
+  have EI := B.j.entryInv B.res
+  have hcS : L.cscW s ∈ K.heap.scs := EI.cscS
+  have hcA := EI.csc
+  have hC : Fl4Proofs.P3.Sched.CurInv σ := B.j.curInv (by rw [B.res]; intro e; cases e)
+  have hS := B.j.xtop.fin.1.1.1
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  obtain ⟨-, hsc0, -, hts, -⟩ := Fl4Proofs.P3.Sched.CurInv.facts hS B.j.inv hC
+  have ecur : L.curW s = Fl4Proofs.P3.Sched.nodeW st s Zx.c layout.node.CUR_THREAD := by
+    show L.mem s (L.nodeAt s (L.cpu s) _) = _; rw [hc.cur]; rfl
+  have ecsc : L.cscW s = Fl4Proofs.P3.Sched.nodeW st s Zx.c layout.node.CUR_SC := by
+    show L.mem s (L.nodeAt s (L.cpu s) _) = _; rw [hc.cur]; rfl
+  have hts' : L.mem s (scA (L.curW s)) = L.cscW s := by rw [ecur, ecsc]; exact hts
+  have hcT : L.curW s ∈ Zx.T := by rw [B.j.tcbs_eq.1]; exact B.j.kern.curH
+  have haf : L.mem s (affA (L.curW s)) = L.cpu s := (hc.aff _ hcT).trans hc.cur.symm
+  have h0 : L.mem s (scA (L.curW s)) ≠ 0#u64 := by rw [hts', ecsc]; exact hsc0
+  have hce := Fl4Proofs.P1.XInv.core_eq EI.2.2.1 (t := L.curW s) B.j.kern.curH h0
+  refine ⟨⟨(slSets_conv K).sc hcS, hcS, (EI.2.2.2.1.act _ hcS).1 hcA, ?_⟩, hts'⟩
+  have e16 : fld (L.cscW s) 16#u64 = scCoreA (L.cscW s) := by
+    unfold fld scCoreA
+    congr 1
+    simp [layout.sc.CORE]
+  rw [e16, ← hts', ← hce, haf]
+
 /-- The kernel globals of the first 256 bytes of the block are in no region. -/
 theorem SlJAtZ.ksNone (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) :
     ∀ b, Aligned b → K.ksb.val ≤ b.val → b.val < K.ksb.val + 256 → region K b = .none := by
@@ -320,11 +454,6 @@ theorem SlJAt.userOK {s : S} (B : SlJAt (L := L) K s) : Fl4Proofs.P2.E2E.UserOK 
 
 theorem SlJAt.regionOKX {s : S} (B : SlJAt (L := L) K s) : RegionOKX K := by
   obtain ⟨_, _, _, _, _, _, _, _, _, _, B⟩ := B; exact B.regionOKX
-
-/-- **`SlSets` by the P1 sets convention** (`JAtZ.blk`'s sets). -/
-theorem slSets_conv (K : KLayout) :
-    SlSets K K.heap.tcbs K.heap.replies K.heap.scs K.heap.ntfns K.heap K.heap.scBits :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The current thread's `FAULT_IP` register word. -/
 theorem slj_faultIp_val {t : U64} (h : t.val + 4096 ≤ 2 ^ 64) :
@@ -390,26 +519,21 @@ theorem SlJAt.entJ {Locks : S → U64 → Prop} {found : U64 × U64} {T : Set U6
   obtain ⟨_, _, _, _, _, _, _, _, _, _, B⟩ := B
   exact ⟨B.dsR hN, fun _ hE => B.hep hE, R.hrp, R.lep, R.lrp⟩
 
-/-- **What stays of `SlHereJ`** once `ksb` and `cpu` come from the bundle. -/
-structure SlHereR (K : KLayout) (Z : U64 → Nat) (Scs : Set U64) (found : U64 × U64) (s : S) : Prop where
-  /-- [J] as `SlHereJ.cs`. -/
-  cs : ScHere (st := st) K Z Scs s (L.cscW s)
-  /-- [J] as `SlHereJ.csc`. -/
-  csc : ¬ SlTrap st s → ScHere (st := st) K Z Scs s (L.mem s (scA (L.curW s)))
+/-- **What stays of `SlHereJ`** once `ksb`, `cpu` (the bundle) and `cs`, `csc`
+(`SlJAtZ.cscFacts`, line slj2) are derived. -/
+structure SlHereR (K : KLayout) (found : U64 × U64) (s : S) : Prop where
   /-- [J] as `SlHereJ.ep`. -/
   ep : ¬ SlTrap st s → K.heap found.2 = some .ep
 
-theorem SlJAt.hereJ {Z : U64 → Nat} {Scs : Set U64} {found : U64 × U64} (B : SlJAt (L := L) K s)
-    (R : SlHereR (st := st) K Z Scs found s) : SlHereJ (st := st) K Z Scs found s := by
+theorem SlJAt.hereJ {found : U64 × U64} (B : SlJAt (L := L) K s)
+    (R : SlHereR (st := st) K found s) : SlHereJ (st := st) K K.heap.scBits K.heap.scs found s := by
   obtain ⟨_, _, _, _, _, _, _, _, _, _, B⟩ := B
-  exact ⟨B.ksb, B.cpu, R.cs, R.csc, R.ep⟩
+  exact ⟨B.ksb, B.cpu, B.cscFacts.1, fun _ => by rw [B.cscFacts.2]; exact B.cscFacts.1, R.ep⟩
 
-/-- **What stays of `SlAccK`** once `jz` comes from the bundle. -/
+/-- **What stays of `SlAccK`** once `jz` (the bundle) and `pool` (`SlJAtZ.pool`, line slj2)
+are derived. -/
 structure SlAccR {A : Type} (ar : machine.Arch A) (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64)
     (s : S) : Prop where
-  /-- [J] as `SlAccK.pool`. -/
-  pool : ∀ hi : U64, hi.val < 2048 → L.mem s (atAF K.ksb hi) ≠ 0#u64 → ∀ lo : U64, lo.val < 512 →
-    Aligned (peAF (L.mem s (atAF K.ksb hi)) lo) ∧ region K (peAF (L.mem s (atAF K.ksb hi)) lo) = .none
   /-- [P] as `SlAccK.frl`. -/
   frl : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
     FaultChecks st X (L.curW s) ptr badge dest r → Locks s r
@@ -418,7 +542,18 @@ theorem SlJAt.accK {A : Type} {ar : machine.Arch A} {Locks : S → U64 → Prop}
     (B : SlJAt (L := L) K s) (R : SlAccR (st := st) ar K Locks found s) :
     SlAccK (st := st) ar K Locks found s := by
   obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := B
-  exact ⟨R.pool, R.frl, ⟨A', arI, AR, Zx, K.heap, Cx, Ax, Lst, D, a', σ, B.j, B.user⟩⟩
+  exact ⟨B.pool, R.frl, ⟨A', arI, AR, Zx, K.heap, Cx, Ax, Lst, D, a', σ, B.j, B.user⟩⟩
+
+/-- **The bundle at a joint-invariant entry state** (line slj2): `JAtZ` with the action resume
+and its cores numbered `0 .. n-1` give `SlJAt` for the layout read off that state,
+`layoutJ Zx H (L.ksb s) n`. P3 gives all three at every `JReachU17` state
+(P2/SlJReach.lean: `kernel_entry_reachU17V`, `SInvX.cr`, `JKern.csN`). -/
+theorem SlJAt.of_JAtZ {A' : Type} {arI : machine.Arch A'} {AR : A' → Fl4Spec.Cr3 → Prop}
+    {Zx : Fl4Proofs.P3.XSets} {H : Heap} {Cx Ax : Set U64} {Lst : U64 → List U64} {D : Set U64} {a' : A'}
+    {σ : Fl4Spec.State Unit} (J : Fl4Proofs.P3.JAtZ (L := L) arI AR Zx H Cx Ax Lst D s a' σ)
+    (hres : σ.schedulerAction = .resumeCurThread) {n : Nat} (hn : ∀ c : U64, c ∈ Cx ↔ c.val < n) :
+    SlJAt (L := L) (layoutJ Zx H (L.ksb s) n) s :=
+  ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, ⟨J, rfl, hn, hres⟩⟩
 
 end
 
@@ -437,8 +572,9 @@ derived from the bundle `SlJAt` [J] at every entry state (`hJ`) and at an anchor
 state the layout is read off, the last serial exit, P2/SerExit.lean; any entry state serves).
 `SlEntJ.dsR` / `hep` likewise (`SlJAtZ.dsR`, `SlJAtZ.hep`).
 Remaining: `hpz` [P]/[W], `hSt` [P], `hA`, `a0`, `hm` [P], `hPE` (`SlPreB`), `hEr` (`SlEntR`:
-`hrp` [J], `lep`, `lrp` [P]), `hHr` (`SlHereR`: `cs`, `csc`, `ep` [J]), `hAr`
-(`SlAccR`: `pool` [J], `frl` [P]), `huf` [J]. -/
+`hrp` [J], `lep`, `lrp` [P]), `hHr` (`SlHereR`: `ep` [J]), `hAr` (`SlAccR`: `frl` [P]), `huf` [J].
+Line slj2 derived `SlHereJ.cs` / `csc` (`SlJAtZ.cscFacts`), `SlAccK.pool` (`SlJAtZ.pool`) and the
+former bundle fields `ksO` (`SlJAtZ.ksO`), `asid` (`SlJAtZ.asid`). -/
 noncomputable def sl_localPathJ (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar)
     (hm : Fl4Proofs.P2.E2E.MasksWr st) (a0 : A) (hKJ : ∃ s0, SlJAt (L := L) K s0)
     {P : S → Prop}
@@ -446,7 +582,7 @@ noncomputable def sl_localPathJ (ar : machine.Arch A) (hSt : P0.StoreTotal st) (
     (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found K.heap.tcbs Cs Ω K.user Sg K.heap.replies
       K.heap.scs K.heap.ntfns Ac K.heap K.heap.scBits s)
     (hEr : ∀ s, P s → SlEntR (st := st) K Locks found s)
-    (hHr : ∀ s, P s → SlHereR (st := st) K K.heap.scBits K.heap.scs found s)
+    (hHr : ∀ s, P s → SlHereR (st := st) K found s)
     (hAr : ∀ s, P s → SlAccR (st := st) ar K Locks found s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
