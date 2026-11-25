@@ -11,3 +11,6 @@ import Fl4Proofs.P2.SlJStPost
 #print axioms Fl4Proofs.P2.PathObl.sl_pathsK_startAt_stab'
 #print axioms Fl4Proofs.P2.PathObl.locKeepSt_user
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_exit
+#print axioms Fl4Proofs.P2.PathObl.ksbEq_of_irqNode
+#print axioms Fl4Proofs.P2.PathObl.evOut_irqNode
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_sysUStK
