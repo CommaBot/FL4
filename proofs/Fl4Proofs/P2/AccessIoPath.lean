@@ -210,15 +210,15 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   have nd2 := nd_at hNd M.k M.c
   have Mc := M.cur
   subst Mc
-  rw [obj.Tcb.reg.guard (L.curW s2) s2 _ M.cap, reg_ok]
+  rw [obj.Tcb.reg.guard (gS := PathObl.guard st R W) (L.curW s2) s2 _ M.cap, reg_ok]
   simp only [bind_ok]
-  rw [sched.cur_sc.guard s2 (nd2 _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1]
+  rw [sched.cur_sc.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1]
   refine tr_bind_same (fun csc ecsc => ?_)
-  rw [sched.action.guard s2 (nd2 _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1]
+  rw [sched.action.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1]
   refine tr_bind_same (fun i3 ei3 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hi3 => ?_)
-  rw [obj.Tcb.yield_to.guard (L.curW s2) s2 M.yld]
+  rw [obj.Tcb.yield_to.guard (gS := PathObl.guard st R W) (L.curW s2) s2 M.yld]
   refine tr_bind_same (fun i4 ei4 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hi4 => ?_)
@@ -237,16 +237,16 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
       rw [← e]; exact hb1)) M.iok.1.ib M.iok.1.bs M.r10 hb1) (fun b1 eb1 => ?_)
   beta_reduce
   refine tr_ite (fun hb => ?_) (fun _ h => h)
-  rw [sched.consumed.guard s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
+  rw [sched.consumed.guard (gS := PathObl.guard st R W) s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
   refine tr_bind_same (fun i5 _ => ?_)
   have ecsc' : csc = L.cscW s2 := by
     rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s2)] at ecsc; exact (ok_inj_ff ecsc).symm
   subst ecsc'
-  rw [sporadic.sufficient.guard ar s2 a1 _ i5 M.rh]
+  rw [sporadic.sufficient.guard (gS := PathObl.guard st R W) ar s2 a1 _ i5 M.rh]
   refine tr_bind_same (fun b2 _ => ?_)
   beta_reduce
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [fastpath.schedulable_here.guard s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
+  rw [fastpath.schedulable_here.guard (gS := PathObl.guard st R W) s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
     (nd2 _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 (nd2 _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
     M.td M.rs M.dt M.cd M.af M.dom M.iok.1.sc M.iok.1.inq]
   refine tr_bind_same (fun b3 eb3 => ?_)
@@ -309,12 +309,12 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
     syscall.handle_ioport_local (PathObl.guard st R W) ar s a number = ok (true, s', a') := by
   rw [handle_ioport_local_eq] at h ⊢
   revert h
-  rw [sched.cur_thread.guard s (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
+  rw [sched.cur_thread.guard (gS := PathObl.guard st R W) s (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
   simp only [bind_ok]
-  rw [msg.msg_info.guard s _ hmi]
+  rw [msg.msg_info.guard (gS := PathObl.guard st R W) s _ hmi]
   refine tr_bind_same (fun info emi => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  rw [obj.Tcb.flags.guard _ s hfl]
+  rw [obj.Tcb.flags.guard (gS := PathObl.guard st R W) _ s hfl]
   refine tr_bind_same (fun i _ => ?_)
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)

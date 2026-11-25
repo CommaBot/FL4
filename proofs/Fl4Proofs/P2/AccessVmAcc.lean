@@ -229,9 +229,9 @@ theorem VmMidF.rt : IoWS (st := st) K Locks s (core.num.U64.wrapping_add r layou
 
 /-- **The checks on the guarded store.** -/
 theorem VmMidF.chk {badge : U64} (C : FaultChecks st s1 t ptr badge dest r)
-    (hhere : fastpath.schedulable_here (guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 dest =
+    (hhere : fastpath.schedulable_here (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 dest =
       fastpath.schedulable_here st s1 dest) :
-    FaultChecks (guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 t ptr badge dest r := by
+    FaultChecks (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) s1 t ptr badge dest r := by
   refine FaultChecks.guard C (M.nd P _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1
     (fun sl hsl => ?_) (M.ts P).1 (M.hd P).1
     (M.dh P (off := 3360#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])
@@ -413,7 +413,7 @@ theorem rdHead_ut {R : U64 → Prop} (B : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) 
 
 /-- **The accepted VM-fault local path on the guarded store, up to its tail**: given the tail
 from the handler `Running` (`faultTail3`) agrees on the guarded store, the run on
-`guard st (IoRS K Locks s) (IoWS K Locks s)` ends exactly as the real run. -/
+`PathObl.guard st (IoRS K Locks s) (IoWS K Locks s)` ends exactly as the real run. -/
 theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {s' : S} {a a' : A}
     {addr code : U64} (P : VmFPre st ar K T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s)
     (htail : ∀ s1 a1 t ins ptr badge dest r s14, sched.update_timestamp st ar s a = ok (s1, a1) →
@@ -421,10 +421,10 @@ theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
       vmPre14 st ar s1 a1 t (error.Fault.VmFault addr code ins) fl4_abi.consts.fault.VMFault ptr badge dest r =
         ok s14 →
       faultTail3 st ar s14 a1 dest = ok (true, s', a') →
-      faultTail3 (guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s14 a1 dest =
+      faultTail3 (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s14 a1 dest =
         ok (true, s', a'))
     (h : syscall.handle_vm_fault_local st ar s a addr code = ok (true, s', a')) :
-    syscall.handle_vm_fault_local (guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s a addr code =
+    syscall.handle_vm_fault_local (PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) ar s a addr code =
       ok (true, s', a') := by
   have B := P.base
   have hN := B.np
@@ -516,7 +516,8 @@ theorem vm_acc_of_tail {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {
       exact ut_node hN n (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
         (by simp [layout.node.RELEASE_HEAD, layout.node.CUR_TIME])
         (by simp [layout.node.RELEASE_HEAD, layout.node.CONSUMED])
-    have hhere := fastpath.schedulable_here.guard (R := IoRS (st := st) K Locks s) (W := IoWS (st := st) K Locks s)
+    have hhere := fastpath.schedulable_here.guard
+      (gS := PathObl.guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s))
       (utW (L := L) s n) dest
       (M.nd B _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
       (M.nd B _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1

@@ -38,7 +38,8 @@ theorem JAtZ.rrPre5At {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (J'.rrSum (rv_faultIP ekh hRV)) hA
 
 set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ33F` without `hRP5`** (module docstring). -/
+/-- **`kernel_entryJ33F` without `hRP5`** (module docstring).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ33H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
@@ -62,14 +63,15 @@ theorem kernel_entryJ33H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st)
     (hRV : SInvR.RV σ) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
-  kernel_entryJ33F s a σ J hni hR hS hE hQ hLv n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRV
+  kernel_entryJ33F s a σ J hni hR hS hE hQ hLv n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hSX hRV
     (fun _ => J.rrPre5At hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu hRV)
 
 set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ34F` without `hRP5`** (module docstring). -/
+/-- **`kernel_entryJ34F` without `hRP5`** (module docstring).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ34H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
@@ -93,14 +95,15 @@ theorem kernel_entryJ34H [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4S
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st)
     (hRV : SInvR.RV σ) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
-  kernel_entryJ34F s a σ J hni hR hS hE hQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRV
+  kernel_entryJ34F s a σ J hni hR hS hE hQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hSX hRV
     (fun _ => J.rrPre5At hni hR hS hQ hB hARI hA hnd hM hmrt hmb hmax htu hRV)
 
 set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ34FW` without `hRP5`: no ReplyRecv read left** (module docstring). -/
+/-- **`kernel_entryJ34FW` without `hRP5`: no ReplyRecv read left** (module docstring).
+`hSX : StoreExt` [P]: the fast path's BLOCK_OBJ / STATE write order (`P1.rr_same`). -/
 theorem kernel_entryJ34HW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hSW : SInvR.B8w.SInvW σ) (hE : SInvE.EpQAll σ)
@@ -124,9 +127,9 @@ theorem kernel_entryJ34HW [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hSX : P1.StoreExt st) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
-  kernel_entryJ34FW s a σ J hni hR hSW hE hQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu
+  kernel_entryJ34FW s a σ J hni hR hSW hE hQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hSX
     (fun _ => J.rrPre5At hni hR (SInvR.B8w.SInvW.sb hSW) hQ hB hARI hA hnd hM hmrt hmb hmax htu (SInvW.rv hSW))
 
 end

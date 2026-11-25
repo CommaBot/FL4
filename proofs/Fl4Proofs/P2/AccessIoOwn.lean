@@ -275,7 +275,7 @@ theorem IoPre.scacc {c : U64} (hc : c ∈ Scs) (hcore : L.mem s (scCoreA c) = L.
   have hw : ∀ b, InSC c (Z c) b → b.val ≠ c.val + 16 → WPerm (own K) (L.cpu s) (Locks s) (L.mem s) b := by
     intro b hb h16
     unfold WPerm; rw [own_sc P.lay hh hb h16]; exact hcore
-  refine ⟨fun b hb ha => ⟨ha, P.region_kernel (Or.inl (by rw [P.lay.scw _ _ hh b hb]; simp)), ?_⟩, fun b hb ha => ⟨ha, ?_⟩,
+  refine ⟨fun b ha hb => ⟨ha, P.region_kernel (Or.inl (by rw [P.lay.scw _ _ hh b hb]; simp)), ?_⟩, fun b ha hb => ⟨ha, ?_⟩,
     ⟨by unfold Aligned; rw [hv, hcv]; omega, ?_⟩⟩
   · by_cases h16 : b.val = c.val + 16
     · exact Or.inr (own_sc16 P.lay hh hb h16)
@@ -409,7 +409,7 @@ theorem IoPre.mid {C : U64 → U64 → Prop}
         stR := P.stw.1
         stW := P.stw.2
         sc := P.gate (off := 3464#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])
-        max := by rw [hsc0]; exact P.cscacc.rd _ ⟨hmx.2.1, hmx.2.2⟩ hmx.1
+        max := by rw [hsc0]; exact P.cscacc.rd _ hmx.1 ⟨hmx.2.1, hmx.2.2⟩
         inq := (P.home (off := 3592#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1
         ib := P.gate (off := 3512#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])
         bs := fun sl h => hslot _ sl h (by simp [layout.tcb.SLOT_BUFFER]) },

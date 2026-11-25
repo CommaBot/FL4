@@ -199,8 +199,8 @@ theorem VmBase.scacc {c : U64} (hc : c ∈ Scs) (hcore : L.mem s (scCoreA c) = L
   have hw : ∀ b, InSC c (Z c) b → b.val ≠ c.val + 16 → WPerm (own K) (L.cpu s) (Locks s) (L.mem s) b := by
     intro b hb h16
     unfold WPerm; rw [own_sc P.lay.io hh hb h16]; exact hcore
-  refine ⟨fun b hb ha => ⟨ha, P.region_kernel (Or.inl (by rw [P.lay.io.scw _ _ hh b hb]; simp)), ?_⟩,
-    fun b hb ha => ⟨ha, ?_⟩, ⟨by unfold Aligned; rw [hv, hcv]; omega, ?_⟩⟩
+  refine ⟨fun b ha hb => ⟨ha, P.region_kernel (Or.inl (by rw [P.lay.io.scw _ _ hh b hb]; simp)), ?_⟩,
+    fun b ha hb => ⟨ha, ?_⟩, ⟨by unfold Aligned; rw [hv, hcv]; omega, ?_⟩⟩
   · by_cases h16 : b.val = c.val + 16
     · exact Or.inr (own_sc16 P.lay.io hh hb h16)
     · exact Or.inl (hw b hb h16)

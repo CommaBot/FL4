@@ -212,7 +212,7 @@ theorem kernel_entry_reachU2V [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
     fun w a1 hIh hFin => ?_, fun n c hct hU hFin => ?_, fun ad c ft hct hV hFin => ?_,
     fun v hct hv hFin => ?_, fun n hct hU hD hFF hFin => ?_⟩
   · have hE := kernel_entryJ42H (MR := MR) s a σ J hct hR hX hI hLF n c hn hflag hK hDL hFin hARI hA hnd hM hKD
-      hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI
+      hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX
     obtain ⟨⟨s', a'⟩, hv, σ', hy, hRJ, hM', hX', h1, h2⟩ := spec_exists hE
     rw [hv, WP.spec_ok]
     exact ⟨σ', hy, hRJ, hX', hM', h1, h2, fun hU hP => JReachU2.step n c hJ hct hn hv hy ⟨hRJ, hM'⟩ hU hP⟩
