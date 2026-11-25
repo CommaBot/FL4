@@ -36,14 +36,15 @@ def WkCase (st : machine.Store S) [L : LawfulStore st] (R W : U64 → Prop) (Lk 
   (L.epState X N = obj.NTFN_WAITING ∧ (L.epQ X N).head ≠ L.curW X ∧
     L.mem X (affA (L.epQ X N).head) = cpu ∧
     L.mem X (domA (L.epQ X N).head) = L.mem X (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN) ∧
-    (L.mem X (scA (L.epQ X N).head) = 0#u64 → L.mem X (ntfnScA N) = 0#u64)) ∨
+    (L.mem X (scA (L.epQ X N).head) = 0#u64 → L.mem X (ntfnScA N) = 0#u64) ∧
+    L.mem X (yieldA (L.epQ X N).head) = 0#u64) ∨
   (L.epState X N = obj.NTFN_IDLE ∧ L.mem X (ntfnBtA N) = t ∧ t ≠ 0#u64 ∧
     L.mem X (stA t) = sched.TS_BLOCKED_ON_RECV ∧ t ≠ L.curW X ∧ L.mem X (affA t) = cpu ∧
     L.mem X (domA t) = L.mem X (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN) ∧
     (L.mem X (scA t) = 0#u64 → L.mem X (ntfnScA N) = 0#u64) ∧ Lk (L.mem X (blockA t)) ∧
     (∀ k : U64, k.val < 16 → k.val % 8 = 0 →
       R (core.num.U64.wrapping_add (L.mem X (blockA t)) k) ∧ W (core.num.U64.wrapping_add (L.mem X (blockA t)) k)) ∧
-    (L.mem X (replyA t) ≠ 0#u64 → W (rTcbA (L.mem X (replyA t)))))
+    (L.mem X (replyA t) ≠ 0#u64 → W (rTcbA (L.mem X (replyA t)))) ∧ L.mem X (yieldA t) = 0#u64)
 
 end
 
@@ -204,7 +205,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac X2 ∧ TAgree st T Cs X X2 ∧ L.ksb X2 = L.ksb X ∧ L.cpu X2 = L.cpu X ∧
       ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Scs Z X X2 w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
-        L.mem X2 (stA w) = sched.TS_RUNNING := by
+        L.mem X2 (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, hBd, hXX, hSS, hSgX⟩ := hTX
   obtain ⟨E, EQ, hEW⟩ := hq.eps
@@ -219,7 +220,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     rw [hr, WP.spec_ok] at tg
     try simp only [WP.uncurry'_pair] at tg
     exact tg
-  rcases hwk with ⟨hwt, hcur, haf, hdom, hnd⟩ | ⟨hidle, hbt, ht0, hrecv, hcur, haf, hdom, hnd, hLkE, rwE, wRt⟩
+  rcases hwk with ⟨hwt, hcur, haf, hdom, hnd, hyl⟩ | ⟨hidle, hbt, ht0, hrecv, hcur, haf, hdom, hnd, hLkE, rwE, wRt, hyl⟩
   · -- `WAITING`
     refine ⟨wake_wait_fire ar a hTX' hNN hHN hAffSc kX cX kT hcur hac hwt haf hdom hnd rN wN rL wL rS wS lkL hLk
       nRW rCD hSW, fun X2 a2 hr => ?_⟩
@@ -230,7 +231,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     have hne : EQ N ≠ [] := fun h0 => (k5 N he h0).2 hHN hwt1
     obtain ⟨y0, ys, hys⟩ := List.exists_cons_of_ne_nil hne
     obtain ⟨w, ew⟩ : ∃ w, (L.epQ X N).head = w := ⟨_, rfl⟩
-    rw [ew] at hcur haf hdom hnd
+    rw [ew] at hcur haf hdom hnd hyl
     have hmem : w ∈ EQ N := by
       have : w = y0 := by rw [← ew, hqr.head, hys]; rfl
       rw [this, hys]; exact List.mem_cons_self
@@ -241,7 +242,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨dΩ, dN, dT⟩ := epfoot_nd (n := N) hq hEW he (fun y hy => hqr.mem y hy)
     exact ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
       (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin)),
-      hbl, haf, hcur, wrun⟩
+      hbl, haf, hcur, wrun, hyl⟩
   · -- idle-bound `Recv`
     obtain ⟨ep, heq⟩ : ∃ ep, L.mem X (blockA t) = ep := ⟨_, rfl⟩
     obtain ⟨r, hr⟩ : ∃ r, L.mem X (replyA t) = r := ⟨_, rfl⟩
@@ -272,7 +273,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
       obtain ⟨-, rv, -, -⟩ := rp_facts hXX.1 hrp
       exact ⟨hq.omega _ (hSgX.sub _ (hXX.1.tcbW hrp)), rv, hXX.1.rpSc r hrp⟩
-    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur, wrun⟩
+    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur, wrun, hyl⟩
     · intro o ho h8
       rintro (e | hf | ⟨hr0, e⟩ | e)
       · unfold faultA at e; exact node_ne_field hN ho htT ht' (by simp) e

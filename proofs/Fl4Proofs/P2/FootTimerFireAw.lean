@@ -176,15 +176,16 @@ theorem WkCase.tr {R W Lk : U64 → Prop} {cpu : U64} {X X' : S} {N t : U64}
     rw [stA_eq]; exact kT y hy 3328#u64 (by simp) (by simp)
   have kBl : ∀ y ∈ T, L.mem X' (blockA y) = L.mem X (blockA y) := fun y hy => kT y hy 3336#u64 (by simp) (by simp)
   have kRp : ∀ y ∈ T, L.mem X' (replyA y) = L.mem X (replyA y) := fun y hy => kT y hy 3360#u64 (by simp) (by simp)
-  rcases h with ⟨h1, h2, h3, h4, h5⟩ | ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
+  have kYl : ∀ y ∈ T, L.mem X' (yieldA y) = L.mem X (yieldA y) := fun y hy => kT y hy 3472#u64 (by simp) (by simp)
+  rcases h with ⟨h1, h2, h3, h4, h5, h6⟩ | ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
   · have hy := hwT h1
     left
-    rw [eS, eQ, kC, kD, kA _ hy, kDm _ hy, kSc _ hy, eNs]
-    exact ⟨h1, h2, h3, h4, h5⟩
+    rw [eS, eQ, kC, kD, kA _ hy, kDm _ hy, kSc _ hy, eNs, kYl _ hy]
+    exact ⟨h1, h2, h3, h4, h5, h6⟩
   · have ht := htT h3
     right
-    rw [eS, eB, kC, kD, kA _ ht, kDm _ ht, kSc _ ht, eNs, kSt _ ht, kBl _ ht, kRp _ ht]
-    exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
+    rw [eS, eB, kC, kD, kA _ ht, kDm _ ht, kSc _ ht, eNs, kSt _ ht, kBl _ ht, kRp _ ht, kYl _ ht]
+    exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
 
 /-- The release head is runnable. -/
 theorem rel_head_run {X : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X)
@@ -268,7 +269,8 @@ def AwFacts (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H :
   (∀ c ∈ Scs, c ≠ L.mem s (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem s b) ∧
   RelNone st Y ∧ FireStop st R Y now ∧ L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME) = now ∧
   w ∈ T ∧ Blocked (L.mem s (stA w)) ∧ L.mem s (affA w) = L.cpu s ∧ w ≠ L.curW s ∧
-  (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ L.mem Y (stA w) = sched.TS_RUNNING
+  (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ L.mem Y (stA w) = sched.TS_RUNNING ∧
+  L.mem s (yieldA w) = 0#u64
 
 end help
 
@@ -631,8 +633,9 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     rcases fireTail_wake (fire_ok_tail efo) pn0 hw1 with ⟨hwt, wok⟩ | ⟨hi, hbt, hrv, -, hep, wok⟩
     · obtain ⟨wne, mrh, dom, -, scn, -⟩ := wake_ok_true wok
       obtain ⟨-, aff, -, -⟩ := may_run_here_true mrh
-      rw [hpN, eN] at hwt wne aff dom scn
-      exact Or.inl ⟨hwt, by rw [hcur1]; exact wne, aff, dom, scn⟩
+      have yl := mrh_yield mrh
+      rw [hpN, eN] at hwt wne aff dom scn yl
+      exact Or.inl ⟨hwt, by rw [hcur1]; exact wne, aff, dom, scn, yl⟩
     · rw [hpTM] at hbt hrv wok
       obtain ⟨wne, mrh, dom, -, scn, -⟩ := wake_ok_true wok
       obtain ⟨-, aff, -, -⟩ := may_run_here_true mrh
@@ -645,7 +648,8 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       have eRp : L.mem s1 (replyA TM) = p.reply := by
         rw [← tp5, pe2]; unfold replyA; exact htcb1 hTMs.1 (K := 3360#u64) (by simp) (by simp)
       refine Or.inr ⟨hi, hbt, hne, hrv, by rw [hcur1]; exact wne, aff, dom, scn, by rw [eBl]; exact hLkE hep,
-        fun k hk h8 => by rw [eBl]; exact rwE hep k hk h8, fun h => by rw [eRp] at h ⊢; exact wRt h⟩
+        fun k hk h8 => by rw [eBl]; exact rwE hep k hk h8, fun h => by rw [eRp] at h ⊢; exact wRt h,
+        mrh_yield mrh⟩
   -- `WkCase` at every state `remove` may reach
   obtain ⟨Q3, R3, hq3⟩ := hT3.1
   have hCD : layout.ks.CUR_DOMAIN.val < 13568 := by simp [layout.ks.CUR_DOMAIN]
@@ -726,7 +730,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       (by rw [act_val]; omega) (by rw [act_val]; omega)]
     exact hact0
   have eN3 : L.mem s3 (boundA TM) = N := by rw [← eN]; exact htcb3 hTMs.1 (K := 3368#u64) (by simp) (by simp)
-  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur, wrun⟩ :=
+  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur, wrun, wyl⟩ :=
     fire_wk_step ar hA (s := s) a3 (t := TM) (Lk := Lk) (U := U) (s1 := s1) (cpu := L.cpu s) (ct := L.curW s)
       (p := p) hT3 hBA hNt hAffSc k3 c3 (fun y hy K hK h8 _ => htcb3 hy hK h8) tm3 hne hTMs.1 haffTM ct3
       (by rw [d3]; exact not_lt.mpr hdue1) eN3 hN0 hac3 hwk hpTM
@@ -825,7 +829,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
         (by unfold ctA; rw [eYN]; exact nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])) relY,
         awaken_loop_none Y _ relY])
   exact fire_tail_of_aw ar hawg haw (hTail Y aY w haw ⟨TY, kY, cY, nY, tY, scY, relY, hstY, ctY, hwT, wbl', waf',
-    wcur', actY, wrun⟩)
+    wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm⟩)
 
 end main
 

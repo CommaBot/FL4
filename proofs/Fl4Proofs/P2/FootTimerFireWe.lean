@@ -97,7 +97,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac Y ∧ FireStop st R Y now ∧ L.ksb Y = L.ksb s ∧ L.cpu Y = L.cpu s ∧
       ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Scs Z X Y w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
-        L.mem Y (stA w) = sched.TS_RUNNING := by
+        L.mem Y (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, -, hXX, -, -⟩ := hTX
   have hN := hq.nodes _ hq.cur
@@ -127,7 +127,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     hac1 (hwk X1 w31) rN wN rL wL rS wS lkL hLk nRW rCD hSW
   obtain ⟨⟨X2, a2⟩, eX2, -⟩ := spec_ex_fd
     (notification.send_signal.tagree hA X1 a N (L.mem X (tbA TM)) hT1 hNN (hNt N hNN) BA1.1 BA1.2)
-  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp, wbl, waf, wcur, wrun⟩ := ssig X2 a2 eX2
+  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp, wbl, waf, wcur, wrun, wyl⟩ := ssig X2 a2 eX2
   have hsg : (if L.mem X1 (boundA TM) != 0#u64 then
       notification.send_signal st ar X1 a (L.mem X1 (boundA TM)) (L.mem X (tbA TM)) else ok (X1, a)) =
       ok (X2, a2) := by
@@ -210,9 +210,10 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
       (node_ne_field hN2 (by simp [layout.node.REPROGRAM]) hwT (hT w hwT) (by simp)), ← stA_eq]
     exact wrun
   refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2, kY, wfacts.1,
-    wfacts.2.1, wfacts.2.2, rY⟩
+    wfacts.2.1, wfacts.2.2, rY, ?_⟩
   · rw [L.ksb_wr]; exact k2.trans kX1
   · rw [LawfulStore.cpu_wr]; exact c2.trans cX1
+  · rw [← wyl]; exact (tk1 w hwT 3472#u64 (by simp) (by simp) (Or.inl (by simp))).symm
 
 end main
 
