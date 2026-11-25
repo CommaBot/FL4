@@ -73,15 +73,15 @@ theorem clrT_wx (s : S) {t : U64} (hT : TcbPlaced T) (ht : t ∈ T) :
   have w := ((((writesIn_wr (st := st) (s := s) (v := 0#u64) (a (3560#u64) (by simp) (by simp))).trans
     (writesIn_wr (v := 0#u64) (a (3544#u64) (by simp) (by simp)))).trans
     (writesIn_wr (v := 0#u64) (a (3552#u64) (by simp) (by simp)))).trans
-    (writesIn_wr (v := 0#u64) (a (3568#u64) (by simp) (by simp)))).trans
-    (writesIn_wr (v := 0#u64) (a (3528#u64) (by simp) (by simp)))
+    (writesIn_wr (v := 0#u64) (a (3528#u64) (by simp) (by simp)))).trans
+    (writesIn_wr (v := 0#u64) (a (3568#u64) (by simp) (by simp)))
   refine w.mono fun b hb => ?_
   rcases hb with (((e | e) | e) | e) | e
   · exact ⟨3560#u64, by simp, by simp, e⟩
   · exact ⟨3544#u64, by simp, by simp, e⟩
   · exact ⟨3552#u64, by simp, by simp, e⟩
-  · exact ⟨3568#u64, by simp, by simp, e⟩
   · exact ⟨3528#u64, by simp, by simp, e⟩
+  · exact ⟨3568#u64, by simp, by simp, e⟩
 
 /-- What the tree code keeps of every thread but `t`: its deadline and its core bits. -/
 def TKeepO (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s s' : S) (t : U64) : Prop :=
