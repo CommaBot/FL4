@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRSt
 import Fl4Proofs.P2.FootTimerIrqRD
 import Fl4Proofs.P2.FootTimerIrqRB
 import Fl4Proofs.P2.FootTimerIrqRS
@@ -93,3 +94,5 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.rr_rel
 #print axioms Fl4Proofs.P2.dequeue_single_writes
 #print axioms Fl4Proofs.P2.rr_choose
+#print axioms Fl4Proofs.P2.sq_dt
+#print axioms Fl4Proofs.P2.rr_s3
