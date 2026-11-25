@@ -16,7 +16,8 @@ With the ownership map `OwnMap.own K`, at the entry state of an accepted run (`I
 
 Premises: `IrqLay` [J] (layout facts beyond `StLay`, as `OwnMap.RegionOK`, from P1's typed-heap disjointness: the
 IRQ state words, the kernel root word, the ASID table and pool words lie in no object; a notification of `Nt` is
-its region's; the current thread's slot cap words lie in its own TCB slots); `hAff` [J] (p2j `AffSc`, as
+its region's; the current thread's slot cap words (offsets below 192, its six TCB slots; p2lf gen14, was 256) lie in
+its own TCB slots); `hAff` [J] (p2j `AffSc`, as
 `st_rd_own`'s); `IrqEntK.lay` [J] / `asid` [J]; `hF` (the fire case, p2j's line).
 -/
 import Fl4Proofs.P2.FootTimerIrqLP
@@ -43,7 +44,7 @@ structure IrqLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt :
     ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
       Aligned (peAF (L.mem s (atAF (L.ksb s) hi)) lo) ∧ region K (peAF (L.mem s (atAF (L.ksb s) hi)) lo) = .none
   ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n
-  cs : ∀ k : U64, k.val < 256 → k.val % 32 < 16 → ∃ p, region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧
+  cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p, region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧
     TcbSlot K p ∧ (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16
 
 theorem rperm_none {lk : U64 → Prop} {m : U64 → U64} {x : U64} (h : region K x = .none) (c : U64) :

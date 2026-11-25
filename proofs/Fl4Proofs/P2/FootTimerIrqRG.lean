@@ -622,7 +622,7 @@ theorem irq_accG_rr_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.G
   have rD : R (domA (L.curW s)) := cR 3432#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
   have rP : R (prioA (L.curW s)) := cR 3448#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
   -- the current thread's CNode slot words
-  have slot8 : ∀ (i : U64) {sl : U64}, (core.num.U64.wrapping_mul i layout.cte.SIZE).val + 8 < 256 →
+  have slot8 : ∀ (i : U64) {sl : U64}, (core.num.U64.wrapping_mul i layout.cte.SIZE).val + 8 < 192 →
       (core.num.U64.wrapping_mul i layout.cte.SIZE).val % 32 = 0 → obj.Tcb.slot (L.curW s) i = ok sl →
       R sl ∧ R (core.num.U64.wrapping_add sl 8#u64) := by
     intro i sl hK h8 e
