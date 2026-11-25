@@ -1,7 +1,7 @@
 import Fl4Proofs.P2.FootTimerSetMv
 import Fl4Proofs.P2.FootTimerIrqH
 import Fl4Proofs.P2.FootTimerIrqW
-import Fl4Proofs.P2.FootTimerIrqQ
+import Fl4Proofs.P2.FootTimerIrqQF
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -19,3 +19,5 @@ import Fl4Proofs.P2.FootTimerIrqQ
 #print axioms Fl4Proofs.P2.rel_hw
 #print axioms Fl4Proofs.P2.action_hw
 #print axioms Fl4Proofs.P2.irq_quiet_schedule
+#print axioms Fl4Proofs.P2.activate_fp
+#print axioms Fl4Proofs.P2.irq_quiet_foot
