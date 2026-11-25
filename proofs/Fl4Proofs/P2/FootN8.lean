@@ -381,6 +381,91 @@ theorem notification.maybe_donate_sched_context.ff {A : Type _} {ar : machine.Ar
     · exact ok0
   · exact ok0
 
+/-- **`signal_tail` in `FFoot`** (P1 `signal_tail.FK`): the woken thread's
+badge, the donation, the switch-to and the sporadic unblock. -/
+theorem signal_tail.ff {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s2 : S) (a1 : A)
+    (dst n badge : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h2 : SchedQueuesInv st T Cs Ω H s2 Q R) (hB2 : BoundInv st T Ac s2) (hX2 : XInv st T Cs Ω Sg Rp Scs Nt Z s2)
+    (hS2 : SCsOK st T Ω Sg Scs Z Ac s2) (hSg2 : SgOK st Ω Sg s2) (hd : dst ∈ T) (hn : n ∈ Nt)
+    (dq : (L.mem s2 (inqA dst) &&& sched.Q_QUEUED) = 0#u64) (dr : (L.mem s2 (inqA dst) &&& sched.Q_RELEASE) = 0#u64)
+    (da : L.actionW s2 ≠ dst) (di : L.idleW s2 ≠ dst) (dR : ¬ BlockedR (L.mem s2 (stA dst)))
+    (hdK : dst ∉ Kp) (hdI : dst ∉ Il) (hKsS : ∀ k ∈ Ks, k ∈ Scs) (hKs : ∀ k ∈ Ks, L.mem s2 (scTcbA k) ≠ 0#u64)
+    (hKa : ActOut st T Kp s2) :
+    (do
+      let s3 ← obj.Tcb.set_reg st dst s2 layout.reg.BADGE badge
+      let (s4, a2) ← notification.maybe_donate_sched_context st ar s3 a1 dst n
+      let b1 ← sched.is_schedulable st s4 dst
+      let s5 ← if b1 then sched.possible_switch_to st s4 dst else ok s4
+      let s6 ← notification.unblock_sporadic st s5 dst
+      ok (s6, a2)) ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+        FFoot st Kp Il Ks T Cs Sg Scs Z Es U s2 s' ⦄ := by
+  have hT := h2.tcbs
+  have hta := hT dst hd
+  have hfa : Aligned (core.num.U64.wrapping_add dst 256#u64) := field_aligned hta (by simp) (by simp)
+  have sg3 : ∀ b ∈ Sg, L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) b = L.mem s2 b := fun b hb =>
+    L.mem_wr_ne hfa (h2.omega _ (hSg2.sub _ hb)).1 (out_ne_field (h2.omega _ (hSg2.sub _ hb)) hd hta (by simp))
+  refine WP.spec_bind (obj.Tcb.set_reg.badge s2 dst badge hta) fun s3 e3 => ?_
+  subst e3
+  obtain ⟨h3, hB3, hX3, hS3, hSg3⟩ := badge_all (v := badge) h2 hB2 hX2 hS2 hSg2 hd
+  have F3 : FootN st Kp True T Cs Sg Scs Z Es s2 (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) :=
+    footN_field hT h2.nodes h2.cur hd (by simp) (by simp) (by simp) (by simp)
+  have iq3 : L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) (inqA dst) = L.mem s2 (inqA dst) := by
+    rw [inqA_eq]
+    exact L.mem_wr_ne (field_aligned hta (by simp) (by simp)) (field_aligned hta (by simp) (by simp))
+      (fun e => field_ne (K1 := 256#u64) (K2 := 3592#u64) hta hta (by simp) (by simp) (fun _ => by simp)
+        (UScalar.eq_of_val_eq e))
+  have ea3 : L.actionW (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) = L.actionW s2 :=
+    act_wr_field (h2.nodes _ h2.cur) hd hta rfl (by simp) (by simp)
+  have ei3 : L.idleW (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) = L.idleW s2 := by
+    unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
+    exact L.mem_wr_ne (field_aligned hta (by simp) (by simp))
+      (nodeAt_aligned (h2.nodes _ h2.cur) (by rw [idle8]; omega) (by rw [idle8]))
+      (fun e => node_ne_field (K := 256#u64) (h2.nodes _ h2.cur) (by rw [idle8]; omega) hd hta (by simp)
+        (UScalar.eq_of_val_eq e).symm)
+  have sc3 : L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) (scA dst) = L.mem s2 (scA dst) := by
+    rw [scA_eq]
+    exact L.mem_wr_ne (field_aligned hta (by simp) (by simp)) (field_aligned hta (by simp) (by simp))
+      (fun e => field_ne (K1 := 256#u64) (K2 := 3464#u64) hta hta (by simp) (by simp) (fun _ => by simp)
+        (UScalar.eq_of_val_eq e))
+  have hsA3 : L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) (scA dst) = 0#u64 →
+      ¬ Sch st (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) dst := fun h0 hS => by
+    rw [sc3] at h0
+    rcases Sch.wr_field h2 hd (by simp) (by simp) (by simp) hd hS with e | e | e | e | ⟨e1, e2⟩ | e
+    · exact e dq
+    · exact e dr
+    · exact da e
+    · exact di e
+    · exact hB2.resume e1 (by rw [e2]; exact h0)
+    · exact dR e
+  have hKs3 : ∀ k ∈ Ks, L.mem (L.wr s2 (core.num.U64.wrapping_add dst 256#u64) badge) (scTcbA k) ≠ 0#u64 :=
+    fun k hk => by rw [sg3 _ (scSg hX2.1 k (hKsS k hk)).2]; exact hKs k hk
+  refine WP.spec_bind (notification.maybe_donate_sched_context.ff (Kp := Kp) (Il := Il) (Ks := Ks) (Es := Es)
+    (U := U) hA _ a1 dst n Q R h3 hB3 hX3 hS3 hSg3 hd
+    (by rw [iq3]; exact dq) (by rw [iq3]; exact dr) (by rw [ea3]; exact da) (by rw [ei3]; exact di)
+    (ntfn_sc_ok hX3 hn hsA3) hdK hdI hKs3) ?_
+  rintro ⟨s4, a2⟩ ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4⟩, F4⟩
+  try simp only [WP.uncurry'_pair]
+  have hKa4 : ActOut st T Kp s4 := F4.out (hKa.step (AcK.of_eq ea3))
+  step with sched.is_schedulable.spec' as ⟨b1, hb1⟩
+  refine WP.spec_bind (Pₘ := fun s5 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s5 ∧
+      FootN st Kp True T Cs Sg Scs Z Es s4 s5) ?_ ?_
+  · split
+    · rename_i hb
+      refine WP.spec_mono (WP.spec_and (sched.possible_switch_to.sch s4 dst Q4 R4 h4 hB4 hSg4 hd (hb1 hb).1
+        (fun _ => (hS4.act _ (hX4.2.2.bound dst hd (hb1 hb).2.1).1).2 (hb1 hb).2.2.2))
+        (sched.possible_switch_to.kwN (Sg := Sg) (Kp := Kp) (Nd := True) (Scs := Scs) (Z := Z) (Es := Es) s4 dst h4
+          hd hdK hKa4)) fun s5 hh => ?_
+      obtain ⟨⟨p5, -, -⟩, k5⟩ := hh
+      exact ⟨⟨p5.inv, p5.bnd, hX4.fr p5.fr, hS4.fr p5.fr, hSg4.fr p5.fr⟩, k5⟩
+    · exact (WP.spec_ok _).2 ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4⟩, FootN.refl _⟩
+  rintro s5 ⟨⟨⟨Q5, R5, h5⟩, hB5, hX5, hS5, hSg5⟩, F5⟩
+  refine WP.spec_bind (WP.spec_and (endpoint.unblock_sporadic.all s5 dst h5 hB5 hX5 hS5 hSg5 hd)
+    (endpoint.unblock_sporadic.kwN (Sg := Sg) (Kp := Kp) (Nd := True) (Scs := Scs) (Z := Z) (Es := Es) s5 dst h5
+      hX5 hS5 hd)) ?_
+  rintro s6 ⟨⟨h6, hB6, hX6, hS6, hSg6, -⟩, F6⟩
+  exact (WP.spec_ok _).2 ⟨⟨⟨Q5, R5, h6⟩, hB6, hX6, hS6, hSg6⟩,
+    (FootN.ff F3).trans (F4.trans (FootN.ff (F5.trans F6)))⟩
+
 end
 
 end Fl4Proofs.P2.Stall

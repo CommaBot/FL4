@@ -8,3 +8,4 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.AllCores.step2
 #print axioms Fl4Proofs.P2.Stall.CoreInv.keep2
 #print axioms Fl4Proofs.P2.Stall.AllCores.sched
+#print axioms Fl4Proofs.P2.Stall.signal_tail.ff
