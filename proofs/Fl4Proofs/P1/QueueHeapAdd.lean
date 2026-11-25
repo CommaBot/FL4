@@ -336,7 +336,7 @@ theorem BlkOK.addNtfn (A : AddOK st H N .ntfn Cs s) (hH : HeapOK H) {Ac : Set U6
       hO.scDisj, hO.rpSc, fun c hc => fS (hO.repW c hc), fun n hn => ?_, fun n hn r hr => ?_, fun n hn c hc => ?_,
       fun n hn => ?_, fun n hn => ?_, fun n hn => ?_, fun n hn r hr => ?_, fun n hn c hc => ?_,
       fun c hc => fS (hO.snW c hc), fun c hc => fS (hO.syW c hc), fun c hc => fS (hO.mxW c hc),
-      fun n hn => ?_, hO.rp0⟩
+      fun n hn => ?_, hO.rp0, hO.sc0⟩
     all_goals rcases (NT n).1 hn with hn | hn
     · exact fS (hO.ntW n hn)
     · exact newF n hn _ (Or.inl rfl)
@@ -508,7 +508,7 @@ theorem BlkOK.addReply (A : AddOK st H N .reply Cs s) (hH : HeapOK H) {Ac : Set 
       fun c hc => fS (hO.repW c hc), fun n hn => fS (hO.ntW n hn), fun n hn r hr => ?_, hO.ntSc, hO.ntAl, hO.ntP,
       fun n hn => ⟨fS (hO.ntB n hn).1, fS (hO.ntB n hn).2⟩, fun n hn r hr => ?_, hO.ntOSc,
       fun c hc => fS (hO.snW c hc), fun c hc => fS (hO.syW c hc), fun c hc => fS (hO.mxW c hc), hO.nt0,
-      fun r hr => ?_⟩
+      fun r hr => ?_, hO.sc0⟩
     all_goals rcases (RP r).1 hr with hr | hr
     · exact hO.rp r hr
     · exact rP r hr

@@ -121,7 +121,8 @@ theorem ObjsOK.of_heap {H : Heap} (hH : HeapOK H) (h0 : H 0#u64 = none) (s : S) 
       nfr n hn _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]) (Or.inr (Or.inr rfl))⟩,
     fun n hn r hr => ?_, fun n hn c ⟨z, hz⟩ => ?_, hsnW, hsyW, hmxW,
     fun n hn e => (by subst e; have : H 0#u64 = some .ntfn := hn; rw [h0] at this; cases this),
-    fun r hr e => (by subst e; have : H 0#u64 = some .reply := hr; rw [h0] at this; cases this)⟩
+    fun r hr e => (by subst e; have : H 0#u64 = some .reply := hr; rw [h0] at this; cases this),
+    fun c ⟨z, hz⟩ e => (by subst e; rw [h0] at hz; cases hz)⟩
   rotate_right 6
   · exact nfr n hn _ (by simp [layout.ntfn.SC]) (by simp [layout.ntfn.SC]) (Or.inl rfl)
   · obtain ⟨e, h1, h2⟩ := nv n hn

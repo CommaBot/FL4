@@ -93,6 +93,8 @@ structure ObjsOK (st : machine.Store S) [L : LawfulStore st] (Ω Sg Rp Scs Nt : 
   nt0 : ∀ n ∈ Nt, n ≠ 0#u64
   /-- Nor are reply objects. -/
   rp0 : ∀ r ∈ Rp, r ≠ 0#u64
+  /-- Nor are SCs (as `TcbAddr.ne0` for TCBs). -/
+  sc0 : ∀ c ∈ Scs, c ≠ 0#u64
 
 /-! ## Addresses -/
 
@@ -118,7 +120,7 @@ theorem ObjsOK.nextW (h : ObjsOK st Ω Sg Rp Scs Nt Z s) {r : U64} (hr : r ∈ R
 
 theorem ObjsOK.ksb {s s' : S} (h : ObjsOK st Ω Sg Rp Scs Nt Z s) : ObjsOK st Ω Sg Rp Scs Nt Z s' :=
   ⟨h.rp, h.sc, h.rpW, h.scW, h.fixW, h.scDisj, h.rpSc, h.repW, h.ntW, h.ntRp, h.ntSc, h.ntAl, h.ntP,
-    h.ntB, h.ntORp, h.ntOSc, h.snW, h.syW, h.mxW, h.nt0, h.rp0⟩
+    h.ntB, h.ntORp, h.ntOSc, h.snW, h.syW, h.mxW, h.nt0, h.rp0, h.sc0⟩
 
 theorem sc_lo {c : U64} {z : Nat} (hP : Placed c z) (hz : 7 ≤ z) :
     c.val % 8 = 0 ∧ 128 ≤ 2 ^ z ∧ c.val + 2 ^ z ≤ 2 ^ 64 := by

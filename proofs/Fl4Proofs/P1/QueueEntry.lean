@@ -121,6 +121,21 @@ theorem CurStep.ofDel {Ac : Set U64} {s s' : S} {p : U64} (hcs : L.cscW s' = L.c
 theorem EntryInv.bxi {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1.sg, h.2.2.2.1⟩
 
+/-- **The current SC is active at an entry state** (`EntryInv`, established by
+`sched.schedule.entry` at every kernel exit and, for reachable states, by P3's
+`kernel_entry_entryInvU29`), for the same `Ac` as the entry's `BXI`. `BXI` alone
+does not give it: inside an entry the current SC may be inactive. -/
+theorem EntryInv.csc {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.cscW s ∈ Ac := h.2.2.2.2.2.1
+
+/-- The current SC is an SC (`ScExtra.cur`), at an entry state. -/
+theorem EntryInv.cscS {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.cscW s ∈ Scs := h.2.2.1.2.2.cur
+
+/-- The current thread's SC, when bound, is the current SC, at an entry state. -/
+theorem EntryInv.hcsc {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)) := h.2.2.2.2.2.2.2
+
 /-- A write to a current-node word other than the scheduler's. -/
 theorem nodew_bxc {Ac : Set U64} {s : S} {o v : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (ho : LowFree o.val) (h24 : o.val ≠ 24) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) :
