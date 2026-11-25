@@ -4,12 +4,15 @@
 * `check_budget_suf`: with a sufficient budget `check_budget` returns `(true, s, a)` (one domain: never expired);
 * `handle_interrupt_timer`: for an IRQ in range with state `IRQ_TIMER` the handler sets the node's `REPROGRAM` to 1
   and `ARMED` to 0, then acks the IRQ (`Arch`); `handle_interrupt_timer_writes`: as a `WritesIn` (this core's node
-  words 56 and 80 only).
+  words 56 and 80 only);
+* `nodue_hw`, `action_hw`, `rel_hw`: no timer due, the scheduler action and no release due survive those writes
+  (as `nodue_keep` / `rel_keep` for SetTimer's writes), for `schedule_resume` at the `schedule` state.
 
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerIrqW
 import Fl4Proofs.P2.FootTimerIrqH
+import Fl4Proofs.P2.FootTimerSet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2
@@ -74,5 +77,130 @@ theorem handle_interrupt_timer_writes [L : LawfulStore st] {T : Set U64} {s s2 s
   exact (w1.trans w2).mono fun b hb => by rcases hb with h | h <;> exact h
 
 end
+
+/-! ## The schedule state's checks across the handler's writes -/
+
+section keep
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+
+/-- The handler's write set at `s0`: this core's node words 56 (`REPROGRAM`) and 80 (`ARMED`). -/
+abbrev HW (st : machine.Store S) [L : LawfulStore st] (s0 : S) : U64 → Prop :=
+  L.NodeOf s0 (L.cpu s0) (fun o => o = 56 ∨ o = 80)
+
+theorem hw_tcb {s0 s : S} (hT : TcbPlaced T) (hN : NodePlaced st T s0 (L.cpu s0)) (w : WritesIn st s0 s (HW st s0))
+    {y K : U64} (hy : y ∈ T) (hK : K.val < 4096) (h8 : K.val % 8 = 0) :
+    L.mem s (core.num.U64.wrapping_add y K) = L.mem s0 (core.num.U64.wrapping_add y K) := by
+  refine w.mem_eq (field_aligned (hT y hy) hK h8) ?_
+  rintro ⟨o, -, ho, -, e⟩
+  exact tcb_node_ne hN hy (hT y hy) hK ho e
+
+theorem hw_node {s0 s : S} (hN : NodePlaced st T s0 (L.cpu s0)) (w : WritesIn st s0 s (HW st s0)) {o : U64}
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hn : o.val ≠ 56 ∧ o.val ≠ 80) :
+    L.mem s (L.nodeAt s0 (L.cpu s0) o) = L.mem s0 (L.nodeAt s0 (L.cpu s0) o) := by
+  refine w.mem_eq (nodeAt_aligned hN ho h8) ?_
+  rintro ⟨o', ho', ho2, -, e⟩
+  have e' := congrArg UScalar.val e
+  rw [nodeAt_val hN ho, nodeAt_val hN ho2] at e'
+  omega
+
+theorem hw_outside {s0 s : S} {b : U64} (hN : NodePlaced st T s0 (L.cpu s0)) (hcC : L.cpu s0 ∈ Cs)
+    (w : WritesIn st s0 s (HW st s0)) (hb : OutsideObjs st T Cs s0 b) : L.mem s b = L.mem s0 b := by
+  refine w.mem_eq hb.1 ?_
+  rintro ⟨o', -, ho2, -, e⟩
+  exact out_ne_node hb hcC hN ho2 (congrArg UScalar.val e).symm
+
+/-- `NoDueT` across the handler's writes. -/
+theorem nodue_hw {X Y : S} {now : U64} (hT : TcbPlaced T) (hN : NodePlaced st T X (L.cpu X))
+    (hm : Tz T (L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN))) (w : WritesIn st X Y (HW st X))
+    (h : NoDueT st X now) : NoDueT st Y now := by
+  unfold NoDueT at h ⊢
+  have eA : L.nodeAt Y (L.cpu Y) layout.node.TIMER_MIN = L.nodeAt X (L.cpu X) layout.node.TIMER_MIN := by
+    rw [w.2.1, nodeAt_of_ksb w.1]
+  have em : L.mem Y (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN) =
+      L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN) :=
+    hw_node hN w (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])
+      (by simp [layout.node.TIMER_MIN])
+  rw [eA, em]
+  rcases hm with h0 | hmT
+  · exact Or.inl h0
+  rcases h with h | h
+  · exact Or.inl h
+  right
+  have e : L.mem Y (tdA (L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN))) =
+      L.mem X (tdA (L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN))) :=
+    hw_tcb (K := 3528#u64) hT hN w hmT (by simp) (by simp)
+  rw [e]; exact h
+
+/-- The scheduler action across the handler's writes. -/
+theorem action_hw {X Y : S} (hN : NodePlaced st T X (L.cpu X)) (w : WritesIn st X Y (HW st X)) :
+    L.actionW Y = L.actionW X := by
+  unfold LawfulStore.actionW
+  rw [w.2.1, nodeAt_of_ksb w.1]
+  exact hw_node hN w (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
+    (by simp [layout.node.SCHED_ACTION])
+
+/-- `RelNone` across the handler's writes, under the invariant (as `rel_keep`). -/
+theorem rel_hw {X Y : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X) (w : WritesIn st X Y (HW st X))
+    (h : RelNone st X) : RelNone st Y := by
+  obtain ⟨⟨Q, R, hq⟩, hB, hX, -, hS⟩ := hI
+  have hT := hq.tcbs
+  have hcC := hq.cur
+  have hN := hq.nodes _ hcC
+  have eA : ∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt X (L.cpu X) o := fun o => by rw [w.2.1, nodeAt_of_ksb w.1]
+  have eh : L.mem Y (L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD) =
+      L.mem X (L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD) :=
+    hw_node hN w (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])
+      (by simp [layout.node.RELEASE_HEAD])
+  have ect : L.curTime Y = L.curTime X := by
+    unfold LawfulStore.curTime LawfulStore.nodeA
+    rw [eA]
+    exact hw_node hN w (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
+      (by simp [layout.node.CUR_TIME])
+  unfold RelNone at h ⊢
+  rw [ect, eA, eh]
+  generalize hh : L.mem X (L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD) = h0 at h ⊢
+  rcases h with h | h
+  · exact Or.inl h
+  by_cases h00 : h0 = 0#u64
+  · exact Or.inl h00
+  right
+  have hrel := hq.release _ hcC
+  have hmem : h0 ∈ R (L.cpu X) := by
+    have e := hrel.head
+    change L.mem X (L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD) = _ at e
+    rw [hh] at e
+    cases hR : R (L.cpu X) with
+    | nil => rw [hR] at e; exact absurd e h00
+    | cons x xs => rw [hR] at e; simp only [List.headD_cons] at e; subst e; simp
+  have hhT : h0 ∈ T := hq.memTR hcC hmem
+  have esc : L.mem Y (scA h0) = L.mem X (scA h0) := by
+    rw [scA_eq]
+    exact hw_tcb hT hN w hhT (by simp) (by simp)
+  rw [esc]
+  have haff : L.mem X (affA h0) = L.cpu X := hq.inR _ hcC h0 hmem
+  have hrb : (L.mem X (inqA h0) &&& sched.Q_RELEASE) ≠ 0#u64 := (hq.released h0 hhT).2 (by rw [haff]; exact hmem)
+  have hsc0 : L.mem X (scA h0) ≠ 0#u64 := hB.r h0 hhT hrb
+  have hscS : L.mem X (scA h0) ∈ Scs := (hX.2.2.bound h0 hhT hsc0).1
+  have hAc : L.mem X (scA h0) ∈ Ac := hB.sact h0 hhT (Or.inr (Or.inl hrb)) hsc0
+  generalize hsc : L.mem X (scA h0) = sc at h hscS hAc ⊢
+  have hmax : L.rmax X sc ≠ 0#u64 := (hS.act sc hscS).1 hAc
+  obtain ⟨hwf, -, hin⟩ := hS.all sc hscS
+  have wf := hwf hmax
+  obtain ⟨h8, hm, hfit⟩ := wf.bounds
+  obtain ⟨-, -, -, hhd, -, hri⟩ := wf.inside
+  have keep : ∀ b, Aligned b → InSC sc (Z sc) b → L.mem Y b = L.mem X b := fun b hb hi =>
+    hw_outside hN hcC w (hq.omega b (hS.sub b (hin b hb hi)))
+  have hmin := wf.min_le
+  simp at hmin
+  have e1 : L.rhead Y sc = L.rhead X sc := keep _ (by unfold Aligned; rw [hhd]; omega) ⟨by rw [hhd]; omega, by rw [hhd]; omega⟩
+  obtain ⟨r1, r2, r3⟩ := hri (L.rhead X sc) wf.head_lt
+  have e2 : L.mem Y (rtA sc (L.rhead X sc)) = L.mem X (rtA sc (L.rhead X sc)) :=
+    keep _ (by unfold Aligned; rw [r1]; omega) ⟨by rw [r1]; omega, by rw [r1]; omega⟩
+  simp only [LawfulStore.refill] at h ⊢
+  rw [e1, e2]
+  exact h
+
+end keep
 
 end Fl4Proofs.P2

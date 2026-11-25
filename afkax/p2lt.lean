@@ -15,3 +15,6 @@ import Fl4Proofs.P2.FootTimerIrqQ
 #print axioms Fl4Proofs.P2.check_budget_suf
 #print axioms Fl4Proofs.P2.handle_interrupt_timer
 #print axioms Fl4Proofs.P2.handle_interrupt_timer_writes
+#print axioms Fl4Proofs.P2.nodue_hw
+#print axioms Fl4Proofs.P2.rel_hw
+#print axioms Fl4Proofs.P2.action_hw
