@@ -1645,3 +1645,5 @@ import Fl4Proofs.P2.FootTimerGELoop
 import Fl4Proofs.P2.FootTimerGERem
 import Fl4Proofs.P2.FootTimerGEIns
 import Fl4Proofs.P2.AccessVmLP
+import Fl4Proofs.P2.OnceGuard
+import Fl4Proofs.P2.AccessIoLP
