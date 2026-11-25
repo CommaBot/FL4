@@ -1115,29 +1115,12 @@ theorem layout.tcb.END.p0  :
     objects.init_fpu machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold objects.init_fpu; p0_auto
 
-theorem vspace.HIGH_L1_FIRST.p0  :
-    vspace.HIGH_L1_FIRST ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.vspace.HIGH_L1_FIRST.spec (fun _ _ => trivial)
-
-theorem vspace.HIGH_L1_END.p0  :
-    vspace.HIGH_L1_END ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.vspace.HIGH_L1_END.spec (fun _ _ => trivial)
-
-@[step] theorem vspace.init_high_vspace_loop0.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (base : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    vspace.init_high_vspace_loop0 machineStoreInst machineArchInst s a base i ⦃ _ => True ⦄ := by
-  unfold vspace.init_high_vspace_loop0
+@[step] theorem vspace.init_high_vspace_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (base : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.init_high_vspace_loop machineStoreInst machineArchInst s a base i ⦃ _ => True ⦄ := by
+  unfold vspace.init_high_vspace_loop
   apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => vspace.HIGH_L0_INDEX.val - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
-    unfold vspace.init_high_vspace_loop0.body
-    p0_body
-  · trivial
-
-@[step] theorem vspace.init_high_vspace_loop1.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (l1 : Std.U64) (j : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    vspace.init_high_vspace_loop1 machineStoreInst machineArchInst s a l1 j ⦃ _ => True ⦄ := by
-  unfold vspace.init_high_vspace_loop1
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 512 - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold vspace.init_high_vspace_loop1.body
+    unfold vspace.init_high_vspace_loop.body
     p0_body
   · trivial
 
@@ -3264,6 +3247,14 @@ theorem vspace.MAIR.p0  :
     vspace.MAIR ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.vspace.MAIR.spec (fun _ _ => trivial)
 
+theorem vspace.HIGH_L1_FIRST.p0  :
+    vspace.HIGH_L1_FIRST ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vspace.HIGH_L1_FIRST.spec (fun _ _ => trivial)
+
+theorem vspace.HIGH_L1_END.p0  :
+    vspace.HIGH_L1_END ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vspace.HIGH_L1_END.spec (fun _ _ => trivial)
+
 @[step] theorem vspace._.p0  :
     vspace._ ⦃ _ => True ⦄ := by
   unfold vspace._; p0_auto
@@ -3416,6 +3407,8 @@ theorem vspace.MAIR.p0  :
     -- the pair's `let` is `uncurry _ (fs, b)` (Aeneas): unfold it to its body
     simp only [Aeneas.Std.uncurry_apply_pair]
     p0_structural
+
+-- The cap comparison steps with Specs.lean's `capability.Cap.ne_total`.
 
 @[step] theorem vspace.decode_page_flush.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (f : vspace.FrameCap) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_page_flush machineStoreInst machineArchInst s a lbl length f buf ⦃ _ => True ⦄ := by
@@ -4450,6 +4443,98 @@ theorem layout.ks.SIZE.p0  :
     localtimer.handle_timer_irq_local machineStoreInst machineArchInst s a irq p ⦃ _ => True ⦄ := by
   unfold localtimer.handle_timer_irq_local; p0_split
 
+theorem localvm.MAX_VM_LOCKS.p0  :
+    localvm.MAX_VM_LOCKS ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.localvm.MAX_VM_LOCKS.spec (fun _ _ => trivial)
+
+@[step] theorem localvm._.p0  :
+    localvm._ ⦃ _ => True ⦄ := by
+  unfold localvm._; p0_auto
+
+@[step] theorem localvm.VmLocks.Insts.CoreCloneClone.clone.p0 (self : localvm.VmLocks) :
+    localvm.VmLocks.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold localvm.VmLocks.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem localvm.vm_locks.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localvm.vm_locks machineStoreInst s vc ⦃ _ => True ⦄ := by
+  unfold localvm.vm_locks; p0_auto
+
+@[step] theorem localvm.planned.p0 (p : localtimer.TimerIrqPlan) (i : Std.Usize) :
+    localvm.planned p i ⦃ _ => True ⦄ := by
+  unfold localvm.planned; p0_auto
+
+@[step] theorem localvm.vm_timer_locks.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (p : localtimer.TimerIrqPlan) (hS : StoreTotal machineStoreInst) :
+    localvm.vm_timer_locks machineStoreInst s vc p ⦃ _ => True ⦄ := by
+  unfold localvm.vm_timer_locks; p0_auto
+
+@[step] theorem localvm.vcpu_locks.p0 (vc : Std.U64) :
+    localvm.vcpu_locks vc ⦃ _ => True ⦄ := by
+  unfold localvm.vcpu_locks; p0_auto
+
+@[step] theorem localvm.current_vm_ok.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (ct : obj.Tcb) (csc : obj.Sc) (hS : StoreTotal machineStoreInst) :
+    localvm.current_vm_ok machineStoreInst s cpu ct csc ⦃ _ => True ⦄ := by
+  unfold localvm.current_vm_ok; p0_split
+
+@[step] theorem localvm.awaken_quiet.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (now : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localvm.awaken_quiet machineStoreInst s cpu now ⦃ _ => True ⦄ := by
+  unfold localvm.awaken_quiet; p0_auto
+
+@[step] theorem localvm.ntfn_quiet.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localvm.ntfn_quiet machineStoreInst s n ⦃ _ => True ⦄ := by
+  unfold localvm.ntfn_quiet; p0_auto
+
+@[step] theorem localvm.finish.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.finish machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
+  unfold localvm.finish; p0_auto
+
+@[step] theorem localvm.syscall_prefix.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (ct : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.syscall_prefix machineStoreInst machineArchInst s a ct ⦃ _ => True ⦄ := by
+  unfold localvm.syscall_prefix; p0_auto
+
+@[step] theorem localvm.run_vcpu.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    localvm.run_vcpu machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold localvm.run_vcpu; p0_auto
+
+@[step] theorem localvm.vm_running.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ct : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    localvm.vm_running machineStoreInst s ct ⦃ _ => True ⦄ := by
+  unfold localvm.vm_running; p0_auto
+
+@[step] theorem localvm.handle_vm_timer_irq_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (p : localtimer.TimerIrqPlan) (n : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_vm_timer_irq_local machineStoreInst machineArchInst s a irq p n ⦃ _ => True ⦄ := by
+  unfold localvm.handle_vm_timer_irq_local; set_option maxHeartbeats 4000000 in p0_structural
+
+@[step] theorem localvm.cur_vcpu.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
+    localvm.cur_vcpu machineStoreInst s ⦃ _ => True ⦄ := by
+  unfold localvm.cur_vcpu; p0_auto
+
+@[step] theorem localvm.is_vm_syscall.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (number : Std.I64) (hS : StoreTotal machineStoreInst) :
+    localvm.is_vm_syscall machineStoreInst s t number ⦃ _ => True ⦄ := by
+  unfold localvm.is_vm_syscall; p0_auto
+
+@[step] theorem localvm.vcpu_guest.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localvm.vcpu_guest machineStoreInst s vc ⦃ _ => True ⦄ := by
+  unfold localvm.vcpu_guest; p0_auto
+
+@[step] theorem syscall.error_mrs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
+    syscall.error_mrs machineStoreInst s t buf e ⦃ _ => True ⦄ := by
+  unfold syscall.error_mrs; p0_auto
+
+@[step] theorem syscall.reply_error.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
+    syscall.reply_error machineStoreInst s t e ⦃ _ => True ⦄ := by
+  unfold syscall.reply_error; p0_split
+
+@[step] theorem localvm.handle_arm_vcpu_run_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (slot : obj.Slot) (vc : Std.U64) (n : Std.U64) (hw_ok : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_arm_vcpu_run_local machineStoreInst machineArchInst s a number slot vc n hw_ok ⦃ _ => True ⦄ := by
+  unfold localvm.handle_arm_vcpu_run_local; set_option maxHeartbeats 4000000 in p0_structural
+
+@[step] theorem localvm.arm_vm_entry_ready.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localvm.arm_vm_entry_ready machineStoreInst s n ⦃ _ => True ⦄ := by
+  unfold localvm.arm_vm_entry_ready; p0_auto
+
+@[step] theorem localvm.handle_arm_vcpu_run_exit_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (stop : Std.U64) (w1 : Std.U64) (w2 : Std.U64) (w3 : Std.U64) (hvc : Option (obj.Tcb × Std.U64)) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_arm_vcpu_run_exit_local machineStoreInst machineArchInst s a vc stop w1 w2 w3 hvc ⦃ _ => True ⦄ := by
+  unfold localvm.handle_arm_vcpu_run_exit_local; set_option maxHeartbeats 4000000 in p0_structural
+
 @[step] theorem machine.Store.frame_masks.default.p0 {Self : Type _} (self : Self) :
     machine.Store.frame_masks.default self ⦃ _ => True ⦄ := by
   unfold machine.Store.frame_masks.default; p0_auto
@@ -4481,6 +4566,14 @@ theorem layout.ks.SIZE.p0  :
 @[step] theorem machine.Arch.vcpu_barrier.default.p0 {Self : Type _} (self : Self) :
     machine.Arch.vcpu_barrier.default self ⦃ _ => True ⦄ := by
   unfold machine.Arch.vcpu_barrier.default; p0_auto
+
+@[step] theorem machine.Arch.vcpu_sync.default.p0 {Self : Type _} (self : Self) (_v : Std.U64) (_field : Std.U64) :
+    machine.Arch.vcpu_sync.default self _v _field ⦃ _ => True ⦄ := by
+  unfold machine.Arch.vcpu_sync.default; p0_auto
+
+@[step] theorem machine.Arch.vcpu_release.default.p0 {Self : Type _} (self : Self) (_v : Std.U64) :
+    machine.Arch.vcpu_release.default self _v ⦃ _ => True ⦄ := by
+  unfold machine.Arch.vcpu_release.default; p0_auto
 
 @[step] theorem machine.Arch.invalidate_ept.default.p0 {Self : Type _} (self : Self) (_root : Std.U64) (_mask : Std.U64) :
     machine.Arch.invalidate_ept.default self _root _mask ⦃ _ => True ⦄ := by
@@ -4833,14 +4926,6 @@ theorem sporadic.min_budget_us.p0  :
 @[step] theorem sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq.p0 (self : sporadic.Refill) :
     sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq self ⦃ _ => True ⦄ := by
   unfold sporadic.Refill.Insts.CoreCmpEq.assert_fields_are_eq; p0_auto
-
-@[step] theorem syscall.error_mrs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
-    syscall.error_mrs machineStoreInst s t buf e ⦃ _ => True ⦄ := by
-  unfold syscall.error_mrs; p0_auto
-
-@[step] theorem syscall.reply_error.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (e : error.SysError) (hS : StoreTotal machineStoreInst) :
-    syscall.reply_error machineStoreInst s t e ⦃ _ => True ⦄ := by
-  unfold syscall.reply_error; p0_split
 
 @[step] theorem untyped.as_untyped.p0 (c : capability.Cap) :
     untyped.as_untyped c ⦃ _ => True ⦄ := by

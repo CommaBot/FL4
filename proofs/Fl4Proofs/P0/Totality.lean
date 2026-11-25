@@ -26,6 +26,12 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   virtualization : ∀ a, ar.virtualization a ⦃ _ => True ⦄
   vcpu_capability : ∀ a f, ar.vcpu_capability a f ⦃ _ => True ⦄
   vcpu_barrier : ∀ a, ar.vcpu_barrier a ⦃ _ => True ⦄
+  /-- #106: `vcpu_sync`'s effect on the kernel's memory (the VCPU's VMCS
+  image word of `field`, refreshed from its hardware VMCS) is outside this
+  model, where Arch methods return only the arch state: see
+  `P1.Cur0.vcpu_sync` for the invariant across it. -/
+  vcpu_sync : ∀ a v f, ar.vcpu_sync a v f ⦃ _ => True ⦄
+  vcpu_release : ∀ a v, ar.vcpu_release a v ⦃ _ => True ⦄
   invalidate_ept : ∀ a r m, ar.invalidate_ept a r m ⦃ _ => True ⦄
   tdx_active : ∀ a, ar.tdx_active a ⦃ _ => True ⦄
   tdx_report : ∀ a f d0 d1 d2 d3 d4 d5 d6 d7, ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄
@@ -84,6 +90,8 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.virtualization_spec (h : ArchTotal ar) a : ar.virtualization a ⦃ _ => True ⦄ := h.virtualization a
 @[step] theorem ArchTotal.vcpu_capability_spec (h : ArchTotal ar) a f : ar.vcpu_capability a f ⦃ _ => True ⦄ := h.vcpu_capability a f
 @[step] theorem ArchTotal.vcpu_barrier_spec (h : ArchTotal ar) a : ar.vcpu_barrier a ⦃ _ => True ⦄ := h.vcpu_barrier a
+@[step] theorem ArchTotal.vcpu_sync_spec (h : ArchTotal ar) a v f : ar.vcpu_sync a v f ⦃ _ => True ⦄ := h.vcpu_sync a v f
+@[step] theorem ArchTotal.vcpu_release_spec (h : ArchTotal ar) a v : ar.vcpu_release a v ⦃ _ => True ⦄ := h.vcpu_release a v
 @[step] theorem ArchTotal.invalidate_ept_spec (h : ArchTotal ar) a r m : ar.invalidate_ept a r m ⦃ _ => True ⦄ := h.invalidate_ept a r m
 @[step] theorem ArchTotal.tdx_active_spec (h : ArchTotal ar) a : ar.tdx_active a ⦃ _ => True ⦄ := h.tdx_active a
 @[step] theorem ArchTotal.tdx_report_spec (h : ArchTotal ar) a f d0 d1 d2 d3 d4 d5 d6 d7 : ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄ := h.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7

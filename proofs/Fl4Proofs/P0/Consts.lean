@@ -339,8 +339,8 @@ open fl4_core
 @[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 304384#u64 ⦄ := by
   unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
 
-@[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
-  unfold sporadic.min_budget_us; step*
+@[step] theorem localvm.MAX_VM_LOCKS.spec : localvm.MAX_VM_LOCKS ⦃ v => v = 5#usize ⦄ := by
+  unfold localvm.MAX_VM_LOCKS; simp only [localtimer.MAX_TIMER_LOCKS]; step*
 
 @[step] theorem vcpu.svm.KERNEL_GS_BASE.spec : vcpu.svm.KERNEL_GS_BASE ⦃ v => v = 1568#u64 ⦄ := by
   unfold vcpu.svm.KERNEL_GS_BASE; simp only [vcpu.svm.SAVE]; step*
@@ -359,6 +359,9 @@ open fl4_core
 
 @[step] theorem vcpu.svm.RAX.spec : vcpu.svm.RAX ⦃ v => v = 1528#u64 ⦄ := by
   unfold vcpu.svm.RAX; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
+  unfold sporadic.min_budget_us; step*
 
 @[step] theorem vcpu.svm.ES.spec : vcpu.svm.ES ⦃ v => v = 1024#u64 ⦄ := by
   unfold vcpu.svm.ES; simp only [vcpu.svm.SAVE]; step*
@@ -1881,23 +1884,11 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem localtimer.MAX_TIMER_LOCKS.val_eq : localtimer.MAX_TIMER_LOCKS.val = 3 := by
   unfold localtimer.MAX_TIMER_LOCKS; rfl
 
-@[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
-  unfold msg.BUF_MSG; rfl
+@[simp, scalar_tac_simps] theorem localvm.VCPU_BYTES.val_eq : localvm.VCPU_BYTES.val = 32768 := by
+  unfold localvm.VCPU_BYTES; rfl
 
-@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX_LEN.val_eq : objects.CHILD_PREFIX_LEN.val = 11 := by
-  unfold objects.CHILD_PREFIX_LEN; rfl
-
-@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX1.val_eq : objects.CHILD_PREFIX1.val = 2564154 := by
-  unfold objects.CHILD_PREFIX1; rfl
-
-@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX0.val_eq : objects.CHILD_PREFIX0.val = 7381153929971198051 := by
-  unfold objects.CHILD_PREFIX0; rfl
-
-@[simp, scalar_tac_simps] theorem objects.CHILD_NAME_MAX.val_eq : objects.CHILD_NAME_MAX.val = 51 := by
-  unfold objects.CHILD_NAME_MAX; rfl
-
-@[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
-  unfold syscall.DEBUG_MESSAGE_START; rfl
+@[simp, scalar_tac_simps] theorem localvm.NTFN_BYTES.val_eq : localvm.NTFN_BYTES.val = 64 := by
+  unfold localvm.NTFN_BYTES; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS.val_eq : vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS.val = 25610 := by
   unfold vcpu.vmx.DATA_GUEST_LINEAR_ADDRESS; rfl
@@ -1947,6 +1938,24 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.VM_IBPB_DEFER.val_eq : vcpu.VM_IBPB_DEFER.val = 20544 := by
   unfold vcpu.VM_IBPB_DEFER; rfl
 
+@[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
+  unfold syscall.DEBUG_MESSAGE_START; rfl
+
+@[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
+  unfold msg.BUF_MSG; rfl
+
+@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX_LEN.val_eq : objects.CHILD_PREFIX_LEN.val = 11 := by
+  unfold objects.CHILD_PREFIX_LEN; rfl
+
+@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX1.val_eq : objects.CHILD_PREFIX1.val = 2564154 := by
+  unfold objects.CHILD_PREFIX1; rfl
+
+@[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX0.val_eq : objects.CHILD_PREFIX0.val = 7381153929971198051 := by
+  unfold objects.CHILD_PREFIX0; rfl
+
+@[simp, scalar_tac_simps] theorem objects.CHILD_NAME_MAX.val_eq : objects.CHILD_NAME_MAX.val = 51 := by
+  unfold objects.CHILD_NAME_MAX; rfl
+
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
   unfold untyped.RESET_CHUNK; rfl
 
@@ -1985,6 +1994,12 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem tcb.SCHED_UPDATE_SC.val_eq : tcb.SCHED_UPDATE_SC.val = 1 := by
   unfold tcb.SCHED_UPDATE_SC; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.VMCS.val_eq : vcpu.VMCS.val = 0 := by
+  unfold vcpu.VMCS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.VMX_STATE.val_eq : vcpu.VMX_STATE.val = 21248 := by
+  unfold vcpu.VMX_STATE; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_VPID.val_eq : vcpu.vmx.CONTROL_VPID.val = 0 := by
   unfold vcpu.vmx.CONTROL_VPID; rfl

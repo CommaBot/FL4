@@ -1,6 +1,6 @@
 {
- "functions": 1182,
- "proved": 1182,
+ "functions": 1204,
+ "proved": 1204,
  "manual": [
   "boot.create_untypeds",
   "boot.init_irq_states_loop",
@@ -16,6 +16,7 @@
   "localinv.plan_with",
   "localtimer.in_core_timer_tree",
   "localtimer.in_core_timer_tree_loop",
+  "localvm.handle_arm_vcpu_run_local",
   "notification.send_signal",
   "smp.handle_ipi",
   "syscall.handle_unknown_syscall",
@@ -133,8 +134,7 @@
   "vspace.decode_loop3",
   "vspace.delete_asid_pool_loop",
   "vspace.ensure_empty_run_loop",
-  "vspace.init_high_vspace_loop0",
-  "vspace.init_high_vspace_loop1",
+  "vspace.init_high_vspace_loop",
   "vspace.insert_subframes_loop",
   "vspace.unmap_page_table_loop"
  ],
