@@ -1613,6 +1613,10 @@ import Fl4Proofs.P1.VcpuExitBuf
 import Fl4Proofs.P2.VcpuExitV
 import Fl4Proofs.P2.VcpuExitJ
 import Fl4Proofs.P2.VcpuExitI
+import Fl4Proofs.P2.TmoFrA
+import Fl4Proofs.P2.TmoFrB
+import Fl4Proofs.P2.TmoFrC
+import Fl4Proofs.P2.TmoFrD
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid

@@ -61,22 +61,24 @@ variable {U : Set U64}
 
 /-- The timeout faults a budget check from `s0` raises keep the invariants
 and `G`: at a state reached from `s0` by `ChgW` writes, with the current thread
-schedulable (`CurOK`) and `G` (P2's `TmoKC` shape, without `KWN`). -/
+schedulable (`CurOK`) and `G` (P2's `TmoKC` shape, without `KWN`). (tmofr: over `Timeout` faults only, the fault `end_timeslice` raises; a non-timeout fault
+would take the cap-transferring normal transfer.) -/
 def TmoGB (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) (G : S → Prop) : Prop :=
-  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+  ∀ (s : S) (a : A) (f : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64),
     SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
     SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) → CurOK st T s → G s →
-    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄
+    faults.handle_timeout st ar s a (L.curW s) (error.Fault.Timeout f) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄
 
 /-- **[P] The timeout fault of a budget check from `s0` keeps the buffer-lookup
-words** (and the invariants), at the states `TmoGB` names. -/
+words** (and the invariants), at the states `TmoGB` names. (tmofr: over `Timeout` faults only, the fault `end_timeslice` raises; a non-timeout fault
+would take the cap-transferring normal transfer.) -/
 def TmoIb (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) : Prop :=
-  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+  ∀ (s : S) (a : A) (f : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64),
     SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
     SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) → CurOK st T s →
-    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+    faults.handle_timeout st ar s a (L.curW s) (error.Fault.Timeout f) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       IbFr (L := L) T s s' ⦄
 
 theorem TmoIb.gb {s0 : S} (hT : TmoIb st ar T Cs Ω H Sg Rp Scs Nt Z Ac s0) (sA : S) :

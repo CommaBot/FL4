@@ -386,13 +386,14 @@ theorem vexit_checkQ (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntf
 /-- **[P] The timeout fault of a budget check from `s0` keeps the
 buffer-lookup words, every TCB's VCPU word and the IRQ slot words** (and the
 invariants), at the states `TmoGB` names (`TmoIbV` with the IRQ slots: a
-statement about the timeout fault only). -/
+statement about the timeout fault only). (tmofr: over `Timeout` faults only, the fault `end_timeslice` raises; a non-timeout fault
+would take the cap-transferring normal transfer.) -/
 def TmoIbVI (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) : Prop :=
-  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+  ∀ (s : S) (a : A) (f : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64),
     SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
     SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) → CurOK st T s →
-    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+    faults.handle_timeout st ar s a (L.curW s) (error.Fault.Timeout f) ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
       IbFr (L := L) T s s' ∧ VcpuWK st T s s' ∧ IrqFr st s s' ⦄
 
 theorem TmoIbVI.v {s0 : S} (hT : TmoIbVI st ar T Cs Ω H Sg Rp Scs Nt Z Ac s0) :
