@@ -125,7 +125,8 @@ theorem ge_tlinks {Ks : U64 → Prop} {t p : U64} (C : TC st gS T s0 c (fun z =>
 
 theorem ge_cur_cpu {K Kr : U64 → Prop} {s : S} (hI : TI st s0 c K Kr s) (hc : L.cpu s0 = c) :
     GE (gS.cur_cpu s) (st.cur_cpu s) (fun v => v = c) :=
-  ⟨rfl, fun v e => by rw [L.cur_cpu_eq] at e; rw [← ok_inj_ff e, hI.cpu, hc]⟩
+  ⟨congrFun (PathObl.gst_cur_cpu (g := gS) (st := st)) s,
+    fun v e => by rw [L.cur_cpu_eq] at e; rw [← ok_inj_ff e, hI.cpu, hc]⟩
 
 theorem ge_set_tb {K Kr : U64 → Prop} (C : TC st gS T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {x v : U64}
     (hx : K x) :
@@ -168,8 +169,7 @@ theorem ge_ht_dl {K Kr : U64 → Prop} (C : TC st gS T s0 c K R W) {s : S} (hI :
 /-- With `insert`'s callees. -/
 macro "tg_stepI" : tactic => `(tactic| first
   | (with_reducible refine ge_tlinks (by assumption) (by assumption) (by tg_side) (fun _ _ => ?_))
-  | (with_reducible refine ge_ht_dl (by assumption) (by assumption) (by assumption) (by assumption) (by assumption)
-      (by assumption) (fun _ _ => ?_))
+  | (with_reducible refine ge_ht_dl ‹_› ‹_› ‹_› ‹_› ‹_› ‹_› (fun _ _ => ?_))
   | (with_reducible refine GE.bind (ge_set_tb (by assumption) (by assumption) (by assumption)) (fun _ _ => ?_))
   | (with_reducible refine GE.bind (ge_insert_fixup (by assumption) (by assumption) (by tg_side)) (fun _ _ => ?_))
   | (with_reducible refine GE.bind (ge_set_min (by assumption) (by assumption)) (fun _ _ => ?_))
