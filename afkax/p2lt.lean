@@ -46,6 +46,7 @@ import Fl4Proofs.P2.FootTimerFireLoc
 import Fl4Proofs.P2.FootTimerFireSwT
 import Fl4Proofs.P2.FootTimerFirePk
 import Fl4Proofs.P2.FootTimerFireRs
+import Fl4Proofs.P2.FootTimerFireWf
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -260,3 +261,6 @@ import Fl4Proofs.P2.FootTimerFireRs
 #print axioms Fl4Proofs.P2.fire_tail_of_aw
 #print axioms Fl4Proofs.P2.actTail.guard
 #print axioms Fl4Proofs.P2.aw_tail_resume
+#print axioms Fl4Proofs.P2.qmem_nbrs
+#print axioms Fl4Proofs.P2.StW
+#print axioms Fl4Proofs.P2.wake_wait_fire
