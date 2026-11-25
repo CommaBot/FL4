@@ -36,7 +36,7 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : K
 /-- **Layout facts of the timer interrupt** [J] (module docstring) at the entry state `s`. -/
 structure IrqLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt : Set U64) (irq : U64) (s : S) :
     Prop where
-  iq : ∀ i, interrupt.state_off irq = ok i →
+  iq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
     Aligned (core.num.U64.wrapping_add (L.ksb s) i) ∧ region K (core.num.U64.wrapping_add (L.ksb s) i) = .none
   kr : Aligned (krA (L := L) s) ∧ region K (krA (L := L) s) = .none
   tab : ∀ hi : U64, hi.val < 2048 →
@@ -231,6 +231,7 @@ theorem irq_acc_own (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : 
     localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq p =
       ok (true, s', a') := by
   have hI := hE.inv
+  have hb := irq_lt_of_acc ar h
   have hL := hE.lay
   have h0 := hI.1.choose_spec.choose_spec
   have hcT : L.curW s ∈ T := h0.curT
@@ -241,7 +242,7 @@ theorem irq_acc_own (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : 
     ar hA hI
     (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩)
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
     (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
     (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩)
     (fun hok X _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))

@@ -1,5 +1,5 @@
 /-
-# P2 (p2lf gen15): the timer interrupt local path with `Pre` = line slj's bundle
+# P2 (p2lf gen15, gen16): the timer interrupt local path with `Pre` = line slj's bundle
 
 gen14 left `irq_pathsJ2` with `Pre := IrqEntIM … ∧ SlJAt K`, `IrqEntI`'s [J] parts `inv` / `lay` / `iq` /
 `asid` / `aff` asked at each start at fixed word sets `Ω` / `Ac`. This file derives every one of them from
@@ -22,9 +22,10 @@ kernel words.
 **Narrowing: `iq` is false for `irq ≥ 128`.** `interrupt.state_off irq = ok (224 + 8 irq)` (wrapping) for every
 `irq`, so `IrqLay.iq` / `IrqEntI.iq` ask region `.none` of `ksb + 224 + 8 irq` for an arbitrary `irq`. Under
 `layoutJ` that fails, e.g. `irq = 1668`: `ksb + 224 + 8·1668 = ksb + 13568`, core 0's node word `CUR_THREAD`,
-whose region is `.node 0`. The body declines on `irq > irqn::MAX = 127` before reading the state word, but the
-premise is unconditional; so `irq_pathsJ3` takes `hirq : irq.val < 128` [P]: the glue's timer IRQ is
-`TIMER_VECTOR - VEC_IRQ_MIN = irqn::TIMER` (125 on x86_64, `fl4-kernel/src/entry.rs` `timer_irq`).
+whose region is `.node 0`. The body declines on `irq > irqn::MAX = 127` before reading the state word, so gen16
+narrows `IrqLay.iq` / `IrqLayR.iq` / `IrqEntI.iq` in place to `irq.val < 128 → …` (only a strengthening of the
+theorems using them): the fire-case users (FireAk, FireOwn, LPP2, Own) take the bound from the accepted run
+(`irq_lt_of_acc`, P2/FootTimerIrqLP.lean), FootTimerIrqDec from its own `MAX` test. gen15's premise `hirq` is gone.
 
 * `irq_pathObl_J3` (`PathObl` at one entry state), `irq_pathSide_J3` (`PathSide`, `user_free` from `hEU`),
   `irq_localPathJ3`, **`irq_pathsJ3`**: `E2E.Paths` member with `Pre := IrqPreJ3 K st m`; `irq_pathsJ3_startAt`:
@@ -32,10 +33,9 @@ premise is unconditional; so `irq_pathsJ3` takes `hirq : irq.val < 128` [P]: the
   `SlJAt K σ` at reachable entries for every `K` matching the stable ghosts: `slJAt_of_reachU17_stable` (P3
   `JReachU17`; the fixed-layout gap is line lay's, P2/SlJLay.lean).
 
-Premises of `irq_pathsJ3`: `hp` [P] (`IsProg`), `hz` [W] (`NoZero`), `hm` [P] (`MasksWr`), `hirq` [P] (the timer
-IRQ is below 128), `hro` [W] (per layout, `ReadOnce` under `IrqPreJ3`), `hEU` [J] (per layout, `SlJAt K` kept by a
-user-word write: syscall_local's `huf`, owned by line slhuf), `hlk` [P] (locks unchanged by user writes), `hPL` [P]
-(`PlanLk`). No `IrqEnt` part is left.
+Premises of `irq_pathsJ3`: `hp` [P] (`IsProg`), `hz` [W] (`NoZero`), `hm` [P] (`MasksWr`), `hro` [W] (per layout,
+`ReadOnce` under `IrqPreJ3`), `hEU` [J] (per layout, `SlJAt K` kept by a user-word write: syscall_local's `huf`,
+owned by line slhuf), `hlk` [P] (locks unchanged by user writes), `hPL` [P] (`PlanLk`). No `IrqEnt` part is left.
 -/
 import Fl4Proofs.P2.FootTimerIrqJC
 open Aeneas Aeneas.Std Result
@@ -118,19 +118,18 @@ theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.stLay (B : SlJAtZ (L := L) arI AR Zx 
 
 /-- **`IrqEntI` from the bundle** at P1's set convention (module docstring): `Ω = OmegaU`, `Ac` = `JAtZ`'s. -/
 theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.irqEntI (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
-    {irq : U64} (hirq : irq.val < 128) :
+    {irq : U64} :
     IrqEntI K st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} (Fl4Proofs.P3.OmegaU K.heap Zx (L.ksb s) σ) K.heap
       (Heap.frame K.heap) (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ax irq s := by
-  have hY := B.irqStNone hirq
   have hL := B.stLay
   have e : Cx = {c : U64 | c.val < K.ncores} := Set.ext fun c => B.cs c
   subst e
-  refine ⟨B.j.bxiU, hL, fun i hi => ?_, B.j.asidOffU,
+  refine ⟨B.j.bxiU, hL, fun hb i hi => ?_, B.j.asidOffU,
     fun t ht h0 => (XInv.core_eq B.j.bxi.2.2.1 ht h0).symm, fun n hn => hn⟩
   rw [Fl4Proofs.P3.state_off_eq] at hi
   have hi' := ok_inj_ff hi
   subst hi'
-  exact hY
+  exact B.irqStNone hb
 
 end ks
 
@@ -138,11 +137,11 @@ section ent
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
 /-- **`IrqEntI` at some word sets from line slj's bundle** (`SlJAtZ.irqEntI`). -/
-theorem slJAt_irqEntI {K : KLayout} {s : S} {irq : U64} (hirq : irq.val < 128) (h : SlJAt (L := L) K s) :
+theorem slJAt_irqEntI {K : KLayout} {s : S} {irq : U64} (h : SlJAt (L := L) K s) :
     ∃ Ω Ac : Set U64, IrqEntI K st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap (Heap.frame K.heap)
       (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac irq s := by
   obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := h
-  exact ⟨_, _, B.irqEntI hirq⟩
+  exact ⟨_, _, B.irqEntI⟩
 
 /-- The timer interrupt's `Pre` in `irq_pathsJ3`: line slj's bundle `SlJAt K` and the store agreeing with the
 model memory `m` on aligned kernel words (`sl_pathsK`'s `SlJAt K ∧ Q K m`). -/
@@ -150,11 +149,11 @@ def IrqPreJ3 (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (m : U64 
   SlJAt (L := L) K s ∧ ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x
 
 /-- `IrqEntM` at the entry from `IrqPreJ3` (word sets chosen per state). -/
-theorem IrqPreJ3.entM {K : KLayout} {m : U64 → U64} {s : S} {irq : U64} (hirq : irq.val < 128)
+theorem IrqPreJ3.entM {K : KLayout} {m : U64 → U64} {s : S} {irq : U64}
     (h : IrqPreJ3 K st m s) :
     ∃ Ω Ac : Set U64, IrqEntM K st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap (Heap.frame K.heap)
       (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac irq m s := by
-  obtain ⟨Ω, Ac, hI⟩ := slJAt_irqEntI (st := st) hirq h.1
+  obtain ⟨Ω, Ac, hI⟩ := slJAt_irqEntI (st := st) h.1
   exact ⟨Ω, Ac, (IrqEntIM.entRM ⟨hI, h.2⟩ (irqLayK_of_slJAt hI.inv h.1)).entM (slJAt_slotJC h.1).slotJ⟩
 
 end ent
@@ -186,12 +185,12 @@ variable {lk : S → U64 → Prop} {p : PathObl.SProg Bool}
 /-- **`PathObl` of the timer interrupt at one `IrqPreJ3` entry state** (`irq_pathObl` at `P := (· = s0)`, the
 fire case split as `irq_localPathJC2`'s). -/
 theorem irq_pathObl_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K)
-    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st) (hirq : irq.val < 128)
+    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hPL : PlanLk lk pl) {s0 : S} (h0 : IrqPreJ3 K st m s0) :
     PathObl.PathObl st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a irq pl) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) lk (fun s => s = s0) (MaxR K st lk) (MaxW K st lk)
       (IrqDec st) := by
-  obtain ⟨Ω, Ac, hE⟩ := h0.entM (irq := irq) hirq
+  obtain ⟨Ω, Ac, hE⟩ := h0.entM (irq := irq)
   have hQ := slJAt_slotJC (st := st) h0.1
   refine irq_pathObl ar hA hK hUO (P := fun s => s = s0) (fun s e => by subst e; exact hE.ent)
     (fun mm => hp A ar mm) hz hm (fun s e q hq => by subst e; exact irq_koF hE.ent hq)
@@ -214,15 +213,15 @@ theorem irq_pathObl_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserO
 /-- **`PathSide` of the timer interrupt under `IrqPreJ3`**: `read_aligned` by `irq_alt` at the entry's word sets,
 `user_free` from `hEU` (the bundle kept by a user-word write) and the memory agreement on kernel words. -/
 theorem irq_pathSide_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K)
-    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st) (hirq : irq.val < 128)
+    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hEU : ∀ s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → SlJAt (L := L) K (L.wr s b v))
     (hlk : ∀ s b v, b ∈ K.user → lk (L.wr s b v) = lk s) (hPL : PlanLk lk pl) :
     PathObl.PathSide st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a irq pl) (OwnMap.cls K)
       (OwnMap.ko K m) (· ∈ K.user) lk (IrqPreJ3 K st m) (MaxR K st lk) (MaxW K st lk) (IrqDec st) := by
   refine ⟨?_, fun s x _ hx => hx.2, Fl4Proofs.P2.ko_aligned hK hUO, ?_⟩
   · intro s s' a r hP hAlt h
-    obtain ⟨Ω, Ac, hE⟩ := hP.entM (irq := irq) hirq
-    have O := irq_pathObl_J3 ar hA hK hUO hp hz hm hirq hPL hP
+    obtain ⟨Ω, Ac, hE⟩ := hP.entM (irq := irq)
+    have O := irq_pathObl_J3 ar hA hK hUO hp hz hm hPL hP
     have eP : ∀ (mm : machine.Store S) (x : S),
         localtimer.handle_timer_irq_local mm ar x a irq pl = interp mm ar p x a :=
       fun mm x => congrFun (congrFun (hp A ar mm) x) a
@@ -246,7 +245,7 @@ theorem irq_pathSide_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.User
 
 /-- **The timer interrupt local path with `Pre := IrqPreJ3 K st m`** (module docstring). -/
 noncomputable def irq_localPathJ3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K)
-    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st) (hirq : irq.val < 128)
+    (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hro : E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) (IrqPreJ3 K st m) (MaxR K st lk))
     (hEU : ∀ s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → SlJAt (L := L) K (L.wr s b v))
     (hlk : ∀ s b v, b ∈ K.user → lk (L.wr s b v) = lk s) (hPL : PlanLk lk pl) :
@@ -266,8 +265,8 @@ noncomputable def irq_localPathJ3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO 
     WS := MaxW K st lk
     DS := IrqDec st
     isProg := hp
-    obl := irq_obl_of_pt fun _ h0 => irq_pathObl_J3 ar hA hK hUO hp hz hm hirq hPL h0
-    side := irq_pathSide_J3 ar hA hK hUO hp hz hm hirq hEU hlk hPL
+    obl := irq_obl_of_pt fun _ h0 => irq_pathObl_J3 ar hA hK hUO hp hz hm hPL h0
+    side := irq_pathSide_J3 ar hA hK hUO hp hz hm hEU hlk hPL
     once := hro
     total := fun s a => by
       obtain ⟨r, e, -⟩ := spec_ex_fd (P0.localtimer.handle_timer_irq_local.p0 st ar s a irq pl LawfulStore.total hA)
@@ -275,24 +274,23 @@ noncomputable def irq_localPathJ3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO 
     masks := hm }
 
 /-- **The timer interrupt as an `E2E.Paths` member with `Pre := IrqPreJ3 K st m`** (`SlJAt K ∧` memory
-agreement: `sl_pathsK`'s shape). Premises: `hp` [P], `hz` [W], `hm` [P], `hirq` [P] (the glue's timer IRQ is below
-128; `IrqLay.iq` is false for `irq ≥ 128`, module docstring), `hro` [W] (per layout), `hEU` [J] (per layout:
-`SlJAt K` kept by a user-word write, syscall_local's `huf`, line slhuf), `hlk` [P], `hPL` [P]. -/
+agreement: `sl_pathsK`'s shape). Premises: `hp` [P], `hz` [W], `hm` [P], `hro` [W] (per layout), `hEU` [J] (per
+layout: `SlJAt K` kept by a user-word write, syscall_local's `huf`, line slhuf), `hlk` [P], `hPL` [P]. -/
 noncomputable def irq_pathsJ3 (hA : P0.ArchTotal ar) (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p)
-    (hm : E2E.MasksWr st) (hirq : irq.val < 128)
+    (hm : E2E.MasksWr st)
     (hro : ∀ K m, E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) (IrqPreJ3 K st m)
       (MaxR K st lk))
     (hEU : ∀ (K : KLayout) s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → SlJAt (L := L) K (L.wr s b v))
     (hlk : ∀ (K : KLayout) s b v, b ∈ K.user → lk (L.wr s b v) = lk s)
     (hPL : PlanLk lk pl) : E2E.Paths Unit :=
   fun _ K m hK hU =>
-    irq_localPathJ3 (K := K) (m := m) ar hA hK hU hp hz hm hirq (hro K m) (hEU K) (hlk K) hPL
+    irq_localPathJ3 (K := K) (m := m) ar hA hK hU hp hz hm (hro K m) (hEU K) (hlk K) hPL
 
 /-- **`StartAt` for `irq_pathsJ3`**: `Fl4Step.start` [P] asks `SlJAt K σ` at the start state (as
 `sl_pathsK_startAt`; P3 gives it at reachable entries for every `K` matching the stable ghosts,
 `slJAt_of_reachU17_stable`), the memory agreement with `m`, and the glue's core / locks / memory. -/
 theorem irq_pathsJ3_startAt (hA : P0.ArchTotal ar) (hp : IsProg (irqBody S irq pl) p) (hz : NoZero p)
-    (hm : E2E.MasksWr st) (hirq : irq.val < 128)
+    (hm : E2E.MasksWr st)
     (hro : ∀ K m, E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) (IrqPreJ3 K st m)
       (MaxR K st lk))
     (hEU : ∀ (K : KLayout) s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → SlJAt (L := L) K (L.wr s b v))
@@ -302,8 +300,8 @@ theorem irq_pathsJ3_startAt (hA : P0.ArchTotal ar) (hp : IsProg (irqBody S irq p
     {σ : S} (a : A) (hJ : SlJAt (L := L) K σ) (hM : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x)
     {c : U64} {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : lk σ = hs) {μ : U64 → U64}
     (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
-    E2E.StartAt (irq_pathsJ3 ar hA hp hz hm hirq hro hEU hlk hPL () K m hK hU) c hs μ
-      ((irq_pathsJ3 ar hA hp hz hm hirq hro hEU hlk hPL () K m hK hU).body σ a) :=
+    E2E.StartAt (irq_pathsJ3 ar hA hp hz hm hro hEU hlk hPL () K m hK hU) c hs μ
+      ((irq_pathsJ3 ar hA hp hz hm hro hEU hlk hPL () K m hK hU).body σ a) :=
   ⟨σ, a, ⟨hJ, hM⟩, hc, hl, hμ, rfl⟩
 
 end path

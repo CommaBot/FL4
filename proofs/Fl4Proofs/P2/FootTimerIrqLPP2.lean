@@ -117,6 +117,7 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
     localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq p =
       ok (true, s', a') := by
   have hI := hE.inv
+  have hb := irq_lt_of_acc ar h
   have hL := hE.lay
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
@@ -142,7 +143,7 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
     (W := MaxW K st lk s) ar hA hI hq
     (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩)
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
     (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
     (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩) ?_ ?_ h
   · intro _ s1' a1' now' eu' _

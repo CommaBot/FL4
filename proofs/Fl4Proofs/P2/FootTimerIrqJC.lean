@@ -125,7 +125,7 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : K
 /-- `IrqLay` without its slot field `cs` (gen14: `cs` comes from P3, `SlotJ.cs`). -/
 structure IrqLayR (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt : Set U64) (irq : U64) (s : S) :
     Prop where
-  iq : ∀ i, interrupt.state_off irq = ok i →
+  iq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
     Aligned (core.num.U64.wrapping_add (L.ksb s) i) ∧ region K (core.num.U64.wrapping_add (L.ksb s) i) = .none
   kr : Aligned (krA (L := L) s) ∧ region K (krA (L := L) s) = .none
   tab : ∀ hi : U64, hi.val < 2048 →
@@ -408,7 +408,7 @@ structure IrqEntI (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T C
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (irq : U64) (s : S) : Prop where
   inv : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s
   lay : StLay K st T Scs Z s
-  iq : ∀ i, interrupt.state_off irq = ok i →
+  iq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
     Aligned (core.num.U64.wrapping_add (L.ksb s) i) ∧ region K (core.num.U64.wrapping_add (L.ksb s) i) = .none
   asid : AsidOff (L := L) Ω Sg s
   aff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t)
