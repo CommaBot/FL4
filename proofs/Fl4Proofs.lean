@@ -229,6 +229,7 @@ import Fl4Proofs.P2.SlJHuf
 import Fl4Proofs.P2.SlJFound
 import Fl4Proofs.P2.SlJQ
 import Fl4Proofs.P2.SlJVm
+import Fl4Proofs.P2.SlJUB
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
