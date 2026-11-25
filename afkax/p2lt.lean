@@ -1,3 +1,4 @@
+import Fl4Proofs.P2.FootTimerIrqRM
 import Fl4Proofs.P2.FootTimerIrqRT
 import Fl4Proofs.P2.FootTimerIrqCh
 import Fl4Proofs.P2.FootTimerIrqApp
@@ -63,3 +64,7 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.append_keep
 #print axioms Fl4Proofs.P2.sched.end_timeslice.guard_rrT
 #print axioms Fl4Proofs.P2.cbTail.guard_rr
+#print axioms Fl4Proofs.P2.putS2_frame
+#print axioms Fl4Proofs.P2.cbRR_frame
+#print axioms Fl4Proofs.P2.sched.charge_budget.guard_rrC
+#print axioms Fl4Proofs.P2.sched.check_budget.guard_rr
