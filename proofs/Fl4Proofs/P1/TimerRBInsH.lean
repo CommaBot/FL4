@@ -265,42 +265,49 @@ theorem timer.insert.attach (s : S) (t d bd : U64) {P : S → Prop} {Q : S → S
   simp only at r2 e
   subst e
   try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr s2 t1 d) fun s3 e3 => ?_
-  subst e3
-  have r3 : RW st T s1 (L.wr s2 (tdA t1) d) _ _ _ _ :=
-    r2.wr_oth (K := 3528#u64) (v := d) hT ht (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
-      (F1 _ (by simp) (by simp))
-  refine WP.spec_bind (obj.Tcb.set_timer_badge.wr _ t1 bd) fun s4 e4 => ?_
-  subst e4
-  have r4 : RW st T s1 (L.wr (L.wr s2 (tdA t1) d) (tbA t1) bd) _ _ _ _ :=
-    r3.wr_oth (K := 3536#u64) (v := bd) hT ht (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
-      (F1 _ (by simp) (by simp))
-  refine WP.spec_bind (timer.set_parent.on _ t1 ctx.par hT ht) fun s5 e5 => ?_
-  subst e5
-  have r5 := r4.wr_tp (v := ctx.par) hT ht (F1 3560#u64 (by simp) (by simp))
-  refine WP.spec_bind (timer.set_left.on _ t1 0#u64 hT ht) fun s6 e6 => ?_
-  subst e6
-  have r6 := r5.wr_tl (v := 0#u64) hT ht (F1 3544#u64 (by simp) (by simp))
-  refine WP.spec_bind (timer.set_right.on _ t1 0#u64 hT ht) fun s7 e7 => ?_
-  subst e7
-  have r7 := r6.wr_tr (v := 0#u64) hT ht (F1 3552#u64 (by simp) (by simp))
   step as ⟨i, hi1, hi2⟩
   simp only [lift, timer.RED, Aeneas.Std.bind_ok]
-  refine WP.spec_bind (obj.Tcb.set_timer_height.wr _ t1 _) fun s8 e8 => ?_
-  have r8 := r7.wr_th (v := i ||| 1#u64) hT ht (F1 3568#u64 (by simp) (by simp))
-  rw [or1_red, ← e8] at r8
+  refine WP.spec_bind (obj.Tcb.set_timer_height.wr s2 t1 _) fun s3 e3 => ?_
+  subst e3
+  have r3 := r2.wr_th (v := i ||| 1#u64) hT ht (F1 3568#u64 (by simp) (by simp))
+  rw [or1_red] at r3
+  refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr _ t1 d) fun s4 e4 => ?_
+  subst e4
+  have r4 : RW st T s1 (L.wr (L.wr s2 (thA t1) (i ||| 1#u64)) (tdA t1) d) _ _ _ _ :=
+    r3.wr_oth (K := 3528#u64) (v := d) hT ht (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+      (F1 _ (by simp) (by simp))
+  refine WP.spec_bind (obj.Tcb.set_timer_badge.wr _ t1 bd) fun s5 e5 => ?_
+  subst e5
+  have r5 : RW st T s1 (L.wr (L.wr (L.wr s2 (thA t1) (i ||| 1#u64)) (tdA t1) d) (tbA t1) bd) _ _ _ _ :=
+    r4.wr_oth (K := 3536#u64) (v := bd) hT ht (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+      (F1 _ (by simp) (by simp))
+  refine WP.spec_bind (timer.set_parent.on _ t1 ctx.par hT ht) fun s6 e6 => ?_
+  subst e6
+  have r6 := r5.wr_tp (v := ctx.par) hT ht (F1 3560#u64 (by simp) (by simp))
+  refine WP.spec_bind (timer.set_left.on _ t1 0#u64 hT ht) fun s7 e7 => ?_
+  subst e7
+  have r7 := r6.wr_tl (v := 0#u64) hT ht (F1 3544#u64 (by simp) (by simp))
+  refine WP.spec_bind (timer.set_right.on _ t1 0#u64 hT ht) fun s8 e8 => ?_
+  have r8 := r7.wr_tr (v := 0#u64) hT ht (F1 3552#u64 (by simp) (by simp))
+  rw [← e8] at r8
   -- the deadline / height words of `t` at `s8`
   have hd8 : L.mem s8 (tdA t1) = d := by
     rw [e8]
     simp only [tdA, thA, trA, tlA, tpA, tbA]
-    rw [fld_keep (K := 3568#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
-      fld_keep (K := 3552#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
+    rw [fld_keep (K := 3552#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
       fld_keep (K := 3544#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
       fld_keep (K := 3560#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
       fld_keep (K := 3536#u64) (K' := 3528#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp)]
     exact L.mem_wr_same (tz_aligned hT (Tz.of_mem ht) (K := 3528#u64) (by simp) (by simp))
   have hth8 : L.mem s8 (thA t1) = i ||| 1#u64 := by
-    rw [e8]; exact L.mem_wr_same (tz_aligned hT (Tz.of_mem ht) (K := 3568#u64) (by simp) (by simp))
+    rw [e8]
+    simp only [tdA, thA, trA, tlA, tpA, tbA]
+    rw [fld_keep (K := 3552#u64) (K' := 3568#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
+      fld_keep (K := 3544#u64) (K' := 3568#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
+      fld_keep (K := 3560#u64) (K' := 3568#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
+      fld_keep (K := 3536#u64) (K' := 3568#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp),
+      fld_keep (K := 3528#u64) (K' := 3568#u64) hT ht ht (by simp) (by simp) (by simp) (by simp) (by simp)]
+    exact L.mem_wr_same (tz_aligned hT (Tz.of_mem ht) (K := 3568#u64) (by simp) (by simp))
   have tdo : ∀ y ∈ T, y ≠ t1 → L.mem s8 (tdA y) = L.mem s1 (tdA y) := fun y hy hyt =>
     r8.wi.mem_eq (tz_aligned hT (Tz.of_mem hy) (K := 3528#u64) (by simp) (by simp))
       (insFoot_not (K' := 3528#u64) hT hN ht hpT hy (by simp) hyt (Or.inr ⟨by simp, by simp⟩))

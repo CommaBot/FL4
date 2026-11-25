@@ -71,25 +71,25 @@ theorem TimerOK.wr_ht {s : S} {x v : U64} (h : TimerOK st T Cs s) (hT : TcbPlace
     · rw [L.mem_wr_ne (b := thA y) ha (tz_aligned hT (Tz.of_mem hy) (K := 3568#u64) (by simp) (by simp)) e] at hcv
       exact h.core y hy hd c hcv
 
-/-- Clearing a TCB's height and then its deadline. -/
+/-- Clearing a TCB's deadline and then its height. -/
 theorem TimerOK.wr_clear {s : S} {t : U64} (h : TimerOK st T Cs s) (hT : TcbPlaced T)
     (hN : ∀ c ∈ Cs, NodePlaced st T s c) (ht : t ∈ T) :
-    TimerOK st T Cs (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) := by
+    TimerOK st T Cs (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) := by
   have hx := Tz.of_mem (T := T) ht
   have ha : Aligned (thA t) := tz_aligned hT hx (K := 3568#u64) (by simp) (by simp)
   have hd : Aligned (tdA t) := tz_aligned hT hx (K := 3528#u64) (by simp) (by simp)
   have kp : ∀ y, Tz T y → ∀ K' : U64, K'.val < 4096 → K'.val % 8 = 0 → K'.val ≠ 3568 → K'.val ≠ 3528 →
-      L.mem (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) (core.num.U64.wrapping_add y K') =
+      L.mem (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) (core.num.U64.wrapping_add y K') =
         L.mem s (core.num.U64.wrapping_add y K') := fun y hy K' h1 h2 hne hne' => by
-    rw [L.mem_wr_ne hd (tz_aligned hT hy h1 h2) (tz_ne hT hx hy (by simp) h1 (by simp; omega)),
-      L.mem_wr_ne ha (tz_aligned hT hy h1 h2) (tz_ne hT hx hy (by simp) h1 (by simp; omega))]
+    rw [L.mem_wr_ne ha (tz_aligned hT hy h1 h2) (tz_ne hT hx hy (by simp) h1 (by simp; omega)),
+      L.mem_wr_ne hd (tz_aligned hT hy h1 h2) (tz_ne hT hx hy (by simp) h1 (by simp; omega))]
   have kn : ∀ c ∈ Cs, ∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
-      L.mem (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64)
-        (L.nodeAt (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) c o) = L.mem s (L.nodeAt s c o) := by
+      L.mem (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64)
+        (L.nodeAt (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) c o) = L.mem s (L.nodeAt s c o) := by
     intro c hc o ho h8
-    rw [nodeAt_of_ksb (show L.ksb (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) = L.ksb s by simp)]
-    rw [L.mem_wr_ne hd (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho hx (by simp))),
-      L.mem_wr_ne ha (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho hx (by simp)))]
+    rw [nodeAt_of_ksb (show L.ksb (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) = L.ksb s by simp)]
+    rw [L.mem_wr_ne ha (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho hx (by simp))),
+      L.mem_wr_ne hd (nodeAt_aligned (hN c hc) ho h8) (Ne.symm (node_ne_tz hT (hN c hc) ho hx (by simp)))]
   refine ⟨fun c hc => (hN c hc).ksb (by simp), fun y hy => ?_, fun y hy => ?_, fun y hy => ?_,
     fun c hc => ?_, fun c hc => ?_, fun y hy hd' c hcv => ?_,
     fun y hy => by
@@ -114,15 +114,17 @@ theorem TimerOK.wr_clear {s : S} {t : U64} (h : TimerOK st T Cs s) (hT : TcbPlac
   · rw [kn c hc _ (by rw [timer_min_val]; omega) (by rw [timer_min_val])]; exact h.min c hc
   · have hy' := Tz.of_mem (T := T) hy
     by_cases e : t = y
-    · subst e; rw [L.mem_wr_same hd] at hd'; exact absurd rfl hd'
+    · subst e
+      rw [L.mem_wr_ne (b := tdA t) ha hd (tz_ne hT hx hx (by simp) (by simp) (by simp)), L.mem_wr_same hd] at hd'
+      exact absurd rfl hd'
     · have n1 : (tdA t).val ≠ (tdA y).val := fun e' => e (tz_inj hT hx hy' (by simp) e')
       have n2 : (thA t).val ≠ (thA y).val := fun e' => e (tz_inj hT hx hy' (by simp) e')
-      rw [L.mem_wr_ne (b := tdA y) hd (tz_aligned hT hy' (K := 3528#u64) (by simp) (by simp)) n1,
-        L.mem_wr_ne (b := tdA y) ha (tz_aligned hT hy' (K := 3528#u64) (by simp) (by simp))
-          (tz_ne hT hx hy' (by simp) (by simp) (by simp))] at hd'
-      rw [L.mem_wr_ne (b := thA y) hd (tz_aligned hT hy' (K := 3568#u64) (by simp) (by simp))
+      rw [L.mem_wr_ne (b := tdA y) ha (tz_aligned hT hy' (K := 3528#u64) (by simp) (by simp))
           (tz_ne hT hx hy' (by simp) (by simp) (by simp)),
-        L.mem_wr_ne (b := thA y) ha (tz_aligned hT hy' (K := 3568#u64) (by simp) (by simp)) n2] at hcv
+        L.mem_wr_ne (b := tdA y) hd (tz_aligned hT hy' (K := 3528#u64) (by simp) (by simp)) n1] at hd'
+      rw [L.mem_wr_ne (b := thA y) ha (tz_aligned hT hy' (K := 3568#u64) (by simp) (by simp)) n2,
+        L.mem_wr_ne (b := thA y) hd (tz_aligned hT hy' (K := 3568#u64) (by simp) (by simp))
+          (tz_ne hT hx hy' (by simp) (by simp) (by simp))] at hcv
       exact h.core y hy hd' c hcv
 
 /-! ## The IPC invariants under timer writes -/
@@ -438,17 +440,17 @@ theorem TFB.wr_node {s0 s : S} {c o v : U64} (h : TFB st T Cs Ω H Sg Rp Scs Nt 
     TW.wr_node h.2.2.2.2 (h.nodes c hc) hc ho⟩
 
 theorem TFB.wr_clear {s0 s : S} {t : U64} (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T) :
-    TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) :=
-  ⟨⟨(h.1.1.wr_tfield (K := 3568#u64) ht (by simp) (by simp) (by simp)).wr_tfield (K := 3528#u64) ht
-      (by simp) (by simp) (by simp), h.tm.wr_clear h.tcbs h.nodes ht⟩, (h.2.1.trans (foot_field (K := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp))).trans
-    (foot_field (K := 3528#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp)),
-    (h.2.2.1.trans (ani_field (K := 3568#u64) h.tcbs (h.nodes _ h.cur) ht (by simp)
-      (by simp))).trans (ani_field (K := 3528#u64) h.tcbs
+    TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (tdA t) 0#u64) (thA t) 0#u64) :=
+  ⟨⟨(h.1.1.wr_tfield (K := 3528#u64) ht (by simp) (by simp) (by simp)).wr_tfield (K := 3568#u64) ht
+      (by simp) (by simp) (by simp), h.tm.wr_clear h.tcbs h.nodes ht⟩, (h.2.1.trans (foot_field (K := 3528#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp))).trans
+    (foot_field (K := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp) (by simp)),
+    (h.2.2.1.trans (ani_field (K := 3528#u64) h.tcbs (h.nodes _ h.cur) ht (by simp)
+      (by simp))).trans (ani_field (K := 3568#u64) h.tcbs
         ((h.nodes _ h.cur).ksb (L.ksb_wr _ _ _) |> fun hh => by
           rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp)),
-    (h.2.2.2.1.wr_field (K' := 3568#u64) h.tcbs ht (by simp) (by simp) (by simp)).wr_field (K' := 3528#u64) h.tcbs ht
+    (h.2.2.2.1.wr_field (K' := 3528#u64) h.tcbs ht (by simp) (by simp) (by simp)).wr_field (K' := 3568#u64) h.tcbs ht
       (by simp) (by simp) (by simp),
-    TW.wr_field (K := 3528#u64) (TW.wr_field (K := 3568#u64) h.2.2.2.2 h.tcbs ht (by simp) (by simp) (by simp))
+    TW.wr_field (K := 3568#u64) (TW.wr_field (K := 3528#u64) h.2.2.2.2 h.tcbs ht (by simp) (by simp) (by simp))
       h.tcbs ht (by simp) (by simp) (by simp)⟩
 
 theorem timer.core_of.csf {s0 : S} (s : S) (t : U64) (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T)
@@ -720,11 +722,11 @@ theorem timer.remove.tfb (s : S) (t : U64) (h : TFB st T Cs Ω H Sg Rp Scs Nt Z 
       obj.node_set st s cpu layout.node.TIMER_MIN v ⦃ s' => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
     fun s v h hv => WP.spec_mono (obj.node_set.spec s cpu _ v) fun s' e => by
       subst e; exact h.wr_node hcpu (by rw [timer_min_val]; simp) hv
-  have HH : ∀ s0 : S, obj.Tcb.set_timer_height st t s0 0#u64 ⦃ s' => s' = L.wr s0 (thA t) 0#u64 ⦄ :=
-    fun s0 => obj.Tcb.set_timer_height.wr s0 t 0#u64
-  have HD : ∀ s7 s8 : S, s8 = L.wr s7 (thA t) 0#u64 → TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s7 →
-      obj.Tcb.set_timer_deadline st t s8 0#u64 ⦃ s' => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
-    fun s7 s8 e h7 => WP.spec_mono (obj.Tcb.set_timer_deadline.wr s8 t 0#u64) fun s' e' => by
+  have HH : ∀ s0 : S, obj.Tcb.set_timer_deadline st t s0 0#u64 ⦃ s' => s' = L.wr s0 (tdA t) 0#u64 ⦄ :=
+    fun s0 => obj.Tcb.set_timer_deadline.wr s0 t 0#u64
+  have HD : ∀ s7 s8 : S, s8 = L.wr s7 (tdA t) 0#u64 → TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s7 →
+      obj.Tcb.set_timer_height st t s8 0#u64 ⦃ s' => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
+    fun s7 s8 e h7 => WP.spec_mono (obj.Tcb.set_timer_height.wr s8 t 0#u64) fun s' e' => by
       subst e e'; exact h7.wr_clear ht
   step*
   all_goals try (
