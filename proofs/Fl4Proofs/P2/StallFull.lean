@@ -5,12 +5,17 @@ stalled core's view — with the frame `StKeep` for the other cores.
 
 * `smp.stall.entryN`, `stallSeq.entryN`.
 
-Premises: the transfer's (`XferOK`, `XferFootOKC`, `TmoXG`, `hRSK`, and
+Premises: the transfer's (`XferOKRS`, `XferFootOKC`, `hRSK`, and
 `hRS0`/`UserOK`/`XG` at the stall's start, as in P1), the per-core clauses of
 the stalled core (`EntryInv`, `IdleSc`, `hnq`: its current thread, unless
-idle, is not queued), the protected threads (`Kp`). **Named premise**:
-`TmoCap` [P].  No premise quantifies over all `XG`/`BXI` states except
-`XferOK`/`XferFootOKC` (P1's `xferOK_of`, `xferFootOKC_of`).
+idle, is not queued), the protected threads (`Kp`). **Named premises**:
+`TmoCap` [P]; `XferFootOKC` [J] (the transfer writes only SC `CONSUMED` words
+among SC words; its former discharge from P1's `XferHyps` was vacuous and is
+deleted, `P2/XferN.lean`); `XferOKRS` [J] (p2j13, `P2/FootN5.lean`: P1's
+`XferOK` only at states with `RS s s`; it replaces the unguarded `XferOK` at
+`XG`, whose only discharge was from the vacuous `XferHyps`, and P1's
+`TmoXG`). Both transfer premises are guarded by `RS s s`; their discharge
+needs `RS` to carry P3's cap relation.
 -/
 import Fl4Proofs.P2.StallPost
 import Fl4Proofs.P1.QueueSchedCtl
@@ -38,9 +43,11 @@ def TmoCap (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (Z : U64 
     obj.Tcb.slot (L.curW s) layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
       obj.Slot.cap st sl s' ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
 
-/-- **`smp.stall`**: from the stalled core's `EntryInv` and `IdleSc`. -/
+/-- **`smp.stall`**: from the stalled core's `EntryInv` and `IdleSc`.
+Named premises: `hxf` [J] (`XferOKRS`, `P2/FootN5.lean`), `hxw` [J] (`XferFootOKC`,
+`P2/XferN.lean`). -/
 theorem smp.stall.entryN (hA : P0.ArchTotal ar)
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (TX : TmoXG st ar) {RS : S → S → Prop}
+    {RS : S → S → Prop} (hxf : XferOKRS st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hxw : XferFootOKC st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -100,7 +107,7 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
     refine WP.spec_bind (sched.check_budget.allGN (Kp := Kp) (Nd := True) hA s1 a1 Q R q1 hB1 hX1 hSg1 hS1 hcsc hna hcA
       (G := GN st Kp True T Cs Ω H Sg Scs Z U P3Ok s) (fun _ _ g f => GN.foot g f)
       (fun _ g => GN.out g trivial (q0.nodes _ q0.cur) q0.cur hKa hKc) g1
-      (tmoKC_N hA hxf TX hxw hRSK trivial hKT Ac s s1 hKc hKB (q0.nodes _ q0.cur) q0.cur hKa b1
+      (tmoKC_N hA hxf hxw hRSK trivial hKT Ac s s1 hKc hKB (q0.nodes _ q0.cur) q0.cur hKa b1
         (hRSK s s s1 hRS0 f1.foot) (hU.ksb K1.ksb) hq1 (by rw [ki1, hck.1]; exact hne.symm) hcap1)) ?_
     rintro ⟨r, s2, a2⟩ hh2
     simp only [WP.uncurry'_pair] at hh2 ⊢
@@ -125,9 +132,10 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
     rw [← hct, ← ht]; exact e
 
 /-- **`smp.stall` then `smp.send_pending`** keep the executing core's
-`EntryInv` and `IdleSc`; the core then runs its idle thread; `StKeep`. -/
+`EntryInv` and `IdleSc`; the core then runs its idle thread; `StKeep`.
+Named premises: `hxf` [J] (`XferOKRS`), `hxw` [J] (`XferFootOKC`). -/
 theorem stallSeq.entryN (hA : P0.ArchTotal ar)
-    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (TX : TmoXG st ar) {RS : S → S → Prop}
+    {RS : S → S → Prop} (hxf : XferOKRS st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hxw : XferFootOKC st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -142,7 +150,7 @@ theorem stallSeq.entryN (hA : P0.ArchTotal ar)
         StKeep st T Cs Scs Kp (L.cpu s) s s' ∧ L.curW s' = L.idleW s' ∧
         (L.actionW s' = L.actionW s ∨ L.actionW s' = 0#u64) ⦄ := by
   have q0 := h.1.choose_spec.choose_spec
-  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA hxf TX hxw hRSK hKT s a h hI hG hKc hKa hKB hRS0 hU hnq hcap) ?_
+  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA hxf hxw hRSK hKT s a h hI hG hKc hKa hKB hRS0 hU hnq hcap) ?_
   rintro ⟨s1, a1⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨k1, K1, hc1⟩ := hh

@@ -11,8 +11,9 @@ view.**
   `SCHED_ACTION` is kept, or `RESUME` for `d`.
 
 Premises of `stallAt.views`:
-* the transfer at the view of `d` (P1's `XferOK`, `XferFootOKC`,
-  `hRSK`; `RS`, `XG`, `UserOK` at the stall's start, as in P1), `TmoCap` [P];
+* the transfer at the view of `d` (`hRSK`; `RS`, `XG`, `UserOK` at the
+  stall's start, as in P1), `XferOKRS` [J] (`P2/FootN5.lean`), `XferFootOKC`
+  [J] (`P2/XferN.lean`), `TmoCap` [P];
 * `hown` [J]: `d`'s current thread is none of the other cores' idle,
   current or action threads (`OtherK`); from `OwnJ.curAff` (a current
   thread's `AFFINITY` is its core) and the idle threads' placement;
@@ -137,11 +138,13 @@ theorem OKeep.nq {Kp : Set U64} {d c : U64} {s s' : S} (k : OKeep st T Cs Scs Kp
     (L.mem s' (inqA (curAt st c s')) &&& sched.Q_QUEUED) = 0#u64 := by
   rw [(keep_words k hc hne).2.1, k.iq _ hK]; exact h
 
-/-- **A remote stall keeps the invariants at every core's view.** -/
+/-- **A remote stall keeps the invariants at every core's view.**
+Named premises: `hxf` [J] (`XferOKRS`, `P2/FootN5.lean`), `hxw` [J] (`XferFootOKC`,
+`P2/XferN.lean`). -/
 theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
-    (hxf : @XferOK S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U
-      (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     {RS : S → S → Prop}
+    (hxf : @XferOKRS S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U RS
+      (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     (hxw : @XferFootOKC S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U RS
       (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → @WritesIn S (atCpu st d) (L.atCpu d) s1 s2
@@ -171,7 +174,7 @@ theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
     · exact blocked_not_runnable hb ((hC c hc hne).per.run hy)
   unfold stallAt
   refine WP.spec_mono (@stallSeq.entryN S (atCpu st d) (L.atCpu d) T Ω H Cs Sg Rp Scs Nt Z Ac U
-    (OtherK st T Cs d s) P3Ok A ar hA hxf (tmoXG_holds (st := atCpu st d) (ar := ar) hA) RS hxw hRSK hKT s a h hI hG hown hactK hKB hRS0 hU hnq hcap) ?_
+    (OtherK st T Cs d s) P3Ok A ar hA RS hxf hxw hRSK hKT s a h hI hG hown hactK hKB hRS0 hU hnq hcap) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨e', hI', k, hcur, hac⟩ := hh

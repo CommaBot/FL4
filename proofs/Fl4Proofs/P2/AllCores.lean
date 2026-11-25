@@ -19,10 +19,12 @@ current or action threads (`OtherK d`), since those have the other cores as
 affinity. So `AllCores` gives every [J] premise of `stallAt.views` (`hown`,
 `hactK`, `hcurNB`, `hnq`, and the other cores' `CoreInv`), and
 **`stallAt.all`**: from `AllCores` (and the transfer premises of
-`stallAt.views`: `XferOK`, `XferFootOKC`, `hRSK`, `XG`, `RS`, `UserOK` at the
-view of `d`, `TmoCap` [P]) a stall of `d` ends in `AllCores`, with `d` on its
-idle thread and the other cores' actions kept. No premise of `stallAt.all` is
-[J].
+`stallAt.views`: `hRSK`, `XG`, `RS`, `UserOK` at the view of `d`,
+`XferOKRS` [J], `XferFootOKC` [J], `TmoCap` [P]) a stall of `d` ends in `AllCores`, with `d` on
+its idle thread and the other cores' actions kept. The per-core [J] premises
+of `stallAt.views` (`hown`, `hactK`, `hcurNB`, `hnq`) are gone; `XferFootOKC`
+stays [J] (its discharge from P1's `XferHyps` was vacuous, p2j8), and
+`XferOKRS` [J] replaces P1's unguarded `XferOK` (p2j13).
 
 Not in `AllCores`: `OwnJ`'s (2) `AffSc` (a bound SC's `CORE` is its thread's
 affinity). Keeping it across the stall needs the SCs' `CORE` words among the
@@ -72,11 +74,13 @@ theorem OKeep.idleAt {Kp : Set U64} {d c : U64} {s s' : S} (k : OKeep st T Cs Sc
   show L.mem s' (L.nodeAt s' c layout.node.IDLE_THREAD) = L.mem s (L.nodeAt s c layout.node.IDLE_THREAD)
   rw [nodeAt_of_ksb k.ksb]; exact k.nd c hc _ (Or.inl idle8)
 
-/-- **A remote stall of `d` from `AllCores` ends in `AllCores`.** -/
+/-- **A remote stall of `d` from `AllCores` ends in `AllCores`.**
+Named premises: `hxf` [J] (`XferOKRS`, `P2/FootN5.lean`), `hxw` [J] (`XferFootOKC`,
+`P2/XferN.lean`). -/
 theorem stallAt.all (hA : P0.ArchTotal ar) (d : U64) (hd : d ∈ Cs)
-    (hxf : @XferOK S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U
-      (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     {RS : S → S → Prop}
+    (hxf : @XferOKRS S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U RS
+      (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     (hxw : @XferFootOKC S (atCpu st d) (L.atCpu d) A ar T Cs Ω H Sg Rp Scs Nt Z U RS
       (@XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → @WritesIn S (atCpu st d) (L.atCpu d) s1 s2
