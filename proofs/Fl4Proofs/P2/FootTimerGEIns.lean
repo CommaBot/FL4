@@ -123,9 +123,10 @@ theorem ge_tlinks {Ks : U64 → Prop} {t p : U64} (C : TC st gS T s0 c (fun z =>
       trb_fld_wr hT htT htT (by simp) (by simp) (by simp) (by simp), if_pos (by simp)]
     exact hp
 
-theorem ge_cur_cpu {K Kr : U64 → Prop} {s : S} (hI : TI st s0 c K Kr s) (hc : L.cpu s0 = c) :
+theorem ge_cur_cpu {K Kr : U64 → Prop} {s : S} (hcc : gS.cur_cpu = st.cur_cpu) (hI : TI st s0 c K Kr s)
+    (hc : L.cpu s0 = c) :
     GE (gS.cur_cpu s) (st.cur_cpu s) (fun v => v = c) :=
-  ⟨congrFun ‹PathObl.GRd gS st R›.cur_cpu s,
+  ⟨congrFun hcc s,
     fun v e => by rw [L.cur_cpu_eq] at e; rw [← ok_inj_ff e, hI.cpu, hc]⟩
 
 theorem ge_set_tb {K Kr : U64 → Prop} (C : TC st gS T s0 c K R W) {s : S} (hI : TI st s0 c K Kr s) {x v : U64}
@@ -189,7 +190,7 @@ theorem ge_insert {Ks : U64 → Prop} {t d bd : U64} (C : TC st gS T s0 c (fun z
   refine GE.bind hrem fun s1 h1 => ?_
   obtain ⟨h1, hd1, ha1⟩ := h1
   refine GE.ite (fun _ => GE.ret trivial) (fun _ => ?_)
-  refine GE.bind (ge_cur_cpu h1 hc) fun cpu hcpu => ?_
+  refine GE.bind (ge_cur_cpu ‹PathObl.GRd gS st R›.cur_cpu h1 hc) fun cpu hcpu => ?_
   subst hcpu
   refine GE.bind (ge_root C0 h1) fun cur hcur => ?_
   refine GE.bind (ge_insert_loop C0 h1 (Or.inl rfl) hcur) fun r hr => ?_
