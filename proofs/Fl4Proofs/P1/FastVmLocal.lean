@@ -311,11 +311,11 @@ theorem rr_prefix_keep {T Cs Sg : Set U64} {s s1 s2 : S} {a a2 : A} {t v rptr ep
 /-- **`rr_vm_local_same`: the VM-fault ReplyRecv entry beside the serial
 gate, where its fast path ran, is the general entry**
 `syscall.handle_syscall … SysReplyRecv` (whose own fast path declines there,
-`rr_found_decline_of_vm`), given `RRPreAtG … VMFault`, the placement facts at
+`rr_found_decline_of_vm`), given `StoreExt` [P], `RRPreAtG … VMFault`, the placement facts at
 the entry state that `rr_prefix_keep` reads, the top's flag fact, and that
 `found` is what `reply_caps` returns at the entry state (fl4-sync's
 `local_syscall` computes it there). -/
-theorem rr_vm_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {a a' : A} {found : U64 × U64}
+theorem rr_vm_local_same (hX : StoreExt st) (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {a a' : A} {found : U64 × U64}
     (hP : RRPreAtG (L := L) ar fl4_abi.consts.fault.VMFault s a)
     {Ω Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
@@ -357,7 +357,7 @@ theorem rr_vm_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {
   have htT : t ∈ T := by
     rw [cur_thread_ok] at et; rw [← ok_inj_ff et]; exact hcT
   obtain ⟨et2, hrc⟩ := rr_prefix_keep ar hT hN hcC et htT (hCn t et) es1 hb (hfd t et) hA
-  obtain ⟨X, a'', hd, hf⟩ := rr_vm_same ar et2 hrc h (hP t nx s1 s2 a1 et enx es1 hb)
+  obtain ⟨X, a'', hd, hf⟩ := rr_vm_same ar hX et2 hrc h (hP t nx s1 s2 a1 et enx es1 hb)
   have hdec : fastpath.reply_recv st ar s2 a1 = ok (false, s2, a1) := by
     unfold fastpath.reply_recv
     rw [et2]; simp only [bind_ok]
@@ -381,8 +381,9 @@ theorem rr_vm_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {
   rw [hs]; simp only [bind_ok, uncurry_apply_pair]
 
 /-- **The VM-fault ReplyRecv local entry where it ran: the general entry's
-postconditions** (on the `true` results). -/
-theorem rr_vm_local_triple (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s : S} {a : A} {found : U64 × U64}
+postconditions** (on the `true` results).
+`hX : StoreExt` [P] as in `rr_vm_local_same`. -/
+theorem rr_vm_local_triple (hX : StoreExt st) (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s : S} {a : A} {found : U64 × U64}
     {P : S × A → Prop} (hP : RRPreAtG (L := L) ar fl4_abi.consts.fault.VMFault s a)
     {Ω Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
@@ -396,7 +397,7 @@ theorem rr_vm_local_triple (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s : S} {a
   intro hb
   simp only at hb
   subst hb
-  have hs := rr_vm_local_same ar hA hP hI hCn hflag hfd e
+  have hs := rr_vm_local_same ar hX hA hP hI hCn hflag hfd e
   rw [hs, WP.spec_ok] at hG
   exact hG
 

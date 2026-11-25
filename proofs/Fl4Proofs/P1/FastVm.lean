@@ -318,16 +318,16 @@ variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) 
 general path ends**: from the dispatch state `X0`, with `(rptr, ep)` what
 `reply_caps` returns for the current thread there (fl4-sync's `found`), an
 accepted `reply_recv_vm_found` ends where `dispatch_syscall … SysReplyRecv`
-then `finish` end, given the read bundle `RRPreG … VMFault` (m66's `rr_same`
+then `finish` end, given `StoreExt` [P] and the read bundle `RRPreG … VMFault` (m66's `rr_same`
 through `rr_found_sameG`). -/
-theorem rr_vm_same {X0 s' : S} {a a' : A} {t rptr ep : U64}
+theorem rr_vm_same (hX : StoreExt st) {X0 s' : S} {a a' : A} {t rptr ep : U64}
     (hct : sched.cur_thread st X0 = ok t) (hrc : fastpath.reply_caps st X0 t = ok (some (rptr, ep)))
     (hf : fastpath_vm.reply_recv_vm_found st ar X0 a t rptr ep = ok (true, s', a'))
     (hP : RRPreG (L := L) ar fl4_abi.consts.fault.VMFault X0 a) :
     ∃ X a'', syscall.dispatch_syscall st ar X0 a fl4_abi.syscall.SysReplyRecv = ok (X, a'') ∧
       syscall.finish st ar X a'' = ok (s', a') := by
   obtain ⟨u, usc, hC, hT⟩ := reply_recv_vm_found_acc st ar hf
-  exact rr_found_sameG ar vm_ne_null hct hrc hC hT hP
+  exact rr_found_sameG ar hX vm_ne_null hct hrc hC hT hP
 
 end
 
