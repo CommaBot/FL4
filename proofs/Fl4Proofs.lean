@@ -165,6 +165,7 @@ import Fl4Proofs.P1.QueueDecUt
 import Fl4Proofs.P1.QueueFootD
 import Fl4Proofs.P1.QueueFootS
 import Fl4Proofs.P1.IbKeepHolds
+import Fl4Proofs.P1.SchedFootB
 import Fl4Proofs.P1.QueueRestartFoot
 import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P2.Runtime
