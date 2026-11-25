@@ -50,6 +50,7 @@ No named premises.
 -/
 import Fl4Proofs.P2.FootTimerTree
 import Fl4Proofs.P2.PathObl
+import Fl4Proofs.P2.GSt
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2
