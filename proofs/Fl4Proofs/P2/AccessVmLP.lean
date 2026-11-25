@@ -81,7 +81,7 @@ noncomputable def vm_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E2
   RS := IoRS (st := st) K Locks
   WS := IoWS (st := st) K Locks
   DS := IoDS (st := st)
-  isProg := hpz.choose_spec.1
+  isProg := IsProg.on hpz.choose_spec.1 _ _ _
   obl := vm_pathObl_mv hA hK hU hLA hmA
     (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
   side := vm_pathSide hA hK hLA (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
@@ -121,7 +121,7 @@ noncomputable def rr_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E2
   RS := IoRS (st := st) K Locks
   WS := IoWS (st := st) K Locks
   DS := IoDS (st := st)
-  isProg := hpz.choose_spec.1
+  isProg := IsProg.on hpz.choose_spec.1 _ _ _
   obl := rr_pathObl hA hK hU hLA hmA
     (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
   side := rr_pathSide hA hK hLA (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)

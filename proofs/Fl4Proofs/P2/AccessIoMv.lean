@@ -22,7 +22,8 @@ writes of the current thread (`RESTART`, `RUNNING`) a hypothesis of their own
   discharged.
 
 Premises: `RegionOK` [J], `UserOK` [J], `IoLayA` [J] of the layout; `IoPre`'s;
-`hp` [P] (`IsProg`: the body is the tree `p`); `hmA` [J]: `ko`'s memory `m0`
+`hp` [P] (`IsProgOn`: the body is the tree `p` on the stores narrowing `st` from the entry
+states and their alternatives); `hmA` [J]: `ko`'s memory `m0`
 agrees with the entry state on every TCB's `AFFINITY` (gate-owned, as p2sl's
 `move_of_gd`).
 -/
@@ -129,25 +130,27 @@ theorem io_acc_gd (hA : P0.ArchTotal ar) (hK : RegionOK K) (hLA : IoLayA K) {s s
 theorem io_move (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E2E.UserOK K) (hLA : IoLayA K) {s s1 : S}
     {a a1 : A} (P : IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hmA : ∀ d, K.heap d = some .tcb → m0 (fld d oAFFINITY) = L.mem s (fld d oAFFINITY))
-    (hp : ∀ (m : machine.Store S) (x : S) (a : A),
-      syscall.handle_ioport_local m ar x a number = interp m ar p x a)
+    {Pr : S → Prop} (hE : Pr s)
+    (hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st
+      (AltOf st Pr (IoRS (st := st) K Locks) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user)) p)
     (h : syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) :
     syscall.handle_ioport_local (mguard st (fun x y => StepOK (own K) (OwnMap.cls K) (OwnMap.ko K m0)
       (· ∈ K.user) (L.cpu s) (Locks s) (L.mem x) (L.mem y))) ar s a number = ok (true, s1, a1) := by
   have hg := io_acc_gd (Locks := Locks) (lk := Locks s) hA hK hLA P h
-  rw [hp] at hg ⊢
+  rw [io_hp hp (Narrow.gd _ _ _) (AltOf.pre hE) a] at hg
+  rw [io_hp hp (Narrow.mguard _ _) (AltOf.pre hE) a]
   exact OwnMap.run_gd_mguard hK hU hmA p hg
 
 /-- **`PathObl` for the I/O port path, `move` proved** (`io_pathObl` with `io_move`). -/
 theorem io_pathObl_mv (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E2E.UserOK K) (hLA : IoLayA K)
     {P : S → Prop} (hPE : ∀ s, P s → IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hmA : ∀ s, P s → ∀ d, K.heap d = some .tcb → m0 (fld d oAFFINITY) = L.mem s (fld d oAFFINITY))
-    (hp : ∀ (m : machine.Store S) (x : S) (a : A),
-      syscall.handle_ioport_local m ar x a number = interp m ar p x a) :
+    (hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st
+      (AltOf st P (IoRS (st := st) K Locks) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user)) p) :
     PathObl st (fun m s a => syscall.handle_ioport_local m ar s a number) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (IoRS (st := st) K Locks) (IoWS (st := st) K Locks) (IoDS (st := st)) :=
-  io_pathObl hA hK hLA hPE fun s _ _ _ hE h => io_move hA hK hU hLA (hPE s hE) (hmA s hE) hp h
+  io_pathObl hA hK hLA hPE fun s _ _ _ hE h => io_move hA hK hU hLA (hPE s hE) (hmA s hE) hE hp h
 
 end
 

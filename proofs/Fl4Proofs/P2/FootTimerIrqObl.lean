@@ -257,7 +257,7 @@ noncomputable def irq_localPath (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : 
   RS := MaxR K st lk
   WS := MaxW K st lk
   DS := IrqDec st
-  isProg := hp
+  isProg := PathObl.IsProg.on hp _ _ _
   obl := irq_pathObl ar hA hK hUO (fun s h => h.ent) (fun mm => hp A ar mm) hz hm
     (fun s h q hq => irq_koF h.ent hq) (ko_aligned hK hUO) hF
     (fun s a s1 a1 hE h => irq_move_acc ar hA hK hUO hp hE.k (hFm s a s1 a1 hE · h) h)

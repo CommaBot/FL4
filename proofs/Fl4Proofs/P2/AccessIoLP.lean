@@ -13,9 +13,12 @@ from the per-path obligations: `obl` = `io_pathObl_mv`, `side` = `io_pathSide`, 
 * `ioBody`: the extracted body is already generic in the Arch instance, so it is `F` as is.
 
 **The program premise** (`hpz`, one [P]/[W] premise instead of `hp` / `hz` / `hro`): there is a tree `p` with
-* `IsProg F p` [P]: the body is `p` on every store and Arch instance;
-* `NoZero p` [W]: `p` has no `zero` / `clr` node; not provable for an arbitrary `p` with `IsProg`
-  (`handoff/p2io-state.md`), hence stated of the same `p`, a pruned reification of the body;
+* `IsProg (ioBodyP S number) p` [P]: the **pruned** body (`P2/IoPrune.lean`: `decode_invocation` cut to its
+  I/O port arm) is `p` on every store and Arch instance. The unpruned form `IsProg (ioBody S number) p ∧
+  NoZero p` was false (`handoff/hpz.md`); `io_isProgOn` (`io_prune`) gives the bridge's relativised
+  `IsProgOn` of the real body (on stores narrowing `st`, from the entry states and their alternatives);
+* `NoZero p` [W]: `p` has no `zero` / `clr` node (the pruned body's call closure has none: 402 functions,
+  385 shared with the other local paths);
 * `hro` [W] (`ReadOnce` at a declining entry): at an alternative of an entry that does not accept, `p`'s run
   reads each racy word once. The declining run at an alternative may read words outside `IoRS s` (a CSpace
   slot whose `Null` / `Frame` cap changed, `P2/AccessIoRa.lean`), and no store instance counts reads
@@ -33,7 +36,7 @@ Premises (besides `hpz`): `hA` (Arch totality), `hK` [J] (`RegionOK`), `hU` [J] 
 `hmA` [J] (`ko`'s memory `m0` agrees with the entry on every TCB's `AFFINITY`), `huf` [J]
 (`PathSide.user_free`).
 -/
-import Fl4Proofs.P2.AccessIoMv
+import Fl4Proofs.P2.IoPrune
 import Fl4Proofs.P2.OnceGuard
 open Aeneas Aeneas.Std Result
 
@@ -62,8 +65,8 @@ theorem io_total (hA : P0.ArchTotal ar) (number : I64) (s : S) (a : A) :
 /-- **`ReadOnce` for the I/O port path** (module docstring), the declining entries a premise (`hro` [W]). -/
 theorem io_readOnce (hA : P0.ArchTotal ar) {number : I64} {p : SProg Bool}
     {P : S → Prop} (hPE : ∀ s, P s → IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hp : ∀ (m : machine.Store S) (x : S) (a : A),
-      syscall.handle_ioport_local m ar x a number = interp m ar p x a) (hz : NoZero p)
+    (hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st
+      (AltOf st P (IoRS (st := st) K Locks) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user)) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
     (hro : ∀ s s' a r, P s → (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
       Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
@@ -73,14 +76,15 @@ theorem io_readOnce (hA : P0.ArchTotal ar) {number : I64} {p : SProg Bool}
   by_cases hac : ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)
   · obtain ⟨s1, a1, h0⟩ := hac
     have hg := io_acc (Locks := Locks) hA (hPE s hE) h0
-    rw [hp] at hg
+    rw [io_hp hp (Narrow.guard _ _ _) (AltOf.pre hE) a] at hg
     obtain ⟨s1', hg'⟩ := interp_agree hm (fun w hw => hw.1) (fun w hw => hw.1) p hz s s' a true s1 a1
       Al.ksb Al.cpu Al.masks Al.read hg
     exact once_of_guardG (fun q hq => hq.2.1) p hz ∅ ∅ s' a _ hg'
   · exact hro s s' a r hE hac Al h
 
-/-- **The I/O port local path** (module docstring); `hpz` is the program premise ([P] `IsProg`, [W] `NoZero`,
-[W] `hro`). -/
+/-- **The I/O port local path** (module docstring); `hpz` is the program premise of the **pruned** body
+`ioBodyP` ([P] `IsProg`, [W] `NoZero`, [W] `hro`), which `io_isProgOn` turns into the relativised premise
+of the real body. -/
 noncomputable def io_localPath (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK : RegionOK K)
     (hU : E2E.UserOK K) (hLA : IoLayA K) {number : I64} (hm : E2E.MasksWr st)
     {P : S → Prop} (hPE : ∀ s, P s → IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -90,7 +94,7 @@ noncomputable def io_localPath (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK 
         IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
         IoWS (st := st) K Locks (L.wr s b v) = IoWS (st := st) K Locks s ∧
         IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∃ p : SProg Bool, IsProg (ioBody S number) p ∧ NoZero p ∧
+    (hpz : ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
       ∀ s s' a r, P s → (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
         Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
         interp st ar p s' a = ok r → Once st ar (IoRS (st := st) K Locks s) (· ∈ K.user) ∅ ∅ p s' a) :
@@ -109,13 +113,10 @@ noncomputable def io_localPath (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK 
   RS := IoRS (st := st) K Locks
   WS := IoWS (st := st) K Locks
   DS := IoDS (st := st)
-  isProg := hpz.choose_spec.1
-  obl := io_pathObl_mv hA hK hU hLA hPE hmA
-    (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
-  side := io_pathSide hA hK hLA hPE (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
-    hpz.choose_spec.2.1 hm huf
-  once := io_readOnce hA hPE (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
-    hpz.choose_spec.2.1 hm hpz.choose_spec.2.2
+  isProg := io_isProgOn hA hPE hpz.choose_spec.1
+  obl := io_pathObl_mv hA hK hU hLA hPE hmA (io_isProgOn hA hPE hpz.choose_spec.1)
+  side := io_pathSide hA hK hLA hPE (io_isProgOn hA hPE hpz.choose_spec.1) hpz.choose_spec.2.1 hm huf
+  once := io_readOnce hA hPE (io_isProgOn hA hPE hpz.choose_spec.1) hpz.choose_spec.2.1 hm hpz.choose_spec.2.2
   total := fun s a => io_total hA number s a
   masks := hm
 
