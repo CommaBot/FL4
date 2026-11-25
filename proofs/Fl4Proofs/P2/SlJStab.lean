@@ -26,8 +26,9 @@ identified with the entry's after the fact. (Internally the IPC steps' posts *ar
 before reaching any top.)
 
 ## This file
-* `JAtSt th B H Cs k`: `JAtZ` at some `Z` with `Z.th = th`, `Z.B = B`, `L.ksb s = k` and the
-  given `H`, `Cs` (the other ghosts free).
+* `JAtSt th B H Cs k`: `JAtZ` at some `Z` with `Z.th = th`, `Z.B = B`, `L.ksb s = k`, the
+  given `H`, `Cs` and `VxE Z` (as at every `JReachU17` exit, `jreach_invU3`; line stpost: the
+  stable-ghost entry theorems ask it), the other ghosts free.
 * `LocRunMv Loc` [J]: the stable-ghost local-run premise, in lay's shape: a local run
   (`Loc`) from `JAtZ Z H Cs …` ends in `JAtZ (Z.mv G' V') H Cs …` with the kernel-state base
   kept. `LocSys`: the accepted `handle_syscall_local` runs with their spec outcomes (U29S's
@@ -79,7 +80,7 @@ kernel-state base `k`. -/
 def JAtSt (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap) (Cs : Set U64) (k : U64)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    Z.th = th ∧ Z.B = B ∧ L.ksb s = k ∧ JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ
+    Z.th = th ∧ Z.B = B ∧ L.ksb s = k ∧ JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 /-- **[J] A local run keeps the stable ghosts** (module docstring; lay's shape): a run `Loc`
 from `JAtZ Z H Cs …` ends in `JAtZ (Z.mv G' V') H Cs …` (only the MDB ghost and the VSpace
@@ -130,9 +131,9 @@ theorem JReachSt.atSt {Loc : S → A → Fl4Spec.State Unit → S → A → Fl4S
   induction h with
   | exit _ hS => exact hS
   | loc _ hL _ ih =>
-    obtain ⟨Z, Ac, Lst, D, hth, hB, hk, J⟩ := ih
+    obtain ⟨Z, Ac, Lst, D, hth, hB, hk, J, hvx⟩ := ih
     obtain ⟨hk', G, V, Ac', Lst', D', J'⟩ := hK _ _ _ _ _ _ _ _ _ _ _ _ J hL
-    exact ⟨Z.mv G V, Ac', Lst', D', hth, hB, hk'.trans hk, J'⟩
+    exact ⟨Z.mv G V, Ac', Lst', D', hth, hB, hk'.trans hk, J', ⟨hvx.eq⟩⟩
 
 /-- **The exit's ghosts start a `JReachSt` and give `Fl4Step.ser`** (module docstring): at
 every reachable state, one choice of ghosts and core count `n` gives SerExit's
@@ -145,9 +146,9 @@ theorem jreachSt_exit (Loc : S → A → Fl4Spec.State Unit → S → A → Fl4S
       (∀ c : Serial.Cfg U64 U64 U64 U64, SerExit.ExitGhost (L := L) (layoutJ Z H (L.ksb s) n) s c →
         E2E.Maps (layoutJ Z H (L.ksb s) n) c) ∧
       JReachSt (L := L) arI AR MR Loc Z.th Z.B H Cs (L.ksb s) s a σ := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ := jreach_invU3 hnd h.1
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -, -, -, -, -, -, hvx⟩ := jreach_invU3 hnd h.1
   obtain ⟨n, hn, h1, h2, h3⟩ := SerExit.ser_of_JAtZN J
-  exact ⟨Z, H, Cs, n, hn, h1, h2, h3, .exit h ⟨Z, Ac, Lst, D, rfl, rfl, rfl, J⟩⟩
+  exact ⟨Z, H, Cs, n, hn, h1, h2, h3, .exit h ⟨Z, Ac, Lst, D, rfl, rfl, rfl, J, hvx⟩⟩
 
 /-- **`SlJAt` at every `JReachSt` state for every layout matching the fixed ghosts**
 (`numDomains = 1` and `LocRunMv` [J] only). -/
@@ -158,7 +159,7 @@ theorem slJAt_of_jreachSt {Loc : S → A → Fl4Spec.State Unit → S → A → 
     (K : KLayout) (hH : K.heap = H) (hS : K.slots = {x | IsSlot th x})
     (hU : K.user = {b | ∃ wp ∈ B, wp.1 = b}) (hk : K.ksb = k) (hn : ∀ c : U64, c ∈ Cs ↔ c.val < K.ncores) :
     SlJAt (L := L) K s := by
-  obtain ⟨Z, Ac, Lst, D, hth, hB, hk', J⟩ := h.atSt hK
+  obtain ⟨Z, Ac, Lst, D, hth, hB, hk', J, -⟩ := h.atSt hK
   obtain ⟨-, -, -, -, -, -, -, hX, -⟩ := jreach_invU3 hnd h.reach.1
   subst hth hB
   exact slJAt_of_JAtZ_stable J hX.cr.2 K hH hS hU (hk.trans hk'.symm) hn
