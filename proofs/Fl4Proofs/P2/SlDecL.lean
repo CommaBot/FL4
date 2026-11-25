@@ -17,9 +17,14 @@ The prefix state `X` keeps every word read here (`lp_mem`, with `not_slDS_tcb`,
 `not_slDS_node`, `not_slDS_reg`: a TCB word other than `FAULT_IP`, a node word other than
 `CUR_TIME` / `CONSUMED`, an SC / object word are not prefix words).
 
-Premises: `SlHere` [J] (each field tagged there with its intended P1/P3 discharge); the rest as
+`slPre_of`: `SlPre`'s guarded-prefix facts from the same sources: `preG` (`preAcc_here`: node
+words, the current thread's flags / `NEXT_IP` / `FAULT_IP`, homed here by `Safe0`) and `hhd`
+(`hhd_of`: the current SC, homed here, `SlHere.cs`).
+
+Premises: `SlHere` [J] (each field tagged there with its intended P1/P3 discharge); `SlPreB`
+(`SlPre` without `preG` / `hhd`; its own [W] fields `pre`, `hRWf(G)`, `hRWr(G)` remain); the rest as
 `sl_pathObl_ent`. `sl_pathObl_lay` / `sl_pathSide_lay` restate the entry's obligations with
-`SlDecIn` discharged.
+`SlDecIn`, `preG` and `hhd` discharged.
 -/
 import Fl4Proofs.P2.SlLay
 open Aeneas Aeneas.Std Result
@@ -227,6 +232,9 @@ structure SlHere (K : KLayout) (Z : U64 → Nat) (Scs : Set U64) (found : U64 ×
   release-queue invariant: queued threads have active SCs of this core). -/
   rh : L.mem s (rhA (L := L) s) ≠ 0#u64 → K.heap (L.mem s (rhA (L := L) s)) = some .tcb ∧
     ScHere (st := st) K Z Scs s (L.mem s (scA (L.mem s (rhA (L := L) s))))
+  /-- [J] the node's current SC (`CUR_SC`) is homed here (P1: `CUR_SC` is an active SC of
+  this core). -/
+  cs : ScHere (st := st) K Z Scs s (L.cscW s)
   /-- [J] ReplyRecv: the current thread's SC is homed here (P1: the running thread has an
   active SC on its core). -/
   csc : ¬ SlTrap st s → ScHere (st := st) K Z Scs s (L.mem s (scA (L.curW s)))
@@ -247,6 +255,31 @@ variable {A : Type} (ar : machine.Arch A)
 variable {m0 : U64 → U64} {n : I64} {found : U64 × U64}
   {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
 
+/-- **`PreAcc` for the read / write sets**: the prefix's words (this core's node, the current
+thread's flags, `NEXT_IP`, `FAULT_IP`) from the layout, the current thread homed here. -/
+theorem preAcc_here (hX : RegionOKX K) {T : Set U64} {s : S} (hT : TcbPlaced T)
+    (hN : NodePlaced st T s (L.cpu s)) (hcT : L.curW s ∈ T) (hc : K.heap (L.curW s) = some .tcb)
+    (hcA : L.mem s (affA (L.curW s)) = L.cpu s) (hk : L.ksb s = K.ksb) (hcp : (L.cpu s).val < K.ncores) :
+    PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s := by
+  obtain ⟨KN, hKN, eKN⟩ := regA_eq (hT _ hcT) (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP])
+  have hKN' : KN.val = 368 := by rw [hKN]; simp [layout.reg.NEXT_IP]
+  obtain ⟨KF, hKF, eKF⟩ := fip_eq hT hcT
+  refine ⟨fun o h1 h2 => rs_node hX hN hk hcp h1 h2,
+    (rs_tcb_home hX hc (o := 3456#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField]) hcA).1, ?_, ?_⟩
+  · rw [eKN]
+    exact (rs_tcb_home hX hc (by omega) (by omega) (by omega) (by simp only [GateField]; omega)
+      (by simp only [TimerField]; omega) (by simp only [GField]; omega) hcA).1
+  · rw [eKF]
+    exact (rs_tcb_home hX hc (by omega) (by omega) (by omega) (by simp only [GateField]; omega)
+      (by simp only [TimerField]; omega) (by simp only [GField]; omega) hcA).2
+
+theorem preAcc_of (hX : RegionOKX K) {s : S}
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (Hh : SlHere (st := st) K Z Scs found s) :
+    PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s :=
+  preAcc_here hX E.hT E.hN E.hcT E.hSt.1 E.hSt.2.1 Hh.ksb Hh.cpu
+
 /-- The words both declining arms read before their decided thread's, at the prefix state. -/
 structure SlCom (R : U64 → Prop) (X : S) : Prop where
   nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt X (L.cpu X) o)
@@ -259,7 +292,7 @@ structure SlCom (R : U64 → Prop) (X : S) : Prop where
 
 /-- The head refill of an SC homed here is in the read set at the prefix state. -/
 theorem rdHead_here (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
-    (E : SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (Hh : SlHere (st := st) K Z Scs found s) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1))
     {sc : U64} (hs : ScHere (st := st) K Z Scs s sc) : RdHead (L := L) (SlRS (st := st) K Locks s) X sc := by
   obtain ⟨hz, hin, hmx, hco⟩ := hs
@@ -274,7 +307,7 @@ theorem rdHead_here (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
 
 /-- **The common words at the prefix state.** -/
 theorem slCom_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) {s : S}
-    (E : SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (Hh : SlHere (st := st) K Z Scs found s) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1)) :
     SlCom (L := L) (SlRS (st := st) K Locks s) X := by
   obtain ⟨kX, cX, -, -, -, -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT E.hN E.hcT LP
@@ -311,10 +344,10 @@ theorem slCom_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) {s 
 set_option maxHeartbeats 4000000 in
 /-- **`SlDecIn` from the ownership map.** -/
 theorem slDecIn_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) {s : S}
-    (E : SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (N : SlEnt (st := st) K Locks found s) (Hh : SlHere (st := st) K Z Scs found s) :
     SlDecIn (st := st) ar K Locks found s := by
-  have I : SlThrIn (st := st) K Locks found.1 s := slThrIn_of hK hX E.preG E.hSt.1 N
+  have I : SlThrIn (st := st) K Locks found.1 s := slThrIn_of hK hX (preAcc_of ar hX E Hh) E.hSt.1 N
   have hc := E.hSt.1
   have hcA : L.mem s (affA (L.curW s)) = L.cpu s := E.hSt.2.1
   have nT : ∀ {t o : U64}, K.heap t = some .tcb → 192 ≤ o.val → o.val < 4096 → o.val % 8 = 0 →
@@ -407,6 +440,25 @@ theorem slDecIn_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) {
       subst e1
       exact rdHead_here ar hA hX E Hh LP (Hh.usc hS lv hh hne)
 
+/-- **`SlPre.hhd` from the layout**: the current SC (unchanged by the prefix) is homed here. -/
+theorem hhd_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (Hh : SlHere (st := st) K Z Scs found s) {a X a1 csc} (LP : LocalPre (st := st) ar s a (X, a1))
+    (hcs : sched.cur_sc st X = ok csc) : RdHead (L := L) (SlRS (st := st) K Locks s) X csc := by
+  obtain ⟨-, -, -, -, ecs, -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT E.hN E.hcT LP
+  have e : csc = L.cscW s := by
+    rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) X)] at hcs
+    rw [← ok_inj_ff hcs]; exact ecs
+  subst e
+  exact rdHead_here ar hA hX E Hh LP Hh.cs
+
+/-- **`SlPre` from `SlPreB`, the layout and `SlHere`** (`preG` by `preAcc_of`, `hhd` by `hhd_of`). -/
+theorem slPre_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (Hh : SlHere (st := st) K Z Scs found s) :
+    SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s :=
+  { toSlPreB := E, preG := preAcc_of ar hX E Hh, hhd := fun _ _ _ _ LP hcs => hhd_of ar hA hX E Hh LP hcs }
+
 variable {p : SProg Bool}
 
 /-- **`PathObl` of the syscall entry from the ownership map**: `sl_pathObl_ent` with `SlDecIn`
@@ -416,13 +468,13 @@ theorem sl_pathObl_lay (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX 
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
     (hH : ∀ s, P s → SlHere (st := st) K Z Scs found s) :
     PathObl st (fun m s a => syscall.handle_syscall_local m ar s a n found) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathObl_ent ar hA hK hX hU hFp hz hm hPE hE
+  sl_pathObl_ent ar hA hK hX hU hFp hz hm (fun s hP => slPre_of ar hA hX (hPE s hP) (hH s hP)) hE
     (fun s hP => slDecIn_of ar hA hK hX (hPE s hP) (hE s hP) (hH s hP))
 
 /-- **`PathSide` of the syscall entry from the ownership map** (`sl_pathSide_ent`, `slDecIn_of`). -/
@@ -431,7 +483,7 @@ theorem sl_pathSide_lay (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Reg
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    {P : S → Prop} (hPE : ∀ s, P s → SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
     (hH : ∀ s, P s → SlHere (st := st) K Z Scs found s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
@@ -442,7 +494,7 @@ theorem sl_pathSide_lay (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Reg
     PathSide st (fun m s a => syscall.handle_syscall_local m ar s a n found)
       (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathSide_ent ar hS hA hK hX hU hFp hz hm hPE hE
+  sl_pathSide_ent ar hS hA hK hX hU hFp hz hm (fun s hP => slPre_of ar hA hX (hPE s hP) (hH s hP)) hE
     (fun s hP => slDecIn_of ar hA hK hX (hPE s hP) (hE s hP) (hH s hP)) huf
 
 end
