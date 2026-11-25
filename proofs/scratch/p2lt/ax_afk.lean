@@ -58,6 +58,11 @@ import Fl4Proofs.P2.FootTimerFireAk
 import Fl4Proofs.P2.FootTimerFireMk
 import Fl4Proofs.P2.FootTimerIrqLPP
 import Fl4Proofs.P2.FootTimerFireSx
+import Fl4Proofs.P2.FootTimerFireSy0
+import Fl4Proofs.P2.FootTimerFireSy1
+import Fl4Proofs.P2.FootTimerFireSy2
+import Fl4Proofs.P2.FootTimerFireSy
+import Fl4Proofs.P2.FootTimerIrqLPP2
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -309,3 +314,48 @@ import Fl4Proofs.P2.FootTimerFireSx
 #print axioms Fl4Proofs.P2.schedTail_fpS
 #print axioms Fl4Proofs.P2.sw_tail
 #print axioms Fl4Proofs.P2.top_ok_head
+#print axioms Fl4Proofs.P2.SWN.ksb
+#print axioms Fl4Proofs.P2.swn_trans
+#print axioms Fl4Proofs.P2.qfoot_swn
+#print axioms Fl4Proofs.P2.enq_step
+#print axioms Fl4Proofs.P2.app_step
+#print axioms Fl4Proofs.P2.deq_step
+#print axioms Fl4Proofs.P2.setact_step
+#print axioms Fl4Proofs.P2.setcur_step
+#print axioms Fl4Proofs.P2.switch_step
+#print axioms Fl4Proofs.P2.Grow.refl
+#print axioms Fl4Proofs.P2.Grow.pre
+#print axioms Fl4Proofs.P2.Grow.app
+#print axioms Fl4Proofs.P2.swn_tcb
+#print axioms Fl4Proofs.P2.swn_node
+#print axioms Fl4Proofs.P2.swn_out
+#print axioms Fl4Proofs.P2.swn_ks
+#print axioms Fl4Proofs.P2.grow_enq
+#print axioms Fl4Proofs.P2.grow_app
+#print axioms Fl4Proofs.P2.enq_ne
+#print axioms Fl4Proofs.P2.app_ne
+#print axioms Fl4Proofs.P2.pick_cases
+#print axioms Fl4Proofs.P2.schedSwB_cases
+#print axioms Fl4Proofs.P2.choose_run
+#print axioms Fl4Proofs.P2.schedSw_run
+#print axioms Fl4Proofs.P2.swacc_mono
+#print axioms Fl4Proofs.P2.rq_head_info
+#print axioms Fl4Proofs.P2.getLastD_mem'
+#print axioms Fl4Proofs.P2.rq_tail_info
+#print axioms Fl4Proofs.P2.enq_cur
+#print axioms Fl4Proofs.P2.requeue_run
+#print axioms Fl4Proofs.P2.enq_guard
+#print axioms Fl4Proofs.P2.app_guard
+#print axioms Fl4Proofs.P2.deq_guard_head
+#print axioms Fl4Proofs.P2.deq_guard_unq
+#print axioms Fl4Proofs.P2.sw_guard
+#print axioms Fl4Proofs.P2.choose_guard
+#print axioms Fl4Proofs.P2.schedSw_guard
+#print axioms Fl4Proofs.P2.scacc_of
+#print axioms Fl4Proofs.P2.aw_tail_sw
+#print axioms Fl4Proofs.P2.fire_tail_wk2
+#print axioms Fl4Proofs.P2.SlotLay
+#print axioms Fl4Proofs.P2.slot_maxR
+#print axioms Fl4Proofs.P2.irq_acc_fire_wk2
+#print axioms Fl4Proofs.P2.irq_move_fire_wk2
+#print axioms Fl4Proofs.P2.irq_localPathP2

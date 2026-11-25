@@ -37,14 +37,15 @@ theorem node_not_tw {X : S} {Xs : Set U64} {Q : U64 → U64 → List U64} {Rq : 
 
 /-- **What the waking fire step keeps** from its start `X` to its end `Y`: `WkKeep` and also the timer words
 (`TIMER_ROOT` 104 / `TIMER_MIN` 112 and the threads' timer fields 3528–3568), which `remove` writes. -/
-def FwKeep (st : machine.Store S) [L : LawfulStore st] (T Scs : Set U64) (Z : U64 → Nat) (X Y : S) (w : U64) :
-    Prop :=
+def FwKeep (st : machine.Store S) [L : LawfulStore st] (T Ω Sg Scs : Set U64) (Z : U64 → Nat) (X Y : S)
+    (w : U64) : Prop :=
   (∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 → o.val ≠ 104 → o.val ≠ 112 →
     L.mem Y (L.nodeAt X (L.cpu X) o) = L.mem X (L.nodeAt X (L.cpu X) o)) ∧
   (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) → K.val ≠ 3496 →
     K.val ≠ 3504 → (y = w → K.val ≠ 3328 ∧ K.val ≠ 256 ∧ K.val ≠ 3376) →
     L.mem Y (core.num.U64.wrapping_add y K) = L.mem X (core.num.U64.wrapping_add y K)) ∧
-  (∀ c ∈ Scs, c ≠ L.mem X (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem X b)
+  (∀ c ∈ Scs, c ≠ L.mem X (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem X b) ∧
+  (∀ b, Aligned b → b ∈ Ω → b ∉ Sg → L.mem Y b = L.mem X b)
 
 end
 
@@ -95,7 +96,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     (hrmg : timer.remove gS X TM = timer.remove st X TM) :
     ∃ Y aY, timer.fire st ar X a = ok (Y, aY) ∧ timer.fire gS ar X a = timer.fire st ar X a ∧
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac Y ∧ FireStop st R Y now ∧ L.ksb Y = L.ksb s ∧ L.cpu Y = L.cpu s ∧
-      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Scs Z X Y w ∧
+      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Ω Sg Scs Z X Y w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
         L.mem Y (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
   have hTX' := hTX
@@ -173,13 +174,13 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     rw [nodeAt_of_ksb (L.ksb_wr _ _ _), LawfulStore.cpu_wr]
     exact mem_wr_ne' aRP aSA nRA
   have hT := hq.tcbs
-  have kY : FwKeep st T Scs Z X (L.wr X2 (L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM) 1#u64) w := by
+  have kY : FwKeep st T Ω Sg Scs Z X (L.wr X2 (L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM) 1#u64) w := by
     have eRP : L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM = L.nodeAt X (L.cpu X) layout.node.REPROGRAM := by
       rw [e2N, eXN]
     have e1X : ∀ o, L.nodeAt X1 (L.cpu X1) o = L.nodeAt X (L.cpu X) o := fun o => by
       rw [cX1, nodeAt_of_ksb kX1, eXN]
     refine ⟨fun o ho h8 h16 h56 h104 h112 => ?_, fun y hy K hK h8 hK' h1 h2 hyw => ?_,
-      fun c hc hne b hb hin => ?_⟩
+      fun c hc hne b hb hin => ?_, fun b hb hΩ hSg => ?_⟩
     · rw [mem_wr_ne' aRP (nodeAt_aligned hN ho h8) (by
           rw [eRP]; exact nodeAt_ne hN (by simp [layout.node.REPROGRAM]) ho (by simp [layout.node.REPROGRAM]; omega)),
         ← e1X o, kp.1 o ho h8 h16 h56, e1X o]
@@ -192,7 +193,11 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     · have ho := hq.omega b (hXX.1.scW c hc b hb hin)
       have e3 : L.mem X1 (scA w) = L.mem X (scA w) := tk1 w hwT 3464#u64 (by simp) (by simp) (Or.inl (by simp))
       rw [mem_wr_ne' aRP hb (fun e => out_ne_node (o := layout.node.REPROGRAM) ho hq.cur hN (by simp [layout.node.REPROGRAM]) (by rw [← eRP, e])),
-        kp.2.2 c hc (by rw [e3]; exact hne) b hb hin]
+        kp.2.2.1 c hc (by rw [e3]; exact hne) b hb hin]
+      exact w31.mem_eq hb (out_not_tw hT hq.nodes ho)
+    · have ho := hq.omega b hΩ
+      rw [mem_wr_ne' aRP hb (fun e => out_ne_node (o := layout.node.REPROGRAM) ho hq.cur hN (by simp [layout.node.REPROGRAM]) (by rw [← eRP, e])),
+        kp.2.2.2 b hb hΩ hSg]
       exact w31.mem_eq hb (out_not_tw hT hq.nodes ho)
   have wfacts : Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X := by
     have e1 : L.mem X1 (stA w) = L.mem X (stA w) := by
