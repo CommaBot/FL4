@@ -65,14 +65,14 @@ def SlWS (K : KLayout) (Locks : S → U64 → Prop) (s : S) (x : U64) : Prop :=
 
 variable {A : Type} (ar : machine.Arch A)
 
-/-- **The entry facts of the syscall entry beside the gate, without the guarded prefix's read
-facts** (`SlPre` adds `preG`, `hhd`; P2/SlDecL.lean derives those from the layout). -/
+/-- **The entry facts of the syscall entry beside the gate, without the per-word access facts**
+(`SlPre` adds `preG`, `hhd`, `pre`, `hRWf(G)`, `hRWr(G)`; P2/SlDecL.lean and P2/SlAccL.lean derive
+those from the layout). -/
 structure SlPreB (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (n : I64) (found : U64 × U64)
     (T Cs Ω U Sg Rp Scs Nt Ac : Set U64) (H : Heap) (Z : U64 → Nat) (s : S) : Prop where
   hT : TcbPlaced T
   hN : NodePlaced st T s (L.cpu s)
   hcT : L.curW s ∈ T
-  pre : PreAcc (L := L) (fun _ => True) (NonDec K) s
   hI : ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X
   hAs : ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → AsidOff (L := L) Ω Sg X
   aff : ∀ d, K.heap d = some .tcb → m0 (fld d oAFFINITY) = L.mem s (fld d oAFFINITY)
@@ -85,12 +85,6 @@ structure SlPreB (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (
   hy0f : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
     FaultChecks st X (L.curW s) ptr badge dest r → L.mem X (yieldA dest) = 0#u64
   hTm : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → TimerOK st T Cs X
-  hRWf : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
-    FaultChecks st X (L.curW s) ptr badge dest r →
-      FltAcc (L := L) Z (fun _ => True) (NonDec K) X (L.curW s) ptr dest r
-  hRWfG : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
-    FaultChecks st X (L.curW s) ptr badge dest r →
-      FltAcc (L := L) Z (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) X (L.curW s) ptr dest r
   hSd : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
     FaultChecks st X (L.curW s) ptr badge dest r →
       K.heap dest = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) dest ∧
@@ -103,12 +97,6 @@ structure SlPreB (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (
     L.mem X (rNextA found.1) &&& ~~~1#u64 = 0#u64 ∧ L.mem X (rPrevA found.1) &&& ~~~1#u64 = 0#u64
   hy0r : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
     RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc → L.mem X (yieldA u) = 0#u64
-  hRWr : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
-    RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
-    RrAcc (L := L) Z (fun _ => True) (NonDec K) X (L.curW s) found.1 found.2 u usc
-  hRWrG : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
-    RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
-    RrAcc (L := L) Z (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) X (L.curW s) found.1 found.2 u usc
   hSu : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
     RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
       K.heap u = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) u ∧
@@ -117,14 +105,28 @@ structure SlPreB (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (
 
 /-- **The entry facts of the syscall entry beside the gate** (module docstring): the premises
 of `guard_acc` for the sets `SlRS` / `SlWS`, and those of `move`, at the entry state `s`, for
-every Arch state `a`. `preG` / `hhd` [W] here; `slPre_of` (P2/SlDecL.lean) gives them from the
-layout and `SlHere` [J]. -/
+every Arch state `a`. `preG`, `hhd`, `pre`, `hRWf(G)`, `hRWr(G)` [W] here (per-word layout:
+`PreAcc` / `FltAcc` / `RrAcc` for the read / write sets and, for `move`, for `NonDec`); `slPre_of`
+(P2/SlAccL.lean) gives them from the layout, `SlHere` and `SlAccIn` [J]. -/
 structure SlPre (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (n : I64) (found : U64 × U64)
     (T Cs Ω U Sg Rp Scs Nt Ac : Set U64) (H : Heap) (Z : U64 → Nat) (s : S) : Prop
     extends SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s where
   preG : PreAcc (L := L) (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) s
   hhd : ∀ a X a1 csc, LocalPre (st := st) ar s a (X, a1) → sched.cur_sc st X = ok csc →
     RdHead (L := L) (SlRS (st := st) K Locks s) X csc
+  pre : PreAcc (L := L) (fun _ => True) (NonDec K) s
+  hRWf : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
+    FaultChecks st X (L.curW s) ptr badge dest r →
+      FltAcc (L := L) Z (fun _ => True) (NonDec K) X (L.curW s) ptr dest r
+  hRWfG : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
+    FaultChecks st X (L.curW s) ptr badge dest r →
+      FltAcc (L := L) Z (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) X (L.curW s) ptr dest r
+  hRWr : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
+    RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
+    RrAcc (L := L) Z (fun _ => True) (NonDec K) X (L.curW s) found.1 found.2 u usc
+  hRWrG : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
+    RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
+    RrAcc (L := L) Z (SlRS (st := st) K Locks s) (SlWS (st := st) K Locks s) X (L.curW s) found.1 found.2 u usc
 
 /-- The prefix words are in `SlWS` (`PreAcc`). -/
 theorem SlDS.ws {K : KLayout} {Locks : S → U64 → Prop} {s : S}

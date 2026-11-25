@@ -17,14 +17,12 @@ The prefix state `X` keeps every word read here (`lp_mem`, with `not_slDS_tcb`,
 `not_slDS_node`, `not_slDS_reg`: a TCB word other than `FAULT_IP`, a node word other than
 `CUR_TIME` / `CONSUMED`, an SC / object word are not prefix words).
 
-`slPre_of`: `SlPre`'s guarded-prefix facts from the same sources: `preG` (`preAcc_here`: node
-words, the current thread's flags / `NEXT_IP` / `FAULT_IP`, homed here by `Safe0`) and `hhd`
-(`hhd_of`: the current SC, homed here, `SlHere.cs`).
+`preAcc_of` / `hhd_of`: `SlPre`'s guarded-prefix facts from the same sources: `preG` (`preAcc_here`:
+node words, the current thread's flags / `NEXT_IP` / `FAULT_IP`, homed here by `Safe0`) and `hhd`
+(the current SC, homed here, `SlHere.cs`); P2/SlAccL.lean assembles `SlPre` (`slPre_of`).
 
 Premises: `SlHere` [J] (each field tagged there with its intended P1/P3 discharge); `SlPreB`
-(`SlPre` without `preG` / `hhd`; its own [W] fields `pre`, `hRWf(G)`, `hRWr(G)` remain); the rest as
-`sl_pathObl_ent`. `sl_pathObl_lay` / `sl_pathSide_lay` restate the entry's obligations with
-`SlDecIn`, `preG` and `hhd` discharged.
+(`SlPre` without its per-word access fields); the rest as `sl_pathObl_ent`.
 -/
 import Fl4Proofs.P2.SlLay
 open Aeneas Aeneas.Std Result
@@ -451,51 +449,6 @@ theorem hhd_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
     rw [← ok_inj_ff hcs]; exact ecs
   subst e
   exact rdHead_here ar hA hX E Hh LP Hh.cs
-
-/-- **`SlPre` from `SlPreB`, the layout and `SlHere`** (`preG` by `preAcc_of`, `hhd` by `hhd_of`). -/
-theorem slPre_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) {s : S}
-    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (Hh : SlHere (st := st) K Z Scs found s) :
-    SlPre (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s :=
-  { toSlPreB := E, preG := preAcc_of ar hX E Hh, hhd := fun _ _ _ _ LP hcs => hhd_of ar hA hX E Hh LP hcs }
-
-variable {p : SProg Bool}
-
-/-- **`PathObl` of the syscall entry from the ownership map**: `sl_pathObl_ent` with `SlDecIn`
-from `slDecIn_of` (`SlHere` [J]). -/
-theorem sl_pathObl_lay (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K)
-    (hU : Fl4Proofs.P2.E2E.UserOK K)
-    (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
-      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
-    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
-    (hH : ∀ s, P s → SlHere (st := st) K Z Scs found s) :
-    PathObl st (fun m s a => syscall.handle_syscall_local m ar s a n found) (fun b => b = true)
-      (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
-      (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathObl_ent ar hA hK hX hU hFp hz hm (fun s hP => slPre_of ar hA hX (hPE s hP) (hH s hP)) hE
-    (fun s hP => slDecIn_of ar hA hK hX (hPE s hP) (hE s hP) (hH s hP))
-
-/-- **`PathSide` of the syscall entry from the ownership map** (`sl_pathSide_ent`, `slDecIn_of`). -/
-theorem sl_pathSide_lay (hS : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : RegionOK K)
-    (hX : RegionOKX K) (hU : Fl4Proofs.P2.E2E.UserOK K)
-    (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
-      syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
-    (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
-    (hH : ∀ s, P s → SlHere (st := st) K Z Scs found s)
-    (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
-      P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
-        SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
-        SlWS (st := st) K Locks (L.wr s b v) = SlWS (st := st) K Locks s ∧
-        SlDS (L := L) (L.wr s b v) = SlDS (L := L) s) :
-    PathSide st (fun m s a => syscall.handle_syscall_local m ar s a n found)
-      (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
-      (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
-  sl_pathSide_ent ar hS hA hK hX hU hFp hz hm (fun s hP => slPre_of ar hA hX (hPE s hP) (hH s hP)) hE
-    (fun s hP => slDecIn_of ar hA hK hX (hPE s hP) (hE s hP) (hH s hP)) huf
 
 end
 
