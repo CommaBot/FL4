@@ -551,7 +551,8 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       have := out c hc hne _ al hh; unfold Outside at this; omega
   have hS6 : SCsOK st T Ω Sg Scs Z (Ac \ {p}) s6 := by
     refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, ?_, ?_, ?_⟩
+      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, ?_, ?_, ?_,
+      fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
     · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
     · by_cases e : c = p
       · subst e; exact (hS.all c hc).mk' fun hne => absurd mx6 hne

@@ -441,7 +441,7 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,
       fun c hc => by rw [show L.rmax s' c = L.rmax s c from sig _ (hS.all c hc).2.1]; exact hS.act c hc,
       fun c hc h1 => hS.spor c hc (by rw [← sig _ (hS.spSg c hc)]; exact h1), hS.spSg,
-      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg⟩
+      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg, fun c hc => by rw [G.ksb]; exact hS.scKs c hc⟩
     rcases A.tcbs_add.1 ht with ht | hnw
     · rw [hsc t ht] at hb hne ⊢; rw [ecs] at hne ⊢; exact hS.disj t ht hb hne
     · rw [A.zSc hnw] at hb; exact absurd rfl hb
