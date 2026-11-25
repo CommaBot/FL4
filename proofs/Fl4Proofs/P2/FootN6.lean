@@ -14,7 +14,8 @@ queue operations.
 * `FootN.sN`: a `KWN Kp True` footprint is an `SFootN` one; so every
   queue operation of `P2/FootN.lean` (instantiated at `Nd = True`) is.
 * `KpAff Kp s`: the protected threads are TCBs of affinity other than the
-  executing core; kept by `SFootN` (`KpAff.step`). Then no thread of the
+  executing core, or not runnable (p2j17: the executing core's idle thread);
+  kept by `SFootN` (`KpAff.step`). Then no thread of the
   executing core's ready or release queues is protected (`KpAff.notQ`,
   `KpAff.notR`).
 * `.sN` footprints: `set_cur_thread`, `switch_to_thread`, `choose_thread`,
@@ -50,9 +51,10 @@ abbrev SFootN (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (T Cs S
     (H : Heap) (s s' : S) : Prop :=
   WritesA st T Kp s s' (SchedWN st Kp T Cs Sg Scs Z H s)
 
-/-- The protected threads are TCBs whose affinity is not the executing core. -/
+/-- The protected threads are TCBs whose affinity is not the executing core,
+or which are not runnable (p2j17: the executing core's idle thread). -/
 def KpAff (st : machine.Store S) [L : LawfulStore st] (T Kp : Set U64) (s : S) : Prop :=
-  ∀ y ∈ Kp, y ∈ T ∧ L.mem s (affA y) ≠ L.cpu s
+  ∀ y ∈ Kp, y ∈ T ∧ (L.mem s (affA y) ≠ L.cpu s ∨ ¬ Runnable (L.mem s (stA y)))
 
 theorem SchedWN.ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (hc : L.cpu s1 = L.cpu s0)
     (h : SchedWN st Kp T Cs Sg Scs Z H s1 b) : SchedWN st Kp T Cs Sg Scs Z H s0 b :=
@@ -132,16 +134,18 @@ theorem KpAff.step {s s' : S} (hT : TcbPlaced T) (f : SFootN st Kp T Cs Sg Scs Z
   obtain ⟨hyT, ha⟩ := h y hy
   refine ⟨hyT, ?_⟩
   rw [f.2.1, f.mem_eq (by rw [affA_eq]; exact field_aligned (hT y hyT) (by simp) (by simp))
-    (fun hb => hb.2.2 (Or.inr ⟨trivial, Or.inl ⟨y, hyT, hT y hyT, Or.inr rfl⟩⟩))]
+    (fun hb => hb.2.2 (Or.inr ⟨trivial, Or.inl ⟨y, hyT, hT y hyT, Or.inr rfl⟩⟩)),
+    f.mem_eq (by rw [stA_eq]; exact field_aligned (hT y hyT) (by simp) (by simp))
+    (fun hb => hb.2.2 (Or.inl ⟨y, hyT, hT y hyT, hy, Or.inl rfl⟩))]
   exact ha
 
 theorem KpAff.notQ {s : S} (hK : KpAff st T Kp s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) {p y : U64}
     (hp : p.val < 256) (hy : y ∈ Q (L.cpu s) p) : y ∉ Kp :=
-  fun hk => (hK y hk).2 (h.inQ _ h.cur p hp y hy).1
+  fun hk => (hK y hk).2.elim (fun ha => ha (h.inQ _ h.cur p hp y hy).1) (fun hr => hr (h.runQ _ h.cur p hp y hy))
 
 theorem KpAff.notR {s : S} (hK : KpAff st T Kp s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) {y : U64}
     (hy : y ∈ R (L.cpu s)) : y ∉ Kp :=
-  fun hk => (hK y hk).2 (h.inR _ h.cur y hy)
+  fun hk => (hK y hk).2.elim (fun ha => ha (h.inR _ h.cur y hy)) (fun hr => hr (h.runR _ h.cur y hy))
 
 /-! ## The thread switch -/
 
@@ -383,14 +387,15 @@ theorem sched.schedule.sN {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA :
     (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (s : S) (a : A)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s)
     (hF : ∀ rf : S × A, timer.fire st ar s a = ok rf →
-      KpAff st T Kp rf.1 ∧ ActOut st T Kp rf.1 ∧ L.curW rf.1 ∉ Kp) :
+      KpAff st T Kp rf.1 ∧ ActOut st T Kp rf.1 ∧
+        (L.curW rf.1 ∈ Kp → ¬ Runnable (L.mem rf.1 (stA (L.curW rf.1))))) :
     sched.schedule st ar s a ⦃ s' _ => ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
       FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ SFootN st Kp T Cs Sg Scs Z H rf.1 s' ⦄ := by
   have hSg : ∀ c ∈ Scs, scReplyA c ∈ Sg ∧ scTcbA c ∈ Sg := scSg h.2.2.1.1
   unfold sched.schedule sched.awaken
   -- `awaken`
   refine WP.spec_bind (Pₘ := fun r => Good st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ∧ KpAff st T Kp r.1 ∧
-      ActOut st T Kp r.1 ∧ L.curW r.1 ∉ Kp ∧ ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
+      ActOut st T Kp r.1 ∧ (L.curW r.1 ∈ Kp → ¬ Runnable (L.mem r.1 (stA (L.curW r.1)))) ∧ ∃ rf : S × A, timer.fire st ar s a = ok rf ∧
       FootDU st T Cs Sg Scs Z (EH H) U s rf.1 ∧ SFootN st Kp T Cs Sg Scs Z H rf.1 r.1) ?_ ?_
   · refine WP.spec_bind (spec_eq' (timer.fire.tinvF hA IK hNt s a h.tinv hBA)) ?_
     rintro ⟨s1, a1⟩ ⟨hf1, ⟨⟨Q1, R1, h1⟩, hB1, hX1, hS1, hSg1⟩, F1⟩
@@ -400,7 +405,15 @@ theorem sched.schedule.sN {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA :
       (sched.awaken_loop.kwN (Sg := Sg) (Kp := Kp) (Scs := Scs) (Z := Z) (H := H) s1 _ Q1 R1 h1 hB1 hS1.sg
         hK1 hKa1)) ?_
     rintro s2 ⟨⟨P2, ec2⟩, F2⟩
-    exact (WP.spec_ok _).2 ⟨P2.good hS1 hX1, hK1.step h1.tcbs F2.sN, F2.out hKa1, by rw [ec2]; exact hc1,
+    have hc2 : L.curW s2 ∈ Kp → ¬ Runnable (L.mem s2 (stA (L.curW s2))) := fun hk => by
+      rw [ec2] at hk ⊢
+      have hcT : L.curW s1 ∈ T := h1.curT
+      have e2 : L.mem s2 (stA (L.curW s1)) = L.mem s1 (stA (L.curW s1)) :=
+        F2.mem_eq (by rw [stA_eq]; exact field_aligned (h1.tcbs _ hcT) (by simp) (by simp))
+          (fun hb => hb.2 (Or.inr (Or.inl ⟨L.curW s1, hcT, h1.tcbs _ hcT, hk, Or.inl rfl⟩)))
+      rw [e2]
+      exact hc1 hk
+    exact (WP.spec_ok _).2 ⟨P2.good hS1 hX1, hK1.step h1.tcbs F2.sN, F2.out hKa1, hc2,
       (s1, a1), hf1, F1, F2.sN⟩
   rintro ⟨s1, a1⟩ ⟨⟨⟨Q1, R1, h1⟩, hB1, hS1, hX1⟩, hK1, hKa1, hc1, rf, hrf, Fd, F1⟩
   -- `check_domain_time` does nothing with one domain
@@ -416,12 +429,15 @@ theorem sched.schedule.sN {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA :
     · rename_i hnr
       step with sched.cur_thread.spec as ⟨ct, ct_post⟩
       have hctT : ct ∈ T := by rw [ct_post]; exact h1.curT
-      have hctK : ct ∉ Kp := by rw [ct_post]; exact hc1
       step with sched.is_schedulable.spec' as ⟨wr, wr_post⟩
       refine WP.spec_bind (Pₘ := fun s4 => Post st T Cs Ω H Sg Ac s1 s4 ∧ L.actionW s4 = L.actionW s1 ∧
           FootN st Kp True T Cs Sg Scs Z (EH H) s1 s4) ?_ ?_
       · split
-        · exact WP.spec_mono (WP.spec_and (sched.enqueue.sch s1 ct Q1 R1 h1 hB1 hS1.sg hctT
+        · have hctK : ct ∉ Kp := fun hk => by
+            have hr := (wr_post ‹_›).1
+            rw [ct_post] at hk hr
+            exact hc1 hk hr
+          exact WP.spec_mono (WP.spec_and (sched.enqueue.sch s1 ct Q1 R1 h1 hB1 hS1.sg hctT
             (fun _ => (wr_post ‹_›).2.2.1) (fun _ => (wr_post ‹_›).1) (fun _ => (wr_post ‹_›).2.1)
             (fun _ => (hS1.act _ (hX1.2.2.bound _ hctT (wr_post ‹_›).2.1).1).2 (wr_post ‹_›).2.2.2))
             (sched.enqueue.kwN (Sg := Sg) (Kp := Kp) (Nd := True) (Scs := Scs) (Z := Z) (Es := EH H) s1 ct h1

@@ -29,9 +29,9 @@ Open internal obligations (p2j16, not premises: discharged later in this
 development):
 * `hidl`: the entry body ends with the executing core's idle thread still
   `TS_IDLE` (an end fact each entry supplies, as `kb`);
-* `hsI`: `schedule` keeps the executing core's idle thread `TS_IDLE` (to be
-  proved from `hidl`: `fire` over `OtherK ∪ {idle}`, then the rest of
-  `schedule` with `KpAff` widened to non-runnable protected threads).
+* `hsI`: `schedule` keeps the executing core's idle thread `TS_IDLE`
+  (p2j17: discharged by `sched.schedule.idl`, `P2/FootN9.lean`, whose
+  `AllCores.schedF` also discharges `hfk`).
 -/
 import Fl4Proofs.P2.AllKeep
 import Fl4Proofs.P2.FootN7
@@ -82,7 +82,7 @@ theorem OKeep2.ofSN {s s' : S} {Q : U64 → U64 → List U64} {R : U64 → List 
 theorem KpAff.ofKeep {s0 s : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s0) (hcpu : L.cpu s0 ∈ Cs)
     (k : OKeep2 st T Cs (L.cpu s0) s0 s) (hc : L.cpu s = L.cpu s0) :
     KpAff st T (OtherK st T Cs (L.cpu s0) s0) s := fun y hy => by
-  refine ⟨h.KT y hy, ?_⟩
+  refine ⟨h.KT y hy, Or.inl ?_⟩
   rw [k.af y hy, hc]
   obtain ⟨c, hc', hne, hh⟩ := hy
   rcases hh with rfl | rfl | ⟨rfl, hT⟩
@@ -111,12 +111,12 @@ theorem AllCores.sched {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
   set e := L.cpu s0 with he
   have hF : ∀ rf : S × A, timer.fire st ar s a = ok rf →
       KpAff st T (OtherK st T Cs e s0) rf.1 ∧ ActOut st T (OtherK st T Cs e s0) rf.1 ∧
-        L.curW rf.1 ∉ OtherK st T Cs e s0 := fun rf hrf => by
+        (L.curW rf.1 ∈ OtherK st T Cs e s0 → ¬ Runnable (L.mem rf.1 (stA (L.curW rf.1)))) := fun rf hrf => by
     obtain ⟨k1, hac, hcu⟩ := hfk rf hrf
     have hKs : OtherK st T Cs e s = OtherK st T Cs e s0 := kb.otherK
     rw [hKs] at hac hcu
     have w := (WP.spec_ok _).1 (hrf ▸ timer.fire.tinvF hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA)
-    exact ⟨KpAff.ofKeep h0 hcpu (kb.trans k1) (w.2.2.1.trans hc), hac, hcu⟩
+    exact ⟨KpAff.ofKeep h0 hcpu (kb.trans k1) (w.2.2.1.trans hc), hac, fun hk => absurd hk hcu⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (sched.schedule.sN (Kp := OtherK st T Cs e s0) hA IK hNt s a
       ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA hF)
     (WP.spec_and (sched.schedule.cur hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA hE)

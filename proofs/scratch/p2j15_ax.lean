@@ -1,4 +1,4 @@
-import Fl4Proofs.P2.FootN8
+import Fl4Proofs.P2.FootN9
 #print axioms Fl4Proofs.P2.Stall.FFoot.okeep
 #print axioms Fl4Proofs.P2.Stall.FFoot.cur
 #print axioms Fl4Proofs.P2.Stall.FireKeep.ofFF
@@ -23,3 +23,11 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.FCtx.step
 #print axioms Fl4Proofs.P2.Stall.vcpu.report.fki
 #print axioms Fl4Proofs.P2.Stall.notification.send_signal.fk
+#print axioms Fl4Proofs.P2.Stall.TW.fn
+#print axioms Fl4Proofs.P2.Stall.timer.fire_loop.fki
+#print axioms Fl4Proofs.P2.Stall.timer.fire.fki
+#print axioms Fl4Proofs.P2.Stall.FCtx.ofAll
+#print axioms Fl4Proofs.P2.Stall.AllCores.schedF
+#print axioms Fl4Proofs.P2.Stall.sched.schedule.idl
+#print axioms Fl4Proofs.P2.Stall.stallAt.all
+#print axioms Fl4Proofs.P2.Stall.stallAt.views

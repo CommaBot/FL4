@@ -16,9 +16,9 @@ stall as an `AllCores → AllCores` step.
 * (p2j16) `actNT`: `c`'s action is no thread (serialized entries, each ending
   in `schedule`, DESIGN §7 (3)); `idleSt`: `c`'s idle thread is `TS_IDLE`.
 
-Open internal obligation of `stallAt.all` (p2j16, until the stall's frame
-protects the stalled core's idle thread): `hidl`, the stalled core's idle
-thread still `TS_IDLE` at the stall's end.
+(p2j17) The stall's frame protects the stalled core's idle thread too
+(`stallAt.views` over `OtherK d ∪ {idle d}`), so `stallAt.all` has no
+open internal obligation (p2j16's `hidl` is discharged).
 
 `AllCores.notK`: a thread of affinity `d` is none of the other cores' idle,
 current or action threads (`OtherK d`), since those have the other cores as
@@ -99,17 +99,16 @@ theorem stallAt.all (hA : P0.ArchTotal ar) (d : U64) (hd : d ∈ Cs)
     (s : S) (a : A) (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hG : @XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok s)
     (hRS0 : RS s s) (hU : @UserOK S (atCpu st d) (L.atCpu d) T Cs Ω H U s)
-    (hcap : @TmoCap S (atCpu st d) (L.atCpu d) Scs Z H Rp Nt s)
-    (hidl : stallAt st ar d s a ⦃ s' _ => L.mem s' (stA (idleAt st d s')) = sched.TS_IDLE ⦄) :
+    (hcap : @TmoCap S (atCpu st d) (L.atCpu d) Scs Z H Rp Nt s) :
     stallAt st ar d s a ⦃ s' _ =>
       AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ curAt st d s' = idleAt st d s' ∧
       (∀ c ∈ Cs, c ≠ d → actAt st c s' = actAt st c s) ⦄ := by
-  refine WP.spec_mono (WP.spec_and (stallAt.views (Ac := Ac) (P3Ok := P3Ok) hA d hxf hxw hRSK s a (h.inv d hd).1
+  refine WP.spec_mono (stallAt.views (Ac := Ac) (P3Ok := P3Ok) hA d hxf hxw hRSK s a (h.inv d hd).1
     (h.inv d hd).2 hG hRS0 hU hcap (fun c hc _ => h.core hc) (h.notK (h.curAff d hd))
-    (fun ha => h.notK (h.actAff d hd ha)) (fun c hc _ => h.curNB c hc) (h.nq d hd)) hidl) ?_
+    (fun ha => h.notK (h.actAff d hd ha)) (fun c hc _ => h.curNB c hc) (h.nq d hd) (h.idleSt d hd)) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
-  obtain ⟨⟨hinv, k, hcur, hac, hoth⟩, hid⟩ := hh
+  obtain ⟨hinv, k, hcur, hac, hoth, hid⟩ := hh
   refine ⟨⟨hinv, fun c hc => ?_, fun c hc => ?_, fun c hc ha => ?_, fun c hc => ?_, fun c hc hn => ?_,
     fun c hc => ?_, fun c hc => ?_⟩, hcur, hoth⟩
   · by_cases e : c = d
@@ -142,7 +141,7 @@ theorem stallAt.all (hA : P0.ArchTotal ar) (d : U64) (hd : d ∈ Cs)
         exact fun ha => absurd (by simp) (hq.tcbs _ ha).ne0
     · rw [(keep_words k hc e).1]; exact h.actNT c hc
   · by_cases e : c = d
-    · rw [e]; exact hid
+    · rw [e, k.idleAt hd]; exact hid
     · rw [k.idleAt hc, k.kp _ ⟨c, hc, e, Or.inl rfl⟩]; exact h.idleSt c hc
 
 end

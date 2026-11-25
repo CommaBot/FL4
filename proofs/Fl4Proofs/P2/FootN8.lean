@@ -893,12 +893,6 @@ executing core's idle thread protected -/
 
 theorem curAt_def (c : U64) (s : S) : curAt st c s = L.mem s (L.nodeAt s c layout.node.CUR_THREAD) := rfl
 
-theorem tsIdle_nb : ¬ Blocked sched.TS_IDLE := by
-  unfold Blocked sched.TS_IDLE sched.TS_BLOCKED_ON_SEND sched.TS_BLOCKED_ON_RECV sched.TS_BLOCKED_ON_NTFN; decide
-
-theorem tsIdle_nr : ¬ Runnable sched.TS_IDLE := by
-  unfold Runnable sched.TS_IDLE sched.TS_RUNNING sched.TS_RESTART sched.TS_RUNNING_VM; decide
-
 theorem tsIdle_ne_vm : sched.TS_IDLE ≠ sched.TS_RUNNING_VM := by
   unfold sched.TS_IDLE sched.TS_RUNNING_VM; decide
 

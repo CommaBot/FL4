@@ -52,7 +52,7 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hKc : L.curW s ≠ L.idleW s → L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
     (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
     (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
     (hcap : TmoCap st Scs Z H Rp Nt s) :
@@ -70,6 +70,7 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar)
     have hne : L.curW s ≠ L.idleW s := by
       have := hb.1 hbt
       rw [hct, ht] at this; exact this
+    have hKc := hKc hne
     refine WP.spec_bind (WP.spec_and (WP.spec_and (sched.update_timestamp.entry hA s a h)
       (sched.update_timestamp.fr hA s a (q0.nodes _ q0.cur))) (sched.update_timestamp.kwN (Kp := Kp) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) hA s a
         q0.nodes q0.cur)) ?_
@@ -140,7 +141,7 @@ theorem stallSeq.entryN (hA : P0.ArchTotal ar)
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hKc : L.curW s ≠ L.idleW s → L.curW s ∉ Kp) (hKa : ActOut st T Kp s) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
     (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
     (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
     (hcap : TmoCap st Scs Z H Rp Nt s) :

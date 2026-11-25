@@ -32,6 +32,12 @@ and SC are kept (`CoreInv.keep`). The conclusion `OKeep` now also keeps the
 `IN_QUEUES` of `OtherK` (so another core's `hnq`, `ct_not_in_q`, survives
 the stall: `OKeep.nq`) and every thread's `AFFINITY` (`OwnJ`'s (1)/(2) for
 the other cores).
+
+**(p2j17)** `stallAt.views` runs the stall over `OtherK d ∪ {idle d}` (the
+stalled core's idle thread, `TS_IDLE` by `hidS`, is not blocked, not the
+action, and is the current thread only in the stall's no-op branch:
+`smp.stall.entryN`'s `hKc` is now required only when the current thread is
+not idle), and concludes that `d`'s idle thread is still `TS_IDLE`.
 -/
 import Fl4Proofs.P2.StallView
 import Fl4Proofs.P1.QueueIpcFoot
@@ -46,6 +52,12 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {U : Set U64}
 variable {P3Ok : S → Prop} {A : Type _} {ar : machine.Arch A}
+
+theorem tsIdle_nb : ¬ Blocked sched.TS_IDLE := by
+  unfold Blocked sched.TS_IDLE sched.TS_BLOCKED_ON_SEND sched.TS_BLOCKED_ON_RECV sched.TS_BLOCKED_ON_NTFN; decide
+
+theorem tsIdle_nr : ¬ Runnable sched.TS_IDLE := by
+  unfold Runnable sched.TS_IDLE sched.TS_RUNNING sched.TS_RESTART sched.TS_RUNNING_VM; decide
 
 /-- Core `c`'s clauses of `EntryInv`, and `IdleSc`. -/
 structure CoreInv (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (Z : U64 → Nat) (Ac : Set U64)
@@ -157,11 +169,13 @@ theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
     (hown : curAt st d s ∉ OtherK st T Cs d s)
     (hactK : actAt st d s ∈ T → actAt st d s ∉ OtherK st T Cs d s)
     (hcurNB : ∀ c ∈ Cs, c ≠ d → ¬ Blocked (L.mem s (stA (curAt st c s))))
-    (hnq : curAt st d s ≠ idleAt st d s → (L.mem s (inqA (curAt st d s)) &&& sched.Q_QUEUED) = 0#u64) :
+    (hnq : curAt st d s ≠ idleAt st d s → (L.mem s (inqA (curAt st d s)) &&& sched.Q_QUEUED) = 0#u64)
+    (hidS : L.mem s (stA (idleAt st d s)) = sched.TS_IDLE) :
     stallAt st ar d s a ⦃ s' _ =>
       (∀ c ∈ Cs, @EntryInv S (atCpu st c) (L.atCpu c) T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ IdleSc st c s') ∧
       OKeep st T Cs Scs (OtherK st T Cs d s) d s s' ∧ curAt st d s' = idleAt st d s' ∧
-      (actAt st d s' = actAt st d s ∨ actAt st d s' = 0#u64) ∧ (∀ c ∈ Cs, c ≠ d → actAt st c s' = actAt st c s) ⦄ := by
+      (actAt st d s' = actAt st d s ∨ actAt st d s' = 0#u64) ∧ (∀ c ∈ Cs, c ≠ d → actAt st c s' = actAt st c s) ∧
+      L.mem s' (stA (idleAt st d s)) = sched.TS_IDLE ⦄ := by
   have hKT : ∀ y ∈ OtherK st T Cs d s, y ∈ T := by
     rintro y ⟨c, hc, hne, rfl | rfl | ⟨rfl, hy⟩⟩
     · exact (hC c hc hne).per.idleT
@@ -172,14 +186,35 @@ theorem stallAt.views (hA : P0.ArchTotal ar) (d : U64)
     · exact (hC c hc hne).per.idleNB (Or.inl hb)
     · exact hcurNB c hc hne hb
     · exact blocked_not_runnable hb ((hC c hc hne).per.run hy)
+  -- (p2j17) the protected set: the other cores' threads and `d`'s idle thread
+  have q0 := h.1.choose_spec.choose_spec
+  have hiT : idleAt st d s ∈ T := q0.idleT
+  have hKT' : ∀ y ∈ {y | y ∈ OtherK st T Cs d s ∨ y = idleAt st d s}, y ∈ T := by
+    rintro y (hy | rfl)
+    · exact hKT y hy
+    · exact hiT
+  have hKB' : ∀ y ∈ {y | y ∈ OtherK st T Cs d s ∨ y = idleAt st d s}, ¬ Blocked (L.mem s (stA y)) := by
+    rintro y (hy | rfl) hb
+    · exact hKB y hy hb
+    · rw [hidS] at hb; exact tsIdle_nb hb
+  have hown' : curAt st d s ≠ idleAt st d s →
+      curAt st d s ∉ {y | y ∈ OtherK st T Cs d s ∨ y = idleAt st d s} := fun hne hk => hk.elim hown hne
+  have hactK' : actAt st d s ∈ T → actAt st d s ∉ {y | y ∈ OtherK st T Cs d s ∨ y = idleAt st d s} :=
+    fun hT hk => hk.elim (hactK hT) fun e => by
+      have r : Runnable (L.mem s (stA (actAt st d s))) := (q0.actOK hT).1
+      rw [e, hidS] at r
+      exact tsIdle_nr r
   unfold stallAt
   refine WP.spec_mono (@stallSeq.entryN S (atCpu st d) (L.atCpu d) T Ω H Cs Sg Rp Scs Nt Z Ac U
-    (OtherK st T Cs d s) P3Ok A ar hA RS hxf hxw hRSK hKT s a h hI hG hown hactK hKB hRS0 hU hnq hcap) ?_
+    {y | y ∈ OtherK st T Cs d s ∨ y = idleAt st d s} P3Ok A ar hA RS hxf hxw hRSK hKT' s a h hI hG hown' hactK'
+    hKB' hRS0 hU hnq hcap) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨e', hI', k, hcur, hac⟩ := hh
-  have k' : OKeep st T Cs Scs (OtherK st T Cs d s) d s s' := ⟨k.ksb, k.nd, k.kp, k.iq, k.af, k.sc, k.lk⟩
-  refine ⟨fun c hc => ?_, k', hcur, hac, fun c hc hne => (keep_words k' hc hne).1⟩
+  have k' : OKeep st T Cs Scs (OtherK st T Cs d s) d s s' :=
+    ⟨k.ksb, k.nd, fun y hy => k.kp y (Or.inl hy), fun y hy => k.iq y (Or.inl hy), k.af, k.sc, k.lk⟩
+  refine ⟨fun c hc => ?_, k', hcur, hac, fun c hc hne => (keep_words k' hc hne).1,
+    (atCpu_mem d s' _).symm.trans ((k.kp (idleAt st d s) (Or.inr rfl)).trans hidS)⟩
   by_cases e : c = d
   · subst e; exact ⟨e', hI'⟩
   · have p := (hC c hc e).keep k' hc e ⟨c, hc, e, Or.inl rfl⟩ fun h => ⟨c, hc, e, Or.inr (Or.inr ⟨rfl, h⟩)⟩
