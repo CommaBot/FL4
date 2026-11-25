@@ -199,6 +199,7 @@ import Fl4Proofs.P2.SlObl
 import Fl4Proofs.P2.SlThr
 import Fl4Proofs.P2.SlDecG
 import Fl4Proofs.P2.SlHome
+import Fl4Proofs.P2.SlLay
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
