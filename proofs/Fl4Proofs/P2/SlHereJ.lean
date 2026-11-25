@@ -253,6 +253,44 @@ theorem slHere_of (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hX : RegionOK
     ntf := fun _ h => ntf_of ar hA hX hSe E Hj.ksb Hj.cpu LP h
     ep := Hj.ep }
 
+/-- **`SlAccJ.fbuf` from m61's receive buffer** (`FaultEnt.hbuf`: `BufOK U`, `FaultEnt.hU`: `U`'s
+words are aligned), given that P1's user words `U` are the layout's user words. -/
+theorem fbuf_of (hUu : ∀ b ∈ U, b ∈ K.user) {s : S}
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s) (hS : SlTrap st s)
+    {a X a1} (LP : LocalPre (st := st) ar s a (X, a1)) {ptr badge dest r : U64}
+    (hc : FaultChecks st X (L.curW s) ptr badge dest r) (rb : U64)
+    (hrb : msg.lookup_ipc_buffer st X true dest = ok rb) : BufW (fun b => Aligned b ∧ b ∈ K.user) rb := by
+  obtain ⟨-, rest, FE⟩ := (E.hF hS a X a1 LP).2 ptr badge dest r hc
+  have hb := FE.hbuf
+  rw [hrb, WP.spec_ok] at hb
+  intro hne i hi
+  have hu := hb hne i hi
+  exact ⟨(FE.hU _ hu).1.1, hUu _ hu⟩
+
+/-- **What stays of `SlAccJ`** once `fbuf` comes from `fbuf_of`. -/
+structure SlAccK (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64) (s : S) : Prop where
+  /-- [J] as `SlAccIn.pool`. -/
+  pool : ∀ hi : U64, hi.val < 2048 → L.mem s (atAF K.ksb hi) ≠ 0#u64 → ∀ lo : U64, lo.val < 512 →
+    Aligned (peAF (L.mem s (atAF K.ksb hi)) lo) ∧ region K (peAF (L.mem s (atAF K.ksb hi)) lo) = .none
+  /-- [P] as `SlAccJ.frl`. -/
+  frl : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
+    FaultChecks st X (L.curW s) ptr badge dest r → Locks s r
+  /-- [J] as `SlAccJ.dco` (missing P1 fact). -/
+  dco : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
+    FaultChecks st X (L.curW s) ptr badge dest r → L.mem s (fld (L.mem s (scA dest)) 16#u64) = L.cpu s
+  /-- [J] as `SlAccIn.rbuf`: no P1 fact at the prefix state covers the current thread's IPC
+  buffer in the ReplyRecv arm (`RRPl` has none; m61's `FaultEnt.hbuf` is the trap arm's
+  receiver only). Needed: `msg.lookup_ipc_buffer st X false (L.curW s) ⦃ b => BufOK U b ⦄`
+  (e.g. a field of `RRPl`, P1/FastRRFoot.lean, or of `SlPreB`), then as `fbuf_of`. -/
+  rbuf : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ buf,
+    msg.lookup_ipc_buffer st X false (L.curW s) = ok buf → BufW (fun b => Aligned b ∧ b ∈ K.user) buf
+
+theorem slAccJ_of (hUu : ∀ b ∈ U, b ∈ K.user) {s : S}
+    (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (Ak : SlAccK (st := st) ar K Locks found s) : SlAccJ (st := st) ar K Locks found s :=
+  { pool := Ak.pool, frl := Ak.frl, dco := Ak.dco, rbuf := Ak.rbuf
+    fbuf := fun hS a X a1 LP {_p _b _d _r} hc rb hrb => fbuf_of ar hUu E hS LP hc rb hrb }
+
 variable {p : SProg Bool}
 
 /-- **`PathObl` of the syscall entry**: `sl_pathObl_j` with `SlHere` from `slHere_of`
@@ -262,16 +300,17 @@ theorem sl_pathObl_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regio
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    (hSe : SlSets K T Rp Scs Nt H Z) (a0 : A)
+    (hSe : SlSets K T Rp Scs Nt H Z) (hUu : ∀ b ∈ U, b ∈ K.user) (a0 : A)
     {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
     (hHj : ∀ s, P s → SlHereJ (st := st) K Z Scs found s)
-    (hAj : ∀ s, P s → SlAccJ (st := st) ar K Locks found s) :
+    (hAk : ∀ s, P s → SlAccK (st := st) ar K Locks found s) :
     PathObl st (fun m s a => syscall.handle_syscall_local m ar s a n found) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
   sl_pathObl_j ar hA hK hX hU hFp hz hm hSe hPE hE
-    (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP)) hAj
+    (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP))
+    (fun s hP => slAccJ_of ar hUu (hPE s hP) (hAk s hP))
 
 /-- **`PathSide` of the syscall entry**: `sl_pathSide_j` with `SlHere` from `slHere_of`. -/
 theorem sl_pathSide_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : RegionOK K)
@@ -279,11 +318,11 @@ theorem sl_pathSide_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regi
     (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine.Store S) (s : S) (a : A) =>
       syscall.handle_syscall_local st ar s a n found) p) (hz : NoZero p)
     (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s)
-    (hSe : SlSets K T Rp Scs Nt H Z) (a0 : A)
+    (hSe : SlSets K T Rp Scs Nt H Z) (hUu : ∀ b ∈ U, b ∈ K.user) (a0 : A)
     {P : S → Prop} (hPE : ∀ s, P s → SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (hE : ∀ s, P s → SlEnt (st := st) K Locks found s)
     (hHj : ∀ s, P s → SlHereJ (st := st) K Z Scs found s)
-    (hAj : ∀ s, P s → SlAccJ (st := st) ar K Locks found s)
+    (hAk : ∀ s, P s → SlAccK (st := st) ar K Locks found s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
@@ -293,7 +332,8 @@ theorem sl_pathSide_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regi
       (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
   sl_pathSide_j ar hSt hA hK hX hU hFp hz hm hSe hPE hE
-    (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP)) hAj huf
+    (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP))
+    (fun s hP => slAccJ_of ar hUu (hPE s hP) (hAk s hP)) huf
 
 end
 
