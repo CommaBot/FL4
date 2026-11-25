@@ -22,7 +22,10 @@ Premises:
   state, each tagged there ([J] P1/entry facts, [W] per-word layout work `FltAcc` / `RrAcc` /
   `PreAcc` for the two pairs of sets, [P] the glue's locks); `aff` [J]: `ko`'s memory `m0`
   agrees with the entry state on every `AFFINITY` (gate-owned);
-* `hK`, `hU` [J] (`RegionOK`, `UserOK`); `hFp` [P] (`IsProg`), `hz` [W] (`NoZero p`), `hm` [P]
+* `hK`, `hU` [J] (`RegionOK`, `UserOK`); `hFp` [P] (`IsProg`), `hz` [P] (`NoZero p`: the same commitment as `IsProg`, `p` is the body's own
+  call tree; `NoZero` is not derivable from the extensional `IsProg`. Checked on the extracted text by
+  `python3 proofs/scratch/callgraph.py syscall.handle_syscall_local`: 410 definitions reachable, Store methods
+  used exactly `cur_cpu`, `ks_base`, `read`, `read_pair`, `write`, no `zero` / `clear_free`), `hm` [P]
   (writes leave `frame_masks`);
 * `hna` [W]: a run that declines at the entry state declines at every alternative;
 * `hra` [W]: `read_aligned` from the alternatives of an entry state that does not accept;
@@ -244,8 +247,8 @@ arm's acceptance depends (the trap arm's receiver, the handler endpoint's head; 
 arm's replied thread, `Reply.tcb found.1`), `TW t` the words of `t` a run reads before
 `schedulable_here` checks `t`. Each field is a statement about the code of one arm:
 * `alt`: `thr` is read from the read set, so it is the same at every alternative;
-* `affR`: its `AFFINITY` (gate-owned, so `RPerm`) is in the read set;
-* `acc`: an accepting run at an alternative passes `schedulable_here` on it (`AFFINITY = cur_cpu`);
+* `acc`: an accepting run at an alternative passes `schedulable_here` on it (`AFFINITY = cur_cpu`),
+  and its `AFFINITY` (gate-owned) is a read-set word, so it is this core at the entry state;
 * `home`: homed here, a declining run reads only `SlRS s` and writes only `SlDS s` (its words
   are then this core's);
 * `away`: homed elsewhere, a run at an alternative reads only `SlRS s` and `TW (thr s)`
@@ -254,11 +257,10 @@ structure SlThr (P : S → Prop) (K : KLayout) (Locks : S → U64 → Prop) (thr
     (TW : U64 → U64 → Prop) : Prop where
   alt : ∀ s s', P s →
     Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' → thr s' = thr s
-  affR : ∀ s, P s → SlRS (st := st) K Locks s (affA (thr s))
   acc : ∀ s s' a r, P s →
     Alt st (SlRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
     syscall.handle_syscall_local st ar s' a n found = ok r → r.1 = true →
-    L.mem s' (affA (thr s')) = L.cpu s'
+    L.mem s (affA (thr s)) = L.cpu s
   home : ∀ s a r, P s → syscall.handle_syscall_local st ar s a n found = ok r → r.1 ≠ true →
     L.mem s (affA (thr s)) = L.cpu s →
     syscall.handle_syscall_local (guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s)) ar s a n found = ok r
@@ -311,11 +313,7 @@ theorem sl_hna (hFp : IsProg (fun {A : Type} (ar : machine.Arch A) (st : machine
     rw [h2] at h'
     obtain rfl := Result.ok_injective h'
     exact hn
-  · intro e
-    apply hh
-    have ha := Th.acc s s' a r' hP Al h' e
-    rw [Th.alt s s' hP Al, Al.read _ (Th.affR s hP), Al.cpu] at ha
-    exact ha
+  · exact fun e => hh (Th.acc s s' a r' hP Al h' e)
 
 /-- **`hra` from `SlThr`** and P0 totality: at an alternative of an entry state that does not
 accept, the run reads only aligned words. -/

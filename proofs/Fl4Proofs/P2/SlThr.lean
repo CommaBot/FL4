@@ -9,7 +9,7 @@
 
 * `slThr_alt` (`SlThr.alt`): `slThr` is the same at every alternative of `s`;
 * `slThr_acc` (`SlThr.acc`): an accepting run at an alternative passed `schedulable_here` on
-  `slThr` (`AFFINITY = cur_cpu`), read through the prefix (`lp_mem`: the prefix keeps every
+  `slThr` (`AFFINITY = cur_cpu`; the thread is then live, `SlLive`), read through the prefix (`lp_mem`: the prefix keeps every
   aligned word other than its own three, `SlDS`).
 
 Premises: `SlThrIn` [W] at the entry state (each field tagged there): the words the decided
@@ -50,6 +50,28 @@ open Classical in
 noncomputable def slThr (rp : U64) (s : S) : U64 :=
   if SlTrap st s then L.mem s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) else L.mem s (rTcbA rp)
 
+variable (st) in
+open Classical in
+/-- **The decided thread is live**: the trap arm's handler endpoint is in `RECV` (so its head is
+a thread, P1), the ReplyRecv arm's reply object names a thread (`≠ 0`). Only then does a run
+read the decided thread's words. -/
+def SlLive (rp : U64) (s : S) : Prop :=
+  if SlTrap st s then obj.Ep.state st (resPtr (obj.Slot.cap st (fhA (L := L) s) s)) s = ok obj.EP_RECV
+  else L.mem s (rTcbA rp) ≠ 0#u64
+
+/-- `Ep.state` reads the endpoint's tail-state word. -/
+theorem ep_state_congr {s s' : S} {p : U64} (h : L.mem s' (epTSA p) = L.mem s (epTSA p)) :
+    obj.Ep.state st p s' = obj.Ep.state st p s := by
+  rw [eq_of_spec_fd (obj.Ep.state.spec (L := L) s' p), eq_of_spec_fd (obj.Ep.state.spec (L := L) s p)]
+  unfold LawfulStore.epState
+  rw [h]
+
+theorem u_ne0 {u : U64} (h : ∃ b, obj.Tcb.is_null u = ok b ∧ ¬ b = true) : u ≠ 0#u64 := by
+  obtain ⟨b, hb, hn⟩ := h
+  rw [is_null_ok] at hb
+  rw [← ok_inj_ff hb] at hn
+  simpa using hn
+
 /-- **Where the decided thread is read from** [W] (per-word layout at the entry state `s`,
 fl4-sync's locks): the words `slThr` reads and its `AFFINITY` are in `SlRS s` and are not
 prefix words. -/
@@ -58,13 +80,15 @@ structure SlThrIn (K : KLayout) (Locks : S → U64 → Prop) (rp : U64) (s : S) 
   fh : SlTrap st s → SlRS (st := st) K Locks s (fhA (L := L) s) ∧
     SlRS (st := st) K Locks s (core.num.U64.wrapping_add (fhA (L := L) s) 8#u64) ∧
     ¬ SlDS (L := L) s (fhA (L := L) s) ∧ ¬ SlDS (L := L) s (core.num.U64.wrapping_add (fhA (L := L) s) 8#u64)
-  /-- [W] the handler endpoint's head (fl4-sync locks that endpoint). -/
+  /-- [W] the handler endpoint's head and tail-state words (fl4-sync locks that endpoint). -/
   eh : SlTrap st s → SlRS (st := st) K Locks s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
-    ¬ SlDS (L := L) s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s)))
+    ¬ SlDS (L := L) s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
+    SlRS (st := st) K Locks s (epTSA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
+    ¬ SlDS (L := L) s (epTSA (resPtr (obj.Slot.cap st (fhA (L := L) s) s)))
   /-- [W] the reply object's thread (fl4-sync locks the reply object). -/
   rt : ¬ SlTrap st s → SlRS (st := st) K Locks s (rTcbA rp) ∧ ¬ SlDS (L := L) s (rTcbA rp)
-  /-- [W] the decided thread's `AFFINITY` (gate-owned). -/
-  af : SlRS (st := st) K Locks s (affA (slThr st rp s)) ∧ ¬ SlDS (L := L) s (affA (slThr st rp s))
+  /-- [W] the decided thread's `AFFINITY` when it is live (a placed TCB's, gate-owned: `af_of_tcb`). -/
+  af : SlLive st rp s → SlRS (st := st) K Locks s (affA (slThr st rp s)) ∧ ¬ SlDS (L := L) s (affA (slThr st rp s))
 
 theorem NodePlaced.of_ksb {T : Set U64} {s s' : S} {c : U64} (hk : L.ksb s' = L.ksb s)
     (h : NodePlaced st T s c) : NodePlaced st T s' c := by
@@ -189,7 +213,7 @@ theorem slThr_acc (hA : P0.ArchTotal ar) {cl : U64 → U64 → U64} {ko' : U64 �
     (I : SlThrIn (st := st) K Locks found.1 s)
     (Al : Alt st (SlRS (st := st) K Locks s) cl ko' (· ∈ K.user) s s')
     (h : syscall.handle_syscall_local st ar s' a n found = ok r) (hr : r.1 = true) :
-    L.mem s' (affA (slThr st found.1 s')) = L.cpu s' := by
+    L.mem s (affA (slThr st found.1 s)) = L.cpu s := by
   obtain ⟨b, s1, a1⟩ := r
   dsimp only at hr
   subst hr
@@ -199,7 +223,6 @@ theorem slThr_acc (hA : P0.ArchTotal ar) {cl : U64 → U64 → U64} {ko' : U64 �
   have hc' : L.curW s' ∈ T := by rw [hcur]; exact E.hcT
   have hD : ∀ b, ¬ SlDS (L := L) s b → ¬ SlDS (L := L) s' b :=
     fun b hb h => hb ((slDS_of Al.ksb Al.cpu hcur).1 h)
-  rw [slThr_alt E.preG I Al]
   obtain ⟨X, a2, LP, hX⟩ := sl_acc_inv ar h
   have lm : ∀ b, SlRS (st := st) K Locks s b → ¬ SlDS (L := L) s b → L.mem X b = L.mem s b :=
     fun b h1 h2 => by rw [lp_mem ar hA E.hT hN' hc' LP h1.1 (hD b h2), Al.read _ h1]
@@ -220,9 +243,14 @@ theorem slThr_acc (hA : P0.ArchTotal ar) {cl : U64 → U64 → U64} {ko' : U64 �
     rw [hc.head, WP.spec_ok] at h1
     have hd : slThr st found.1 s = dest := by
       unfold slThr
-      rw [if_pos hS, hp, h1, lm _ e2.1 e2.2]
-    have af := I.af
+      rw [if_pos hS, hp, h1, lm _ e2.1 e2.2.1]
+    have lv : SlLive st found.1 s := by
+      unfold SlLive
+      rw [if_pos hS, hp, ← ep_state_congr (lm _ e2.2.2.1 e2.2.2.2)]
+      exact hc.ep
+    have af := I.af lv
     rw [hd] at af ⊢
+    rw [← Al.read _ af.1, ← Al.cpu]
     rw [← lp_mem ar hA E.hT hN' hc' LP af.1.1 (hD _ af.2), HF.aff, hcX]
   · have hS : ¬ SlTrap st s := fun h' => hS' (hTr.2 h')
     obtain ⟨u, usc, C, -⟩ := reply_recv_found_acc st ar hf
@@ -234,8 +262,13 @@ theorem slThr_acc (hA : P0.ArchTotal ar) {cl : U64 → U64 → U64} {ko' : U64 �
     have hd : slThr st found.1 s = u := by
       unfold slThr
       rw [if_neg hS, h1, lm _ (I.rt hS).1 (I.rt hS).2]
-    have af := I.af
+    have lv : SlLive st found.1 s := by
+      unfold SlLive
+      rw [if_neg hS, ← lm _ (I.rt hS).1 (I.rt hS).2, ← h1]
+      exact u_ne0 C.u0
+    have af := I.af lv
     rw [hd] at af ⊢
+    rw [← Al.read _ af.1, ← Al.cpu]
     rw [← lp_mem ar hA E.hT hN' hc' LP af.1.1 (hD _ af.2), HF.aff, hcX]
 
 end

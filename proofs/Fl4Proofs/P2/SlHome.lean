@@ -19,6 +19,9 @@ arm: `STATE`, `fault_type`, `SC`); then `sl_pathObl_sl` / `sl_pathSide_sl`.
 Premises: `SlDecIn` [W] (each field tagged there): the words a declining arm reads at the
 prefix state, apart from the decided thread's, are in `SlRS s`, and when that thread is homed
 here its words too; plus `SlPre`, `SlThrIn` (P2/SlObl.lean, P2/SlThr.lean).
+`sl_pathObl_sl` / `sl_pathSide_sl` take the premises of `sl_pathObl_dr` / `sl_pathSide_dr`
+(P2/SlObl.lean module docstring; `hz : NoZero p` is [P] there, with the call-graph check
+`proofs/scratch/callgraph.py`) with `SlThr` replaced by `SlThrIn` and `SlDecIn`.
 -/
 import Fl4Proofs.P2.SlDecG
 open Aeneas Aeneas.Std Result
@@ -47,7 +50,8 @@ structure FltDecT (R : U64 → Prop) (X : S) (t : U64) : Prop where
 
 theorem FltDec.of {R : U64 → Prop} {X : S} {t : U64} (D : FltDecT (L := L) R X t)
     (hd : ∀ ptr b x y g gr, obj.Slot.cap st (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) X =
-      ok (capability.Cap.Endpoint ptr b x y g gr) → ∀ d, obj.Ep.head st ptr X = ok d → DestDec (L := L) R X d) :
+      ok (capability.Cap.Endpoint ptr b x y g gr) → obj.Ep.state st ptr X = ok obj.EP_RECV →
+      ∀ d, obj.Ep.head st ptr X = ok d → DestDec (L := L) R X d) :
     FltDec (L := L) R X t :=
   ⟨D.nd, D.dt, D.cd, D.bm, D.tm, D.rh, D.fh, fun ptr b x y g gr h =>
     ⟨(D.ep ptr b x y g gr h).1, (D.ep ptr b x y g gr h).2, hd ptr b x y g gr h⟩⟩
@@ -75,7 +79,7 @@ structure RrDecT (R : U64 → Prop) (X : S) (t rptr ep : U64) : Prop where
   eTS : R (epTSA ep)
 
 theorem RrDec.of {R : U64 → Prop} {X : S} {t rptr ep : U64} (D : RrDecT (L := L) R X t rptr ep)
-    (hu : ∀ u, obj.Reply.tcb st rptr X = ok u → UDec (L := L) R X u) : RrDec (L := L) R X t rptr ep :=
+    (hu : ∀ u, obj.Reply.tcb st rptr X = ok u → u ≠ 0#u64 → UDec (L := L) R X u) : RrDec (L := L) R X t rptr ep :=
   ⟨D.nd, D.dt, D.cd, D.bm, D.tm, D.rh, D.tSt, D.tSc, D.tMx, D.tIq, D.tMi, D.tBn, D.tPr, D.ntf, D.rRt, D.rNx,
     D.eTS, hu⟩
 
@@ -261,7 +265,30 @@ theorem slThr_hd_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
   rw [hp] at e2
   unfold slThr
   rw [if_pos hS, hp]
-  exact lp_mem ar hA hT hN hcT LP e2.1.1 e2.2
+  exact lp_mem ar hA hT hN hcT LP e2.1.1 e2.2.1
+
+/-- The trap arm's handler endpoint in `RECV` at the prefix state: the decided thread is live. -/
+theorem slLive_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
+    (hT : TcbPlaced T) (hN : NodePlaced st T s (L.cpu s)) (hcT : L.curW s ∈ T)
+    (I : SlThrIn (st := st) K Locks rp s) (hS : SlTrap st s) (LP : LocalPre (st := st) ar s a (X, a1))
+    {ptr b : U64} {x y g gr : Bool}
+    (hc : obj.Slot.cap st (fhA (L := L) s) X = ok (capability.Cap.Endpoint ptr b x y g gr))
+    (hst : obj.Ep.state st ptr X = ok obj.EP_RECV) : SlLive st rp s := by
+  obtain ⟨f1, f2, f3, f4⟩ := I.fh hS
+  rw [cap_congr (lp_mem ar hA hT hN hcT LP f1.1 f3) (lp_mem ar hA hT hN hcT LP f2.1 f4)] at hc
+  have hp : resPtr (obj.Slot.cap st (fhA (L := L) s) s) = ptr := resPtr_ok hc
+  have e2 := I.eh hS
+  rw [hp] at e2
+  unfold SlLive
+  rw [if_pos hS, hp, ← ep_state_congr (lp_mem ar hA hT hN hcT LP e2.2.2.1.1 e2.2.2.2)]
+  exact hst
+
+/-- A nonzero replied thread is live. -/
+theorem slLive_rr {s : S} {rp : U64} (hS : ¬ SlTrap st s) (h : slThr st rp s ≠ 0#u64) : SlLive st rp s := by
+  unfold SlLive
+  unfold slThr at h
+  rw [if_neg hS] at h ⊢
+  exact h
 
 /-- The ReplyRecv arm's replied thread, read at the prefix state, is the decided thread. -/
 theorem slThr_hd_rr (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
@@ -289,19 +316,19 @@ theorem tw_al {d c : U64} (h : Aligned (affA d)) (hc : c.val % 8 = 0) :
 locks at the entry state `s`, like `SlPre`'s `FltAcc` / `RrAcc` fields, but up to the decline):
 * `fT` [W]: the trap arm's words other than its receiver's are in `SlRS s` (node, kernel
   globals, the current thread's fault-handler slot, the locked handler endpoint);
-* `fD` [W]: the receiver (the decided thread) homed here, its `REPLY_OBJ`, `AFFINITY` and later
+* `fD` [W]: the receiver (the decided thread) live (`SlLive`: endpoint in `RECV`) and homed here, its `REPLY_OBJ`, `AFFINITY` and later
   words are in `SlRS s` (this core's);
 * `rT` [W]: the ReplyRecv arm's words other than its replied thread's are in `SlRS s`
   (node, kernel globals, the current thread, the locked reply object and endpoint);
-* `rU` [W]: the replied thread (the decided thread) homed here, its words are in `SlRS s`. -/
+* `rU` [W]: the replied thread (the decided thread) live (nonzero) and homed here, its words are in `SlRS s`. -/
 structure SlDecIn (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64) (s : S) : Prop where
   fT : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) →
     FltDecT (L := L) (SlRS (st := st) K Locks s) X (L.curW s)
-  fD : SlTrap st s → L.mem s (affA (slThr st found.1 s)) = L.cpu s → ∀ a X a1,
+  fD : SlTrap st s → SlLive st found.1 s → L.mem s (affA (slThr st found.1 s)) = L.cpu s → ∀ a X a1,
     LocalPre (st := st) ar s a (X, a1) → DestDec (L := L) (SlRS (st := st) K Locks s) X (slThr st found.1 s)
   rT : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) →
     RrDecT (L := L) (SlRS (st := st) K Locks s) X (L.curW s) found.1 found.2
-  rU : ¬ SlTrap st s → L.mem s (affA (slThr st found.1 s)) = L.cpu s → ∀ a X a1,
+  rU : ¬ SlTrap st s → SlLive st found.1 s → L.mem s (affA (slThr st found.1 s)) = L.cpu s → ∀ a X a1,
     LocalPre (st := st) ar s a (X, a1) → UDec (L := L) (SlRS (st := st) K Locks s) X (slThr st found.1 s)
 
 set_option maxHeartbeats 4000000 in
@@ -321,19 +348,20 @@ theorem sl_home (hA : P0.ArchTotal ar) {s : S} {a : A} {r : Bool × S × A}
   · intro hS X a1 n' LP hf
     refine fastpath.fault.guard_dec (gS := guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s))
       (FltDec.of (D.fT hS a X a1 LP) ?_) hf hn
-    intro ptr bb x y g gr hc d hd
+    intro ptr bb x y g gr hc hst d hd
     have e1 := slThr_hd_trap ar hA E.hT E.hN E.hcT I hS LP hc
     rw [eq_of_spec_fd (obj.Ep.head.spec' (st := st) X ptr), e1] at hd
     rw [← ok_inj_ff hd]
-    exact D.fD hS hh a X a1 LP
+    exact D.fD hS (slLive_trap ar hA E.hT E.hN E.hcT I hS LP hc hst) hh a X a1 LP
   · intro hS X a1 LP hf
     refine fastpath.reply_recv_found.guard_dec (gS := guard st (SlRS (st := st) K Locks s) (SlDS (L := L) s))
       (RrDec.of (D.rT hS a X a1 LP) ?_) hf hn
-    intro u hu
+    intro u hu hu0
     have h1 := obj.Reply.tcb.blk (st := st) X found.1
     rw [hu, WP.spec_ok, slThr_hd_rr ar hA E.hT E.hN E.hcT I hS LP] at h1
+    have lv := slLive_rr (st := st) hS (by rw [← h1]; exact hu0)
     rw [h1]
-    exact D.rU hS hh a X a1 LP
+    exact D.rU hS lv hh a X a1 LP
 
 set_option maxHeartbeats 8000000 in
 /-- **`SlThr.away`**: the decided thread homed elsewhere, a run at an alternative is the same
@@ -347,9 +375,7 @@ theorem sl_away (hA : P0.ArchTotal ar) {s s' : S} {a : A} {r : Bool × S × A}
     syscall.handle_syscall_local
       (guard st (fun b => SlRS (st := st) K Locks s b ∨ slTW (slThr st found.1 s) b) (fun _ => True))
       ar s' a n found = ok r := by
-  have hn : r.1 ≠ true := fun e => hh (by
-    have ha := slThr_acc ar hA E I Al h e
-    rwa [slThr_alt E.preG I Al, Al.read _ I.af.1, Al.cpu] at ha)
+  have hn : r.1 ≠ true := fun e => hh (slThr_acc ar hA E I Al h e)
   have hcur := sl_alt_cur E.preG Al
   have hTr := slTrap_alt E.preG.fl Al hcur
   have hN' : NodePlaced st T s' (L.cpu s') := by rw [Al.cpu]; exact NodePlaced.of_ksb Al.ksb E.hN
@@ -372,12 +398,11 @@ theorem sl_away (hA : P0.ArchTotal ar) {s s' : S} {a : A} {r : Bool × S × A}
     obtain ⟨hkX', hcX', -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT hN' hc' LP'
     exact ⟨X, LP, hag, by rw [hkX', hkX, Al.ksb], by rw [hcX', hcX, Al.cpu]⟩
   -- the decided thread's words at the alternative's prefix state
-  have af := I.af
-  have aA : Aligned (affA (slThr st found.1 s)) := af.1.1
-  have hrest : ∀ X X' a1', LocalPre (st := st) ar s a (X, a1') →
+  have hrest : SlLive st found.1 s → ∀ X X' a1', LocalPre (st := st) ar s a (X, a1') →
       (∀ b, SlRS (st := st) K Locks s b → L.mem X' b = L.mem X b) → L.cpu X' = L.cpu X →
       L.mem X' (affA (slThr st found.1 s)) ≠ L.cpu X' := by
-    intro X X' a1' LP hag hcX e
+    intro lv X X' a1' LP hag hcX e
+    have af := I.af lv
     apply hh
     obtain ⟨-, hcX0, -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT E.hN E.hcT LP
     rw [← lp_mem ar hA E.hT E.hN E.hcT LP af.1.1 af.2, ← hag _ af.1, e, hcX, hcX0]
@@ -405,14 +430,19 @@ theorem sl_away (hA : P0.ArchTotal ar) {s s' : S} {a : A} {r : Bool × S × A}
     refine fastpath.fault.guard_dec
       (gS := guard st (fun b => SlRS (st := st) K Locks s b ∨ slTW (slThr st found.1 s) b) (fun _ => True))
       (FltDec.of (FltDecT.mono (fun b hb => Or.inl hb) DT) ?_) hf hn
-    intro ptr bb x y g gr hcp d hd
+    intro ptr bb x y g gr hcp hst' d hd
     have hc0 : obj.Slot.cap st (fhA (L := L) s) X = ok (capability.Cap.Endpoint ptr bb x y g gr) :=
       (cap_congr (hag _ DT.fh.1) (hag _ DT.fh.2)).symm.trans hcp
+    have hst : obj.Ep.state st ptr X = ok obj.EP_RECV :=
+      (ep_state_congr (hag _ (DT.ep ptr bb x y g gr hcp).1)).symm.trans hst'
+    have lv := slLive_trap ar hA E.hT E.hN E.hcT I hS LP hc0 hst
+    have af := I.af lv
+    have aA : Aligned (affA (slThr st found.1 s)) := af.1.1
     have e1 := slThr_hd_trap ar hA E.hT E.hN E.hcT I hS LP hc0
     rw [eq_of_spec_fd (obj.Ep.head.spec' (st := st) X' ptr), hag _ (DT.ep ptr bb x y g gr hcp).2, e1] at hd
     rw [← ok_inj_ff hd]
     exact ⟨Or.inr ⟨by unfold replyA; exact tw_al aA (by simp), Or.inl rfl⟩, Or.inl af.1,
-      fun e => absurd e (hrest X X' a1' LP hag hc)⟩
+      fun e => absurd e (hrest lv X X' a1' LP hag hc)⟩
   · intro hS' X' a1' LP' hf
     have hS : ¬ SlTrap st s := fun h' => hS' (hTr.2 h')
     obtain ⟨X, LP, hag, hk, hc⟩ := PA X' a1' LP'
@@ -421,14 +451,17 @@ theorem sl_away (hA : P0.ArchTotal ar) {s s' : S} {a : A} {r : Bool × S × A}
     refine fastpath.reply_recv_found.guard_dec
       (gS := guard st (fun b => SlRS (st := st) K Locks s b ∨ slTW (slThr st found.1 s) b) (fun _ => True))
       (RrDec.of (RrDecT.mono (fun b hb => Or.inl hb) DT) ?_) hf hn
-    intro u hu
+    intro u hu hu0
     have h1 := obj.Reply.tcb.blk (st := st) X' found.1
     rw [hu, WP.spec_ok, hag _ DT.rRt, slThr_hd_rr ar hA E.hT E.hN E.hcT I hS LP] at h1
+    have lv := slLive_rr (st := st) hS (by rw [← h1]; exact hu0)
+    have af := I.af lv
+    have aA : Aligned (affA (slThr st found.1 s)) := af.1.1
     rw [h1]
     exact ⟨Or.inr ⟨by rw [stA_eq]; exact tw_al aA (by simp), Or.inr (Or.inl rfl)⟩,
       Or.inr ⟨tw_al aA (by simp), Or.inr (Or.inr (Or.inl rfl))⟩,
       Or.inr ⟨by unfold scA; exact tw_al aA (by simp), Or.inr (Or.inr (Or.inr rfl))⟩, Or.inl af.1,
-      fun e => absurd e (hrest X X' a1' LP hag hc)⟩
+      fun e => absurd e (hrest lv X X' a1' LP hag hc)⟩
 
 /-- **`SlThr` for the concrete decided thread** `slThr st found.1` with `slTW`. -/
 theorem slThr_sl (hA : P0.ArchTotal ar) {P : S → Prop}
@@ -437,7 +470,6 @@ theorem slThr_sl (hA : P0.ArchTotal ar) {P : S → Prop}
     (hD : ∀ s, P s → SlDecIn (st := st) ar K Locks found s) :
     SlThr (st := st) ar (n := n) (found := found) (m0 := m0) P K Locks (slThr st found.1) slTW where
   alt s _ hP Al := slThr_alt (hPE s hP).preG (hI s hP) Al
-  affR s hP := (hI s hP).af.1
   acc s _ _ _ hP Al h hr := slThr_acc ar hA (hPE s hP) (hI s hP) Al h hr
   home s _ _ hP h hn hh := sl_home ar hA (hPE s hP) (hI s hP) (hD s hP) h hn hh
   twA _ _ h := h.1

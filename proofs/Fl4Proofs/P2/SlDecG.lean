@@ -88,7 +88,8 @@ structure FltDec (R : U64 → Prop) (X : S) (t : U64) : Prop where
     R (core.num.U64.wrapping_add (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) 8#u64)
   ep : ∀ ptr b x y g gr, obj.Slot.cap st (slotIdx t layout.tcb.SLOT_FAULT_HANDLER) X =
       ok (capability.Cap.Endpoint ptr b x y g gr) →
-    R (epTSA ptr) ∧ R (epHeadA ptr) ∧ ∀ d, obj.Ep.head st ptr X = ok d → DestDec (L := L) R X d
+    R (epTSA ptr) ∧ R (epHeadA ptr) ∧
+      (obj.Ep.state st ptr X = ok obj.EP_RECV → ∀ d, obj.Ep.head st ptr X = ok d → DestDec (L := L) R X d)
 
 variable {A : Type} {ar : machine.Arch A}
 
@@ -112,11 +113,12 @@ theorem fastpath.fault.guard_dec {X : S} {a : A} {t n : U64} {r : Bool × S × A
     refine tr_ite (fun _ => ?_) (fun _ => tr_ite (fun _ => ?_) (fun _ h' => h'))
     · obtain ⟨hs, hh, hd⟩ := D.ep ptr badge x y g gr hc
       rw [obj.Ep.state.guard (gS := gS) ptr X hs]
-      refine tr_bind_same (fun i1 _ => ?_)
-      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      refine tr_bind_same (fun i1 ei1 => ?_)
+      refine tr_ite (fun _ h' => h') (fun hne => ?_)
+      have e1 : i1 = obj.EP_RECV := Classical.not_not.mp (fun h => hne (bne_iff_ne.mpr h))
       rw [obj.Ep.head.guard (gS := gS) ptr X hh]
       refine tr_bind_same (fun d ed => ?_)
-      have Dd := hd d ed
+      have Dd := hd (by rw [ei1, e1]) d ed
       rw [obj.Tcb.reply_obj.guard (gS := gS) d X Dd.rp]
       refine tr_bind_same (fun i3 _ => ?_)
       refine tr_ite (fun _ h' => h') (fun _ => ?_)
@@ -140,11 +142,12 @@ theorem fastpath.fault.guard_dec {X : S} {a : A} {t n : U64} {r : Bool × S × A
       acc_true hk
     · obtain ⟨hs, hh, hd⟩ := D.ep ptr badge x y g gr hc
       rw [obj.Ep.state.guard (gS := gS) ptr X hs]
-      refine tr_bind_same (fun i1 _ => ?_)
-      refine tr_ite (fun _ h' => h') (fun _ => ?_)
+      refine tr_bind_same (fun i1 ei1 => ?_)
+      refine tr_ite (fun _ h' => h') (fun hne => ?_)
+      have e1 : i1 = obj.EP_RECV := Classical.not_not.mp (fun h => hne (bne_iff_ne.mpr h))
       rw [obj.Ep.head.guard (gS := gS) ptr X hh]
       refine tr_bind_same (fun d ed => ?_)
-      have Dd := hd d ed
+      have Dd := hd (by rw [ei1, e1]) d ed
       rw [obj.Tcb.reply_obj.guard (gS := gS) d X Dd.rp]
       refine tr_bind_same (fun i3 _ => ?_)
       refine tr_ite (fun _ h' => h') (fun _ => ?_)
@@ -201,7 +204,7 @@ structure RrDec (R : U64 → Prop) (X : S) (t rptr ep : U64) : Prop where
   rRt : R (rTcbA rptr)
   rNx : R (rNextA rptr)
   eTS : R (epTSA ep)
-  uu : ∀ u, obj.Reply.tcb st rptr X = ok u → UDec (L := L) R X u
+  uu : ∀ u, obj.Reply.tcb st rptr X = ok u → u ≠ 0#u64 → UDec (L := L) R X u
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 8000000 in
@@ -224,9 +227,9 @@ theorem fastpath.reply_recv_found.guard_dec {X : S} {a : A} {t rptr ep : U64} {r
   refine tr_ite (fun _ h' => h') (fun _ => ?_)
   rw [obj.Reply.tcb.guard (gS := gS) rptr X D.rRt]
   refine tr_bind_same (fun u eu => ?_)
-  have U := D.uu u eu
-  refine tr_bind_same (fun b1 _ => ?_)
-  refine tr_ite (fun _ h' => h') (fun _ => ?_)
+  refine tr_bind_same (fun b1 eb1 => ?_)
+  refine tr_ite (fun _ h' => h') (fun hb1 => ?_)
+  have U := D.uu u eu (u_ne0 ⟨b1, eb1, hb1⟩)
   rw [obj.Tcb.state.guard (gS := gS) u X U.ust]
   refine tr_bind_same (fun i2 _ => ?_)
   refine tr_ite (fun _ h' => h') (fun _ => ?_)
