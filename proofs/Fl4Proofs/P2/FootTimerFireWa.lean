@@ -10,7 +10,8 @@ the woken thread (`wake_wait_st` / `wake_recv_st`, with `WkPre` from `wkpre_true
 * `WkCase`: the two waking cases at `X`, with what each branch's guard needs.
 * `probe_nd`, `epfoot_nd`: a word every `D`-run keeps is not in `D`; `EpFoot` holds no `Ω` / node / non-link word.
 * `WkKeep`, `wk_keep`: what the waking signal keeps (node words but `SCHED_ACTION` / `REPROGRAM`, thread words but
-  `EP` links and the woken thread's `STATE` / badge / fault word, SCs other than the woken thread's).
+  `EP` links and the woken thread's `STATE` / badge / fault word, SCs other than the woken thread's, `Ω` words
+  outside the frame `Sg`: the kernel-global words, the ASID table).
 * `wk_sig`: the waking signal on both stores, with `WkKeep` for the `st` run.
 
 No named premises.
@@ -67,14 +68,15 @@ theorem probe_nd {X : S} {D : U64 → Prop} {b : U64} (hb : Aligned b)
 /-- **What a waking signal keeps**, from its start `X` to its end `X2`: this core's node words other than
 `SCHED_ACTION` (16) and `REPROGRAM` (56); every thread's words other than its `EP` links, and for the woken thread
 `w` also other than its `STATE`, badge register and fault word; the words of every SC other than `w`'s. -/
-def WkKeep (st : machine.Store S) [L : LawfulStore st] (T Scs : Set U64) (Z : U64 → Nat) (X X2 : S) (w : U64) :
-    Prop :=
+def WkKeep (st : machine.Store S) [L : LawfulStore st] (T Ω Sg Scs : Set U64) (Z : U64 → Nat) (X X2 : S)
+    (w : U64) : Prop :=
   (∀ o : U64, o.val < 4288 → o.val % 8 = 0 → o.val ≠ 16 → o.val ≠ 56 →
     L.mem X2 (L.nodeAt X (L.cpu X) o) = L.mem X (L.nodeAt X (L.cpu X) o)) ∧
   (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
     (y = w → K.val ≠ 3328 ∧ K.val ≠ 256 ∧ K.val ≠ 3376) →
     L.mem X2 (core.num.U64.wrapping_add y K) = L.mem X (core.num.U64.wrapping_add y K)) ∧
-  (∀ c ∈ Scs, c ≠ L.mem X (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem X2 b = L.mem X b)
+  (∀ c ∈ Scs, c ≠ L.mem X (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem X2 b = L.mem X b) ∧
+  (∀ b, Aligned b → b ∈ Ω → b ∉ Sg → L.mem X2 b = L.mem X b)
 
 /-- `EpFoot` of a queue of `E` holds no word of `Ω`, no node word of this core and no thread word other than an `EP`
 link (`epfoot_keep`, probed). -/
@@ -103,9 +105,10 @@ theorem wk_keep {X X2 : S} {D : U64 → Prop} {w : U64}
     (dN : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → ¬ D (L.nodeAt X (L.cpu X) o))
     (dT : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3496 → K.val ≠ 3504 →
       (y = w → K.val ≠ 3328 ∧ K.val ≠ 3376) → ¬ D (core.num.U64.wrapping_add y K))
-    (dS : ∀ c ∈ Scs, ∀ b, Aligned b → InSC c (Z c) b → ¬ D b) :
-    WkKeep st T Scs Z X X2 w := by
-  obtain ⟨⟨Q, Rq, hq⟩, -, hXX, -, -⟩ := hTX
+    (dS : ∀ c ∈ Scs, ∀ b, Aligned b → InSC c (Z c) b → ¬ D b)
+    (dO : ∀ b, Aligned b → b ∈ Ω → b ∉ Sg → ¬ D b) :
+    WkKeep st T Ω Sg Scs Z X X2 w := by
+  obtain ⟨⟨Q, Rq, hq⟩, -, hXX, hSS, -⟩ := hTX
   have hO := hXX.1
   have hT := hq.tcbs
   have hcC := hq.cur
@@ -127,7 +130,8 @@ theorem wk_keep {X X2 : S} {D : U64 → Prop} {w : U64}
       have hc := (hXX.2.2.bound w hw h0).1
       have hin : InSC (L.mem X (scA w)) (Z (L.mem X (scA w))) b := ⟨by have := hr.1; omega, hr.2⟩
       exact ⟨hc, hin, hO.scW _ hc b hb hin⟩
-  refine ⟨fun o ho h8 h16 h56 => ?_, fun y hy K hK h8 h1 h2 hyw => ?_, fun c hc hne b hb hin => ?_⟩
+  refine ⟨fun o ho h8 h16 h56 => ?_, fun y hy K hK h8 h1 h2 hyw => ?_, fun c hc hne b hb hin => ?_,
+    fun b hb hΩ hSg => ?_⟩
   · refine hW.mem_eq (nodeAt_aligned hN ho h8) ?_
     rintro (hd | (e | e | e) | hr | e)
     · exact dN o ho h8 hd
@@ -162,6 +166,16 @@ theorem wk_keep {X X2 : S} {D : U64 → Prop} {w : U64}
       have := hO.scDisj c hc _ hc' hne
       have := hin.1; have := hin.2; have := hin'.1; have := hin'.2
       omega
+    · subst e; rw [eR] at ho; exact out_ne_node ho hcC hN (by simp [layout.node.REPROGRAM]) rfl
+  · have ho := hq.omega b hΩ
+    refine hW.mem_eq hb ?_
+    rintro (hd | (e | e | e) | hr | e)
+    · exact dO b hb hΩ hSg hd
+    · subst e; rw [stA_eq] at ho; exact out_ne_field ho hw hw' (by simp) rfl
+    · subst e; rw [eB] at ho; exact out_ne_field ho hw hw' (by omega) rfl
+    · subst e; exact out_ne_node ho hcC hN (by rw [act_val]; omega) rfl
+    · obtain ⟨hc', hin', -⟩ := hRing b hb hr
+      exact hSg ((hSS.all _ hc').2.2 b hb hin')
     · subst e; rw [eR] at ho; exact out_ne_node ho hcC hN (by simp [layout.node.REPROGRAM]) rfl
 
 end keep
@@ -203,7 +217,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     notification.send_signal gS ar X a N badge = notification.send_signal st ar X a N badge ∧
     ∀ X2 a2, notification.send_signal st ar X a N badge = ok (X2, a2) →
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac X2 ∧ TAgree st T Cs X X2 ∧ L.ksb X2 = L.ksb X ∧ L.cpu X2 = L.cpu X ∧
-      ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Scs Z X X2 w ∧
+      ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Ω Sg Scs Z X X2 w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
         L.mem X2 (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
   have hTX' := hTX
@@ -241,7 +255,8 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨-, wi, act, wrun⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
     obtain ⟨dΩ, dN, dT⟩ := epfoot_nd (n := N) hq hEW he (fun y hy => hqr.mem y hy)
     exact ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
-      (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin)),
+      (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin))
+      (fun b hb hΩ _ => dΩ b hb hΩ),
       hbl, haf, hcur, wrun, hyl⟩
   · -- idle-bound `Recv`
     obtain ⟨ep, heq⟩ : ∃ ep, L.mem X (blockA t) = ep := ⟨_, rfl⟩
@@ -273,7 +288,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
       obtain ⟨-, rv, -, -⟩ := rp_facts hXX.1 hrp
       exact ⟨hq.omega _ (hSgX.sub _ (hXX.1.tcbW hrp)), rv, hXX.1.rpSc r hrp⟩
-    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur, wrun, hyl⟩
+    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_ ?_, hblk, haf, hcur, wrun, hyl⟩
     · intro o ho h8
       rintro (e | hf | ⟨hr0, e⟩ | e)
       · unfold faultA at e; exact node_ne_field hN ho htT ht' (by simp) e
@@ -296,6 +311,15 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         rw [rv] at ev
         have := rs c hc; have := hin.1; have := hin.2
         omega
+      · subst e; rw [stA_eq] at ho; exact out_ne_field ho htT ht' (by simp) rfl
+    · intro b hb hΩ hSg
+      have ho := hq.omega b hΩ
+      rintro (e | hf | ⟨hr0, e⟩ | e)
+      · subst e; unfold faultA at ho; exact out_ne_field ho htT ht' (by simp) rfl
+      · exact dΩ b hb hΩ hf
+      · have hrp : r ∈ Rp := by
+          have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
+        subst e; exact hSg (hXX.1.tcbW hrp)
       · subst e; rw [stA_eq] at ho; exact out_ne_field ho htT ht' (by simp) rfl
 
 end main

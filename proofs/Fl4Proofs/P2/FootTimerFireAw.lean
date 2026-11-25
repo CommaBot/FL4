@@ -332,7 +332,8 @@ def AwFacts (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H :
   (∀ Q : U64 → List U64, ReadyQueues st T Y (L.cpu Y) Q → ∀ h : U64, h.val < 256 → Q h ≠ [] →
     (∀ p : U64, p.val < 256 → Q p ≠ [] → p.val ≤ h.val) →
     L.mem s (yieldA ((Q h).headD 0#u64)) = 0#u64 ∧ L.mem s (stA ((Q h).headD 0#u64)) ≠ sched.TS_RUNNING_VM ∧
-    L.mem s (affA ((Q h).headD 0#u64)) = L.cpu s)
+    L.mem s (affA ((Q h).headD 0#u64)) = L.cpu s) ∧
+  (∀ b, Aligned b → b ∈ Ω → b ∉ Sg → L.mem Y b = L.mem s b)
 
 end help
 
@@ -821,7 +822,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     fun y hy K hK h8 hK' h1 h2 hyw => (fk.2.1 y hy K hK h8 hK' h1 h2 hyw).trans (htcb3 hy hK h8)
   have scY : ∀ c ∈ Scs, c ≠ L.mem s (scA w) → ∀ b, Aligned b → InSC c (Z c) b → L.mem Y b = L.mem s b := by
     intro c hc hne b hb hin
-    refine (fk.2.2 c hc (fun e => hne ?_) b hb hin).trans (hout3 b (h0.omega b (hO.scW c hc b hb hin)))
+    refine (fk.2.2.1 c hc (fun e => hne ?_) b hb hin).trans (hout3 b (h0.omega b (hO.scW c hc b hb hin)))
     rw [e, scA_eq, htcb3 hwT (K := 3464#u64) (by simp) (by simp)]
   have scaY : ∀ y ∈ T, L.mem Y (scA y) = L.mem s (scA y) := fun y hy =>
     tY y hy 3464#u64 (by simp) (by simp) (Or.inl (by simp)) (by simp) (by simp) (fun _ => by simp)
@@ -915,7 +916,8 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     · rw [stA_eq, ← htcb1 hdT (K := 3328#u64) (by simp) (by simp), ← stA_eq]; exact hvm
     · exact (htcb1 hdT (K := 3520#u64) (by simp) (by simp)).symm.trans (haf.trans c1)
   exact fire_tail_of_aw ar hawg haw (hTail Y aY w haw ⟨TY, kY, cY, nY, tY, scY, relY, hstY, ctY, hwT, wbl', waf',
-    wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm, htopY⟩)
+    wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm, htopY,
+    fun b hb hΩ hSg => (fk.2.2.2 b hb hΩ hSg).trans (hout3 b (h0.omega b hΩ))⟩)
 
 end main
 
