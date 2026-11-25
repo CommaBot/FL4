@@ -7,8 +7,9 @@ spec's `domain_set_start` sets `domain_time := 0`).
 * `DomListOK`: l4v's `valid_domain_list` (DetSchedDomainTime_AI, `rt`) and
   every entry's domain 0 (FL4 is built with one domain; l4v's own note on
   `valid_domain_list_2`: "domains in the domain list should also be ≤
-  maxDomain"). [J]: no invariant carries it yet (l4v:
-  `valid_domain_list`, kept by every kernel step, `next_domain_valid_domain_list`,
+  maxDomain"). Carried in `SInvX` (SpecInvAll's `SInvA.dom`, kept by every
+  entry under `numDomains = 1` [P]; XTopJointKEntryU6 `sinvX_dom`; l4v:
+  `valid_domain_list`, `next_domain_valid_domain_list`,
   `domain_set_start_valid_domain_list_inv`, ...).
 * `nextDomain_eq`: with FL4's two-entry table (`DomRel`: length 2) the
   index is 0 and the start index 0 (`DomListOK.idx0` / `start0`: the last
@@ -35,7 +36,7 @@ open Fl4Spec
 
 /-- **The domain schedule's invariant**: l4v's `valid_domain_list`
 (DetSchedDomainTime_AI, `rt`) and FL4's one domain (every entry's domain
-0). [J] (see the module docstring). -/
+0). Carried in `SInvX` (see the module docstring). -/
 structure DomListOK (σ : State Unit) : Prop where
   /-- One active entry and the reserved end marker at least. -/
   len : 1 < σ.domainList.length
