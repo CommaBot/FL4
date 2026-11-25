@@ -79,6 +79,12 @@ theorem StK.nbr {v v' : U64} (h : StK v v') (hn : ¬ BlockedR v) : ¬ BlockedR v
     · rcases r with e | e | e <;> rw [hb] at e <;>
         simp_all [sched.TS_RUNNING, sched.TS_RESTART, sched.TS_RUNNING_VM, sched.TS_BLOCKED_ON_REPLY]
 
+theorem StK.idle {v v' : U64} (h : StK v v') (hv : v = sched.TS_IDLE) : v' = sched.TS_IDLE := by
+  rcases h with e | ⟨r, -⟩
+  · rw [e]; exact hv
+  · subst hv
+    exact absurd r (by unfold Runnable sched.TS_IDLE sched.TS_RUNNING sched.TS_RESTART sched.TS_RUNNING_VM; decide)
+
 /-- The words `LocW2` names, kept (a protected thread's `STATE` up to `StK`). -/
 structure OKeep2 (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (e : U64) (s s' : S) : Prop where
   ksb : L.ksb s' = L.ksb s
@@ -232,7 +238,8 @@ theorem AllCores.step2 {s s' : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s
     (hac : actAt st (L.cpu s) s' ∈ T → L.mem s' (affA (actAt st (L.cpu s) s')) = L.cpu s)
     (hnb : ¬ Blocked (L.mem s' (stA (curAt st (L.cpu s) s'))))
     (hnq : curAt st (L.cpu s) s' ≠ idleAt st (L.cpu s) s' →
-      (L.mem s' (inqA (curAt st (L.cpu s) s')) &&& sched.Q_QUEUED) = 0#u64) :
+      (L.mem s' (inqA (curAt st (L.cpu s) s')) &&& sched.Q_QUEUED) = 0#u64)
+    (hacNT : actAt st (L.cpu s) s' ∉ T) (hidl : L.mem s' (stA (idleAt st (L.cpu s) s')) = sched.TS_IDLE) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
   have hv : @EntryInv S (atCpu st (L.cpu s)) (L.atCpu (L.cpu s)) T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
     have := EntryInv.toView he
@@ -242,7 +249,8 @@ theorem AllCores.step2 {s s' : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s
   obtain ⟨⟨Q', R', hq'⟩, -, hX', -⟩ := he
   have hbd' : ∀ t ∈ T, L.mem s' (scA t) ≠ 0#u64 → L.mem s' (scA t) ∈ Scs :=
     fun t ht h0 => (hX'.2.2.bound t ht h0).1
-  refine ⟨fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc hT => ?_, fun c hc => ?_, fun c hc hn => ?_⟩
+  refine ⟨fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc hT => ?_, fun c hc => ?_, fun c hc hn => ?_,
+    fun c hc => ?_, fun c hc => ?_⟩
   · by_cases e : c = L.cpu s
     · rw [e]; exact ⟨hv, k.idleSc hcpu (h.inv _ hcpu).2⟩
     · have p := (h.core hc).keep2 k hc e hS0 hX'.1 hbd' hX'.2.2.tsc hq'.tcbs
@@ -262,6 +270,12 @@ theorem AllCores.step2 {s s' : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s
     · obtain ⟨-, ec, ei, -⟩ := k.words hc e
       rw [ec, k.iq _ ⟨c, hc, e, Or.inr (Or.inl rfl)⟩]
       exact h.nq c hc (by rw [← ec, ← ei]; exact hn)
+  · by_cases e : c = L.cpu s
+    · rw [e]; exact hacNT
+    · rw [(k.words hc e).1]; exact h.actNT c hc
+  · by_cases e : c = L.cpu s
+    · rw [e]; exact hidl
+    · rw [k.idle_eq hc]; exact (k.kp _ ⟨c, hc, e, Or.inl rfl⟩).idle (h.idleSt c hc)
 
 end
 

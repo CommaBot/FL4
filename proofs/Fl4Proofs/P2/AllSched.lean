@@ -24,6 +24,14 @@ of `awaken`):
   thread is `SchCur`; an action thread and the idle thread have affinity the
   executing core.
 * `hS0` [W] (as `AllCores.step2`).
+
+Open internal obligations (p2j16, not premises: discharged later in this
+development):
+* `hidl`: the entry body ends with the executing core's idle thread still
+  `TS_IDLE` (an end fact each entry supplies, as `kb`);
+* `hsI`: `schedule` keeps the executing core's idle thread `TS_IDLE` (to be
+  proved from `hidl`: `fire` over `OtherK ∪ {idle}`, then the rest of
+  `schedule` with `KpAff` widened to non-runnable protected threads).
 -/
 import Fl4Proofs.P2.AllKeep
 import Fl4Proofs.P2.FootN7
@@ -95,7 +103,9 @@ theorem AllCores.sched {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
     (kb : OKeep2 st T Cs (L.cpu s0) s0 s) (hc : L.cpu s = L.cpu s0)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hBA : BufAt st T Cs H Sg Scs Z U s)
     (hfk : ∀ rf : S × A, timer.fire st ar s a = ok rf → FireKeep st T Cs (L.cpu s0) s rf.1)
-    (hE : ∀ r : S × A, sched.awaken st ar s a = ok r → SchPre st T r.1) :
+    (hE : ∀ r : S × A, sched.awaken st ar s a = ok r → SchPre st T r.1)
+    (hidl : L.mem s (stA (L.idleW s)) = sched.TS_IDLE)
+    (hsI : sched.schedule st ar s a ⦃ s' _ => L.mem s' (stA (L.idleW s')) = sched.TS_IDLE ⦄) :
     sched.schedule st ar s a ⦃ s' _ => AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   obtain ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ := h
   set e := L.cpu s0 with he
@@ -107,14 +117,14 @@ theorem AllCores.sched {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
     rw [hKs] at hac hcu
     have w := (WP.spec_ok _).1 (hrf ▸ timer.fire.tinvF hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA)
     exact ⟨KpAff.ofKeep h0 hcpu (kb.trans k1) (w.2.2.1.trans hc), hac, hcu⟩
-  refine WP.spec_mono (WP.spec_and (sched.schedule.sN (Kp := OtherK st T Cs e s0) hA IK hNt s a
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (sched.schedule.sN (Kp := OtherK st T Cs e s0) hA IK hNt s a
       ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA hF)
     (WP.spec_and (sched.schedule.cur hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA hE)
       (WP.spec_and (sched.schedule.entry hA IK hNt s a Q R hq hB hS hX hSg hBA)
-        (sched.schedule.tinv hA IK hNt s a Q R hq hB hS hX hSg hBA)))) ?_
+        (sched.schedule.tinv hA IK hNt s a Q R hq hB hS hX hSg hBA)))) hsI) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
-  obtain ⟨⟨rf, hrf, Fd, F⟩, C, hen, -, -, -, -, -, -, ha0, -⟩ := hh
+  obtain ⟨⟨⟨rf, hrf, Fd, F⟩, C, hen, -, -, -, -, -, -, ha0, -⟩, hsi⟩ := hh
   have w := (WP.spec_ok _).1 (hrf ▸ timer.fire.tinvF hA IK hNt s a ⟨⟨Q, R, hq⟩, hB, hX, hS, hSg⟩ hBA)
   obtain ⟨⟨⟨Q1, R1, h1⟩, -, hX1, -, -⟩, Fd'⟩ := w
   obtain ⟨k1, -, -⟩ := hfk rf hrf
@@ -135,13 +145,17 @@ theorem AllCores.sched {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0
   have ec : curAt st (L.cpu s0) s' = L.curW s' := by rw [← hc']; rfl
   have ea : actAt st (L.cpu s0) s' = L.actionW s' := by rw [← hc']; rfl
   have ei : idleAt st (L.cpu s0) s' = L.idleW s' := by rw [← hc']; rfl
-  refine AllCores.step2 h0 hcpu (k01.trans k2) hS0 hen hc' ?_ ?_ ?_ ?_
+  refine AllCores.step2 h0 hcpu (k01.trans k2) hS0 hen hc' ?_ ?_ ?_ ?_ ?_ ?_
   · rw [ec, C.aff, hc']
   · intro hT; rw [ea, ha0] at hT
     obtain ⟨⟨Q', R', hq'⟩, -⟩ := hen
     exact absurd hT (notT_small hq'.tcbs (by simp))
   · rw [ec]; exact C.nb
   · rw [ec, ei]; exact C.nq
+  · rw [ea, ha0]
+    obtain ⟨⟨Q', R', hq'⟩, -⟩ := hen
+    exact notT_small hq'.tcbs (by simp)
+  · rw [ei]; exact hsi
 
 end
 

@@ -12,7 +12,13 @@ stall as an `AllCores → AllCores` step.
 * `curNB`: `c`'s current thread is not blocked on an endpoint or
   notification;
 * `nq`: `c`'s current thread, unless idle, is in no ready queue (seL4
-  `ct_not_in_q`).
+  `ct_not_in_q`);
+* (p2j16) `actNT`: `c`'s action is no thread (serialized entries, each ending
+  in `schedule`, DESIGN §7 (3)); `idleSt`: `c`'s idle thread is `TS_IDLE`.
+
+Open internal obligation of `stallAt.all` (p2j16, until the stall's frame
+protects the stalled core's idle thread): `hidl`, the stalled core's idle
+thread still `TS_IDLE` at the stall's end.
 
 `AllCores.notK`: a thread of affinity `d` is none of the other cores' idle,
 current or action threads (`OtherK d`), since those have the other cores as
@@ -53,6 +59,11 @@ structure AllCores (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U6
   actAff : ∀ c ∈ Cs, actAt st c s ∈ T → L.mem s (affA (actAt st c s)) = c
   curNB : ∀ c ∈ Cs, ¬ Blocked (L.mem s (stA (curAt st c s)))
   nq : ∀ c ∈ Cs, curAt st c s ≠ idleAt st c s → (L.mem s (inqA (curAt st c s)) &&& sched.Q_QUEUED) = 0#u64
+  /-- (p2j16) No core's action is a thread: entries are serialized (DESIGN §7 (3)) and each ends in
+  `schedule`, which leaves `RESUME_CURRENT`. -/
+  actNT : ∀ c ∈ Cs, actAt st c s ∉ T
+  /-- (p2j16) Every idle thread's `STATE` is `TS_IDLE` (boot.rs:690; nothing writes it). -/
+  idleSt : ∀ c ∈ Cs, L.mem s (stA (idleAt st c s)) = sched.TS_IDLE
 
 /-- Core `c`'s `CoreInv`. -/
 theorem AllCores.core {s : S} (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s) {c : U64} (hc : c ∈ Cs) :
@@ -88,18 +99,19 @@ theorem stallAt.all (hA : P0.ArchTotal ar) (d : U64) (hd : d ∈ Cs)
     (s : S) (a : A) (h : AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hG : @XG S (atCpu st d) (L.atCpu d) T Cs Ω H Sg Scs Z P3Ok s)
     (hRS0 : RS s s) (hU : @UserOK S (atCpu st d) (L.atCpu d) T Cs Ω H U s)
-    (hcap : @TmoCap S (atCpu st d) (L.atCpu d) Scs Z H Rp Nt s) :
+    (hcap : @TmoCap S (atCpu st d) (L.atCpu d) Scs Z H Rp Nt s)
+    (hidl : stallAt st ar d s a ⦃ s' _ => L.mem s' (stA (idleAt st d s')) = sched.TS_IDLE ⦄) :
     stallAt st ar d s a ⦃ s' _ =>
       AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ curAt st d s' = idleAt st d s' ∧
       (∀ c ∈ Cs, c ≠ d → actAt st c s' = actAt st c s) ⦄ := by
-  refine WP.spec_mono (stallAt.views (Ac := Ac) (P3Ok := P3Ok) hA d hxf hxw hRSK s a (h.inv d hd).1
+  refine WP.spec_mono (WP.spec_and (stallAt.views (Ac := Ac) (P3Ok := P3Ok) hA d hxf hxw hRSK s a (h.inv d hd).1
     (h.inv d hd).2 hG hRS0 hU hcap (fun c hc _ => h.core hc) (h.notK (h.curAff d hd))
-    (fun ha => h.notK (h.actAff d hd ha)) (fun c hc _ => h.curNB c hc) (h.nq d hd)) ?_
+    (fun ha => h.notK (h.actAff d hd ha)) (fun c hc _ => h.curNB c hc) (h.nq d hd)) hidl) ?_
   rintro ⟨s', a'⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
-  obtain ⟨hinv, k, hcur, hac, hoth⟩ := hh
-  refine ⟨⟨hinv, fun c hc => ?_, fun c hc => ?_, fun c hc ha => ?_, fun c hc => ?_, fun c hc hn => ?_⟩,
-    hcur, hoth⟩
+  obtain ⟨⟨hinv, k, hcur, hac, hoth⟩, hid⟩ := hh
+  refine ⟨⟨hinv, fun c hc => ?_, fun c hc => ?_, fun c hc ha => ?_, fun c hc => ?_, fun c hc hn => ?_,
+    fun c hc => ?_, fun c hc => ?_⟩, hcur, hoth⟩
   · by_cases e : c = d
     · rw [e, hcur, k.idleAt hd, k.af _ (h.core hd).per.idleT]; exact h.idleAff d hd
     · rw [(keep_words k hc e).2.1, k.af _ (h.core hc).per.curT]; exact h.curAff c hc
@@ -121,6 +133,17 @@ theorem stallAt.all (hA : P0.ArchTotal ar) (d : U64) (hd : d ∈ Cs)
     · obtain ⟨-, ec, ei, -⟩ := keep_words k hc e
       refine k.nq hc e ⟨c, hc, e, Or.inr (Or.inl rfl)⟩ (h.nq c hc ?_)
       rw [← ec, ← ei]; exact hn
+  · by_cases e : c = d
+    · rw [e]
+      rcases hac with hac | hac
+      · rw [hac]; exact h.actNT d hd
+      · obtain ⟨⟨Q, R, hq⟩, -⟩ := (h.inv d hd).1
+        rw [hac]
+        exact fun ha => absurd (by simp) (hq.tcbs _ ha).ne0
+    · rw [(keep_words k hc e).1]; exact h.actNT c hc
+  · by_cases e : c = d
+    · rw [e]; exact hid
+    · rw [k.idleAt hc, k.kp _ ⟨c, hc, e, Or.inl rfl⟩]; exact h.idleSt c hc
 
 end
 

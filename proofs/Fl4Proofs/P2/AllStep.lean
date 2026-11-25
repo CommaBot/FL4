@@ -81,7 +81,8 @@ theorem AllCores.step {s s' : S} {F : U64 → Prop} (h : AllCores st T Cs Ω H S
     (hac : actAt st (L.cpu s) s' ∈ T → L.mem s' (affA (actAt st (L.cpu s) s')) = L.cpu s)
     (hnb : ¬ Blocked (L.mem s' (stA (curAt st (L.cpu s) s'))))
     (hnq : curAt st (L.cpu s) s' ≠ idleAt st (L.cpu s) s' →
-      (L.mem s' (inqA (curAt st (L.cpu s) s')) &&& sched.Q_QUEUED) = 0#u64) :
+      (L.mem s' (inqA (curAt st (L.cpu s) s')) &&& sched.Q_QUEUED) = 0#u64)
+    (hacNT : actAt st (L.cpu s) s' ∉ T) (hidl : L.mem s' (stA (idleAt st (L.cpu s) s')) = sched.TS_IDLE) :
     AllCores st T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
   have k := OKeep.ofW (EntryInv.ofView (h.inv _ hcpu).1) h.KT w hF
   have hv : @EntryInv S (atCpu st (L.cpu s)) (L.atCpu (L.cpu s)) T Cs Ω H Sg Rp Scs Nt Z Ac s' := by
@@ -89,7 +90,8 @@ theorem AllCores.step {s s' : S} {F : U64 → Prop} (h : AllCores st T Cs Ω H S
     rw [w.2.1] at this
     exact this
   have hb := @EntryInv.blkOK S (atCpu st (L.cpu s)) (L.atCpu (L.cpu s)) _ _ _ _ _ _ _ _ _ _ _ hv
-  refine ⟨fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc hT => ?_, fun c hc => ?_, fun c hc hn => ?_⟩
+  refine ⟨fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc hT => ?_, fun c hc => ?_, fun c hc hn => ?_,
+    fun c hc => ?_, fun c hc => ?_⟩
   · by_cases e : c = L.cpu s
     · rw [e]; exact ⟨hv, k.idle hcpu (h.core hcpu).per.idleT (h.inv _ hcpu).2⟩
     · have p := (h.core hc).keep k hc e ⟨c, hc, e, Or.inl rfl⟩ fun h' => ⟨c, hc, e, Or.inr (Or.inr ⟨rfl, h'⟩)⟩
@@ -109,6 +111,12 @@ theorem AllCores.step {s s' : S} {F : U64 → Prop} (h : AllCores st T Cs Ω H S
     · obtain ⟨-, ec, ei, -⟩ := keep_words k hc e
       refine k.nq hc e ⟨c, hc, e, Or.inr (Or.inl rfl)⟩ (h.nq c hc ?_)
       rw [← ec, ← ei]; exact hn
+  · by_cases e : c = L.cpu s
+    · rw [e]; exact hacNT
+    · rw [(keep_words k hc e).1]; exact h.actNT c hc
+  · by_cases e : c = L.cpu s
+    · rw [e]; exact hidl
+    · rw [k.idleAt hc, k.kp _ ⟨c, hc, e, Or.inl rfl⟩]; exact h.idleSt c hc
 
 end
 
