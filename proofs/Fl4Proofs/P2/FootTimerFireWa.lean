@@ -201,7 +201,8 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     notification.send_signal gS ar X a N badge = notification.send_signal st ar X a N badge ∧
     ∀ X2 a2, notification.send_signal st ar X a N badge = ok (X2, a2) →
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac X2 ∧ TAgree st T Cs X X2 ∧ L.ksb X2 = L.ksb X ∧ L.cpu X2 = L.cpu X ∧
-      ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Scs Z X X2 w := by
+      ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Scs Z X X2 w ∧
+        Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, hBd, hXX, hSS, hSgX⟩ := hTX
   obtain ⟨E, EQ, hEW⟩ := hq.eps
@@ -237,7 +238,8 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨-, wi, act⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
     obtain ⟨dΩ, dN, dT⟩ := epfoot_nd (n := N) hq hEW he (fun y hy => hqr.mem y hy)
     exact ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
-      (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin))⟩
+      (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin)),
+      hbl, haf, hcur⟩
   · -- idle-bound `Recv`
     obtain ⟨ep, heq⟩ : ∃ ep, L.mem X (blockA t) = ep := ⟨_, rfl⟩
     obtain ⟨r, hr⟩ : ∃ r, L.mem X (replyA t) = r := ⟨_, rfl⟩
@@ -268,7 +270,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
       obtain ⟨-, rv, -, -⟩ := rp_facts hXX.1 hrp
       exact ⟨hq.omega _ (hSgX.sub _ (hXX.1.tcbW hrp)), rv, hXX.1.rpSc r hrp⟩
-    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_⟩
+    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_, hblk, haf, hcur⟩
     · intro o ho h8
       rintro (e | hf | ⟨hr0, e⟩ | e)
       · unfold faultA at e; exact node_ne_field hN ho htT ht' (by simp) e

@@ -94,7 +94,8 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     (hrmg : timer.remove gS X TM = timer.remove st X TM) :
     ∃ Y aY, timer.fire st ar X a = ok (Y, aY) ∧ timer.fire gS ar X a = timer.fire st ar X a ∧
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac Y ∧ FireStop st R Y now ∧ L.ksb Y = L.ksb s ∧ L.cpu Y = L.cpu s ∧
-      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Scs Z X Y w := by
+      ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Scs Z X Y w ∧
+        Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, -, hXX, -, -⟩ := hTX
   have hN := hq.nodes _ hq.cur
@@ -124,7 +125,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     hac1 (hwk X1 w31) rN wN rL wL rS wS lkL hLk nRW rCD hSW
   obtain ⟨⟨X2, a2⟩, eX2, -⟩ := spec_ex_fd
     (notification.send_signal.tagree hA X1 a N (L.mem X (tbA TM)) hT1 hNN (hNt N hNN) BA1.1 BA1.2)
-  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp⟩ := ssig X2 a2 eX2
+  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp, wbl, waf, wcur⟩ := ssig X2 a2 eX2
   have hsg : (if L.mem X1 (boundA TM) != 0#u64 then
       notification.send_signal st ar X1 a (L.mem X1 (boundA TM)) (L.mem X (tbA TM)) else ok (X1, a)) =
       ok (X2, a2) := by
@@ -191,7 +192,18 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
       rw [mem_wr_ne' aRP hb (fun e => out_ne_node (o := layout.node.REPROGRAM) ho hq.cur hN (by simp [layout.node.REPROGRAM]) (by rw [← eRP, e])),
         kp.2.2 c hc (by rw [e3]; exact hne) b hb hin]
       exact w31.mem_eq hb (out_not_tw hT hq.nodes ho)
-  refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2, kY⟩
+  have wfacts : Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X := by
+    have e1 : L.mem X1 (stA w) = L.mem X (stA w) := by
+      rw [stA_eq]; exact tk1 w hwT 3328#u64 (by simp) (by simp) (Or.inl (by simp))
+    have e2 : L.mem X1 (affA w) = L.mem X (affA w) := tk1 w hwT 3520#u64 (by simp) (by simp) (Or.inl (by simp))
+    have e3 : L.curW X1 = L.curW X := by
+      unfold LawfulStore.curW
+      rw [w31.2.1, nodeAt_of_ksb w31.1]
+      exact w31.mem_eq (nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val]))
+        (node_not_tw hq (by rw [curth_val]; omega) (by rw [curth_val]; omega) (by rw [curth_val]; omega))
+    rw [e1] at wbl; rw [e2] at waf; rw [e3] at wcur
+    exact ⟨wbl, waf, wcur⟩
+  refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2, kY, wfacts⟩
   · rw [L.ksb_wr]; exact k2.trans kX1
   · rw [LawfulStore.cpu_wr]; exact c2.trans cX1
 
