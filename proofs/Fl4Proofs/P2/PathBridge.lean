@@ -30,6 +30,8 @@ P2: **the bridge from the per-path obligation to the trace form**
   on earlier results; Charon/Aeneas (trusted, DESIGN §9) keep that sequence,
   threading the state value only through the trait methods. The sim's
   footprint oracle exercises the same fact on the real store.
+  `p` is meant to be the body's own call tree: the equation `IsProg` states does
+  not observe how often a word is read (`IsProg`'s docstring, `P2/ReadGap.lean`).
 * `PathObl` [W], per local path (`PathObl.lean`).
 
 ## Sets fixed at entry, memory moving during the run

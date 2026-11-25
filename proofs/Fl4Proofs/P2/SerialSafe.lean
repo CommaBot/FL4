@@ -1,46 +1,66 @@
 /-
 P2 (DESIGN.md §9): **the footprint premise of `Serial` from per-path safety**.
 
-`Serial.serializable_reach` assumes `FootprintOK` [W]: every local-path step of
-every execution is `Allowed`. This module derives it from properties of each
+`Serial.serializable` is about executions whose local-path steps are all
+`Allowed`. This module derives that from properties of each
 local path taken one at a time, at the moment its body starts, so that the
 per-path obligations of `PathObl.lean` can discharge it.
 
 A local path's program is the fl4-sync glue (speculative reads and lock
 attempts: `Glue`), then a `start` marker, then the extracted body. The glue
-needs no ownership. The body must be `Safe` from this core's view when it
-starts: every read it makes is of a word the core holds (its core, its locks)
-or the gate owns, or is speculative; every write is of a word it holds and
-moves owners only between owners it holds. `Safe` is a property of the body's
-*sequential* run from the memory at its start, with the core's locks fixed
-(the body takes no locks).
+needs no ownership. The body must be `Safe` (v2) from this core's view when it
+starts: at every memory other cores can reach from the current one by
+`Foreign` writes (`FReach`), its next access is permitted (a read of a word
+the core holds or the gate owns, or a speculative or class read; a write of a
+held word moving owners only between held owners), and the rest is `Safe` from
+where that access leaves it, a read returning that memory's value. `Safe` is a
+property of the body's *sequential* run interleaved with `Foreign` writes, the
+core's locks fixed (the body takes no locks).
 
-The point is stability (`Safe.foreign`): another core's write, which `Allowed`
-restricts to words that core holds and to owner moves between its own owners,
-keeps a running body `Safe` from the new memory. This needs `Deciders` [W] of
-the ownership map: a word's owner changes only through a write to a word with
-the same owner or the gate's (the map's deciding words, e.g. a thread's
-`STATE` for its queue links, lie in the group they decide).
+Stability (`Safe.foreign`) is then immediate: another core's write, which
+`Allowed` restricts to words that core holds and to owner moves between its own
+owners, is `Foreign`, and the memories reachable after it were reachable
+before. (v1 of `Safe` asked every speculative-read continuation to be safe
+from the *unchanged* memory, which `PathObl` cannot discharge:
+`P2/SafeGap.lean`, where v2 holds, `body_safe_v2`.)
+
+Executions: `Step.arm` arms *any* program and a serial step installs *any* ghost
+maps, so a condition on "every state reachable from `s0`" fails for every `s0`
+with an idle core (it can arm a body that writes another core's words). What the
+kernel guarantees is asked of the steps of the execution instead: `SafeRun` is an
+execution each of whose steps is a `SafeStep`.
 
 Theorems:
-* `footprintOK_of_safe`: `ArmGlue`, `BodyOK`, `DecidersOK` give `FootprintOK`.
-* `serializable_safe`: hence `Serial.serializable_reach` without the
-  `FootprintOK` premise: every execution that reaches a state with no local
+* `safeRun_greach`: every step of a `SafeRun` is `Allowed`.
+* `serializable_safe`: a `SafeRun` that reaches a state with no local
   path in progress equals running its completed entries one after another.
-  As there: in that serial order a speculative read may return **any** value,
+  As in `Serial`: in that serial order a speculative read may return **any** value,
   not the value memory held at that point; that the result is a real serial
   run of the entry is the per-path refinement obligation (`PathObl.lean`).
 
-Premises (all named, nothing else):
-* `ArmGlue s0` [W]: every program a core arms is glue (`Glue`) up to `start`.
-  True of the model of fl4-sync's `run_syscall` / `run_vm_fault` /
-  `run_timer_irq` local attempts; stated, not derived from the Rust.
-* `BodyOK s0` [W]: when a body starts, it is `Safe` from the current memory and
-  the core's locks. To be discharged from `PathObl` + `IsProg` per path (the
-  bridge), with the glue's guarantee that it starts a body only in a state
+What `SafeStep` asks (nothing else is assumed):
+* `arm` [P]: an armed program is `PureGlue` (speculative reads and lock attempts
+  up to `start`): the shape of fl4-sync's `run_syscall` / `run_vm_fault` /
+  `run_timer_irq` local attempts, read off the Rust (trusted).
+* `start` [W]: when a body starts, it is `Safe` from the current memory and
+  the core's locks. Discharged from `PathObl` + `IsProg` per path (`E2E.lean`),
+  with the glue's guarantee that it starts a body only in a state
   satisfying the body's `Pre` [P] (fl4-sync, trusted).
-* `DecidersOK s0` [W]: every ownership map of the execution satisfies
-  `Deciders` (for `OwnMap.own`, to be proved from P1's typed-heap disjointness).
+
+`Deciders`, `MoveLocal` and `MoveHeld` are not needed here; they are for the
+`start` bridge (`SafeCert`), which compares owners across memories differing on words the
+core does not hold.
+
+## Discharging `start`
+
+Done from the per-path obligations in `P2/SafeCert.lean` (certificates for
+`Prog`) and `P2/E2E.lean` (the translation, the certificates from `PathObl`, the
+top theorems). Why the write check needs `MoveHeld`: a write's `MoveV` is
+needed at the reached memory, where a word the path already read racily may
+since have been changed by another core, while `dec_alt` certifies it in the
+alternative state holding the read values; `Deciders` alone does not carry it
+across (`P2/MoveGap.lean`), `MoveHeld` does (`moveV_transfer`; proved for
+`OwnMap.own`; `Deciders` and `MoveLocal` together imply it).
 -/
 import Fl4Proofs.P2.Serial
 
@@ -63,24 +83,53 @@ def PO (c : C) (hs : L → Prop) (o : Owner C L) : Prop := HeldV c hs o ∨ o = 
 def MoveV (own : (A → V) → A → Owner C L) (c : C) (hs : L → Prop) (μ μ' : A → V) : Prop :=
   ∀ x, own μ' x ≠ own μ x → HeldV c hs (own μ x) ∧ HeldV c hs (own μ' x)
 
-/-- **A body safe from core `c`'s view** with locks `hs`, from memory `μ`: its
-sequential run reads held or gate-owned words (or reads speculatively) and
-writes held words, moving owners only between held owners. -/
+/-- What another core's write `b := v` looks like from core `c`: `b` is not a
+word `c` may read, every owner it changes is, before and after, one `c` may
+not read, and it keeps the class of a word `c` reads by class. -/
+def Foreign (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C) (c : C)
+    (hs : L → Prop) (μ : A → V) (b : A) (v : V) : Prop :=
+  ¬ PO c hs (own μ b) ∧ (∀ x, own (Function.update μ b v) x ≠ own μ x →
+    ¬ PO c hs (own μ x) ∧ ¬ PO c hs (own (Function.update μ b v) x)) ∧
+  (cls b v = cls b (μ b) ∨ (ko b ≠ .gate ∧ ko b ≠ .core c))
+
+/-- The memories other cores can leave while core `c` (locks `hs`) runs:
+reachable from `μ` by `Foreign` writes. -/
+inductive FReach (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C)
+    (c : C) (hs : L → Prop) : (A → V) → (A → V) → Prop
+  | refl (μ : A → V) : FReach own cls ko c hs μ μ
+  | step {μ μ' : A → V} {b : A} {v : V} : Foreign own cls ko c hs μ b v →
+      FReach own cls ko c hs (Function.update μ b v) μ' → FReach own cls ko c hs μ μ'
+
+/-- **A body safe from core `c`'s view** with locks `hs`, from memory `μ`
+(v2): at every memory `μ'` other cores' `Foreign` writes can reach from `μ`,
+the next access is permitted (a read of a held or gate-owned word, a write of a
+held word moving owners only between held owners) and the rest of the body is
+safe from where that access leaves it, a read returning `μ'`'s value. A
+speculative read needs no permission. This is the real interleaving's view: the
+value a racy read returns is the reached memory's, so values no other core can
+write beside the gate are never explored (`SafeGap`). -/
 inductive Safe (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C)
     (c : C) (hs : L → Prop) : (A → V) → Prog A V L → Prop
   | done {μ : A → V} : Safe own cls ko c hs μ .done
   | rd {μ : A → V} {a : A} {k : V → Prog A V L} :
-      PO c hs (own μ a) → Safe own cls ko c hs μ (k (μ a)) → Safe own cls ko c hs μ (.rd a k)
+      (∀ μ', FReach own cls ko c hs μ μ' → PO c hs (own μ' a)) →
+      (∀ μ', FReach own cls ko c hs μ μ' → Safe own cls ko c hs μ' (k (μ' a))) →
+      Safe own cls ko c hs μ (.rd a k)
   | rds {μ : A → V} {a : A} {k : V → Prog A V L} :
-      (∀ v, Safe own cls ko c hs μ (k v)) → Safe own cls ko c hs μ (.rds a k)
+      (∀ μ', FReach own cls ko c hs μ μ' → Safe own cls ko c hs μ' (k (μ' a))) →
+      Safe own cls ko c hs μ (.rds a k)
   | rdc {μ : A → V} {a : A} {K : V → V → Prop} {k : V → Prog A V L} :
       (ko a = .gate ∨ ko a = .core c) → (∀ u w, cls a u = cls a w → K u w) →
-      (∀ v, cls a v = cls a (μ a) → Safe own cls ko c hs μ (k v)) →
+      (∀ μ', FReach own cls ko c hs μ μ' → Safe own cls ko c hs μ' (k (μ' a))) →
       Safe own cls ko c hs μ (.rdc a K k)
   | wr {μ : A → V} {a : A} {v : V} {k : Prog A V L} :
-      HeldV c hs (own μ a) → MoveV own c hs μ (Function.update μ a v) →
-      (cls a v = cls a (μ a) ∨ ko a = .core c ∨ ko a = .free) →
-      Safe own cls ko c hs (Function.update μ a v) k → Safe own cls ko c hs μ (.wr a v k)
+      (∀ μ', FReach own cls ko c hs μ μ' → HeldV c hs (own μ' a)) →
+      (∀ μ', FReach own cls ko c hs μ μ' → MoveV own c hs μ' (Function.update μ' a v)) →
+      (∀ μ', FReach own cls ko c hs μ μ' →
+        cls a v = cls a (μ' a) ∨ ko a = .core c ∨ ko a = .free) →
+      (∀ μ', FReach own cls ko c hs μ μ' → Safe own cls ko c hs (Function.update μ' a v) k) →
+      Safe own cls ko c hs μ (.wr a v k)
+
 
 /-- The fl4-sync glue: speculative reads and lock attempts, up to `start`. -/
 inductive Glue (cls : A → V → V) (ko : A → ClsOwner C) (c : C) : Prog A V L → Prop
@@ -134,29 +183,102 @@ theorem not_PO_of_held {lk : L → Option C} {e d : C} (hed : e ≠ d) {o : Owne
     | gate => exact h
   · subst hg; exact h
 
+/-- **`MoveLocal`** (a hypothesis on the abstract ownership map; with
+`Deciders` it gives `MoveHeld`, which is what the bridge uses): which owner a write moves a word to is
+decided by words of the written word's (non-gate) owner and the gate's only.
+Two memories agreeing on those words give every word of that owner the same
+owner after the same write. Needed beside `Deciders` to carry a per-write
+check from an alternative memory (`PathObl.dec_alt`'s) to the real one
+(`moveV_transfer`); `Deciders` alone does not suffice (`P2/MoveGap.lean`). -/
+def MoveLocal (own : (A → V) → A → Owner C L) : Prop :=
+  ∀ (m m' : A → V) (a : A) (v : V) (x : A), own m a ≠ .gate → own m x = own m a →
+    (∀ y, own m y = own m a ∨ own m y = .gate → m' y = m y) →
+    own (Function.update m a v) x = own (Function.update m' a v) x
+
+/-- **`MoveHeld`** (a hypothesis on the abstract ownership map, proved for
+`OwnMap.own`: `OwnMap.moveHeld`): the words that decide the effect of a *held*
+write on owners are the writer's to read. If core `c` (locks `hs`) holds `a` in
+`m`, `m'` agrees with `m` on the words `c` may read in `m`, and writing `a`
+changes the owner of `x` in `m`, then `x` has the same owners in `m'`, before
+and after the write. Weaker than `Deciders` with `MoveLocal`
+(`moveHeld_of_local`): a word deciding an owner need not have that owner (a
+thread's `STATE` is its home core's and decides whether its queue links are a
+lock's); what matters is that whoever may write it sees the words that decide
+with it. -/
+def MoveHeld (own : (A → V) → A → Owner C L) : Prop :=
+  ∀ (c : C) (hs : L → Prop) (m m' : A → V) (a : A) (v : V) (x : A), HeldV c hs (own m a) →
+    (∀ y, PO c hs (own m y) → m' y = m y) → own (Function.update m a v) x ≠ own m x →
+    own m' x = own m x ∧ own (Function.update m' a v) x = own (Function.update m a v) x
+
+/-- `Deciders` and `MoveLocal` give `MoveHeld`. -/
+theorem moveHeld_of_local {own : (A → V) → A → Owner C L} (hD : Deciders own)
+    (hL : MoveLocal own) : MoveHeld own := by
+  intro c hs μ μ' a v x ha hagr hx
+  have hag : ∀ y, own μ y = own μ a ∨ own μ y = .gate → μ' y = μ y := by
+    intro y hy
+    apply hagr y
+    rcases hy with hy | hy
+    · left; rw [hy]; exact ha
+    · exact Or.inr hy
+  have hga : own μ a ≠ .gate := heldV_ne_gate ha
+  have hxa : own μ x = own μ a := by
+    rcases hD μ a v x hx with h | h
+    · exact h.symm
+    · exact absurd h hga
+  have h1 := hL μ μ' a v x hga hxa hag
+  have h := hL μ μ' a (μ a) x hga hxa hag
+  rw [Function.update_eq_self, ← hag a (Or.inl rfl), Function.update_eq_self] at h
+  exact ⟨h.symm, h1.symm⟩
+
+/-- **Transfer of the per-write check.** If the real memory `μ` and an
+alternative `μ'` differ only on words the core may not read in `μ`, a write of
+a held word passing `MoveV` in `μ'` passes it in `μ`. -/
+theorem moveV_transfer {own : (A → V) → A → Owner C L} (hL : MoveHeld own)
+    {c : C} {hs : L → Prop} {μ μ' : A → V} {a : A} {v : V}
+    (hdiff : ∀ y, μ' y ≠ μ y → ¬ PO c hs (own μ y)) (ha : HeldV c hs (own μ a))
+    (hM : MoveV own c hs μ' (Function.update μ' a v)) :
+    MoveV own c hs μ (Function.update μ a v) := by
+  intro x hx
+  obtain ⟨h0, h1⟩ := hL c hs μ μ' a v x ha
+    (fun y hy => by by_contra hne; exact hdiff y hne hy) hx
+  have hx' : own (Function.update μ' a v) x ≠ own μ' x := by rw [h0, h1]; exact hx
+  rw [← h0, ← h1]; exact hM x hx'
+
+theorem foreign_congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
+    {c : C} {hs hs' : L → Prop} (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {b : A} {v : V}
+    (hF : Foreign own cls ko c hs' μ b v) : Foreign own cls ko c hs μ b v := by
+  have hp : ∀ o, PO c hs o → PO c hs' o := fun o ho => ho.imp_left (heldV_congr h o).mp
+  exact ⟨fun hb => hF.1 (hp _ hb),
+    fun x hx => ⟨fun h1 => (hF.2.1 x hx).1 (hp _ h1), fun h2 => (hF.2.1 x hx).2 (hp _ h2)⟩,
+    hF.2.2⟩
+
+theorem FReach.congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
+    {c : C} {hs hs' : L → Prop} (h : ∀ l, hs l ↔ hs' l) {μ μ' : A → V}
+    (hR : FReach own cls ko c hs' μ μ') : FReach own cls ko c hs μ μ' := by
+  induction hR with
+  | refl => exact .refl _
+  | step hF _ ih => exact .step (foreign_congr h hF) ih
+
 theorem Safe.congr {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
     {c : C} {hs hs' : L → Prop}
     (h : ∀ l, hs l ↔ hs' l) {μ : A → V} {q : Prog A V L} (hS : Safe own cls ko c hs μ q) :
     Safe own cls ko c hs' μ q := by
+  have hr : ∀ {μ μ'}, FReach own cls ko c hs' μ μ' → FReach own cls ko c hs μ μ' :=
+    fun hR => FReach.congr h hR
   induction hS with
   | done => exact .done
-  | rd hp _ ih => exact .rd (hp.imp_left (heldV_congr h _).mp) ih
-  | rds _ ih => exact .rds ih
-  | rdc hko hK _ ih => exact .rdc hko hK ih
-  | wr ha hm hcl _ ih =>
-    exact .wr ((heldV_congr h _).mp ha)
-      (fun x hx => ⟨(heldV_congr h _).mp (hm x hx).1, (heldV_congr h _).mp (hm x hx).2⟩) hcl ih
+  | rd h1 _ ih =>
+    exact .rd (fun μ' hR => (h1 μ' (hr hR)).imp_left (heldV_congr h _).mp)
+      (fun μ' hR => ih μ' (hr hR))
+  | rds _ ih => exact .rds fun μ' hR => ih μ' (hr hR)
+  | rdc hko hK _ ih => exact .rdc hko hK fun μ' hR => ih μ' (hr hR)
+  | wr h1 h2 h3 _ ih =>
+    exact .wr (fun μ' hR => (heldV_congr h _).mp (h1 μ' (hr hR)))
+      (fun μ' hR x hx => ⟨(heldV_congr h _).mp (h2 μ' (hr hR) x hx).1,
+        (heldV_congr h _).mp (h2 μ' (hr hR) x hx).2⟩)
+      (fun μ' hR => h3 μ' (hr hR)) (fun μ' hR => ih μ' (hr hR))
 
 /-! ## Stability under another core's write -/
-
-/-- What another core's write `b := v` looks like from core `c`: `b` is not a
-word `c` may read, and every owner it changes is, before and after, one `c`
-may not read. -/
-def Foreign (own : (A → V) → A → Owner C L) (cls : A → V → V) (ko : A → ClsOwner C) (c : C)
-    (hs : L → Prop) (μ : A → V) (b : A) (v : V) : Prop :=
-  ¬ PO c hs (own μ b) ∧ (∀ x, own (Function.update μ b v) x ≠ own μ x →
-    ¬ PO c hs (own μ x) ∧ ¬ PO c hs (own (Function.update μ b v) x)) ∧
-  (cls b v = cls b (μ b) ∨ (ko b ≠ .gate ∧ ko b ≠ .core c))
 
 theorem Foreign.perm {own : (A → V) → A → Owner C L} {cls : A → V → V} {ko : A → ClsOwner C}
     {c : C} {hs : L → Prop} {μ : A → V}
@@ -168,104 +290,22 @@ theorem Foreign.perm {own : (A → V) → A → Owner C L} {cls : A → V → V}
     exact Function.update_of_ne hxb _ _
 
 /-- **Stability**: a body `Safe` from `μ` stays `Safe` after another core's
-write that is `Foreign` to it. -/
+`Foreign` write (immediate: the memories reachable afterwards are reachable
+before). -/
 theorem Safe.foreign {own : (A → V) → A → Owner C L} {cls : A → V → V}
-    {ko : A → ClsOwner C} (hD : Deciders own) {c : C}
-    {hs : L → Prop} {μ : A → V} {q : Prog A V L} (hS : Safe own cls ko c hs μ q) :
-    ∀ {b : A} {v : V}, Foreign own cls ko c hs μ b v →
-      Safe own cls ko c hs (Function.update μ b v) q := by
-  induction hS with
-  | done => intro _ _ _; exact .done
-  | @rd μ a k hp _ ih =>
-    intro b v hF
-    obtain ⟨ho, hv⟩ := hF.perm hp
-    refine .rd ?_ ?_
-    · rw [ho]; exact hp
-    · rw [hv]; exact ih hF
-  | rds _ ih => intro b v hF; exact .rds (fun w => ih w hF)
-  | @rdc μ a K k hko hK _ ih =>
-    intro b v hF
-    have hca : cls a (Function.update μ b v a) = cls a (μ a) := by
-      by_cases hab : a = b
-      · subst hab
-        rw [Function.update_self]
-        rcases hF.2.2 with h | ⟨h1, h2⟩
-        · exact h
-        · rcases hko with h | h
-          · exact absurd h h1
-          · exact absurd h h2
-      · rw [Function.update_of_ne hab]
-    exact .rdc hko hK (fun w hw => ih w (hw.trans hca) hF)
-  | @wr μ a w k ha hm hcl _ ih =>
-    intro b v hF
-    have hpa : PO c hs (own μ a) := Or.inl ha
-    have hab : a ≠ b := by rintro rfl; exact hF.1 hpa
-    have hoa : own (Function.update μ b v) a = own μ a := (hF.perm hpa).1
-    have hnb : ¬ PO c hs (own μ b) := hF.1
-    have hbg : own μ b ≠ .gate := fun h => hnb (Or.inr h)
-    -- `c`'s write does not move `b`'s owner.
-    have hob : own (Function.update μ a w) b = own μ b := by
-      by_contra hne; exact hnb (Or.inl (hm b hne).1)
-    -- Words whose owner `c` may not read keep `μ`'s owner across `c`'s write.
-    have hstay : ∀ x, ¬ PO c hs (own (Function.update μ a w) x) →
-        own (Function.update μ a w) x = own μ x := by
-      intro x hx
-      by_contra hne; exact hx (Or.inl (hm x hne).2)
-    -- The foreign write seen after `c`'s write.
-    have hF' : Foreign own cls ko c hs (Function.update μ a w) b v := by
-      refine ⟨by rw [hob]; exact hnb, fun x hx => ?_, ?_⟩
-      swap
-      · rw [Function.update_of_ne (Ne.symm hab)]; exact hF.2.2
-      have hdec := hD (Function.update μ a w) b v x hx
-      rw [hob] at hdec
-      have hxo : own (Function.update μ a w) x = own μ b := by
-        rcases hdec with h | h
-        · exact h.symm
-        · exact absurd h hbg
-      have hn1 : ¬ PO c hs (own (Function.update μ a w) x) := by rw [hxo]; exact hnb
-      refine ⟨hn1, fun hP => ?_⟩
-      -- `own μ x` is not readable by `c`.
-      have hμx : own μ x = own μ b := by rw [← hstay x hn1, hxo]
-      -- after the foreign write alone, `x`'s owner is not readable either
-      have hn2 : ¬ PO c hs (own (Function.update μ b v) x) := by
-        by_cases he : own (Function.update μ b v) x = own μ x
-        · rw [he, hμx]; exact hnb
-        · exact (hF.2.1 x he).2
-      rw [Function.update_comm hab] at hP
-      by_cases he2 : own (Function.update (Function.update μ b v) a w) x =
-          own (Function.update μ b v) x
-      · rw [he2] at hP; exact hn2 hP
-      · have hd2 := hD (Function.update μ b v) a w x he2
-        rw [hoa] at hd2
-        rcases hd2 with h | h
-        · exact hn2 (by rw [← h]; exact hpa)
-        · exact heldV_ne_gate ha h
-    refine .wr ?_ ?_ ?_ ?_
-    · rw [hoa]; exact ha
-    · intro x hx
-      have hd1 := hD (Function.update μ b v) a w x hx
-      rw [hoa] at hd1
-      have hx1 : own (Function.update μ b v) x = own μ a := by
-        rcases hd1 with h | h
-        · exact h.symm
-        · exact absurd h (heldV_ne_gate ha)
-      refine ⟨by rw [hx1]; exact ha, ?_⟩
-      -- `x`'s owner under `μ`, then under `c`'s write, is held
-      have hμx : own μ x = own μ a := by
-        by_cases he : own (Function.update μ b v) x = own μ x
-        · rw [← he, hx1]
-        · exact absurd (by rw [hx1]; exact hpa) (hF.2.1 x he).2
-      have hνx : HeldV c hs (own (Function.update μ a w) x) := by
-        by_cases he : own (Function.update μ a w) x = own μ x
-        · rw [he, hμx]; exact ha
-        · exact (hm x he).2
-      rw [← Function.update_comm hab]
-      by_cases he : own (Function.update (Function.update μ a w) b v) x =
-          own (Function.update μ a w) x
-      · rw [he]; exact hνx
-      · exact absurd (Or.inl hνx) (hF'.2.1 x he).1
-    · rw [Function.update_of_ne hab]; exact hcl
-    · rw [← Function.update_comm hab]; exact ih hF'
+    {ko : A → ClsOwner C} {c : C}
+    {hs : L → Prop} {μ : A → V} {q : Prog A V L} (hS : Safe own cls ko c hs μ q)
+    {b : A} {v : V} (hF : Foreign own cls ko c hs μ b v) :
+    Safe own cls ko c hs (Function.update μ b v) q := by
+  cases hS with
+  | done => exact .done
+  | rd h1 h2 => exact .rd (fun μ' hR => h1 μ' (.step hF hR)) (fun μ' hR => h2 μ' (.step hF hR))
+  | rds h => exact .rds fun μ' hR => h μ' (.step hF hR)
+  | rdc hko hK h => exact .rdc hko hK fun μ' hR => h μ' (.step hF hR)
+  | wr h1 h2 h3 h4 =>
+    exact .wr (fun μ' hR => h1 μ' (.step hF hR)) (fun μ' hR => h2 μ' (.step hF hR))
+      (fun μ' hR => h3 μ' (.step hF hR)) (fun μ' hR => h4 μ' (.step hF hR))
+
 
 /-! ## The invariant -/
 
@@ -275,18 +315,38 @@ def SInv (s : Cfg A V C L) : Prop :=
   ∀ d p0 q W, s.ph d = .loc p0 q W →
     Glue s.cls s.ko d q ∨ Safe s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem q
 
-/-- **Premise** [W]: every program a core arms is glue up to its body. -/
-def ArmGlue (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p, s.ph c = .arm p → Glue s.cls s.ko c p
+/-- **Pure glue**: speculative reads and lock attempts up to the `start` of a
+body. `Glue` whatever the classes. -/
+inductive PureGlue : Prog A V L → Prop
+  | done : PureGlue .done
+  | rds {a : A} {k : V → Prog A V L} : (∀ v, PureGlue (k v)) → PureGlue (.rds a k)
+  | lock {l : L} {k : Bool → Prog A V L} : (∀ b, PureGlue (k b)) → PureGlue (.lock l k)
+  | start (k : Prog A V L) : PureGlue (.start k)
 
-/-- **Premise** [W]: a body is `Safe` from the memory and locks when it starts
-(per path, from `PathObl` and the glue's `Pre` [P]). -/
-def BodyOK (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
+theorem PureGlue.glue {p : Prog A V L} (h : PureGlue p) (cls : A → V → V)
+    (ko : A → ClsOwner C) (c : C) : Glue cls ko c p := by
+  induction h with
+  | done => exact .done
+  | rds _ ih => exact .rds ih
+  | lock _ ih => exact .lock ih
+  | start k => exact .start k
+
+/-- Every armed program is pure glue. -/
+def ArmInv (s : Cfg A V C L) : Prop := ∀ c p, s.ph c = .arm p → PureGlue p
+
+/-- **What is asked of a step** of core `c` from `s` to `s'`: a program it arms is
+pure glue [P]; a body it starts is `Safe` from the memory and locks at that
+point [W] (per path, from `PathObl` and the glue's `Pre` [P]). -/
+structure SafeStep (s : Cfg A V C L) (c : C) (s' : Cfg A V C L) : Prop where
+  arm : ∀ p, s'.ph c = .arm p → PureGlue p
+  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W →
     Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem k
 
-/-- **Premise** [W]: every ownership map of the execution satisfies `Deciders`. -/
-def DecidersOK (s0 : Cfg A V C L) : Prop := ∀ s, GReach s0 s → Deciders s.own
+/-- An execution whose steps are `SafeStep`s. -/
+inductive SafeRun (s0 : Cfg A V C L) : Cfg A V C L → Prop
+  | refl : SafeRun s0 s0
+  | step {s s' : Cfg A V C L} {c : C} :
+      SafeRun s0 s → Step s c s' → SafeStep s c s' → SafeRun s0 s'
 
 theorem allowed_of_sinv {s : Cfg A V C L} (I : SInv s) (c : C) : Allowed s c := by
   cases hph : s.ph c with
@@ -301,13 +361,16 @@ theorem allowed_of_sinv {s : Cfg A V C L} (I : SInv s) (c : C) : Allowed s c := 
       rcases hI with hg | hS
       · cases hg
       · cases hS with
-        | rd hp _ => exact hp.imp_left held_of_heldV
+        | rd h _ => exact (h _ (.refl _)).imp_left held_of_heldV
     | wr a v k =>
       simp only [Allowed, hph]
       rcases hI with hg | hS
       · cases hg
       · cases hS with
-        | wr ha hm hcl _ =>
+        | wr h1 h2 h3 _ =>
+          have ha := h1 _ (.refl _)
+          have hm := h2 _ (.refl _)
+          have hcl := h3 _ (.refl _)
           exact ⟨held_of_heldV ha,
             fun x hx => ⟨held_of_heldV (hm x hx).1, held_of_heldV (hm x hx).2⟩, hcl⟩
     | rdc a K k =>
@@ -330,10 +393,15 @@ theorem sinv_keep {s : Cfg A V C L} {d : C} {own' : (A → V) → A → Owner C 
     (h : Glue s.cls s.ko d q ∨ Safe s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem q) :
     Glue cls' ko' d q ∨ Safe own' cls' ko' d (fun l => lk' l = some d) mem' q := by
   subst hown hmem hcl hko
-  exact h.imp id (Safe.congr (fun l => (hlk l).symm))
+  rcases h with h | h
+  · exact Or.inl h
+  · exact Or.inr (Safe.congr (own := s.own) (cls := s.cls) (ko := s.ko) (c := d)
+      (hs := fun l => s.lk l = some d) (hs' := fun l => lk' l = some d)
+      (fun l => (hlk l).symm) h)
 
 theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0 s)
-    (hA : ArmGlue s0) (hB : BodyOK s0) (hD : Deciders s.own) (I : SInv s)
+    (hA : ArmInv s) (hB : ∀ p0 k W, s.ph c = .loc p0 (.start k) W →
+      Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem k) (I : SInv s)
     (hal : Allowed s c) (hst : Step s c s') : SInv s' := by
   intro d p0 q W hd
   cases hst with
@@ -351,7 +419,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     have hd' : Function.update s.ph c (.loc p p ∅) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      exact Or.inl (hA s hr d _ hc)
+      exact Or.inl ((hA d _ hc).glue _ _ _)
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @rd p1 a k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
@@ -360,7 +428,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       rcases I d _ _ _ hc with hg | hS
       · cases hg
       · cases hS with
-        | rd _ hk => exact Or.inr hk
+        | rd _ h => exact Or.inr (h _ (.refl _))
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @rds p1 a k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
@@ -370,7 +438,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       · cases hg with
         | rds hk => exact Or.inl (hk _)
       · cases hS with
-        | rds hk => exact Or.inr (hk _)
+        | rds h => exact Or.inr (h _ (.refl _))
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @rdc p1 a K k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
@@ -380,13 +448,13 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       · cases hg with
         | rdc _ _ hk => exact Or.inl (hk _)
       · cases hS with
-        | rdc _ _ hk => exact Or.inr (hk _ rfl)
+        | rdc _ _ h => exact Or.inr (h _ (.refl _))
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @start p1 k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 k W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      exact Or.inr (hB s hr d _ _ _ hc)
+      exact Or.inr (hB _ _ _ hc)
     · rw [Function.update_of_ne hdc] at hd'; exact I d p0 q W hd'
   | @wr p1 a v k W1 hc =>
     have hd' : Function.update s.ph c (.loc p1 k (insert a W1)) d = .loc p0 q W := hd
@@ -395,7 +463,7 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
       rcases I d _ _ _ hc with hg | hS
       · cases hg
       · cases hS with
-        | wr _ _ _ hk => exact Or.inr hk
+        | wr _ _ _ h => exact Or.inr (h _ (.refl _))
     · rw [Function.update_of_ne hdc] at hd'
       rcases I d p0 q W hd' with hg | hS
       · exact Or.inl hg
@@ -403,17 +471,18 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
         simp only [Allowed, hc] at hal
         obtain ⟨hb, hmv, hcl⟩ := hal
         have hcd : c ≠ d := Ne.symm hdc
-        refine Safe.foreign hD hS
-          ⟨not_PO_of_held hcd hb, fun x hx =>
+        have hF : Foreign s.own s.cls s.ko d (fun l => s.lk l = some d) s.mem a v := by
+          refine ⟨not_PO_of_held hcd hb, fun x hx =>
             ⟨not_PO_of_held hcd (hmv x hx).1, not_PO_of_held hcd (hmv x hx).2⟩, ?_⟩
-        rcases hcl with h | h | h
-        · exact Or.inl h
-        · refine Or.inr ⟨?_, ?_⟩
-          · rw [h]; intro e; cases e
-          · rw [h]; intro e; exact hcd (ClsOwner.core.inj e)
-        · refine Or.inr ⟨?_, ?_⟩
-          · rw [h]; intro e; cases e
-          · rw [h]; intro e; cases e
+          rcases hcl with h | h | h
+          · exact Or.inl h
+          · refine Or.inr ⟨?_, ?_⟩
+            · rw [h]; intro e; cases e
+            · rw [h]; intro e; exact hcd (ClsOwner.core.inj e)
+          · refine Or.inr ⟨?_, ?_⟩
+            · rw [h]; intro e; cases e
+            · rw [h]; intro e; cases e
+        exact Safe.foreign (q := q) hS hF
   | @lock p1 l k W1 b hc hb =>
     have hd' : Function.update s.ph c (.loc p1 (k b) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
@@ -460,19 +529,29 @@ theorem sinv_step {s0 s s' : Cfg A V C L} {c : C} (h0 : Init s0) (hr : GReach s0
     · rw [Function.update_of_ne hdc] at hd'
       exact absurd (by rw [hd']; trivial) (no_overlap h0 hr hg d)
 
-theorem sinv_greach {s0 s : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0) (hB : BodyOK s0)
-    (hD : DecidersOK s0) (h : GReach s0 s) : SInv s := by
+theorem step_ph_other {s s' : Cfg A V C L} {c d : C} (hst : Step s c s') (hdc : d ≠ c) :
+    s'.ph d = s.ph d := by
+  cases hst <;> first | rfl | exact Function.update_of_ne hdc _ _
+
+theorem armInv_step {s s' : Cfg A V C L} {c : C} (I : ArmInv s) (hst : Step s c s')
+    (h : SafeStep s c s') : ArmInv s' := by
+  intro d p hd
+  by_cases hdc : d = c
+  · subst hdc; exact h.arm p hd
+  · rw [step_ph_other hst hdc] at hd; exact I d p hd
+
+/-- **Every step of a `SafeRun` is `Allowed`**, from a state with no local path in
+progress and only pure glue armed. -/
+theorem safeRun_greach {s0 s : Cfg A V C L} (h0 : Init s0) (hA0 : ArmInv s0)
+    (h : SafeRun s0 s) : GReach s0 s ∧ SInv s ∧ ArmInv s := by
   induction h with
-  | refl => intro d p0 q W hd; exact absurd (by rw [hd]; trivial) (h0.2 d)
-  | step hr hal hst ih => exact sinv_step h0 hr hA hB (hD _ hr) ih hal hst
+  | refl => exact ⟨.refl, fun d p0 q W hd => absurd (by rw [hd]; trivial) (h0.2 d), hA0⟩
+  | @step s s' c _ hst hok ih =>
+    obtain ⟨hr, hS, hA⟩ := ih
+    have hal := allowed_of_sinv hS c
+    exact ⟨.step hr hal hst, sinv_step h0 hr hA hok.start hS hal hst, armInv_step hA hst hok⟩
 
-/-- **The footprint premise from per-path safety.** -/
-theorem footprintOK_of_safe {s0 : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0)
-    (hB : BodyOK s0) (hD : DecidersOK s0) : FootprintOK s0 :=
-  fun _ hs c => allowed_of_sinv (sinv_greach h0 hA hB hD hs) c
-
-/-- **Every execution is a serial one**, from per-path safety (`ArmGlue`,
-`BodyOK`, `DecidersOK`, all [W]) instead of `FootprintOK`: in every reachable
+/-- **Every `SafeRun` is a serial one**: where it reaches a
 state with no local path in progress, memory is what running the completed
 entries one after another, in completion order, produces from the initial
 memory. **In that serial order a speculative read may return any value**, not
@@ -480,10 +559,9 @@ the value memory held at that point: this theorem alone does not say each
 entry's run is one of its real serial runs; that is the per-path refinement
 obligation (P2 (2), `PathObl.lean`), which must hold for every value of those
 reads. -/
-theorem serializable_safe {s0 s : Cfg A V C L} (h0 : Init s0) (hA : ArmGlue s0)
-    (hB : BodyOK s0) (hD : DecidersOK s0) (h : Reach s0 s) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_reach h0 (footprintOK_of_safe h0 hA hB hD) h hq
+theorem serializable_safe {s0 s : Cfg A V C L} (h0 : Init s0) (hA0 : ArmInv s0)
+    (h : SafeRun s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem :=
+  serializable_quiescent h0 (safeRun_greach h0 hA0 h).1 hq
 
 end
 
