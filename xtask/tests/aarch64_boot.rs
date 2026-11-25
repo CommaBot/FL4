@@ -1463,7 +1463,7 @@ fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
 /// takes the gate first when it does not hold it (after a local path), then
 /// starts over with the thread current then, and checks before it gives the
 /// gate up. A stale address space takes the gate whatever the local check
-/// found (`arm_exit_takes_gate`, read after it: a remote call serviced while
+/// found (`exit_takes_gate`, read after it: a remote call serviced while
 /// it waited may have set it). Nothing reads the notification after
 /// `unlock`.
 #[test]
@@ -1478,7 +1478,7 @@ fn a_running_vm_checks_its_notification_under_the_gate() {
     let local = at(&|l| l.contains("fl4_sync::local_arm_vm_entry("), "the local check");
     // Not holding the gate with a stale address space, or a thread running
     // a VM unchecked: take it, start over.
-    let cond = at(&|l| l.contains("arm_exit_takes_gate("), "the gate condition");
+    let cond = at(&|l| l.contains("if exit_takes_gate("), "the gate condition");
     let args = &body[cond..cond + 7];
     for a in ["pc.gate_held.get()", "pc.vspace_stale.get()", "checked", "TS_RUNNING_VM"] {
         assert!(args.iter().any(|l| l.contains(a)), "the gate condition reads {a}");

@@ -367,7 +367,7 @@ fn fl4_entry_vcpu_run(
             }
         };
         // The kernel timer while the guest runs: first beside the gate
-        // (`fl4_sync::local_arm_vm_timer_irq`), as for a native thread. Not
+        // (`fl4_sync::local_vm_timer_irq`), as for a native thread. Not
         // under nVHE, whose exit quiesces the guest's timer and VGIC with
         // what the gate's entry took (`nvhe_quiesce`).
         if !cpu::is_el2_nvhe()
@@ -376,7 +376,7 @@ fn fl4_entry_vcpu_run(
             && gic::highest_pending() == timer::timer_irq_id()
         {
             timer_irq_local_or_serial_with(
-                |s, a, irq| fl4_sync::local_arm_vm_timer_irq(s, a, &Phys, irq, |_, _| {}),
+                |s, a, irq| fl4_sync::local_vm_timer_irq(s, a, &Phys, irq, |_, _| {}),
                 serial,
             );
         } else {
@@ -698,6 +698,27 @@ extern "C" fn fl4_kernel_fault(esr: u64, far: u64, elr: u64, sp: u64) -> ! {
     panic!("kernel exception: esr {:#x} far {:#x} elr {:#x} sp {:#x}", esr, far, elr, sp)
 }
 
+/// Whether `exit` must take the serial gate (and start over) on a core with
+/// several cores running: not holding it, with the address space this core
+/// ran gone stale (`set_vm_root` rebuilds it from caps a serial entry may be
+/// deleting), or with a thread in a VM whose `vcpu::check` did not run
+/// beside the gate (`checked`). The stale mark is read after that local
+/// check: a remote call serviced while it waited may have set it.
+const fn exit_takes_gate(multi: bool, gate_held: bool, vspace_stale: bool, checked: bool, running_vm: bool) -> bool {
+    multi && !gate_held && (vspace_stale || (!checked && running_vm))
+}
+
+// `exit_takes_gate`'s cases: (multi, gate held, stale, checked, running a VM).
+const _: () = {
+    assert!(exit_takes_gate(true, false, true, true, true), "stale, set while the local check waited");
+    assert!(exit_takes_gate(true, false, true, false, false));
+    assert!(exit_takes_gate(true, false, false, false, true), "a VM thread not checked beside the gate");
+    assert!(!exit_takes_gate(true, false, false, true, true), "checked beside the gate");
+    assert!(!exit_takes_gate(true, false, false, false, false), "a native thread, nothing stale");
+    assert!(!exit_takes_gate(true, true, true, false, true), "held already");
+    assert!(!exit_takes_gate(false, false, true, false, true), "one core: no gate");
+};
+
 /// Leave the kernel to the current thread (or the idle loop), giving up
 /// the serial gate.
 pub fn exit() -> ! {
@@ -739,7 +760,7 @@ pub fn exit() -> ! {
         }
         // `vspace_stale` read again: a remote call serviced while the local
         // check waited for the gate may have set it.
-        if fl4_sync::arm_exit_takes_gate(
+        if exit_takes_gate(
             smp::multi(),
             pc.gate_held.get(),
             pc.vspace_stale.get(),

@@ -431,7 +431,7 @@ fn run_exits_beside_the_gate_refine_handle_vcpu_run_exit() {
 }
 
 fn timer_local(s: &mut Memory, a: &mut Machine) -> bool {
-    fl4_sync::local_arm_vm_timer_irq(s, a, &Atomics, TIMER_IRQ, |_, _| {})
+    fl4_sync::local_vm_timer_irq(s, a, &Atomics, TIMER_IRQ, |_, _| {})
 }
 fn timer_general(s: &mut Memory, a: &mut Machine) {
     syscall::handle_interrupt_entry(s, a, TIMER_IRQ)
@@ -463,23 +463,6 @@ fn the_timer_while_a_guest_runs_beside_the_gate_refines_handle_interrupt_entry()
     let mut sig = s.clone();
     Ntfn(N).set_state(&mut sig, NTFN_ACTIVE);
     declines(&sig, &a, timer_local, timer_general);
-}
-
-/// `exit`'s choice of the gate: a stale address space takes it even after
-/// the VM check ran beside it (a remote call serviced while that check
-/// waited for the gate may have set the mark), and a VM thread whose check
-/// did not run beside it takes it too.
-#[test]
-fn a_stale_address_space_takes_the_gate_even_after_a_local_vm_check() {
-    use fl4_sync::arm_exit_takes_gate as takes;
-    // (multi, gate held, stale, checked, running a VM)
-    assert!(takes(true, false, true, true, true), "set while the local check waited");
-    assert!(takes(true, false, true, false, false));
-    assert!(takes(true, false, false, false, true));
-    assert!(!takes(true, false, false, true, true), "checked beside the gate");
-    assert!(!takes(true, false, false, false, false), "a native thread, nothing stale");
-    assert!(!takes(true, true, true, false, true), "held already");
-    assert!(!takes(false, false, true, false, true), "one core: no gate");
 }
 
 /// The guest thread's own timer is the earliest (its bound notification in

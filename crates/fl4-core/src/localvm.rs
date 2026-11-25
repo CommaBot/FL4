@@ -3,8 +3,9 @@
 //! only, then the general path's own fl4-core functions in its order).
 //! `fl4-sync` wraps them in the gate's handshake and the object locks
 //! (`local_vm_syscall`, `local_vm_entry`, `local_vm_exit`,
-//! `local_arm_vcpu_run`, `local_arm_vm_entry`, `local_arm_vcpu_run_exit`,
-//! `local_arm_vm_timer_irq`), as it wraps `localtimer`.
+//! `local_vm_timer_irq`, `local_arm_vcpu_run`, `local_arm_vm_entry`,
+//! `local_arm_vcpu_run_exit`), as it wraps `localtimer`, locking what
+//! `vm_locks` names.
 //!
 //! x86_64: an l4h vCPU thread `ct` with a bound VCPU `v` enters its guest
 //! with `SysVMEnter` and runs it (`TS_RUNNING_VM`) until an exit its
@@ -73,6 +74,65 @@ use crate::{interrupt, ipc, msg, sched, sporadic, vcpu};
 use fl4_abi::consts::tcb_flag;
 use fl4_abi::label;
 use fl4_abi::syscall as sc;
+
+/// Bytes of a VCPU object, as `fl4-sync` reports it locked: on x86 the
+/// VMCB, VMCS image, registers and exit frame, and I/O bitmap.
+#[cfg(not(feature = "aarch64"))]
+pub const VCPU_BYTES: u64 = 0x8000;
+/// Bytes of a VCPU object, as `fl4-sync` reports it locked.
+#[cfg(feature = "aarch64")]
+pub const VCPU_BYTES: u64 = 0x1000;
+/// Bytes of a notification, as `fl4-sync` reports it locked.
+pub const NTFN_BYTES: u64 = 64;
+/// Objects a VM local path locks: the kernel timer's plan, a VCPU and a
+/// notification.
+pub const MAX_VM_LOCKS: usize = localtimer::MAX_TIMER_LOCKS + 2;
+const _: () = assert!(localtimer::MAX_TIMER_LOCKS == 3);
+
+/// What a VM local path of the current thread locks (`vm_locks`).
+#[derive(Clone, Copy)]
+pub struct VmLocks {
+    /// The VCPU (0: none).
+    pub vcpu: u64,
+    /// The current thread's bound notification, if locked (0: none).
+    pub ntfn: u64,
+    /// As (address, bytes): a timer plan's objects, `vcpu`, `ntfn`; 0 for
+    /// none. `ntfn` may repeat a planned object (a guest thread's own timer
+    /// signals it): `fl4-sync` locks each address once and skips 0.
+    pub objects: [(u64, u64); MAX_VM_LOCKS],
+}
+
+/// The objects a VM local path on VCPU `vc` (0: none) of the current
+/// thread locks: `vc` and the thread's bound notification.
+pub fn vm_locks<S: Store>(s: &S, vc: u64) -> VmLocks {
+    let n = sched::cur_thread(s).bound_ntfn(s);
+    VmLocks { vcpu: vc, ntfn: n, objects: [(0, 0), (0, 0), (0, 0), (vc, VCPU_BYTES), (n, NTFN_BYTES)] }
+}
+
+/// The objects a VM timer-IRQ local path on VCPU `vc` (0: none) locks:
+/// those of timer plan `p`, then `vc` and the thread's bound notification.
+pub fn vm_timer_locks<S: Store>(s: &S, vc: u64, p: &localtimer::TimerIrqPlan) -> VmLocks {
+    let n = sched::cur_thread(s).bound_ntfn(s);
+    VmLocks {
+        vcpu: vc,
+        ntfn: n,
+        objects: [planned(p, 0), planned(p, 1), planned(p, 2), (vc, VCPU_BYTES), (n, NTFN_BYTES)],
+    }
+}
+
+/// What a VM local path on VCPU `vc` alone locks: `vc`.
+pub fn vcpu_locks(vc: u64) -> VmLocks {
+    VmLocks { vcpu: vc, ntfn: 0, objects: [(0, 0), (0, 0), (0, 0), (vc, VCPU_BYTES), (0, 0)] }
+}
+
+/// Object `i` of timer plan `p`, or (0, 0) for none.
+fn planned(p: &localtimer::TimerIrqPlan, i: usize) -> (u64, u64) {
+    if i < p.n && i < localtimer::MAX_TIMER_LOCKS {
+        p.objects[i]
+    } else {
+        (0, 0)
+    }
+}
 
 /// The current thread `ct` and scheduling context `csc` at entry, for a
 /// thread that runs or enters a VM: this core's, not the idle thread,
@@ -187,6 +247,19 @@ pub fn handle_vm_timer_irq_local<S: Store, A: Arch>(
     interrupt::handle_interrupt(s, a, irq);
     finish(s, a);
     true
+}
+
+/// The VCPU the current thread runs a guest on (0: none): its bound one.
+#[cfg(not(feature = "aarch64"))]
+pub fn cur_vcpu<S: Store>(s: &S) -> u64 {
+    vcpu::bound(s, sched::cur_thread(s))
+}
+
+/// The VCPU the current thread runs a guest on (0: none): its
+/// `ARMVCPURun`'s.
+#[cfg(feature = "aarch64")]
+pub fn cur_vcpu<S: Store>(s: &S) -> u64 {
+    run_vcpu(s, sched::cur_thread(s))
 }
 
 /// `ct`, in `TS_RUNNING_VM`, runs a guest that `vcpu::check` leaves to run:
@@ -330,6 +403,14 @@ pub fn handle_vcpu_exit_local<S: Store, A: Arch>(s: &mut S, a: &mut A, v: u64, n
     true
 }
 
+/// A syscall `number` of thread `t` that a VM local path may take:
+/// `SysVMEnter` with a bound VCPU, or a VCPU state invocation.
+#[cfg(not(feature = "aarch64"))]
+pub fn is_vm_syscall<S: Store>(s: &S, t: Tcb, number: i64) -> bool {
+    (number == sc::SysVMEnter && vcpu::bound(s, t) != 0)
+        || ((number == sc::SysCall || number == sc::SysSend) && is_vcpu_state_label(msg::msg_info(s, t).label))
+}
+
 /// The `X86VCPU*` invocations that read or write only the VCPU's own
 /// state and the caller (`vcpu::decode`): no extra caps, no other
 /// object, no stall when the caller is the VCPU's bound thread.
@@ -421,10 +502,27 @@ pub fn handle_vcpu_invocation_local<S: Store, A: Arch>(s: &mut S, a: &mut A, num
 
 // ---- AArch64 ----------------------------------------------------------------
 
+/// A syscall `number` of thread `t` that a VM local path may take: an
+/// `ARMVCPURun`.
+#[cfg(feature = "aarch64")]
+pub fn is_vm_syscall<S: Store>(s: &S, t: Tcb, number: i64) -> bool {
+    number == sc::SysCall && msg::msg_info(s, t).label == label::ARMVCPURun
+}
+
 /// The VCPU an `ARMVCPURun` caller `t` runs (0 for none).
 #[cfg(feature = "aarch64")]
 pub fn run_vcpu<S: Store>(s: &S, t: Tcb) -> u64 {
     s.read(t.0.wrapping_add(tl::RUN_VCPU))
+}
+
+/// The guest thread VCPU `vc` names (none for `vc` 0).
+#[cfg(feature = "aarch64")]
+pub fn vcpu_guest<S: Store>(s: &S, vc: u64) -> Tcb {
+    if vc == 0 {
+        Tcb(0)
+    } else {
+        Tcb(s.read(vc.wrapping_add(vcpu::TCB)))
+    }
 }
 
 /// An `ARMVCPURun` (`SysCall`) of the current thread `ct` on VCPU `vc`,
@@ -469,7 +567,7 @@ pub fn handle_arm_vcpu_run_local<S: Store, A: Arch>(
     {
         return false;
     }
-    let guest = Tcb(s.read(vc.wrapping_add(vcpu::TCB)));
+    let guest = vcpu_guest(s, vc);
     if guest.is_null()
         || guest == ct
         || guest.state(s) != sched::TS_INACTIVE
@@ -567,7 +665,7 @@ pub fn handle_arm_vcpu_run_exit_local<S: Store, A: Arch>(
         return false;
     }
     if let Some((g, _)) = hvc {
-        if s.read(vc.wrapping_add(vcpu::TCB)) != g.0 {
+        if vcpu_guest(s, vc) != g {
             return false;
         }
     }
