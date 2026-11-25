@@ -49,8 +49,8 @@ def rrTail (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr i1 i5 : Std.U64) : Result 
     let s6 ← obj.Tcb.set_state st i1 s5 sched.TS_RESTART
     let s7 ← sched.set_action st s6 i1
     let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-    let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-    let s10 ← obj.Tcb.set_block_obj st t s9 ep_ptr
+    let s9 ← obj.Tcb.set_block_obj st t s8 ep_ptr
+    let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
     let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
     let s12 ← obj.Reply.set_tcb st rptr s11 t
     let s13 ← obj.Tcb.set_ep_next st t s12 0#u64
@@ -62,8 +62,8 @@ def rrTail (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr i1 i5 : Std.U64) : Result 
     let s6 ← obj.Tcb.set_state st i1 s5 sched.TS_INACTIVE
     let s7 ← sched.set_action st s6 i1
     let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-    let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-    let s10 ← obj.Tcb.set_block_obj st t s9 ep_ptr
+    let s9 ← obj.Tcb.set_block_obj st t s8 ep_ptr
+    let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
     let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
     let s12 ← obj.Reply.set_tcb st rptr s11 t
     let s13 ← obj.Tcb.set_ep_next st t s12 0#u64

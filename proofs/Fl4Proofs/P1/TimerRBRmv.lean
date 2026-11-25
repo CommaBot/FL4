@@ -100,22 +100,24 @@ theorem clrT_wi (s : S) {t : U64} (hT : TcbPlaced T) (ht : t ∈ T) :
   have w := ((((writesIn_wr (st := st) (s := s) (v := 0#u64) (a (3560#u64) (by simp) (by simp))).trans
     (writesIn_wr (v := 0#u64) (a (3544#u64) (by simp) (by simp)))).trans
     (writesIn_wr (v := 0#u64) (a (3552#u64) (by simp) (by simp)))).trans
-    (writesIn_wr (v := 0#u64) (a (3568#u64) (by simp) (by simp)))).trans
-    (writesIn_wr (v := 0#u64) (a (3528#u64) (by simp) (by simp)))
+    (writesIn_wr (v := 0#u64) (a (3528#u64) (by simp) (by simp)))).trans
+    (writesIn_wr (v := 0#u64) (a (3568#u64) (by simp) (by simp)))
   refine w.mono fun b hb => ?_
   rcases hb with (((e | e) | e) | e) | e
   · exact ⟨3560#u64, by simp, e⟩
   · exact ⟨3544#u64, by simp, e⟩
   · exact ⟨3552#u64, by simp, e⟩
-  · exact ⟨3568#u64, by simp, e⟩
   · exact ⟨3528#u64, by simp, e⟩
+  · exact ⟨3568#u64, by simp, e⟩
 
 /-- After the clearing, `t` is unarmed with null links. -/
 theorem clrT_t (s : S) {t : U64} (hT : TcbPlaced T) (ht : t ∈ T) :
     L.mem (clrT st s t) (tdA t) = 0#u64 ∧ L.mem (clrT st s t) (tlA t) = 0#u64 ∧
       L.mem (clrT st s t) (trA t) = 0#u64 ∧ L.mem (clrT st s t) (tpA t) = 0#u64 := by
   simp only [clrT, tdA, tlA, trA, tpA, thA]
-  refine ⟨L.mem_wr_same (tz_aligned hT (Tz.of_mem ht) (K := 3528#u64) (by simp) (by simp)), ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [trb_fld_wr hT ht ht (by simp) (by simp) (by simp) (by simp), if_neg (by simp),
+      trb_fld_wr hT ht ht (by simp) (by simp) (by simp) (by simp), if_pos ⟨rfl, rfl⟩]
   · rw [trb_fld_wr hT ht ht (by simp) (by simp) (by simp) (by simp), if_neg (by simp),
       trb_fld_wr hT ht ht (by simp) (by simp) (by simp) (by simp), if_neg (by simp),
       trb_fld_wr hT ht ht (by simp) (by simp) (by simp) (by simp), if_neg (by simp),

@@ -286,8 +286,8 @@ theorem rrTail_split {s s' : S} {a a' : A} {t rptr ep u usc : U64}
       obj.Tcb.set_state st u X5 (if restart then sched.TS_RESTART else sched.TS_INACTIVE) = ok X6 ∧
       sched.set_action st X6 u = ok X7 ∧
       obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 ∧
-      obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 ∧
-      obj.Tcb.set_block_obj st t X9 ep = ok X10 ∧
+      obj.Tcb.set_block_obj st t X8 ep = ok X9 ∧
+      obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 ∧
       obj.Tcb.set_reply_obj st t X10 rptr = ok X11 ∧
       obj.Reply.set_tcb st rptr X11 t = ok X12 ∧
       obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 ∧
@@ -307,8 +307,8 @@ theorem rrTail_split {s s' : S} {a a' : A} {t rptr ep u usc : U64}
       let s6 ← obj.Tcb.set_state st u X5 v
       let s7 ← sched.set_action st s6 u
       let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-      let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-      let s10 ← obj.Tcb.set_block_obj st t s9 ep
+      let s9 ← obj.Tcb.set_block_obj st t s8 ep
+      let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
       let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
       let s12 ← obj.Reply.set_tcb st rptr s11 t
       let s13 ← obj.Tcb.set_ep_next st t s12 0#u64
@@ -319,8 +319,8 @@ theorem rrTail_split {s s' : S} {a a' : A} {t rptr ep u usc : U64}
       ∃ X6 X7 X8 X9 X10 X11 X12 X13 X14 X15,
         obj.Tcb.set_state st u X5 v = ok X6 ∧ sched.set_action st X6 u = ok X7 ∧
         obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8 ∧
-        obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9 ∧
-        obj.Tcb.set_block_obj st t X9 ep = ok X10 ∧ obj.Tcb.set_reply_obj st t X10 rptr = ok X11 ∧
+        obj.Tcb.set_block_obj st t X8 ep = ok X9 ∧
+        obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10 ∧ obj.Tcb.set_reply_obj st t X10 rptr = ok X11 ∧
         obj.Reply.set_tcb st rptr X11 t = ok X12 ∧ obj.Tcb.set_ep_next st t X12 0#u64 = ok X13 ∧
         obj.Tcb.set_ep_prev st t X13 0#u64 = ok X14 ∧ obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15 ∧
         fastpath.switch_to st ar X15 a2 u = ok (s', a') := by
