@@ -92,7 +92,7 @@ theorem ictt_body_step {s : S} {c target d : U64} {W : TRB.RBT} (ct : CoreTree s
       ok (ControlFlow.cont x')) :
     StackOK W.keys x'.1 x'.2.1 ∧ 64 - x'.2.2.1.val < 64 - x.2.2.1.val := by
   obtain ⟨stack, sp, visits, found, ov⟩ := x
-  simp only [body_split] at h
+  replace h := (body_split st s target d stack sp visits found ov).symm.trans h
   by_cases h1 : sp > 0#usize
   swap
   · rw [if_neg h1] at h; simp at h
