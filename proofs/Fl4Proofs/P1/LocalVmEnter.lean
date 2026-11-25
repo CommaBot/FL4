@@ -26,9 +26,13 @@ unchanged across `now`") is not needed: the general VMEnter path reads
 Hypotheses: `TcbPlaced`, `NodePlaced` at the entry state and the current thread
 placed (P1 facts of `BXI`, `BXI.tcbNode`), Arch totality.
 
-Not here: the decline's `pre_same` (the general entry from the prefix's state equals
-the one from the entry state). `FastLocalDecline.syscall_pre_same` covers only
-`RoT` numbers, which `SysVMEnter` is not: `handoff/lvm.md`.
+* `vm_enter_pre_same` / `vm_enter_handle_pre_same`: after a decline's prefix
+  (`LocalPre`) the general entry runs as from the entry state with the Arch value
+  the prefix left. `FastLocalDecline.syscall_pre_same` covers only `RoT` numbers,
+  which `SysVMEnter` is not; this is its copy with the unknown-syscall branch
+  finished (`debug_syscall` declines at both states, `virtualization` at the same
+  Arch value, the bound VCPU word missed by the prefix, `budget_ok_utW`). Needs
+  `StoreExt` [P], as `syscall_pre_same` does.
 
 P1 invariant: the P1 top leaves `SysVMEnter` out (`P3Place.vmchk`), so these
 results move to the local entry whatever P1 later proves for the general one.
@@ -339,6 +343,166 @@ theorem vm_enter_local_triple (hA : P0.ArchTotal ar) {T : Set U64} {s : S} {a : 
   have hs := vm_enter_local_same ar hA hT hN hcT e
   rw [hs, WP.spec_ok] at hG
   exact hG
+
+set_option maxHeartbeats 8000000 in
+/-- **`vm_enter_pre_same`: after the prefix of a declined `SysVMEnter` the
+general `syscall` runs as from the entry state** with the Arch value the prefix
+left. `FastLocalDecline.syscall_pre_same` with its last branch replaced: the
+number is below the native range (`lvm_vmenter_lt_min`), so an untrapped run
+takes `handle_unknown_syscall`, which reads the current thread (kept), declines
+`debug_syscall` without writes (`lvm_debug_vmenter`), reads `virtualization`
+at the same Arch value and the bound VCPU word (offset 3664, missed by the
+prefix), and then runs `budget_ok` / `unknown_syscall_fault`, which do not see
+the prefix's timestamp update (`budget_ok_utW`). -/
+theorem vm_enter_pre_same (hX : StoreExt st) (hA : P0.ArchTotal ar) {T : Set U64} (hT : TcbPlaced T) {s : S}
+    (hN : NodePlaced st T s (L.cpu s)) (hcT : L.curW s ∈ T) {a : A} {r : S × A}
+    (hP : LocalPre (st := st) ar s a r) (f : Bool) :
+    syscall.syscall st ar r.1 r.2 fl4_abi.syscall.SysVMEnter f =
+      syscall.syscall st ar s r.2 fl4_abi.syscall.SysVMEnter f := by
+  obtain ⟨rs, ra⟩ := r
+  obtain ⟨t, nx, s1, et, enx, es1, eu⟩ := hP
+  dsimp only
+  have htT : t ∈ T := by rw [cur_thread_ok] at et; rw [← ok_inj_ff et]; exact hcT
+  have ht' := hT t htT
+  -- the `FAULT_IP` write
+  have hW1 := obj.Tcb.set_reg.wrK (L := L) s t layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) ht'
+    (by simp [layout.reg.FAULT_IP])
+  rw [es1, WP.spec_ok] at hW1
+  obtain ⟨KF, hKF, e1⟩ := hW1
+  have hKF' : KF.val = 392 := by rw [hKF]; simp [layout.reg.FAULT_IP]
+  have aF : Aligned (core.num.U64.wrapping_add t KF) := field_aligned ht' (by omega) (by omega)
+  have tvF := tcb_wadd_val ht' (o := KF) (by omega)
+  have hN1 : NodePlaced st T s1 (L.cpu s1) := by rw [e1, LawfulStore.cpu_wr]; exact hN.wr
+  obtain ⟨n1, -, er⟩ := ut_now ar hA hN1 eu
+  dsimp only at er
+  subst er
+  have ec1 : ctA (L := L) s1 = ctA (L := L) s := by rw [e1, ctA_wr]
+  have en1 : cnA (L := L) s1 = cnA (L := L) s := by rw [e1, cnA_wr]
+  have vb := nodeAt_val hN (off := layout.node.CUR_TIME) (by simp [layout.node.CUR_TIME])
+  have vn := nodeAt_val hN (off := layout.node.CONSUMED) (by simp [layout.node.CONSUMED])
+  have nd := hN.disj t htT
+  have twC : ∀ K : U64, K.val < 4096 → core.num.U64.wrapping_add t K ≠ ctA (L := L) s := by
+    intro K hK e
+    have tvK := tcb_wadd_val ht' (o := K) hK
+    have e' := congrArg UScalar.val e
+    unfold ctA at e'; rw [vb, tvK] at e'; simp [layout.node.CUR_TIME] at e'; omega
+  have twN : ∀ K : U64, K.val < 4096 → core.num.U64.wrapping_add t K ≠ cnA (L := L) s := by
+    intro K hK e
+    have tvK := tcb_wadd_val ht' (o := K) hK
+    have e' := congrArg UScalar.val e
+    unfold cnA at e'; rw [vn, tvK] at e'; simp [layout.node.CONSUMED] at e'; omega
+  have hU : ∀ b, Aligned b → b ≠ ctA (L := L) s → b ≠ cnA (L := L) s → b ≠ core.num.U64.wrapping_add t KF →
+      L.mem (utW (L := L) s1 n1) b = L.mem s b := by
+    intro b hb h1 h2 h3
+    rw [utW_mem hN1 n1 hb (by rw [ec1]; exact h1) (by rw [en1]; exact h2), e1, mem_wr_ne' aF hb (Ne.symm h3)]
+  have hU1 : ∀ b, Aligned b → b ≠ ctA (L := L) s → b ≠ cnA (L := L) s →
+      L.mem (utW (L := L) s1 n1) b = L.mem s1 b := by
+    intro b hb h1 h2
+    exact utW_mem hN1 n1 hb (by rw [ec1]; exact h1) (by rw [en1]; exact h2)
+  have hcU : L.cpu (utW (L := L) s1 n1) = L.cpu s := by rw [utW_cpu, e1, LawfulStore.cpu_wr]
+  have hkU : L.ksb (utW (L := L) s1 n1) = L.ksb s := by rw [utW_ksb, e1, LawfulStore.ksb_wr]
+  have vC := nodeAt_val hN (off := layout.node.CUR_THREAD) (by simp [layout.node.CUR_THREAD])
+  have aC : Aligned (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) :=
+    nodeAt_aligned hN (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])
+  -- (1) the current thread, at both states
+  have hct1 : sched.cur_thread st (utW (L := L) s1 n1) = ok t := by
+    rw [cur_thread_ok] at et ⊢
+    rw [← ok_inj_ff et]
+    unfold LawfulStore.curW
+    rw [hcU, nodeAt_of_ksb hkU]
+    congr 1
+    refine hU _ aC ?_ ?_ ?_
+    · intro e; have e' := congrArg UScalar.val e
+      unfold ctA at e'; rw [vC, vb] at e'; simp [layout.node.CUR_THREAD, layout.node.CUR_TIME] at e'
+    · intro e; have e' := congrArg UScalar.val e
+      unfold cnA at e'; rw [vC, vn] at e'; simp [layout.node.CUR_THREAD, layout.node.CONSUMED] at e'
+    · intro e; have e' := congrArg UScalar.val e
+      rw [vC, tvF] at e'; simp [layout.node.CUR_THREAD] at e'; omega
+  have et1 : sched.cur_thread st s1 = ok t := by
+    rw [cur_thread_ok] at et ⊢
+    rw [← ok_inj_ff et]
+    unfold LawfulStore.curW
+    rw [e1, LawfulStore.cpu_wr, nodeAt_of_ksb (L.ksb_wr _ _ _)]
+    congr 1
+    exact mem_wr_ne' aF aC (tcb_node_ne hN htT ht' (by omega) (by simp [layout.node.CUR_THREAD]))
+  -- (2) `NEXT_IP`
+  obtain ⟨KN, hKN, eKN⟩ := regA_eq ht' (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP])
+  have hKN' : KN.val = 368 := by rw [hKN]; simp [layout.reg.NEXT_IP]
+  have aN : Aligned (core.num.U64.wrapping_add t KN) := field_aligned ht' (by omega) (by omega)
+  have tvN := tcb_wadd_val ht' (o := KN) (by omega)
+  have hreg1 : obj.Tcb.reg st t (utW (L := L) s1 n1) layout.reg.NEXT_IP = ok nx := by
+    rw [reg_ok] at enx ⊢
+    rw [← ok_inj_ff enx, eKN]
+    congr 1
+    refine hU _ aN (twC KN (by omega)) (twN KN (by omega)) ?_
+    intro e; have e' := congrArg UScalar.val e; rw [tvN, tvF] at e'; omega
+  -- (3) the `FAULT_IP` write again: the word holds the value already
+  have hset1 : obj.Tcb.set_reg st t (utW (L := L) s1 n1) layout.reg.FAULT_IP
+      (core.num.U64.wrapping_sub nx 2#u64) = ok (utW (L := L) s1 n1) := by
+    have hW2 := obj.Tcb.set_reg.wrK (L := L) (utW (L := L) s1 n1) t layout.reg.FAULT_IP
+      (core.num.U64.wrapping_sub nx 2#u64) ht' (by simp [layout.reg.FAULT_IP])
+    obtain ⟨x, ex, K2, hK2, exK⟩ := spec_ex_fd hW2
+    rw [ex, exK]
+    have eK : K2 = KF := UScalar.eq_of_val_eq (by rw [hK2, hKF])
+    rw [eK]
+    have hv : L.mem (utW (L := L) s1 n1) (core.num.U64.wrapping_add t KF) = core.num.U64.wrapping_sub nx 2#u64 := by
+      rw [hU1 _ aF (twC KF (by omega)) (twN KF (by omega)), e1, LawfulStore.mem_wr_same aF]
+    rw [← hv, wr_mem hX _ aF]
+  -- (4) the flags word
+  have aFl : Aligned (core.num.U64.wrapping_add t 3456#u64) :=
+    field_aligned ht' (by simp) (by simp)
+  have hfl1 : L.mem (utW (L := L) s1 n1) (core.num.U64.wrapping_add t 3456#u64) =
+      L.mem s1 (core.num.U64.wrapping_add t 3456#u64) :=
+    hU1 _ aFl (twC _ (by simp)) (twN _ (by simp))
+  -- (5) the timestamp update supersedes the prefix's
+  have hb1 : ∀ a', syscall.budget_ok st ar (utW (L := L) s1 n1) a' = syscall.budget_ok st ar s1 a' :=
+    fun a' => budget_ok_utW ar hX hA hN1 n1 a'
+  have husf : ∀ a' m g, syscall.unknown_syscall_fault st ar (utW (L := L) s1 n1) a' m g =
+      syscall.unknown_syscall_fault st ar s1 a' m g := by
+    intro a' m g
+    unfold syscall.unknown_syscall_fault
+    rw [hb1]
+  -- (6) the bound VCPU word
+  have ebd : vcpu.bound st (utW (L := L) s1 n1) t = vcpu.bound st s1 t := by
+    rw [eq_of_spec_fd (vcpu.bound.spec (L := L) (utW (L := L) s1 n1) t), eq_of_spec_fd (vcpu.bound.spec (L := L) s1 t),
+      hU1 _ (field_aligned ht' (by simp) (by simp)) (twC _ (by simp)) (twN _ (by simp))]
+  -- (7) the VMEnter case of `handle_unknown_syscall`
+  have huk : ∀ a' g, syscall.handle_unknown_syscall st ar (utW (L := L) s1 n1) a' fl4_abi.syscall.SysVMEnter g =
+      syscall.handle_unknown_syscall st ar s1 a' fl4_abi.syscall.SysVMEnter g := by
+    intro a' g
+    unfold syscall.handle_unknown_syscall
+    rw [hct1, et1]
+    simp only [bind_ok, fl4_abi.config.PRINTING, fl4_abi.config.DEBUG_BUILD, fl4_abi.config.SET_TLS_BASE_SELF,
+      ↓reduceIte, lvm_vmenter_ne_putc, lvm_vmenter_ne_dump, if_false]
+    rw [lvm_debug_vmenter, lvm_debug_vmenter]
+    simp only [bind_ok, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte, lvm_vmenter_ne_tls, if_false,
+      eq_self_iff_true, if_true]
+    simp only [ebd, hb1, husf]
+  unfold syscall.syscall
+  rw [hct1, et]
+  simp only [bind_ok]
+  rw [hreg1, enx]
+  simp only [lift, bind_ok]
+  rw [hset1, es1]
+  simp only [bind_ok]
+  rw [flags_ok, flags_ok, hfl1]
+  simp only [lift, bind_ok]
+  rw [husf]
+  by_cases c1 : (L.mem s1 (core.num.U64.wrapping_add t 3456#u64) &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS !=
+      0#u64) = true
+  · simp only [if_pos c1]
+  · simp only [if_neg c1, if_pos lvm_vmenter_lt_min]
+    exact huk _ _
+
+/-- `vm_enter_pre_same` for `handle_syscall`: fl4-sync's general fallback after
+a declined local `SysVMEnter` (`vm_enter_local_decline`'s `LocalPre` arm). -/
+theorem vm_enter_handle_pre_same (hX : StoreExt st) (hA : P0.ArchTotal ar) {T : Set U64} (hT : TcbPlaced T) {s : S}
+    (hN : NodePlaced st T s (L.cpu s)) (hcT : L.curW s ∈ T) {a : A} {r : S × A}
+    (hP : LocalPre (st := st) ar s a r) :
+    syscall.handle_syscall st ar r.1 r.2 fl4_abi.syscall.SysVMEnter =
+      syscall.handle_syscall st ar s r.2 fl4_abi.syscall.SysVMEnter := by
+  unfold syscall.handle_syscall
+  rw [vm_enter_pre_same ar hX hA hT hN hcT hP true]
 
 end
 
