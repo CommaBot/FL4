@@ -1671,3 +1671,4 @@ import Fl4Proofs.P3.StPostRRLink
 import Fl4Proofs.P3.StPostReply
 import Fl4Proofs.P3.StPostTmo
 import Fl4Proofs.P3.StPostInv
+import Fl4Proofs.P3.StPostMid
