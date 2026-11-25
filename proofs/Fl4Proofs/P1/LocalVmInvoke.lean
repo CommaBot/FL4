@@ -14,7 +14,8 @@
   at the `FAULT_IP`-written state (the write misses them); `budget_ok` passes
   without writing (`check_budget_restart_suf`); `dispatch_syscall`'s Call / Send
   arm; `handle_invocation` reads the same message info, finds fl4-sync's slot
-  (premise `hL`, as `set_timer_local_same`'s) holding `Vcpu v`, the same IPC buffer and no extra caps (the
+  (premise `hL`, as `set_timer_local_same`'s), which holds `Vcpu v` because the local entry's
+  `c != Cap::Vcpu(v)` test passed (`cap_ne_vcpu`, gen 3), the same IPC buffer and no extra caps (the
   local entry read both at the same state); `decode_invocation`'s `Vcpu` arm is
   the same `vcpu.decode` call; the reply arms agree on every result but
   `Err Preempted` (`lvm_decode_np`); `after_invocation` passes; `finish`
@@ -32,14 +33,14 @@
 
 **Named premise.** `hL` [J] (fl4-sync's contract, as in `set_timer_local_same`):
 the general CSpace lookup of the `CAP` register finds the slot fl4-sync passed
-(`lookup_slot_locked` resolved it with the same walk, its slots locked), and that
-slot holds `Vcpu v` (fl4-sync passes `v` from the cap it found; the local entry
-re-checks it, but the derived `PartialEq` on caps has no P0/P1 meaning lemma). Other
+(`lookup_slot_locked` resolved it with the same walk, its slots locked). That the
+slot holds `Vcpu v` is no longer assumed (gen 3): the local entry's own
+`c != Cap::Vcpu(v)` test gives it (`cap_ne_vcpu`, `P1/LocalVmCap.lean`). Other
 hypotheses: `BXI` and `CnOff` at the entry state (P1 facts of `EntryInv`, as in
 `set_timer_local_same`), Arch totality. No premise on `vcpu.stall`,
 `vcpu_sync` or `virtualization`: both runs make the same `vcpu.decode` call.
 -/
-import Fl4Proofs.P1.LocalVmDecNP
+import Fl4Proofs.P1.LocalVmCap
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -178,7 +179,7 @@ theorem vcpu_invocation_local_same' (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
     (hL : ∀ t, sched.cur_thread st s = ok t → ∃ r : cspace.Resolved,
       cspace.lookup_slot st s t (L.mem s (regA t layout.reg.CAP)) = ok (core.result.Result.Ok r) ∧
-      r.slot = slot ∧ obj.Slot.cap st slot s = ok (capability.Cap.Vcpu v))
+      r.slot = slot)
     (h : localvm.handle_vcpu_invocation_local st ar s a number slot v = ok (true, s', a')) :
     (number = fl4_abi.syscall.SysCall ∨ number = fl4_abi.syscall.SysSend) ∧
       syscall.handle_syscall st ar s a number = ok (s', a') := by
@@ -221,12 +222,13 @@ theorem vcpu_invocation_local_same' (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {
   by_cases c5 : v = 0#u64
   · rw [if_pos c5] at h; simp at h
   rw [if_neg c5] at h
-  obtain ⟨c, -, h⟩ := bind_eq_ok h
-  obtain ⟨b1, -, h⟩ := bind_eq_ok h
+  obtain ⟨c, ecw, h⟩ := bind_eq_ok h
+  obtain ⟨b1, eb1, h⟩ := bind_eq_ok h
   cases b1
   swap
   · simp at h
   simp only [Bool.false_eq_true, ↓reduceIte] at h
+  have ecV : obj.Slot.cap st slot s = ok (capability.Cap.Vcpu v) := by rw [ecw, cap_ne_vcpu eb1]
   obtain ⟨i3, -, h⟩ := bind_eq_ok h
   by_cases c6 : (i3 != t) = true
   · rw [if_pos c6] at h; simp at h
@@ -336,7 +338,8 @@ theorem vcpu_invocation_local_same' (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {
     rw [reg_keepK ht' (r := layout.reg.MSG_INFO) (by simp) (by simp) tK]; exact ei
   have ecap2 : obj.Tcb.reg st t s2 layout.reg.CAP = ok (L.mem s (regA t layout.reg.CAP)) := by
     rw [reg_keepK ht' (r := layout.reg.CAP) (by simp) (by simp) tK, reg_ok]
-  obtain ⟨r, er0, hrs, ec⟩ := hL t et
+  obtain ⟨r, er0, hrs⟩ := hL t et
+  have ec := ecV
   have er2 := lookup_slot_keep ht' (hCn t et) tK oK er0
   have ecr2 : obj.Slot.cap st r.slot s2 = ok (capability.Cap.Vcpu v) := by
     rw [found_cap_keep (hCn t et) oK er0, hrs]; exact ec
@@ -414,14 +417,14 @@ theorem vcpu_invocation_local_same' (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {
 /-- **`vcpu_invocation_local_same`: a VCPU state invocation beside the serial
 gate, where it ran, is the general entry** `syscall.handle_syscall … number`
 (module docstring). `hL` [J]: fl4-sync's contract (`lookup_slot_locked` found
-`slot`, holding `Vcpu v`, with the general lookup's walk). -/
+`slot` with the general lookup's walk). -/
 theorem vcpu_invocation_local_same (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {a a' : A}
     {number : I64} {slot : obj.Slot} {v : U64} {Ω Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
     (hL : ∀ t, sched.cur_thread st s = ok t → ∃ r : cspace.Resolved,
       cspace.lookup_slot st s t (L.mem s (regA t layout.reg.CAP)) = ok (core.result.Result.Ok r) ∧
-      r.slot = slot ∧ obj.Slot.cap st slot s = ok (capability.Cap.Vcpu v))
+      r.slot = slot)
     (h : localvm.handle_vcpu_invocation_local st ar s a number slot v = ok (true, s', a')) :
     syscall.handle_syscall st ar s a number = ok (s', a') :=
   (vcpu_invocation_local_same' ar hA hI hCn hL h).2
@@ -435,7 +438,7 @@ theorem vcpu_invocation_local_triple (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} 
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
     (hL : ∀ t, sched.cur_thread st s = ok t → ∃ r : cspace.Resolved,
       cspace.lookup_slot st s t (L.mem s (regA t layout.reg.CAP)) = ok (core.result.Result.Ok r) ∧
-      r.slot = slot ∧ obj.Slot.cap st slot s = ok (capability.Cap.Vcpu v))
+      r.slot = slot)
     (hG : syscall.handle_syscall st ar s a number ⦃ P ⦄) :
     localvm.handle_vcpu_invocation_local st ar s a number slot v ⦃ r => r.1 = true → P (r.2.1, r.2.2) ⦄ := by
   obtain ⟨⟨b, s', a'⟩, e, -⟩ :=
@@ -461,7 +464,7 @@ theorem vcpu_invocation_local_entry (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {
     (hCn : ∀ t, sched.cur_thread st s = ok t → CnOff (L := L) T Cs Sg s t)
     (hL : ∀ t, sched.cur_thread st s = ok t → ∃ r : cspace.Resolved,
       cspace.lookup_slot st s t (L.mem s (regA t layout.reg.CAP)) = ok (core.result.Result.Ok r) ∧
-      r.slot = slot ∧ obj.Slot.cap st slot s = ok (capability.Cap.Vcpu v))
+      r.slot = slot)
     (hTop : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
       syscall.handle_syscall st ar s a number ⦃ s' _ => Q s' ⦄) :
     localvm.handle_vcpu_invocation_local st ar s a number slot v ⦃ r => r.1 = true → Q r.2.1 ⦄ := by
