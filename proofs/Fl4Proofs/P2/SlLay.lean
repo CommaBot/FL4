@@ -63,6 +63,10 @@ structure RegionOKX (K : KLayout) : Prop where
   /-- Kernel objects are not user memory (P1 `HeapOK`: frames overlap no kernel object; the
   source `E2E.UserOK` cites). -/
   kern : ∀ b, region K b ≠ .none → b ∉ K.user
+  /-- The ASID table (`layout.ks.ASID_TABLE`, the 2048 words at `ks_base + 288000`, beyond `ks`'s
+  bound) lies in no typed object, so it is gate-owned (the p2e VM line's `hTab` [J],
+  P2/AccessVmTail.lean: discharge = extend the ownership map's kernel-state region to it), aligned. -/
+  asidT : ∀ hi : U64, hi.val < 2048 → region K (atAF K.ksb hi) = .none ∧ Aligned (atAF K.ksb hi)
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
