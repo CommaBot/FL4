@@ -129,9 +129,11 @@ fn holds(asid: u64) -> bool {
 pub fn switch(cr3: u64, asid: u64) {
     let pc = percpu::get();
     let t = tag(asid);
-    crate::spec::vm_ibpb_before(cr3 | t);
     if pc.cr3.get() == cr3 | t && percpu::current_asid(percpu::cpu_index()) == asid {
         // Still current: invalidations of it reached this core by IPI.
+        // A deferred VM-exit IBPB is still owed unless this is the guest
+        // monitor's own address space (`spec::ibpb_plan`).
+        crate::spec::vm_ibpb_before(cr3 | t, asid, false);
         return;
     }
     // Publish the ASID before looking at its generation (module comment).
@@ -144,6 +146,10 @@ pub fn switch(cr3: u64, asid: u64) {
         flush = slot.claim(asid, g);
         cell.set(slot);
     }
+    // Before this core runs anything of the new address space: none for
+    // the kernel's root (ASID 0), at once for another domain's, or for a
+    // monitor's whose ASID the flush shows may have been reused.
+    crate::spec::vm_ibpb_before(cr3 | t, asid, flush);
     let (now, v) = plan(cr3, t, flush, pcid(), skim());
     if let Some(p) = now {
         invpcid(1, p, 0);

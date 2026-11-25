@@ -1457,10 +1457,15 @@ fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
 
 /// Before a thread running a VM (`ARMVCPURun`) goes back to its guest,
 /// `exit` checks its bound notification (`fl4_core::vcpu::check`), which
-/// other cores signal, unbind and delete under the serial gate: on several
-/// cores it takes the gate first when it does not hold it (after a local
-/// path), then starts over with the thread current then, and checks before
-/// it gives the gate up. Nothing reads the notification after `unlock`.
+/// other cores signal, unbind and delete under the serial gate: beside the
+/// gate only where the check would change nothing, with the notification
+/// locked (`fl4_sync::local_arm_vm_entry`); otherwise, on several cores, it
+/// takes the gate first when it does not hold it (after a local path), then
+/// starts over with the thread current then, and checks before it gives the
+/// gate up. A stale address space takes the gate whatever the local check
+/// found (`exit_takes_gate`, read after it: a remote call serviced while
+/// it waited may have set it). Nothing reads the notification after
+/// `unlock`.
 #[test]
 fn a_running_vm_checks_its_notification_under_the_gate() {
     let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
@@ -1470,14 +1475,20 @@ fn a_running_vm_checks_its_notification_under_the_gate() {
     let body = &code[start..=end];
     let at = |f: &dyn Fn(&str) -> bool, what: &str| body.iter().position(|l| f(l)).unwrap_or_else(|| panic!("{what} missing from exit"));
     let ct = at(&|l| l.contains("sched::cur_thread(s)"), "the current thread");
-    // Not holding the gate with a thread running a VM: take it, start over.
-    let cond = at(&|l| l.contains("TS_RUNNING_VM") && l.contains("vspace_stale"), "the gate condition");
-    assert!(body[..cond].iter().any(|l| l.contains("gate_held")), "the condition is about holding the gate");
+    let local = at(&|l| l.contains("fl4_sync::local_arm_vm_entry("), "the local check");
+    // Not holding the gate with a stale address space, or a thread running
+    // a VM unchecked: take it, start over.
+    let cond = at(&|l| l.contains("if exit_takes_gate("), "the gate condition");
+    let args = &body[cond..cond + 7];
+    for a in ["pc.gate_held.get()", "pc.vspace_stale.get()", "checked", "TS_RUNNING_VM"] {
+        assert!(args.iter().any(|l| l.contains(a)), "the gate condition reads {a}");
+    }
     let lock = cond + body[cond..].iter().position(|l| l.contains("lock()")).expect("lock");
     assert!(body[lock + 1].contains("continue"), "starts over after taking the gate");
     let check = at(&|l| l.contains("vcpu::check(") && l.contains("ct)"), "the check");
+    assert!(body[check - 1].contains("!checked"), "the gate's check unless the local one ran");
     let unlock = at(&|l| l.contains("unlock()"), "unlock");
-    assert!(ct < cond && lock < check && check < unlock, "the check runs with the gate held, before it is given up");
+    assert!(ct < local && local < cond && lock < check && check < unlock, "the check runs with the gate held, before it is given up");
     assert_eq!(body.iter().filter(|l| l.contains("sched::cur_thread(")).count(), 1, "one current thread per pass");
     for l in &body[unlock..] {
         assert!(!l.contains("bound_ntfn") && !l.contains("NTFN_") && !l.contains("vcpu::check"), "exit reads the notification outside the gate: {l}");
@@ -2779,15 +2790,16 @@ fn the_timer_only_acknowledge_never_takes_an_lpi() {
     assert_eq!(acknowledge(TIMER_PMR, &with_call[..2]), TIMER);
 }
 
-/// The kernel timer's local path (`timer_irq_local_or_serial`) acknowledges
-/// only under the timer-only mask (`gic::ack_timer_only`), never with a
-/// plain `gic::ack()`, and is entered only where `init_cpu`'s check passed
+/// The kernel timer's local path (`timer_irq_local_or_serial_with`, for a
+/// native thread or an `ARMVCPURun` guest) acknowledges only under the
+/// timer-only mask (`gic::ack_timer_only`), never with a plain `gic::ack()`,
+/// and is entered only where `init_cpu`'s check passed
 /// (`gic::can_ack_timer_only`).
 #[test]
 fn the_timer_local_path_acknowledges_only_under_the_mask() {
     let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
     let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap()).collect();
-    let start = code.iter().position(|l| l.contains("fn timer_irq_local_or_serial(")).expect("timer_irq_local_or_serial");
+    let start = code.iter().position(|l| l.contains("fn timer_irq_local_or_serial_with(")).expect("timer_irq_local_or_serial_with");
     let end = start + code[start..].iter().position(|l| l.contains("let body =")).expect("its serial body");
     let local = &code[start..end];
     assert!(local.iter().any(|l| l.contains("gic::ack_timer_only()")), "the local path acknowledges under the mask");
@@ -2799,8 +2811,10 @@ fn the_timer_local_path_acknowledges_only_under_the_mask() {
     assert_eq!(ret.trim(), "return false;", "a spurious timer-only acknowledge leaves the timer to the serial path");
     let calls: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial();")).collect();
     assert_eq!(calls.len(), 2, "fl4_entry and fl4_kernel_irq");
+    let with: Vec<&&str> = code.iter().filter(|l| l.contains("timer_irq_local_or_serial_with(")).collect();
+    assert_eq!(with.len(), 3, "its definition, timer_irq_local_or_serial and fl4_entry_vcpu_run");
     let guards = code.iter().filter(|l| l.contains("gic::can_ack_timer_only()")).count();
-    assert_eq!(guards, 2, "both entries check can_ack_timer_only");
+    assert_eq!(guards, 3, "every entry checks can_ack_timer_only");
 }
 
 // ---- Memory past the window --------------------------------------------------

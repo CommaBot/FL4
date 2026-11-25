@@ -481,6 +481,66 @@ fn svm_software_paging_writes_flush_even_when_the_value_is_unchanged() {
     assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 0);
 }
 
+/// VMX tags guest translations with VPID 1 (fl4-arch-x86_64 `vm`), kept
+/// while `SVM_CPU` names the core: as for SVM's ASID, a software write of
+/// a paging register, FlushTLB and unbinding the VCPU revoke it; other
+/// fields do not. The VMM never controls "enable VPID".
+#[test]
+fn vmx_software_paging_writes_flushes_and_unbinding_revoke_the_vpid() {
+    use fl4_core::vcpu::vmx::*;
+    let (mut s, mut a, t, v) = fixture(1);
+    for (f, flush) in [
+        (GUEST_CR0, true),
+        (GUEST_CR3, true),
+        (GUEST_CR4, true),
+        (GUEST_EFER, true),
+        (GUEST_PAT, true),
+        (GUEST_PDPTE0, true),
+        (GUEST_PDPTE1, true),
+        (GUEST_PDPTE2, true),
+        (GUEST_PDPTE3, true),
+        (CONTROL_ENTRY_CONTROLS, true),
+        (GUEST_RIP, false),
+        (GUEST_RSP, false),
+        (CONTROL_PRIMARY_PROCESSOR_CONTROLS, false),
+    ] {
+        let value = vcpu::read_vmcs(&s, v, f);
+        vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+        t.set_reg(&mut s, reg::R10, f);
+        t.set_reg(&mut s, reg::R8, value);
+        vcpu::decode(&mut s, &mut a, label::X86VCPUWriteVMCS, 2, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+        assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), if flush { 0 } else { 1 }, "field {f:#x}");
+    }
+    // A refused write changes nothing.
+    vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+    t.set_reg(&mut s, reg::R10, GUEST_ACTIVITY);
+    t.set_reg(&mut s, reg::R8, 2);
+    assert!(vcpu::decode(&mut s, &mut a, label::X86VCPUWriteVMCS, 2, v, true, 0, &[Slot(0); 3]).is_err());
+    assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 1);
+    // ReadVMCS of a paging register keeps it.
+    t.set_reg(&mut s, reg::R10, GUEST_CR3);
+    vcpu::decode(&mut s, &mut a, label::X86VCPUReadVMCS, 1, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+    assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 1);
+    vcpu::decode(&mut s, &mut a, label::X86VCPUFlushTLB, 0, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+    assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 0);
+    // "Enable VPID" (secondary bit 5) stays out of the image.
+    t.set_reg(&mut s, reg::R10, CONTROL_SECONDARY_PROCESSOR_CONTROLS);
+    t.set_reg(&mut s, reg::R8, u64::MAX);
+    vcpu::decode(&mut s, &mut a, label::X86VCPUWriteVMCS, 2, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+    assert_eq!(vcpu::read_vmcs(&s, v, CONTROL_SECONDARY_PROCESSOR_CONTROLS) & (1 << 5), 0);
+    assert!(!vcpu::WRITE_FIELDS.contains(&CONTROL_VPID) && !vcpu::READ_FIELDS.contains(&CONTROL_VPID));
+    // Unbinding.
+    for backend in [1, 2] {
+        let (mut s, mut a, t, v) = fixture(backend);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::SVM_CPU, 1);
+        vcpu::detach(&mut s, &mut a, t);
+        assert_eq!(vcpu::bound(&s, t), 0);
+        assert_eq!(vcpu::get(&s, v, vcpu::SVM_CPU), 0, "backend {backend}");
+    }
+}
+
 #[test]
 fn vmcb_bulk_read_rejects_overflow_and_hides_physical_pointers() {
     let (mut s, mut a, t, v) = fixture(2);
