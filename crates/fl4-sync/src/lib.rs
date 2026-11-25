@@ -1267,4 +1267,69 @@ mod tests {
         assert!(matches!(got.map(|sl| sl.cap(&s)), Some(fl4_core::capability::Cap::Thread { ptr }) if ptr == thread(3).0));
         lock::unlock_held(&Atomics, &mut held);
     }
+
+    /// Whether `o`'s lock is free (taken and released at once).
+    fn free(o: u64) -> bool {
+        let mut h = Held::new();
+        let ok = lock::try_lock_object(&Atomics, o, &mut h);
+        lock::unlock_held(&Atomics, &mut h);
+        ok
+    }
+    const OBJ: [u64; 4] = [0x50_0000_0000, 0x50_0000_1000, 0x50_0000_2000, 0x50_0000_3000];
+
+    /// `with_locks` and `vm_local` lock each object once, skipping 0 (a
+    /// guest's own timer names its notification twice), run under all of
+    /// them, and release them and the `held` given; one another core holds,
+    /// or no VCPU, runs nothing and releases `held` too.
+    #[test]
+    fn vm_lock_wrappers_lock_once_and_release_all() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let [a, b, c, d] = OBJ;
+        let pre = || {
+            let mut h = Held::new();
+            assert!(lock::try_lock_object(&Atomics, d, &mut h));
+            h
+        };
+        let seen = with_locks(&Atomics, pre(), &[(0, 0), (a, 8), (b, 64), (a, 8)], |o| {
+            assert!(!free(a) && !free(b) && !free(d));
+            o.to_vec()
+        });
+        assert_eq!(seen, std::vec![(a, 8), (b, 64)]);
+        let mut other = Held::new();
+        assert!(lock::try_lock_object(&Atomics, c, &mut other));
+        assert!(!with_locks(&Atomics, pre(), &[(a, 8), (c, 8), (b, 8)], |_| true));
+        let l = |vcpu| localvm::VmLocks { vcpu, ntfn: b, objects: [(a, 8), (0, 0), (b, 64), (vcpu, 32), (b, 64)] };
+        let mut s = MapStore { m: Default::default(), cpu: 0, reads: Default::default() };
+        let never = |_: &MapStore, _: &[(u64, u64)]| panic!("observed");
+        assert!(!vm_local(&mut s, &Atomics, pre(), &l(0), never, |_| true), "no VCPU");
+        assert!(!vm_local(&mut s, &Atomics, pre(), &l(c), never, |_| true), "a held VCPU");
+        lock::unlock_held(&Atomics, &mut other);
+        let mut obs = std::vec::Vec::new();
+        assert!(vm_local(&mut s, &Atomics, pre(), &l(c), |_, o: &[(u64, u64)]| obs = o.to_vec(), |_| !free(c)));
+        assert_eq!(obs, std::vec![(a, 8), (b, 64), (c, 32)]);
+        assert!(OBJ.iter().all(|&o| free(o)));
+    }
+
+    /// The check before a guest's entry declines while another core holds
+    /// the current thread's bound notification, and leaves no lock.
+    #[test]
+    fn vm_entry_check_declines_on_a_held_notification() {
+        let _guard = LOCK_TABLE_TEST.lock().unwrap_or_else(|e| e.into_inner());
+        let (t, [_, vc, n, _]) = (thread(7), OBJ);
+        let mut s = MapStore { m: Default::default(), cpu: 0, reads: Default::default() };
+        fl4_core::obj::node_set(&mut s, 0, fl4_core::layout::node::CUR_THREAD, t.0);
+        t.set_state(&mut s, fl4_core::sched::TS_RUNNING_VM);
+        t.set_bound_ntfn(&mut s, n);
+        #[cfg(not(feature = "aarch64"))]
+        let (ready, at) = (|s: &MapStore| local_vm_entry(s, &Atomics).is_some(), fl4_core::layout::tcb::VCPU);
+        #[cfg(feature = "aarch64")]
+        let (ready, at) = (|s: &MapStore| local_arm_vm_entry(s, &Atomics), fl4_core::layout::tcb::RUN_VCPU);
+        s.write(t.0 + at, vc);
+        assert!(ready(&s));
+        let mut other = Held::new();
+        assert!(lock::try_lock_object(&Atomics, n, &mut other));
+        assert!(!ready(&s));
+        lock::unlock_held(&Atomics, &mut other);
+        assert!(ready(&s) && free(n));
+    }
 }

@@ -1,30 +1,24 @@
-//! The x86 local paths of hardware virtualization (`fl4_core::localvm`,
-//! run through `fl4-sync`): refinement (from the same state, a local path
-//! that runs ends where the general path does, word for word, with the same
-//! `Arch` effects), decline (one that declines has written only `FAULT_IP`
-//! and the clock, and the general path from there ends as from the start),
-//! and locks (an object another core holds makes the local path give up
-//! having written nothing).
+//! The x86 local paths of hardware virtualization (`fl4_core::localvm`),
+//! composed as `fl4-sync`'s wrappers compose them, without the locks:
+//! refinement (from the same state, a local path that runs ends where the
+//! general path does, word for word, with the same `Arch` effects), decline
+//! (one that declines has written only `FAULT_IP` and the clock, and the
+//! general path from there ends as from the start), and the objects each
+//! path has `fl4-sync` lock (`vm_locks`, `vm_timer_locks`, `vcpu_locks`).
+//! The wrappers' locking itself is `fl4-sync`'s unit tests.
 #![cfg(not(feature = "aarch64"))]
 
 use fl4_abi::label;
 use fl4_abi::syscall as sc;
 use fl4_core::capability::Cap;
 use fl4_core::layout::{ks, node, reg, tcb as tl};
+use fl4_core::localvm::{self, VmLocks, NTFN_BYTES, VCPU_BYTES};
 use fl4_core::machine::{Arch, Store};
 use fl4_core::msginfo::MessageInfo;
 use fl4_core::obj::{ks_set, node_get, node_set, Ntfn, Sc, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
 use fl4_core::vcpu::vmx::*;
-use fl4_core::{interrupt, msg, sched, sporadic, syscall, vcpu};
-use fl4_store::lock::{self, Mem};
+use fl4_core::{cspace, interrupt, localtimer, msg, sched, sporadic, syscall, vcpu};
 use std::collections::HashMap;
-use std::sync::Mutex;
-
-/// The lock table is the process's: tests run one at a time.
-static SERIAL: Mutex<()> = Mutex::new(());
-
-struct Atomics;
-impl Mem for Atomics {}
 
 #[derive(Clone, Default)]
 struct Memory {
@@ -299,8 +293,66 @@ fn declines(
     assert_eq!(la.ev, ga.ev);
 }
 
+/// The objects `l` has `fl4-sync` lock, as (address, bytes): each nonzero
+/// address once, sorted.
+fn locked(l: &VmLocks) -> Vec<(u64, u64)> {
+    let mut v: Vec<(u64, u64)> = l.objects.iter().copied().filter(|&(o, _)| o != 0).collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+/// The slot and VCPU the current thread's capability register names, as
+/// `fl4-sync`'s locked lookup finds them (`cspace::lookup_slot`'s slot);
+/// VCPU 0 for none.
+fn vcpu_cap(s: &Memory) -> (Slot, u64) {
+    let t = sched::cur_thread(s);
+    match cspace::lookup_slot(s, t, t.reg(s, reg::CAP)).ok().map(|r| (r.slot, r.slot.cap(s))) {
+        Some((slot, Cap::Vcpu { ptr })) => (slot, ptr),
+        _ => (Slot(0), 0),
+    }
+}
+
+/// `fl4-sync`'s `local_syscall` for a VM syscall (`local_vm_syscall`) or a
+/// `TCB_SetTimer` (`local_set_timer`), its locks aside: no VCPU (or no
+/// thread cap) declines before anything runs.
+fn local_syscall(number: i64) -> impl Fn(&mut Memory, &mut Machine) -> bool {
+    move |s, a| {
+        let t = sched::cur_thread(s);
+        if number == sc::SysCall && msg::msg_info(s, t).label == label::TCBSetTimer {
+            return match cspace::lookup_slot(s, t, t.reg(s, reg::CAP)).map(|r| r.slot.cap(s)) {
+                Ok(Cap::Thread { ptr }) => localtimer::handle_set_timer_local(s, a, number, Tcb(ptr)),
+                _ => false,
+            };
+        }
+        if !localvm::is_vm_syscall(s, t, number) {
+            return false;
+        }
+        if number == sc::SysVMEnter {
+            let l = localvm::vm_locks(s, localvm::cur_vcpu(s));
+            return l.vcpu != 0 && localvm::handle_vm_enter_local(s, a, number, l.vcpu, l.ntfn);
+        }
+        let (slot, v) = vcpu_cap(s);
+        v != 0 && localvm::handle_vcpu_invocation_local(s, a, number, slot, v)
+    }
+}
+
+/// `fl4-sync`'s `local_vm_entry`, its lock of the notification aside.
+fn local_vm_entry(s: &Memory) -> Option<u64> {
+    let l = localvm::vm_locks(s, localvm::cur_vcpu(s));
+    localvm::vm_entry_ready(s, l.vcpu, l.ntfn)
+}
+
+/// `fl4-sync`'s `local_timer_irq`, its locks aside.
+fn local_timer_irq(s: &mut Memory, a: &mut Machine, irq: u64) -> bool {
+    match localtimer::plan_timer_irq(s, irq) {
+        Some(p) => localtimer::handle_timer_irq_local(s, a, irq, &p),
+        None => false,
+    }
+}
+
 fn vm_enter_local(s: &mut Memory, a: &mut Machine) -> bool {
-    fl4_sync::local_syscall(s, a, &Atomics, sc::SysVMEnter, |_, _| {})
+    local_syscall(sc::SysVMEnter)(s, a)
 }
 fn vm_enter_general(s: &mut Memory, a: &mut Machine) {
     syscall::handle_syscall(s, a, sc::SysVMEnter)
@@ -308,7 +360,6 @@ fn vm_enter_general(s: &mut Memory, a: &mut Machine) {
 
 #[test]
 fn vm_enter_beside_the_gate_refines_handle_syscall() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, a) = fixture();
     CT.set_reg(&mut s, msg::msg_register(0), 0xfff0);
     CT.set_reg(&mut s, msg::msg_register(1), vcpu::PRIMARY_FORCED);
@@ -329,7 +380,6 @@ fn vm_enter_beside_the_gate_refines_handle_syscall() {
 
 #[test]
 fn vm_enter_declines_where_the_general_path_does_more() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (s, a) = fixture();
     let cases: Vec<(&str, Box<dyn Fn(&mut Memory)>)> = vec![
         ("an active notification completes the call", Box::new(|s| Ntfn(N).set_state(s, NTFN_ACTIVE))),
@@ -366,28 +416,39 @@ fn vm_enter_declines_where_the_general_path_does_more() {
     }
 }
 
+/// `SysVMEnter` and a VM exit lock the VCPU and the bound notification (if
+/// any), a VCPU invocation the VCPU alone, the entry check the notification:
+/// what another core may hold to keep the local path off.
 #[test]
-fn a_held_vcpu_or_notification_leaves_vm_enter_to_the_gate_untouched() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-    let (s, a) = fixture();
-    for held_obj in [V, N] {
-        let mut other = lock::Held::new();
-        assert!(lock::try_lock_object(&Atomics, held_obj, &mut other));
-        let mut ls = s.clone();
-        assert!(!vm_enter_local(&mut ls, &mut a.clone()));
-        assert!(ls.diff(&s).is_empty(), "wrote with {held_obj:#x} held elsewhere");
-        lock::unlock_held(&Atomics, &mut other);
-    }
-    // Released: it runs, and leaves no lock behind.
-    let mut ls = s.clone();
-    assert!(vm_enter_local(&mut ls, &mut a.clone()));
-    let mut h = lock::Held::new();
-    assert!(lock::try_lock_object(&Atomics, V, &mut h) && lock::try_lock_object(&Atomics, N, &mut h));
-    lock::unlock_held(&Atomics, &mut h);
+fn vm_paths_lock_the_vcpu_and_the_bound_notification() {
+    let (s, _) = fixture();
+    let l = localvm::vm_locks(&s, localvm::cur_vcpu(&s));
+    assert_eq!((l.vcpu, l.ntfn), (V, N));
+    assert_eq!(locked(&l), vec![(V, VCPU_BYTES), (N, NTFN_BYTES)]);
+    let mut s2 = s.clone();
+    CT.set_bound_ntfn(&mut s2, 0);
+    assert_eq!(locked(&localvm::vm_locks(&s2, localvm::cur_vcpu(&s2))), vec![(V, VCPU_BYTES)]);
+    let l = localvm::vcpu_locks(V);
+    assert_eq!((l.vcpu, l.ntfn), (V, 0));
+    assert_eq!(locked(&l), vec![(V, VCPU_BYTES)]);
+    // No VCPU: no lock set, and `fl4-sync` declines before locking.
+    let mut s3 = s.clone();
+    s3.write(CT.0 + tl::VCPU, 0);
+    assert_eq!(localvm::cur_vcpu(&s3), 0);
+    assert_eq!(localvm::vm_locks(&s3, 0).vcpu, 0);
 }
 
 fn vm_exit_local(irq: u64) -> impl Fn(&mut Memory, &mut Machine) -> bool {
-    move |s, a| fl4_sync::local_vm_exit(s, a, &Atomics, irq, |_, _| {})
+    // `fl4-sync`'s `local_vm_exit` (and `local_vm_timer_irq`), its locks aside.
+    move |s, a| {
+        if irq != syscall::NO_IRQ {
+            let Some(p) = localtimer::plan_timer_irq(s, irq) else { return false };
+            let l = localvm::vm_timer_locks(s, localvm::cur_vcpu(s), &p);
+            return l.vcpu != 0 && localvm::handle_vm_timer_irq_local(s, a, irq, &p, l.ntfn);
+        }
+        let l = localvm::vm_locks(s, localvm::cur_vcpu(s));
+        l.vcpu != 0 && localvm::handle_vcpu_exit_local(s, a, l.vcpu, l.ntfn)
+    }
 }
 fn vm_exit_general(irq: u64) -> impl Fn(&mut Memory, &mut Machine) {
     move |s, a| syscall::handle_vcpu_exit(s, a, irq, false)
@@ -395,7 +456,6 @@ fn vm_exit_general(irq: u64) -> impl Fn(&mut Memory, &mut Machine) {
 
 #[test]
 fn a_guest_exit_beside_the_gate_refines_handle_vcpu_exit() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, a) = fixture();
     exited(&mut s, true);
     let no = syscall::NO_IRQ;
@@ -431,7 +491,6 @@ fn a_guest_exit_beside_the_gate_refines_handle_vcpu_exit() {
 /// core, which signals its bound notification.
 #[test]
 fn the_timer_exit_beside_the_gate_refines_handle_vcpu_exit() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, a) = fixture();
     exited(&mut s, false);
     ks_set(&mut s, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
@@ -460,20 +519,18 @@ fn the_timer_exit_beside_the_gate_refines_handle_vcpu_exit() {
     let mut sig = s.clone();
     Ntfn(N).set_state(&mut sig, NTFN_ACTIVE);
     declines(&sig, &a, vm_exit_local(TIMER_IRQ), vm_exit_general(TIMER_IRQ));
-    // Another core holds N2: nothing written.
-    let mut other = lock::Held::new();
-    assert!(lock::try_lock_object(&Atomics, N2, &mut other));
-    let mut ls = due.clone();
-    assert!(!vm_exit_local(TIMER_IRQ)(&mut ls, &mut a.clone()));
-    assert!(ls.diff(&due).is_empty());
-    lock::unlock_held(&Atomics, &mut other);
+    // The due timer's notification N2 is locked beside V and N.
+    let p = localtimer::plan_timer_irq(&due, TIMER_IRQ).unwrap();
+    let l = localvm::vm_timer_locks(&due, V, &p);
+    assert_eq!((l.vcpu, l.ntfn), (V, N));
+    let objs: Vec<u64> = locked(&l).iter().map(|&(o, _)| o).collect();
+    assert!([V, N, N2].iter().all(|o| objs.contains(o)), "{objs:x?}");
 }
 
 /// The VCPU state invocations of the VCPU's own thread, `SysCall` and
 /// `SysSend`, each against `handle_syscall`, refused ones included.
 #[test]
 fn vcpu_state_invocations_beside_the_gate_refine_handle_syscall() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (s, a) = fixture();
     let regs: Vec<u64> = (0..15).map(|i| 0x1000 + i).collect();
     let cases: Vec<(u64, u64, Vec<u64>)> = vec![
@@ -496,7 +553,7 @@ fn vcpu_state_invocations_beside_the_gate_refine_handle_syscall() {
             let mut s2 = s.clone();
             vcpu::set(&mut s2, V, vcpu::SVM_CPU, CPU + 1);
             syscall_regs(&mut s2, *lbl, *len, VCPU_CPTR, args);
-            let local = |s: &mut Memory, a: &mut Machine| fl4_sync::local_syscall(s, a, &Atomics, number, |_, _| {});
+            let local = local_syscall(number);
             let general = |s: &mut Memory, a: &mut Machine| syscall::handle_syscall(s, a, number);
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| refines(&s2, &a, local, general)));
             assert!(r.is_ok(), "label {lbl}, args {args:x?}, syscall {number}");
@@ -506,20 +563,19 @@ fn vcpu_state_invocations_beside_the_gate_refine_handle_syscall() {
     let mut s2 = s.clone();
     vcpu::set(&mut s2, V, vcpu::SVM_CPU, CPU + 1);
     syscall_regs(&mut s2, label::X86VCPUFlushTLB, 0, VCPU_CPTR, &[]);
-    assert!(fl4_sync::local_syscall(&mut s2, &mut a.clone(), &Atomics, sc::SysCall, |_, _| {}));
+    assert!(local_syscall(sc::SysCall)(&mut s2, &mut a.clone()));
     assert_eq!(vcpu::get(&s2, V, vcpu::SVM_CPU), 0);
 }
 
 /// Another thread's VCPU (whose invocation stalls that thread), a VCPU
-/// invocation with extra caps, a lookup that fails, a held VCPU: no local
-/// path, nothing written.
+/// invocation with extra caps, a lookup that fails: no local path, nothing
+/// written. (A VCPU another core holds: `vcpu_locks` names it.)
 #[test]
 fn other_vcpu_invocations_are_left_to_the_gate_untouched() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (s, a) = fixture();
     let try_local = |s2: &Memory, number: i64| {
         let mut ls = s2.clone();
-        assert!(!fl4_sync::local_syscall(&mut ls, &mut a.clone(), &Atomics, number, |_, _| {}));
+        assert!(!local_syscall(number)(&mut ls, &mut a.clone()));
         assert!(ls.diff(s2).is_empty());
     };
     let mut s2 = s.clone();
@@ -532,13 +588,12 @@ fn other_vcpu_invocations_are_left_to_the_gate_untouched() {
     let mut s4 = s.clone();
     syscall_regs(&mut s4, label::X86VCPUReadVMCS, 1, 0xe, &[GUEST_CR3]);
     try_local(&s4, sc::SysCall);
+    assert_eq!(vcpu_cap(&s4).1, 0, "no VCPU found: declined before anything runs");
     let mut s5 = s.clone();
     syscall_regs(&mut s5, label::X86VCPUReadVMCS, 1, VCPU_CPTR, &[GUEST_CR3]);
-    let mut other = lock::Held::new();
-    assert!(lock::try_lock_object(&Atomics, V, &mut other));
-    try_local(&s5, sc::SysCall);
-    lock::unlock_held(&Atomics, &mut other);
+    assert_eq!(vcpu_cap(&s5).1, V);
     // NBSend or Recv with that label: not a candidate.
+    assert!(!localvm::is_vm_syscall(&s5, CT, sc::SysNBSend) && !localvm::is_vm_syscall(&s5, CT, sc::SysRecv));
     try_local(&s5, sc::SysNBSend);
 }
 
@@ -547,12 +602,11 @@ fn other_vcpu_invocations_are_left_to_the_gate_untouched() {
 /// (or none), or the gate when `vcpu::check` or `ept::mark_core` would act.
 #[test]
 fn vm_entry_checks_beside_the_gate_write_nothing() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, mut a) = fixture();
     running_vm(&mut s);
     let ready = |s: &Memory| {
         let before = s.clone();
-        let r = fl4_sync::local_vm_entry(s, &Atomics);
+        let r = local_vm_entry(s);
         assert!(s.diff(&before).is_empty());
         r
     };
@@ -588,11 +642,8 @@ fn vm_entry_checks_beside_the_gate_write_nothing() {
     let mut r = serial.clone();
     CT.set_state(&mut r, sched::TS_RUNNING);
     assert_eq!(ready(&r), None);
-    // The notification held by another core: the gate.
-    let mut other = lock::Held::new();
-    assert!(lock::try_lock_object(&Atomics, N, &mut other));
-    assert_eq!(ready(&serial), None);
-    lock::unlock_held(&Atomics, &mut other);
+    // The notification it locks (another core holding it: the gate).
+    assert_eq!(localvm::vm_locks(&serial, localvm::cur_vcpu(&serial)).ntfn, N);
     assert_eq!(node_get(&serial, CPU, node::CUR_THREAD), CT.0);
 }
 
@@ -602,51 +653,48 @@ fn vm_entry_checks_beside_the_gate_write_nothing() {
 /// and a timer interrupt while it runs user code go beside the gate.
 #[test]
 fn a_vcpu_threads_own_timer_and_timer_interrupt_go_beside_the_gate() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, a) = fixture();
     const SELF_CPTR: u64 = 5;
     Slot::index(ROOT_CNODE, SELF_CPTR).set_cap(&mut s, Cap::Thread { ptr: CT.0 });
     let mut st = s.clone();
     syscall_regs(&mut st, label::TCBSetTimer, 2, SELF_CPTR, &[NOW + 10_000, 9]);
-    let local = |s: &mut Memory, a: &mut Machine| fl4_sync::local_syscall(s, a, &Atomics, sc::SysCall, |_, _| {});
     let general = |s: &mut Memory, a: &mut Machine| syscall::handle_syscall(s, a, sc::SysCall);
-    let (ls, _) = refines(&st, &a, local, general);
+    let (ls, _) = refines(&st, &a, local_syscall(sc::SysCall), general);
     assert_eq!(CT.timer_deadline(&ls), NOW + 10_000);
     // The timer interrupt in user code, with its own timer armed (not due).
     let mut ti = ls.clone();
     ks_set(&mut ti, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
-    let local = |s: &mut Memory, a: &mut Machine| fl4_sync::local_timer_irq(s, a, &Atomics, TIMER_IRQ, |_, _| {});
+    let local = |s: &mut Memory, a: &mut Machine| local_timer_irq(s, a, TIMER_IRQ);
     let general = |s: &mut Memory, a: &mut Machine| syscall::handle_interrupt_entry(s, a, TIMER_IRQ);
     refines(&ti, &a, local, general);
     // In `TS_RUNNING_VM` it is not: that is the VM exit's path.
     let mut vm = ti.clone();
     running_vm(&mut vm);
     let mut lv = vm.clone();
-    assert!(!fl4_sync::local_timer_irq(&mut lv, &mut a.clone(), &Atomics, TIMER_IRQ, |_, _| {}));
+    assert!(!local_timer_irq(&mut lv, &mut a.clone(), TIMER_IRQ));
     assert!(lv.diff(&vm).is_empty());
 }
 
 /// A vCPU thread whose own guest timer is the earliest (`TIMER_MIN`, its
 /// bound notification in the timer plan) still takes a kernel timer exit
-/// beside the gate: the notification is locked once.
+/// beside the gate: the notification is named twice (the plan's and the
+/// thread's), which `fl4-sync` locks once.
 #[test]
 fn a_timer_exit_with_the_guests_own_timer_armed_goes_beside_the_gate() {
-    let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let (mut s, a) = fixture();
     exited(&mut s, false);
     ks_set(&mut s, ks::IRQ_STATE + TIMER_IRQ * 8, interrupt::IRQ_TIMER);
     fl4_core::timer::insert(&mut s, CT, NOW + 10_000, 9);
     assert_eq!(node_get(&s, CPU, node::TIMER_MIN), CT.0);
-    let p = fl4_core::localtimer::plan_timer_irq(&s, TIMER_IRQ).unwrap();
+    let p = localtimer::plan_timer_irq(&s, TIMER_IRQ).unwrap();
     assert!(p.objects[..p.n].iter().any(|&(o, _)| o == N), "the plan holds the guest's notification");
+    let l = localvm::vm_timer_locks(&s, V, &p);
+    assert_eq!(l.objects.iter().filter(|&&(o, _)| o == N).count(), 2);
+    assert_eq!(locked(&l).iter().filter(|&&(o, _)| o == N).count(), 1);
     let (ls, _) = refines(&s, &a, vm_exit_local(TIMER_IRQ), vm_exit_general(TIMER_IRQ));
     assert_eq!(CT.state(&ls), sched::TS_RUNNING_VM);
     // Due: its signal is the gate's (the guest's notification, `report`).
     let mut due = s.clone();
     fl4_core::timer::insert(&mut due, CT, NOW - 1, 9);
     declines(&due, &a, vm_exit_local(TIMER_IRQ), vm_exit_general(TIMER_IRQ));
-    // Nothing left locked.
-    let mut h = lock::Held::new();
-    assert!(lock::try_lock_object(&Atomics, N, &mut h) && lock::try_lock_object(&Atomics, V, &mut h));
-    lock::unlock_held(&Atomics, &mut h);
 }
