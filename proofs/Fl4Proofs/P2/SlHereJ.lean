@@ -14,17 +14,23 @@ prefix state `X` of any prefix run. The prefix always runs (`lp_ex`: `StoreTotal
   word (`ScExtra0.bound`, `BoundInv.sact`, `SCsOK.act`); used by `dsc_of`'s pattern for
   `rh_of` (the release head: `SchedQueuesInv.release` / `inR` / `released`, `BoundInv.r`) and
   `usc_of` (the replied thread: `ReplyInv.back`, blocked on reply or receive).
+  Their SCs' `CORE` words come from `core_of` (P2/SlAccJ.lean, P1's `ScAff`): the release head's
+  `AFFINITY` is this core (`inR`), the replied thread's is by `SlHere.usc`'s hypothesis (line
+  slco; formerly the premises `SlHereJ.rhc` / `uco`).
+* `fbuf_of` / `rbuf_of`: `SlAccJ.fbuf` (m61's `FaultEnt.hbuf`) and `SlAccJ.rbuf` (P3's
+  `JAtZ.rbufAt` at the entry state, the buffer words carried to the prefix state by `lp_mem`).
 
 `slHere_of` assembles `SlHere` from the remaining `SlHereJ`; `sl_pathObl_h` / `sl_pathSide_h`
 are `sl_pathObl_j` / `sl_pathSide_j` with `SlHere` so replaced (extra: `StoreTotal`, an Arch
 state `a0` to run the prefix from).
 
-Premises: `SlHereJ` (`ksb`, `cpu` [J] P3 placement; `rhc`, `uco` [J] SC `CORE` words — the
-missing P1 fact of `SlAccJ.dco`; `cs`, `csc` [J] — `CUR_SC` / the current thread's SC: no
+Premises: `SlHereJ` (`ksb`, `cpu` [J] P3 placement; `cs`, `csc` [J] — `CUR_SC` / the current thread's SC: no
 P1 invariant makes `CUR_SC` active (P1's entries take `L.cscW s ∈ Ac` as a hypothesis,
-P1/QueueBudget2.lean), plus the `CORE` word; `ep` [J] fl4-sync).
+P1/QueueBudget2.lean), plus the `CORE` word; `ep` [J] fl4-sync); `SlAccK` (`pool` [J], `frl` [P],
+`jz` [J] the entry is a `JAtZ` state with the layout's user words).
 -/
 import Fl4Proofs.P2.SlAccJ
+import Fl4Proofs.P3.XTopJointRBuf
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -140,12 +146,12 @@ theorem scHere_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) (hSe : SlSets K T Rp
   rw [← em]
   exact hmx
 
-/-- **`SlHere.rh` from P1's release queues**, given the head's SC's `CORE` word. -/
+/-- **`SlHere.rh` from P1's release queues** (the head's SC's `CORE` word by `core_of`: the
+head is in this core's release queue, so its `AFFINITY` is this core, `SchedQueuesInv.inR`). -/
 theorem rh_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) (hSe : SlSets K T Rp Scs Nt H Z) {s : S}
     (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (hk : L.ksb s = K.ksb) (hcp : (L.cpu s).val < K.ncores) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1))
-    (h0 : L.mem s (rhA (L := L) s) ≠ 0#u64)
-    (hco : L.mem s (fld (L.mem s (scA (L.mem s (rhA (L := L) s)))) 16#u64) = L.cpu s) :
+    (h0 : L.mem s (rhA (L := L) s) ≠ 0#u64) :
     K.heap (L.mem s (rhA (L := L) s)) = some .tcb ∧
       ScHere (st := st) K Z Scs s (L.mem s (scA (L.mem s (rhA (L := L) s)))) := by
   obtain ⟨⟨Q, R, hSQ⟩, hB, -, -, -⟩ := E.hI a X a1 LP
@@ -173,20 +179,23 @@ theorem rh_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) (hSe : SlSets K T Rp Scs
     have hfl : (L.mem X (inqA y) &&& sched.Q_RELEASE) ≠ 0#u64 :=
       (hSQ.released y hyT).2 (by rw [haf]; exact hyR)
     rw [eRh] at e
-    rw [e] at hco ⊢
-    exact ⟨hSe.tcb hyT, scHere_of ar hA hX hSe E hk hcp LP hyT (Or.inr (Or.inl hfl)) (hB.r y hyT hfl) hco⟩
+    rw [e]
+    have hs0 := hB.r y hyT hfl
+    exact ⟨hSe.tcb hyT, scHere_of ar hA hX hSe E hk hcp LP hyT (Or.inr (Or.inl hfl)) hs0
+      (core_of ar hA hX hSe E hk hcp LP hyT hs0 (haf.trans cX))⟩
 
-/-- **`SlHere.usc` from P1's reply invariant**, given the SC's `CORE` word. -/
+/-- **`SlHere.usc` from P1's reply invariant** (the SC's `CORE` word by `core_of`, from the
+thread's `AFFINITY`). -/
 theorem usc_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) (hSe : SlSets K T Rp Scs Nt H Z) {s : S}
     (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
     (N : SlEnt (st := st) K Locks found s)
     (hk : L.ksb s = K.ksb) (hcp : (L.cpu s).val < K.ncores) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1))
     (hS : ¬ SlTrap st s) (lv : SlLive st found.1 s) (hs0 : L.mem s (scA (slThr st found.1 s)) ≠ 0#u64)
-    (hco : L.mem s (fld (L.mem s (scA (slThr st found.1 s))) 16#u64) = L.cpu s) :
+    (haf : L.mem s (affA (slThr st found.1 s)) = L.cpu s) :
     ScHere (st := st) K Z Scs s (L.mem s (scA (slThr st found.1 s))) := by
   have et : slThr st found.1 s = L.mem s (rTcbA found.1) := by unfold slThr; rw [if_neg hS]
   have lv' : L.mem s (rTcbA found.1) ≠ 0#u64 := by unfold SlLive at lv; rw [if_neg hS] at lv; exact lv
-  rw [et] at hs0 hco ⊢
+  rw [et] at hs0 haf ⊢
   obtain ⟨-, -, hXI, -, -⟩ := E.hI a X a1 LP
   have hrp := N.hrp hS
   have hRp : found.1 ∈ Rp := by
@@ -208,8 +217,12 @@ theorem usc_of (hA : P0.ArchTotal ar) (hX : RegionOKX K) (hSe : SlSets K T Rp Sc
   have eSc : L.mem X (scA (L.mem s (rTcbA found.1))) = L.mem s (scA (L.mem s (rTcbA found.1))) :=
     lp_mem ar hA E.hT E.hN E.hcT LP (hX.tcbW _ ht 3464#u64 (by simp) (by simp) (by simp)).2.2
       (not_slDS_tcb hX E.hN E.hT E.hcT E.hSt.1 hk hcp ht (by simp) (by simp) (by simp) (by simp))
-  exact scHere_of ar hA hX hSe E hk hcp LP hT' (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hBR)))))
-    (by rw [eSc]; exact hs0) hco
+  have eAf : L.mem X (affA (L.mem s (rTcbA found.1))) = L.mem s (affA (L.mem s (rTcbA found.1))) :=
+    lp_mem ar hA E.hT E.hN E.hcT LP (hX.tcbW _ ht 3520#u64 (by simp) (by simp) (by simp)).2.2
+      (not_slDS_tcb hX E.hN E.hT E.hcT E.hSt.1 hk hcp ht (by simp) (by simp) (by simp) (by simp))
+  have hs0X : L.mem X (scA (L.mem s (rTcbA found.1))) ≠ 0#u64 := by rw [eSc]; exact hs0
+  exact scHere_of ar hA hX hSe E hk hcp LP hT' (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hBR))))) hs0X
+    (core_of ar hA hX hSe E hk hcp LP hT' hs0X (by rw [eAf]; exact haf))
 
 /-- **What stays of `SlHere`** once its P1 parts come from the entry's invariants (`slHere_of`). -/
 structure SlHereJ (K : KLayout) (Z : U64 → Nat) (Scs : Set U64) (found : U64 × U64) (s : S) : Prop where
@@ -217,20 +230,12 @@ structure SlHereJ (K : KLayout) (Z : U64 → Nat) (Scs : Set U64) (found : U64 �
   ksb : L.ksb s = K.ksb
   /-- [J] as `SlHere.cpu`. -/
   cpu : (L.cpu s).val < K.ncores
-  /-- [J] the release head's SC has this core in its `CORE` word (the P1 fact `SlAccJ.dco`
-  names is missing). -/
-  rhc : L.mem s (rhA (L := L) s) ≠ 0#u64 →
-    L.mem s (fld (L.mem s (scA (L.mem s (rhA (L := L) s)))) 16#u64) = L.cpu s
   /-- [J] as `SlHere.cs` (no P1 invariant makes `CUR_SC` active, nor relates its `CORE` word to
   this core). -/
   cs : ScHere (st := st) K Z Scs s (L.cscW s)
   /-- [J] as `SlHere.csc` (the current thread's SC: active only under `ACTION_RESUME_CURRENT`,
-  `BoundInv.resume`, which the entry does not know; `CORE` word as `rhc`). -/
+  `BoundInv.resume`, which the entry does not know). -/
   csc : ¬ SlTrap st s → ScHere (st := st) K Z Scs s (L.mem s (scA (L.curW s)))
-  /-- [J] ReplyRecv: the replied thread's nonzero SC has this core in its `CORE` word (as `rhc`). -/
-  uco : ¬ SlTrap st s → SlLive st found.1 s → L.mem s (affA (slThr st found.1 s)) = L.cpu s →
-    L.mem s (scA (slThr st found.1 s)) ≠ 0#u64 →
-    L.mem s (fld (L.mem s (scA (slThr st found.1 s))) 16#u64) = L.cpu s
   /-- [J] as `SlHere.ep`. -/
   ep : ¬ SlTrap st s → K.heap found.2 = some .ep
 
@@ -246,10 +251,10 @@ theorem slHere_of (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hX : RegionOK
   { ksb := Hj.ksb
     cpu := Hj.cpu
     tm := tm_of ar hA hX hSe E Hj.ksb Hj.cpu LP
-    rh := fun h => rh_of ar hA hX hSe E Hj.ksb Hj.cpu LP h (Hj.rhc h)
+    rh := fun h => rh_of ar hA hX hSe E Hj.ksb Hj.cpu LP h
     cs := Hj.cs
     csc := Hj.csc
-    usc := fun hS lv ha h0 => usc_of ar hA hX hSe E N Hj.ksb Hj.cpu LP hS lv h0 (Hj.uco hS lv ha h0)
+    usc := fun hS lv ha h0 => usc_of ar hA hX hSe E N Hj.ksb Hj.cpu LP hS lv h0 ha
     ntf := fun _ h => ntf_of ar hA hX hSe E Hj.ksb Hj.cpu LP h
     ep := Hj.ep }
 
@@ -267,7 +272,7 @@ theorem fbuf_of (hUu : ∀ b ∈ U, b ∈ K.user) {s : S}
   have hu := hb hne i hi
   exact ⟨(FE.hU _ hu).1.1, hUu _ hu⟩
 
-/-- **What stays of `SlAccJ`** once `fbuf` comes from `fbuf_of`. -/
+/-- **What stays of `SlAccJ`** once `fbuf` comes from `fbuf_of` and `rbuf` from `rbuf_of`. -/
 structure SlAccK (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64) (s : S) : Prop where
   /-- [J] as `SlAccIn.pool`. -/
   pool : ∀ hi : U64, hi.val < 2048 → L.mem s (atAF K.ksb hi) ≠ 0#u64 → ∀ lo : U64, lo.val < 512 →
@@ -275,20 +280,62 @@ structure SlAccK (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64)
   /-- [P] as `SlAccJ.frl`. -/
   frl : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
     FaultChecks st X (L.curW s) ptr badge dest r → Locks s r
-  /-- [J] as `SlAccJ.dco` (missing P1 fact). -/
-  dco : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
-    FaultChecks st X (L.curW s) ptr badge dest r → L.mem s (fld (L.mem s (scA dest)) 16#u64) = L.cpu s
-  /-- [J] as `SlAccIn.rbuf`: no P1 fact at the prefix state covers the current thread's IPC
-  buffer in the ReplyRecv arm (`RRPl` has none; m61's `FaultEnt.hbuf` is the trap arm's
-  receiver only). Needed: `msg.lookup_ipc_buffer st X false (L.curW s) ⦃ b => BufOK U b ⦄`
-  (e.g. a field of `RRPl`, P1/FastRRFoot.lean, or of `SlPreB`), then as `fbuf_of`. -/
-  rbuf : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ buf,
-    msg.lookup_ipc_buffer st X false (L.curW s) = ok buf → BufW (fun b => Aligned b ∧ b ∈ K.user) buf
+  /-- [J] the entry state is a state of the joint invariant (`P3.JAtZ`) whose user words
+  (`Z.B`) are the layout's, as for `OwnMap.layoutJ` (P2/OwnJAtZ.lean). Gives `SlAccJ.rbuf`
+  (`rbuf_of`, P3's `JAtZ.rbufAt`). -/
+  jz : ∃ (A' : Type) (arI : machine.Arch A') (AR : A' → Fl4Spec.Cr3 → Prop) (Zx : Fl4Proofs.P3.XSets)
+    (Hx : Heap) (Cx Ax : Set U64) (Lst : U64 → List U64) (D : Set U64) (a' : A') (σ : Fl4Spec.State Unit),
+    Fl4Proofs.P3.JAtZ (L := L) arI AR Zx Hx Cx Ax Lst D s a' σ ∧ K.user = {b | ∃ wp ∈ Zx.B, wp.1 = b}
 
-theorem slAccJ_of (hUu : ∀ b ∈ U, b ∈ K.user) {s : S}
+/-- **`SlAccJ.rbuf` from the joint invariant** (line slco, P3's `JAtZ.rbufAt`): the current
+thread's `IPC_BUFFER` word and its buffer slot's two words are not prefix words (a TCB word from
+offset 192, a TCB slot's words: `not_slDS_tcb` / `not_slDS_reg`), so the prefix state agrees with
+the entry on them (`lp_mem`). -/
+theorem rbuf_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) {s : S}
     (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
-    (Ak : SlAccK (st := st) ar K Locks found s) : SlAccJ (st := st) ar K Locks found s :=
-  { pool := Ak.pool, frl := Ak.frl, dco := Ak.dco, rbuf := Ak.rbuf
+    (hk : L.ksb s = K.ksb) (hcp : (L.cpu s).val < K.ncores)
+    {A' : Type} {arI : machine.Arch A'} {AR : A' → Fl4Spec.Cr3 → Prop} {Zx : Fl4Proofs.P3.XSets}
+    {Hx : Heap} {Cx Ax : Set U64} {Lst : U64 → List U64} {D : Set U64} {a' : A'} {σ : Fl4Spec.State Unit}
+    (J : Fl4Proofs.P3.JAtZ (L := L) arI AR Zx Hx Cx Ax Lst D s a' σ)
+    (hKu : K.user = {b | ∃ wp ∈ Zx.B, wp.1 = b})
+    {a X a1} (LP : LocalPre (st := st) ar s a (X, a1)) {buf : U64}
+    (hb : msg.lookup_ipc_buffer st X false (L.curW s) = ok buf) :
+    BufW (fun b => Aligned b ∧ b ∈ K.user) buf := by
+  have hc := E.hSt.1
+  have e1 : L.mem X (ibA (L.curW s)) = L.mem s (ibA (L.curW s)) :=
+    lp_mem ar hA E.hT E.hN E.hcT LP (hX.tcbW _ hc 3512#u64 (by simp) (by simp) (by simp)).2.2
+      (not_slDS_tcb hX E.hN E.hT E.hcT hc hk hcp hc (by simp) (by simp) (by simp) (by simp))
+  have es : sbA (L.curW s) = slotIdx (L.curW s) 2#u64 := by
+    unfold sbA slotIdx
+    congr 1
+    simp [layout.tcb.SLOT_BUFFER, layout.cte.SIZE]
+  obtain ⟨hsl, -, r8, -, al0, al8⟩ := hX.tslot _ hc 2#u64 (by simp)
+  have r0 := hK.slot _ hsl
+  have e2 : L.mem X (sbA (L.curW s)) = L.mem s (sbA (L.curW s)) := by
+    rw [es]
+    exact lp_mem ar hA E.hT E.hN E.hcT LP al0 (not_slDS_reg hX E.hN E.hT E.hcT hc hk hcp
+      (by rw [r0]; intro c h; cases h) (by rw [r0]; intro h; cases h))
+  have e3 : L.mem X (core.num.U64.wrapping_add (sbA (L.curW s)) 8#u64) =
+      L.mem s (core.num.U64.wrapping_add (sbA (L.curW s)) 8#u64) := by
+    rw [es]
+    exact lp_mem ar hA E.hT E.hN E.hcT LP al8 (not_slDS_reg hX E.hN E.hT E.hcT hc hk hcp
+      (by rw [r8]; intro c h; cases h) (by rw [r8]; intro h; cases h))
+  have hB := J.rbufAt e1 e2 e3 hb
+  intro hne i hi
+  have h := hB hne i hi
+  simp only [Fl4Proofs.P3.ZUser, Set.mem_setOf_eq] at h
+  refine ⟨h.1, ?_⟩
+  rw [hKu]
+  exact h.2
+
+theorem slAccJ_of (hA : P0.ArchTotal ar) (hK : RegionOK K) (hX : RegionOKX K) (hUu : ∀ b ∈ U, b ∈ K.user)
+    {s : S} (E : SlPreB (st := st) ar K Locks m0 n found T Cs Ω U Sg Rp Scs Nt Ac H Z s)
+    (Hj : SlHereJ (st := st) K Z Scs found s)
+    (Ak : SlAccK (st := st) ar K Locks found s) : SlAccJ (st := st) ar K Locks found s := by
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, J, hKu⟩ := Ak.jz
+  exact
+  { pool := Ak.pool, frl := Ak.frl
+    rbuf := fun _ a X a1 LP buf hb => rbuf_of ar hA hK hX E Hj.ksb Hj.cpu J hKu LP hb
     fbuf := fun hS a X a1 LP {_p _b _d _r} hc rb hrb => fbuf_of ar hUu E hS LP hc rb hrb }
 
 variable {p : SProg Bool}
@@ -310,7 +357,7 @@ theorem sl_pathObl_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regio
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
   sl_pathObl_j ar hA hK hX hU hFp hz hm hSe hPE hE
     (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP))
-    (fun s hP => slAccJ_of ar hUu (hPE s hP) (hAk s hP))
+    (fun s hP => slAccJ_of ar hA hK hX hUu (hPE s hP) (hHj s hP) (hAk s hP))
 
 /-- **`PathSide` of the syscall entry**: `sl_pathSide_j` with `SlHere` from `slHere_of`. -/
 theorem sl_pathSide_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : RegionOK K)
@@ -333,7 +380,7 @@ theorem sl_pathSide_h (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hK : Regi
       (SlRS (st := st) K Locks) (SlWS (st := st) K Locks) (SlDS (L := L)) :=
   sl_pathSide_j ar hSt hA hK hX hU hFp hz hm hSe hPE hE
     (fun s hP => slHere_of ar hSt hA hX hSe a0 (hPE s hP) (hE s hP) (hHj s hP))
-    (fun s hP => slAccJ_of ar hUu (hPE s hP) (hAk s hP)) huf
+    (fun s hP => slAccJ_of ar hA hK hX hUu (hPE s hP) (hHj s hP) (hAk s hP)) huf
 
 end
 
