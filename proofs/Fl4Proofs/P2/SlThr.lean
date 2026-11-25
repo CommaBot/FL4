@@ -44,11 +44,19 @@ theorem resPtr_ok {c : Result capability.Cap} {k : capability.Cap} (h : c = ok k
   rw [dif_pos he]
   exact congrArg capPtr (ok_inj_ff ((Classical.choose_spec he).symm.trans h))
 
+/-- A decoded cap is an endpoint cap. -/
+def IsEp (c : Result capability.Cap) : Prop :=
+  ∃ ptr b x y g gr, c = ok (capability.Cap.Endpoint ptr b x y g gr)
+
 variable (st) in
 open Classical in
-/-- **The decided thread** at the entry state (module docstring). -/
+/-- **The decided thread** at the entry state (module docstring; `0` when the fault-handler cap
+is not an endpoint, where the trap arm declines without reading a thread). -/
 noncomputable def slThr (rp : U64) (s : S) : U64 :=
-  if SlTrap st s then L.mem s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) else L.mem s (rTcbA rp)
+  if SlTrap st s then
+    (if IsEp (obj.Slot.cap st (fhA (L := L) s) s) then
+      L.mem s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) else 0#u64)
+  else L.mem s (rTcbA rp)
 
 variable (st) in
 open Classical in
@@ -56,7 +64,8 @@ open Classical in
 a thread, P1), the ReplyRecv arm's reply object names a thread (`≠ 0`). Only then does a run
 read the decided thread's words. -/
 def SlLive (rp : U64) (s : S) : Prop :=
-  if SlTrap st s then obj.Ep.state st (resPtr (obj.Slot.cap st (fhA (L := L) s) s)) s = ok obj.EP_RECV
+  if SlTrap st s then IsEp (obj.Slot.cap st (fhA (L := L) s) s) ∧
+    obj.Ep.state st (resPtr (obj.Slot.cap st (fhA (L := L) s) s)) s = ok obj.EP_RECV
   else L.mem s (rTcbA rp) ≠ 0#u64
 
 /-- `Ep.state` reads the endpoint's tail-state word. -/
@@ -81,7 +90,7 @@ structure SlThrIn (K : KLayout) (Locks : S → U64 → Prop) (rp : U64) (s : S) 
     SlRS (st := st) K Locks s (core.num.U64.wrapping_add (fhA (L := L) s) 8#u64) ∧
     ¬ SlDS (L := L) s (fhA (L := L) s) ∧ ¬ SlDS (L := L) s (core.num.U64.wrapping_add (fhA (L := L) s) 8#u64)
   /-- [W] the handler endpoint's head and tail-state words (fl4-sync locks that endpoint). -/
-  eh : SlTrap st s → SlRS (st := st) K Locks s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
+  eh : SlTrap st s → IsEp (obj.Slot.cap st (fhA (L := L) s) s) → SlRS (st := st) K Locks s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
     ¬ SlDS (L := L) s (epHeadA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
     SlRS (st := st) K Locks s (epTSA (resPtr (obj.Slot.cap st (fhA (L := L) s) s))) ∧
     ¬ SlDS (L := L) s (epTSA (resPtr (obj.Slot.cap st (fhA (L := L) s) s)))
@@ -201,7 +210,10 @@ theorem slThr_alt {rp : U64} {cl : U64 → U64 → U64} {ko' : U64 → Fl4Proofs
   by_cases hS : SlTrap st s
   · rw [if_pos (hT.2 hS), if_pos hS]
     obtain ⟨f1, f2, -, -⟩ := I.fh hS
-    rw [hf, cap_congr (Al.read _ f1) (Al.read _ f2), Al.read _ (I.eh hS).1]
+    rw [hf, cap_congr (Al.read _ f1) (Al.read _ f2)]
+    by_cases hE : IsEp (obj.Slot.cap st (fhA (L := L) s) s)
+    · rw [if_pos hE, if_pos hE, Al.read _ (I.eh hS hE).1]
+    · rw [if_neg hE, if_neg hE]
   · rw [if_neg (fun h => hS (hT.1 h)), if_neg hS, Al.read _ (I.rt hS).1]
 
 set_option maxHeartbeats 4000000 in
@@ -237,16 +249,19 @@ theorem slThr_acc (hA : P0.ArchTotal ar) {cl : U64 → U64 → U64} {ko' : U64 �
     obtain ⟨f1, f2, f3, f4⟩ := I.fh hS
     rw [cap_congr (lm _ f1 f3) (lm _ f2 f4)] at hcap
     have hp : resPtr (obj.Slot.cap st (fhA (L := L) s) s) = ptr := resPtr_ok hcap
-    have e2 := I.eh hS
+    have hE : IsEp (obj.Slot.cap st (fhA (L := L) s) s) := ⟨_, _, _, _, _, _, hcap⟩
+    have e2 := I.eh hS hE
     rw [hp] at e2
     have h1 := obj.Ep.head.spec' (st := st) X ptr
     rw [hc.head, WP.spec_ok] at h1
     have hd : slThr st found.1 s = dest := by
       unfold slThr
-      rw [if_pos hS, hp, h1, lm _ e2.1 e2.2.1]
+      rw [if_pos hS, if_pos hE, hp, h1, lm _ e2.1 e2.2.1]
     have lv : SlLive st found.1 s := by
       unfold SlLive
-      rw [if_pos hS, hp, ← ep_state_congr (lm _ e2.2.2.1 e2.2.2.2)]
+      rw [if_pos hS]
+      refine ⟨hE, ?_⟩
+      rw [hp, ← ep_state_congr (lm _ e2.2.2.1 e2.2.2.2)]
       exact hc.ep
     have af := I.af lv
     rw [hd] at af ⊢

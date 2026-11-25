@@ -261,10 +261,11 @@ theorem slThr_hd_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
   obtain ⟨f1, f2, f3, f4⟩ := I.fh hS
   rw [cap_congr (lp_mem ar hA hT hN hcT LP f1.1 f3) (lp_mem ar hA hT hN hcT LP f2.1 f4)] at hc
   have hp : resPtr (obj.Slot.cap st (fhA (L := L) s) s) = ptr := resPtr_ok hc
-  have e2 := I.eh hS
+  have hE : IsEp (obj.Slot.cap st (fhA (L := L) s) s) := ⟨_, _, _, _, _, _, hc⟩
+  have e2 := I.eh hS hE
   rw [hp] at e2
   unfold slThr
-  rw [if_pos hS, hp]
+  rw [if_pos hS, if_pos hE, hp]
   exact lp_mem ar hA hT hN hcT LP e2.1.1 e2.2.1
 
 /-- The trap arm's handler endpoint in `RECV` at the prefix state: the decided thread is live. -/
@@ -277,10 +278,13 @@ theorem slLive_trap (hA : P0.ArchTotal ar) {s X : S} {a a1 : A} {rp : U64}
   obtain ⟨f1, f2, f3, f4⟩ := I.fh hS
   rw [cap_congr (lp_mem ar hA hT hN hcT LP f1.1 f3) (lp_mem ar hA hT hN hcT LP f2.1 f4)] at hc
   have hp : resPtr (obj.Slot.cap st (fhA (L := L) s) s) = ptr := resPtr_ok hc
-  have e2 := I.eh hS
+  have hE : IsEp (obj.Slot.cap st (fhA (L := L) s) s) := ⟨_, _, _, _, _, _, hc⟩
+  have e2 := I.eh hS hE
   rw [hp] at e2
   unfold SlLive
-  rw [if_pos hS, hp, ← ep_state_congr (lp_mem ar hA hT hN hcT LP e2.2.2.1.1 e2.2.2.2)]
+  rw [if_pos hS]
+  refine ⟨hE, ?_⟩
+  rw [hp, ← ep_state_congr (lp_mem ar hA hT hN hcT LP e2.2.2.1.1 e2.2.2.2)]
   exact hst
 
 /-- A nonzero replied thread is live. -/
