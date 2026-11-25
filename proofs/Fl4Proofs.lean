@@ -1723,3 +1723,5 @@ import Fl4Proofs.P3.StPostReply
 import Fl4Proofs.P3.StPostTmo
 import Fl4Proofs.P3.StPostInv
 import Fl4Proofs.P3.StPostMid
+import Fl4Proofs.P2.ProgReify
+import Fl4Proofs.P2.ProgReifyLeaf
