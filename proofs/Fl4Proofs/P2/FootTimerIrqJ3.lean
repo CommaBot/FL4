@@ -264,7 +264,7 @@ noncomputable def irq_localPathJ3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO 
     RS := MaxR K st lk
     WS := MaxW K st lk
     DS := IrqDec st
-    isProg := hp
+    isProg := PathObl.IsProg.on hp _ _ _
     obl := irq_obl_of_pt fun _ h0 => irq_pathObl_J3 ar hA hK hUO hp hz hm hPL h0
     side := irq_pathSide_J3 ar hA hK hUO hp hz hm hEU hlk hPL
     once := hro

@@ -258,7 +258,7 @@ noncomputable def irq_localPathJC (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO 
     RS := MaxR K st lk
     WS := MaxW K st lk
     DS := IrqDec st
-    isProg := hp
+    isProg := PathObl.IsProg.on hp _ _ _
     obl := irq_pathObl ar hA hK hUO (fun s h => (hEM s h).ent) (fun mm => hp A ar mm) hz hm
       (fun s h q hq => irq_koF (hEM s h).ent hq) (Fl4Proofs.P2.ko_aligned hK hUO) hF
       (fun s a s1 a1 hP h => irq_move_acc ar hA hK hUO hp (hEM s hP).k (hFm s a s1 a1 hP · h) h)
@@ -497,7 +497,7 @@ noncomputable def irq_localPathJC2 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO
     RS := MaxR K st lk
     WS := MaxW K st lk
     DS := IrqDec st
-    isProg := hp
+    isProg := PathObl.IsProg.on hp _ _ _
     obl := irq_pathObl ar hA hK hUO (fun s h => (hEM s h).ent) (fun mm => hp A ar mm) hz hm
       (fun s h q hq => irq_koF (hEM s h).ent hq) (Fl4Proofs.P2.ko_aligned hK hUO) hF
       (fun s a s1 a1 hP h => irq_move_acc ar hA hK hUO hp (hEM s hP).k (hFm s a s1 a1 hP · h) h)
