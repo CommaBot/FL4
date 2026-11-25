@@ -1688,4 +1688,8 @@ import Fl4Proofs.P3.StPostTmDec
 import Fl4Proofs.P3.StPostTmInv
 import Fl4Proofs.P3.StPostTmTop
 import Fl4Proofs.P2.SlJStPostTm
+import Fl4Proofs.P3.StPostIrqLeaf
+import Fl4Proofs.P3.StPostIrqEv
+import Fl4Proofs.P3.StPostIrqTop
+import Fl4Proofs.P2.SlJStPostIrq
 import Fl4Proofs.P2.SlJStLocTop

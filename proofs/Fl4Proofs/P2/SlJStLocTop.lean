@@ -1,10 +1,10 @@
 /-
-# P2 (line stpost, generation 6): the I/O port and `TCB_SetTimer` local paths' layout chain, closed
+# P2 (line stpost, generations 6–7): the I/O port, `TCB_SetTimer` and timer-interrupt local paths' layout chain, closed
 
 SlJStTop's `sl_pathsK_startAt_loc` for the syscall local path, extended to every local entry line
 stpost proved stable: the chain's step relation is now the union `LocAll` of the accepted syscall
-local runs (`LocSys`: trap arm and ReplyRecv fast path), the accepted I/O port runs (`LocIo`) and the
-accepted `TCB_SetTimer` runs (`LocTm`), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
+local runs (`LocSys`: trap arm and ReplyRecv fast path), the accepted I/O port runs (`LocIo`), the
+accepted `TCB_SetTimer` runs (`LocTm`) and the accepted timer interrupts (`LocIrq`, gen 7), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
 of it is `locKeepSt_st` (no premise).
 
 * `lpRestrict`: a local path with its `Pre` narrowed to a `Pre'` that implies it and is closed under
@@ -20,13 +20,16 @@ of it is `locKeepSt_st` (no premise).
 * **`loc_chain_all`** (the top): from a serial exit (`JReachU17`), ONE ghost choice `Z H Cx nc` gives
   SerExit's facts for `layoutJ Z H (L.ksb s0) nc` and the set `R` (`JReachSt` over `LocAllSt` at those
   ghosts) with: `R` at the exit; `R` closed under the accepted trap arm, the ReplyRecv fast path, the
-  I/O port entry and the `TCB_SetTimer` entry (each under its U29 clause's inputs, a subset); and
-  `SlJAt (layoutJ Z H (L.ksb s0) nc)` at every `R` state.
-* **`sl_pathsK_startAt_all`**, **`io_pathsK_startAt_all`**, **`tm_pathsK_startAt_all`**: `StartAt` for
-  the three `Paths` at every `R` state of `loc_chain_all`, given the path's `Q` and the glue's core /
-  locks / memory link there. No `LocKeepSt` / `LocRunMv` premise.
+  I/O port entry, the `TCB_SetTimer` entry and the timer interrupt (each under its U29 clause's inputs, a
+  subset; the interrupt's are `IrqHw` [P] and `KFinEv13`); and `SlJAt (layoutJ Z H (L.ksb s0) nc)` at every
+  `R` state (clause 7). `StartAt` at an `R` state for each path: its `…_startAt` (`sl_pathsK_startAt_stab'`,
+  `io_pathsK_startAt`, `tm_pathsK_startAt`) with clause 7 for `SlJAt K σ` and the path's `Q K m σ` plus the
+  glue's core / locks / memory link. No `LocKeepSt` / `LocRunMv` premise.
+* `IrqPreK`, **`irqPreK_of_chain`** (gen 7): the timer interrupt path's `Pre` (par/p2lt2's `IrqPreJ3`, body
+  verbatim: `SlJAt K ∧` memory agreement) at every `R` state from clause 7 and the memory agreement; with
+  `irq_pathsJ3_startAt` (par/p2lt2, not on this branch) this is the timer-interrupt path's `StartAt`.
 
-Premises left: U29's platform inputs (`hARI hA hnd hM hKD hIo hPA hT hmax htu hRef hPI hSX hDR`); each
+Premises left: U29's platform inputs (`hARI hA hnd hM hKD hIo hPA hIA hT hmax htu hRef hPI hSX hDR`); each
 path's own premises, unchanged in kind: `sl_pathsK`'s; `io_pathsK`'s `hPE` (`IoPre`), `hmA` [J]
 (`ko`'s memory agrees on TCB affinity words), `huf` [J] (`PathSide.user_free`), `hpz` ([P] `IsProg`,
 [W] `NoZero`, [W] declining `ReadOnce`) and `hm` [P] (`MasksWr`); `tm_pathsK`'s `hPE` (`StEntK`),
@@ -35,7 +38,7 @@ path's own premises, unchanged in kind: `sl_pathsK`'s; `io_pathsK`'s `hPE` (`IoP
 `R` state stays `Fl4Step.start` [P].
 -/
 import Fl4Proofs.P2.SlJStTop
-import Fl4Proofs.P2.SlJStPostTm
+import Fl4Proofs.P2.SlJStPostIrq
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P2.FootTimerSetMv
 open Aeneas Aeneas.Std Result
@@ -306,7 +309,8 @@ variable (AR : A → Fl4Spec.Cr3 → Prop)
 
 /-- (stpost) **The accepted local runs proved stable** (module docstring). -/
 def LocAll (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop :=
-  LocSys (st := st) arI s a σ s' a' σ' ∨ LocIo (st := st) arI s a σ s' a' σ' ∨ LocTm (st := st) arI s a σ s' a' σ'
+  LocSys (st := st) arI s a σ s' a' σ' ∨ LocIo (st := st) arI s a σ s' a' σ' ∨ LocTm (st := st) arI s a σ s' a' σ' ∨
+    LocIrq (st := st) arI s a σ s' a' σ'
 
 /-- (stpost) **The chain's step relation** (module docstring). -/
 abbrev LocAllSt (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap) (Cs : Set U64) :
@@ -324,7 +328,8 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
     (hARI : ARIface arI AR) (hA3 : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR)
-    (hPA : PPPlatA arI AR) (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR) (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A3) MR)
     {s0 : S} {a3 : A3} {σ0 : Fl4Spec.State Unit} (h0 : JReachU17 (L := L) arI AR MR s0 a3 σ0) :
@@ -395,7 +400,16 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
             ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
               JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
                 s' a' σ') ∧
-      -- 6. the layout bundle at every chain state
+      -- 6. the timer interrupt
+      (∀ (s : S) (a : A3) (σ : Fl4Spec.State Unit),
+        JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) s a σ →
+        ∀ (w : U64) (a1 : A3) (p : localtimer.TimerIrqPlan), IrqHw AR MR a a1 σ w →
+          KFinEv13 (L := L) arI AR .interrupt (KFrontI (st := st) arI s a1 w) σ →
+          ∀ s' a', localtimer.handle_timer_irq_local st arI s a1 w p = ok (true, s', a') →
+            ∃ σ', EvOut false .interrupt σ σ' ∧
+              JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
+                s' a' σ') ∧
+      -- 7. the layout bundle at every chain state
       (∀ (σ : S) (a3' : A3) (τ : Fl4Spec.State Unit),
         JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) σ a3' τ →
         SlJAt (L := L) (layoutJ Z H (L.ksb s0) nc) σ) := by
@@ -410,9 +424,12 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inl h1), h2⟩
   have hsubT : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocTm (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
       LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
-    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr h1), h2⟩
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inl h1)), h2⟩
+  have hsubQ : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocIrq (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
+      LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr h1)), h2⟩
   have hNS : NativeSys fl4_abi.syscall.SysReplyRecv .sysReplyRecv := Or.inr (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩)))
-  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro s a σ hJ n' found' hct hUn hND hFin s' a' hrun
     exact jreachSt_sysUStK hARI hA3 hnd hM hKD hPA hT hmax htu hRef hSX hDR hKS hsubS hJ n' found' hct hUn hND
       hFin hrun
@@ -425,9 +442,33 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
   · intro s a σ hJ n c target hct hn hflag hFin hTF s' a' hrun
     exact jreachSt_tmSt hARI hA3 hnd hM hKD hPA hT hmax htu hRef hDR hKS hsubT hJ n c target hct hn hflag hFin
       hTF hrun
+  · intro s a σ hJ w a1 p hI hFin s' a' hrun
+    exact jreachSt_irqSt hARI hA3 hnd hM hKD hPA hIA hT hmax htu hRef hDR hKS hsubQ hJ w a1 p hI hFin hrun
   · intro σ a3' τ hR
     exact slJAt_layoutJ_of_jreachSt' hnd hnc hKS hR
 
 end
+
+/-! ## The timer interrupt path's `Pre` at every chain state -/
+
+section irq
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+/-- (stpost) **The timer interrupt path's `Pre`** (module docstring): line slj's bundle `SlJAt K` and the store
+agreeing with the model memory `m` on aligned kernel words. The body is par/p2lt2's `IrqPreJ3` (FootTimerIrqJ3)
+verbatim, i.e. `sl_pathsK`'s `SlJAt K ∧ Q K m` with `Q K m s := ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x`. -/
+def IrqPreK (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (m : U64 → U64) (s : S) : Prop :=
+  SlJAt (L := L) K s ∧ ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x
+
+/-- (stpost) **`IrqPreK` at every state of a chain whose states carry `SlJAt K`** (module docstring): with
+`loc_chain_all`'s clause 7 as `h7`, every chain state `σ` whose store agrees with `m` off the user words is a
+start of the timer interrupt path at `(K, m)` (`irq_pathsJ3_startAt`'s `hJ` / `hM`, after integration). -/
+theorem irqPreK_of_chain {A3 : Type} {R : S → A3 → Fl4Spec.State Unit → Prop} {K : KLayout}
+    (h7 : ∀ (σ : S) (a : A3) (τ : Fl4Spec.State Unit), R σ a τ → SlJAt (L := L) K σ)
+    {σ : S} {a : A3} {τ : Fl4Spec.State Unit} (hR : R σ a τ) {m : U64 → U64}
+    (hM : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x) : IrqPreK K st m σ :=
+  ⟨h7 σ a τ hR, hM⟩
+
+end irq
 
 end Fl4Proofs.P2.PathObl
