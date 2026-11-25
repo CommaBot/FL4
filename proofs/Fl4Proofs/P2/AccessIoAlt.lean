@@ -108,8 +108,8 @@ theorem here_congr (h : Ag st R x y) {t : U64}
   have e2 : L.mem y (rhA (L := L) y) = L.mem x (rhA (L := L) x) := by
     show L.mem y (L.nodeAt y (L.cpu y) _) = _
     rw [h.node]; exact h.m _ hrh
-  have gx := fastpath.schedulable_here.guard (R := R) (W := fun _ => True) x t hct htm hrh htd hrs hdt hcd haf hdo hsc hiq
-  have gy := fastpath.schedulable_here.guard (R := R) (W := fun _ => True) y t
+  have gx := fastpath.schedulable_here.guard (gS := PathObl.guard st R (fun _ => True)) x t hct htm hrh htd hrs hdt hcd haf hdo hsc hiq
+  have gy := fastpath.schedulable_here.guard (gS := PathObl.guard st R (fun _ => True)) y t
     (by show R (L.nodeAt y (L.cpu y) _); rw [h.node]; exact hct)
     (by show R (L.nodeAt y (L.cpu y) _); rw [h.node]; exact htm)
     (by show R (L.nodeAt y (L.cpu y) _); rw [h.node]; exact hrh)
@@ -123,15 +123,15 @@ theorem here_congr (h : Ag st R x y) {t : U64}
 
 theorem suff_congr {A : Type} {ar : machine.Arch A} (h : Ag st R x y) (a : A) {sc u : U64}
     (hs : RdHead (L := L) R x sc) : sporadic.sufficient st ar y a sc u = sporadic.sufficient st ar x a sc u := by
-  have gx := sporadic.sufficient.guard (R := R) (W := fun _ => True) ar x a sc u hs
-  have gy := sporadic.sufficient.guard (R := R) (W := fun _ => True) ar y a sc u (h.rdHead hs)
+  have gx := sporadic.sufficient.guard (gS := PathObl.guard st R (fun _ => True)) ar x a sc u hs
+  have gy := sporadic.sufficient.guard (gS := PathObl.guard st R (fun _ => True)) ar y a sc u (h.rdHead hs)
   rw [← gy, ← gx, suff_ag h]
 
 theorem lib_congr (h : Ag st R x y) {rcv : Bool} {t sl : U64} (hsl : obj.Tcb.slot t layout.tcb.SLOT_BUFFER = ok sl)
     (hI : R (core.num.U64.wrapping_add t 3512#u64)) (hR0 : R sl) (hR8 : R (core.num.U64.wrapping_add sl 8#u64)) :
     msg.lookup_ipc_buffer st y rcv t = msg.lookup_ipc_buffer st x rcv t := by
-  have gx := msg.lookup_ipc_buffer.guard (R := R) (W := fun _ => True) (st := st) x rcv t hsl hI hR0 hR8
-  have gy := msg.lookup_ipc_buffer.guard (R := R) (W := fun _ => True) (st := st) y rcv t hsl hI hR0 hR8
+  have gx := msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R (fun _ => True)) (st := st) x rcv t hsl hI hR0 hR8
+  have gy := msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R (fun _ => True)) (st := st) y rcv t hsl hI hR0 hR8
   rw [← gy, ← gx, lib_ag h]
 
 theorem cap_congr (h : Ag st R x y) {sl : U64} (h0 : R sl) (h8 : R (core.num.U64.wrapping_add sl 8#u64)) :
