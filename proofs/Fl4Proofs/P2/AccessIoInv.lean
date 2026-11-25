@@ -278,7 +278,7 @@ theorem syscall.handle_invocation.guard_io {A : Type} (ar : machine.Arch A) {s :
   rw [msg.msg_info.guard s _ hRmi, hmi]
   simp only [bind_ok, bind_tc_ok] at h ⊢
   rw [hres] at h
-  rw [cspace.lookup_slot.guard C hsl hR0 hR8 hRc hcl hroot (fun x e => hRf x (e ▸ hres)) hres]
+  rw [cspace.lookup_slot.guardM C hsl hR0 hR8 hRc hcl hroot (fun x e => hRf x (e ▸ hres)) hres]
   simp only [bind_ok, bind_tc_ok] at h ⊢
   rw [hc] at h
   rw [obj.Slot.cap.guard _ s h0 h8, hc]

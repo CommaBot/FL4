@@ -26,14 +26,14 @@ namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 
 section
-variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} [L : LawfulStore st]
+variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W] [L : LawfulStore st]
 
 theorem timer.earliest.guard (s : S) (htm : R (tmA (L := L) s))
     (htd : L.mem s (tmA (L := L) s) ≠ 0#u64 →
       R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)) :
-    timer.earliest (PathObl.guard st R W) s = timer.earliest st s := by
+    timer.earliest gS s = timer.earliest st s := by
   unfold timer.earliest
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_get.guard s _ _ htm, node_get_ok s _ layout.node.TIMER_MIN]
   simp only [bind_ok, is_null_ok]
   by_cases h0 : L.mem s (tmA (L := L) s) = 0#u64
@@ -49,7 +49,7 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
       RdHead (L := L) R s (L.mem s (scA (L.mem s (rhA (L := L) s)))))
     (htd : L.mem s (tmA (L := L) s) ≠ 0#u64 →
       R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)) :
-    sched.set_next_interrupt (PathObl.guard st R W) ar s a = sched.set_next_interrupt st ar s a := by
+    sched.set_next_interrupt gS ar s a = sched.set_next_interrupt st ar s a := by
   unfold sched.set_next_interrupt
   rw [sched.cur_time.guard s (hNd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1,
     sched.cur_thread.guard s (hNd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
@@ -58,7 +58,7 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
   simp only [bind_ok]
   rw [sporadic.head.guard s _ hhd, sched.domain_time.guard s hdt,
     timer.earliest.guard s (hNd layout.node.TIMER_MIN (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 htd]
-  simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
+  simp only [gst_cur_cpu, L.cur_cpu_eq, bind_ok]
   rw [obj.node_get.guard s _ layout.node.RELEASE_HEAD (hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1,
     obj.node_get.guard s _ layout.node.ARMED (hNd layout.node.ARMED (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])).1,
     node_get_ok s _ layout.node.RELEASE_HEAD]
@@ -73,12 +73,12 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
     rw [sporadic.head.guard s _ hs2]
 
 /-- **`activate_thread`** of a current thread `t` that yields to no SC. -/
-theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
+theorem sched.activate_thread.guardV {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
     (hcur : L.curW s = t) (hT : TcbAddr t) (hy0 : L.mem s (yieldA t) = 0#u64) (hn : NodeSt (L := L) R W s)
     (hyt : R (yieldA t)) (hst : R (stA t)) (hrg : R (regA t layout.reg.FAULT_IP))
-    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : W (stA t)) (h2 : R (scA t))
+    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : SWr gS st t sched.TS_RUNNING) (h2 : R (scA t))
     (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
-    sched.activate_thread (PathObl.guard st R W) ar s a = sched.activate_thread st ar s a := by
+    sched.activate_thread gS ar s a = sched.activate_thread st ar s a := by
   unfold sched.activate_thread
   rw [sched.cur_thread.guard s hn.1, cur_thread_ok, hcur]
   simp only [bind_ok]
@@ -91,9 +91,17 @@ theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a 
     refine bind_guard_congr rfl fun pc _ => ?_
     rw [obj.Tcb.set_reg.guard t s _ _ hwr, set_reg_ok' s t layout.reg.NEXT_IP pc]
     simp only [bind_ok]
-    rw [sched.set_thread_state.guard _ t _ hn.wr hw hst h2 (by
+    rw [sched.set_thread_state.guardV _ t _ hn.wr hw hst h2 (by
       rw [st_wr_sc hT, reg_wr_sc hT (by simp [layout.reg.NEXT_IP])]; exact h3) h4]
   · rfl
+
+theorem sched.activate_thread.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A) {t : U64}
+    (hcur : L.curW s = t) (hT : TcbAddr t) (hy0 : L.mem s (yieldA t) = 0#u64) (hn : NodeSt (L := L) R W s)
+    (hyt : R (yieldA t)) (hst : R (stA t)) (hrg : R (regA t layout.reg.FAULT_IP))
+    (hwr : W (regA t layout.reg.NEXT_IP)) (hw : W (stA t)) (h2 : R (scA t))
+    (h3 : R (maxA (L.mem s (scA t)))) (h4 : R (inqA t)) :
+    sched.activate_thread gS ar s a = sched.activate_thread st ar s a :=
+  sched.activate_thread.guardV ar s a hcur hT hy0 hn hyt hst hrg hwr (SWr.of_W hw) h2 h3 h4
 
 end
 

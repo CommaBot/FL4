@@ -13,7 +13,7 @@ Split from `P2/AccessIo.lean` (elaboration memory).
 
 Premises: none.
 -/
-import Fl4Proofs.P2.AccessIo
+import Fl4Proofs.P2.AccessIoWalk
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -48,7 +48,7 @@ theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.Messag
   revert h
   refine tr_bind_same (fun size _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
-  refine tr_bind (fun res hres _ => cspace.lookup_slot.guard C hsl hR0 hR8 hRc hcl hroot
+  refine tr_bind (fun res hres _ => cspace.lookup_slot.guardM C hsl hR0 hR8 hRc hcl hroot
     (fun x e => hRf x (e ▸ hres)) hres) (fun res hres => ?_)
   cases res with
   | Err e => exact fun h => h
@@ -56,11 +56,11 @@ theorem ioport.invocation_ok.guard {s : S} {t cptr : U64} {info : msginfo.Messag
     obtain ⟨h0, h8⟩ := hRf r1 hres
     dsimp only
     refine tr_ite (fun _ h => h) (fun _ => ?_)
-    rw [obj.Slot.cap.guard _ s h0 h8]
+    rw [obj.Slot.cap.guard (gS := PathObl.guard st R W) _ s h0 h8]
     refine tr_bind_same (fun c _ => ?_)
     cases c <;> try exact fun h => h
     obtain ⟨bsl, hbsl⟩ := buffer_slot_ok t
-    rw [msg.lookup_ipc_buffer.guard s false t hbsl hib (hbs bsl hbsl).1 (hbs bsl hbsl).2]
+    rw [msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R W) s false t hbsl hib (hbs bsl hbsl).1 (hbs bsl hbsl).2]
     have e : ∀ bf, msg.syscall_arg (PathObl.guard st R W) s t bf 0#u64 = msg.syscall_arg st s t bf 0#u64 :=
       fun bf => msg.syscall_arg.guard_lt s t bf 0#u64 n0
         (fun r hr => by rw [msg_register_zero] at hr; cases ok_inj_ff hr; exact hr10)

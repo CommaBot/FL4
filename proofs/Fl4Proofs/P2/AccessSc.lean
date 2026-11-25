@@ -25,17 +25,17 @@ open fl4_core Fl4Proofs.P1
 section
 variable {S : Type} {st : machine.Store S} {R W : U64 → Prop}
 
-theorem obj.Sc.set_r_time.guard (sc : obj.Sc) (s : S) (i v : U64) (h : W (rtA sc i)) :
+theorem obj.Sc.set_r_time.guardS (sc : obj.Sc) (s : S) (i v : U64) (h : W (rtA sc i)) :
     obj.Sc.set_r_time (PathObl.guard st R W) sc s i v = obj.Sc.set_r_time st sc s i v := by
   unfold obj.Sc.set_r_time obj.Sc.refill_addr
   simp only [lift, bind_ok]
-  exact guard_write_of h rfl
+  exact gst_write_of (gS := PathObl.guard st R W) h rfl
 
-theorem obj.Sc.set_r_amount.guard (sc : obj.Sc) (s : S) (i v : U64) (h : W (raA sc i)) :
+theorem obj.Sc.set_r_amount.guardS (sc : obj.Sc) (s : S) (i v : U64) (h : W (raA sc i)) :
     obj.Sc.set_r_amount (PathObl.guard st R W) sc s i v = obj.Sc.set_r_amount st sc s i v := by
   unfold obj.Sc.set_r_amount obj.Sc.refill_addr
   simp only [lift, bind_ok]
-  exact guard_write_of h rfl
+  exact gst_write_of (gS := PathObl.guard st R W) h rfl
 
 /-- Both words of refill `i` are writable. -/
 abbrev WrRefill (W : U64 → Prop) (sc : obj.Sc) (i : U64) : Prop := W (rtA sc i) ∧ W (raA sc i)
@@ -43,12 +43,12 @@ abbrev WrRefill (W : U64 → Prop) (sc : obj.Sc) (i : U64) : Prop := W (rtA sc i
 /-- Both words of refill `i` are readable. -/
 abbrev RdRefill (R : U64 → Prop) (sc : obj.Sc) (i : U64) : Prop := R (rtA sc i) ∧ R (raA sc i)
 
-theorem sporadic.put.guard (s : S) (sc : obj.Sc) (i : U64) (r : sporadic.Refill) (h : WrRefill W sc i) :
+theorem sporadic.put.guardS (s : S) (sc : obj.Sc) (i : U64) (r : sporadic.Refill) (h : WrRefill W sc i) :
     sporadic.put (PathObl.guard st R W) s sc i r = sporadic.put st s sc i r := by
   unfold sporadic.put
-  rw [obj.Sc.set_r_time.guard sc s i _ h.1]
+  rw [obj.Sc.set_r_time.guardS sc s i _ h.1]
   have e : ∀ s1, obj.Sc.set_r_amount (PathObl.guard st R W) sc s1 i r.amount =
-      obj.Sc.set_r_amount st sc s1 i r.amount := fun s1 => obj.Sc.set_r_amount.guard sc s1 i _ h.2
+      obj.Sc.set_r_amount st sc s1 i r.amount := fun s1 => obj.Sc.set_r_amount.guardS sc s1 i _ h.2
   simp only [e]
 
 section law
@@ -102,7 +102,7 @@ theorem sporadic.set_head.guard (s : S) (sc : obj.Sc) (r : sporadic.Refill) (h1 
   unfold sporadic.set_head
   rw [obj.Sc.refill_head.guard sc s h1, rhead_ok]
   simp only [bind_ok]
-  exact sporadic.put.guard s sc _ r h2
+  exact sporadic.put.guardS s sc _ r h2
 
 theorem sporadic.set_tail.guard (s : S) (sc : obj.Sc) (r : sporadic.Refill) (h1 : R (tailA sc))
     (h2 : WrRefill W sc (L.rtail s sc)) :
@@ -110,7 +110,7 @@ theorem sporadic.set_tail.guard (s : S) (sc : obj.Sc) (r : sporadic.Refill) (h1 
   unfold sporadic.set_tail
   rw [obj.Sc.refill_tail.guard sc s h1, rtail_ok]
   simp only [bind_ok]
-  exact sporadic.put.guard s sc _ r h2
+  exact sporadic.put.guardS s sc _ r h2
 
 /-- The ring's header words: `REFILL_HEAD`, `REFILL_TAIL`, `REFILL_MAX`. -/
 abbrev RdHdr (R : U64 → Prop) (sc : obj.Sc) : Prop := R (headA sc) ∧ R (tailA sc) ∧ R (maxA sc)
@@ -148,7 +148,7 @@ theorem sporadic.add_tail.guard (s : S) (sc : obj.Sc) (r : sporadic.Refill) (hT 
   simp only [bind_ok]
   rw [obj.Sc.set_refill_tail.guard sc s _ hW]
   have e : ∀ s1, sporadic.put (PathObl.guard st R W) s1 sc (nextIdx (L.rmax s sc) (L.rtail s sc)) r =
-      sporadic.put st s1 sc (nextIdx (L.rmax s sc) (L.rtail s sc)) r := fun s1 => sporadic.put.guard s1 sc _ r h1
+      sporadic.put st s1 sc (nextIdx (L.rmax s sc) (L.rtail s sc)) r := fun s1 => sporadic.put.guardS s1 sc _ r h1
   simp only [e]
 
 /-- **`schedule_used`**: the header words, the tail refill (read and written)
