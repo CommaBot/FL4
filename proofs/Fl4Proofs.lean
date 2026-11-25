@@ -1598,6 +1598,9 @@ import Fl4Proofs.P2.FootTimerIrqLPW
 import Fl4Proofs.P2.FootTimerFireWt
 import Fl4Proofs.P2.FootTimerFireWs
 import Fl4Proofs.P2.FootTimerFireWc
+import Fl4Proofs.P2.FootTimerFireLoc
+import Fl4Proofs.P2.FootTimerFireSwT
+import Fl4Proofs.P2.FootTimerFirePk
 import Fl4Proofs.P2.FootTimerFireLkO
 import Fl4Proofs.P2.FootTimerAccLoop
 import Fl4Proofs.P2.GuardGE

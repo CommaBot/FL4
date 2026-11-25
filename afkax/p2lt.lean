@@ -42,6 +42,9 @@ import Fl4Proofs.P2.FootTimerFireWt
 import Fl4Proofs.P2.FootTimerFireLkO
 import Fl4Proofs.P2.FootTimerFireWs
 import Fl4Proofs.P2.FootTimerFireWc
+import Fl4Proofs.P2.FootTimerFireLoc
+import Fl4Proofs.P2.FootTimerFireSwT
+import Fl4Proofs.P2.FootTimerFirePk
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -234,3 +237,15 @@ import Fl4Proofs.P2.FootTimerFireWc
 #print axioms Fl4Proofs.P2.ntfn_head_ok
 #print axioms Fl4Proofs.P2.wake_ok_true
 #print axioms Fl4Proofs.P2.fireTail_wake
+#print axioms Fl4Proofs.P2.LocRd
+#print axioms Fl4Proofs.P2.LocWr
+#print axioms Fl4Proofs.P2.LkW
+#print axioms Fl4Proofs.P2.ObjLay
+#print axioms Fl4Proofs.P2.loc_rd_own
+#print axioms Fl4Proofs.P2.loc_wr_own
+#print axioms Fl4Proofs.P2.lkw_own
+#print axioms Fl4Proofs.P2.loc_wr_nondec
+#print axioms Fl4Proofs.P2.lkw_nondec
+#print axioms Fl4Proofs.P2.PathObl.switch_hsw_hfr
+#print axioms Fl4Proofs.P2.pick_top
+#print axioms Fl4Proofs.P2.top_unique
