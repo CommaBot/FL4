@@ -1,5 +1,8 @@
 import Fl4Proofs.P2.TmoFrC
 import Fl4Proofs.P2.TmoFrD
+import Fl4Proofs.P3.XTopJointDomInv29Q
+import Fl4Proofs.P2.TmoFrE
+import Fl4Proofs.P2.StallAllT
 #print axioms Fl4Proofs.P1.faults.set_fault.kwB
 #print axioms Fl4Proofs.P1.faults.set_fault.ftmo
 #print axioms Fl4Proofs.P1.ipc.reply_push.kwB0
@@ -28,3 +31,11 @@ import Fl4Proofs.P2.TmoFrD
 #print axioms Fl4Proofs.P1.tmoKC_NT
 #print axioms Fl4Proofs.P1.smp.stall.entryNT
 #print axioms Fl4Proofs.P1.stallSeq.entryNT
+#print axioms Fl4Proofs.P3.JAtZ.curQ0
+#print axioms Fl4Proofs.P3.JAtZ.idleTS
+#print axioms Fl4Proofs.P3.JAtZ.idleNR
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_domInvU29Q
+#print axioms Fl4Proofs.P2.Stall.syscall.handle_vcpu_exit.entryJ5
+#print axioms Fl4Proofs.P2.Stall.vm_timer_local.entryJ5
+#print axioms Fl4Proofs.P2.Stall.stallAt.viewsT
+#print axioms Fl4Proofs.P2.Stall.stallAt.allT

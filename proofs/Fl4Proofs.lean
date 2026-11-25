@@ -1617,6 +1617,9 @@ import Fl4Proofs.P2.TmoFrA
 import Fl4Proofs.P2.TmoFrB
 import Fl4Proofs.P2.TmoFrC
 import Fl4Proofs.P2.TmoFrD
+import Fl4Proofs.P3.XTopJointDomInv29Q
+import Fl4Proofs.P2.TmoFrE
+import Fl4Proofs.P2.StallAllT
 import Fl4Proofs.P3.XTopJointKEntryU29T
 import Fl4Proofs.P2.AccessIoFin
 import Fl4Proofs.P2.AccessIoMid
