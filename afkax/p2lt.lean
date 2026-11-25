@@ -83,3 +83,5 @@ import Fl4Proofs.P2.FootTimerIrqRe
 #print axioms Fl4Proofs.P2.charge_budget_rr_run
 #print axioms Fl4Proofs.P2.is_schedulable_rel
 #print axioms Fl4Proofs.P2.rr_run_writes
+#print axioms Fl4Proofs.P2.highest_prio_agree
+#print axioms Fl4Proofs.P2.check_budget_ins

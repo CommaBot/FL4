@@ -58,6 +58,24 @@ def RrW (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (X : S) (ct cs
     L.NodeOf X (L.cpu X) (fun o => o = 16 ∨ o = 40 ∨ o = 56 ∨ o = 80 ∨ 120 ≤ o) b ∨ b = inqA ct ∨
     (∃ y ∈ T, b = nextA .Sched y ∨ b = prevA .Sched y)
 
+/-- **`highest_prio` reads only the bitmap**: at a state agreeing on this core's bitmap words with one whose
+bitmap is well formed and non-empty, it returns the same priority (both are the unique highest marked one, P1
+`sched.highest_prio.spec`). -/
+theorem highest_prio_agree {T : Set U64} {Y Z : S} {NE : U64 → Prop} (d : U64)
+    (hN : NodePlaced st T Y (L.cpu Y)) (hB : BitmapOK st Y (L.cpu Y) NE) (hl : L.l1W Y (L.cpu Y) ≠ 0#u64)
+    (k : L.ksb Z = L.ksb Y) (c : L.cpu Z = L.cpu Y) (h1 : L.l1W Z (L.cpu Y) = L.l1W Y (L.cpu Y))
+    (h2 : ∀ g < 4, L.l2W Z (L.cpu Y) g = L.l2W Y (L.cpu Y) g) :
+    sched.highest_prio st Z d = sched.highest_prio st Y d := by
+  have hNZ : NodePlaced st T Z (L.cpu Z) := by rw [c]; exact hN.ksb k
+  have hBZ : BitmapOK st Z (L.cpu Z) NE := by rw [c]; exact hB.agree h1 h2
+  have hlZ : L.l1W Z (L.cpu Z) ≠ 0#u64 := by rw [c, h1]; exact hl
+  obtain ⟨q1, e1, a1, b1, m1⟩ := spec_ex_fd (sched.highest_prio.spec (L := L) Y d NE hN hB hl)
+  obtain ⟨q2, e2, a2, b2, m2⟩ := spec_ex_fd (sched.highest_prio.spec (L := L) Z d NE hNZ hBZ hlZ)
+  rw [e1, e2]
+  have i1 := m1 q2 a2 b2
+  have i2 := m2 q1 a1 b1
+  exact congrArg ok (UScalar.eq_of_val_eq (by omega))
+
 end law
 
 section run
@@ -154,6 +172,24 @@ theorem rr_run_writes {A : Type} (ar : machine.Arch A) {s1 s2 s3 s4 Y : S} {a : 
     exact hinq
   · unfold LawfulStore.actionW
     rw [wY.2.1, nodeAt_of_ksb wY.1, e6', mem_wr_ne' aR aA hRA, L.mem_wr_same aA]
+
+/-- **`check_budget` with an insufficient budget is `charge_budget`** (with `cto = true`). -/
+theorem check_budget_ins {A : Type} (ar : machine.Arch A) {s s2 : S} {a a2 : A} {x : Bool}
+    (hins : ∀ c, sched.consumed st s = ok c → sporadic.sufficient st ar s a (L.cscW s) c = ok false)
+    (h : sched.check_budget st ar s a = ok (x, s2, a2)) :
+    ∃ c, sched.consumed st s = ok c ∧ sched.charge_budget st ar s a c true = ok (s2, a2) := by
+  have esc : sched.cur_sc st s = ok (L.cscW s) := eq_of_spec_fd (sched.cur_sc.spec (L := L) s)
+  unfold sched.check_budget at h
+  rw [esc] at h
+  simp only [bind_ok] at h
+  obtain ⟨c, ec, h⟩ := bind_eq_ok h
+  rw [hins c ec] at h
+  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte] at h
+  obtain ⟨⟨s', a'⟩, e, h⟩ := bind_eq_ok h
+  have e' := ok_inj_ff h
+  simp only [Prod.mk.injEq] at e'
+  obtain ⟨-, rfl, rfl⟩ := e'
+  exact ⟨c, ec, e⟩
 
 end run
 
