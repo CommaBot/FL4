@@ -119,7 +119,7 @@ theorem WkPre.agree {X Y : S} {w n : U64} {sb : Nat} (P : WkPre st R W X w n sb)
     (e4 : L.mem Y (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN) =
       L.mem X (core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN))
     (e5 : L.mem Y (affA w) = L.mem X (affA w))
-    (e6 : ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → L.mem Y b = L.mem X b) :
+    (e6 : L.mem X (scA w) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → L.mem Y b = L.mem X b) :
     WkPre st R W Y w n sb := by
   have hN : ∀ o, L.nodeAt Y (L.cpu Y) o = L.nodeAt X (L.cpu X) o := fun o => by rw [c, nodeAt_of_ksb k]
   have hNA : ∀ o, L.nodeA Y o = L.nodeA X o := fun o => hN o
@@ -127,7 +127,7 @@ theorem WkPre.agree {X Y : S} {w n : U64} {sb : Nat} (P : WkPre st R W X w n sb)
   refine ⟨fun h => by rw [e1] at h ⊢; exact mx h, fun h => nsc (by rw [← e1]; exact h),
     fun h => by rw [e2]; exact nd (by rw [← e1]; exact h),
     by rw [e3, k, e4]; exact dom, by rw [e5, c]; exact aff, fun h => by rw [e1] at h ⊢; exact sp h,
-    fun h => by rw [e1] at h ⊢; exact acc h, fun h => by rw [e1] at h ⊢; exact (wf h).agree e6,
+    fun h => by rw [e1] at h ⊢; exact acc h, fun h => by rw [e1] at h ⊢; exact (wf h).agree (e6 h),
     fun h => by rw [hNA, e1]; rw [e1] at h; exact rep h, ?_, by rw [hNA]; exact rp, by rw [hN]; exact cs,
     by rw [k]; exact cd⟩
   show R (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME)
@@ -162,7 +162,7 @@ theorem wake_wait_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
     (wS : ∀ Y, WritesIn st X Y (EpFoot (EQ n) n) →
       gS.write Y (stA w) sched.TS_RUNNING = st.write Y (stA w) sched.TS_RUNNING)
     (P : WkPre st R W X w n sb) (hnsΩ : ntfnScA n ∈ Ω)
-    (hscΩ : ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → b ∈ Ω) :
+    (hscΩ : L.mem X (scA w) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA w)) sb b → b ∈ Ω) :
     notification.send_signal gS ar X a n badge = notification.send_signal st ar X a n badge := by
   obtain ⟨hE, hEN, hq⟩ := hEW.1 n he
   have hT := h.tcbs
@@ -268,7 +268,7 @@ theorem wake_wait_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
     rw [this]; exact hac
   · intro Y wY
     refine P.agree (wY.1.trans k1) (wY.2.1.trans c1) ?_ (oK Y _ wY hnsΩ) ?_ (cdK Y wY) ?_
-      (fun b hb hin => oK Y b wY (hscΩ b hb hin))
+      (fun h0 b hb hin => oK Y b wY (hscΩ h0 b hb hin))
     · rw [scA_eq]; exact tK Y 3464#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3432#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
     · exact tK Y 3520#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by rw [hKB']; simp)
@@ -376,7 +376,7 @@ theorem wake_recv_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
     (wS : ∀ Y, WritesIn st X Y (CnD (EQ ep) ep t r) →
       gS.write Y (stA t) sched.TS_RUNNING = st.write Y (stA t) sched.TS_RUNNING)
     (P : WkPre st R W X t n sb) (hnsΩ : ntfnScA n ∈ Ω)
-    (hscΩ : ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → b ∈ Ω)
+    (hscΩ : L.mem X (scA t) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → b ∈ Ω)
     (hRt : r ≠ 0#u64 → ∀ b, (b = ntfnScA n ∨ (Aligned b ∧ InSC (L.mem X (scA t)) sb b) ∨
       b = core.num.U64.wrapping_add (L.ksb X) layout.ks.CUR_DOMAIN ∨
       (∃ o : U64, o.val < 4288 ∧ b = L.nodeAt X (L.cpu X) o) ∨
@@ -661,8 +661,9 @@ theorem wake_recv_guard {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badg
         tK Y 3520#u64 wY (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
       have e2 : L.mem Y (ntfnScA n) = L.mem X (ntfnScA n) := oK Y (ntfnScA n) wY hnsΩ hRn
       have e4 := cdK Y wY
-      have e6 : ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → L.mem Y b = L.mem X b := fun b hb hin =>
-        oK Y b wY (hscΩ b hb hin) fun hr0 => hRt hr0 b (Or.inr (Or.inl ⟨hb, hin⟩))
+      have e6 : L.mem X (scA t) ≠ 0#u64 → ∀ b, Aligned b → InSC (L.mem X (scA t)) sb b → L.mem Y b = L.mem X b :=
+        fun h0 b hb hin =>
+        oK Y b wY (hscΩ h0 b hb hin) fun hr0 => hRt hr0 b (Or.inr (Or.inl ⟨hb, hin⟩))
       exact P.agree (wY.1.trans k4) (wY.2.1.trans c4) e1 e2 e3 e4 e5 e6
 
 end recv

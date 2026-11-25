@@ -45,6 +45,12 @@ import Fl4Proofs.P2.FootTimerFireWc
 import Fl4Proofs.P2.FootTimerFireLoc
 import Fl4Proofs.P2.FootTimerFireSwT
 import Fl4Proofs.P2.FootTimerFirePk
+import Fl4Proofs.P2.FootTimerFireRs
+import Fl4Proofs.P2.FootTimerFireWf
+import Fl4Proofs.P2.FootTimerFireWr
+import Fl4Proofs.P2.FootTimerFireWp
+import Fl4Proofs.P2.FootTimerFireWa
+import Fl4Proofs.P2.FootTimerFireWe
 #print axioms Fl4Proofs.P2.set_timer_accG
 #print axioms Fl4Proofs.P2.set_timer_move
 #print axioms Fl4Proofs.P2.set_timer_localPathM
@@ -255,3 +261,19 @@ import Fl4Proofs.P2.FootTimerFirePk
 #print axioms Fl4Proofs.P2.sched.schedule_tcb.guardC
 #print axioms Fl4Proofs.P2.sched.set_thread_state.guardVC
 #print axioms Fl4Proofs.P2.set_thread_state.gwC
+#print axioms Fl4Proofs.P2.schedule_act_eq
+#print axioms Fl4Proofs.P2.fire_tail_of_aw
+#print axioms Fl4Proofs.P2.actTail.guard
+#print axioms Fl4Proofs.P2.aw_tail_resume
+#print axioms Fl4Proofs.P2.qmem_nbrs
+#print axioms Fl4Proofs.P2.StW
+#print axioms Fl4Proofs.P2.wake_wait_fire
+#print axioms Fl4Proofs.P2.scSb_ne
+#print axioms Fl4Proofs.P2.recv_rt
+#print axioms Fl4Proofs.P2.wake_recv_fire
+#print axioms Fl4Proofs.P2.wkpre_fire
+#print axioms Fl4Proofs.P2.wkpre_true
+#print axioms Fl4Proofs.P2.WkCase
+#print axioms Fl4Proofs.P2.wk_sig
+#print axioms Fl4Proofs.P2.node_not_tw
+#print axioms Fl4Proofs.P2.fire_wk_step
