@@ -5,6 +5,7 @@ import Fl4Proofs.P3.StPostTmo
 import Fl4Proofs.P3.StPostInv
 import Fl4Proofs.P3.StPostMid
 import Fl4Proofs.P3.StPostRecv
+import Fl4Proofs.P3.StPostRRMid
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -39,3 +40,5 @@ import Fl4Proofs.P3.StPostRecv
 #print axioms Fl4Proofs.P3.handle_recv_rrJSt
 #print axioms Fl4Proofs.P3.mid_invRecvReplyJStF
 #print axioms Fl4Proofs.P3.dispatch_replyRecvJStF
+#print axioms Fl4Proofs.P1.rr_ntfnSc8
+#print axioms Fl4Proofs.P3.rrMid_of
