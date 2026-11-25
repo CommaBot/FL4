@@ -6,7 +6,9 @@
   and `ARMED` to 0, then acks the IRQ (`Arch`); `handle_interrupt_timer_writes`: as a `WritesIn` (this core's node
   words 56 and 80 only);
 * `nodue_hw`, `action_hw`, `rel_hw`: no timer due, the scheduler action and no release due survive those writes
-  (as `nodue_keep` / `rel_keep` for SetTimer's writes), for `schedule_resume` at the `schedule` state.
+  (as `nodue_keep` / `rel_keep` for SetTimer's writes), for `schedule_resume` at the `schedule` state;
+* `action_ut` (`update_timestamp` keeps the action) and `irq_quiet_schedule`: in the quiet case `schedule` is
+  `schedTail` (P1 `FastSched`), and `BXI` holds after `update_timestamp`.
 
 No named premises.
 -/
@@ -202,5 +204,75 @@ theorem rel_hw {X Y : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X) (w : Writes
   exact h
 
 end keep
+
+/-! ## `schedule` in the quiet case -/
+
+section sched
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+variable {A : Type _} (ar : machine.Arch A)
+
+/-- `update_timestamp` keeps the scheduler action. -/
+theorem action_ut (hA : P0.ArchTotal ar) {s s1 : S} {a a1 : A} (hN : NodePlaced st T s (L.cpu s))
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) : L.actionW s1 = L.actionW s := by
+  obtain ⟨n1, -, er⟩ := ut_now ar hA hN eu
+  simp only at er
+  subst er
+  unfold LawfulStore.actionW
+  rw [utW_cpu, nodeAt_of_ksb (utW_ksb _ _)]
+  refine utW_mem hN n1 (nodeAt_aligned hN (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))
+    ?_ ?_
+  · unfold ctA
+    exact nodeAt_ne hN (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.CUR_TIME])
+      (by simp [layout.node.SCHED_ACTION, layout.node.CUR_TIME])
+  · unfold cnA
+    exact nodeAt_ne hN (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.CONSUMED])
+      (by simp [layout.node.SCHED_ACTION, layout.node.CONSUMED])
+
+/-- **`schedule` in the quiet case is `schedTail`**: after `update_timestamp` nothing is due (`timer_due`,
+`release_due` declined there), `sched_quiet` saw the action `RESUME_CURRENT`, and the timer handler's writes
+(`HW`) keep all three. Also: the invariant holds after `update_timestamp`. -/
+theorem irq_quiet_schedule (hA : P0.ArchTotal ar) {s s1 s3 : S} {a a1 a3 : A} {now : U64}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
+    (erel : localtimer.release_due st s1 (L.cpu s) = ok false)
+    (edue : localtimer.timer_due st s1 (L.cpu s) now = ok false) (w : WritesIn st s1 s3 (HW st s1)) :
+    BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧ sched.schedule st ar s3 a3 = schedTail (st := st) ar s3 a3 := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hN : NodePlaced st T s (L.cpu s) := h0.nodes _ h0.cur
+  have hB1 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 := by
+    have := sched.update_timestamp.bxc hA s a (BlkOK.bxi (BXI.blk hI))
+    rw [eu, WP.spec_ok] at this
+    try simp only [WP.uncurry'_pair] at this
+    exact this.1.1
+  refine ⟨hB1, ?_⟩
+  have c1 : L.cpu s1 = L.cpu s := by
+    obtain ⟨n1, -, er⟩ := ut_now ar hA hN eu
+    simp only at er
+    rw [er, utW_cpu]
+  have h1 := hB1.1.choose_spec.choose_spec
+  have hT : TcbPlaced T := h1.tcbs
+  have hcC1 : L.cpu s1 ∈ Cs := h1.cur
+  have hN1 : NodePlaced st T s1 (L.cpu s1) := h1.nodes _ hcC1
+  have hnow : L.mem s1 (L.nodeAt s1 (L.cpu s1) layout.node.CUR_TIME) = now := by
+    rw [cur_time_ok] at enow; exact ok_inj_ff enow
+  have nd1 : NoDueT st s1 now := td_false (by rw [c1]; exact edue)
+  have hm1 := (TInv.tm (BXI.blk hB1)).min _ hcC1
+  have nd3 : NoDueT st s3 now := nodue_hw hT hN1 hm1 w nd1
+  have hct3 : L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.CUR_TIME) = now := by
+    rw [w.2.1, nodeAt_of_ksb w.1,
+      hw_node hN1 w (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
+        (by simp [layout.node.CUR_TIME])]
+    exact hnow
+  have hT3 : L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.TIMER_MIN) = 0#u64 ∨
+      L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.CUR_TIME) <
+        L.mem s3 (tdA (L.mem s3 (L.nodeAt s3 (L.cpu s3) layout.node.TIMER_MIN))) := by
+    rw [hct3]; exact nd3
+  have hR3 : RelNone st s3 := rel_hw hB1 w (rel_false (by rw [c1]; exact erel))
+  have hact3 : L.actionW s3 = sched.ACTION_RESUME_CURRENT := by
+    rw [action_hw hN1 w, action_ut ar hA hN eu]; exact sq_true eq
+  exact schedule_resume ar s3 a3 hT3 hR3 hact3
+
+end sched
 
 end Fl4Proofs.P2
