@@ -1,0 +1,133 @@
+# stpost gen 7: the interrupt entry's leaves at stable ghosts.
+# Generates P3/StPostIrqLeaf.lean from XTopJointKEntryEv2's `JAtZ.utCheckB` / `JAtZ.handleIrqJIM` and
+# XTopJointKEntryEv6's `JAtZ.utCheckBI` (proofs verbatim, posts `JStab Z H Cs` instead of `∃ Z' …, JAtZ Z' H Cs …`
+# / `JAt`, the packings rewritten).
+# usage: python3 gen_irq.py <proofs/Fl4Proofs/P3> <out.lean>
+import sys
+P = sys.argv[1]
+
+def block(fname, start):
+    src = open(P + '/' + fname).read().split('\n')
+    i = next(k for k, l in enumerate(src) if l.startswith(start))
+    j = i
+    while src[j - 1].strip() != '':
+        j -= 1
+    k = i + 1
+    while k < len(src) and not src[k].startswith(('set_option', '/--', 'theorem ', 'def ', 'end', 'section', 'variable', 'open ')):
+        k += 1
+    while src[k - 1].strip() == '':
+        k -= 1
+    return '\n'.join(src[j:k])
+
+def rep(body, old, new, n=1):
+    c = body.count(old)
+    assert c == n, (old, c)
+    return body.replace(old, new)
+
+# ---- utCheckB / utCheckBI: shared post rewrite
+POST_OLD = '''        ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z' ⦄'''
+POST_NEW = '''        JStab (L := L) arI AR Z H Cs r.2.1 r.2.2 z.2 ⦄'''
+
+def ut_common(b):
+    b = rep(b, POST_OLD, POST_NEW, 2)
+    b = rep(b, '''    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hF rfl
+    exact ⟨z, hsp0 z hz, hz1, Z', Ac', Lst', D', J', inferInstance⟩''',
+            '''    obtain ⟨z, hz, hz1, hJ'⟩ := hF rfl
+    exact ⟨z, hsp0 z hz, hz1, hJ'⟩''')
+    b = rep(b, 'rfl, Z, Ac\', Lst\', D\', J\', inferInstance⟩', 'rfl, J\'.stab⟩')
+    b = rep(b, 'exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, Z, Ac, Lst2, D, J2, inferInstance⟩',
+            'exact ⟨(false, σ2), by rw [hcb]; exact Set.mem_singleton _, rfl, J2.stab⟩')
+    return b
+
+u = block('XTopJointKEntryEv2.lean', 'theorem JAtZ.utCheckB ')
+u = rep(u, 'theorem JAtZ.utCheckB ', 'theorem JAtZ.utCheckBSt ')
+u = rep(u, '/-- **`update_timestamp; check_budget` at an entry state** (module\ndocstring). -/',
+        '/-- (stable ghosts, `JStab`) **`update_timestamp; check_budget` at an entry state** (Ev2\'s\n`JAtZ.utCheckB`). -/')
+u = ut_common(u)
+u = rep(u, '''      obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
+      exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩''',
+        '''      obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := hB hf
+      exact ⟨z, hz, hz1, Z.G, V, Ac', Lst', D', J'⟩''', 2)
+
+ui = block('XTopJointKEntryEv6.lean', 'theorem JAtZ.utCheckBI ')
+ui = rep(ui, 'theorem JAtZ.utCheckBI ', 'theorem JAtZ.utCheckBISt ')
+ui = rep(ui, '/-- **`update_timestamp; check_budget` at an entry state of the idle thread**',
+         '/-- (stable ghosts, `JStab`) **`update_timestamp; check_budget` at an entry state of the idle thread**')
+ui = ut_common(ui)
+
+# ---- handleIrqJIM
+h = block('XTopJointKEntryEv2.lean', 'theorem JAtZ.handleIrqJIM ')
+h = rep(h, 'theorem JAtZ.handleIrqJIM ', 'theorem JAtZ.handleIrqJIMSt ')
+h = rep(h, '/-- **MRPath\'s `handleIrqJIAN` with `MR` after**', '/-- (stable ghosts, `JStab`) **Ev2\'s `handleIrqJIM`**: MRPath\'s `handleIrqJIAN` with `MR` after')
+h = rep(h, 'JAt (L := L) arI AR r.1 r.2 z.2', 'JStab (L := L) arI AR Z H Cs r.1 r.2 z.2', 6)
+h = rep(h, 'JAt (L := L) arI AR s1 a1 z.2 → MR a1 z.2.machineState →',
+        'JStab (L := L) arI AR Z H Cs s1 a1 z.2 → MR a1 z.2.machineState →')
+h = rep(h, '    rintro s1 a1 z hz ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ hm1',
+        '    rintro s1 a1 z hz ⟨G1, V1, Ac1, Lst1, D1, J1⟩ hm1')
+h = rep(h, '    exact (WP.spec_ok _).2 (Or.inr ⟨z, hz, ⟨Z1, H1, Cs1, Ac1, Lst2, D1, J2, inferInstance⟩, hM2⟩)',
+        '    exact (WP.spec_ok _).2 (Or.inr ⟨z, hz, ⟨G1, V1, Ac1, Lst2, D1, J2⟩, hM2⟩)')
+h = rep(h, '    exact hack s a1 _ (mem_hi_big hgt σ) ⟨Z, H, Cs, Ac, Lst1, D, J1, inferInstance⟩ hm1',
+        '    exact hack s a1 _ (mem_hi_big hgt σ) J1.stab hm1')
+h = rep(h, '          JAt (L := L) arI AR s3 a2 σ1 → MR a2 σ1.machineState →',
+        '          JStab (L := L) arI AR Z H Cs s3 a2 σ1 → MR a2 σ1.machineState →')
+h = rep(h, '        rintro s3 a2 σ1 h1\' ⟨Z1, H1, Cs1, Ac1, Lst1, D1, J1, _⟩ hm2',
+        '        rintro s3 a2 σ1 h1\' ⟨G1, V1, Ac1, Lst1, D1, J1⟩ hm2')
+h = rep(h, '''mem_hi_signal hle hsig hgc h1', ⟨Z1, H1, Cs1, Ac1, Lst3, D1, J3, inferInstance⟩,''',
+        '''mem_hi_signal hle hsig hgc h1', ⟨G1, V1, Ac1, Lst3, D1, J3⟩,''')
+h = rep(h, '        fun hP => hmask s a σ (mem_when_false hP _ σ) ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ hR',
+        '        fun hP => hmask s a σ (mem_when_false hP _ σ) J.stab hR')
+h = rep(h, '⟨_, H, Cs, Ac\', Lst\'\', D\', J\', inferInstance⟩', '⟨Z.G, V\', Ac\', Lst\'\', D\', J\'⟩')
+h = rep(h, '⟨Z, H, Cs, Ac3, Lst3, D3, J3, inferInstance⟩', 'J3.stab')
+h = rep(h, '⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩', 'J.stab', 2)
+
+HDR = '''/-
+P3 (line stpost, generation 7): **the interrupt entry's leaves at stable ghosts** (generated by
+`scratch/stpost/gen_irq.py`).
+
+Ev2's `JAtZ.utCheckB` / Ev6's `JAtZ.utCheckBI` end in `∃ Z' …, JAtZ Z' H Cs …`, Ev2's
+`JAtZ.handleIrqJIM` in `JAt` (every ghost existential); their steps keep the entry's `Z`, `H`, `Cs`
+up to `Z.mv Z.G V`: the timestamp and the sufficient check (`JAtZ` at `Z`), the charge
+(`checkBudgetF` / `checkBudgetFI` at `Z`, `checkBudgetT` / `checkBudgetTR` at `Z.mv Z.G V`), the mask
+and acknowledgement (`msArJ`: same ghosts), the signal (`signal_atN`: `Z.mv Z.G V'`), the timer line
+(`reprogramJ`, `armedJ`: `Z`). Here, proofs verbatim with the post `JStab Z H Cs`:
+
+* `JAtZ.utCheckBSt`, `JAtZ.utCheckBISt`, `JAtZ.handleIrqJIMSt`.
+
+Premises: the originals' (no new premise).
+-/
+import Fl4Proofs.P3.StPostEv
+import Fl4Proofs.P3.XTopJointKEntryEv6
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3
+open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
+open Fl4Proofs.P3.SInvR.G4
+
+noncomputable section
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64}
+
+'''
+MID = '''
+
+end
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
+
+'''
+TAIL = '''
+
+end
+
+end
+
+end Fl4Proofs.P3
+'''
+open(sys.argv[2], 'w').write(HDR + u + '\n\n' + ui + MID + h + TAIL)
