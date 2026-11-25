@@ -593,6 +593,38 @@ theorem signal_vm.ff {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (
   obtain ⟨q5, hB5, hX5, hS5, hSg5, -⟩ := hh
   exact (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, q5⟩, hB5, hX5, hS5, hSg5⟩, F2.trans (FootN.ff (F3.trans F5))⟩
 
+/-- **The composable frame of `fire`'s pieces** on core `e` from `s0`:
+`OKeep2`, no other core's thread made the action, the current thread kept.
+Unlike `FFoot` it admits the `StK` step of a remote VMEnter completion
+(`RUNNING_VM` to `RUNNING`). -/
+structure FK (st : machine.Store S) [L : LawfulStore st] (T Cs : Set U64) (e : U64) (s0 s : S) : Prop where
+  keep : OKeep2 st T Cs e s0 s
+  ac : AcK st T (OtherK st T Cs e s0) s0 s
+  cur : L.curW s = L.curW s0
+
+theorem FK.refl (e : U64) (s : S) : FK st T Cs e s s := ⟨OKeep2.refl e s, AcK.of_eq rfl, rfl⟩
+
+theorem FK.trans {e : U64} {s0 s1 s2 : S} (k1 : FK st T Cs e s0 s1) (k2 : FK st T Cs e s1 s2) :
+    FK st T Cs e s0 s2 := by
+  have hK := k1.keep.otherK
+  have a2 := k2.ac
+  rw [hK] at a2
+  exact ⟨k1.keep.trans k2.keep, k1.ac.trans a2, k2.cur.trans k1.cur⟩
+
+/-- An `FFoot` footprint over the other cores' threads is an `FK` step. -/
+theorem FFoot.fk {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s s' : S}
+    (hq : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hKT : ∀ y ∈ OtherK st T Cs (L.cpu s) s, y ∈ T) (hiT : ∀ c ∈ Cs, idleAt st c s ∈ T)
+    (hiS : ∀ c ∈ Cs, L.mem s (scA (idleAt st c s)) ∈ Scs)
+    (f : FFoot st (OtherK st T Cs (L.cpu s) s) (IlAt st Cs s) (KsAt st Cs s) T Cs Sg Scs Z Es U s s') :
+    FK st T Cs (L.cpu s) s s' :=
+  ⟨FFoot.okeep hq hO hKT hiT hiS f, f.ac, FFoot.cur hq hO f⟩
+
+/-- **`FireKeep` from an `FK` frame of `fire`.** -/
+theorem FireKeep.ofFK {e : U64} {s s' : S} (k : FK st T Cs e s s') (ha : ActOut st T (OtherK st T Cs e s) s)
+    (hc : L.curW s ∉ OtherK st T Cs e s) : FireKeep st T Cs e s s' :=
+  ⟨k.keep, ha.step k.ac, by rw [k.cur]; exact hc⟩
+
 end
 
 end Fl4Proofs.P2.Stall

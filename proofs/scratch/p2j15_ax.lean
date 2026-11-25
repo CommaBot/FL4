@@ -11,3 +11,7 @@ import Fl4Proofs.P2.FootN8
 #print axioms Fl4Proofs.P2.Stall.signal_tail.ff
 #print axioms Fl4Proofs.P2.Stall.signal_vm.ff
 #print axioms Fl4Proofs.P2.Stall.notification.maybe_donate_sched_context.ffB
+#print axioms Fl4Proofs.P2.Stall.FK.trans
+#print axioms Fl4Proofs.P2.Stall.FFoot.fk
+#print axioms Fl4Proofs.P2.Stall.FireKeep.ofFK
+#print axioms Fl4Proofs.P2.Stall.FK.refl
