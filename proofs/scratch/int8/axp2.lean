@@ -160,7 +160,7 @@ open Fl4Proofs.P2.MoveGap
 #print axioms body_not_safe
 #print axioms mown_not_moveLocal
 #print axioms Fl4Proofs.P2.Serial.moveV_transfer
-#print axioms Fl4Proofs.P2.OwnMap.moveLocal
+#print axioms Fl4Proofs.P2.OwnMap.moveHeld
 end
 
 -- from proofs/scratch/p2c/ax6.lean
