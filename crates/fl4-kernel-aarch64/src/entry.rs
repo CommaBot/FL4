@@ -2,7 +2,7 @@
 //! current TCB; dispatch to fl4-core, then run whichever thread is current.
 use crate::kprintln;
 use fl4_arch_aarch64::arch::PhysArch;
-use fl4_arch_aarch64::{cpu, fpu, gic, mmu, pac, percpu, smp, timer, vcpu};
+use fl4_arch_aarch64::{cpu, fpu, gic, kconfig, mmu, pac, percpu, smp, timer, vcpu};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -591,6 +591,19 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
     trace(kind, esr, elr, t.0, s);
     let number = t.reg(s, reg::SYSCALL) as i64;
     if ec == EC_SVC64 {
+        // SysKernelConfig: one boot-frozen word (kconfig.rs), answered from
+        // the caller's registers alone. A thread with trapSyscalls takes
+        // the ordinary path to its fault handler.
+        if number == fl4_abi::syscall::SysKernelConfig
+            && t.flags(s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS == 0
+        {
+            let (error, value) = kconfig::reply(t.reg(s, reg::X0));
+            t.set_reg(s, reg::X0, error);
+            // seL4_MessageInfo_new(0, 0, 0, 1).
+            t.set_reg(s, reg::X1, 1);
+            t.set_reg(s, reg::X2, value);
+            resume()
+        }
         // The local paths beside the serial gate (fl4_sync::run_syscall),
         // as on x86_64.
         let local = |s: &mut PhysStore, a: &mut PhysArch| {

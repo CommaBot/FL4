@@ -15,6 +15,7 @@ pub mod gic;
 pub mod gic_layout;
 pub mod hyp_nvhe;
 pub mod its;
+pub mod kconfig;
 pub mod mmu;
 pub mod mmu_switch;
 pub mod pac;

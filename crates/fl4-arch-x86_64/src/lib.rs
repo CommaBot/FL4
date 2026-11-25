@@ -9,6 +9,7 @@ pub mod cvm;
 pub mod fbcon;
 pub mod fpu;
 pub mod ioapic;
+pub mod kconfig;
 mod kvm_clock;
 pub mod percpu;
 pub mod pic;

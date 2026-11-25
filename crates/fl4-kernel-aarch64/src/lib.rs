@@ -15,7 +15,7 @@ use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_aarch64::arch::PhysArch;
 use bootmem::Ranges;
-use fl4_arch_aarch64::{cpu, fpu, gic, percpu, serial, timer};
+use fl4_arch_aarch64::{cpu, fpu, gic, kconfig, percpu, serial, timer};
 use fl4_bootinfo::{BootInfo, KERNEL_VBASE, MAGIC};
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
@@ -463,14 +463,18 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     }
     fpu::init();
     fl4_arch_aarch64::smp::set_psci(h.psci);
-    let virt_ready = cpu::has_el2()
-        && !has_option(bi, b"novirt")
-        && ((h.gic_version == 3 && gic::has_sysregs())
-            || (h.gic_version == 2 && gic::gich() != 0 && h.gicv != 0))
-        && gic::vgic_num_lrs() > 0
-        && (h.vgic_maint == 0 || h.vgic_maint == fl4_core::layout::irq::VGIC_MAINT_ID)
-        && (h.vtimer == 0 || h.vtimer == fl4_core::layout::irq::TIMER_ID)
-        && (h.n_cpus <= 1 || h.psci != fl4_arch_aarch64::smp::PSCI_HVC);
+    let vgic_lrs = gic::vgic_num_lrs();
+    let virt_reject = kconfig::virt_reject_of(&kconfig::Virt {
+        has_el2: cpu::has_el2(),
+        novirt: has_option(bi, b"novirt"),
+        vgic: (h.gic_version == 3 && gic::has_sysregs())
+            || (h.gic_version == 2 && gic::gich() != 0 && h.gicv != 0),
+        lrs: vgic_lrs as u64,
+        ppis_ok: (h.vgic_maint == 0 || h.vgic_maint == fl4_core::layout::irq::VGIC_MAINT_ID)
+            && (h.vtimer == 0 || h.vtimer == fl4_core::layout::irq::TIMER_ID),
+        psci_ok: h.n_cpus <= 1 || h.psci != fl4_arch_aarch64::smp::PSCI_HVC,
+    });
+    let virt_ready = virt_reject == fl4_abi::consts::kernel_config::virt_reject::NONE;
     fl4_arch_aarch64::arch::set_virt_ready(virt_ready);
     match cpu::el_mode() {
         cpu::ElMode::El2Vhe => {
@@ -750,6 +754,29 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
             ks_set(&mut s, ks::IRQ_STATE + vgic * 8, IRQ_RESERVED);
         }
     }
+    // Everything SysKernelConfig answers is decided now.
+    kconfig::freeze(&kconfig::Facts {
+        online: fl4_arch_aarch64::smp::num_online(),
+        el2_vhe: cpu::is_el2_vhe(),
+        el2_nvhe: cpu::is_el2_nvhe(),
+        virt_reject,
+        vmid16: cpu::has_el2() && cpu::vmid16(),
+        s2_ipa_bits: fl4_arch_aarch64::mmu::s2_ipa_bits(),
+        vgic_lrs: vgic_lrs as u64,
+        pan: cpu::has_pan(),
+        pauth: cpu::has_pauth(),
+        clrbhb: cpu::has_clrbhb(),
+        asid16: cpu::has_asid16(),
+        hw_af: cpu::has_hw_af(),
+        gicv3_sre: gic::sre(),
+        its: msi.is_some(),
+        timer_local_ack: gic::can_ack_timer_only(),
+        pa_bits: cpu::pa_bits(),
+        gic_version: gic::version(),
+        max_spi: gic::max_spi(),
+        psci: fl4_arch_aarch64::smp::psci(),
+        timer_hz: timer::freq(),
+    });
     kprintln!("FL4: starting the root task at {:#x}", root.entry);
     // With kernel printing disabled, the root task owns the UART page.
     if !fl4_abi::config::PRINTING {

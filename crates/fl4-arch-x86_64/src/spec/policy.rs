@@ -15,6 +15,7 @@ pub const TSX_CTRL: u64 = 1 << 7;
 const TAA_NO: u64 = 1 << 8;
 const MMIO_NO: u64 = 7 << 13;
 const FB_CLEAR: u64 = 1 << 17;
+pub const FB_CLEAR_CTRL: u64 = 1 << 18;
 const BHI_NO: u64 = 1 << 20;
 const PBRSB_NO: u64 = 1 << 24;
 pub const GDS_CTRL: u64 = 1 << 25;
@@ -23,7 +24,9 @@ const RFDS_CLEAR: u64 = 1 << 28;
 const ITS_NO: u64 = 1 << 62;
 
 pub const AMD_IBPB: u32 = 1 << 12;
+const AMD_IBRS: u32 = 1 << 14;
 pub const AMD_STIBP: u32 = 1 << 15;
+const AMD_SSBD: u32 = 1 << 24;
 const AMD_IBPB_RET: u32 = 1 << 30;
 pub const LFENCE_SERIAL: u32 = 1 << 2;
 const VERW_CLEAR: u32 = 1 << 5;
@@ -253,6 +256,42 @@ pub fn native_entry_without_ibpb(c: &Caps) -> bool {
         }
         Vendor::Other => false,
     }
+}
+
+/// IA32_SPEC_CTRL exists, and reading it is the kernel's to do though the
+/// policy sets nothing in it. Not in a `hardened` guest: there the MSR may
+/// be the hypervisor's to answer, or to refuse.
+pub fn spec_ctrl_readable(c: &Caps, hardened: bool) -> bool {
+    match c.vendor {
+        Vendor::Intel => !hardened && c.leaf7_edx & (1 << 26) != 0,
+        Vendor::Amd => !hardened && c.amd8 & (AMD_STIBP | AMD_IBRS | AMD_SSBD) != 0,
+        Vendor::Other => false,
+    }
+}
+
+/// IA32_ARCH_CAPABILITIES exists (`Caps::arch` is its value).
+pub fn has_arch_capabilities(c: &Caps) -> bool {
+    c.vendor == Vendor::Intel && c.leaf7_edx & (1 << 29) != 0
+}
+
+/// IA32_TSX_CTRL exists. Never a TD's: the TDX module owns it.
+pub fn has_tsx_ctrl(c: &Caps, tdx: bool) -> bool {
+    !tdx && c.vendor == Vendor::Intel && c.arch & TSX_CTRL != 0
+}
+
+/// IA32_MCU_OPT_CTRL exists (FB_CLEAR_CTRL or GDS_CTRL). Never a TD's.
+pub fn has_mcu_opt_ctrl(c: &Caps, tdx: bool) -> bool {
+    !tdx && c.vendor == Vendor::Intel && c.arch & (FB_CLEAR_CTRL | GDS_CTRL) != 0
+}
+
+/// The AMD parts whose DE_CFG `spec::init_core` sets: bare metal, Zen 2 on.
+pub fn sets_de_cfg(c: &Caps) -> bool {
+    c.vendor == Vendor::Amd && !c.hypervisor && (zen2(c) || c.family >= 0x19)
+}
+
+/// The AMD parts whose BP_CFG `spec::init_core` sets.
+pub fn sets_bp_cfg(c: &Caps) -> bool {
+    sets_de_cfg(c) && zen4(c)
 }
 
 /// What a core without a plan (`select` rejected it) still enables at

@@ -833,3 +833,19 @@ LIBSEL4_INLINE_FUNC void seL4_SetTLSBase(seL4_Word tls_base)
 }
 #endif /* CONFIG_SET_TLS_BASE_SELF */
 
+LIBSEL4_INLINE_FUNC seL4_KernelConfig_Result_t seL4_KernelConfig(seL4_Word key)
+{
+    seL4_KernelConfig_Result_t result;
+    seL4_Word error;
+    seL4_Word info;
+    seL4_Word value = 0;
+    seL4_Word unused0 = 0;
+    seL4_Word unused1 = 0;
+    seL4_Word unused2 = 0;
+
+    x64_sys_send_recv(seL4_SysKernelConfig, key, &error, 0, &info, &value, &unused0, &unused1, &unused2, 0);
+    result.error = (seL4_Error) error;
+    result.value = value;
+    return result;
+}
+
