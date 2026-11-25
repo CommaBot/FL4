@@ -27,12 +27,13 @@ of it is `locKeepSt_st` (no premise).
   glue's core / locks / memory link. No `LocKeepSt` / `LocRunMv` premise.
 * `IrqPreK`, **`irqPreK_of_chain`** (gen 7): the timer interrupt path's `Pre` (par/p2lt2's `IrqPreJ3`, body
   verbatim: `SlJAt K ∧` memory agreement) at every `R` state from clause 7 and the memory agreement; with
-  `irq_pathsJ3_startAt` (par/p2lt2, not on this branch) this is the timer-interrupt path's `StartAt`.
+  `irq_pathsJ3_startAt` (par/p2lt2) this is the timer-interrupt path's `StartAt`: **`irq_pathsK_startAt`**
+  (int13). `IrqPreK` is now an abbreviation of p2lt2's `IrqPreJ3` (same body).
 
 Premises left: U29's platform inputs (`hARI hA hnd hM hKD hIo hPA hIA hT hmax htu hRef hPI hSX hDR`); each
 path's own premises, unchanged in kind: `sl_pathsK`'s; `io_pathsK`'s `hPE` (`IoPre`), `hmA` [J]
-(`ko`'s memory agrees on TCB affinity words), `huf` [J] (`PathSide.user_free`), `hpz` ([P] `IsProg`,
-[W] `NoZero`, [W] declining `ReadOnce`) and `hm` [P] (`MasksWr`); `tm_pathsK`'s `hPE` (`StEntK`),
+(`ko`'s memory agrees on TCB affinity words), `huf` [J] (`PathSide.user_free`), `hpz` ([P] `IsProg` of the pruned body `ioBodyP`, as
+AccessIoLP's `io_localPath` since hpzf; [W] `NoZero`, [W] declining `ReadOnce`) and `hm` [P] (`MasksWr`); `tm_pathsK`'s `hPE` (`StEntK`),
 `hpz` ([P] `IsProg`, [W] `NoZero`, [W] `ReadOnce`), `hEU` / `hlk` / `hNU` (as `set_timer_localPathM`),
 `huf` [J] (the `Pre` closed under user writes) and `hm` [P]. The glue identifying a body start with an
 `R` state stays `Fl4Step.start` [P].
@@ -41,6 +42,7 @@ import Fl4Proofs.P2.SlJStTop
 import Fl4Proofs.P2.SlJStPostIrq
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P2.FootTimerSetMv
+import Fl4Proofs.P2.FootTimerIrqJ3
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -72,7 +74,9 @@ noncomputable def lpRestrict (P : Fl4Proofs.P2.E2E.LocalPath own cls ko User) (P
   RS := P.RS
   WS := P.WS
   DS := P.DS
-  isProg := P.isProg
+  isProg := by
+    letI := P.L
+    exact fun st' N s ⟨s0, h0, hA⟩ a => P.isProg st' N s ⟨s0, hsub s0 h0, hA⟩ a
   obl :=
     letI := P.L
     { acc := fun s a r h => P.obl.acc s a r (hsub s h)
@@ -129,15 +133,15 @@ noncomputable def io_localPathK (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK
         IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
         IoWS (st := st) K Locks (L.wr s b v) = IoWS (st := st) K Locks s ∧
         IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∃ p : SProg Bool, IsProg (ioBody S number) p ∧ NoZero p ∧
+    (hpz : ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
       ∀ s s' a r, P s → (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
         Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) s s' →
         interp st ar p s' a = ok r →
         Fl4Proofs.P2.E2E.Once st ar (IoRS (st := st) K Locks s) (· ∈ K.user) ∅ ∅ p s' a) :
     Fl4Proofs.P2.E2E.LocalPath (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) :=
-  have hp : ∀ (mm : machine.Store S) (x : S) (a : A),
-      syscall.handle_ioport_local mm ar x a number = interp mm ar hpz.choose x a :=
-    fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a
+  have hp : IsProgOn (fun m s a => syscall.handle_ioport_local m ar s a number) ar st
+      (AltOf st P (IoRS (st := st) K Locks) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user)) hpz.choose :=
+    io_isProgOn hA hPE hpz.choose_spec.1
   have O : ∀ s, P s → PathObl st (fun m s a => syscall.handle_ioport_local m ar s a number) (fun b => b = true)
       (own K) (OwnMap.cls K) (OwnMap.ko K m0) (· ∈ K.user) Locks P
       (IoRS (st := st) K Locks) (IoWS (st := st) K Locks) (IoDS (st := st)) :=
@@ -160,7 +164,7 @@ noncomputable def io_localPathK (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK
     RS := IoRS (st := st) K Locks
     WS := IoWS (st := st) K Locks
     DS := IoDS (st := st)
-    isProg := hpz.choose_spec.1
+    isProg := hp
     obl :=
       { acc := fun s a r hP => (O s hP).acc s a r hP
         dec_alt := fun s a r hP => (O s hP).dec_alt s a r hP
@@ -190,7 +194,7 @@ noncomputable def io_pathsK (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number
         IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
         IoWS (st := st) K Locks (L.wr s b v) = IoWS (st := st) K Locks s ∧
         IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBody S number) p ∧ NoZero p ∧
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
       ∀ s s' a r, (SlJAt (L := L) K s ∧ Q K m s) →
         (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
         Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) s s' →
@@ -214,7 +218,7 @@ theorem io_pathsK_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number :
         IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
         IoWS (st := st) K Locks (L.wr s b v) = IoWS (st := st) K Locks s ∧
         IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBody S number) p ∧ NoZero p ∧
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
       ∀ s s' a r, (SlJAt (L := L) K s ∧ Q K m s) →
         (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
         Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) s s' →
@@ -455,10 +459,11 @@ section irq
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
 /-- (stpost) **The timer interrupt path's `Pre`** (module docstring): line slj's bundle `SlJAt K` and the store
-agreeing with the model memory `m` on aligned kernel words. The body is par/p2lt2's `IrqPreJ3` (FootTimerIrqJ3)
-verbatim, i.e. `sl_pathsK`'s `SlJAt K ∧ Q K m` with `Q K m s := ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x`. -/
-def IrqPreK (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (m : U64 → U64) (s : S) : Prop :=
-  SlJAt (L := L) K s ∧ ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x
+agreeing with the model memory `m` on aligned kernel words. Since int13 it is par/p2lt2's `IrqPreJ3`
+(FootTimerIrqJ3) itself (stpost had written the same body out verbatim, `IrqPreJ3` not being on its branch),
+i.e. `sl_pathsK`'s `SlJAt K ∧ Q K m` with `Q K m s := ∀ x, Aligned x → x ∉ K.user → L.mem s x = m x`. -/
+abbrev IrqPreK (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (m : U64 → U64) (s : S) : Prop :=
+  Fl4Proofs.P2.IrqPreJ3 (L := L) K st m s
 
 /-- (stpost) **`IrqPreK` at every state of a chain whose states carry `SlJAt K`** (module docstring): with
 `loc_chain_all`'s clause 7 as `h7`, every chain state `σ` whose store agrees with `m` off the user words is a
@@ -468,6 +473,31 @@ theorem irqPreK_of_chain {A3 : Type} {R : S → A3 → Fl4Spec.State Unit → Pr
     {σ : S} {a : A3} {τ : Fl4Spec.State Unit} (hR : R σ a τ) {m : U64 → U64}
     (hM : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x) : IrqPreK K st m σ :=
   ⟨h7 σ a τ hR, hM⟩
+
+/-- (int13) **`StartAt` of the timer interrupt path at every chain state** (stpost gen 7's integration note):
+for a chain `R` whose states carry `SlJAt K` (`loc_chain_all`'s clause 7 as `h7`, `K = layoutJ Z H (L.ksb s0) nc`),
+every `R` state `σ` whose store agrees with `m` off the user words, with the glue's core / locks / memory link,
+is a start of par/p2lt2's `irq_pathsJ3` at `(K, m)`: `irq_pathsJ3_startAt` with `irqPreK_of_chain`. The premises
+of `irq_pathsJ3` are passed through unchanged (`hA`, `hp` [P], `hz` [W], `hm` [P], `hro` [W], `hlk` [P], `hPL` [P]);
+`Fl4Step.start` [P] stays the glue. -/
+theorem irq_pathsK_startAt {A3 : Type} {R : S → A3 → Fl4Spec.State Unit → Prop} {A : Type}
+    (ar : machine.Arch A) {irq : U64} {pl : localtimer.TimerIrqPlan} {lk : S → U64 → Prop} {p : SProg Bool}
+    (hA : P0.ArchTotal ar) (hp : IsProg (Fl4Proofs.P2.irqBody S irq pl) p) (hz : NoZero p)
+    (hm : Fl4Proofs.P2.E2E.MasksWr st)
+    (hro : ∀ K m, Fl4Proofs.P2.E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
+      (Fl4Proofs.P2.IrqPreJ3 K st m) (Fl4Proofs.P2.MaxR K st lk))
+    (hlk : ∀ (K : KLayout) s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → lk (L.wr s b v) = lk s)
+    (hPL : Fl4Proofs.P2.PlanLk lk pl)
+    (K : KLayout) (m : U64 → U64) (hK : RegionOK K) (hU : Fl4Proofs.P2.E2E.UserOK K)
+    (h7 : ∀ (σ : S) (a : A3) (τ : Fl4Spec.State Unit), R σ a τ → SlJAt (L := L) K σ)
+    {σ : S} {a3 : A3} {τ : Fl4Spec.State Unit} (hR : R σ a3 τ) (a : A)
+    (hM : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x)
+    {c : U64} {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : lk σ = hs) {μ : U64 → U64}
+    (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
+    Fl4Proofs.P2.E2E.StartAt (Fl4Proofs.P2.irq_pathsJ3 ar hA hp hz hm hro hlk hPL () K m hK hU) c hs μ
+      ((Fl4Proofs.P2.irq_pathsJ3 ar hA hp hz hm hro hlk hPL () K m hK hU).body σ a) :=
+  have h : IrqPreK K st m σ := irqPreK_of_chain h7 hR hM
+  Fl4Proofs.P2.irq_pathsJ3_startAt ar hA hp hz hm hro hlk hPL K m hK hU a h.1 h.2 hc hl hμ
 
 end irq
 

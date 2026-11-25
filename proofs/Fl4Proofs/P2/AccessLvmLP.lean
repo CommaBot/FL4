@@ -250,7 +250,7 @@ noncomputable def vexit_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU 
   RS := VexitRS K st lk
   WS := VexitWS K st lk
   DS := IrqDec st
-  isProg := hp
+  isProg := PathObl.IsProg.on hp _ _ _
   obl := vexit_pathObl ar hA hK hU hp hz hm hP hPm
   side := vexit_pathSide ar hA hK hU hp hz hm hP hEU hlk
   once := hro

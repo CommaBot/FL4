@@ -250,7 +250,7 @@ noncomputable def rr_localPathJ (hA : P0.ArchTotal ar) (hK : RegionOK K) (hU : E
   RS := IoRS (st := st) K Locks
   WS := IoWS (st := st) K Locks
   DS := IoDS (st := st)
-  isProg := hpz.choose_spec.1
+  isProg := IsProg.on hpz.choose_spec.1 _ _ _
   obl := rr_pathOblJ hA hK hU hLA hmA
     (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)
   side := rr_pathSideJ hA hK hLA (fun mm x a => congrFun (congrFun (hpz.choose_spec.1 A ar mm) x) a)

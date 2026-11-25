@@ -15,7 +15,8 @@ argument; here the obligations, one by one:
   the alternative by `sim_off` / `sim_offO` / `sim_offM`;
 * **`LocalPath.cutV`**, `noVcpuRd_cutV`, **`LocalPath.cutLiftV`** (the cut path lifted to `ownV`).
 
-Premises: `AvoidV` [W] per path; `RegionOKV` / `UserOKV` [J] (as everywhere in `E2EV`); `hko` (the path's
+Premises: `AvoidV` [W] per path (with its `prog` [P] part: the relativised program premise at the cut set's
+alternatives, int13); `RegionOKV` / `UserOKV` [J] (as everywhere in `E2EV`); `hko` (the path's
 `ko` is `.free` on VCPU data words: `OwnMapV.ko_vcpu` for `OwnMap.ko`).
 -/
 import Fl4Proofs.P2.E2EVCut
@@ -30,6 +31,12 @@ open Classical
 
 /-- Aligned words outside the VCPU data words. -/
 def GV (K : KLayoutV) (b : U64) : Prop := Aligned b ∧ ¬ VData K b
+
+/-- The states the cut path's program premise covers: alternatives of an entry for the old read set `RS` or
+for the cut one `rsV K RS`. -/
+def AltCut {S : Type} (K : KLayoutV) (st : machine.Store S) [LawfulStore st] (Pre : S → Prop)
+    (RS : S → U64 → Prop) (cls : U64 → U64 → U64) (ko : U64 → ClsOwner U64) (User : U64 → Prop) (σ : S) : Prop :=
+  AltOf st Pre RS cls ko User σ ∨ AltOf st Pre (rsV K RS) cls ko User σ
 
 section cut
 variable {K : KLayoutV} {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} {User : U64 → Prop}
@@ -79,27 +86,28 @@ def AvDec (K : KLayoutV) (st : machine.Store S) [LawfulStore st] (F : machine.St
   ∀ s a r, Pre s → F st s a = ok r → ¬ Acc r.1 → ∀ s' r', Alt st (RS s) cls ko User s s' →
     F st s' a = ok r' → F (guard st (fun b => ¬ VData K b) (fun _ => True)) s' a = ok r'
 
-theorem dec_within (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+theorem dec_within (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hD : AvDec K st (F ar) Acc cls ko User Pre RS)
     {s s'' : S} {a : A} {r r'' : X × S × A} (hs : Pre s) (h : F ar st s a = ok r) (hd : ¬ Acc r.1)
     (hA : Alt st (RS s) cls ko User s s'') (h'' : F ar st s'' a = ok r'') :
     Within st ar (GV K) (DS s) p s'' a := by
-  have e := fun (st' : machine.Store S) => congrFun (congrFun (hp A ar st') s'') a
-  have w1 := (interp_guard p s'' a r'' ((e _).symm.trans (hD s a r hs h hd s'' r'' hA h''))).2
-  have w2 := (interp_guard p s'' a r'' ((e _).symm.trans (Sd.read_aligned s s'' a r'' hs hA h''))).2
-  have w3 := (interp_guard p s'' a r'' ((e _).symm.trans (O.dec_alt s a r hs h hd s'' r'' hA h'').2.1)).2
+  have e := fun (st' : machine.Store S) (N : Narrow st st') => hp st' N s'' (.inl ⟨s, hs, hA⟩) a
+  have w1 := (interp_guard p s'' a r'' ((e _ (Narrow.guard _ _ _)).symm.trans (hD s a r hs h hd s'' r'' hA h''))).2
+  have w2 := (interp_guard p s'' a r'' ((e _ (Narrow.guard _ _ _)).symm.trans (Sd.read_aligned s s'' a r'' hs hA h''))).2
+  have w3 := (interp_guard p s'' a r'' ((e _ (Narrow.guard _ _ _)).symm.trans (O.dec_alt s a r hs h hd s'' r'' hA h'').2.1)).2
   exact Within.mono (fun b hb => ⟨hb.1.2, hb.1.1⟩) (fun b hb => hb.2) p s'' a
     (within_and p s'' a (within_and p s'' a w1 w2) w3)
 
-theorem acc_within (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+theorem acc_within (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hN : ReadOnce st ar p cls ko User Pre RS)
     (hmk : MasksWr st) (hAc : AvAcc K st (F ar) Acc Pre RS WS)
     {s s'' : S} {a : A} {r : X × S × A} (hs : Pre s) (h : F ar st s a = ok r) (hac : Acc r.1)
     (hA : Alt st (RS s) cls ko User s s'') :
     Within st ar (GV K) (WS s) p s'' a := by
-  have e := fun (st' : machine.Store S) (σ : S) => congrFun (congrFun (hp A ar st') σ) a
-  have w := (interp_guard p s a r ((e _ s).symm.trans (hAc s a r hs h hac))).2
-  have hO := hN s s a r hs (Alt.refl (R := RS s) (cls := cls) (ko := ko) (User := User) s) ((e st s).symm.trans h)
+  have e := fun (st' : machine.Store S) (N : Narrow st st') (σ : S) (g : AltCut K st Pre RS cls ko User σ) =>
+    hp st' N σ g a
+  have w := (interp_guard p s a r ((e _ (Narrow.guard _ _ _) s (.inl (AltOf.pre hs))).symm.trans (hAc s a r hs h hac))).2
+  have hO := hN s s a r hs (Alt.refl (R := RS s) (cls := cls) (ko := ko) (User := User) s) ((e st (Narrow.self st) s (.inl (AltOf.pre hs))).symm.trans h)
   have hAg : AgOff st (fun b => ¬ RS s b) s'' s :=
     ⟨hA.cpu, hA.ksb, hA.masks, fun b _ hb => hA.read b (not_not.mp hb)⟩
   have w' := (sim_off hmk (G := rsV K RS s) (W := WS s)
@@ -108,7 +116,7 @@ theorem acc_within (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.to
   exact Within.mono (fun b hb => ⟨Sd.rs_aligned s b hs hb.1, hb.2⟩) (fun _ h => h) p s'' a w'
 
 /-- The run from a written-back state reads only `GV` words and writes only `WS s` / `DS s`. -/
-theorem back_within (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+theorem back_within (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hN : ReadOnce st ar p cls ko User Pre RS)
     (hT : ∀ s a, ∃ r, F ar st s a = ok r) (hmk : MasksWr st)
     (hAc : AvAcc K st (F ar) Acc Pre RS WS) (hD : AvDec K st (F ar) Acc cls ko User Pre RS)
@@ -123,33 +131,36 @@ theorem back_within (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.t
 theorem gv_ok : ∀ b, GV K b → Aligned b ∧ ¬ VData K b := fun _ h => h
 
 /-- **`read_aligned` for the cut set.** -/
-theorem cut_read_aligned (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+theorem cut_read_aligned (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hN : ReadOnce st ar p cls ko User Pre RS)
     (hT : ∀ s a, ∃ r, F ar st s a = ok r) (hmk : MasksWr st)
     (hAc : AvAcc K st (F ar) Acc Pre RS WS) (hD : AvDec K st (F ar) Acc cls ko User Pre RS)
     (s s' : S) (a : A) (r' : X × S × A) (hs : Pre s) (hA : Alt st (rsV K RS s) cls ko User s s')
     (h' : F ar st s' a = ok r') : F ar (guard st (fun b => Aligned b) (fun _ => True)) s' a = ok r' := by
-  have e := fun (st' : machine.Store S) (σ : S) => congrFun (congrFun (hp A ar st') σ) a
+  have e := fun (st' : machine.Store S) (N : Narrow st st') (σ : S) (g : AltCut K st Pre RS cls ko User σ) =>
+    hp st' N σ g a
   obtain ⟨s'', hA'', hAg⟩ := alt_back Sd hmk hs hA
   obtain ⟨r'', h''⟩ := hT s'' a
-  have hO := hN s s'' a r'' hs hA'' ((e st s'').symm.trans h'')
+  have hO := hN s s'' a r'' hs hA'' ((e st (Narrow.self st) s'' (.inl ⟨s, hs, hA''⟩)).symm.trans h'')
   have w := (sim_off hmk gv_ok (fun b hb => hb.elim (fun h => O.aligned s b hs (Or.inl h))
     (fun h => O.aligned s b hs (Or.inr h))) p s' s'' a ∅ ∅ hAg
     (back_within hp O Sd hN hT hmk hAc hD hs hA'') hO).1
-  exact (e _ s').trans (guard_of_within p s' a r' ((e st s').symm.trans h')
+  exact (e _ (Narrow.guard _ _ _) s' (.inr ⟨s, hs, hA⟩)).trans (guard_of_within p s' a r'
+      ((e st (Narrow.self st) s' (.inr ⟨s, hs, hA⟩)).symm.trans h')
     (Within.mono (fun b hb => hb.1) (fun _ _ => trivial) p s' a w))
 
 /-- **`ReadOnce` for the cut set.** -/
-theorem cut_once (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+theorem cut_once (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hN : ReadOnce st ar p cls ko User Pre RS)
     (hT : ∀ s a, ∃ r, F ar st s a = ok r) (hmk : MasksWr st)
     (hAc : AvAcc K st (F ar) Acc Pre RS WS) (hD : AvDec K st (F ar) Acc cls ko User Pre RS) :
     ReadOnce st ar p cls ko User Pre (rsV K RS) := by
   intro s s' a r' hs hA _
-  have e := fun (st' : machine.Store S) (σ : S) => congrFun (congrFun (hp A ar st') σ) a
+  have e := fun (st' : machine.Store S) (N : Narrow st st') (σ : S) (g : AltCut K st Pre RS cls ko User σ) =>
+    hp st' N σ g a
   obtain ⟨s'', hA'', hAg⟩ := alt_back Sd hmk hs hA
   obtain ⟨r'', h''⟩ := hT s'' a
-  have hO := hN s s'' a r'' hs hA'' ((e st s'').symm.trans h'')
+  have hO := hN s s'' a r'' hs hA'' ((e st (Narrow.self st) s'' (.inl ⟨s, hs, hA''⟩)).symm.trans h'')
   exact sim_offO gv_ok (fun b hb => hb.elim (fun h => O.aligned s b hs (Or.inl h))
     (fun h => O.aligned s b hs (Or.inr h))) hmk (R1 := rsV K RS s) (R2 := RS s)
     (fun q hq => ⟨fun h => h.1, fun h => ⟨h, hq.2⟩⟩) p s' s'' a ∅ ∅ hAg
@@ -177,7 +188,7 @@ theorem stepOK_agoff (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x
 
 /-- **`dec_alt` for the cut set.** -/
 theorem cut_dec_alt (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x → ko x = .free)
-    (hp : IsProg F p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
+    (hp : IsProgOn (F ar) ar st (AltCut K st Pre RS cls ko User) p) (O : PathObl st (F ar) Acc (OwnMap.own K.toKLayout) cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS) (hN : ReadOnce st ar p cls ko User Pre RS)
     (hT : ∀ s a, ∃ r, F ar st s a = ok r) (hmk : MasksWr st) (hD : AvDec K st (F ar) Acc cls ko User Pre RS)
     (s : S) (a : A) (r : X × S × A) (hs : Pre s) (h : F ar st s a = ok r) (hd : ¬ Acc r.1)
@@ -185,26 +196,29 @@ theorem cut_dec_alt (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x 
     ¬ Acc r'.1 ∧ F ar (guard st (fun _ => True) (DS s)) s' a = ok r' ∧
       F ar (mguard st (fun x y => StepOK (OwnMap.own K.toKLayout) cls ko User (L.cpu s) (Locks s)
         (L.mem x) (L.mem y))) s' a = ok r' := by
-  have e := fun (st' : machine.Store S) (σ : S) => congrFun (congrFun (hp A ar st') σ) a
+  have e := fun (st' : machine.Store S) (N : Narrow st st') (σ : S) (g : AltCut K st Pre RS cls ko User σ) =>
+    hp st' N σ g a
   obtain ⟨s'', hA'', hAg⟩ := alt_back Sd hmk hs hA
   obtain ⟨r'', h''⟩ := hT s'' a
   obtain ⟨n1, n2, n3⟩ := O.dec_alt s a r hs h hd s'' r'' hA'' h''
-  have hO := hN s s'' a r'' hs hA'' ((e st s'').symm.trans h'')
+  have hO := hN s s'' a r'' hs hA'' ((e st (Narrow.self st) s'' (.inl ⟨s, hs, hA''⟩)).symm.trans h'')
   have hW : ∀ b, DS s b → Aligned b := fun b hb => O.aligned s b hs (Or.inr hb)
   have w := dec_within hp O Sd hD hs h hd hA'' h''
   have S1 := sim_off hmk gv_ok hW p s' s'' a ∅ ∅ hAg w hO
-  obtain ⟨σ1', h1, -⟩ := S1.2 r'' ((e st s'').symm.trans h'')
-  have er : r' = (r''.1, σ1', r''.2.2) := Result.ok_injective (((e st s').symm.trans h').symm.trans h1)
+  obtain ⟨σ1', h1, -⟩ := S1.2 r'' ((e st (Narrow.self st) s'' (.inl ⟨s, hs, hA''⟩)).symm.trans h'')
+  have er : r' = (r''.1, σ1', r''.2.2) := Result.ok_injective (((e st (Narrow.self st) s' (.inr ⟨s, hs, hA⟩)).symm.trans h').symm.trans h1)
   refine ⟨by rw [er]; exact n1, ?_, ?_⟩
-  · exact (e _ s').trans (guard_of_within p s' a r' ((e st s').symm.trans h')
+  · exact (e _ (Narrow.guard _ _ _) s' (.inr ⟨s, hs, hA⟩)).trans (guard_of_within p s' a r'
+      ((e st (Narrow.self st) s' (.inr ⟨s, hs, hA⟩)).symm.trans h')
       (Within.mono (fun _ _ => trivial) (fun _ h => h) p s' a S1.1))
-  · have m2 := (interp_mguard p s'' a r'' ((e _ s'').symm.trans n3)).2
+  · have m2 := (interp_mguard p s'' a r'' ((e _ (Narrow.mguard _ _) s'' (.inl ⟨s, hs, hA''⟩)).symm.trans n3)).2
     have m1 := sim_offM hmk gv_ok hW
       (Q2 := fun x y => StepOK (OwnMap.own K.toKLayout) cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))
       (Q1 := fun x y => StepOK (OwnMap.own K.toKLayout) cls ko User (L.cpu s) (Locks s) (L.mem x) (L.mem y))
       (fun σ1 σ2 q v hh hq hQ => stepOK_agoff hK hU hko Sd.ko_aligned hmk hh (hW q hq) hQ)
       p s' s'' a ∅ ∅ hAg w hO m2
-    exact (e _ s').trans (mguard_of_withinM p s' a r' ((e st s').symm.trans h') m1)
+    exact (e _ (Narrow.mguard _ _) s' (.inr ⟨s, hs, hA⟩)).trans (mguard_of_withinM p s' a r'
+      ((e st (Narrow.self st) s' (.inr ⟨s, hs, hA⟩)).symm.trans h') m1)
 
 end cut
 
@@ -215,10 +229,18 @@ variable {K : KLayoutV} {cls : U64 → U64 → U64} {ko : U64 → ClsOwner U64} 
 
 /-- **`AvoidV`** [W] (per path): the path's runs read no VCPU data word. `acc`: an accepted run is a run on the
 store guarded to the cut set `rsV K RS s` (the path's own `acc` walk, each read word shown outside the VCPUs);
-`dec`: from every alternative (for the path's own `RS`) of a declining entry, the run reads no `VData` word. -/
+`dec`: from every alternative (for the path's own `RS`) of a declining entry, the run reads no `VData` word;
+`prog` [P]: the path's program premise also at the alternatives for the cut set (`P.isProg` covers those for the
+old `RS` only; since hpzf the premise is relativised, `IsProgOn`, so it does not carry over by itself; a path
+built from an unrelativised `IsProg` gets it by `IsProg.on`). -/
 structure AvoidV (K : KLayoutV) (P : LocalPath (OwnMap.own K.toKLayout) cls ko User) : Prop where
   acc : AvAcc K P.st (P.F P.ar) P.Acc P.Pre P.RS P.WS
   dec : @AvDec P.S P.A P.X K P.st P.L (P.F P.ar) P.Acc cls ko User P.Pre P.RS
+  prog : IsProgOn (P.F P.ar) P.ar P.st (@AltOf P.S P.st P.L P.Pre (rsV K P.RS) cls ko User) P.p
+
+theorem AvoidV.progCut {K : KLayoutV} {P : LocalPath (OwnMap.own K.toKLayout) cls ko User} (hAv : AvoidV K P) :
+    IsProgOn (P.F P.ar) P.ar P.st (@AltCut P.S K P.st P.L P.Pre P.RS cls ko User) P.p :=
+  fun st' N σ g a => g.elim (fun h => P.isProg st' N σ h a) (fun h => hAv.prog st' N σ h a)
 
 /-- **The path with its read set cut to `rsV K RS`**, from `AvoidV`. -/
 def LocalPath.cutV (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x → ko x = .free)
@@ -238,12 +260,12 @@ def LocalPath.cutV (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x �
   RS := rsV K P.RS
   WS := P.WS
   DS := P.DS
-  isProg := P.isProg
+  isProg := hAv.prog
   obl := by
     letI := P.L
     exact {
       acc := hAv.acc
-      dec_alt := cut_dec_alt hK hU hko P.isProg P.obl P.side P.once P.total P.masks hAv.dec
+      dec_alt := cut_dec_alt hK hU hko hAv.progCut P.obl P.side P.once P.total P.masks hAv.dec
       read_own := fun s x hp hr hu => P.obl.read_own s x hp hr.1 hu
       write_own := P.obl.write_own
       aligned := P.obl.aligned
@@ -251,7 +273,7 @@ def LocalPath.cutV (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x �
   side := by
     letI := P.L
     exact {
-      read_aligned := cut_read_aligned P.isProg P.obl P.side P.once P.total P.masks hAv.acc hAv.dec
+      read_aligned := cut_read_aligned hAv.progCut P.obl P.side P.once P.total P.masks hAv.acc hAv.dec
       rs_aligned := fun s x hp hr => P.side.rs_aligned s x hp hr.1
       ko_aligned := P.side.ko_aligned
       user_free := fun s b v hp hb ha => by
@@ -260,7 +282,7 @@ def LocalPath.cutV (hK : RegionOKV K) (hU : UserOKV K) (hko : ∀ x, VData K x �
         funext x; unfold rsV; rw [h3] }
   once := by
     letI := P.L
-    exact cut_once P.isProg P.obl P.side P.once P.total P.masks hAv.acc hAv.dec
+    exact cut_once hAv.progCut P.obl P.side P.once P.total P.masks hAv.acc hAv.dec
   total := P.total
   masks := P.masks
 

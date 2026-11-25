@@ -204,28 +204,32 @@ def LocalPath.unUser (P : LocalPath own cls ko U') (hUU : ∀ x, U x → U' x)
   RS := P.RS
   WS := P.WS
   DS := P.DS
-  isProg := P.isProg
+  isProg := by
+    letI := P.L
+    exact fun st' N s ⟨s0, h0, hA⟩ a => P.isProg st' N s ⟨s0, h0, alt_unUser hUU hA⟩ a
   obl := by
     letI := P.L
-    have mono : ∀ (cpu : U64) (lk : U64 → Prop) (st' : machine.Store P.S) (s : P.S) (a : P.A) r,
-        P.F P.ar (mguard st' (fun x y => StepOK own cls ko U' cpu lk (P.L.mem x) (P.L.mem y))) s a = ok r →
-        P.F P.ar (mguard st' (fun x y => StepOK own cls ko U cpu lk (P.L.mem x) (P.L.mem y))) s a = ok r := by
-      intro cpu lk st' s a r h
-      have e1 := P.isProg _ P.ar (mguard st' (fun x y => StepOK own cls ko U' cpu lk (P.L.mem x) (P.L.mem y)))
-      have e2 := P.isProg _ P.ar (mguard st' (fun x y => StepOK own cls ko U cpu lk (P.L.mem x) (P.L.mem y)))
-      exact (congrFun (congrFun e2 s) a).trans (interp_mguard_mono (fun x y hq => stepOK_unUser hko hq)
-        P.p s a r ((congrFun (congrFun e1 s) a).symm.trans h))
+    have mono : ∀ (cpu : U64) (lk : U64 → Prop) (s : P.S) (a : P.A) r,
+        AltOf P.st P.Pre P.RS cls ko U' s →
+        P.F P.ar (mguard P.st (fun x y => StepOK own cls ko U' cpu lk (P.L.mem x) (P.L.mem y))) s a = ok r →
+        P.F P.ar (mguard P.st (fun x y => StepOK own cls ko U cpu lk (P.L.mem x) (P.L.mem y))) s a = ok r := by
+      intro cpu lk s a r hG h
+      have e1 := P.isProg _ (Narrow.mguard P.st (fun x y => StepOK own cls ko U' cpu lk
+        (P.L.mem x) (P.L.mem y))) s hG a
+      have e2 := P.isProg _ (Narrow.mguard P.st (fun x y => StepOK own cls ko U cpu lk
+        (P.L.mem x) (P.L.mem y))) s hG a
+      exact e2.trans (interp_mguard_mono (fun x y hq => stepOK_unUser hko hq) P.p s a r (e1.symm.trans h))
     exact {
       acc := P.obl.acc
       dec_alt := fun s a r hp h hd s' r' hA h' => by
         obtain ⟨h1, h2, h3⟩ := P.obl.dec_alt s a r hp h hd s' r' (alt_unUser hUU hA) h'
-        exact ⟨h1, h2, mono _ _ _ _ _ _ h3⟩
+        exact ⟨h1, h2, mono _ _ _ _ _ ⟨s, hp, alt_unUser hUU hA⟩ h3⟩
       read_own := fun s x hp hr hu =>
         P.obl.read_own s x hp hr (fun hu' => hu (hRS s x hp hr hu'))
       write_own := fun s x hp hw hu =>
         P.obl.write_own s x hp hw (fun hu' => hu (hWS s x hp hw hu'))
       aligned := P.obl.aligned
-      move := fun s a r hp h => mono _ _ _ _ _ _ (P.obl.move s a r hp h) }
+      move := fun s a r hp h => mono _ _ _ _ _ (AltOf.pre hp) (P.obl.move s a r hp h) }
   side := by
     letI := P.L
     exact {

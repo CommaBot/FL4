@@ -151,7 +151,7 @@ theorem io_noVcpuRW (hKV : RegionOKV K) (hA : P0.ArchTotal ar) (hK : OwnMap.Regi
         IoRS (st := st) (userV K) Locks (L.wr s b v) = IoRS (st := st) (userV K) Locks s ∧
         IoWS (st := st) (userV K) Locks (L.wr s b v) = IoWS (st := st) (userV K) Locks s ∧
         IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∃ p : SProg Bool, IsProg (ioBody S number) p ∧ NoZero p ∧
+    (hpz : ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
       ∀ s s' a r, P s → (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
         Alt st (IoRS (st := st) (userV K) Locks s) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m0)
           (· ∈ (userV K).user) s s' →

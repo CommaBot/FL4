@@ -18,7 +18,8 @@ For rule 7's map `OwnMapV.ownV K` and gen 5's sets `VexitRS` / `VexitWS` / `Vexi
 Premises (fields of `VexitEnt`):
 * `inv` [J]: P1's invariant at the entry (`BXI`, as `IrqEnt.inv`; VT-x entries are outside the P1 top, P3's
   `P3Place.vmchk` [P]);
-* `lay`, `ntw`, `cs` [J]: the layout's regions (`StLay`, and `IrqLay`'s notification and slot fields);
+* `lay`, `ntw`, `cs` [J]: the layout's regions (`StLay`, and `IrqLay`'s notification and slot fields; `cs` over the
+  six TCB slots, `k < 192`, as `IrqLay.cs` since p2lf gen14: int13 narrowed it from `k < 256`);
 * `aff` [J]: p2j's `AffSc`; `curAff`, `cscCore` [J]: p2j's `OwnJ.curAff` / `EntryInv.cur_sc_core` (as `IoPre`'s);
 * `ksv` [J]: no VCPU covers `CUR_DOMAIN` / `DOMAIN_TIME` (the kernel-state block holds no VCPU);
 * `vin` [J]: the exiting VCPU `v` is a VCPU of the layout and `PENDING` lies inside it;
@@ -49,7 +50,7 @@ structure VexitEnt (K : KLayoutV) (st : machine.Store S) [L : LawfulStore st] (T
   inv : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s
   lay : StLay K.toKLayout st T Scs Z s
   ntw : ∀ p ∈ Nt, ∀ k : U64, k.val < 64 → region K.toKLayout (core.num.U64.wrapping_add p k) = .ntfn p
-  cs : ∀ k : U64, k.val < 256 → k.val % 32 < 16 → ∃ p,
+  cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p,
     region K.toKLayout (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧ TcbSlot K.toKLayout p ∧
       (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16
   aff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t)
@@ -167,7 +168,7 @@ theorem tmw_ownV (hK : RegionOKV K) {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt 
 theorem vexit_rd (hK : RegionOKV K) {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hL : StLay K.toKLayout st T Scs Z s)
     (ntw : ∀ p ∈ Nt, ∀ k : U64, k.val < 64 → region K.toKLayout (core.num.U64.wrapping_add p k) = .ntfn p)
-    (cs : ∀ k : U64, k.val < 256 → k.val % 32 < 16 → ∃ p,
+    (cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p,
       region K.toKLayout (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧ TcbSlot K.toKLayout p ∧
         (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16)
     (hAff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
