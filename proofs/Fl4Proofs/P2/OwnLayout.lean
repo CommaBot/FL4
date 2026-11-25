@@ -1,6 +1,6 @@
 /-
 P2: **`RegionOK` and `UserOK` from P1's placement facts** (the [J] premises of
-`E2E.GlueStart`).
+`E2E.Fl4Step.ser`).
 
 `LayP K` states, for a layout `K`, the placement P1 carries: the typed heap
 (`HeapOK`), the nodes outside every object, the capability slots 32-byte

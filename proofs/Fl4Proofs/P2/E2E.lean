@@ -2,9 +2,10 @@
 P2: **end to end, from the per-path obligations to serializability**
 (`SerialSafe`'s plan, done).
 
-`Serial.serializable_safe` needs `BodyOK` [W]: a body is `Safe` when it starts.
+`Serial.serializable_safe` needs a body to be `Safe` when it starts
+(`SafeStep.start`).
 Here a body is the translation `tr` of a local path's trait-call tree, and
-`BodyOK` follows from the path's obligations (`LocalPath`), by way of
+that follows from the path's obligations (`LocalPath`), by way of
 `SafeCert.safe_of_runs`.
 
 ## The translation `tr`
@@ -43,17 +44,19 @@ and `move` there give the certificate, checked at the real memory; otherwise
 
 ## Premises
 
-Of `serializable_paths` (generic ownership map):
-* `Init`, `ArmGlue` [W] as in `serializable_safe`;
+Of `serializable_e2e` (about executions `Exec`, each step an `Fl4Step`; not about
+all states reachable by `Step`, which arms any program: such a premise would be
+false, `SerialSafe`):
 * per path, inside `LocalPath`: `IsProg` [P], `PathObl` [W], `PathSide` [W],
   `ReadOnce` [W] (it subsumes `DecOnce` and `NoZero`), totality (`<fn>.p0`,
   from a total Arch instance), `MasksWr` [P];
-* `StartAt` [P] for every started body (below);
-* `MoveHeld`, `OwnDep`: hypotheses on the ownership map,
-  discharged for `OwnMap.own`.
+* per step: `Fl4Step.arm` [P] (armed programs are pure glue), `Fl4Step.start` [P]
+  (`StartAt`), `Fl4Step.ser` [J] (a serial entry leaves a layout with `RegionOK`
+  and `UserOK`; from P1 by `OwnLayout` / `OwnJAtZ`);
+* at the start: `Init`, `ArmInv`, the layout.
 
-Of `serializable_e2e`: the same with `own := OwnMap.own K`; `RegionOK` [J] and
-`UserOK` [J] for the layouts `K` of the execution.
+Beside the gate the layout and the ghost maps do not change (`maps_step`, proved).
+`MoveHeld` and `OwnDep` are proved for `OwnMap.own`.
 -/
 import Fl4Proofs.P2.SafeCert
 import Fl4Proofs.P2.PathBridge
@@ -721,21 +724,6 @@ theorem LocalPath.safe (P : LocalPath own cls ko User) (hL : MoveHeld own)
 
 end top
 
-open Fl4Proofs.P2.Serial in
-/-- **Every execution is a serial one**, from the per-path obligations, for any
-ownership map: where a body starts, the map satisfies `MoveHeld`,
-`OwnDep`, and the body is a `LocalPath` started by the glue (`StartAt` [P]);
-`ArmGlue` [W]. As in `serializable_safe`, a speculative read may return any
-value in the serial order. -/
-theorem serializable_paths {s0 s : Cfg U64 U64 U64 U64} (h0 : Init s0) (hA : ArmGlue s0)
-    (hS : ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
-      ∃ User, MoveHeld s.own ∧ OwnDep s.own User ∧
-        ∃ P : LocalPath s.own s.cls s.ko User, StartAt P c (fun l => s.lk l = some c) s.mem k)
-    (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem := by
-  refine serializable_safe h0 hA (fun s hs c p0 k W hph => ?_) h hq
-  obtain ⟨User, hL, hO, P, hP⟩ := hS s hs c p0 k W hph
-  exact P.safe hL hO hP
-
 /-! ## `OwnMap` -/
 
 open OwnMap in
@@ -787,40 +775,129 @@ theorem ownDep {K : KLayout} (hK : RegionOK K) (hU : UserOK K) :
     simp only [h _ h1 h2]
   | none => rfl
 
-open Fl4Proofs.P2.Serial in
-/-- **`GlueStart`** [P]: wherever a body starts, the ghost maps are `OwnMap`'s
-for a layout `K` with `RegionOK` [J] and `UserOK` [J] (the maps change only under
-the gate, with `K`; `ko`'s home cores are read in the current memory, where
-they are gate-owned), and the body is one of the local paths `LP`, started by
-the glue (`StartAt`). -/
-def GlueStart {ι : Type}
-    (LP : ι → ∀ (K : OwnMap.KLayout) (m : U64 → U64), OwnMap.RegionOK K → UserOK K →
-      LocalPath (OwnMap.own K) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user))
-    (s0 : Cfg U64 U64 U64 U64) : Prop :=
-  ∀ s, GReach s0 s → ∀ c p0 k W, s.ph c = .loc p0 (.start k) W →
-    ∃ (K : OwnMap.KLayout) (hK : OwnMap.RegionOK K) (hU : UserOK K) (i : ι),
-      s.own = OwnMap.own K ∧ s.cls = OwnMap.cls K ∧ s.ko = OwnMap.ko K s.mem ∧
-      StartAt (LP i K s.mem hK hU) c (fun l => s.lk l = some c) s.mem k
+/-- The local paths with their obligations, for every layout (the ghost maps'
+`ko` in the memory where the body starts). -/
+abbrev Paths (ι : Type) : Type 1 :=
+  ι → ∀ (K : OwnMap.KLayout) (m : U64 → U64), OwnMap.RegionOK K → UserOK K →
+    LocalPath (OwnMap.own K) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
 
 open Fl4Proofs.P2.Serial in
-/-- **End to end**: with FL4's ownership map, local paths `LP` (each with its
-`LocalPath` obligations, for every layout) run beside the serial gate exactly
-as some serial order of the completed entries: in every reachable state with no
+/-- The ghost maps are `OwnMap`'s for the layout `K`. -/
+structure Maps (K : OwnMap.KLayout) (s : Cfg U64 U64 U64 U64) : Prop where
+  own : s.own = OwnMap.own K
+  cls : s.cls = OwnMap.cls K
+  ko : s.ko = OwnMap.ko K s.mem
+
+open Fl4Proofs.P2.Serial in
+/-- The step from `s` by `c` is a serial entry's body (which a core holding the
+closed gate runs). -/
+def SerStep (s : Cfg U64 U64 U64 U64) (c : U64) : Prop := s.gate = .closed ∧ s.holder = some c
+
+open Fl4Proofs.P2.Serial in
+/-- **A step of FL4**, core `c` from `s` with layout `K` to `s'` with layout `K'`:
+* `arm` [P]: an armed program is pure glue (`PureGlue`), fl4-sync's local
+  attempts;
+* `start` [P]: a body it starts is one of the local paths, started by the glue
+  (`StartAt`);
+* `ser` [J]: a serial entry leaves a layout (retype, delete, migration and
+  binding change it) whose words lie as `RegionOK` and `UserOK` say, and the ghost
+  maps are that layout's. `OwnMap.regionOK_of` / `userOK_of` give the two from P1's
+  placement (`LayP`), `OwnMap.ok_of_JAtZ` from the joint invariant, which holds at
+  the entry's exit;
+* `keep`: no other step changes the layout (a ghost).
+
+Who discharges each: `arm` is read off fl4-sync's local attempts (`run_syscall`,
+`run_vm_fault`, `run_timer_irq`: speculative reads and lock attempts before the
+body; trusted, `TRUSTED`); `start` is `StartAt`, the same glue calling the body
+on its own core's state after checking `Pre`, with the `LocalPath` itself from
+the path lines (p2sl: fast paths, p2io: I/O ports, p2lt: timer); `ser` is
+`OwnMap.ok_of_JAtZ` at the joint invariant P3 keeps at every serial entry's exit,
+with the maps the layout's by definition of the ghost; `keep` is the model's
+(the layout is ghost state only serial entries change). The hypotheses can all
+hold together, with serial entries running (`E2EWitness.witness`). -/
+structure Fl4Step {ι : Type} (LP : Paths ι) (s : Cfg U64 U64 U64 U64) (K : OwnMap.KLayout)
+    (c : U64) (s' : Cfg U64 U64 U64 U64) (K' : OwnMap.KLayout) : Prop where
+  arm : ∀ p, s'.ph c = .arm p → PureGlue p
+  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ (hK : OwnMap.RegionOK K) (hU : UserOK K),
+    ∃ i, StartAt (LP i K s.mem hK hU) c (fun l => s.lk l = some c) s.mem k
+  ser : SerStep s c → OwnMap.RegionOK K' ∧ UserOK K' ∧ Maps K' s'
+  keep : ¬ SerStep s c → K' = K
+
+open Fl4Proofs.P2.Serial in
+/-- **An execution of FL4** from `s0` with layout `K0`. -/
+inductive Exec {ι : Type} (LP : Paths ι) (s0 : Cfg U64 U64 U64 U64) (K0 : OwnMap.KLayout) :
+    Cfg U64 U64 U64 U64 → OwnMap.KLayout → Prop
+  | refl : Exec LP s0 K0 s0 K0
+  | step {s s' : Cfg U64 U64 U64 U64} {K K' : OwnMap.KLayout} {c : U64} :
+      Exec LP s0 K0 s K → Step s c s' → Fl4Step LP s K c s' K' → Exec LP s0 K0 s' K'
+
+open OwnMap in
+/-- A core does not write a word deciding a home core: `ko` is kept. -/
+theorem ko_upd {K : KLayout} (hK : RegionOK K) {m : U64 → U64} {a v : U64}
+    (ha : own K m a ≠ .gate) : ko K (Function.update m a v) = ko K m := by
+  funext b
+  unfold ko
+  cases hr : region K b with
+  | tcb t =>
+    have ht := hK.tcbOf t b hr
+    have hne : fld t oAFFINITY ≠ a := by
+      rintro rfl; exact ha (own_aff_gate hK ht m)
+    simp only [Function.update_of_ne hne]
+  | _ => rfl
+
+open Fl4Proofs.P2.Serial in
+/-- A step other than a serial entry's body keeps the ghost maps `OwnMap`'s. -/
+theorem maps_step {K : OwnMap.KLayout} (hK : OwnMap.RegionOK K) {s s' : Cfg U64 U64 U64 U64}
+    {c : U64} (hM : Maps K s) (hal : Allowed s c) (hst : Step s c s') (hn : ¬ SerStep s c) :
+    Maps K s' := by
+  obtain ⟨h1, h2, h3⟩ := hM
+  cases hst with
+  | serial _ _ _ _ hh hg _ _ => exact absurd ⟨hg, hh⟩ hn
+  | @wr p0 a v k W hc =>
+    refine ⟨h1, h2, ?_⟩
+    simp only [Allowed, hc] at hal
+    have ha : OwnMap.own K s.mem a ≠ .gate := by
+      rw [← h1]; intro e; have := hal.1; rw [e] at this; exact this
+    show s.ko = OwnMap.ko K (Function.update s.mem a v)
+    rw [ko_upd hK ha]; exact h3
+  | _ => exact ⟨h1, h2, h3⟩
+
+open Fl4Proofs.P2.Serial in
+theorem exec_safeRun {ι : Type} {LP : Paths ι} {s0 s : Cfg U64 U64 U64 U64}
+    {K0 K : OwnMap.KLayout} (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : OwnMap.RegionOK K0)
+    (hU0 : UserOK K0) (hM0 : Maps K0 s0) (h : Exec LP s0 K0 s K) :
+    SafeRun s0 s ∧ OwnMap.RegionOK K ∧ UserOK K ∧ Maps K s := by
+  induction h with
+  | refl => exact ⟨.refl, hK0, hU0, hM0⟩
+  | @step s s' K K' c _ hst hF ih =>
+    obtain ⟨hr, hK, hU, hM⟩ := ih
+    obtain ⟨_, hS, _⟩ := safeRun_greach h0 hA0 hr
+    refine ⟨.step hr hst ⟨hF.arm, fun p0 k W hph => ?_⟩, ?_⟩
+    · obtain ⟨i, hP⟩ := hF.start p0 k W hph hK hU
+      rw [hM.own, hM.cls, hM.ko]
+      exact (LP i K s.mem hK hU).safe (OwnMap.moveHeld hK) (ownDep hK hU) hP
+    · by_cases hs : SerStep s c
+      · exact hF.ser hs
+      · rw [hF.keep hs]
+        exact ⟨hK, hU, maps_step hK hM (allowed_of_sinv hS c) hst hs⟩
+
+open Fl4Proofs.P2.Serial in
+/-- **End to end**: FL4's local paths `LP` (each with its `LocalPath`
+obligations, for every layout) run beside the serial gate exactly
+as some serial order of the completed entries: where an execution of FL4
+(`Exec`) reaches a state with no
 local path in progress, memory is what running them one after another, in
 completion order, produces. In that order a speculative read (user words
 included) may return any value: that the result is a real serial run of the
-entry is the per-path refinement obligation. Premises: `Init`; `ArmGlue` [W];
-`GlueStart` [P] (with `RegionOK`, `UserOK` [J]); per path, `LocalPath`'s
+entry is the per-path refinement obligation. Premises: at the start `Init`,
+`ArmInv` (both hold with every core idle), `RegionOK` / `UserOK` [J] and the ghost
+maps; per step `Fl4Step` (`arm`, `start` [P], `ser` [J]); per path, `LocalPath`'s
 ([P]/[W]). -/
-theorem serializable_e2e {ι : Type}
-    (LP : ι → ∀ (K : OwnMap.KLayout) (m : U64 → U64), OwnMap.RegionOK K → UserOK K →
-      LocalPath (OwnMap.own K) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user))
-    {s0 s : Cfg U64 U64 U64 U64} (h0 : Init s0) (hA : ArmGlue s0) (hS : GlueStart LP s0)
-    (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem := by
-  refine serializable_safe h0 hA (fun s hs c p0 k W hph => ?_) h hq
-  obtain ⟨K, hK, hU, i, e1, e2, e3, hP⟩ := hS s hs c p0 k W hph
-  rw [e1, e2, e3]
-  exact (LP i K s.mem hK hU).safe (OwnMap.moveHeld hK) (ownDep hK hU) hP
+theorem serializable_e2e {ι : Type} (LP : Paths ι) {s0 s : Cfg U64 U64 U64 U64}
+    {K0 K : OwnMap.KLayout} (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : OwnMap.RegionOK K0)
+    (hU0 : UserOK K0) (hM0 : Maps K0 s0) (h : Exec LP s0 K0 s K) (hq : NoLoc s) :
+    RunAll s.log s0.mem s.mem :=
+  serializable_safe h0 hA0 (exec_safeRun h0 hA0 hK0 hU0 hM0 h).1 hq
 
 end
 end Fl4Proofs.P2.E2E

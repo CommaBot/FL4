@@ -58,8 +58,14 @@ and local paths serialize**, at the abstract level, once for the runtime.
   local paths in the order they finished) produces (`RunAll`), and the memory
   equals `H` on every word no in-progress local path has written.
 * `serializable_quiescent`: with no local path in progress the memory is
-  exactly that serial run. `serializable_reach`: the same for every execution,
-  under the footprint premise below.
+  exactly that serial run. **What "serial" means here**: `RunAll` runs each entry
+  by `Run`, in which a speculative read (`Prog.rds`) may return *any* value (and
+  a class read any related one), not the value memory held at that point of the
+  serial order. That such a run is one of the entry's real serial runs is the
+  per-path refinement obligation (P2 obligation (2)), which must hold for every
+  value of those reads. Both are about `GReach`: executions whose local steps
+  are `Allowed`. Which executions are, is `SerialSafe.lean`'s (`SafeRun`) and, for
+  FL4, `E2E.lean`'s (`Exec`).
 * `within_unchanged` / `within_frame`: a body whose every access lies in `F`
   (`Within F p`) has the denotational footprint properties (a) words outside
   `F` unchanged, (b) runs from states agreeing on `F` can end agreeing on `F`.
@@ -72,16 +78,11 @@ and local paths serialize**, at the abstract level, once for the runtime.
 
 ## Premises (nothing else is assumed)
 
-* `FootprintOK s0` [W] (only in `serializable_reach`; `serializable` and
-  the others quantify over `GReach`, executions whose local steps are
-  `Allowed`, and need no premise): every local-path access in every execution
-  is `Allowed`. This is P2 obligation (2), footprint, in its trace form, for
-  the ownership map the DESIGN's footprint list describes: each local path
-  reads only words its core or its locks own or that change only under the
-  gate, and writes only words its core or its locks own. Per-path proofs are
-  other lines' work; `fl4-sim`'s footprint oracle checks the write half on
-  every local path it runs (the read half, DESIGN §7 "every other kernel word
-  it reads changes only under the gate", is not checked by the oracle).
+* None about footprints: `serializable` and the others quantify over `GReach`.
+  (An earlier premise `FootprintOK s0`, "every access of every execution from
+  `s0` is `Allowed`", was false of every `s0` with an idle core, since `Step.arm`
+  arms any program whatever: the per-path conditions are asked of the steps of
+  the execution considered, `SafeRun`, instead.)
 * [P] Sequential consistency for the gate and lock words (`fl4-sync`,
   `fl4-store`, both in `TRUSTED`): the interleaving semantics is the
   processor's behaviour for this protocol. Concretely: the active-flag store
@@ -309,8 +310,13 @@ inductive Step (s : Cfg A V C L) (c : C) : Cfg A V C L → Prop
   /-- The holder reads core `d`'s active flag clear. -/
   | scan (d : C) : s.holder = some c → s.gate = .draining → ¬ (s.ph d).Active →
       Step s c { s with seen := insert d s.seen }
-  /-- Every flag seen clear: `closed = 2`. -/
-  | drain : s.holder = some c → s.gate = .draining → (∀ d, d ∈ s.seen) →
+  /-- Every flag seen clear: `closed = 2`. The core type is all of `U64` in
+  FL4's instance, of which the kernel runs a few: a core the holder has not
+  scanned may be one that is idle (cores the kernel does not run are idle
+  forever, so the real scan of the running cores is such a step; asking every
+  element of `C` to be scanned would make the gate never close for an infinite
+  `C`, `E2EWitness`). -/
+  | drain : s.holder = some c → s.gate = .draining → (∀ d, d ∈ s.seen ∨ s.ph d = .idle) →
       Step s c { s with gate := .closed }
   /-- The serial body, then release (keeping the gate closed or opening it). -/
   | serial {p : Prog A V L} {m' : A → V} (keep : Bool) (own' : (A → V) → A → Owner C L)
@@ -353,11 +359,6 @@ def NoLoc (s : Cfg A V C L) : Prop := ∀ d, ¬ (s.ph d).IsLoc
 
 /-- A start: nothing completed, no local path in progress. -/
 def Init (s0 : Cfg A V C L) : Prop := s0.log = [] ∧ NoLoc s0
-
-/-- **Footprint premise** [W]: every local-path access of every execution
-respects ownership (P2 obligation (2) in trace form, per local path). -/
-def FootprintOK (s0 : Cfg A V C L) : Prop :=
-  ∀ s, GReach s0 s → ∀ c, Allowed s c
 
 /-! ## The invariant -/
 
@@ -849,10 +850,11 @@ theorem inv_scan {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H
   · exact I.drn h e he hl
 
 theorem inv_drain {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H)
-    (hg : s.gate = .draining) (hall : ∀ d, d ∈ s.seen) :
+    (hg : s.gate = .draining) (hall : ∀ d, d ∈ s.seen ∨ s.ph d = .idle) :
     InvH m0 { s with gate := .closed } H := by
   refine I.frame rfl rfl rfl rfl rfl rfl (fun _ _ _ _ h => h) (fun _ _ _ _ h => h)
-    (fun _ d => I.drn hg d (hall d)) ?_
+    (fun _ d => (hall d).elim (I.drn hg d) (fun h hl => by
+      rw [h] at hl; exact Phase.idle_not_loc hl)) ?_
   intro h; cases h
 
 theorem inv_serial {m0 : A → V} {s : Cfg A V C L} {H : A → V} (I : InvH m0 s H) {c : C}
@@ -926,7 +928,7 @@ theorem no_overlap {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s0 s) :
   exact I.clo
 
 /-- **Every execution is a serial one** (DESIGN §9, P2 (3); speculative reads
-in the serial order may return any value, see `serializable_reach`): in every reachable
+in the serial order may return any value: `Run`): in every reachable
 state, running the completed entries one after another (serial entries in the
 order they ran under the gate, local paths in the order they finished) from
 the initial memory can give a memory `H` that the current memory equals on
@@ -945,29 +947,6 @@ theorem serializable_quiescent {s0 s : Cfg A V C L} (h0 : Init s0) (h : GReach s
   have : s.mem = H := funext fun x =>
     hag x (fun d q0 q U hd => absurd (by rw [hd]; trivial) (hq d))
   rw [this]; exact hH
-
-theorem reach_greach {s0 s : Cfg A V C L} (hfp : FootprintOK s0) (h : Reach s0 s) :
-    GReach s0 s := by
-  induction h with
-  | refl => exact .refl
-  | step _ hs ih => exact .step ih (hfp _ ih _) hs
-
-/-- `serializable_quiescent` for every execution, under the footprint premise
-`FootprintOK` [W].
-
-**What "serial" means here.** `RunAll` runs each entry by `Run`, its
-sequential meaning, in which a speculative read (`Prog.rds`, a local path's
-read of a word it does not hold: an unlocked CSpace walk, a plan read before
-its locks) may return *any* value, not the value memory held at that point of
-the serial order. So this theorem alone says: memory is what running the
-entries one after another produces, for *some* values of their speculative
-reads. That such a run is one of the entry's real serial runs (it declines,
-writing only what the general path repeats, or does what the general path
-does) is the per-path refinement obligation (P2 obligation (2), stated in
-`PathObl.lean`), which must hold for every value of those reads. -/
-theorem serializable_reach {s0 s : Cfg A V C L} (h0 : Init s0) (hfp : FootprintOK s0)
-    (h : Reach s0 s) (hq : NoLoc s) : RunAll s.log s0.mem s.mem :=
-  serializable_quiescent h0 (reach_greach hfp h) hq
 
 /-! ## Access footprints and the denotational properties -/
 

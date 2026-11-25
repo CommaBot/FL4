@@ -197,6 +197,7 @@ import Fl4Proofs.P2.E2E
 import Fl4Proofs.P2.ReadGap
 import Fl4Proofs.P2.OwnLayout
 import Fl4Proofs.P2.OwnJAtZ
+import Fl4Proofs.P2.E2EWitness
 import Fl4Proofs.P3.Lookup
 import Fl4Proofs.P3.MoveRefine
 import Fl4Proofs.P3.EmptyRefine
