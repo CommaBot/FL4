@@ -14,16 +14,17 @@ open Fl4Proofs.P2.PathObl (guard guard_read)
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {R Wr : U64 → Prop}
+variable {gS : machine.Store S} [PathObl.GRd gS st R]
 
 /-- **`in_core_timer_tree` reads only `TreeReads`**: core `c`'s root and min words and the deadline and
 child links of the keys of `c`'s tree. -/
 theorem in_core_timer_tree_access {s : S} {c target d : U64} {W : TRB.RBT} {b : Bool} (ct : CoreTree st T s c W)
     (hR : ∀ w, TreeReads st s c W.keys w → R w)
     (h : localtimer.in_core_timer_tree st s c target d = ok b) :
-    localtimer.in_core_timer_tree (guard st R Wr) s c target d = ok b := by
+    localtimer.in_core_timer_tree gS s c target d = ok b := by
   rw [← h]
   have init : ∀ (stack1 : Array U64 32#usize) (sp : Usize), StackOK W.keys stack1 sp →
-      localtimer.in_core_timer_tree_loop (guard st R Wr) s target d stack1 sp 0#u64 false false =
+      localtimer.in_core_timer_tree_loop gS s target d stack1 sp 0#u64 false false =
         localtimer.in_core_timer_tree_loop st s target d stack1 sp 0#u64 false false := by
     intro stack1 sp hok
     unfold localtimer.in_core_timer_tree_loop
@@ -37,7 +38,7 @@ theorem in_core_timer_tree_access {s : S} {c target d : U64} {W : TRB.RBT} {b : 
   by_cases hn : decide (target = 0#u64) = true
   · rw [if_pos hn, if_pos hn]
   rw [if_neg hn, if_neg hn]
-  rw [nodeGetG (Wr := Wr) (hR _ (Or.inl rfl)), nodeGetG (Wr := Wr) (hR _ (Or.inr (Or.inl rfl)))]
+  rw [nodeGetG (gS := gS) (hR _ (Or.inl rfl)), nodeGetG (gS := gS) (hR _ (Or.inr (Or.inl rfl)))]
   rw [eq_of_spec_fd (obj.node_get.spec (L := L) s c layout.node.TIMER_ROOT),
     eq_of_spec_fd (obj.node_get.spec (L := L) s c layout.node.TIMER_MIN)]
   simp only [bind_ok]

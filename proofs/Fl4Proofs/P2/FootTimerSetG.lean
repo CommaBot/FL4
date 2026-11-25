@@ -106,7 +106,7 @@ theorem set_timer_target_ok.guard {T : Set U64} {s : S} {c target : U64} {Wt : T
   · rw [if_pos hd] at h ⊢; exact h
   rw [if_neg hd] at h ⊢
   obtain ⟨b', eb', h⟩ := bind_eq_ok h
-  rw [in_core_timer_tree_access ct hR eb']; simp only [bind_ok]
+  rw [in_core_timer_tree_access (gS := gS) ct hR eb']; simp only [bind_ok]
   cases b'
   · rw [if_neg Bool.false_ne_true] at h ⊢; exact h
   · rw [if_pos rfl] at h ⊢
@@ -124,12 +124,12 @@ theorem timer.fire.guard_nodue {A : Type} (ar : machine.Arch A) (s : S) (a : A)
     timer.fire gS ar s a = ok (s, a) := by
   have hb : (0#u64 : U64) < timer.FIRE_BATCH := by unfold timer.FIRE_BATCH; decide
   unfold timer.fire timer.fire_loop
-  simp only [PathObl.guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [PathObl.LT.gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [PathObl.obj.node_get.guard s _ _ hRc, node_get_ok]
   simp only [bind_ok, bind_tc_ok]
   rw [loop]
   unfold timer.fire_loop.body
-  simp only [hb, ↓reduceIte, PathObl.guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hb, ↓reduceIte, PathObl.LT.gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [PathObl.obj.node_get.guard s _ _ hRt, node_get_ok]
   simp only [bind_ok, bind_tc_ok, is_null_ok]
   by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64
@@ -159,7 +159,7 @@ theorem sched.awaken_loop.guard_nodue (s : S) (fuel : U64)
   swap
   · simp only [hf, ↓reduceIte, bind_ok, bind_tc_ok]
   obtain ⟨f1, hf1, -⟩ := spec_ex_fd (U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
-  simp only [hf, ↓reduceIte, hf1, PathObl.guard_cur_cpu, L.cur_cpu_eq, bind_ok, bind_tc_ok]
+  simp only [hf, ↓reduceIte, hf1, PathObl.LT.gcc, L.cur_cpu_eq, bind_ok, bind_tc_ok]
   rw [PathObl.obj.node_get.guard s _ _ hRr, node_get_ok]
   simp only [bind_ok, bind_tc_ok, is_null_ok]
   by_cases h0 : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64

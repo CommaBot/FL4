@@ -58,39 +58,40 @@ open Fl4Proofs.P2.PathObl (guard guard_read)
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R Wr : U64 → Prop}
+variable {gS : machine.Store S} [PathObl.GRd gS st R]
 
 /-! ## Accessors on the guarded store -/
 
 theorem tdG {s : S} {y : U64} (h : R (tdA y)) :
-    obj.Tcb.timer_deadline (guard st R Wr) y s = obj.Tcb.timer_deadline st y s := by
+    obj.Tcb.timer_deadline gS y s = obj.Tcb.timer_deadline st y s := by
   unfold obj.Tcb.timer_deadline
   rw [eq_of_spec_fd layout.tcb.TIMER_DEADLINE.spec]
   simp only [bind_ok, lift]
-  exact guard_read h
+  exact PathObl.gst_read h
 
 theorem tlG {s : S} {y : U64} (h : R (tlA y)) :
-    obj.Tcb.timer_left (guard st R Wr) y s = obj.Tcb.timer_left st y s := by
+    obj.Tcb.timer_left gS y s = obj.Tcb.timer_left st y s := by
   unfold obj.Tcb.timer_left
   rw [eq_of_spec_fd layout.tcb.TIMER_LEFT.spec]
   simp only [bind_ok, lift]
-  exact guard_read h
+  exact PathObl.gst_read h
 
 theorem trG {s : S} {y : U64} (h : R (trA y)) :
-    obj.Tcb.timer_right (guard st R Wr) y s = obj.Tcb.timer_right st y s := by
+    obj.Tcb.timer_right gS y s = obj.Tcb.timer_right st y s := by
   unfold obj.Tcb.timer_right
   rw [eq_of_spec_fd layout.tcb.TIMER_RIGHT.spec]
   simp only [bind_ok, lift]
-  exact guard_read h
+  exact PathObl.gst_read h
 
 theorem nodeGetG {s : S} {c o : U64} (h : R (L.nodeAt s c o)) :
-    obj.node_get (guard st R Wr) s c o = obj.node_get st s c o := by
+    obj.node_get gS s c o = obj.node_get st s c o := by
   unfold obj.node_get obj.node_base
-  simp only [PathObl.guard_ks_base]
+  rw [PathObl.gst_ks_base]
   rw [L.ks_base_eq]
   simp only [bind_ok, lift]
   rw [eq_of_spec_fd layout.ks.NODES.spec, eq_of_spec_fd layout.node.SIZE.spec]
   simp only [bind_ok]
-  exact guard_read (by unfold LawfulStore.nodeAt at h; exact h)
+  exact PathObl.gst_read (by unfold LawfulStore.nodeAt at h; exact h)
 
 end
 
