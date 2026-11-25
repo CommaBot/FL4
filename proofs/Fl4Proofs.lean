@@ -1541,6 +1541,8 @@ import Fl4Proofs.P2.FootTimerSetMv
 import Fl4Proofs.P2.FootTimerFin
 import Fl4Proofs.P2.FootTimerIrqG
 import Fl4Proofs.P2.FootTimerIrqF
+import Fl4Proofs.P2.FootTimerIrqH
+import Fl4Proofs.P2.FootTimerIrqW
 import Fl4Proofs.P2.FootTimerAccLoop
 import Fl4Proofs.P2.GuardGE
 import Fl4Proofs.P2.FootTimerGE
