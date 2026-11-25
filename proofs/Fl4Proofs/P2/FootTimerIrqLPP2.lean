@@ -7,6 +7,10 @@ when the action is the woken thread proved by `aw_tail_sw`) in place of `fire_ta
 the new thread's VSpace slot words come from `SlotLay` (`slot_maxR`), the kernel root and ASID table from
 `IrqLay.kr` / `.tab`, the ASID table's frame from P1 `AsidOff` (`IrqEntK.asid`).
 
+`irq_acc_fire_wk2` / `irq_move_fire_wk2` take `hBA` over this run's own states (gen13: `update_timestamp` from `s`,
+`check_budget`, `handle_interrupt`), so `irq_localPathP3` (`P2/FootTimerIrqLPP3`) can prove it; `irq_localPathP2`
+keeps its statement (its arbitrary-state `hBA` implies the run form).
+
 Premises: as `irq_localPathP` without `hSwT` / `hSwTm` (`hp` [P], `hz` [W], `hm` [P], `hro` [W], `IrqEnt`'s [J]
 parts, `hEU` [J], `hlk` [P], `hPL` [P], `hOL` [J], `hBA` [P]), plus
 
@@ -56,6 +60,40 @@ theorem slot_maxR {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : Sl
   rw [e2, e1]
   exact ⟨one _ (by simp) (by simp) (by simp), one _ (by simp) (by simp) (by simp)⟩
 
+/-- **[J] The VSpace slot words of this core's threads** (gen13; what the switch block reads, `SwAcc`): `SlotLay`
+narrowed to the two words of TCB slot 1 (`vtA y`, `vtA y + 8`). Unlike `SlotLay` (offsets below 256, eight slots)
+it holds for P3's layout (`layoutJ`: a TCB has `tcbSlots = 6` slots), `slotLayV_of_JAtZ` (P2/FootTimerIrqSlotJ). -/
+def SlotLayV (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s : S) : Prop :=
+  ∀ y, LocT st T s y → ∀ k : U64, (k.val = 32 ∨ k.val = 40) → ∃ p,
+    region K (core.num.U64.wrapping_add y k) = .slot p ∧ TcbSlot K p ∧
+      (core.num.U64.wrapping_add y k).val - p.val < 16
+
+theorem SlotLay.v {s : S} (h : SlotLay K st T s) : SlotLayV K st T s :=
+  fun y hy k hk => h y hy k (by omega) (by omega)
+
+theorem slot_maxRV {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : SlotLayV K st T s) {y : U64}
+    (hy : LocT st T s y) :
+    MaxR K st lk s (vtA y) ∧ MaxR K st lk s (core.num.U64.wrapping_add (vtA y) 8#u64) := by
+  have hy' := hT y hy.1
+  have one : ∀ k : U64, (k.val = 32 ∨ k.val = 40) → MaxR K st lk s (core.num.U64.wrapping_add y k) :=
+    fun k hk => by
+    obtain ⟨p, hr, hts, hlt⟩ := hSL y hy k hk
+    refine ⟨Or.inr ?_, field_aligned hy' (by omega) (by omega)⟩
+    unfold GateOnly
+    simp only [own, hr, slotOwner]
+    rw [if_neg (by omega), if_pos hts]
+  have e1 : vtA y = core.num.U64.wrapping_add y 32#u64 := by
+    apply UScalar.eq_of_val_eq
+    rw [vtA_val hy', tcb_wadd_val hy' (by simp)]; simp
+  have e2 : core.num.U64.wrapping_add (vtA y) 8#u64 = core.num.U64.wrapping_add y 40#u64 := by
+    apply UScalar.eq_of_val_eq
+    have := hy'.fits
+    rw [tcb_wadd_val hy' (by simp)]
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, vtA_val hy']
+    omega
+  rw [e2, e1]
+  exact ⟨one _ (Or.inl (by simp)), one _ (Or.inr (by simp))⟩
+
 end slot
 
 section acc
@@ -70,14 +108,16 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
     (hE : IrqEntK K st T Cs Ω H Sg Rp Scs Nt Z Ac m s) (hY : IrqLay K st Nt irq s)
     (hAff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hOL : ObjLay K H Rp) (hPL : PlanLk lk p)
-    (hBA : ∀ s2 a2 s3 a3, interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3) →
+    (hBA : ∀ s1 a1 x s2 a2 s3 a3, sched.update_timestamp st ar s a = ok (s1, a1) →
+      sched.check_budget st ar s1 a1 = ok (x, s2, a2) → interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3) →
       BufAt st T Cs H Sg Scs Z U s3)
-    (hSL : SlotLay K st T s)
+    (hSL : SlotLayV K st T s)
     (hq : IrqFire st ar s a) (hW : ¬ NoWake st s)
     (h : localtimer.handle_timer_irq_local st ar s a irq p = ok (true, s', a')) :
     localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq p =
       ok (true, s', a') := by
   have hI := hE.inv
+  have hb := irq_lt_of_acc ar h
   have hL := hE.lay
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
@@ -103,7 +143,7 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
     (W := MaxW K st lk s) ar hA hI hq
     (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩)
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
     (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
     (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩) ?_ ?_ h
   · intro _ s1' a1' now' eu' _
@@ -164,8 +204,8 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
         have o := lkw_own hI hL (Lk := lk s) (w := rTcbA p.reply) (fun _ h => h)
           (Or.inr ⟨p.reply, (hPL s).2.2 hr, by unfold rTcbA; exact hOL.2 _ hR _ (by simp [layout.reply.TCB])⟩)
         exact ⟨o.1, hal⟩)
-      etip eb eq eok eu enow erel ei2 eb4 edue efo' ecb' emx hle ei1 ehi' (hBA _ _ _ _ ehi') hE.asid
-        (fun y hy => slot_maxR hT hSL hy) ⟨rperm_none hY.kr.2 _, hY.kr.1⟩
+      etip eb eq eok eu enow erel ei2 eb4 edue efo' ecb' emx hle ei1 ehi' (hBA _ _ _ _ _ _ _ eu ecb' ehi') hE.asid
+        (fun y hy => slot_maxRV hT hSL hy) ⟨rperm_none hY.kr.2 _, hY.kr.1⟩
         (fun hi hhi => ⟨⟨rperm_none (hY.tab hi hhi).1.2 _, (hY.tab hi hhi).1.1⟩,
           fun lo hlo hne => ⟨rperm_none ((hY.tab hi hhi).2 lo hlo hne).2 _, ((hY.tab hi hhi).2 lo hlo hne).1⟩⟩)
 
@@ -184,7 +224,8 @@ theorem irq_move_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.Us
     (hE : IrqEntK K st T Cs Ω H Sg Rp Scs Nt Z Ac m s) (hY : IrqLay K st Nt irq s)
     (hAff : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
     (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hOL : ObjLay K H Rp) (hPL : PlanLk lk pl)
-    (hBA : ∀ s2 a2 s3 a3, interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3) →
+    (hBA : ∀ s1 a1 x s2 a2 s3 a3, sched.update_timestamp st ar s a = ok (s1, a1) →
+      sched.check_budget st ar s1 a1 = ok (x, s2, a2) → interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3) →
       BufAt st T Cs H Sg Scs Z U s3)
     (hq : IrqFire st ar s a) (hW : ¬ NoWake st s)
     (h : localtimer.handle_timer_irq_local st ar s a irq pl = ok (true, s1, a1)) :
@@ -300,7 +341,7 @@ theorem irq_move_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.Us
           obtain ⟨hR, hal⟩ := hPR hr
           exact stepOK_nondec hK hUO hal (lkw_nondec hK hI hL (Lk := lk s) (w := rTcbA pl.reply)
             (Or.inr ⟨pl.reply, (hPL s).2.2 hr, by unfold rTcbA; exact hOL.2 _ hR _ (by simp [layout.reply.TCB])⟩)))
-        etip eb eq eok eu enow erel ei2 eb4 edue efo' ecb' emx hle ei1 ehi' (hBA _ _ _ _ ehi') hE.asid
+        etip eb eq eok eu enow erel ei2 eb4 edue efo' ecb' emx hle ei1 ehi' (hBA _ _ _ _ _ _ _ eu ecb' ehi') hE.asid
         (fun _ _ => ⟨trivial, trivial⟩) trivial (fun _ _ => ⟨trivial, fun _ _ _ => trivial⟩)
   have eP : ∀ mm : machine.Store S,
       localtimer.handle_timer_irq_local mm ar s a irq pl = interp mm ar p s a :=
@@ -342,10 +383,12 @@ noncomputable def irq_localPathP2 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO 
   irq_localPathW ar hA hK hUO hp hz hm hro hEU hlk
     (fun s a s1 a1 hE hf hw h => by
       obtain ⟨U, hU⟩ := hBA s a hE hf hw
-      exact irq_acc_fire_wk2 ar hA hK hE.k hE.ent.ly hE.ent.aff hE.ent.nth hOL hPL hU (hSL s hE) hf hw h)
+      exact irq_acc_fire_wk2 ar hA hK hE.k hE.ent.ly hE.ent.aff hE.ent.nth hOL hPL
+        (fun _ _ _ _ _ _ _ _ _ e => hU _ _ _ _ e) (hSL s hE).v hf hw h)
     (fun s a s1 a1 hE hf hw h => by
       obtain ⟨U, hU⟩ := hBA s a hE hf hw
-      exact irq_move_fire_wk2 ar hA hK hUO hp hE.k hE.ent.ly hE.ent.aff hE.ent.nth hOL hPL hU hf hw h)
+      exact irq_move_fire_wk2 ar hA hK hUO hp hE.k hE.ent.ly hE.ent.aff hE.ent.nth hOL hPL
+        (fun _ _ _ _ _ _ _ _ _ e => hU _ _ _ _ e) hf hw h)
 
 end
 

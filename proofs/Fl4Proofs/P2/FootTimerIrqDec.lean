@@ -213,7 +213,7 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
     simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits,
       UScalar.size]
     try omega
-  rw [interrupt.irq_state.guard (gS := guard st R W) s irq hi ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩]
+  rw [interrupt.irq_state.guard (gS := guard st R W) s irq hi ⟨rperm_none (hY.iq (by omega) i hi).2 _, (hY.iq (by omega) i hi).1⟩]
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   rw [gtip]

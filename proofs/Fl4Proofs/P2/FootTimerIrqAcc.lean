@@ -96,7 +96,8 @@ def TmWords (st : machine.Store S) [L : LawfulStore st] (s : S) (tm w : U64) : P
 by `Z`), besides the kernel-global ones: this core's node words, the current thread's words (`CallerW` without its endpoint queue links `EP_NEXT` /
 `EP_PREV`, which a queue's lock owns while the thread is queued), the
 current SC, the release head's SC word and SC, `TmWords` of the earliest armed thread, and the current thread's
-CNode slot cap words (offsets below 256, the first 16 bytes of a 32-byte slot: the timeout handler slot, the
+CNode slot cap words (offsets below 192, the six TCB slots (p2lf gen14; was 256, false under P3's layout);
+the first 16 bytes of a 32-byte slot: the timeout handler slot, the
 `VTABLE` slot; not the CDT links, `lock <slot>`'s). -/
 def IrqRd (st : machine.Store S) [L : LawfulStore st] (Z : U64 → Nat) (s : S) (w : U64) : Prop :=
   (∃ o : U64, o.val < 4288 ∧ o.val % 8 = 0 ∧ w = L.nodeAt s (L.cpu s) o) ∨
@@ -109,7 +110,7 @@ def IrqRd (st : machine.Store S) [L : LawfulStore st] (Z : U64 → Nat) (s : S) 
           (Z (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))) w)) ∨
     (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 ∧
       TmWords st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) w) ∨
-    (∃ K : U64, K.val < 256 ∧ K.val % 32 < 16 ∧ K.val % 8 = 0 ∧ w = core.num.U64.wrapping_add (L.curW s) K)
+    (∃ K : U64, K.val < 192 ∧ K.val % 32 < 16 ∧ K.val % 8 = 0 ∧ w = core.num.U64.wrapping_add (L.curW s) K)
 
 /-- The words an accepted timer interrupt (quiet or round-robin) writes: this core's node words, the current
 thread's registers and `STATE` (`CallerRegW`), the current SC's ring and `CONSUMED`, and the current thread's

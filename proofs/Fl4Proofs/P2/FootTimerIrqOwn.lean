@@ -16,7 +16,8 @@ With the ownership map `OwnMap.own K`, at the entry state of an accepted run (`I
 
 Premises: `IrqLay` [J] (layout facts beyond `StLay`, as `OwnMap.RegionOK`, from P1's typed-heap disjointness: the
 IRQ state words, the kernel root word, the ASID table and pool words lie in no object; a notification of `Nt` is
-its region's; the current thread's slot cap words lie in its own TCB slots); `hAff` [J] (p2j `AffSc`, as
+its region's; the current thread's slot cap words (offsets below 192, its six TCB slots; p2lf gen14, was 256) lie in
+its own TCB slots); `hAff` [J] (p2j `AffSc`, as
 `st_rd_own`'s); `IrqEntK.lay` [J] / `asid` [J]; `hF` (the fire case, p2j's line).
 -/
 import Fl4Proofs.P2.FootTimerIrqLP
@@ -35,7 +36,7 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : K
 /-- **Layout facts of the timer interrupt** [J] (module docstring) at the entry state `s`. -/
 structure IrqLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt : Set U64) (irq : U64) (s : S) :
     Prop where
-  iq : ∀ i, interrupt.state_off irq = ok i →
+  iq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
     Aligned (core.num.U64.wrapping_add (L.ksb s) i) ∧ region K (core.num.U64.wrapping_add (L.ksb s) i) = .none
   kr : Aligned (krA (L := L) s) ∧ region K (krA (L := L) s) = .none
   tab : ∀ hi : U64, hi.val < 2048 →
@@ -43,7 +44,7 @@ structure IrqLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt :
     ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
       Aligned (peAF (L.mem s (atAF (L.ksb s) hi)) lo) ∧ region K (peAF (L.mem s (atAF (L.ksb s) hi)) lo) = .none
   ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n
-  cs : ∀ k : U64, k.val < 256 → k.val % 32 < 16 → ∃ p, region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧
+  cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p, region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧
     TcbSlot K p ∧ (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16
 
 theorem rperm_none {lk : U64 → Prop} {m : U64 → U64} {x : U64} (h : region K x = .none) (c : U64) :
@@ -230,6 +231,7 @@ theorem irq_acc_own (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : 
     localtimer.handle_timer_irq_local (guard st (MaxR K st lk s) (MaxW K st lk s)) ar s a irq p =
       ok (true, s', a') := by
   have hI := hE.inv
+  have hb := irq_lt_of_acc ar h
   have hL := hE.lay
   have h0 := hI.1.choose_spec.choose_spec
   have hcT : L.curW s ∈ T := h0.curT
@@ -240,7 +242,7 @@ theorem irq_acc_own (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : 
     ar hA hI
     (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq i hi).2 _, (hY.iq i hi).1⟩)
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
     (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
     (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩)
     (fun hok X _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))

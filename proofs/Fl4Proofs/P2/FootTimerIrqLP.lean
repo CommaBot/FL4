@@ -33,6 +33,17 @@ def IrqFire (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine
     sched.consumed st s1 = ok i2 → sporadic.sufficient st ar s1 a1 (L.cscW s) i2 = ok b4 →
     localtimer.timer_due st s1 (L.cpu s) now = ok due → b4 = true ∧ due = true
 
+/-- **An accepted timer interrupt has `irq < 128`** (gen16): the body declines `irq > irqn::MAX = 127` before it
+reads the IRQ state word (`irq_accept_walk`). -/
+theorem irq_lt_of_acc {s s' : S} {a a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
+    (h : localtimer.handle_timer_irq_local st ar s a irq p = ok (true, s', a')) : irq.val < 128 := by
+  obtain ⟨cpu, mx, i1, ct, csc, now, i2, tip, b4, due, x, s1, s2, s3, s4, s5, a1, a2, a3, a4, a5, t, ecpu, emx,
+    hle, -⟩ := irq_accept_walk ar h
+  rw [eq_of_spec_fd layout.irq.MAX.spec] at emx
+  have e := ok_inj_ff emx
+  subst e
+  scalar_tac
+
 /-- **An accepted timer interrupt is quiet, round-robin or fire** (module docstring). -/
 theorem irq_sel {s s' : S} {a a' : A} {irq : U64} {p : localtimer.TimerIrqPlan}
     (h : localtimer.handle_timer_irq_local st ar s a irq p = ok (true, s', a')) :
