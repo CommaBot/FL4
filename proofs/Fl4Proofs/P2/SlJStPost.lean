@@ -1,5 +1,5 @@
 /-
-# P2 (line stpost): the accepted trapped syscall keeps the chain's stable ghosts
+# P2 (line stpost): the accepted trapped syscall (trap arm) keeps the chain's stable ghosts
 
 Lines lstab / locmv reduced the syscall local path's layout gap to `LocKeepSt Loc th B H Cs`
 for the local steps between two serial entries. For an *accepted* local entry the spec side is
@@ -23,7 +23,9 @@ the spec's IRQ node (`ksbEq_of_irqNode`: `JAtZ`'s `IrqRel.node` pins
 (`evOut_irqNode`, from P3 `SInvU.nk_fl4SyscallFaultIP` / `nk_fl4CallKernel`). So any two joint
 states related by a kernel event share `L.ksb`, whatever their ghosts; no new premise.
 
-The ReplyRecv arm is not covered (handoff workspace/handoff/stpost.md).
+The other arm of `handle_syscall_local`, the ReplyRecv fast path, is SlJStPostRR's `jreachSt_rrSt`
+(line stpost, generation 4); SlJStTop's `sl_pathsK_startAt_loc` composes both arms with lstab /
+locmv's `StartAt` (no `LocKeepSt` premise left).
 -/
 import Fl4Proofs.P2.SlJLocMv
 import Fl4Proofs.P3.StPostTop

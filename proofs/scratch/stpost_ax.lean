@@ -9,6 +9,7 @@ import Fl4Proofs.P3.StPostRRMid
 import Fl4Proofs.P3.StPostRRTop
 import Fl4Proofs.P3.StPostRRReach
 import Fl4Proofs.P2.SlJStPostRR
+import Fl4Proofs.P2.SlJStTop
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -36,8 +37,6 @@ import Fl4Proofs.P2.SlJStPostRR
 #print axioms Fl4Proofs.P3.handle_invocation_refinesMXPF
 #print axioms Fl4Proofs.P3.JAtZ.flTailJStF
 #print axioms Fl4Proofs.P3.handle_invocation_replyJSt
-#print axioms Fl4Proofs.P3.mid_invRecvReplyJSt
-#print axioms Fl4Proofs.P3.dispatch_replyRecvJSt
 #print axioms Fl4Proofs.P3.JAtZ.recvIpcBlockJGMSt
 #print axioms Fl4Proofs.P3.JAtZ.recvIpcBlockNJGMSt
 #print axioms Fl4Proofs.P3.handle_recv_rrJSt
@@ -50,3 +49,4 @@ import Fl4Proofs.P2.SlJStPostRR
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rr_localSt
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rr_localSt17
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_rrSt
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsK_startAt_loc
