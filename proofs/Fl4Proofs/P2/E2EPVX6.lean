@@ -144,7 +144,7 @@ structure SlLX (K : KLayout) (s : S) : Prop where
   /-- VX2's store-free user-word layout. -/
   ul : Fl4Proofs.P2.E2EP.UserLayX L K
   /-- `RegionOK` of the layout. -/
-  ok : RegionOK K
+  rok : RegionOK K
   /-- `UserOK` of the layout. -/
   uok : Fl4Proofs.P2.E2E.UserOK K
   /-- The ASID-table words are no user words. -/
@@ -167,7 +167,7 @@ structure SlLX (K : KLayout) (s : S) : Prop where
 variable {K : KLayout} {s : S}
 
 theorem SlLX.regionOKX (B : SlLX (L := L) K s) : RegionOKX K := B.ul.rx
-theorem SlLX.regionOK (B : SlLX (L := L) K s) : RegionOK K := B.ok
+theorem SlLX.regionOK (B : SlLX (L := L) K s) : RegionOK K := B.rok
 theorem SlLX.layP (B : SlLX (L := L) K s) : LayP K := B.ul.lp
 theorem SlLX.ncores_le (B : SlLX (L := L) K s) : K.ncores ≤ 64 := B.ul.nc
 theorem SlLX.hCs (B : SlLX (L := L) K s) : ∀ c ∈ {c : U64 | c.val < K.ncores}, c.val < 64 :=
@@ -269,7 +269,7 @@ theorem SlLX.cn_wr (B : SlLX (L := L) K s) {b : U64} (hb : b ∈ K.user)
   have esl : sl = slotIdx (L.curW s) layout.tcb.SLOT_CTABLE := by
     rw [tcb_slot_val] at hsl; exact (ok_inj_ff hsl).symm
   subst esl
-  have nts := nu_tslot B.ok B.regionOKX ht (i := layout.tcb.SLOT_CTABLE) (by simp [layout.tcb.SLOT_CTABLE])
+  have nts := nu_tslot B.rok B.regionOKX ht (i := layout.tcb.SLOT_CTABLE) (by simp [layout.tcb.SLOT_CTABLE])
   have hroot0 : obj.Slot.cap st (slotIdx (L.curW s) layout.tcb.SLOT_CTABLE) s = ok root := by
     rw [← hroot]; exact (cap_congr (wr_nu hba hb v nts.1) (wr_nu hba hb v nts.2)).symm
   obtain ⟨C, h1, h2, h3⟩ := B.cn _ root (tcb_slot_val _ _) hroot0
@@ -312,7 +312,7 @@ theorem SlLX.ft_wr (B : SlLX (L := L) K s) {b : U64} (hb : b ∈ K.user)
 theorem SlLX.wr (B : SlLX (L := L) K s) {b : U64} (hb : b ∈ K.user) (hba : Aligned b) (v : U64) :
     SlLX (L := L) K (L.wr s b v) where
   ul := B.ul
-  ok := B.ok
+  rok := B.rok
   uok := B.uok
   ua := B.ua
   kc := ⟨by rw [L.ksb_wr]; exact B.kc.1, by rw [L.cpu_wr]; exact B.kc.2⟩
@@ -361,7 +361,7 @@ theorem SlLX.slRWS_wr (h : SlLX (L := L) K s) {b : U64} (hb : b ∈ K.user)
     SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
       SlWS (st := st) K Locks (L.wr s b v) = SlWS (st := st) K Locks s := by
   have eo : own K (L.mem (L.wr s b v)) = own K (L.mem s) :=
-    E2E.ownDep h.ok h.uok _ _ (fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb)))
+    E2E.ownDep h.rok h.uok _ _ (fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb)))
   refine ⟨?_, ?_⟩ <;> funext w <;> simp only [SlRS, SlWS, RPerm, WPerm, GateOnly, eo, hlk, LawfulStore.cpu_wr]
 
 /-- A node word of this core is `NU`. -/
@@ -814,7 +814,7 @@ open Fl4Proofs.P3 in
 lemma does not use it beyond what `SlJAt` already carries. -/
 theorem SlLX.ofSlJAt (B : SlJAt (L := L) K s) : SlLX (L := L) K s where
   ul := Fl4Proofs.P2.E2EP.UserLayX.ofSlJAt B
-  ok := B.regionOK
+  rok := B.regionOK
   uok := B.userOK
   ua := fun x hx hi hhi => by
     have h := B.userAsid hx hhi
@@ -843,6 +843,7 @@ open Fl4Proofs.P2.OwnMap (KLayout region fld oAFFINITY InW RegionOK LayP)
 section vm
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
+variable (st) in
 /-- **The syscall entry's state facts at a guest-running entry** [S] (module docstring): the entering core is one
 of the layout's, the fault-handler endpoint cap and `reply_caps`' result are typed, the CSpace walk reads aligned
 non-user slot words. Natively all four come from P3's bundle (`SlLX.ofSlJAt`). -/
@@ -865,9 +866,9 @@ theorem SlLX.ofVtx {K : KLayoutP} {s : S} (E : VtxBundle st L K) (q : QPs K st s
     {Cs Ω Sg Ac : Set U64}
     (P : SlPreB (st := st) ar K.toKLayout Locks m0 n found K.heap.tcbs Cs Ω K.user Sg K.heap.replies
       K.heap.scs K.heap.ntfns Ac K.heap K.heap.scBits s)
-    (e : SlEntS K s) : SlLX (L := L) K.toKLayout s where
+    (e : SlEntS st K s) : SlLX (L := L) K.toKLayout s where
   ul := E.ul
-  ok := E.ok
+  rok := E.ok
   uok := E.uok
   ua := fun x hx hi hhi => q.uoff x (Or.inl hx) hi hhi
   kc := ⟨q.ksb, e.cpu⟩
@@ -878,7 +879,7 @@ theorem SlLX.ofVtx {K : KLayoutP} {s : S} (E : VtxBundle st L K) (q : QPs K st s
   ft := e.ft
 
 /-- **`SlEntS` at every P3 bundle state** (consistency of the [S]). -/
-theorem slEntS_of_slJAt {K : KLayoutP} {s : S} (B : SlJAt (L := L) K.toKLayout s) : SlEntS K s :=
+theorem slEntS_of_slJAt {K : KLayoutP} {s : S} (B : SlJAt (L := L) K.toKLayout s) : SlEntS st K s :=
   have X := SlLX.ofSlJAt B
   ⟨X.kc.2, X.hep, X.cn, X.ft⟩
 
