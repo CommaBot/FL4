@@ -2121,3 +2121,5 @@ import Fl4Proofs.P2.E2EPU3c
 import Fl4Proofs.P2.E2EPU3d
 import Fl4Proofs.P2.SafeCertADQ
 import Fl4Proofs.P2.E2EADQ
+import Fl4Proofs.P2.E2EPU3e
+import Fl4Proofs.P2.MmuADTree
