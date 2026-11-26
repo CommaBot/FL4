@@ -99,3 +99,8 @@ import Fl4ProofsA64.P1.QueueEntryA
 import Fl4ProofsA64.P1.QueueXfer
 import Fl4ProofsA64.P1.QueueInvAll
 import Fl4ProofsA64.P1.QueueXferFoot
+import Fl4ProofsA64.P1.QueueDecSc
+import Fl4ProofsA64.P1.QueueDecDom
+import Fl4ProofsA64.P1.QueueDecCnode
+import Fl4ProofsA64.P1.QueueDecTdx
+import Fl4ProofsA64.P1.QueueEntryGaps
