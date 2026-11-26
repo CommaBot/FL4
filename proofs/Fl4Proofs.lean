@@ -1959,3 +1959,7 @@ import Fl4Proofs.P3.SpecInvYieldScopeF4
 import Fl4Proofs.P3.SpecInvYieldScopeH
 import Fl4Proofs.P3.JYieldScope
 import Fl4Proofs.P2.E2EVFl4W12
+import Fl4Proofs.P3.SpecInvYieldBlockT
+import Fl4Proofs.P3.SpecInvYieldBlockF4
+import Fl4Proofs.P3.SpecInvYieldBlockH
+import Fl4Proofs.P3.JYieldBlock
