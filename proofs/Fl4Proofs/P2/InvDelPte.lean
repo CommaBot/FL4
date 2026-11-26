@@ -4,8 +4,8 @@
 stpost's `plan_with_delF` (P2/InvSeen.lean) gives the PTE branch one way: a mapped frame with a non-zero ASID whose
 `small_page_entry` is a non-zero `e` ends with `pte < n`. The PTE arm needs the converse, with the lock's address:
 
-* `plan_add_at` (one `Plan.add`: a zero address leaves the plan as it is; otherwise the address lands at index `n`,
-  `n` grows by one, from below `MAX_LOCKS`), `plan_add_n4` (`n ≤ 4` is kept);
+* (gen 5) `plan_add_at` / `plan_add_n4` (one `Plan.add`) now come from the shared P2/PteLockRS.lean (par/pte, the
+  same statements and proofs as this module's gen-4 copies, which are dropped);
 * **`plan_with_delP`**: `plan_with` at `CNodeDelete` with `p.pte < p.n`: the target's cap is a **mapped** small RAM
   frame cap with a non-zero ASID, `small_page_entry` finds a non-zero `e`, and `p.locks[p.pte] = e` (the PTE word
   the glue locks for 8 bytes). Its walk is `plan_with_delF`'s, with the seen-word / lock bookkeeping dropped and the
@@ -15,6 +15,7 @@ stpost's `plan_with_delF` (P2/InvSeen.lean) gives the PTE branch one way: a mapp
 No named premise. No existing statement changes.
 -/
 import Fl4Proofs.P2.InvSeen
+import Fl4Proofs.P2.PteLockRS
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -24,50 +25,6 @@ open Fl4Proofs.P2.OwnMap (KLayout InNode InW fld own region RegionOK GateField T
 
 section plan
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-
-/-- **One `Plan.add`**, exactly: a zero address keeps the plan; otherwise the address is `locks[n]` and `n` grows. -/
-theorem plan_add_at {q : localinv.Plan} {a : U64} {x : Bool × localinv.Plan}
-    (h : localinv.Plan.add q a = ok x) (ht : x.1 = true) :
-    (a = 0#u64 → x.2 = q) ∧
-      (a ≠ 0#u64 → x.2.locks.val[q.n.val]? = some a ∧ x.2.n.val = q.n.val + 1 ∧ q.n.val < 4) := by
-  unfold localinv.Plan.add at h
-  by_cases h0 : a = 0#u64
-  · rw [if_pos h0] at h
-    cases ok_inj_ff h
-    exact ⟨fun _ => rfl, fun hn => absurd h0 hn⟩
-  rw [if_neg h0] at h
-  by_cases h1 : q.n >= localinv.MAX_LOCKS
-  · rw [if_pos h1] at h
-    cases ok_inj_ff h
-    simp at ht
-  rw [if_neg h1] at h
-  have hn : q.n.val < 4 := by
-    have h2 : ¬ localinv.MAX_LOCKS.val ≤ q.n.val := fun hc => h1 hc
-    rw [maxLocks_val] at h2; omega
-  have hlen : q.locks.val.length = 4 := by have hp := q.locks.property; simpa using hp
-  have hl : q.n.val < q.locks.length := by
-    simp only [Aeneas.Std.Array.length]; omega
-  obtain ⟨a1, ea1, h⟩ := bind_eq_ok h
-  obtain ⟨n1, en1, h⟩ := bind_eq_ok h
-  rw [eq_of_spec_fd (Aeneas.Std.Array.update_spec q.locks q.n a hl)] at ea1
-  have ha1 : q.locks.set q.n a = a1 := ok_inj_ff ea1
-  obtain ⟨z, ze, zv⟩ := spec_ex_fd (Usize.add_spec (x := q.n) (y := 1#usize) (by scalar_tac))
-  rw [ze] at en1
-  have hz : z = n1 := ok_inj_ff en1
-  subst hz ha1
-  cases ok_inj_ff h
-  have hzv : z.val = q.n.val + 1 := by simpa using zv
-  refine ⟨fun e => absurd e h0, fun _ => ⟨?_, hzv, hn⟩⟩
-  simp only [Aeneas.Std.Array.set_val_eq]
-  rw [List.getElem?_set_self (by omega)]
-
-theorem plan_add_n4 {q : localinv.Plan} {a : U64} {x : Bool × localinv.Plan}
-    (h : localinv.Plan.add q a = ok x) (ht : x.1 = true) (hq : q.n.val ≤ 4) : x.2.n.val ≤ 4 := by
-  obtain ⟨h0, h1⟩ := plan_add_at h ht
-  by_cases ha : a = 0#u64
-  · rw [h0 ha]; exact hq
-  · obtain ⟨-, hn, hl⟩ := h1 ha
-    omega
 
 set_option maxHeartbeats 4000000 in
 /-- (invj gen 4) **`plan_with` at `CNodeDelete` with a PTE lock** (module docstring). -/
