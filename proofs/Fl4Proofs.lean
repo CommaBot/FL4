@@ -1866,3 +1866,8 @@ import Fl4Proofs.P2.ProgGenTmLP
 import Fl4Proofs.P2.OnceTree
 import Fl4Proofs.P2.VmOnce
 import Fl4Proofs.P2.ProgGenWire
+import Fl4Proofs.P2.OnceWalk
+import Fl4Proofs.P2.IoOnceA
+import Fl4Proofs.P2.IoOnceB
+import Fl4Proofs.P2.IoOnceC
+import Fl4Proofs.P2.IoOnce
