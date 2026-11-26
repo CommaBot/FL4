@@ -2321,3 +2321,13 @@ import Fl4Proofs.P2.E2EPAD2D
 import Fl4Proofs.P2.E2EPAD2E
 import Fl4Proofs.P2.E2EPAD2
 import Fl4Proofs.P2.E2EPAD2U
+import Fl4Proofs.P3.VirtTopV
+import Fl4Proofs.P3.VirtR7
+import Fl4Proofs.P3.VirtUtGate
+import Fl4Proofs.P3.VirtFrame60
+import Fl4Proofs.P3.VirtR7d
+import Fl4Proofs.P3.VirtTyK1
+import Fl4Proofs.P3.VirtTyK2
+import Fl4Proofs.P3.VirtTyK3
+import Fl4Proofs.P3.VirtNvCaps
+import Fl4Proofs.P3.VirtR7b
