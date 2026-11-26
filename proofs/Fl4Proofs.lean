@@ -2285,3 +2285,5 @@ import Fl4Proofs.P3.JExtVFin
 import Fl4Proofs.P3.JExtVList
 import Fl4Proofs.P3.JExtVListSteps
 import Fl4Proofs.P3.JAtZV
+import Fl4Proofs.P3.JAtZBLay
+import Fl4Proofs.P3.JAtZBWr
