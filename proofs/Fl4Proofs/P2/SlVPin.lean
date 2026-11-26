@@ -134,6 +134,7 @@ structure SlVC (K : KLayoutP) (c : U64) (ρ : U64 → U64) (s : S) : Prop where
   ksb : L.ksb s = K.ksb
   tab : TabNoE (L := L) (· ∈ K.ptes) s
   upte : ∀ b ∈ K.user, b ∉ K.ptes
+  scn : L.mem s (scA (L.curW s)) ≠ 0#u64
 
 variable {K : KLayoutP} {c : U64} {ρ : U64 → U64}
 

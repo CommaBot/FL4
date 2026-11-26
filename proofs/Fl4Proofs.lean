@@ -2155,3 +2155,6 @@ import Fl4Proofs.P2.E2EPU14
 import Fl4Proofs.P2.SlVBase
 import Fl4Proofs.P2.SlVPin
 import Fl4Proofs.P2.SlVAcc
+import Fl4Proofs.P2.SlVAccR
+import Fl4Proofs.P2.SlVDec
+import Fl4Proofs.P2.SlBRun
