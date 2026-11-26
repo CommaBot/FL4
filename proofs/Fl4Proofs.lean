@@ -2159,3 +2159,5 @@ import Fl4Proofs.P2.SlVAccR
 import Fl4Proofs.P2.SlVDec
 import Fl4Proofs.P2.SlBRun
 import Fl4Proofs.P2.E2EPU15
+import Fl4Proofs.P2.SlFhCert
+import Fl4Proofs.P2.SlFhView
