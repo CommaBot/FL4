@@ -24,6 +24,7 @@ a premise of a top. No existing statement changed.
 import Fl4Proofs.P2.MmuADEpoch
 import Fl4Proofs.P2.SerialADR
 import Fl4Proofs.P2.E2EPU3
+import Fl4Proofs.P2.E2EAD
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2EP
@@ -114,6 +115,27 @@ theorem serializable_U3b_of {LP : PathsP ι}
     (hM0 : MapsP K0 s0) (h : ExecU3b LP SF P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
     RunAll s.log s0.mem s.mem :=
   serializable_safeR adEq_equiv h0 hA0 (execU3b_aRunR hSF hIns P h0 hA0 hB hc0 hM0 h).1 hq
+
+/-- **Owners ignore the paging words of an epoch** (they decide no owner: leaves `pte_nondec`, upper entries
+region `.none`). -/
+theorem pwe_own {K : KLayoutP} (hK : RegionOKP K) {E : U64 → U64} :
+    ∀ m m' : U64 → U64, (∀ x, ¬ PWE K E x → m x = m' x) → ownP K m = ownP K m' :=
+  fun _ _ h => ownP_congr hK fun d hd => h d fun hp =>
+    OwnMap.nondec_of_region hK.base.base (Or.inr (Or.inr (Or.inr (Or.inl (pwe_region hK hp))))) hd
+
+/-- **One slot's share of `hIns`** from its store runs touching no paging word of the epoch
+(`E2EAD.LocalPath.insA`). -/
+theorem insA_of_noG {LP : PathsP ι} {i : ι} {K : KLayoutP} {E : U64 → U64} {s : Cfg U64 U64 U64 U64}
+    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} (hM : MapsP K s)
+    (hNG : ∀ s1 s2 a, (LP i K s.mem hK hU).Pre s1 →
+      @Alt _ (LP i K s.mem hK hU).st (LP i K s.mem hK hU).L ((LP i K s.mem hK hU).RS s1)
+        (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout s.mem) (· ∈ K.user) s1 s2 →
+      Within (LP i K s.mem hK hU).st (LP i K s.mem hK hU).ar (fun b => ¬ PWE K E b)
+        (fun b => b ∈ K.user ∨ ¬ PWE K E b) (LP i K s.mem hK hU).p s2 a)
+    (h : StartAt (LP i K s.mem hK hU) c hs s.mem q) :
+    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs s.mem q := by
+  rw [hM.own, hM.cls, hM.ko]
+  exact (LP i K s.mem hK hU).insA (moveHeldP hK) (ownDepP hK hU) (pwe_own hK) hNG h
 
 end exec
 

@@ -26,3 +26,5 @@ open Fl4Proofs.P2.Serial
 #print axioms Fl4Proofs.P2.E2EP.execU3b_aRunR
 #print axioms Fl4Proofs.P2.E2EP.serializable_U3b_of
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_of
+#print axioms Fl4Proofs.P2.E2EP.pwe_own
+#print axioms Fl4Proofs.P2.E2EP.insA_of_noG
