@@ -6,7 +6,7 @@ N=${N:-40}
 for f in "$@"; do
   echo "=== $f"
   start=$(date +%s)
-  timeout 1500 lake env lean "$f" > /tmp/virt3.log 2>&1
+  timeout ${TO:-1500} lake env lean "$f" > /tmp/virt3.log 2>&1
   ec=$?
   awk -v N=$N '/^[^ ]*:[0-9]+:[0-9]+: (error|warning)/{p=0} /^[^ ]*:[0-9]+:[0-9]+: error/{p=1;c=0} p{if(c<N)print; c++}' /tmp/virt3.log
   grep -c ": error" /tmp/virt3.log

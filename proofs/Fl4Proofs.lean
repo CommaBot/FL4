@@ -2379,3 +2379,15 @@ import Fl4Proofs.P3.JExtVLay
 import Fl4Proofs.P3.JExtVSig
 import Fl4Proofs.P3.JExtVInit
 import Fl4Proofs.P3.JExtVFin
+import Fl4Proofs.P3.VirtTyK4
+import Fl4Proofs.P3.VirtTyK5
+import Fl4Proofs.P3.VirtTyK6
+import Fl4Proofs.P3.VirtAwaken
+import Fl4Proofs.P3.VirtNvTcb
+import Fl4Proofs.P3.VirtR7e
+import Fl4Proofs.P3.VirtR7eK
+import Fl4Proofs.P3.VirtNvcW
+import Fl4Proofs.P3.VirtR7eK2
+import Fl4Proofs.P3.VirtOffNv
+import Fl4Proofs.P3.VirtInvOK
+import Fl4Proofs.P3.VirtTcbOK
