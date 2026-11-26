@@ -78,3 +78,7 @@ import Fl4ProofsA64.P1.FastSched
 import Fl4ProofsA64.P1.VcpuHooks
 import Fl4ProofsA64.P1.VmRootRd
 import Fl4ProofsA64.P1.FastFin
+import Fl4ProofsA64.P1.QueueSlots
+import Fl4ProofsA64.P1.QueueCaiFr
+import Fl4ProofsA64.P1.QueueDelete
+import Fl4ProofsA64.P1.QueueDeleteRv

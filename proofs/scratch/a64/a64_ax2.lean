@@ -71,6 +71,13 @@ import Fl4ProofsA64.P1.QueueReplyPop
 import Fl4ProofsA64.P1.QueueRecv
 import Fl4ProofsA64.P1.FastFault
 import Fl4ProofsA64.P1.FastSched
+import Fl4ProofsA64.P1.VcpuHooks
+import Fl4ProofsA64.P1.VmRootRd
+import Fl4ProofsA64.P1.FastFin
+import Fl4ProofsA64.P1.QueueSlots
+import Fl4ProofsA64.P1.QueueCaiFr
+import Fl4ProofsA64.P1.QueueDelete
+import Fl4ProofsA64.P1.QueueDeleteRv
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -84,17 +91,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.schedcontext.donate.kwCB
-#print axioms Fl4ProofsA64.P1.schedcontext.donate.idle
-#print axioms Fl4ProofsA64.P1.ipc.reply_pop.blk
-#print axioms Fl4ProofsA64.P1.fin_reply.blk
-#print axioms Fl4ProofsA64.P1.faults.set_fault.rv
-#print axioms Fl4ProofsA64.P1.syscall.handle_recv.bxi
-#print axioms Fl4ProofsA64.P1.faults.handle_fault.bxi
-#print axioms Fl4ProofsA64.P1.faults.handle_timeout.bxi
-#print axioms Fl4ProofsA64.P1.notification.receive_signal.ipc
-#print axioms Fl4ProofsA64.P1.sched.reschedule_required.rv0
-#print axioms Fl4ProofsA64.P1.fault_accG
-#print axioms Fl4ProofsA64.P1.fault_acc
-#print axioms Fl4ProofsA64.P1.fault_sync2
-#print axioms Fl4ProofsA64.P1.enqueue_ne
+#print axioms Fl4ProofsA64.P1.finish_eq_old
+#print axioms Fl4ProofsA64.P1.finish_ok_of_old
+#print axioms Fl4ProofsA64.P1.set_vm_root_wr
+#print axioms Fl4ProofsA64.P1.set_vm_root_wrs
+#print axioms Fl4ProofsA64.P1.set_vm_root_ok_s
+#print axioms Fl4ProofsA64.P1.VmOff.wr
+#print axioms Fl4ProofsA64.P1.set_stage2_root_wr
+#print axioms Fl4ProofsA64.P1.fault_same
+#print axioms Fl4ProofsA64.P1.fault_fin
+#print axioms Fl4ProofsA64.P1.endpoint.cancel_all_ipc.rv
+#print axioms Fl4ProofsA64.P1.tcb.install_tcb_cap.rvT
+#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blk_d
+#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkC_d
+#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkE_d
