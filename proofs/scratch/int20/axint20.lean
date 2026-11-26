@@ -3448,6 +3448,149 @@ section
 open Fl4Proofs.P1
 end
 
+-- from scratch/mmu1_ax.lean
+section
+open Fl4Proofs.P2.MmuAD
+#print axioms or_and_eq
+#print axioms and_eq_of_adEq
+#print axioms MmuAD.adEqM
+#print axioms lookup_pdpt_slot_ad
+#print axioms lookup_pd_slot_ad
+#print axioms lookup_pt_slot_ad
+#print axioms small_page_entry_ad
+#print axioms Fl4Proofs.P2.E2EP.MmuLeaf.hwWr
+#print axioms Fl4Proofs.P2.E2EP.serializable_e2ePA
+#print axioms Fl4Proofs.P2.E2EP.execPA_of_U3G
+#print axioms Fl4Proofs.P2.E2EP.execU3H_of_U3
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU2_viaU3
+end
+
+-- from scratch/mmu2_ax.lean
+section
+open Fl4Proofs.P2.Serial
+#print axioms adIns_bot
+#print axioms SimA.mono
+#print axioms InvA.locstep
+#print axioms InvA.frame
+#print axioms InvA.step
+#print axioms InvA.hw
+#print axioms InvA.ad
+#print axioms InvA.regate
+#print axioms freach_ad
+#print axioms safe_ad
+#print axioms sinv_ad
+#print axioms aRun_inv
+#print axioms serializable_safeA
+#print axioms aRun_of_xsafeRun
+open Fl4Proofs.P2.MmuAD
+#print axioms adEq_equiv
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWr
+#print axioms adIns_rdN
+#print axioms tr_adIns
+#print axioms body_adIns
+#print axioms sadIns_rd_mask
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWrP
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWr_pte
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWr_none
+end
+
+-- from scratch/mmu3_ax.lean
+section
+open Fl4Proofs.P2.E2EP
+#print axioms walk1_adEq
+#print axioms walk3_adEq
+#print axioms namedM_agA
+#print axioms ptesR_agA
+#print axioms pwe_asid
+#print axioms ko_upd_none
+#print axioms adWr_pwe
+#print axioms maps_pwe
+#print axioms epochJ_ser
+#print axioms epochJ_keep
+#print axioms epochJ_mmu
+#print axioms epoch_start
+#print axioms execU3b_of_U3
+#print axioms Fl4Proofs.P2.MmuAD.sadIns_rd_sens
+end
+
+-- from scratch/mmu4_ax.lean
+section
+open Fl4Proofs.P2.Serial
+#print axioms FReachA.trans
+#print axioms InsA.reach
+#print axioms insA_congr
+#print axioms iinv_stepX
+#print axioms iinv_hw
+#print axioms iinv_ad
+#print axioms InvR.step
+#print axioms InvR.hw
+#print axioms InvR.ad
+#print axioms safe_adR
+#print axioms sinv_adR
+#print axioms aRunR_inv
+#print axioms serializable_safeR
+#print axioms insA_of_adIns
+#print axioms altRun_congrG
+#print axioms DInvG.adstep
+#print axioms insA_of_runs
+#print axioms Fl4Proofs.P2.E2E.noG_sim
+#print axioms Fl4Proofs.P2.E2E.body_insA
+#print axioms Fl4Proofs.P2.E2E.LocalPath.insA
+#print axioms Fl4Proofs.P2.E2EP.execU3b_aRunR
+#print axioms Fl4Proofs.P2.E2EP.serializable_U3b_of
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_of
+#print axioms Fl4Proofs.P2.E2EP.pwe_own
+#print axioms Fl4Proofs.P2.E2EP.insA_of_noG
+end
+
+-- from scratch/mmu5_ax.lean
+section
+open Fl4Proofs.P2.E2EP Fl4Proofs.P2.E2E
+#print axioms Fl4Proofs.P2.E2E.LocalPath.within_avoidE
+#print axioms Fl4Proofs.P2.E2E.LocalPath.noPWE_of_avoid
+#print axioms regionOKP_ku
+#print axioms userOKP_ku
+#print axioms qPs_ku
+#print axioms ownV_pwe_gate
+#print axioms w11_noG
+#print axioms insA_w11
+#print axioms avoidE_cmKU
+#print axioms cm_noG
+#print axioms insA_cm
+#print axioms execU3b_aRunRB
+#print axioms serializable_fl4_localU3b_ofDI
+end
+
+-- from scratch/mmu6_ax.lean
+section
+open Fl4Proofs.P2.Serial Fl4Proofs.P2.E2E Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl
+#print axioms insRun_of_noG
+#print axioms altRun_congrQ
+#print axioms DInvQ.adstep
+#print axioms DInvQ.freachA
+#print axioms DInvQ.read
+#print axioms insA_of_runsQ
+#print axioms insT_of_within
+#print axioms insT_sbind
+#print axioms insRun_rdN
+#print axioms insT_sim
+#print axioms body_insAQ
+#print axioms LocalPath.insAQ
+#print axioms LocalPath.decG
+#print axioms ioRSR_notPWE
+#print axioms ioDS_notPWE
+#print axioms delPte_dec
+#print axioms inv_dec
+#print axioms insA_delQ
+#print axioms insA_invQ
+#print axioms serializable_fl4_localU3b_ofAcc
+#print axioms insT_of_sIns
+#print axioms sIns_lookup_pdpt_slot
+#print axioms sIns_lookup_pd_slot
+#print axioms sIns_lookup_pt_slot
+end
+
 -- from scratch/ndd_ax.lean
 section
 end
@@ -3508,6 +3651,20 @@ end
 section
 end
 
+-- from scratch/p2P1_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.masksWr_plain
+#print axioms Fl4Proofs.P2.E2EP.LkC.kernDetS
+#print axioms Fl4Proofs.P2.E2EP.LkC.kernDetAt
+#print axioms Fl4Proofs.P2.E2EP.LkC.wr
+#print axioms Fl4Proofs.P2.E2EP.lkC_const
+#print axioms Fl4Proofs.P2.E2EP.startU_of_U2
+#print axioms Fl4Proofs.P2.E2EP.startU2_of_U
+#print axioms Fl4Proofs.P2.E2EP.startInvU3_of_U2
+#print axioms Fl4Proofs.P2.E2EP.lkC_planLocks
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU2
+end
+
 -- from scratch/p2j14_ax.lean
 section
 end
@@ -3536,8 +3693,58 @@ end
 section
 end
 
+-- from scratch/p3P2_ax.lean
+section
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU31
+#print axioms Fl4Proofs.P3.SInvR.G5.KDispHypsKVU31.toN
+#print axioms Fl4ProofsN.P3.SInvR.G5.kernel_entry_reachU30
+#print axioms Fl4Proofs.P3.JAtZ.stallT
+#print axioms Fl4Proofs.P3.tcb_copy_regsJT
+#print axioms Fl4Proofs.P3.decode_invocation_threadJ_stepMT
+#print axioms Fl4Proofs.P3.decode_invocation_threadJ_stepMMT
+#print axioms Fl4Proofs.P3.decode_invocation_threadJ_stepMN
+#print axioms Fl4Proofs.P3.decode_invocation_threadJ_stepMMN
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU32
+#print axioms Fl4Proofs.P3.SInvR.G5.KDispHypsKVU32.toI
+#print axioms Fl4ProofsI.P3.SInvR.G5.kernel_entry_reachU31
+#print axioms Fl4Proofs.P3.irq_ioapic_refinesN
+#print axioms Fl4Proofs.P3.irq_remap_refinesN
+#print axioms Fl4Proofs.P3.irq_ioapic_refinesMN
+#print axioms Fl4Proofs.P3.irq_remap_refinesMN
+end
+
+-- from scratch/p3P_ax.lean
+section
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU30
+#print axioms Fl4Proofs.P3.SInvR.G5.KDispHypsKVU30.toU29
+#print axioms Fl4Proofs.P3.SInvR.G5.JPathAtMU30.toU29
+#print axioms Fl4Proofs.P3.decode_sched_context_keepAR
+#print axioms Fl4Proofs.P3.decode_sched_control_keepAR
+#print axioms Fl4Proofs.P3.AK.schedcontext_configure_flags
+#print axioms Fl4Proofs.P3.AK.schedcontext_decode
+#print axioms Fl4Proofs.P3.AK.schedcontext_decode_sched_control
+#print axioms Fl4Proofs.P3.remote_tcb_stall_moves
+#print axioms Fl4Proofs.P3.stall_false
+end
+
 -- from scratch/rbuf_ax.lean
 section
+end
+
+-- from scratch/satU1_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.kernDetS_const
+#print axioms Fl4Proofs.P2.E2EP.planLk_const
+#print axioms Fl4Proofs.P2.E2EP.vxBuf_of
+#print axioms Fl4Proofs.P2.E2EP.vx_v0
+#print axioms Fl4Proofs.P2.E2EP.startU1_io_sat
+#print axioms Fl4Proofs.P2.E2EP.startU1_st_sat
+#print axioms Fl4Proofs.P2.E2EP.startU1_irq_sat
+#print axioms Fl4Proofs.P2.E2EP.startU1_vx_sat
+#print axioms Fl4Proofs.P2.E2EP.startU1_io_satC
+#print axioms Fl4Proofs.P2.E2EP.startU1_st_satC
+#print axioms Fl4Proofs.P2.E2EP.startU1_irq_satC
+#print axioms Fl4Proofs.P2.E2EP.startU1_vx_satC
 end
 
 -- from scratch/scks_ax.lean
@@ -3776,6 +3983,202 @@ end
 section
 end
 
+-- from scratch/vms1_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.vxSlotV
+#print axioms Fl4Proofs.P2.E2EP.vx_avoidPV_path
+#print axioms Fl4Proofs.P2.E2EP.vx_avoidPV
+#print axioms Fl4Proofs.P2.E2EP.vxSlotPV
+#print axioms Fl4Proofs.P2.E2EP.VxStartV
+#print axioms Fl4Proofs.P2.E2EP.vxStartV_at
+#print axioms Fl4Proofs.P2.E2EP.vxStartV_vcpu
+#print axioms Fl4Proofs.P2.E2EP.vxStartV_ne
+#print axioms Fl4Proofs.P2.E2EP.execP_of_VX
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX1G
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX1
+end
+
+-- from scratch/vms2_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.UserLayX.ofSlJAt
+#print axioms Fl4Proofs.P2.E2EP.bxi_userX
+#print axioms Fl4Proofs.P2.E2EP.vexitEnt_wrV
+#print axioms Fl4Proofs.P2.E2EP.vexitPEnt_wrV
+#print axioms Fl4Proofs.P2.E2EP.vxEu_ofV
+#print axioms Fl4Proofs.P2.E2EP.VtxBundle
+#print axioms Fl4Proofs.P2.E2EP.VtxBundle.okP
+#print axioms Fl4Proofs.P2.E2EP.VtxBundle.vcpuNU
+#print axioms Fl4Proofs.P2.E2EP.vtxBundle_of_vfacts
+#print axioms Fl4Proofs.P2.E2EP.vtxBundle_of_jvm
+#print axioms Fl4Proofs.P2.E2EP.vtxBundle_of_empty
+#print axioms Fl4Proofs.P2.E2EP.VxPremV2.toV
+#print axioms Fl4Proofs.P2.E2EP.execVX_of_VX2
+#print axioms Fl4Proofs.P2.E2EP.VxStartV2
+#print axioms Fl4Proofs.P2.E2EP.vxStartV2_ne
+#print axioms Fl4Proofs.P2.E2EP.vxStartV_of_V2
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX2SG
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX2S
+end
+
+-- from scratch/vms3_ax.lean
+section
+#print axioms Fl4Proofs.P2.vtimer_pathOblQ
+#print axioms Fl4Proofs.P2.vtimer_pathSideQ
+#print axioms Fl4Proofs.P2.vexit_acc_bound
+#print axioms Fl4Proofs.P2.vexit_acc_ntfnLk
+#print axioms Fl4Proofs.P2.vtimer_acc_bound
+#print axioms Fl4Proofs.P2.vtimer_acc_ntfnLk
+#print axioms Fl4Proofs.P2.E2EP.vtmEnt_wrV
+#print axioms Fl4Proofs.P2.E2EP.vtmU_wrV
+#print axioms Fl4Proofs.P2.E2EP.vtFx_wr
+#print axioms Fl4Proofs.P2.E2EP.affAg_of_linkP
+#print axioms Fl4Proofs.P2.E2EP.vtimer_localPathV
+#print axioms Fl4Proofs.P2.E2EP.vtEu_ofV
+#print axioms Fl4Proofs.P2.E2EP.vtSlotV
+#print axioms Fl4Proofs.P2.E2EP.vt_avoidPV_path
+#print axioms Fl4Proofs.P2.E2EP.vt_avoidPV
+#print axioms Fl4Proofs.P2.E2EP.vtSlotPV
+#print axioms Fl4Proofs.P2.E2EP.VtPremV2.toV
+#print axioms Fl4Proofs.P2.E2EP.vtStartV2_at
+#print axioms Fl4Proofs.P2.E2EP.vtStartV2_sat
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX3G
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX2
+end
+
+-- from scratch/vms4_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.slotLayV_ofLayX
+#print axioms Fl4Proofs.P2.E2EP.vtmU_ofX
+#print axioms Fl4Proofs.P2.E2EP.vtPreA_of_S
+#print axioms Fl4Proofs.P2.E2EP.vtStartV2_of_V4
+#print axioms Fl4Proofs.P2.E2EP.vtxBundle4_of_vfacts
+#print axioms Fl4Proofs.P2.E2EP.vcpuKs_ofKo
+#print axioms Fl4Proofs.P2.E2EP.curW_wrX
+#print axioms Fl4Proofs.P2.E2EP.ioRWDS_wrVX
+#print axioms Fl4Proofs.P2.E2EP.IoPremX.huf
+#print axioms Fl4Proofs.P2.E2EP.ioSlotX
+#print axioms Fl4Proofs.P2.E2EP.io_avoidPX_path
+#print axioms Fl4Proofs.P2.E2EP.io_avoidPX
+#print axioms Fl4Proofs.P2.E2EP.ioSlotPX
+#print axioms Fl4Proofs.P2.E2EP.IoPremX2.toX
+#print axioms Fl4Proofs.P2.E2EP.ioStartX_at
+#print axioms Fl4Proofs.P2.E2EP.execVX_of_VX4
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX4G
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX4
+end
+
+-- from scratch/vms5_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.userLayX_userV
+#print axioms Fl4Proofs.P2.E2EP.ioPre_wrL
+#print axioms Fl4Proofs.P2.E2EP.IoPremX5.toX2
+#print axioms Fl4Proofs.P2.E2EP.stEnt_wrL
+#print axioms Fl4Proofs.P2.E2EP.ksb_fit_of_np
+#print axioms Fl4Proofs.P2.E2EP.StPremX.cs64
+#print axioms Fl4Proofs.P2.E2EP.StPremX.eu
+#print axioms Fl4Proofs.P2.E2EP.stSlotX
+#print axioms Fl4Proofs.P2.E2EP.st_avoidPX_path
+#print axioms Fl4Proofs.P2.E2EP.st_avoidPX
+#print axioms Fl4Proofs.P2.E2EP.stSlotPX
+#print axioms Fl4Proofs.P2.E2EP.StPremX5.toX
+#print axioms Fl4Proofs.P2.E2EP.stStartX_at
+#print axioms Fl4Proofs.P2.E2EP.ioStartX_of_X5
+#print axioms Fl4Proofs.P2.E2EP.irqFx_ul
+#print axioms Fl4Proofs.P2.E2EP.irqLay_wrL
+#print axioms Fl4Proofs.P2.E2EP.irqFx_wr
+#print axioms Fl4Proofs.P2.E2EP.irq_pathOblX
+#print axioms Fl4Proofs.P2.E2EP.irq_pathSideX
+#print axioms Fl4Proofs.P2.E2EP.irq_hroX
+#print axioms Fl4Proofs.P2.E2EP.irq_localPathX
+#print axioms Fl4Proofs.P2.E2EP.irqSlotX
+#print axioms Fl4Proofs.P2.E2EP.irq_avoidPX_path
+#print axioms Fl4Proofs.P2.E2EP.irq_avoidPX
+#print axioms Fl4Proofs.P2.E2EP.irqSlotPX
+#print axioms Fl4Proofs.P2.E2EP.IrqPremX5.toX
+#print axioms Fl4Proofs.P2.E2EP.irqStartX_at
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX5G
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX5
+end
+
+-- from scratch/vms6_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_kd_of
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_kd
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_reads
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_const
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_sat
+#print axioms Fl4Proofs.P2.PathObl.SlLX.curW_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.cn_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.ft_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.syncC_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.entL_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.lp_wr
+#print axioms Fl4Proofs.P2.PathObl.slCom_nuX
+#print axioms Fl4Proofs.P2.PathObl.fltDec_nuX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.accR_wr
+#print axioms Fl4Proofs.P2.PathObl.rrDR_nuX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preRR_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preB_wrN
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preB_wrG
+#print axioms Fl4Proofs.P2.PathObl.slQ_wrX
+#print axioms Fl4Proofs.P2.PathObl.sl_hufX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.ofSlJAt
+#print axioms Fl4Proofs.P2.E2EP.SlLX.ofVtx
+#print axioms Fl4Proofs.P2.E2EP.slEntS_of_slJAt
+end
+
+-- from scratch/vms7_ax.lean
+section
+#print axioms Fl4Proofs.P2.PathObl.SlEntX.wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.dsR
+#print axioms Fl4Proofs.P2.PathObl.SlLX.entJ
+#print axioms Fl4Proofs.P2.PathObl.SlLX.hereJ
+#print axioms Fl4Proofs.P2.PathObl.rbuf_ofX
+#print axioms Fl4Proofs.P2.PathObl.slAccJ_ofX
+#print axioms Fl4Proofs.P2.PathObl.slEntsX
+#print axioms Fl4Proofs.P2.PathObl.sl_localPathX
+#print axioms Fl4Proofs.P2.PathObl.slOFX_of
+#print axioms Fl4Proofs.P2.PathObl.SlLX.tabNU
+#print axioms Fl4Proofs.P2.PathObl.rdTabNX
+#print axioms Fl4Proofs.P2.PathObl.fltAcc_nuTX
+#print axioms Fl4Proofs.P2.PathObl.sl_trap_acc_guardNX
+#print axioms Fl4Proofs.P2.PathObl.rrDec_nuX
+#print axioms Fl4Proofs.P2.PathObl.sl_dec_guardNX
+#print axioms Fl4Proofs.P2.PathObl.sl_alt_preX
+#print axioms Fl4Proofs.P2.PathObl.sl_alt_preDecX
+#print axioms Fl4Proofs.P2.PathObl.sl_alt_hhdX
+#print axioms Fl4Proofs.P2.PathObl.sl_once_trap_awayX
+#print axioms Fl4Proofs.P2.PathObl.sl_once_rr_awayX
+#print axioms Fl4Proofs.P2.PathObl.rrAccNB_nuX
+#print axioms Fl4Proofs.P2.PathObl.sl_rr_onceX
+#print axioms Fl4Proofs.P2.PathObl.sl_hroX
+#print axioms Fl4Proofs.P2.E2EV.sl_entAllX
+#print axioms Fl4Proofs.P2.E2EV.sl_avoidVKE_X
+#print axioms Fl4Proofs.P2.E2EV.sl_avoidVKE_rQX
+#print axioms Fl4Proofs.P2.E2EV.sl_avoidVX
+#print axioms Fl4Proofs.P2.E2EP.avoidE_cutLiftV_X
+#print axioms Fl4Proofs.P2.E2EP.avoidE_cutLiftV_rJX
+#print axioms Fl4Proofs.P2.E2EP.regionOKE_vpte
+#print axioms Fl4Proofs.P2.E2EP.userNoE_vpte
+#print axioms Fl4Proofs.P2.E2EP.tabNoV_wrX
+#print axioms Fl4Proofs.P2.E2EP.sl_hufVX
+#print axioms Fl4Proofs.P2.E2EP.slSlotX
+#print axioms Fl4Proofs.P2.E2EP.sl_avoidPX
+#print axioms Fl4Proofs.P2.E2EP.sl_avoidPXf
+#print axioms Fl4Proofs.P2.E2EP.slSlotPX
+#print axioms Fl4Proofs.P2.E2EP.SlPremX5.toX
+#print axioms Fl4Proofs.P2.E2EP.slStartX_at
+#print axioms Fl4Proofs.P2.E2EP.slPremX5_sat
+#print axioms Fl4Proofs.P2.E2EP.slStartX_of
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX7G
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX7
+end
+
+-- from scratch/vms7_ax_head.lean
+section
+end
+
 -- from scratch/wire_ax.lean
 section
 end
@@ -3807,6 +4210,75 @@ end
 -- from scratch/pte/pte13b_ax.lean
 section
 open Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl
+end
+
+-- from scratch/pte/pte14_ax.lean
+section
+open Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl Fl4Proofs.P1 Fl4Proofs.P2
+#print axioms plan_with_kp
+#print axioms plan_with_mapR
+#print axioms pmRoot_of_planD
+#print axioms pmRoot_of_qf
+#print axioms pmPreG_of
+#print axioms pm_pdwF
+#print axioms pm_hSFQH
+#print axioms serializable_fl4_localW11PRIPmH
+end
+
+-- from scratch/pte/pte14b_ax.lean
+section
+open Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl
+#print axioms vspace.frame_address.guardK
+#print axioms vspace.write_mapping.guard
+#print axioms msgReg_lt
+#print axioms decode_nof
+#print axioms cap_pml4_nof
+#print axioms pm_decRd
+#print axioms pm_decWalk
+end
+
+-- from scratch/pte/pte15_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.dpm_congr
+#print axioms Fl4Proofs.P2.E2EP.dpm_run
+#print axioms Fl4Proofs.P2.PathObl.reply_error_kuPm
+end
+
+-- from scratch/pte/pte15b_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.pm_s2
+#print axioms Fl4Proofs.P2.E2EP.pmAccG
+#print axioms Fl4Proofs.P2.E2EP.pmFinG
+#print axioms Fl4Proofs.P2.E2EP.pm_blkG
+#print axioms Fl4Proofs.P2.E2EP.pm_hSFQI
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmI
+end
+
+-- from scratch/pte/pte15c_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.nof_enc_framePm
+#print axioms Fl4Proofs.P2.E2EP.pmAccG2
+end
+
+-- from scratch/pte/pte15d_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.pm_mvG
+#print axioms Fl4Proofs.P2.E2EP.pm_hSFQJ
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmJ
+end
+
+-- from scratch/pte/pte16_ax.lean
+section
+#print axioms Fl4Proofs.P2.E2EP.dpm_run2
+#print axioms Fl4Proofs.P2.E2EP.syscall.error_mrs.guardN
+#print axioms Fl4Proofs.P2.E2EP.pmAccN
+#print axioms Fl4Proofs.P2.E2EP.pm_replyOnce
+#print axioms Fl4Proofs.P2.E2EP.pm_tailOnce
+#print axioms Fl4Proofs.P2.E2EP.pm_decOnce
+#print axioms Fl4Proofs.P2.E2EP.pm_entOnce
+#print axioms Fl4Proofs.P2.E2EP.pm_roAG
+#print axioms Fl4Proofs.P2.E2EP.pm_hSFQK
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPm3
 end
 
 -- from scratch/pte/pte2_ax.lean
@@ -3874,6 +4346,136 @@ section
 open Fl4Proofs.P2
 end
 
+-- from scratch/glue/glue1_ax.lean
+section
+#print axioms Fl4Proofs.P2.Serial.xsafeRunH_inv
+#print axioms Fl4Proofs.P2.Serial.serializable_safeXH
+#print axioms Fl4Proofs.P2.Serial.veq_start
+#print axioms Fl4Proofs.P2.E2E.body_safeH
+#print axioms Fl4Proofs.P2.E2E.LocalPath.safeH
+#print axioms Fl4Proofs.P2.E2EP.ko_congrP
+#print axioms Fl4Proofs.P2.E2EP.exec_safeRunPH
+#print axioms Fl4Proofs.P2.E2EP.serializable_e2ePH
+#print axioms Fl4Proofs.P2.E2EP.execPH_of_WPRHG
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU4
+end
+
+-- from scratch/glue/glue2_ax.lean
+section
+#print axioms Fl4Proofs.P2.Serial.veq_offCore
+#print axioms Fl4Proofs.P2.E2EP.ko_viewP
+#print axioms Fl4Proofs.P2.E2EP.exec_safeRunPR
+#print axioms Fl4Proofs.P2.E2EP.serializable_e2ePR
+#print axioms Fl4Proofs.P2.E2EP.execPR_of_WPRRG
+#print axioms Fl4Proofs.P2.E2EP.execWPRR_of_WPR
+#print axioms Fl4Proofs.P2.E2EP.execWPRR_of_WPRH
+#print axioms Fl4Proofs.P2.E2EP.ExecWPRQ.toWPR
+#print axioms Fl4Proofs.P2.E2EP.execWPRH_of_WPRQ
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU5
+end
+
+-- from scratch/glue/glue3_ax.lean
+section
+#print axioms Fl4Proofs.P2.Serial.RunD.run
+#print axioms Fl4Proofs.P2.Serial.RunD.det
+#print axioms Fl4Proofs.P2.Serial.veq_revert
+#print axioms Fl4Proofs.P2.E2E.runD_rdN
+#print axioms Fl4Proofs.P2.E2E.runD_tr
+#print axioms Fl4Proofs.P2.E2E.LocalPath.body_runD
+#print axioms Fl4Proofs.P2.E2E.LocalPath.runD_result
+#print axioms Fl4Proofs.P2.E2E.LocalPath.body_run
+#print axioms Fl4Proofs.P2.E2E.interp_frame
+#print axioms Fl4Proofs.P2.E2E.LocalPath.frame_acc
+end
+
+-- from scratch/glue/glue4_ax.lean
+section
+#print axioms Fl4Proofs.P2.GlueCross.slJAt_aff
+#print axioms Fl4Proofs.P2.GlueCross.slJAt_cur
+#print axioms Fl4Proofs.P2.GlueCross.slJAt_cpu_eq
+#print axioms Fl4Proofs.P2.GlueCross.chain_cpu_eq
+#print axioms Fl4Proofs.P2.GlueCross.crossCoreView_false
+#print axioms Fl4Proofs.P2.GlueCross.veq_aff
+#print axioms Fl4Proofs.P2.GlueCross.start_aff
+#print axioms Fl4Proofs.P2.GlueCross.start_two_cores
+end
+
+-- from scratch/wit/wit1_ax.lean
+section
+open Fl4Proofs.P2.Wit
+#print axioms wst_ext
+#print axioms opaqueW_types
+#print axioms warI_total
+#print axioms wit_locPlat
+#print axioms wit_ioapic
+#print axioms wNoSt_tr
+#print axioms wNoSt_cutP
+#print axioms wit_run
+#print axioms wit_exec_io
+#print axioms wit_U2_io
+#print axioms wit_exec_io_conc
+#print axioms wit_U2_conc
+end
+
+-- from scratch/jboot/jboot1_ax.lean
+section
+open Fl4Proofs.P3
+#print axioms initASt_irqNode0
+#print axioms initASt_idle_val
+#print axioms initASt_ksb
+#print axioms initASt_not_jAtZ
+#print axioms initKheap_irq128
+#print axioms emptyCnode0_wf
+#print axioms initASt_not_jAtZ_irq128
+#print axioms ipi_forces_oracle1
+#print axioms ipi_forces_oracle
+#print axioms MachPlat.toF
+#print axioms MachPlatF.mask
+#print axioms modelArch_machPlatF
+#print axioms modelArch_ipiF
+#print axioms Fl4Proofs.P3.JBoot.init_capOpt
+#print axioms Fl4Proofs.P3.JBoot.boot_sinvIP
+#print axioms Fl4Proofs.P3.JBoot.boot_utPgR
+#print axioms Fl4Proofs.P3.JBoot.boot_devRangeS
+#print axioms Fl4Proofs.P3.JBoot.boot_jReachSpec
+#print axioms Fl4Proofs.P3.JBoot.fkb_fit
+#print axioms Fl4Proofs.P3.JBoot.fIrqNode_node
+#print axioms Fl4Proofs.P3.JBoot.fInitASt_irqNode
+#print axioms Fl4Proofs.P3.JBoot.fInit_place
+#print axioms Fl4Proofs.P3.JBoot.fInit_tcb_apart
+#print axioms Fl4Proofs.P3.JBoot.fInit_cnode_off
+end
+
+-- from scratch/p3mc/p3mc1_ax.lean
+section
+#print axioms Fl4Proofs.P2.CoreView.tcbRepl_own
+#print axioms Fl4Proofs.P2.CoreView.repl2_own
+#print axioms Fl4Proofs.P2.CoreView.repl_own
+#print axioms Fl4Proofs.P2.CoreView.view_eq_of_own
+#print axioms Fl4Proofs.P2.CoreView.view_aff
+#print axioms Fl4Proofs.P2.CoreView.view_sc_core
+#print axioms Fl4Proofs.P2.CoreView.view_home
+#print axioms Fl4Proofs.P2.CoreView.view_node_other
+#print axioms Fl4Proofs.P2.CoreView.view_tzero
+#print axioms Fl4Proofs.P2.CoreView.view_state
+#print axioms Fl4Proofs.P2.CoreView.view_idem
+#print axioms Fl4Proofs.P2.CoreView.repl2_decEq
+#print axioms Fl4Proofs.P2.CoreView.view_frame
+#print axioms Fl4Proofs.P2.CoreView.view_mix_own
+#print axioms Fl4Proofs.P2.CoreView.ownP_eq_own
+#print axioms Fl4Proofs.P2.CoreView.repl_ownP
+#print axioms Fl4Proofs.P2.CoreView.view_eq_of_ownP
+#print axioms Fl4Proofs.P2.CoreView.view_frameP
+#print axioms Fl4Proofs.P2.CoreView.view_mix_ownP
+#print axioms Fl4Proofs.P2.CoreView.views_aff
+end
+
+-- from scratch/p3P2_irqax.lean
+section
+open Lean in
+#print axioms Fl4ProofsI.P3.SInvR.G5.kernel_entry_reachU31
+end
+
 -- from scratch/int20/extra.lean
 section
 open Fl4Proofs.P2.E2EP in
@@ -3882,4 +4484,72 @@ open Fl4Proofs.P2.E2EP in
 #print axioms serializable_fl4_localU1D
 open Fl4Proofs.P2.E2EP in
 #print axioms serializable_fl4_localU1W
+end
+
+-- from scratch/int20/extra2.lean
+section
+#print axioms Fl4Proofs.P2.CoreView.view_none
+#print axioms Fl4Proofs.P2.CoreView.view_some
+#print axioms Fl4Proofs.P2.CoreView.repl2_region
+#print axioms Fl4Proofs.P2.CoreView.repl2_none_of_own
+#print axioms Fl4Proofs.P2.CoreView.view_sc_home
+#print axioms Fl4Proofs.P2.CoreView.view_node_self
+#print axioms Fl4Proofs.P2.CoreView.decEq_mix
+#print axioms Fl4Proofs.P2.CoreView.decEq_mixP
+#print axioms Fl4Proofs.P3.initASt_irqNode0
+#print axioms Fl4Proofs.P3.initASt_idle_val
+#print axioms Fl4Proofs.P3.initASt_ksb
+#print axioms Fl4Proofs.P3.initASt_not_jAtZ
+#print axioms Fl4Proofs.P3.initKheap_irq128
+#print axioms Fl4Proofs.P3.emptyCnode0_wf
+#print axioms Fl4Proofs.P3.initASt_not_jAtZ_irq128
+#print axioms Fl4Proofs.P3.toNat_sw8
+#print axioms Fl4Proofs.P3.sw8_ne
+#print axioms Fl4Proofs.P3.gaiLine_unmask
+#print axioms Fl4Proofs.P3.ipi_forces_oracle1
+#print axioms Fl4Proofs.P3.ipi_forces_oracle
+#print axioms Fl4Proofs.P3.MachPlat.toF
+#print axioms Fl4Proofs.P3.IrqPlatA.toIpiF
+#print axioms Fl4Proofs.P3.MachPlatF.mask
+#print axioms Fl4Proofs.P3.gaiLine_some_unmasked
+#print axioms Fl4Proofs.P3.upd_keep
+#print axioms Fl4Proofs.P3.upd_true
+#print axioms Fl4Proofs.P3.modelArch_machPlatF
+#print axioms Fl4Proofs.P3.modelArch_ipiF
+#print axioms Fl4Proofs.P3.JBoot.fkb_val
+#print axioms Fl4Proofs.P3.JBoot.sh_toNat
+#print axioms Fl4Proofs.P3.JBoot.fIrqNode_lo
+#print axioms Fl4Proofs.P3.JBoot.fIrqNode_hi
+#print axioms Fl4Proofs.P2.Wit.widx_inj
+#print axioms Fl4Proofs.P2.Wit.widx_mul
+#print axioms Fl4Proofs.P2.Wit.wad_val
+#print axioms Fl4Proofs.P2.Wit.wad_aligned
+#print axioms Fl4Proofs.P2.Wit.widx_wad
+#print axioms Fl4Proofs.P2.Wit.wst_ext
+#print axioms Fl4Proofs.P2.Wit.opaqueW_types
+#print axioms Fl4Proofs.P2.Wit.pinF_ok
+#print axioms Fl4Proofs.P2.Wit.warI_total
+#print axioms Fl4Proofs.P2.Wit.warI_machPlat
+#print axioms Fl4Proofs.P2.Wit.warI_take_ne
+#print axioms Fl4Proofs.P2.Wit.warI_max_period
+#print axioms Fl4Proofs.P2.Wit.warI_timeAgree
+#print axioms Fl4Proofs.P2.Wit.wit_locPlat
+#print axioms Fl4Proofs.P2.Wit.wit_ioapic
+#print axioms Fl4Proofs.P2.Wit.wNoSt_rdN
+#print axioms Fl4Proofs.P2.Wit.wNoSt_tr
+#print axioms Fl4Proofs.P2.Wit.wNoSt_body
+#print axioms Fl4Proofs.P2.Wit.wNoSt_cutP
+#print axioms Fl4Proofs.P2.Wit.wit_notSer
+#print axioms Fl4Proofs.P2.Wit.wit_step
+#print axioms Fl4Proofs.P2.Wit.wit_run
+#print axioms Fl4Proofs.P2.Wit.wit_exec_io
+#print axioms Fl4Proofs.P2.Wit.wit_U2_io
+#print axioms Fl4Proofs.P2.Wit.wit_exec_io_conc
+#print axioms Fl4Proofs.P2.Wit.wit_U2_conc
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU1P
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_ofDI
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_ofAcc
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmH
+#print axioms Fl4Proofs.P2.Serial.serializable_safeA
+#print axioms Fl4Proofs.P2.Serial.serializable_safeR
 end
