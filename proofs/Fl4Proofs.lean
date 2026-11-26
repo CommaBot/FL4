@@ -2220,3 +2220,5 @@ import Fl4Proofs.P3.SpecInvIoxG
 import Fl4Proofs.P3.SpecInvIoxE
 import Fl4Proofs.P3.SpecInvIox
 import Fl4Proofs.P3.XTopJointKEntryU38
+import Fl4Proofs.P3.XTopJointKEntryU39
+import Fl4Proofs.P3.JBootIoa
