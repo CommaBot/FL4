@@ -2412,3 +2412,5 @@ import Fl4Spec.Ext.VirtRelVmx
 import Fl4Spec.Ext.VirtRelSvm
 import Fl4Proofs.P3.VirtVcpuRel
 import Fl4Proofs.P3.VirtWit10
+import Fl4Proofs.P3.VirtSanRel
+import Fl4Proofs.P3.VirtSanEq
