@@ -1,5 +1,4 @@
-import Fl4Proofs.P2.E2EPAD2C
-#print axioms Fl4Proofs.P2.E2EP.pm_blkGX
-#print axioms Fl4Proofs.P2.E2EP.pm_accU_of_blkGX
-#print axioms Fl4Proofs.P2.E2EP.pm_mvGX
-#print axioms Fl4Proofs.P2.E2EP.pm_roAGX
+import Fl4Proofs.P2.E2EPAD2D
+#print axioms Fl4Proofs.P2.E2EP.pm_hufGX
+#print axioms Fl4Proofs.P2.E2EP.pmSlotVX
+#print axioms Fl4Proofs.P2.E2EP.pmStartX_at
