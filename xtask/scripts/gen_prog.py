@@ -119,6 +119,11 @@ def parse_header(name, text):
     body = body.strip()
     if body.startswith('do'):
         body = body[2:]
+    # a Store instance parameter named otherwise (`machine.sharing_enabled`'s `StoreInst`): use the usual name
+    for n_, ty_, imp_ in params:
+        if not imp_ and ty_ == 'machine.Store S' and n_ != 'machineStoreInst':
+            body = re.sub(r'(?<![\w.])' + re.escape(n_) + r'(?![\w])', 'machineStoreInst', body)
+            params = [('machineStoreInst', t2, i2) if n2 == n_ else (n2, t2, i2) for n2, t2, i2 in params]
     f = Fn()
     f.name, f.params, f.ret, f.body = name, [p for p in params if not p[2]], ret, body
     f.raw = text
@@ -545,7 +550,7 @@ def tr_expr(node, env, K, ctx):
             assert ctor in ('cont', 'done', 'ControlFlow.cont', 'ControlFlow.done'), y
             Kx = Kc if ctor.endswith('cont') else Kd
             v = vals_of(rest, Kx, env)
-            return [f'pure (.{ctor.split(".")[-1]} {v})']
+            return [f'pure (.{ctor.split(".")[-1]} {v if strip_parens(v) != v or " " not in v else "(" + v + ")"})']
         return [f'pure {"(" + vals_of(x, K, env) + ")"}']
     if h == 'fail':
         return [f'SProg.err ({ttext(toks[1:])})']
@@ -612,14 +617,21 @@ def blk_shape(K):
 
 # `split` on a match over a projection (`x.1` after `uncurry_proj`) can pair one side's arm with the other's:
 # such leftover goals have contradictory `heq`s (`x.1 = .Ok _`, `x.1 = .Err _`)
-CLOSE = '  all_goals (exfalso; simp only [*, reduceCtorEq] at *)'
+# a match arm paired with itself whose constructor fields `split` left as separate variables (`heq : C x = C y`,
+# cdt.finalise_slot_deferred_loop's Zombie arm): unify them and finish the walk first
+CLOSE = ("  all_goals (try (simp_all only [reduceCtorEq]; done))\n"
+         "  all_goals (try (injections; subst_vars; (repeat' reif_step); done))\n"
+         '  all_goals (exfalso; simp only [*, reduceCtorEq] at *)')
+# `objects.finalise_cap`'s result `((remainder, cleanup), s, a)`: destructured at its bind, so the later match on
+# `remainder` is on a variable, not on the projection `x.1.1` (split then pairs the arms correctly)
+INTRO = "(with_reducible apply bind_congr_r; intro x; try (rcases (x : (capability.Cap × capability.Cap) × S × A) with ⟨⟨_, _⟩, _, _⟩))"
 
 
 def proof_loop(ctx):
     if not ctx.blks:
-        return ['  reif_loop', CLOSE]
+        return ['  repeat\' (first', '    | ' + INTRO, '    | reif_step)', CLOSE]
     shs = [f'((refine (show BlkShape S A {k} _ _ from ?_)); exact {blk_shape(K)})' for k, K in enumerate(ctx.blks)]
-    return (['  repeat\' (first', '    | (with_reducible apply bind_congr_r; intro)',
+    return (['  repeat\' (first', '    | ' + INTRO,
              '    | (with_reducible refine ite_congr\' (fun _ => ?_) (fun _ => ?_))',
              '    | (with_reducible refine ite_bind_congr\' (fun _ => ?_) (fun _ => ?_))',
              '    | (simp only [reif_simps])',
@@ -681,6 +693,17 @@ def emit_nz(f, ctx, out, name=None):
     out.append('')
 
 
+DEC_CF = """dec_peel
+all_goals (try ((first | (rename_i h; split at h) | (rename_i h _; split at h) | (rename_i h _ _; split at h)); all_goals (try (simp only [bind_tc_eq, lift, bind_ok, Std.bind_assoc, uncurry_proj, bind_eq_ok_iff, ite_eq_ok_iff, ok_eq_ok_iff, fail_eq_ok_iff, ControlFlow.cont.injEq, reduceCtorEq, false_and, and_false, false_or, or_false, exists_false] at h; (try casesm* (_ ∧ _), (∃ _, _), (_ ∨ _)); (try subst_vars)))))
+all_goals (try ((first | (rename_i h; split at h) | (rename_i h _; split at h) | (rename_i h _ _; split at h)); all_goals (try (simp only [bind_tc_eq, lift, bind_ok, Std.bind_assoc, uncurry_proj, bind_eq_ok_iff, ite_eq_ok_iff, ok_eq_ok_iff, fail_eq_ok_iff, ControlFlow.cont.injEq, reduceCtorEq, false_and, and_false, false_or, or_false, exists_false] at h; (try casesm* (_ ∧ _), (∃ _, _), (_ ∨ _)); (try subst_vars)))))
+all_goals (try ((first | (rename_i h; split at h) | (rename_i h _; split at h) | (rename_i h _ _; split at h)); all_goals (try (simp only [bind_tc_eq, lift, bind_ok, Std.bind_assoc, uncurry_proj, bind_eq_ok_iff, ite_eq_ok_iff, ok_eq_ok_iff, fail_eq_ok_iff, ControlFlow.cont.injEq, reduceCtorEq, false_and, and_false, false_or, or_false, exists_false] at h; (try casesm* (_ ∧ _), (∃ _, _), (_ ∨ _)); (try subst_vars)))))
+all_goals (try ((first | (rename_i h; split at h) | (rename_i h _; split at h) | (rename_i h _ _; split at h)); all_goals (try (simp only [bind_tc_eq, lift, bind_ok, Std.bind_assoc, uncurry_proj, bind_eq_ok_iff, ite_eq_ok_iff, ok_eq_ok_iff, fail_eq_ok_iff, ControlFlow.cont.injEq, reduceCtorEq, false_and, and_false, false_or, or_false, exists_false] at h; (try casesm* (_ ∧ _), (∃ _, _), (_ ∨ _)); (try subst_vars)))))
+all_goals (try ((first | (rename_i h; split at h) | (rename_i h _; split at h) | (rename_i h _ _; split at h)); all_goals (try (simp only [bind_tc_eq, lift, bind_ok, Std.bind_assoc, uncurry_proj, bind_eq_ok_iff, ite_eq_ok_iff, ok_eq_ok_iff, fail_eq_ok_iff, ControlFlow.cont.injEq, reduceCtorEq, false_and, and_false, false_or, or_false, exists_false] at h; (try casesm* (_ ∧ _), (∃ _, _), (_ ∨ _)); (try subst_vars)))))
+all_goals (try simp only at *)
+all_goals first
+  | (apply ge_sub1_lt <;> assumption)
+  | (apply ge_sub1_lt' <;> assumption)"""
+
 MEASURE = {  # loop name -> (measure on the loop variables `xL`, proof after `simp only [body] at h`)
     # the body matches on the walked cap and then on the next slot's cap: split both matches
     'cspace.resolve_address_bits_loop': ('xL.2.2.val', """split at h
@@ -692,6 +715,15 @@ all_goals (simp only [ok_eq_ok_iff, reduceCtorEq, ControlFlow.cont.injEq] at hm)
 subst hm
 simp only
 apply ge_sub1_lt <;> first | assumption | scalar_tac"""),
+    # CDT loops whose `cont` sits under a match on the finalised remainder and a `Try` branch (line hpzg gen 6):
+    # split the last, second or third hypothesis in turn, peel with `casesm*` kept optional
+    **{L: ('xL.val', DEC_CF) for L in ('cdt.finalise_slot_deferred_loop', 'cdt.finalise_slot_immediate_loop',
+                                     'cdt.revoke_loop')},
+    # the EPT walk: `shift` drops by 9 per level (`usub_lt`, P2/InvProgSrc.lean)
+    'ept.lookup_loop': ('xL.2.val', """dec_peel
+all_goals (repeat (rename_i h; split at h; all_goals (try (simp only [ok_eq_ok_iff, reduceCtorEq] at h; done)); all_goals (try dec_peel)))
+all_goals (try simp only at *)
+all_goals (apply usub_lt <;> first | assumption | scalar_tac)"""),
 }
 
 
@@ -921,7 +953,7 @@ def default_measure(fixed, lvars):
         if 'fuel' in v:
             return f'{x}.val', DEC_DEFAULT
     for (v, ty), x in zip(lvars, xp):
-        if v in ('i', 'j', 'visits', 'idx', 'k') and ty in SCALAR_BITS:
+        if v in ('i', 'j', 'visits', 'idx', 'k', 'port', 'w') and ty in SCALAR_BITS:
             return f'{SCALAR_BITS[ty]} - {x}.val', DEC_DEFAULT
     return 'MISSING_MEASURE', 'sorry_missing'
 
