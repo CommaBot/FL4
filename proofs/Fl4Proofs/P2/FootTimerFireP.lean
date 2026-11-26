@@ -34,36 +34,54 @@ def FireTailG (st gS : machine.Store S) (ar : machine.Arch A) (s3 : S) (a3 : A) 
         sched.cur_thread gS s5 = sched.cur_thread st s5 ∧
         ∀ t, sched.cur_thread st s5 = ok t → vcpu.check gS ar s5 a5 t = vcpu.check st ar s5 a5 t
 
+/-- **The guarded calls of an accepted fire-case timer-interrupt run before its tail** (`irq_accG_fire_core`,
+lvm gen 9): the IRQ state, the plan, the current thread / SC, `current_ok`'s answer (though a VM-timer run never
+asks it), `sched_quiet`, `update_timestamp`, the timestamp, the release head, the consumed time, `sufficient`,
+`timer_due`, `check_budget` and `handle_interrupt`, each on `gS` as on `st` at the run's arguments. -/
+structure IrqFPreG (st gS : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (s : S) (a : A)
+    (irq cpu ct csc now i2 : U64) (s1 s2 : S) (a1 a2 : A) : Prop where
+  gi1 : interrupt.irq_state gS s irq = interrupt.irq_state st s irq
+  gtip : localtimer.plan_objects gS s = localtimer.plan_objects st s
+  gct : sched.cur_thread gS s = sched.cur_thread st s
+  gcsc : sched.cur_sc gS s = sched.cur_sc st s
+  gcok : localtimer.current_ok gS s cpu ct csc = localtimer.current_ok st s cpu ct csc
+  gb2 : localtimer.sched_quiet gS s cpu = localtimer.sched_quiet st s cpu
+  gu : sched.update_timestamp gS ar s a = sched.update_timestamp st ar s a
+  gnow : sched.cur_time gS s1 = sched.cur_time st s1
+  gb3 : localtimer.release_due gS s1 cpu = localtimer.release_due st s1 cpu
+  gi2 : sched.consumed gS s1 = sched.consumed st s1
+  gb4 : sporadic.sufficient gS ar s1 a1 csc i2 = sporadic.sufficient st ar s1 a1 csc i2
+  gdue : localtimer.timer_due gS s1 cpu now = localtimer.timer_due st s1 cpu now
+  gcb : sched.check_budget gS ar s1 a1 = sched.check_budget st ar s1 a1
+  ghi : interrupt.handle_interrupt gS ar s2 a2 irq = interrupt.handle_interrupt st ar s2 a2 irq
+
 set_option maxHeartbeats 32000000 in
-/-- **The fire case of an accepted timer interrupt on the guarded store, the prefix discharged**, from
-`irq_accept_walk`'s equations with `IrqCase.fire` (module docstring). -/
-theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
-    (hA : P0.ArchTotal ar) {s s1 s2 s3 s4 s5 s' : S} {a a1 a2 a3 a4 a5 a' : A}
-    {cpu mx irq ct csc now i2 t : U64} {x : Bool} {tip p : localtimer.TimerIrqPlan}
+/-- **The prefix of an accepted fire-case timer interrupt on the guarded store** (`IrqFPreG`, lvm gen 9):
+`irq_accG_fire_walk`'s walk with the head check `current_ok` replaced by the facts the prefix uses (`haff`, `hsct`,
+`hcore`; also what a VM-timer run's `current_vm_ok` checked), shared with lvm's `local_vm_timer_irq` fire walk. -/
+theorem irq_accG_fire_core {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 : S} {a a1 a2 a3 : A}
+    {cpu mx irq ct csc now i2 : U64} {x : Bool} {tip p : localtimer.TimerIrqPlan}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
     (gWr : IrqOk st s → ∀ w, Aligned w → IrqWr st Z s w → w ≠ stA (L.curW s) → W w)
     (hIq : IrqOk st s → ∀ i, interrupt.state_off irq = ok i → R (core.num.U64.wrapping_add (L.ksb s) i))
     (hD1 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (hD2 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
-    (gfo : IrqOk st s → localtimer.fire_ok gS s1 (L.cpu s) (L.curW s) p now =
-      localtimer.fire_ok st s1 (L.cpu s) (L.curW s) p now)
-    (gT : IrqOk st s → FireTailG st gS ar s3 a3)
     (ecpu : st.cur_cpu s = ok cpu) (emx : layout.irq.MAX = ok mx)
     (hle : ¬ irq > mx) (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
     (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
     (ect : sched.cur_thread st s = ok ct) (ecsc : sched.cur_sc st s = ok csc)
-    (eok : localtimer.current_ok st s cpu ct csc = ok true) (eq : localtimer.sched_quiet st s cpu = ok true)
+    (haff : L.mem s (affA (L.curW s)) = L.cpu s) (hsct : L.mem s (scA (L.curW s)) = L.cscW s)
+    (hcore : L.mem s (scCoreA (L.cscW s)) = L.cpu s) (eq : localtimer.sched_quiet st s cpu = ok true)
     (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
     (erel : localtimer.release_due st s1 cpu = ok false) (ei2 : sched.consumed st s1 = ok i2)
     (eb4 : sporadic.sufficient st ar s1 a1 csc i2 = ok true)
     (edue : localtimer.timer_due st s1 cpu now = ok true)
     (efo : localtimer.fire_ok st s1 cpu ct p now = ok true)
     (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
-    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
-    (esc : sched.schedule st ar s3 a3 = ok (s4, a4)) (eac : sched.activate_thread st ar s4 a4 = ok (s5, a5))
-    (et : sched.cur_thread st s5 = ok t) (evc : vcpu.check st ar s5 a5 t = ok (s', a')) :
-    localtimer.handle_timer_irq_local gS ar s a irq p = ok (true, s', a') := by
+    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3)) :
+    IrqFPreG st gS ar s a irq cpu ct csc now i2 s1 s2 a1 a2 := by
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
   have hcC : L.cpu s ∈ Cs := h0.cur
@@ -73,8 +91,6 @@ theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl
   have ectr := ect
   have ecscr := ecsc
   have ecbr := ecb
-  have etr := et
-  have evcr := evc
   rw [L.cur_cpu_eq] at ecpu
   have hcpu : cpu = L.cpu s := (ok_inj_ff ecpu).symm
   subst hcpu
@@ -85,8 +101,6 @@ theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl
   have ecs' : L.cscW s = csc := ok_inj_ff ecsc
   subst ecs'
   have ht' := hT _ hcT
-  obtain ⟨hmr, hsct, hcore⟩ := current_ok_true eok
-  obtain ⟨-, haff, -, -⟩ := may_run_here_true hmr
   -- the current SC
   have hX := hI.2.2.1
   have hS := hI.2.2.2.2
@@ -168,11 +182,6 @@ theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl
   subst e2s e2a
   -- the guarded store: what it admits
   have hok : IrqOk st s := ⟨haff, hsct, hcore⟩
-  obtain ⟨gsc, gT⟩ := gT hok
-  obtain ⟨gac, gT⟩ := gT s4 a4 esc
-  obtain ⟨gt, gT⟩ := gT s5 a5 eac
-  have gvc := gT t et
-  have gfo := gfo hok
   replace gRd := gRd hok
   replace gWr := gWr hok
   replace hIq := hIq hok i hi
@@ -324,21 +333,80 @@ theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl
         rw [eq_of_spec_fd (obj.node_set.spec (L := L) s1 _ _ _)] at e
         rw [← ok_inj_ff e, nodeAt_of_ksb (L.ksb_wr _ _ _), c1, nodeAt_of_ksb k1]
         exact nW _ (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED]))
-  exact irq_replay (st := st) (st' := gS) ar ecpur ‹PathObl.GRd gS st R›.cur_cpu emx hle ei1
-    (interrupt.irq_state.guard s irq hi hIq) rfl etip gtip eb ectr
-    (PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))) ecscr
-    (PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))) eok gcok
-    eq gquiet eu
-    (PathObl.sched.update_timestamp.guard ar s a
-      (nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
-      (nW _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
-      (nR _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
-      (nW _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])))
-    enow (PathObl.sched.cur_time.guard s1 (ndR s1 e1N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])))
-    erel grdue ei2
-    (PathObl.sched.consumed.guard s1 (ndR s1 e1N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])))
-    eb4 (PathObl.sporadic.sufficient.guard ar s1 a1 (L.cscW s) i2 (hdC s1 agΩ1)) edue gtdue
-    (IrqCase.fire rfl rfl efo) (fun h => nomatch h) (fun _ => gfo) ecbr gcb ehi ghi esc gsc eac gac etr gt evcr gvc
+  exact
+    { gi1 := interrupt.irq_state.guard s irq hi hIq
+      gtip := gtip
+      gct := PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))
+      gcsc := PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
+      gcok := gcok
+      gb2 := gquiet
+      gu := PathObl.sched.update_timestamp.guard ar s a
+        (nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+        (nW _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+        (nR _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+        (nW _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+      gnow := PathObl.sched.cur_time.guard s1 (ndR s1 e1N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+      gb3 := grdue
+      gi2 := PathObl.sched.consumed.guard s1 (ndR s1 e1N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+      gb4 := PathObl.sporadic.sufficient.guard ar s1 a1 (L.cscW s) i2 (hdC s1 agΩ1)
+      gdue := gtdue
+      gcb := gcb
+      ghi := ghi }
+
+set_option maxHeartbeats 32000000 in
+/-- **The fire case of an accepted timer interrupt on the guarded store, the prefix discharged**, from
+`irq_accept_walk`'s equations with `IrqCase.fire` (module docstring). -/
+theorem irq_accG_fire_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 s4 s5 s' : S} {a a1 a2 a3 a4 a5 a' : A}
+    {cpu mx irq ct csc now i2 t : U64} {x : Bool} {tip p : localtimer.TimerIrqPlan}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
+    (gWr : IrqOk st s → ∀ w, Aligned w → IrqWr st Z s w → w ≠ stA (L.curW s) → W w)
+    (hIq : IrqOk st s → ∀ i, interrupt.state_off irq = ok i → R (core.num.U64.wrapping_add (L.ksb s) i))
+    (hD1 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hD2 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (gfo : IrqOk st s → localtimer.fire_ok gS s1 (L.cpu s) (L.curW s) p now =
+      localtimer.fire_ok st s1 (L.cpu s) (L.curW s) p now)
+    (gT : IrqOk st s → FireTailG st gS ar s3 a3)
+    (ecpu : st.cur_cpu s = ok cpu) (emx : layout.irq.MAX = ok mx)
+    (hle : ¬ irq > mx) (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
+    (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
+    (ect : sched.cur_thread st s = ok ct) (ecsc : sched.cur_sc st s = ok csc)
+    (eok : localtimer.current_ok st s cpu ct csc = ok true) (eq : localtimer.sched_quiet st s cpu = ok true)
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
+    (erel : localtimer.release_due st s1 cpu = ok false) (ei2 : sched.consumed st s1 = ok i2)
+    (eb4 : sporadic.sufficient st ar s1 a1 csc i2 = ok true)
+    (edue : localtimer.timer_due st s1 cpu now = ok true)
+    (efo : localtimer.fire_ok st s1 cpu ct p now = ok true)
+    (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
+    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
+    (esc : sched.schedule st ar s3 a3 = ok (s4, a4)) (eac : sched.activate_thread st ar s4 a4 = ok (s5, a5))
+    (et : sched.cur_thread st s5 = ok t) (evc : vcpu.check st ar s5 a5 t = ok (s', a')) :
+    localtimer.handle_timer_irq_local gS ar s a irq p = ok (true, s', a') := by
+  have hok0 := current_ok_true eok
+  have hmr0 := may_run_here_true hok0.1
+  have ecpu' := ecpu
+  rw [L.cur_cpu_eq] at ecpu'
+  have hcpu : cpu = L.cpu s := (ok_inj_ff ecpu').symm
+  subst hcpu
+  have ect' := ect
+  rw [cur_thread_ok] at ect'
+  have etc : L.curW s = ct := ok_inj_ff ect'
+  subst etc
+  have ecsc' := ecsc
+  rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s)] at ecsc'
+  have ecs' : L.cscW s = csc := ok_inj_ff ecsc'
+  subst ecs'
+  have G := irq_accG_fire_core (gS := gS) ar hA hI gRd gWr hIq hD1 hD2 ecpu emx hle ei1 etip eb ect ecsc hmr0.2.1 hok0.2.1
+    hok0.2.2 eq eu enow erel ei2 eb4 edue efo ecb ehi
+  have hok : IrqOk st s := ⟨hmr0.2.1, hok0.2.1, hok0.2.2⟩
+  obtain ⟨gsc, gT⟩ := gT hok
+  obtain ⟨gac, gT⟩ := gT s4 a4 esc
+  obtain ⟨gt, gT⟩ := gT s5 a5 eac
+  exact irq_replay (st := st) (st' := gS) ar ecpu ‹PathObl.GRd gS st R›.cur_cpu emx hle ei1 G.gi1 rfl etip G.gtip eb
+    ect G.gct ecsc G.gcsc eok G.gcok eq G.gb2 eu G.gu enow G.gnow erel G.gb3 ei2 G.gi2 eb4 G.gb4 edue G.gdue
+    (IrqCase.fire rfl rfl efo) (fun h => nomatch h) (fun _ => gfo hok) ecb G.gcb ehi G.ghi esc gsc eac gac et gt evc
+    (gT t et)
 
 /-- **An accepted fire-case timer interrupt on the guarded store, the prefix discharged** (module docstring):
 `fire_ok` and the tail on `gS` at the real states (`gfo`, `gT`), stated through the run's own equations. -/
