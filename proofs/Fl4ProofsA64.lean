@@ -32,3 +32,5 @@ import Fl4ProofsA64.P1.QueueTimerW
 import Fl4ProofsA64.P1.TimerRB
 import Fl4ProofsA64.P1.TimerRBZip
 import Fl4ProofsA64.P1.VcpuReport
+import Fl4ProofsA64.P1.QueueSwitch
+import Fl4ProofsA64.P1.QueueSchedule
