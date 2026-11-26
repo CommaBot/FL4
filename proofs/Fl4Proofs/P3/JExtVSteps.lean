@@ -547,6 +547,150 @@ theorem vcpu_detach_jv (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da : 
     · exact Or.inl ⟨hvne, Or.inl e⟩
     · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨v, hvV, Or.inr e⟩)))
 
+set_option maxHeartbeats 16000000 in
+/-- **`vcpu.decode` at `X86VCPUSetTCB` keeps the extension** (module docstring): on a VCPU `v ∈ V`, with the
+extra cap slots slots of `th` whose `Thread` caps name TCBs (`hex` [J]) and the current thread a TCB (`hct` [J]). -/
+theorem vcpu_decode_settcb_jv (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da : DetAt st V th Ub s)
+    (E : JExtV (L := L) V X th s) (R : RunVmB (L := L) th s) (a : A) {len v buf : U64} {call : Bool}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize} (hvV : v ∈ V)
+    (hex : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot th x ∧ ∀ p, capV (L.mem s) x = .Thread p → th p = some .tcb)
+    (hct : th (L.mem s (curA st s)) = some .tcb) :
+    vcpu.decode st ar s a fl4_abi.label.X86VCPUSetTCB len v call buf extra ⦃ r s' _ =>
+      JExtV (L := L) V X th s' ∧ RunVmB (L := L) th s' ⦄ := by
+  have P := D.pl
+  unfold vcpu.decode
+  refine WP.spec_bind (vcpu_stall_w hA s a v Da.ipiA_al) ?_
+  rintro ⟨s1, a1⟩ w1
+  try simp only [uncurry_apply_pair]
+  have w1' : P1.WritesIn st s s1 (· = ipiA st s) := w1
+  have cl1 : ∀ b, b = ipiA st s → ¬ JW V th b ∧ ¬ SW th b := fun b e => Da.nd b (Or.inl e)
+  have E1 := E.of_writes P w1' fun b hb => (cl1 b hb).1
+  have R1 := R.of_clean P w1' cl1
+  have Da1 : DetAt st V th Ub s1 := Da.mono (w1'.mono fun b e => Or.inr (Or.inl e))
+  have LEAF : ∀ r : core.result.Result Unit error.Exc, (ok (r, s1, a1) : Result _) ⦃ r s' _ =>
+      JExtV (L := L) V X th s' ∧ RunVmB (L := L) th s' ⦄ := fun r => (WP.spec_ok _).2 ⟨E1, R1⟩
+  refine WP.spec_bind (P1.sched.cur_thread.spec s1) fun ct ect => ?_
+  have hct1 : th ct = some .tcb := by
+    have e1 : L.mem s1 (curA st s1) = L.mem s (curA st s) := by
+      rw [curA_of w1']; exact w1'.mem_eq Da.curA_al Da.cur_ne_ipi
+    have : ct = L.mem s (curA st s) := ect.trans e1
+    rw [this]; exact hct
+  refine WP.spec_bind (hA.virtualization a1) fun i _ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact WP.spec_mono (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun _ _ => trivial
+    · exact (WP.spec_ok _).2 trivial) fun f _ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact WP.spec_mono (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun _ _ => trivial
+    · exact (WP.spec_ok _).2 trivial) fun value _ => ?_
+  first | rw [if_pos trivial] | rw [if_pos rfl]
+  refine WP.spec_bind (P1.idx_mem extra 0#usize (by simp)) fun x hx => ?_
+  simp only [obj.Slot.is_null, bind_ok]
+  split
+  · simp only [error.truncated, bind_ok]; exact LEAF _
+  rename_i hx0
+  obtain ⟨hxs, hxt⟩ := hex x hx (by simpa using hx0)
+  have ecap : capV (L.mem s1) x = capV (L.mem s) x := by
+    unfold capV
+    rw [w1'.mem_eq (P.jw _ (Or.inl ⟨x, hxs, Or.inl rfl⟩)) fun e => (cl1 _ e).1 (Or.inl ⟨x, hxs, Or.inl rfl⟩),
+      w1'.mem_eq (P.jw _ (Or.inl ⟨x, hxs, Or.inr rfl⟩)) fun e => (cl1 _ e).1 (Or.inl ⟨x, hxs, Or.inr rfl⟩)]
+  simp only [slot_cap_eq, capAt_capV, bind_ok]
+  rw [ecap]
+  generalize hc : capV (L.mem s) x = c
+  cases c
+  case Thread ptr =>
+    have hp : th ptr = some .tcb := hxt ptr hc
+    have JWp : JW V th (tVcpuA ptr) := Or.inr (Or.inl ⟨ptr, hp, rfl⟩)
+    refine WP.spec_bind (P1.smp.remote_tcb_stall.spec hA s1 a1 ptr) ?_
+    rintro ⟨s3, a2⟩ h3
+    try simp only [uncurry_apply_pair]
+    have w3 : P1.WritesIn st s1 s3 (· = ipiA st s1) := writesIn_or Da1.ipiA_al h3
+    have cl3 : ∀ b, b = ipiA st s1 → ¬ JW V th b ∧ ¬ SW th b := fun b e => Da1.nd b (Or.inl e)
+    have E3 := E1.of_writes P w3 fun b hb => (cl3 b hb).1
+    have R3 := R1.of_clean P w3 cl3
+    have Da3 : DetAt st V th Ub s3 := Da1.mono (w3.mono fun b e => Or.inr (Or.inl e))
+    refine WP.spec_bind (vcpu_detach_jv hA D Da3 E3 R3 a2 hp) ?_
+    rintro ⟨s4, a3⟩ P4
+    try simp only [uncurry_apply_pair]
+    have P4' : DetPost st V X th Ub ptr s3 s4 := P4
+    have Da4 : DetAt st V th Ub s4 := Da3.mono (P4'.footJ hp fun h => ((E3.bnd ptr hp).resolve_left h).1)
+    unfold vcpu.get
+    simp only [lift, bind_ok]
+    refine WP.spec_bind (P1.LawfulStore.read_spec s4 _) fun i1 ei1 => ?_
+    refine WP.spec_bind (P1.obj.Tcb.is_null.spec i1) fun b1 eb1 => ?_
+    have ei1' : i1 = L.mem s4 (vTcbA v) := ei1
+    refine WP.spec_bind (Pₘ := fun r : S × A => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ∧
+        L.mem r.1 (tVcpuA ptr) = 0#u64 ∧ L.mem r.1 (vTcbA v) = 0#u64 ∧ DetAt st V th Ub r.1) ?_ ?_
+    · split
+      · rename_i hb
+        have h0 : i1 = 0#u64 := by simpa [eb1] using hb
+        exact (WP.spec_ok _).2 ⟨P4'.ext, P4'.rvm, P4'.w0, by rw [← ei1', h0], Da4⟩
+      · rename_i hb
+        have h0 : i1 ≠ 0#u64 := fun e => hb (by simp [eb1, e])
+        have hb4 : L.mem s4 (vTcbA v) ≠ 0#u64 := by rw [← ei1']; exact h0
+        obtain ⟨hi1, hi1v⟩ := (P4'.ext.back v hvV).resolve_left hb4
+        rw [← ei1'] at hi1 hi1v
+        refine WP.spec_mono (vcpu_detach_jv hA D Da4 P4'.ext P4'.rvm a3 hi1) fun r P5 => ?_
+        have P5' : DetPost st V X th Ub i1 s4 r.1 := P5
+        refine ⟨P5'.ext, P5'.rvm, ?_, P5'.b0 v hvV hi1v,
+          Da4.mono (P5'.footJ hi1 fun _ => by rw [hi1v]; exact hvV)⟩
+        by_cases e : ptr = i1
+        · rw [e]; exact P5'.w0
+        · rw [P5'.foot.mem_eq (P.jw _ JWp) ?_]
+          · exact P4'.w0
+          rintro (⟨-, e' | e'⟩ | c)
+          · exact e (tVcpuA_inj e')
+          · rw [hi1v] at e'; exact P.vb ptr hp v hvV e'
+          · exact CW.njw D Da4 c JWp
+    rintro ⟨s5, a4⟩ ⟨E5, R5, t5, b5, Da5⟩
+    try simp only [uncurry_apply_pair]
+    simp only [vcpu.set, lift, bind_ok]
+    refine WP.spec_bind (P1.LawfulStore.write_spec s5 _ _) fun s6 e6 => ?_
+    subst e6
+    step as ⟨o, eo⟩
+    subst eo
+    try simp only [lift, bind_ok]
+    refine WP.spec_bind (P1.LawfulStore.write_spec _ _ _) fun s7 e7 => ?_
+    subst e7
+    have aT : P1.Aligned (tVcpuA ptr) := P.jw _ JWp
+    have aB : P1.Aligned (vTcbA v) := P.jw _ (Or.inr (Or.inr ⟨v, hvV, rfl⟩))
+    have w7 : P1.WritesIn st s5 (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v)
+        (fun b => b = vTcbA v ∨ b = tVcpuA ptr) := (P1.writesIn_wr aB).trans (P1.writesIn_wr aT)
+    have m7T : L.mem (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v) (tVcpuA ptr) = v := by
+      rw [L.mem_wr _ _ _ _ aT aT, if_pos rfl]
+    have m7B : L.mem (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v) (vTcbA v) = ptr := by
+      rw [L.mem_wr _ _ _ _ aT aB, if_neg (P.vb ptr hp v hvV), L.mem_wr _ _ _ _ aB aB, if_pos rfl]
+    have E7 := E5.bind_w P hp hvV t5 b5 D.h0 w7 m7T m7B
+    have R7 : RunVmB (L := L) th (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v) := R5.of_foot P w7
+      (fun t' ht' hw => by
+        rcases hw with e | e
+        · exact (P.swjw _ ⟨t', ht', rfl⟩ (Or.inr (Or.inr ⟨v, hvV, e⟩))).elim
+        · exact (P.swjw _ ⟨t', ht', rfl⟩ (Or.inr (Or.inl ⟨ptr, hp, e⟩))).elim)
+      (fun t' ht' hw => by
+        rcases hw with e | e
+        · exact (P.vb t' ht' v hvV e).elim
+        · exact Or.inr (by rw [tVcpuA_inj e, m7T]; exact E.nz v hvV))
+    have Da7 : DetAt st V th Ub (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v) := Da5.mono (w7.mono fun b h =>
+      Or.inl (h.elim (fun e => Or.inr (Or.inr ⟨v, hvV, e⟩)) fun e => Or.inr (Or.inl ⟨ptr, hp, e⟩)))
+    have hne : actA st (L.wr (L.wr s5 (vTcbA v) ptr) (tVcpuA ptr) v) ≠ P1.stA ct := fun e =>
+      (Da7.nd _ (Or.inr rfl)).2 ⟨ct, hct1, e⟩
+    refine WP.spec_bind (sts_w _ ct sched.TS_RESTART (P.sw _ ⟨ct, hct1, rfl⟩) Da7.actA_al hne) ?_
+    intro s8 ⟨w8, m8⟩
+    refine (WP.spec_ok _).2 ⟨E7.of_writes P w8 ?_, R7.of_foot P w8 ?_ ?_⟩
+    · rintro b (e | e)
+      · exact P.swjw b ⟨ct, hct1, e⟩
+      · exact (Da7.nd b (Or.inr e)).1
+    · intro t' ht' hw
+      rcases hw with e | e
+      · left; rw [stA_inj e, m8]; simp [sched.TS_RESTART]
+      · exact ((Da7.nd _ (Or.inr e)).2 ⟨t', ht', rfl⟩).elim
+    · intro t' ht' hw
+      rcases hw with e | e
+      · exact (P.swjw _ ⟨ct, hct1, e⟩ (Or.inr (Or.inl ⟨t', ht', rfl⟩))).elim
+      · exact ((Da7.nd _ (Or.inr e)).1 (Or.inr (Or.inl ⟨t', ht', rfl⟩))).elim
+  all_goals (simp only [error.illegal, bind_ok]; exact LEAF _)
+
 end
 
 end
