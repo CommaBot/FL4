@@ -11,7 +11,8 @@ a proof that goes through verbatim is a proof about the AArch64 function.
 usage: port.py PROOFS_DIR MODULE [MODULE ...]   (MODULE like Fl4Proofs.P1.Queue)
   --drop IMPORT   leave out an x86-only import (repeatable)
   --sub X=Y       replace the numeral X by Y (a layout constant that differs, e.g. ks::NODES
-                  13568=223488); each replaced line is marked `-- a64: X->Y` (repeatable)
+                  13568=223488); each replaced line is marked `-- a64: X->Y` (repeatable;
+                  all applied in one pass, so 128=136 136=144 shifts a range)
 Writes Fl4ProofsA64/<path>.lean with a header naming its x86 source.
 """
 import re, sys, os
@@ -22,12 +23,15 @@ def port(text, drops, subs=()):
         m = re.match(r'^import\s+(\S+)\s*$', l)
         if m and m.group(1) in drops:
             continue
-        for x, y in subs:
-            pat = r'(?<![\w.])' + x + r'(?![\w.])'
-            if re.search(pat, l):
-                l = re.sub(pat, y, l)
+        if subs:
+            # all substitutions in one pass, so 128=136 136=144 shifts a range
+            table = dict(subs)
+            pat = r'(?<![\w.])(' + '|'.join(re.escape(x) for x, _ in subs) + r')(?![\w.])'
+            hits = re.findall(pat, l)
+            if hits:
+                l = re.sub(pat, lambda m: table[m.group(1)], l)
                 if '-/' not in l and not l.lstrip().startswith('/-'):
-                    l = l.rstrip('\n') + '  -- a64: %s->%s\n' % (x, y)
+                    l = l.rstrip('\n') + '  -- a64: ' + ', '.join('%s->%s' % (h, table[h]) for h in hits) + '\n'
         out.append(l)
     t = ''.join(out)
     t = re.sub(r'\bfl4_core\b(?!_a64)', 'fl4_core_a64', t)
