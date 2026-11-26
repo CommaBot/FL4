@@ -2024,3 +2024,10 @@ import Fl4Proofs.P2.InvPmTop
 import Fl4Proofs.P2.InvPmDec
 import Fl4Proofs.P2.InvPmTop2
 import Fl4Proofs.P2.InvPmU
+import Fl4Proofs.P2.InvVsJ
+import Fl4Proofs.P2.InvTrunc8
+import Fl4Proofs.P2.InvJ
+import Fl4Proofs.P2.InvURoTr
+import Fl4Proofs.P2.InvPmPdw
+import Fl4Proofs.P3.VsLeafNz
+import Fl4Proofs.P2.InvPmTop3
