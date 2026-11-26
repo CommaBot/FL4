@@ -2197,3 +2197,13 @@ import Fl4Proofs.P3.SpecInvIrqBoundKit
 import Fl4Proofs.P3.SpecInvIrqBoundGen
 import Fl4Proofs.P3.SpecInvIrqBound
 import Fl4Proofs.P3.XTopJointKEntryU34
+import Fl4Proofs.P3.JBootChar
+import Fl4Proofs.P3.JBootMem
+import Fl4Proofs.P3.JBootSched
+import Fl4Proofs.P3.JBootZ
+import Fl4Proofs.P3.JBootCs
+import Fl4Proofs.P3.JBootInv
+import Fl4Proofs.P3.JBootLay
+import Fl4Proofs.P3.JBootBlk
+import Fl4Proofs.P3.JBootLive
+import Fl4Proofs.P3.JBootJAt

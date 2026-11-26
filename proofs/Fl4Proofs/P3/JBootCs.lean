@@ -1,0 +1,259 @@
+/-
+P3 (line jboot, gen 3): **the CSpace and VSpace conjuncts of `JAtZ` at the witness** (`w0`, `fInitASt`, the typed
+heap `thW`, the empty MDB ghost `Gw`; JBootZ). Every slot of `thW` is null with zero links (`capV_slot` …), so
+every MDB-quantified fact is vacuous and the slot facts hold of the null cap.
+
+* **`w0_crel`** (`CRel`: `StateRel`, `SlotsValid`, `MdbLinks`, `CdtRel`, `MdbInv`), **`w0_finInv`** (`FinInv`),
+  **`w0_mdbOKV`**, **`w0_delInv`**, **`w0_utInv`**, **`w0_delBound`**, **`w0_finM`** (`FinM` at every tree of the
+  slots: there is none but the empty one), **`w0_sfree`** (`SpecFree`), **`w0_utc`** (no untyped cap);
+* **`w0_vsc`** (`VsSlotsW`), **`w0_fcap`** (`FrSlots`), **`w0_ext`** (`JExt`: native caps, the idle TCB's VCPU
+  word zero), **`w0_bok`** (`IpcBufCapOK`: the idle TCB has no IPC frame cap), **`w0_fcov`** (`FrameCover`: no
+  data page);
+* **`w0_vsRel`**, **`w0_ptRel`**, **`w0_poolsIn`** (no ASID pool or page table in the sets, a zero ASID table),
+  **`w0_curOK`** (VsDelRoot's `CurOK`: the idle TCB current, its VSpace slot null);
+* **`initIoc_false`** (every slot of `initASt` is not original: all its caps are null) and **`w0_orig`**
+  (`JKern.orig`).
+
+No sorry; no premises. New module; no existing statement changed.
+-/
+import Fl4Proofs.P3.JBootZ
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.JBoot
+open fl4_core Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P3.Notif Fl4Proofs.P2.Wit Classical
+
+noncomputable section
+
+set_option maxHeartbeats 1000000
+
+/-! ## Helpers -/
+
+theorem desc_none {y x : U64} : ¬ Mdb.Desc (fun _ => none : U64 → Option U64) y x := by
+  intro h
+  induction h with
+  | single h => cases h
+  | tail _ h _ => cases h
+
+theorem gw_flat {x : U64} (h : x ∈ Gw.chains.flatten) : False := by
+  simp [Gw] at h
+
+/-- No tree of the slots has a member: every slot is null. -/
+theorem links_flat {G : MdbGhost} (hG : MdbLinks thW (wL.mem w0) G) {x : U64} (hx : x ∈ G.chains.flatten) :
+    False := by
+  obtain ⟨hs, c, hc, hne⟩ := (hG.members x).1 hx
+  rw [capAt_slot hs] at hc
+  exact hne (ok_inj hc).symm
+
+theorem idle_map (i : Nat) (hi : i < 6) : tcbCnodeMap idleTcbV (tcbCnodeIndex i) = some .nullCap := by
+  unfold tcbCnodeMap
+  rcases (by omega : i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 ∨ i = 4 ∨ i = 5) with rfl | rfl | rfl | rfl | rfl | rfl
+  · rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+      Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_self]; rfl
+  · rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+      Function.update_of_ne (by decide), Function.update_self]; rfl
+  · rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+      Function.update_self]; rfl
+  · rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_self]; rfl
+  · rw [Function.update_of_ne (by decide), Function.update_self]; rfl
+  · rw [Function.update_self]; rfl
+
+/-- Every cap of `initKheap` is null. -/
+theorem capOf_init {p : ObjRef} {o : KernelObject} (hp : initKheap p = some o) {b : CnodeIndex} {c : Cap}
+    (h : Fl4Spec.capOf o b = some c) : c = .nullCap := by
+  rcases bootHeap_init.obj _ _ hp with rfl | rfl | rfl | rfl | rfl | rfl
+  · rw [initKheap_idleT] at hp; cases hp
+    unfold Fl4Spec.capOf tcbCnodeMap at h
+    simp only [Function.update_apply] at h
+    split_ifs at h <;> first | (cases h; rfl) | cases h
+  · rw [initKheap_idleS] at hp; cases hp; simp [Fl4Spec.capOf] at h
+  · change emptyCnode 0 b = some c at h; unfold emptyCnode at h
+    split_ifs at h <;> first | (cases h; rfl) | cases h
+  all_goals simp [Fl4Spec.capOf] at h
+
+/-- **No slot of `initASt` (hence of `fInitASt`) is original.** -/
+theorem initIoc_false (sl : CslotPtr) : initIoc sl = false := by
+  obtain ⟨a, b⟩ := sl
+  unfold initIoc
+  simp only [decide_eq_false_iff_not]
+  rintro ⟨o, ho, c, hc, hne⟩
+  exact hne (capOf_init ho hc)
+
+theorem fInit_orig (sl : CslotPtr) : fInitASt.isOriginalCap sl = false := initIoc_false sl
+
+/-- **`JKern.orig`** (vacuous: no slot is original). -/
+theorem w0_orig : ∀ sl, fInitASt.isOriginalCap sl = true → AbsSlot thW sl := by
+  intro sl h; rw [fInit_orig] at h; cases h
+
+/-! ## `CRel` -/
+
+theorem w0_stateRel : StateRel thW (wL.mem w0) fInitASt where
+  cnode p r hp := by
+    rcases thW_some hp with ⟨-, e⟩ | ⟨irq, e, ek⟩
+    · cases e
+    cases ek
+    refine ⟨emptyCnode 0, by rw [← e]; exact fInitKheap_irq irq, emptyCnode0_wf, fun idx hidx => ?_⟩
+    have hnil : idx = [] := List.length_eq_zero_iff.1 hidx
+    subst hnil
+    have hs : IsSlot thW (slotOf p 0) := ⟨p, 0, Or.inl ⟨0, hp, by norm_num⟩, rfl⟩
+    exact ⟨.Null, .nullCap, capAt_slot hs, by simp [emptyCnode], ⟨trivial, rfl⟩⟩
+  tcb t ht := by
+    rcases thW_some ht with ⟨rfl, -⟩ | ⟨_, _, e⟩
+    · refine ⟨idleTcbV, fInit_idleTcb, fun i hi => ?_⟩
+      have hs : IsSlot thW (slotOf idT i) := ⟨idT, i, Or.inr ⟨thW_idT, hi⟩, rfl⟩
+      exact ⟨.Null, .nullCap, capAt_slot hs, idle_map i (by unfold tcbSlots at hi; omega), ⟨trivial, rfl⟩⟩
+    · cases e
+
+theorem w0_slotsValid : SlotsValid thW (wL.mem w0) where
+  cnode p r hp i hi c h := by
+    have hs : IsSlot thW (slotOf p i) := ⟨p, i, Or.inl ⟨r, hp, hi⟩, rfl⟩
+    rw [show slotAddr p.bv (BitVec.ofNat 64 i) = slotOf p i from rfl, capAt_slot hs] at h
+    obtain rfl := ok_inj h; trivial
+  tcb t ht i hi c h := by
+    have hs : IsSlot thW (slotOf t i) := ⟨t, i, Or.inr ⟨ht, hi⟩, rfl⟩
+    rw [show slotAddr t.bv (BitVec.ofNat 64 i) = slotOf t i from rfl, capAt_slot hs] at h
+    obtain rfl := ok_inj h; trivial
+
+theorem w0_links : MdbLinks thW (wL.mem w0) Gw where
+  tree := ⟨by simp [Gw], fun ch h => by simp [Gw] at h, fun a b h => by cases h⟩
+  ne_nil ch h := by simp [Gw] at h
+  chain ch h := by simp [Gw] at h
+  head ch h := by simp [Gw] at h
+  last ch h := by simp [Gw] at h
+  members a := by
+    constructor
+    · intro h; exact (gw_flat h).elim
+    · rintro ⟨hs, c, hc, hne⟩
+      rw [capAt_slot hs] at hc
+      exact (hne (ok_inj hc).symm).elim
+
+theorem w0_cdtRel : CdtRel thW (wL.mem w0) fInitASt Gw where
+  cdt _ _ := rfl
+  cdt_slot sl q h := by cases h
+  orig sl h := by rw [fInit_orig, revOf_slot h.isSlot]
+  par_slot a b h := by cases h
+
+theorem w0_mdbInv : MdbInv (wL.mem w0) Gw where
+  orig c p h := by cases h
+  desc x y h := (desc_none h).elim
+  after y hy := (gw_flat hy).elim
+  chunk ch h := by simp [Gw] at h
+  badges y hy := (gw_flat hy).elim
+  utrev x hx := (gw_flat hx).elim
+  self x hx := (gw_flat hx).elim
+
+/-- **`CRel` at the witness.** -/
+theorem w0_crel : CRel thW (wL.mem w0) fInitASt Gw :=
+  ⟨w0_stateRel, w0_slotsValid, w0_links, w0_cdtRel, w0_mdbInv⟩
+
+theorem w0_finM_gw : FinM (wL.mem w0) Gw where
+  conn ch1 h1 := by simp [Gw] at h1
+  key x hx := (gw_flat hx).elim
+  fnest x hx := (gw_flat hx).elim
+  zfin x hx := (gw_flat hx).elim
+
+/-- **`FinInv` at the witness.** -/
+theorem w0_finInv : FinInv thW (wL.mem w0) fInitASt Gw := ⟨kTyped_thW, w0_finM_gw⟩
+
+/-- **`JAtZ.finM`**: `FinM` at every tree of the slots (each has no member). -/
+theorem w0_finM : ∀ G, MdbLinks thW (wL.mem w0) G → FinM (wL.mem w0) G := by
+  intro G hG
+  have hm : ∀ ch ∈ G.chains, ∀ x ∈ ch, False := fun ch hch x hx =>
+    links_flat hG (List.mem_flatten.2 ⟨ch, hch, hx⟩)
+  exact ⟨fun ch1 h1 _ _ x hx _ _ => (hm ch1 h1 x hx).elim, fun x hx => (links_flat hG hx).elim,
+    fun x hx => (links_flat hG hx).elim, fun x hx => (links_flat hG hx).elim⟩
+
+/-- **`UtInv` at the witness** (`JAtZ.ut`). -/
+theorem w0_utInv : UtInv (wL.mem w0) Gw where
+  reg x hx := (gw_flat hx).elim
+  inc x hx := (gw_flat hx).elim
+  noov x hx := (gw_flat hx).elim
+  excl x hx := (gw_flat hx).elim
+  fib x hx := (gw_flat hx).elim
+  drange x hx := (gw_flat hx).elim
+
+/-- **`MdbOKV` at the witness.** -/
+theorem w0_mdbOKV : MdbOKV (wL.ksb w0) (wL.mem w0) Gw :=
+  ⟨⟨fun x hx => (gw_flat hx).elim, w0_utInv, fun x hx => (gw_flat hx).elim⟩, fun x hx => (gw_flat hx).elim,
+    ⟨∅, ∅, ∅, ∅, ∅, fun x hx => (gw_flat hx).elim⟩, fun x hx => (gw_flat hx).elim⟩
+
+/-- **`DelInv` at the witness** (no zombie; null slots have clear links). -/
+theorem w0_delInv : DelInv thW (wL.mem w0) where
+  zwf y hy p zt n h := by rw [capV_slot hy] at h; cases h
+  zu y y' hy _ _ p zt n p' zt' n' h := by rw [capV_slot hy] at h; cases h
+  nc y hy _ := ⟨prevOf_slot hy, nextOf_slot hy⟩
+
+/-- **`DelBound`** of the typed heap. -/
+theorem w0_delBound : DelBound thW := DelBound.of_placed placed_thW
+
+/-- **`SpecFree`** (no untyped cap). -/
+theorem w0_sfree : Sched.SpecFree (wL.mem w0) Gw fInitASt := fun x hx => (gw_flat hx).elim
+
+/-- **`JAtZ.utc`** (vacuous: no slot holds an untyped cap). -/
+theorem w0_utc : ∀ sl p sb fi dev, AbsSlot thW sl →
+    capAt (wL.mem w0) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+    Sched.UtCapP3 (L := wL) warI thW w0 fInitASt Gw sl p sb fi := by
+  intro sl p sb fi dev hs h _
+  rw [capAt_slot hs.isSlot] at h
+  cases ok_inj h
+
+/-! ## VSpace and frame conjuncts -/
+
+theorem w0_vsc : Vs.VsSlotsW thW ∅ ∅ ∅ ∅ ∅ (wL.mem w0) := by
+  intro y hy; rw [capV_slot hy]; trivial
+
+theorem w0_fcap : Vs.FrSlots thW (UFr fInitASt) (wL.mem w0) := by
+  intro y hy; rw [capV_slot hy]; trivial
+
+theorem w0_ext : JExt (L := wL) thW w0 where
+  nat y hy := by rw [capV_slot hy]; exact Vs.NativeCap.null
+  vw t ht := by
+    rcases thW_some ht with ⟨rfl, -⟩ | ⟨_, _, e⟩
+    · unfold tVcpuA; exact tcbZ 3664#u64 (by decide) (by decide) (by decide) (by decide)
+    · cases e
+
+theorem w0_bok : Endp.IpcBufCapOK fInitASt := by
+  intro t x h
+  obtain ⟨-, rfl⟩ := bootHeap_fInit.tcb_of h
+  intro dev p R mt vms md hc
+  simp [idleTcbV] at hc
+
+theorem w0_fcov : FrameCover ∅ fInitASt := by
+  intro q vms h
+  exfalso
+  change fInitKheap q = _ at h
+  rcases bootHeap_fInit.obj _ _ h with rfl | rfl | e | e | e | e
+  · rw [bootHeap_fInit.tcb] at h; cases h
+  · rw [bootHeap_fInit.sc] at h; cases h
+  all_goals cases e
+
+theorem w0_vsRel : Vs.VsRel ∅ (wL.mem w0) (wL.ksb w0) fInitASt where
+  table hi h := by
+    have hk : fkb.val + 288000 + 16384 ≤ 2 ^ 64 := by rw [fkb_val]; norm_num
+    have hv := Vs.atA_val (ksb := fkb) (hi := hi) hk h
+    rw [fkb_val] at hv
+    have hz : img (18446744071562133504 + 288000 + 8 * hi.val) = 0#u64 := by img0
+    rw [ksb_w0, mem_al hv (by omega), hz, optRef_zero]; rfl
+  tmem hi h hne := by
+    have hk : fkb.val + 288000 + 16384 ≤ 2 ^ 64 := by rw [fkb_val]; norm_num
+    have hv := Vs.atA_val (ksb := fkb) (hi := hi) hk h
+    rw [fkb_val] at hv
+    have hz : img (18446744071562133504 + 288000 + 8 * hi.val) = 0#u64 := by img0
+    rw [ksb_w0, mem_al hv (by omega), hz] at hne
+    exact (hne rfl).elim
+  pool p hp := hp.elim
+
+theorem w0_ptRel : Vs.PtRel ∅ ∅ ∅ ∅ (wL.mem w0) fInitASt :=
+  ⟨fun p hp => hp.elim, fun p hp => hp.elim, fun p hp => hp.elim, fun p hp => hp.elim⟩
+
+theorem w0_poolsIn : Vs.PoolsIn ∅ ∅ (wL.mem w0) := fun p hp => hp.elim
+
+/-- **VsDelRoot's `CurOK`**: the idle TCB current, its VSpace slot null. -/
+theorem w0_curOK : Vs.CurOK wst thW w0 fInitASt := by
+  refine ⟨idT, idT_bv, thW_idT, fun p asid h => ?_⟩
+  have hs : IsSlot thW (slotOf idT 1) := ⟨idT, 1, Or.inr ⟨thW_idT, by unfold tcbSlots; omega⟩, rfl⟩
+  rw [capAt_slot hs] at h
+  cases ok_inj h
+
+end
+
+end Fl4Proofs.P3.JBoot

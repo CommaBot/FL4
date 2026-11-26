@@ -1,0 +1,20 @@
+import Fl4Proofs.P3.JBootInv
+#print axioms Fl4Proofs.P3.JBoot.fInit_nsc
+#print axioms Fl4Proofs.P3.JBoot.fInit_inv
+#print axioms Fl4Proofs.P3.JBoot.fInit_curInv
+#print axioms Fl4Proofs.P3.JBoot.fInit_own
+#print axioms Fl4Proofs.P3.JBoot.fInit_off
+#print axioms Fl4Proofs.P3.JBoot.fInit_act
+#print axioms Fl4Proofs.P3.JBoot.fInit_sv
+#print axioms Fl4Proofs.P3.JBoot.fInit_isorted
+#print axioms Fl4Proofs.P3.JBoot.fInit_slink
+#print axioms Fl4Proofs.P3.JBoot.fInit_curRun
+#print axioms Fl4Proofs.P3.JBoot.fInit_obj
+#print axioms Fl4Proofs.P3.JBoot.w0_yld
+#print axioms Fl4Proofs.P3.JBoot.w0_mcp
+#print axioms Fl4Proofs.P3.JBoot.w0_buf
+#print axioms Fl4Proofs.P3.JBoot.w0_call
+#print axioms Fl4Proofs.P3.JBoot.w0_rfree
+#print axioms Fl4Proofs.P3.JBoot.w0_rrecv
+#print axioms Fl4Proofs.P3.JBoot.w0_ipc
+#print axioms Fl4Proofs.P3.JBoot.w0_esa
