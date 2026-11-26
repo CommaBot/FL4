@@ -2126,3 +2126,12 @@ import Fl4Proofs.P2.InvPmRoC
 import Fl4Proofs.P2.InvPmRoD
 import Fl4Proofs.P2.InvPmRoE
 import Fl4Proofs.P2.E2EPU1S
+import Fl4Proofs.P2.E2EPU2P
+import Fl4Proofs.P2.SerialH
+import Fl4Proofs.P2.E2EH
+import Fl4Proofs.P2.E2EPH
+import Fl4Proofs.P2.E2EPU4
+import Fl4Proofs.P2.E2EPU5
+import Fl4Proofs.P2.GlueAdeq
+import Fl4Proofs.P2.GlueFrame
+import Fl4Proofs.P2.GlueCross
