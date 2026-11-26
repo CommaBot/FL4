@@ -1,0 +1,154 @@
+/-
+P3 (line p3J, gen 7): **a U40 start with FL4's real boot IRQ layout, with no assumption** (namespace `JBootQ`).
+
+* The witness `JBootQ.w0` (= `w0'`): jboot's `w0` except the IRQ-state words, line 125 `IRQ_TIMER` (2) and
+  lines 126 / 127 `IRQ_IPI` (3), as FL4's `boot::init_irq_states` writes them (`w0_irqWords`), paired with
+  `JBootQ.fInitASt` = irqfix3's `SInvIB.fInitIpiASt` (`fInitASt_eq_ipi`: 125 `irqTimer`, 126 / 127
+  `irqReserved`). The jboot proofs (JBootQChar … JBootQJAt, verbatim copies) re-check there; only `IrqRel`
+  (`w0_irqRel`) and the image's zero-word lemma (`img_zero`) were re-proved.
+* `jAtZ_w0I1`, `jReachU3_w0I1`, **`jReachU17_w0I1`** at arch `warI1` / `ipiMR`; **`jReachU36I_w0I1`**
+  (`fInitIpi_irqCarry`); **`jReachU40_w0I1`** (`IoaRel warI1` framed from gen 5's `warI1_ioaRel`);
+  **`u40_w0I1 (O : OpaqueWK)`**: every premise of `kernel_entry_reachU40` at `wst` / `warI1` / `wAR` / `ipiMR`
+  with this start; `jReachU40_ipi`: the same start stated at `SInvIB.fInitIpiASt`.
+* **`not_jReachU34_w0`**: U34 / U38's start fails here (`irqStB_false_of_ipiWord`), so U40's start fix is
+  what makes the top apply to FL4's boot IRQ layout.
+
+Named premises: `OpaqueWK` [P] (JBootU34) only. Caveats (jboot's): idle-only boot, one core.
+No sorry. New module; no existing statement changed.
+-/
+import Fl4Proofs.P3.JBootQJAt
+import Fl4Proofs.P3.JBootU40
+import Fl4Proofs.P3.JBoot6Find
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.JBootQ
+open fl4_core Classical Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P2.Wit
+open Fl4Proofs.P3.JBoot Fl4Proofs.P3.SInvR.G5 Fl4Proofs.P3.Vs
+
+noncomputable section
+
+/-- **The spec state is irqfix3's `fInitIpiASt`.** -/
+theorem fInitASt_eq_ipi : fInitASt = SInvIB.fInitIpiASt := rfl
+
+/-- `JKern` at `warI1`: `warI`'s, its TDX clause read through the unchanged `tdx_active` / `dma_ram`. -/
+theorem w0_jkernI1 : JKern (L := wL) warI1 Hw Csw Dw thW w0 fInitASt :=
+  { orig := w0_jkern.orig, cur := w0_jkern.cur, curT := w0_jkern.curT, act := w0_jkern.act,
+    dwAl := w0_jkern.dwAl, dwObj := w0_jkern.dwObj, dwNe := w0_jkern.dwNe, head := w0_jkern.head,
+    gpm := w0_jkern.gpm, ga := w0_jkern.ga, gf := w0_jkern.gf, heap := w0_jkern.heap, h0 := w0_jkern.h0,
+    hks := w0_jkern.hks, hksIn := w0_jkern.hksIn, hnd := w0_jkern.hnd, ksbFit := w0_jkern.ksbFit,
+    ksbAl := w0_jkern.ksbAl, nodeFit := w0_jkern.nodeFit, cpuCs := w0_jkern.cpuCs, curH := w0_jkern.curH,
+    cscH := w0_jkern.cscH, csLt := w0_jkern.csLt, cs0 := w0_jkern.cs0, csN := w0_jkern.csN,
+    tdx := w0_jkern.tdx }
+
+/-- **`JAtZ.utc`** at `warI1` (vacuous: no slot holds an untyped cap). -/
+theorem w0_utcI1 : ∀ sl p sb fi dev, AbsSlot thW sl →
+    capAt (wL.mem w0) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+    Sched.UtCapP3 (L := wL) warI1 thW w0 fInitASt Gw sl p sb fi := by
+  intro sl p sb fi dev hs h _
+  rw [capAt_slot hs.isSlot] at h
+  cases ok_inj h
+
+theorem jAtZ_w0I1 (a : MachineState) :
+    JAtZ (L := wL) warI1 wAR Zw Hw Csw C0 (fun _ => []) Dw w0 a fInitASt where
+  xtop :=
+    { fin := ⟨⟨w0_othersRel a, w0_topPlaced⟩, w0_vsRel, w0_ptRel, w0_poolsIn, w0_curOK⟩
+      rel := ⟨placed_thW, w0_crel, w0_finInv, w0_domRel, w0_mdbOKV, w0_ipcApart, w0_scApart⟩
+      ipc := w0_ipc
+      esa := w0_esa }
+  call := w0_call
+  rfree := w0_rfree
+  rrecv := w0_rrecv
+  yld := w0_yld
+  mcp := w0_mcp
+  buf := w0_buf
+  ks := w0_ks
+  thT := thT_thW
+  thk := thk_thW
+  ip := w0_ip
+  rp := w0_rp
+  apart := w0_apart
+  nk := w0_nk
+  nodeB := w0_nodeB
+  jpl := w0_jpl
+  cover := w0_cover
+  obj := fInit_obj
+  zH := w0_zH
+  sfree := w0_sfree
+  hset := w0_hset
+  hscC := w0_hscC
+  jcov := w0_jcov
+  kern := w0_jkernI1
+  del := w0_delInv
+  ut := w0_utInv
+  bound := w0_delBound
+  finM := w0_finM
+  utc := w0_utcI1
+  nsc := fInit_nsc
+  inv := fInit_inv
+  cur := Or.inr fInit_curInv
+  own := fInit_own
+  off := fInit_off
+  act := fInit_act
+  c0 := w0_c0
+  bsa := fInit_bsa
+  sv := fInit_sv
+  isorted := fInit_isorted
+  slink := fInit_slink
+  curRun := fInit_curRun
+  blk := w0_blk
+  intL := intL_thW
+  vsc := w0_vsc
+  bok := w0_bok
+  fcov := w0_fcov
+  fcap := w0_fcap
+  ext := w0_ext
+  live := w0_live
+  zD := w0_zD
+  carry := w0_carry
+
+/-- **The witness starts `JReachU3` at `warI1` / `ipiMR`.** -/
+theorem jReachU3_w0I1 : JReachU3 (L := wL) warI1 wAR ipiMR w0 fInitASt.machineState fInitASt :=
+  .start (jAtZ_w0I1 _) Zw_vx fInit_sinvX fInit_sinvIP JBoot.fInit_ipiMR fInit_utPgR
+
+/-- **`JReachU17` at the witness with FL4's boot IRQ layout.** -/
+theorem jReachU17_w0I1 : JReachU17 (L := wL) warI1 wAR ipiMR w0 fInitASt.machineState fInitASt :=
+  ⟨jReachU3_w0I1, fInit_gpmOut, fInit_idleVtS, fInit_devRangeS⟩
+
+/-- **`JReachU36I` there** (irqfix3's carried fact: `fInitIpi_irqCarry`). -/
+theorem jReachU36I_w0I1 : JReachU36I (L := wL) warI1 wAR ipiMR w0 fInitASt.machineState fInitASt :=
+  ⟨jReachU17_w0I1, fInitASt_eq_ipi ▸ SInvIB.fInitIpi_irqCarry⟩
+
+/-- `IoaRel warI1` at this spec state (same IOAPIC counts as jboot's). -/
+theorem warI1_ioaRelQ : IoaRel warI1 fInitASt := JBoot.warI1_ioaRel.frame rfl
+
+/-- **`JReachU40` at the witness with FL4's boot IRQ layout** (no premise). -/
+theorem jReachU40_w0I1 : JReachU40 (L := wL) warI1 wAR ipiMR w0 fInitASt.machineState fInitASt :=
+  ⟨jReachU36I_w0I1, warI1_ioaRelQ⟩
+
+/-- The same start, stated at irqfix3's `SInvIB.fInitIpiASt`. -/
+theorem jReachU40_ipi :
+    JReachU40 (L := wL) warI1 wAR ipiMR w0 SInvIB.fInitIpiASt.machineState SInvIB.fInitIpiASt := by
+  rw [← fInitASt_eq_ipi]; exact jReachU40_w0I1
+
+/-- **Every premise of `kernel_entry_reachU40` at the witness platform with FL4's boot IRQ layout**, under
+`OpaqueWK` [P]. Only U40's per-entry [J]s remain. -/
+theorem u40_w0I1 (O : OpaqueWK) :
+    ARIface warI1 wAR ∧ P0.ArchTotal warI1 ∧ Fl4Spec.numDomains = 1 ∧ MachPlatF warI1 ipiMR ∧ IpiF warI1 ipiMR ∧
+      MRKeepD warI1 ipiMR ∧ MRKeepIo warI1 ipiMR ∧ MRKeepIoapic warI1 ipiMR ∧
+      (∀ a c, wAR a c → warI1.irq_pending a ⦃ r => wAR r.2 c ⦄) ∧ IrqPlatK warI1 wAR ∧ TimeAgree warI1 ∧
+      Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
+      (∀ a v, warI1.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) ∧
+      ArchRefines warI1 wAR ∧ PortInValMR warI1 ipiMR ∧ P1.StoreExt wst ∧
+      SetDlDetR (A := Fl4Spec.MachineState) ipiMR ∧ IoaMap warI1 ∧
+      JReachU40 (L := wL) warI1 wAR ipiMR w0 fInitASt.machineState fInitASt :=
+  let ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, _⟩ := JBoot.u39_w0I1 O
+  ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16, h17, h18, jReachU40_w0I1⟩
+
+/-- **U34 / U38's start fails here** (FL4's line-126 word is `IRQ_IPI`; `irqStB_false_of_ipiWord`). -/
+theorem not_jReachU34_w0 {a : MachineState} : ¬ JReachU34 (L := wL) warI1 wAR ipiMR w0 a fInitASt := by
+  intro h
+  exact irqStB_false_of_ipiWord w0_irqRel (by rw [ksb_w0]; exact w0_irqWords.2.1) h.2
+
+end
+
+end Fl4Proofs.P3.JBootQ
