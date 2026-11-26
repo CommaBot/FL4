@@ -1970,6 +1970,10 @@ import Fl4Proofs.P2.InvCMFin8
 import Fl4Proofs.P2.InvCMTail8
 import Fl4Proofs.P2.InvCMPath8
 import Fl4Proofs.P2.E2EVFl4WIC
+import Fl4Proofs.P2.InvCMAccZ
+import Fl4Proofs.P2.InvCMDZ
+import Fl4Proofs.P2.InvCMPathZ
+import Fl4Proofs.P2.E2EVFl4WIC2
 import Fl4Proofs.P2.InvProgSrc
 import Fl4Proofs.P2.ProgGenCd0
 import Fl4Proofs.P2.ProgGenCd1
