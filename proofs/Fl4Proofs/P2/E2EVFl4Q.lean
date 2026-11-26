@@ -19,8 +19,8 @@ Premises (per slot record; asked at the `(K, m)` of each start, `SlotN.startAt`)
   `eu` [J] (`VexitEnt ∧ VexitPEnt` kept by user writes), `lk` [P] (locks kept by user writes; lvm's statement,
   not restricted to aligned words). Start: `VexitEnt` ([J] fields `vin` / `ksv` / `vfar` / `nfar`, lvm) and
   `VexitPEnt` (`vexitPre_ofHeap`: `usr` [J], `buf` [P], `aff0` [J], P1/P3 facts, `VcpuHeap` [J]).
-* `VtPrem`: `pz` (as above for `vtimerBody`), `eu` [J], `lk` [P], `F` / `Fm` [W] (fire case), `D` [W] (declines).
-  Start: `VtmEnt` (lvm's fields).
+* `VtPrem`: `pz` (as above for `vtimerBody`), `eu` [J], `lk` [P], `F` / `Fm` [W] (fire case), `Nt` (P1's
+  notifications typed; int15: replaces gen 6's `D` [W], declines proved by lvm gen 9). Start: `VtmEnt` (lvm's fields).
 -/
 import Fl4Proofs.P2.E2EVFam
 import Fl4Proofs.P2.AccessLvmTl
@@ -142,11 +142,9 @@ structure VtPrem (i : VtArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
     localvm.handle_vm_timer_irq_local (mguard st
       (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
         (i.lk s) (L.mem x) (L.mem y))) ar s a i.irq i.pl i.n = ok (true, s1, a1)
-  /-- [W] the declines. -/
-  D : ∀ s a s1 a1, VtPre st i K s →
-    localvm.handle_vm_timer_irq_local st ar s a i.irq i.pl i.n = ok (false, s1, a1) →
-    localvm.handle_vm_timer_irq_local (guard st (VexitRS K st i.lk s) (IrqDec st s)) ar s a i.irq i.pl i.n =
-      ok (false, s1, a1)
+  /-- P1's notifications typed in the heap (`fun _ h => h` at `Nt = H.ntfns`): lvm gen 9 discharged the declines
+  (gen 6's `D` [W]) by `vtimer_dec_own`, `vtimer_localPath` now asks this instead (int15 merge fallout). -/
+  Nt : ∀ q ∈ i.Nt, i.H q = some .ntfn
 
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
 
@@ -164,7 +162,7 @@ def vtSlot : SlotN (VtArg S) where
   path i K m hK hU h :=
     vtimer_localPath (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Rp := i.Rp) (Scs := i.Scs) (Nt := i.Nt)
       (Ac := i.Ac) (H := i.H) (Z := i.Z) (lk := i.lk) (irq := i.irq) (n := i.n) (pl := i.pl) (m := m) ar hA hK hU
-      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu h.lk h.F h.Fm h.D
+      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu h.lk h.F h.Fm h.Nt
 
 /-- **lvm's paths as one `PathsV` family** (`vq` of `fl4Loc`). -/
 def fl4LQ (D : Dflt) : PathsV (VxArg S ⊕ VtArg S) :=

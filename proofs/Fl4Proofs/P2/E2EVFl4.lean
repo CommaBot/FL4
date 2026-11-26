@@ -72,8 +72,8 @@ Per slot, the premise record (asked at the `(K, m)` of each start):
   [P], `SlAccR` [P]).
 * `vq` (`P2/E2EVFl4Q.lean`): `VxPrem` — `pz` ([P] `IsProg`, [W] `NoZero`, [W] `ReadOnce`), `eu` [J], `lk` [P];
   start `VexitEnt` (lvm's [J] `vin` / `ksv` / `vfar` / `nfar`) plus `VexitPEnt.ofHeap`'s `usr` [J], `buf` [P],
-  `aff0` [J], `VcpuHeap` [J]. `VtPrem` — `pz` (as above), `eu` [J], `lk` [P], `F` / `Fm` [W] (fire), `D` [W]
-  (declines); start `VtmEnt`.
+  `aff0` [J], `VcpuHeap` [J]. `VtPrem` — `pz` (as above), `eu` [J], `lk` [P], `F` / `Fm` [W] (fire), `Nt`
+  (notifications typed; int15: replaces `D` [W], declines proved by lvm gen 9); start `VtmEnt`.
 
 Swapping a newer path in: replace that slot's `SlotU` / `SlotC` / `SlotN` value in `fl4Loc` / `fl4LQ` (a premise
 record, a path under it and its lift lemma); `serializable_fl4_localG` is unchanged.
