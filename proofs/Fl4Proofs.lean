@@ -2321,3 +2321,4 @@ import Fl4Proofs.P3.JAtZV3Gpr
 import Fl4Proofs.P3.VirtSanRel
 import Fl4Proofs.P3.VirtSanEq
 import Fl4Proofs.P3.JAtZV3Vmcs
+import Fl4Proofs.P3.JAtZV3Regs
