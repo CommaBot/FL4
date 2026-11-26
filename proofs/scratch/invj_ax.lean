@@ -1,0 +1,29 @@
+import Fl4Proofs.P2.InvJ
+open Fl4Proofs.P2.PathObl
+#print axioms Fl4Proofs.P2.PathObl.vsj_entry_guard
+#print axioms Fl4Proofs.P2.PathObl.vsj_pdpt_guard
+#print axioms Fl4Proofs.P2.PathObl.vsj_pd_guard
+#print axioms Fl4Proofs.P2.PathObl.vsj_pt_guard
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.vobjNone
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.vobj_nu
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.tabVsW
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.rdTab
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.vsRd
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.spe_ne0
+#print axioms Fl4Proofs.P2.PathObl.invVsJ_of
+#print axioms Fl4Proofs.P2.PathObl.invBufJ8_of
+#print axioms Fl4Proofs.P2.PathObl.dbg_idx8
+#print axioms Fl4Proofs.P2.PathObl.syscall.reply_error.guard_trunc8
+#print axioms Fl4Proofs.P2.PathObl.truncRun8
+#print axioms Fl4Proofs.P2.PathObl.truncAcc8
+#print axioms Fl4Proofs.P2.PathObl.truncFin8
+#print axioms Fl4Proofs.P2.PathObl.invBlkUW2_of8
+#print axioms Fl4Proofs.P2.PathObl.invBlkGdUW2_of8
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKFU8
+#print axioms Fl4Proofs.P2.PathObl.invPlanD_wrF
+#print axioms Fl4Proofs.P2.PathObl.hufQF_of2
+#print axioms Fl4Proofs.P2.PathObl.once_agreeJ
+#print axioms Fl4Proofs.P2.PathObl.invURoAccW_of
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKF3
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKF3_startAt
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKFU2

@@ -224,15 +224,17 @@ theorem VmBase.tslot {y : U64} (hy : y ∈ T) {i sl : U64} (h : obj.Tcb.slot y i
   obtain ⟨h1, h2⟩ := P.lay.io.tslot _ (P.hT _ hy) i sl h hi
   exact P.slot h1 (Or.inl h2)
 
-theorem VmBase.ksw {o : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
+theorem VmBase.ksw {o : U64} (ho : o.val < 256) (h8 : o.val % 8 = 0) :
     IoRS (st := st) K Locks s (core.num.U64.wrapping_add (L.ksb s) o) := by
   obtain ⟨k8, kf⟩ := P.lay.io.ksf
   rw [P.kb] at k8 kf
   have hv : (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
   have h1 : K.ksb.val ≤ (core.num.U64.wrapping_add (L.ksb s) o).val := by rw [hv, P.kb]; omega
-  have h2 : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 13568 := by rw [hv, P.kb]; omega
-  exact ⟨by unfold Aligned; omega, P.region_kernel (Or.inr ⟨h1, h2⟩), Or.inr (own_none (P.lay.io.ks _ h1 h2))⟩
+  have h2' : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 256 := by rw [hv, P.kb]; omega
+  have h2 : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 13568 := by omega
+  have ha : Aligned (core.num.U64.wrapping_add (L.ksb s) o) := by unfold Aligned; omega
+  exact ⟨ha, P.region_kernel (Or.inr ⟨h1, h2⟩), Or.inr (own_none (P.lay.io.ks _ ha h1 h2'))⟩
 
 theorem VmBase.td (h0 : L.mem s (tmA (L := L) s) ≠ 0#u64) :
     IoRS (st := st) K Locks s (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64) := by
