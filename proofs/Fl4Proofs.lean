@@ -2126,3 +2126,5 @@ import Fl4Proofs.P2.ViewSafeIoDec
 import Fl4Proofs.P2.ViewSafeIoPin
 import Fl4Proofs.P2.ViewSafeIoU8
 import Fl4Proofs.P2.ViewSafeObstr
+import Fl4Proofs.P2.NarrowSP
+import Fl4Proofs.P2.E2EPU9
