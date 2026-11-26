@@ -2338,3 +2338,8 @@ import Fl4Proofs.P3.P3JStEvQ
 import Fl4Proofs.P3.P3JStEvK
 import Fl4Proofs.P3.P3JStEvTop
 import Fl4Proofs.P3.P3JMcFootK
+import Fl4Proofs.P3.P3JKtF
+import Fl4Proofs.P3.P3JKtG
+import Fl4Proofs.P3.P3JKtE
+import Fl4Proofs.P3.P3JKtTop
+import Fl4Proofs.P3.P3JMcUt
