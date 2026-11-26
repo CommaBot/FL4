@@ -64,3 +64,6 @@ import Fl4ProofsA64.P1.RunVcpuRecv
 import Fl4ProofsA64.P1.QueueSignal
 import Fl4ProofsA64.P1.QueueFire
 import Fl4ProofsA64.P1.QueueTimerSet
+import Fl4ProofsA64.P1.RunVcpuKeep
+import Fl4ProofsA64.P1.QueueFinal
+import Fl4ProofsA64.P1.QueueFinSc
