@@ -60,6 +60,9 @@ import Fl4ProofsA64.P1.RunVcpuRecv
 import Fl4ProofsA64.P1.QueueSignal
 import Fl4ProofsA64.P1.QueueFire
 import Fl4ProofsA64.P1.QueueTimerSet
+import Fl4ProofsA64.P1.RunVcpuKeep
+import Fl4ProofsA64.P1.QueueFinal
+import Fl4ProofsA64.P1.QueueFinSc
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -73,17 +76,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.notification.complete_signal.ipc
-#print axioms Fl4ProofsA64.P1.smp.remote_tcb_stall.ipi
-#print axioms Fl4ProofsA64.P1.sched.schedule.inv
-#print axioms Fl4ProofsA64.P1.TFB.tf
-#print axioms Fl4ProofsA64.P1.endpoint.receive_ipc.ipc_rv
-#print axioms Fl4ProofsA64.P1.RecvPre.rvi
-#print axioms Fl4ProofsA64.P1.endpoint.take_reply.rvi
-#print axioms Fl4ProofsA64.P1.notification.maybe_return_sched_context.rvi
-#print axioms Fl4ProofsA64.P1.vcpu.signal_completes.never
-#print axioms Fl4ProofsA64.P1.notification.kick_guest.tinv
+#print axioms Fl4ProofsA64.P1.timer.remove.rvi
+#print axioms Fl4ProofsA64.P1.notification.send_signal.rvi
+#print axioms Fl4ProofsA64.P1.signal_tail.rv
+#print axioms Fl4ProofsA64.P1.schedcontext.donate.rv0
+#print axioms Fl4ProofsA64.P1.schedcontext.resume.fld
+#print axioms Fl4ProofsA64.P1.sched.possible_switch_to.fld
+#print axioms Fl4ProofsA64.P1.timer.fire.tinv_rv
+#print axioms Fl4ProofsA64.P1.sched.schedule.entry_rv
+#print axioms Fl4ProofsA64.P1.schedcontext.unbind_tcb.blkR
+#print axioms Fl4ProofsA64.P1.schedcontext.complete_yield_to.rvst
+#print axioms Fl4ProofsA64.P1.fin_thread.blk
+#print axioms Fl4ProofsA64.P1.smp.remote_tcb_stall.blkS
 #print axioms Fl4ProofsA64.P1.notification.send_signal.tinv
-#print axioms Fl4ProofsA64.P1.timer.fire.tinv
 #print axioms Fl4ProofsA64.P1.sched.schedule.entry
-#print axioms Fl4ProofsA64.P1.sched.suspend.tinv
