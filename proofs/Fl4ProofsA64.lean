@@ -149,3 +149,6 @@ import Fl4ProofsA64.P1.QueueUtRetype
 import Fl4ProofsA64.P1.QueueDecEpt
 import Fl4ProofsA64.P1.QueueDecVs
 import Fl4ProofsA64.P1.QueueEntryGaps4
+import Fl4ProofsA64.P1.QueueDelVs5
+import Fl4ProofsA64.P1.QueueDecDel5
+import Fl4ProofsA64.P1.QueueEntryGaps5

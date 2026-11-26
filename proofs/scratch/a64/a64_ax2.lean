@@ -145,6 +145,9 @@ import Fl4ProofsA64.P1.QueueUtRetype
 import Fl4ProofsA64.P1.QueueDecEpt
 import Fl4ProofsA64.P1.QueueDecVs
 import Fl4ProofsA64.P1.QueueEntryGaps4
+import Fl4ProofsA64.P1.QueueDelVs5
+import Fl4ProofsA64.P1.QueueDecDel5
+import Fl4ProofsA64.P1.QueueEntryGaps5
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -260,3 +263,19 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.decGap_vspace
 #print axioms Fl4ProofsA64.P1.InvGaps4.gaps
 #print axioms Fl4ProofsA64.P1.kernel_entry.entry_of4
+#print axioms Fl4ProofsA64.P1.vspace.unmap_page_table.vsA
+#print axioms Fl4ProofsA64.P1.ept.unmap_table.vsA
+#print axioms Fl4ProofsA64.P1.vspace.unmap_page.vsA
+#print axioms Fl4ProofsA64.P1.W7.R.A5.fin_vs
+#print axioms Fl4ProofsA64.P1.W7.R.A5.fin_all
+#print axioms Fl4ProofsA64.P1.W7.R.A5.cdt.finalise_slot_immediate.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.cdt.finalise_slot_deferred.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.delGaps_of
+#print axioms Fl4ProofsA64.P1.W7.R.A5.delGaps_of_gaps4
+#print axioms Fl4ProofsA64.P1.W7.R.A5.decGap_cnode_rv4
+#print axioms Fl4ProofsA64.P1.W7.R.A5.tcb.decode.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.decGap_thread4
+#print axioms Fl4ProofsA64.P1.interrupt.decode_irq_handler.dec5
+#print axioms Fl4ProofsA64.P1.decGap_irqHandler5
+#print axioms Fl4ProofsA64.P1.InvGaps5.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of5A
