@@ -2267,3 +2267,10 @@ import Fl4Proofs.P3.VirtTyK2
 import Fl4Proofs.P3.VirtTyK3
 import Fl4Proofs.P3.VirtNvCaps
 import Fl4Proofs.P3.VirtR7b
+import Fl4Proofs.P3.VirtTyK4
+import Fl4Proofs.P3.VirtTyK5
+import Fl4Proofs.P3.VirtTyK6
+import Fl4Proofs.P3.VirtAwaken
+import Fl4Proofs.P3.VirtNvTcb
+import Fl4Proofs.P3.VirtR7e
+import Fl4Proofs.P3.VirtR7eK
