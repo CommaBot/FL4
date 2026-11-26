@@ -47,7 +47,15 @@ section tab
 variable {K : KLayoutP} {E : U64 → U64}
 
 /-- **[S] The VM layout fact with the ASID words' placement** (module docstring): `VmPwe` and the ASID-table words
-and the named pools' words of the epoch are `VsW` words (aligned, region `.none`, not user). -/
+and the named pools' words of the epoch are `VsW` words (aligned, region `.none`, not user).
+
+Justification of `tabw` (accepted by the line's coordinator, gen 15 review): the ASID table sits in the kernel-global
+block (fl4-core `layout.rs` `ASID_TABLE = NODES + MAX_NODES * node::SIZE`: aligned, no typed-heap object there, not a
+user frame), and ASID pools are retyped arch objects (`arch/x86_64/objects.rs` `create_arch_object`: an `ASIDPool` is
+untyped-retyped memory, never a TCB, CNode slot, notification, endpoint, reply, SC or user frame, so its words are
+region `.none` and kernel words). Natively it is P3's bundle `SlJAtZ.rdTab` (`RegionOKX.asidT`, `region_none_pool`,
+P2/E2EPJEp2.lean, from the spec arch objects `VsRel.pool` / `SpecCover.arch`). In VM epochs it has the status of
+`VmPwe` and vmscope's other [S] layout facts (`VtxBundle4`), pending the VT-x refinement. -/
 structure VmPweT (K : KLayoutP) (E : U64 → U64) : Prop extends VmPwe K E where
   /-- [S] The ASID-table and pool words of the epoch are `VsW` words (natively `SlJAtZ.rdTab`). -/
   tabw : ∀ hi : U64, hi.val < 2048 → VsW K.toKLayout (atAF K.ksb hi) ∧
