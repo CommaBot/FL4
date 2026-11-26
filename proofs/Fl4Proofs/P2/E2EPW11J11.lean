@@ -33,18 +33,17 @@ block (`BXI.shrinkU`, slhuf), and the ASID-table and pool words are no user word
 * `SlJAtZ.rrPlS`: `hPl` (`RRPl`; W11's `rrPlU` for any fault type and at `OmegaS`);
 * `hT`, `hN`, `hcT` (`bxiU`), `hTm` (`TimerOK`, from `BXI`'s `ScExtra`), `aff` (the GlueAt memory link,
   `UserOK.tcb`), `hSt` (`AFFINITY` = core by `SlJAtS.curAffCore`, not queued by `run`, W9's `chain_run` from
-  `hct` [P]): **`SlJAtZ.slPreB`**.
+  `hct` [P]);
+* `SlJAtZ.slSd` / `SlJAtZ.slSu`: `hSd` / `hSu` — the decided thread (the handler `dest` / the replied `u`) is a heap
+  TCB (`FaultEnt.hq` / `RRPl.hu`) homed here (`schedulable_here`'s `HereF.aff` at the successor, read back by
+  `SlJAtZ.lpTcb`), queued only on a held lock (`dest` is blocked on the endpoint, `vm_queue`, which is locked by
+  `SlEntL.lep` [P]; `u` is blocked on reply, not queued), and the `STATE` / `BLOCK_OBJ` words written are home words
+  in `SlWS` (`SlJAtZ.homeWS`, `VmBase.homeOf`): **`SlJAtZ.slPreB`**.
 
 ## Not derived: `SlPreR` (what stays of `SlPreB`)
 
 * `hy0f`, `hy0r` [J]: the receiver's `YIELD_TO = 0` — owned by line iolay (YieldScope; same gap as vmF `hyt` /
   vmR `ry`), carried verbatim.
-* `hSd`, `hSu` [J]: the decided thread (`dest` / `u`) is a heap TCB homed here and queued only on a held lock, and
-  the `STATE` / `BLOCK_OBJ` words written are in `SlWS`. Missing: (1) `SlWS` of a TCB word that is not a gate / timer /
-  queue-link word reduces to `AFFINITY = core` (`tcbOwner`), which needs `schedulable_here` (`FaultChecks.here`,
-  `RRChecksG.sch`) read back to `σ`'s `AFFINITY` word (a gate word, so unchanged by `LocalPre`); (2) for `dest`
-  (blocked on receive, `QueuedState`): its `BLOCK_OBJ` is the endpoint (P1 `EpsOK`) and the endpoint is locked
-  (`SlEntL.lep` [P]). Both are true; they are not written this generation.
 * `hrz` [P]: the reply object's call-stack links are clear (as vmR's `VmREntJ11.nb` [P]).
 * `hlk` [P]: the endpoint is locked (as vmR's `VmREntJ11.lk` [P]).
 
@@ -65,7 +64,7 @@ namespace Fl4Proofs.P2.E2EP
 open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1 Fl4Proofs.P2 Fl4Proofs.P2.PathObl Fl4Proofs.P2.OwnMapV
   Fl4Proofs.P2.OwnMapP
 open Fl4Proofs.P2.E2EV
-open Fl4Proofs.P2.OwnMap (KLayout region fld own oAFFINITY InW QueuedState Safe0 stA_fld affA_fld)
+open Fl4Proofs.P2.OwnMap (KLayout region fld own oAFFINITY InW QueuedState Safe0 stA_fld affA_fld blockA_fld GateField TimerField GField)
 open Fl4Proofs.P2.E2E (StartAt SP SerStep)
 open Fl4Proofs.P2.Serial (Owner ClsOwner Cfg Init ArmInv NoLoc RunAll Step PureGlue hwCfg)
 open Fl4Proofs.P3 (OmegaU VsU BufU)
@@ -359,6 +358,166 @@ theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.rrPlS (hA : P0.ArchTotal ar) (B : SlJ
       cases this
   exact rrPl_lkG (ty := ty) ar (fun _ h => h) hI2 hlk et2 hrc2 hC
 
+/-- **A TCB word off `FAULT_IP` is kept by `LocalPre`.** -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.lpTcb (hA : P0.ArchTotal ar)
+    (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) {a : A} {s2 : S} {a2 : A}
+    (hLP : LocalPre (st := st) ar s a (s2, a2)) {y : U64} (hy : K.heap y = some .tcb) {o : U64}
+    (h1 : 192 ≤ o.val) (h2 : o.val < 4096) (h8 : o.val % 8 = 0) (h3 : o.val ≠ 392) :
+    L.mem s2 (fld y o) = L.mem s (fld y o) := by
+  obtain ⟨hW, -⟩ := B.lpW hA hLP
+  obtain ⟨hT, hN, hcT⟩ := B.j.bxiU.tcbNode
+  have r := B.regionOKX.tcbW y hy o h1 h2 h8
+  refine hW.mem_eq r.2.2 ?_
+  by_cases ey : y = L.curW s
+  · subst ey; exact w3_tcb hT hN hcT h2 h3
+  · exact B.notW3 (by unfold fld; rw [r.1]; intro e; injection e with e; exact ey e)
+      (fun c => by unfold fld; rw [r.1]; intro e; cases e)
+
+/-- **The fault-handler cap is kept by `LocalPre`.** -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.lpFH (hA : P0.ArchTotal ar)
+    (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) {a : A} {s2 : S} {a2 : A}
+    (hLP : LocalPre (st := st) ar s a (s2, a2)) :
+    obj.Slot.cap st (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) s2 =
+      obj.Slot.cap st (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) s := by
+  obtain ⟨hW, -⟩ := B.lpW hA hLP
+  have X := B.regionOKX
+  have hP := B.layP
+  have hcH : K.heap (L.curW s) = some .tcb := B.j.kern.curH
+  have hFH : layout.tcb.SLOT_FAULT_HANDLER.val < 6 := by unfold layout.tcb.SLOT_FAULT_HANDLER; simp
+  obtain ⟨hs, -, r8, -, a0, a8⟩ := X.tslot _ hcH _ hFH
+  have r0 : region K (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) =
+      .slot (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) := hP.region_slot hs
+  have n0 := B.notW3 (b := slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER)
+    (by rw [r0]; intro e; cases e) (fun c => by rw [r0]; intro e; cases e)
+  have n8 := B.notW3 (b := core.num.U64.wrapping_add (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) 8#u64)
+    (by rw [r8]; intro e; cases e) (fun c => by rw [r8]; intro e; cases e)
+  unfold obj.Slot.cap
+  rw [L.read_pair_eq, L.read_pair_eq, hW.mem_eq a0 n0, hW.mem_eq a8 n8]
+
+/-- **A home word of a thread homed here is in `SlWS`** (`VmBase.homeOf`, `tcbOwner`: neither a gate, timer nor
+queue-link word). -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.homeWS (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
+    (hrun : L.mem s (stA (L.curW s)) = sched.TS_RESTART ∨ L.mem s (stA (L.curW s)) = sched.TS_RUNNING)
+    {Locks : S → U64 → Prop} {y : U64} (hy : y ∈ Heap.tcbs K.heap) (haff : L.mem s (affA y) = L.cpu s) {o : U64}
+    (h1 : 192 ≤ o.val) (h2 : o.val < 4096) (h8 : o.val % 8 = 0) (hg : ¬ GateField o.val)
+    (htm : ¬ TimerField o.val) (hG : ¬ GField o.val) :
+    SlWS (st := st) K Locks s (fld y o) := by
+  have BU : BunIxU (L := L) K K.heap.tcbs Cx (OmegaU K.heap Zx (L.ksb s) σ) K.heap K.heap.frame K.heap.replies
+      K.heap.scs K.heap.ntfns K.heap.scBits Ax s :=
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, ⟨A', arI, AR, Zx, Lst, D, a', σ, B, rfl⟩⟩
+  have w := ((BU.vmBase hrun).homeOf (Locks := Locks) hy haff h1 h2 h8 hg htm hG).2
+  exact ⟨w.1, Or.inr w.2⟩
+
+/-- **`hSd`** (module docstring): the handler a fault run dequeues is a heap TCB homed here, blocked on the
+endpoint, which is locked (`SlEntL.lep` [P]); the two `STATE` words are home words. -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.slSd (hA : P0.ArchTotal ar)
+    (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
+    (hrun : L.mem s (stA (L.curW s)) = sched.TS_RESTART ∨ L.mem s (stA (L.curW s)) = sched.TS_RUNNING)
+    {Locks : S → U64 → Prop} {found : U64 × U64} (El : SlEntL (st := st) K Locks found s) (hS : SlTrap st s)
+    {a : A} {s2 : S} {a2 : A} (hLP : LocalPre (st := st) ar s a (s2, a2)) {ptr badge dest r : U64}
+    (hc : FaultChecks st s2 (L.curW s) ptr badge dest r) :
+    K.heap dest = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) dest ∧
+      SlWS (st := st) K Locks s (stA (L.curW s)) ∧ SlWS (st := st) K Locks s (stA dest) := by
+  obtain ⟨hF, hrecv⟩ := B.lpFault hA hrun hLP
+  have hI2 := (B.lpBxiS hA a s2 a2 hLP).1
+  obtain ⟨hW, -⟩ := B.lpW hA hLP
+  obtain ⟨hT, hN, hcT⟩ := B.j.bxiU.tcbNode
+  have X := B.regionOKX
+  have hcH : K.heap (L.curW s) = some .tcb := B.j.kern.curH
+  obtain ⟨-, rest, E⟩ := hF.2 ptr badge dest r hc
+  have hrc := hrecv hc
+  have hdT : dest ∈ Heap.tcbs K.heap := E.hq.mem dest (by simp)
+  have hdH : K.heap dest = some .tcb := hdT
+  -- the endpoint, locked
+  obtain ⟨sl, x, y, g, gr, esl, ecap, -⟩ := hc.cap
+  have esl' : sl = slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER :=
+    ok_inj_ff (esl.symm.trans (tcb_slot_val _ _))
+  subst esl'
+  have ecapσ : obj.Slot.cap st (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) s =
+      ok (capability.Cap.Endpoint ptr badge x y g gr) := by
+    rw [← B.lpFH hA hLP]; exact ecap
+  have hlkp : Locks s ptr := by
+    have h := El.lep hS ⟨ptr, badge, x, y, g, gr, ecapσ⟩
+    rwa [resPtr_ok ecapσ] at h
+  have hpH : K.heap ptr = some .ep := by
+    have hFH : layout.tcb.SLOT_FAULT_HANDLER.val < 6 := by unfold layout.tcb.SLOT_FAULT_HANDLER; simp
+    have hs := (X.tslot _ hcH _ hFH).1
+    rw [B.slots] at hs
+    obtain ⟨Tr, Cq, hJ⟩ := B.j.jpl
+    have hcv : obj.Slot.cap st (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER) s =
+        ok (Fl4Proofs.P3.capV (L.mem s) (slotIdx (L.curW s) layout.tcb.SLOT_FAULT_HANDLER)) := by
+      rw [Fl4Proofs.P3.slot_cap_eq]; exact Fl4Proofs.P3.capAt_capV _ _
+    have e1 := ok_inj_ff (hcv.symm.trans ecapσ)
+    have ht := hJ.typed _ hs
+    rw [e1] at ht
+    exact ht.1 ptr badge x y g gr rfl
+  have hhd : dest = L.mem s2 (epHeadA ptr) := by
+    have h1 := hc.head
+    rw [eq_of_spec_fd (obj.Ep.head.spec' (L := L) _ ptr)] at h1; exact (ok_inj_ff h1).symm
+  have hQ := vm_queue hI2 hpH E.hst hhd hrc dest (Or.inl rfl)
+  have HF := here_facts (L := L) hc.here
+  -- the handler's words at the entry state
+  have ea : L.mem s2 (affA dest) = L.mem s (affA dest) :=
+    B.lpTcb hA hLP hdH (o := 3520#u64) (by simp) (by simp) (by simp) (by simp)
+  have eb : L.mem s2 (blockA dest) = L.mem s (blockA dest) :=
+    B.lpTcb hA hLP hdH (o := 3336#u64) (by simp) (by simp) (by simp) (by simp)
+  have haff : L.mem s (affA dest) = L.cpu s := by rw [← ea, HF.aff, hW.2.1]
+  have hca := (show SlJAtS (L := L) K Cx Ax s from ⟨A', arI, AR, Zx, Lst, D, a', σ, B⟩).curAffCore.1
+  refine ⟨hdH, ⟨by rw [← affA_fld]; exact haff, fun _ => ?_⟩, ?_, ?_⟩
+  · show Locks s (L.mem s (blockA dest))
+    rw [← eb, hQ.2.1]; exact hlkp
+  · rw [stA_eq]
+    exact B.homeWS hrun hcT hca (o := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField])
+  · rw [stA_eq]
+    exact B.homeWS hrun hdT haff (o := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField])
+
+/-- **`hSu`** (module docstring): the replied thread is a heap TCB homed here, blocked on reply (not queued); the
+`STATE` / `BLOCK_OBJ` words written are home words. -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.slSu (hA : P0.ArchTotal ar)
+    (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
+    (hrun : L.mem s (stA (L.curW s)) = sched.TS_RESTART ∨ L.mem s (stA (L.curW s)) = sched.TS_RUNNING)
+    {Locks : S → U64 → Prop} {rptr ep : U64} (hfd : VmFoundC st rptr ep s)
+    {a : A} {s2 : S} {a2 : A} (hLP : LocalPre (st := st) ar s a (s2, a2)) {u usc : U64}
+    (hc : RRChecks st ar s2 a2 (L.curW s) rptr ep u usc) :
+    K.heap u = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) u ∧
+      SlWS (st := st) K Locks s (stA (L.curW s)) ∧ SlWS (st := st) K Locks s (blockA (L.curW s)) ∧
+        SlWS (st := st) K Locks s (stA u) := by
+  have hP := B.rrPlS hA hfd a s2 a2 hLP u usc hc
+  obtain ⟨hW, -⟩ := B.lpW hA hLP
+  obtain ⟨hT, hN, hcT⟩ := B.j.bxiU.tcbNode
+  have huT : u ∈ Heap.tcbs K.heap := hP.hu
+  have huH : K.heap u = some .tcb := huT
+  obtain ⟨b, hb, eb⟩ := hc.here
+  subst eb
+  have HF := here_facts (L := L) hb
+  obtain ⟨i, hi, hne⟩ := hc.ust
+  rw [eq_of_spec_fd (obj.Tcb.state.spec (L := L) s2 u)] at hi
+  have e1 : L.mem s2 (stA u) = i := ok_inj_ff hi
+  have e2 : i = sched.TS_BLOCKED_ON_REPLY := by
+    by_contra h; exact hne (bne_iff_ne.2 h)
+  have ea : L.mem s2 (affA u) = L.mem s (affA u) :=
+    B.lpTcb hA hLP huH (o := 3520#u64) (by simp) (by simp) (by simp) (by simp)
+  have es : L.mem s2 (stA u) = L.mem s (stA u) := by
+    rw [stA_eq]; exact B.lpTcb hA hLP huH (o := 3328#u64) (by simp) (by simp) (by simp) (by simp)
+  have haff : L.mem s (affA u) = L.cpu s := by rw [← ea, HF.aff, hW.2.1]
+  have hca := (show SlJAtS (L := L) K Cx Ax s from ⟨A', arI, AR, Zx, Lst, D, a', σ, B⟩).curAffCore.1
+  refine ⟨huH, ⟨by rw [← affA_fld]; exact haff, fun hq => ?_⟩, ?_, ?_, ?_⟩
+  · rw [← stA_fld, ← es, e1, e2] at hq
+    have h5 : (sched.TS_BLOCKED_ON_REPLY).val = 5 := by simp [sched.TS_BLOCKED_ON_REPLY]
+    unfold QueuedState at hq
+    rw [h5] at hq
+    omega
+  · rw [stA_eq]
+    exact B.homeWS hrun hcT hca (o := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField])
+  · exact B.homeWS hrun hcT hca (o := 3336#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField])
+  · rw [stA_eq]
+    exact B.homeWS hrun huT haff (o := 3328#u64) (by simp) (by simp) (by simp) (by simp [GateField])
+      (by simp [TimerField]) (by simp [GField])
+
 end lp
 
 /-! ## What stays of `SlPreB`, and `SlPreB` from it -/
@@ -367,30 +526,18 @@ section pre
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
 
 variable (st) in
-/-- **What stays of `SlPreB`** (module docstring): `hy0f` / `hy0r` [J] (line iolay), `hSd` / `hSu` [J], `hrz` [P],
-`hlk` [P]; verbatim the fields of `SlPreB`. -/
+/-- **What stays of `SlPreB`** (module docstring): `hy0f` / `hy0r` [J] (line iolay), `hrz` [P], `hlk` [P]; verbatim
+the fields of `SlPreB`. -/
 structure SlPreR (K : KLayout) (Locks : S → U64 → Prop) (found : U64 × U64) (s : S) : Prop where
   /-- [J] (line iolay: YieldScope) the handler's `YIELD_TO = 0`, as `SlPreB.hy0f`. -/
   hy0f : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
     FaultChecks st X (L.curW s) ptr badge dest r → L.mem X (yieldA dest) = 0#u64
-  /-- [J] the handler homed here and queued only on a held lock, its and the faulting thread's `STATE` words in
-  `SlWS` (module docstring: missing the `schedulable_here` read-back and the endpoint-queue `BLOCK_OBJ`). -/
-  hSd : SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ {ptr badge dest r : U64},
-    FaultChecks st X (L.curW s) ptr badge dest r →
-      K.heap dest = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) dest ∧
-        SlWS (st := st) K Locks s (stA (L.curW s)) ∧ SlWS (st := st) K Locks s (stA dest)
   /-- [P] the reply object's call-stack links are clear (as vmR's `VmREntJ11.nb`). -/
   hrz : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) →
     L.mem X (rNextA found.1) &&& ~~~1#u64 = 0#u64 ∧ L.mem X (rPrevA found.1) &&& ~~~1#u64 = 0#u64
   /-- [J] (line iolay: YieldScope) the replied thread's `YIELD_TO = 0`, as `SlPreB.hy0r`. -/
   hy0r : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
     RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc → L.mem X (yieldA u) = 0#u64
-  /-- [J] the replied thread homed here, the `STATE` / `BLOCK_OBJ` words written in `SlWS` (as `hSd`). -/
-  hSu : ¬ SlTrap st s → ∀ a X a1, LocalPre (st := st) ar s a (X, a1) → ∀ u usc,
-    RRChecks st ar X a1 (L.curW s) found.1 found.2 u usc →
-      K.heap u = some .tcb ∧ Safe0 (L.cpu s) (Locks s) (L.mem s) u ∧
-        SlWS (st := st) K Locks s (stA (L.curW s)) ∧ SlWS (st := st) K Locks s (blockA (L.curW s)) ∧
-          SlWS (st := st) K Locks s (stA u)
   /-- [P] the endpoint is locked (as vmR's `VmREntJ11.lk`). -/
   hlk : ¬ SlTrap st s → Locks s found.2
 
@@ -404,7 +551,8 @@ variable {K : KLayout} {s : S} {A' : Type} {arI : machine.Arch A'} {AR : A' → 
 theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.slPreB (hA : P0.ArchTotal ar) (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
     (hrun : L.mem s (stA (L.curW s)) = sched.TS_RESTART ∨ L.mem s (stA (L.curW s)) = sched.TS_RUNNING)
     {Locks : S → U64 → Prop} {n : I64} {found : U64 × U64} {m0 : U64 → U64}
-    (hC : SlSyncC st n found s) (hm0 : AffAg st K m0 s) (R : SlPreR st ar K Locks found s) :
+    (hC : SlSyncC st n found s) (El : SlEntL (st := st) K Locks found s) (hm0 : AffAg st K m0 s)
+    (R : SlPreR st ar K Locks found s) :
     SlPreB (st := st) ar K Locks m0 n found K.heap.tcbs Cx (OmegaS K Zx (L.ksb s) σ) K.user (SgS K)
       K.heap.replies K.heap.scs K.heap.ntfns Ax K.heap K.heap.scBits s := by
   obtain ⟨hT, hN, hcT⟩ := B.j.bxiU.tcbNode
@@ -422,11 +570,11 @@ theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.slPreB (hA : P0.ArchTotal ar) (B : Sl
       hF := fun _ a X a1 h => (B.lpFault hA hrun h).1
       hy0f := R.hy0f
       hTm := fun _ a X a1 h => (B.lpBxiS hA a X a1 h).1.2.2.1.2.2.tm
-      hSd := R.hSd
+      hSd := fun hS' a X a1 h => B.slSd hA hrun El hS' h
       hPl := fun hS' a X a1 h u usc hc => B.rrPlS hA (hC.fd.rc hS' (hC.arm hS')) a X a1 h u usc hc
       hrz := R.hrz
       hy0r := R.hy0r
-      hSu := R.hSu
+      hSu := fun hS' a X a1 h u usc hc => B.slSu hA hrun (hC.fd.rc hS' (hC.arm hS')) h hc
       hlk := R.hlk }
   rw [← stA_fld] at hq
   have hv := Calm.val (v := L.mem s (stA (L.curW s))) hrun
@@ -459,7 +607,7 @@ structure SlEntJ11 {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 
   sc : SlSyncC st i.n i.found s
   /-- [P] (`SlQ`'s `SlAccR`). -/
   acc : SlAccR (st := st) ar K i.Locks i.found s
-  /-- What stays of `SlPreB` ([J] `hy0f` / `hy0r` line iolay, [J] `hSd` / `hSu`, [P] `hrz` / `hlk`). -/
+  /-- What stays of `SlPreB` ([J] `hy0f` / `hy0r` line iolay, [P] `hrz` / `hlk`). -/
   r : SlPreR st ar K i.Locks i.found s
 
 variable {st ar}
@@ -473,7 +621,7 @@ theorem SlEntJ11.toQ (hA : P0.ArchTotal ar) {A3 : Type} {arI : machine.Arch A3} 
     Fl4Proofs.P2.PathObl.SlQ st ar i.Locks i.n i.found i.Cs i.Ω i.Sg i.Ac K m s := by
   obtain ⟨A', arI', AR', Zx, Lst, D, a', σ, B, hΩ⟩ := E.ix
   rw [hΩ, E.sg]
-  exact ⟨B.slPreB hA hrun E.sc hm E.r, E.el, E.sc, E.acc⟩
+  exact ⟨B.slPreB hA hrun E.sc E.el hm E.r, E.el, E.sc, E.acc⟩
 
 /-- **The convention is satisfiable at every bundle state** (a choice of index). -/
 theorem slIxS_of {K : KLayout} {s : S} (h : SlJAt (L := L) K s) :
@@ -539,8 +687,7 @@ variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} 
 
 /-- **FL4 end to end, W11's glue, PTE convention, sl's `SlPreB` derived** (module docstring):
 `serializable_fl4_localW11PJ10` with `StartC` starts. sl's entry: the index convention (`OmegaS` / `SgS`), `hct`
-[P], `SlEntL` / `SlSyncC` / `SlAccR` [P] and `SlPreR` (`hy0f` / `hy0r` [J] iolay, `hSd` / `hSu` [J], `hrz` / `hlk`
-[P]). -/
+[P], `SlEntL` / `SlSyncC` / `SlAccR` [P] and `SlPreR` (`hy0f` / `hy0r` [J] iolay, `hrz` / `hlk` [P]). -/
 theorem serializable_fl4_localW11PJ11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
     {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
     (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
@@ -563,6 +710,7 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
+omit [Fl4Proofs.P1.PlainStore st] in
 /-- **sl's `StartC` holds at every chain state with sl's entry facts** (memory `L.mem σ`, core `L.cpu σ`, locks
 `j.Locks σ`), given the record. Nothing is asked about other states. -/
 theorem startC_sl_sat {Ch : S → Prop} {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) {σ : S} (hσ : Ch σ)

@@ -13,3 +13,8 @@ open Fl4Proofs.P2.E2EP
 #print axioms startAt_C
 #print axioms serializable_fl4_localW11PJ11
 #print axioms startC_sl_sat
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.lpTcb
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.lpFH
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.homeWS
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.slSd
+#print axioms Fl4Proofs.P2.PathObl.SlJAtZ.slSu
