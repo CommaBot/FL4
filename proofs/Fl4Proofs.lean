@@ -234,6 +234,8 @@ import Fl4Proofs.P2.SlJUB2
 import Fl4Proofs.P2.SlJUB3
 import Fl4Proofs.P2.SlJUB4
 import Fl4Proofs.P2.SlJUB5
+import Fl4Proofs.P2.SlJLk
+import Fl4Proofs.P2.SlJLk2
 import Fl4Proofs.P2.SafeGap
 import Fl4Proofs.P2.MoveGap
 import Fl4Proofs.P2.SafeCert
