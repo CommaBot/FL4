@@ -1,4 +1,4 @@
-import Fl4Proofs.P2.MmuADProg
+import Fl4Proofs.P2.E2EPU3b
 open Fl4Proofs.P2.Serial
 #print axioms adIns_bot
 #print axioms SimA.mono
@@ -21,3 +21,6 @@ open Fl4Proofs.P2.MmuAD
 #print axioms tr_adIns
 #print axioms body_adIns
 #print axioms sadIns_rd_mask
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWrP
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWr_pte
+#print axioms Fl4Proofs.P2.MmuAD.MmuAD.adWr_none
