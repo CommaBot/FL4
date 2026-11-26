@@ -10,7 +10,7 @@ for that set. Here the same proof is restated for **arbitrary** read / write set
 * **`rr_accR`**: an accepted run on `st` is the run on any `gS` answering `R` / `W` as `st`, given the prefix words
   (the node, the current thread's `FLAGS` word, `NEXT_IP`, `FAULT_IP`, the current SC's head) and, at every dispatch
   state `rrX s v n` under the fast path's checks, the record `RrAccV Z R W` (`hRW`) and the `STATE` / `BLOCK_OBJ`
-  writes `RrSW` (`hSW`).
+  writes `RrSW` for the checks' receiver (`hSW`).
 
 No premise beyond `VmRPre`'s (as tagged in `AccessVmRRA`): every fact about the sets is a hypothesis.
 No existing statement changed.
@@ -107,7 +107,9 @@ theorem rr_accR (hA : P0.ArchTotal ar) {s' : S} {a a' : A} {rptr ep : U64}
       RRChecksG st ar fl4_abi.consts.fault.VMFault (rrX (L := L) s v n) a2 (L.curW s) rptr ep u usc →
       AsidOff (L := L) Ω Sg (rrX (L := L) s v n) →
       RrAccV (L := L) Z R W (rrX (L := L) s v n) (L.curW s) rptr ep u usc)
-    (hSW : ∀ u, u ∈ T → L.mem s (affA u) = L.cpu s → L.mem s (stA u) = sched.TS_BLOCKED_ON_REPLY →
+    (hSW : ∀ (a2 : A) (v n u usc : U64),
+      RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z (rrX (L := L) s v n) (L.curW s) rptr ep u usc →
+      RRChecksG st ar fl4_abi.consts.fault.VMFault (rrX (L := L) s v n) a2 (L.curW s) rptr ep u usc →
       RrSW (L := L) gS (L.curW s) ep u)
     (h : syscall.handle_reply_recv_vm_local st ar s a (rptr, ep) = ok (true, s', a')) :
     syscall.handle_reply_recv_vm_local gS ar s a (rptr, ep) = ok (true, s', a') := by
@@ -165,8 +167,7 @@ theorem rr_accR (hA : P0.ArchTotal ar) {s' : S} {a a' : A} {rptr ep : U64}
     exact fastpath_vm.reply_recv_vm_found.guard (gS := gS) (R := R) (W := W) ar hA hI2
       (fun u usc C => (hP2 u usc C).1) hrz (fun u usc C => (hP2 u usc C).2) hAs2
       (fun u usc C => hRW a1 _ n u usc (hP2 u usc C).1 C hAs2)
-      (fun u usc C => hSW u (hP2 u usc C).1.hu (rr_u_home P (hP2 u usc C).1 C).1
-        (rr_u_home P (hP2 u usc C).1 C).2) h'
+      (fun u usc C => hSW a1 _ n u usc (hP2 u usc C).1 C) h'
 
 end
 
