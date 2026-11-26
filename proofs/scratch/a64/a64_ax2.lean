@@ -143,6 +143,7 @@ import Fl4ProofsA64.P1.QueueRetypeP1
 import Fl4ProofsA64.P1.QueueRetypeTcb
 import Fl4ProofsA64.P1.QueueUtRetype
 import Fl4ProofsA64.P1.QueueDecEpt
+import Fl4ProofsA64.P1.QueueDecVs
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -236,3 +237,23 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.resetP1Step_holds
 #print axioms Fl4ProofsA64.P1.retypeP1Step
 #print axioms Fl4ProofsA64.P1.UtRetypeP3.utPlace
+#print axioms Fl4ProofsA64.P1.Cur0.zr
+#print axioms Fl4ProofsA64.P1.Cur0.wrV
+#print axioms Fl4ProofsA64.P1.vspace.install_page.cur0
+#print axioms Fl4ProofsA64.P1.ept.install_s2_leaf.cur0
+#print axioms Fl4ProofsA64.P1.vspace.map_high_page_table.dec
+#print axioms Fl4ProofsA64.P1.ept.map_table.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_page_table.dec
+#print axioms Fl4ProofsA64.P1.vspace.mapped_entry.vs
+#print axioms Fl4ProofsA64.P1.vspace.reply1.bxiA
+#print axioms Fl4ProofsA64.P1.vspace.decode_page_flush.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_vspace_flush.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_test_and_clear_accessed.dec
+#print axioms Fl4ProofsA64.P1.ept.map_frame.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_high_page_map.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_page_map.dec
+#print axioms Fl4ProofsA64.P1.vspace.insert_subframes.cur0
+#print axioms Fl4ProofsA64.P1.vspace.derive_subframe.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode_frame.dec
+#print axioms Fl4ProofsA64.P1.vspace.decode.dec
+#print axioms Fl4ProofsA64.P1.decGap_vspace
