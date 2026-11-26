@@ -19,10 +19,13 @@ The timer interrupt's fire walk split over its prefix as the quiet / round-robin
 * `fire_rdV` / `fire_wrV`: `FireRd` / `FireWr` under `ownV` (typed regions: `rpV`, `wpermV_of_own'`) from
   `VexitEnt`'s layout fields;
 * **`vtimer_acc_fnw_own`**: `PathObl.acc` of that case on `guard st (VexitRS …) (VexitWS …)` from `VtmEnt` and
-  `hNt`.
+  `hNt`; **`vtimer_move_fnw`**: its `PathObl.move` (`fire_wr_nondecV`, `stepOK_height` / `stepOK_deadline`, `hM`);
+* **`vtimer_localPathW`**: `vtimer_localPath` with `hF` / `hFm` asked only for the waking fire case.
 
-Premises: none beyond `VtmEnt` and `hNt` (P1's notifications typed in `H`). The waking fire case (`¬ NoWake`) and
-the fire case's `move` stay premises of the `LocalPath` (`P2/AccessLvmTl.lean`).
+Premises: `VtmEnt`, `hNt` (P1's notifications typed in `H`), and for `move` **`hM` [J]** (the map memory agrees
+with the entry on every thread's `AFFINITY`, as `IrqEntK.mem`). The waking fire case (`¬ NoWake`: the due
+notification wakes its waiting / receiving thread, then `schedule` may switch) stays [W] `hF` / `hFm` of
+`vtimer_localPathW`.
 -/
 import Fl4Proofs.P2.AccessLvmTj
 import Fl4Proofs.P2.FootTimerFireOwn
@@ -33,7 +36,8 @@ namespace Fl4Proofs.P2
 open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1
 open Fl4Proofs.P2.OwnMap Fl4Proofs.P2.PathObl
 open Fl4Proofs.P2.Serial (Owner)
-open Fl4Proofs.P2.OwnMapV (KLayoutV ownV InVcpu RegionOKV UserOKV rpermV_of_own wpermV_of_own')
+open Fl4Proofs.P2.OwnMapV (KLayoutV ownV InVcpu RegionOKV UserOKV rpermV_of_own wpermV_of_own'
+  stepOKV_of_stepOK)
 
 section help
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
@@ -418,6 +422,52 @@ theorem fire_wrV (hK : RegionOKV K) {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt 
   · exact held_core (ftree_own hL hT hy ha (by omega) (by omega) h8)
   · exact held_core (fnt_ownV hK hI hL ntw hne (hTm hne) hb hk h24)
 
+/-- **No word of `FireWr` but the current thread's `STATE` decides anything** (`fire_wr_nondec` from the
+notification regions). -/
+theorem fire_wr_nondecV (hK : RegionOKV K) {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hL : StLay K.toKLayout st T Scs Z s)
+    (ntw : ∀ p ∈ Nt, ∀ k : U64, k.val < 64 → region K.toKLayout (core.num.U64.wrapping_add p k) = .ntfn p)
+    {w : U64} (h : FireWr st T Z s w) (hn : w ≠ stA (L.curW s)) : ¬ DecW K.toKLayout w := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced T := h0.tcbs
+  rcases h with h | ⟨y, hy, -, k, h1, h2, -, rfl⟩ | ⟨hne, hb, k, hk, -, h24, rfl⟩
+  · exact irq_wr_nondec hK.base hI hL h hn
+  · apply nondec_of_region hK.base
+    have e : (core.num.U64.wrapping_add y k).val - y.val = k.val := by
+      rw [field_val (hT y hy) (by omega)]; omega
+    exact Or.inl ⟨y, hL.tcb y hy k (by omega) (by omega), by omega, by omega, by omega, by omega, by omega⟩
+  · apply nondec_of_region hK.base
+    obtain ⟨q1, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne
+    have hNt := hI.2.2.1.2.2.bnd _ q1 hb
+    obtain ⟨p1, p2⟩ := hI.2.2.1.1.ntP _ hNt
+    refine Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, ntw _ hNt k hk, ?_⟩))))
+    rw [ntfn_word_val p1 p2 hk]
+    omega
+
+/-- The bound VCPU's `PENDING` is no state / badge word of the due notification (a VCPU word is in no region). -/
+theorem pending_not_sad (hK : RegionOKV K) {lk : S → U64 → Prop} {irq n : U64} {s : S}
+    (hE : VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s) (hv0 : vOf st s ≠ 0#u64)
+    (hne : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64)
+    (hb0 : L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))) ≠ 0#u64) :
+    ¬ SaD (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+      (core.num.U64.wrapping_add (vOf st s) vcpu.PENDING) := by
+  have E := hE.ent
+  have hI := E.inv
+  have h0 := hI.1.choose_spec.choose_spec
+  obtain ⟨q1, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne
+  have hNNt := hI.2.2.1.2.2.bnd _ q1 hb0
+  have hn := hK.none _ _ (E.vin hv0)
+  intro hsd
+  rcases hsd with e | e
+  · rw [e] at hn
+    unfold epTSA at hn
+    rw [E.ntw _ hNNt _ (by simp [layout.ep.TAIL_STATE])] at hn
+    cases hn
+  · rw [e] at hn
+    unfold ntfnBdA at hn
+    rw [E.ntw _ hNNt _ (by simp [layout.ntfn.BADGE])] at hn
+    cases hn
+
 variable {A : Type} (ar : machine.Arch A) {lk : S → U64 → Prop}
 
 /-- **`acc` of an accepted `local_vm_timer_irq` in the fire case with `NoWake`**, under `ownV` (module
@@ -460,21 +510,84 @@ theorem vtimer_acc_fnw_own (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hNt : ∀ 
       obtain ⟨q1, q2⟩ := ntfn_tail_rd (lk := lk s) hK hI hL E.ntw E.curAff hn
       exact ⟨q1, Or.inr q2⟩)
     (E.vfar hv0) (fun hn => E.nfar n hbn hn)
-    (fun hne hb0 hsd => by
-      have h0 := hI.1.choose_spec.choose_spec
-      obtain ⟨q1, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne
-      have hNNt := hI.2.2.1.2.2.bnd _ q1 hb0
-      have hn := hK.none _ _ (E.vin hv0)
-      rcases hsd with e | e
-      · rw [e] at hn
-        unfold epTSA at hn
-        rw [E.ntw _ hNNt _ (by simp [layout.ep.TAIL_STATE])] at hn
-        cases hn
-      · rw [e] at hn
-        unfold ntfnBdA at hn
-        rw [E.ntw _ hNNt _ (by simp [layout.ntfn.BADGE])] at hn
-        cases hn)
+    (fun hne hb0 => pending_not_sad hK hE hv0 hne hb0)
     hq hNW h
+
+
+/-- **`move` of an accepted `local_vm_timer_irq` in the fire case with `NoWake`**, under `ownV`: the run on the
+checked store whose writes are `ownV`'s `StepOK` is the real one (`vtimer_accG_fnw`: `FireWr` words by
+`fire_wr_nondecV`, the tree's height / deadline writes by `stepOK_height` / `stepOK_deadline`, the latter with the
+map memory `m` agreeing on the armed threads' `AFFINITY`, `hM`), and `interp_gd` turns it into the run on
+`mguard`. -/
+theorem vtimer_move_fnw (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K) (hNt : ∀ q ∈ Nt, H q = some .ntfn)
+    {m : U64 → U64} {F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (Bool × S × A)}
+    {p : SProg Bool} {irq n : U64} {pl : localtimer.TimerIrqPlan}
+    (hF : IsProg F p)
+    (eF : ∀ mm : machine.Store S, F ar mm = fun s a => localvm.handle_vm_timer_irq_local mm ar s a irq pl n)
+    {s s' : S} {a a' : A}
+    (hE : VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s)
+    (hM : ∀ y ∈ T, m (fld y oAFFINITY) = L.mem s (affA y))
+    (hq : IrqFire st ar s a) (hNW : NoWake st s)
+    (h : localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s', a')) :
+    localvm.handle_vm_timer_irq_local (mguard st
+      (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s) (lk s)
+        (L.mem x) (L.mem y))) ar s a irq pl n = ok (true, s', a') := by
+  obtain ⟨hvb, hv0, hbn⟩ := vtimer_bnd ar h
+  have E := hE.ent
+  have hI := E.inv
+  have hL := E.lay
+  have heap : ∀ y ∈ T, K.heap y = some .tcb := fun y hy =>
+    hK.base.tcbOf y _ (hL.tcb y hy 3328#u64 (by simp) (by simp))
+  have hg : localvm.handle_vm_timer_irq_local (gd st (fun _ => True) (StWrOKV st K m (L.cpu s) (lk s))) ar s a
+      irq pl n = ok (true, s', a') := by
+    refine vtimer_accG_fnw (gS := gd st (fun _ => True) (StWrOKV st K m (L.cpu s) (lk s))) (R := fun _ => True)
+      (W := WAll (StWrOKV st K m (L.cpu s) (lk s))) ar hA hI hNt (fun _ _ _ _ _ => trivial)
+      (fun _ _ w ha hw hn x v' => stepOKV_of_stepOK hK
+        (stepOK_nondec hK.base hU.base ha (fire_wr_nondecV hK hI hL E.ntw hw hn)))
+      (fun _ _ => trivial) trivial trivial ?_
+      (fun X y v' hy _ hc => gd_write (by
+        show StWrOKV st K m (L.cpu s) (lk s) X (thA y) v'
+        unfold StWrOKV
+        exact stepOKV_of_stepOK hK (stepOK_height hK.base hU.base (heap y hy) hc)))
+      (fun X y v' hy _ ha1 ha0 hc => gd_write (by
+        show StWrOKV st K m (L.cpu s) (lk s) X (tdA y) v'
+        unfold StWrOKV
+        exact stepOKV_of_stepOK hK
+          (stepOK_deadline hK.base hU.base (heap y hy) ha1 (by rw [hM y hy]; exact ha0) hc)))
+      hvb trivial (fun _ => trivial) (E.vfar hv0) (fun hn => E.nfar n hbn hn)
+      (fun hne hb0 => pending_not_sad hK hE hv0 hne hb0) hq hNW h
+    intro s1 _ c1 _ now
+    have mr : ∀ c t : U64, MayRdC st (fun _ => True) s1 c t := fun _ _ _ =>
+      ⟨trivial, fun _ => ⟨trivial, trivial, trivial, trivial, fun _ => trivial⟩⟩
+    have tr : TopRdC st (fun _ => True) s1 :=
+      { l1 := trivial, dom := trivial, bm := ⟨trivial, fun _ _ => trivial⟩
+        top := fun _ _ _ _ _ _ _ => ⟨trivial, fun _ => ⟨trivial, fun _ => ⟨trivial, trivial, trivial, trivial,
+          fun _ => trivial⟩⟩⟩ }
+    have wr : ∀ w n : U64, WakeRdC st (fun _ => True) s1 w n := fun w n =>
+      { may := mr _ w, dq := fun _ _ => ⟨trivial, trivial⟩, nsc := trivial, top := tr }
+    have := fire_ok.guardK (gS := gd st (fun _ => True) (StWrOKV st K m (L.cpu s) (lk s))) (R := fun _ => True)
+      (s := s1) (ct := L.curW s) (p := pl) (now := now)
+      (fun _ => True) (fun _ => trivial) (fun _ => trivial) (fun _ _ _ _ => trivial) (fun _ _ _ _ => trivial)
+      (fun _ _ => ⟨trivial, fun _ _ _ => trivial⟩) (fun _ _ => trivial)
+      (fun _ => fireTail.guardC (fun _ => ⟨trivial, trivial, trivial, trivial, wr _ _, fun _ _ => wr _ _⟩))
+    rwa [c1] at this
+  have eP : ∀ mm : machine.Store S, localvm.handle_vm_timer_irq_local mm ar s a irq pl n = interp mm ar p s a := by
+    intro mm
+    have e1 := congrFun (congrFun (eF mm) s) a
+    have e2 := congrFun (congrFun (hF A ar mm) s) a
+    try simp only at e1
+    rw [← e1]
+    exact e2
+  rw [eP] at hg
+  rw [eP]
+  exact interp_gd (R := fun _ => True) (P := StWrOKV st K m (L.cpu s) (lk s))
+    (Q := fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
+      (lk s) (L.mem x) (L.mem y)) (I := fun _ => True)
+    (fun x q w x' _ hq hw => by
+      rw [L.write_eq] at hw
+      have e := ok_inj_ff hw
+      subst e
+      exact ⟨hq, trivial⟩) p s a _ trivial hg
 
 end own
 
@@ -487,7 +600,8 @@ variable {A : Type} (ar : machine.Arch A) {irq n : U64} {pl : localtimer.TimerIr
 
 /-- **`local_vm_timer_irq` is a local path under `ownV`, its non-waking fire case's `acc` proved** (gen 9):
 `vtimer_localPath` with `hF` asked only when the due notification wakes a thread (`¬ NoWake`); the non-waking
-case is `vtimer_acc_fnw_own`. `hFm` (the fire case's `move`) stays [W]. -/
+case is `vtimer_acc_fnw_own` / `vtimer_move_fnw`; `hFm` likewise only for `¬ NoWake`. New premise `hM` [J]: the map
+memory `m` agrees with the entry on every thread's `AFFINITY` (as `IrqEntK.mem`), for the tree's deadline writes. -/
 noncomputable def vtimer_localPathW (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hp : IsProg (vtimerBody S irq pl n) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hro : E2E.ReadOnce st ar p (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user)
@@ -499,19 +613,24 @@ noncomputable def vtimer_localPathW (hA : P0.ArchTotal ar) (hK : RegionOKV K) (h
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a irq pl n =
         ok (true, s1, a1))
-    (hFm : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a →
+    (hFm : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a → ¬ NoWake st s →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (mguard st
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
           (lk s) (L.mem x) (L.mem y))) ar s a irq pl n = ok (true, s1, a1))
-    (hNt : ∀ q ∈ Nt, H q = some .ntfn) :
+    (hNt : ∀ q ∈ Nt, H q = some .ntfn)
+    (hM : ∀ s, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → ∀ y ∈ T, m (fld y oAFFINITY) = L.mem s (affA y)) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
   vtimer_localPath ar hA hK hU hp hz hm hro hEU hlk
     (fun s a s1 a1 hE hf h => by
       by_cases hNW : NoWake st s
       · exact vtimer_acc_fnw_own ar hA hK hNt hE hf hNW h
       · exact hF s a s1 a1 hE hf hNW h)
-    hFm hNt
+    (fun s a s1 a1 hE hf h => by
+      by_cases hNW : NoWake st s
+      · exact vtimer_move_fnw ar hA hK hU hNt hp (fun _ => rfl) hE (hM s hE) hf hNW h
+      · exact hFm s a s1 a1 hE hf hNW h)
+    hNt
 
 end lp
 
