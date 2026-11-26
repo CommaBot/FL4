@@ -2407,3 +2407,8 @@ import Fl4Proofs.P3.VirtScope8B
 import Fl4Proofs.P3.VirtKEntryV2
 import Fl4Proofs.P3.VirtKEntryV3
 import Fl4Proofs.P3.VirtWit9
+import Fl4Spec.Ext.VirtRelBase
+import Fl4Spec.Ext.VirtRelVmx
+import Fl4Spec.Ext.VirtRelSvm
+import Fl4Proofs.P3.VirtVcpuRel
+import Fl4Proofs.P3.VirtWit10
