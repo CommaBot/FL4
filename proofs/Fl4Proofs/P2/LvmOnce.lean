@@ -358,9 +358,10 @@ theorem vtimer_hro (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hVU : VcpuNU K) (h
     (fun s1 a1 => hDU s a s1 a1 hE) hAlt
 
 /-- **`local_vm_timer_irq` with `IsProg`, `NoZero` and `ReadOnce` discharged** (module docstring):
-`vtimer_localPathG` with `hro := vtimer_hro`, its `hF` / `hD` from the user-free `hFU` / `hDU` (`interp_mono`).
-Premises: `hA`, `hK` [J], `hU` [J], `hm` [P], **`hVU` [J]**, **`hTU` [J]**, `hEU` [J], `hlk` [P], **`hFU` [W]**,
-`hFm` [W], **`hDU` [W]**, and `VtmEnt`'s fields. -/
+`vtimer_localPathG` with `hro := vtimer_hro`, its `hF` from the user-free `hFU` (`interp_mono`); `hDU` is used by
+`vtimer_hro` only (int16: after lvm gen 9 `vtimer_localPath` asks `hNt` instead of `hD`).
+Premises: `hA`, `hK` [J], `hU` [J], `hm` [P], **`hVU` [J]**, **`hTU` [J]**, `hEU` [J], `hlk` [P] (aligned writes),
+**`hFU` [W]**, `hFm` [W], **`hDU` [W]**, `hNt`, and `VtmEnt`'s fields. -/
 noncomputable def vtimer_localPathG2 (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hm : E2E.MasksWr st) (hVU : VcpuNU K)
     (hTU : ∀ s, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → VtmU K st irq s)
@@ -379,7 +380,8 @@ noncomputable def vtimer_localPathG2 (hA : P0.ArchTotal ar) (hK : RegionOKV K) (
     (hDU : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (false, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRSU K st lk s) (IrqDec st s)) ar s a irq pl n =
-        ok (false, s1, a1)) :
+        ok (false, s1, a1))
+    (hNt : ∀ q ∈ Nt, H q = some .ntfn) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
   have hz := vtimer_noZero irq pl n
   have eP : ∀ (mm : machine.Store S) (x : S) (a : A),
@@ -391,11 +393,7 @@ noncomputable def vtimer_localPathG2 (hA : P0.ArchTotal ar) (hK : RegionOKV K) (
       have g := hFU s a s1 a1 hE hf h
       rw [eP] at g ⊢
       exact interp_mono (fun _ hw => hw.1) (fun _ hw => hw) _ hz s a _ g)
-    hFm
-    (fun s a s1 a1 hE h => by
-      have g := hDU s a s1 a1 hE h
-      rw [eP] at g ⊢
-      exact interp_mono (fun _ hw => hw.1) (fun _ hw => hw) _ hz s a _ g)
+    hFm hNt
 
 end
 

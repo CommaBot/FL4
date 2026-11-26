@@ -182,12 +182,9 @@ noncomputable def vtimer_localPathG (hA : P0.ArchTotal ar) (hK : RegionOKV K) (h
       localvm.handle_vm_timer_irq_local (mguard st
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
           (lk s) (L.mem x) (L.mem y))) ar s a irq pl n = ok (true, s1, a1))
-    (hD : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s →
-      localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (false, s1, a1) →
-      localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (IrqDec st s)) ar s a irq pl n =
-        ok (false, s1, a1)) :
+    (hNt : ∀ q ∈ Nt, H q = some .ntfn) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
-  vtimer_localPath ar hA hK hU (vtimer_isProg S irq pl n) (vtimer_noZero irq pl n) hm hro hEU hlk hF hFm hD
+  vtimer_localPath ar hA hK hU (vtimer_isProg S irq pl n) (vtimer_noZero irq pl n) hm hro hEU hlk hF hFm hNt
 
 end
 
