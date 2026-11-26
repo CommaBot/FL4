@@ -35,6 +35,7 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P0.Consts
 open Fl4Proofs.P2.E2E (Once)
 
 section gen
+open Classical
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} {User : U64 → Prop}
 
 theorem racy_monoR {R R' : U64 → Prop} {Wd : Set U64} {q : U64} (hR : ∀ b, R b → R' b)
@@ -234,17 +235,16 @@ def l1W (buf : U64) (j : Usize) : U64 :=
 
 theorem l1W_val (buf : U64) (j : Usize) (hj : j.val < 127) :
     (l1W buf j).val = (buf.val + 8 * (j.val + 1)) % 2 ^ 64 := by
+  have h1 : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val = j.val + 1 := by
+    rw [core.num.U64.wrapping_add_val_eq, usize_cast_val]
+    simp [U64.size_def, U64.numBits] <;> omega
+  have h2 : (core.num.U64.wrapping_mul (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64) 8#u64).val =
+      8 * (j.val + 1) := by
+    rw [core.num.U64.wrapping_mul_val_eq, h1]
+    simp [U64.size_def, U64.numBits] <;> omega
   unfold l1W
-  rw [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, core.num.U64.wrapping_add_val_eq,
-    usize_cast_val]
-  simp only [U64.size_def, U64.numBits]
-  have e1 : (j.val + (1#u64).val) % 2 ^ 64 = j.val + 1 := by
-    simp only [UScalar.ofNat_val_eq]; omega
-  simp only [UScalarTy.numBits] at *
-  rw [e1]
-  have e2 : ((j.val + 1) * (8#u64).val) % 2 ^ 64 = 8 * (j.val + 1) := by
-    simp only [UScalar.ofNat_val_eq]; omega
-  rw [e2]
+  rw [core.num.U64.wrapping_add_val_eq, h2]
+  simp [U64.size_def, U64.numBits]
 
 theorem l1W_ne (buf : U64) {i j : Usize} (hi : i.val < 127) (hj : j.val < 127) (h : i.val ≠ j.val) :
     l1W buf i ≠ l1W buf j := by
@@ -326,12 +326,12 @@ theorem loop1_once_iter {Y : Type} (rcv : U64) (regs : Slice U64) (n : Usize) (b
     refine once_liftR h (fun i5 hi5 h => ?_)
     obtain ⟨z, hz, hzv⟩ := spec_ex_fd (Usize.add_spec (x := i) (y := 1#usize) (by scalar_tac))
     rw [hz] at hi5
-    cases ok_inj_ff hi5
+    have ez : i5 = z := (ok_inj_ff hi5).symm
+    have hzv' : i5.val = i.val + 1 := by rw [ez, hzv]; simp
     try simp only [SProg.sbind] at h ⊢
-    refine loop1_once_iter rcv regs n buf hreg hn hl hrw P hP k hk m z s' a _ _ ?_ (hP s a r i4 s' hPs hrv hs') h
+    refine loop1_once_iter rcv regs n buf hreg hn hl hrw P hP k hk m i5 s' a _ _ ?_ (hP s a r i4 s' hPs hrv hs') h
     intro q hq hR
     obtain ⟨j, hj1, hj2, rfl⟩ := hR
-    have hzv' : z.val = i.val + 1 := by rw [hzv]; simp
     unfold E2E.tch at hq
     split at hq
     · rcases hq with e | hq
@@ -402,7 +402,7 @@ theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ 
   refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (by unfold SProg.blk; split <;> trivial) h
     (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
   · unfold SProg.blk at h1 ⊢
-    split at h1 <;> (simp only [interp] at h1 ⊢; exact h1)
+    split_ifs at h1 ⊢ <;> (simp only [interp] at h1 ⊢; exact h1)
   replace h := hk
   obtain ⟨n, X1, a1⟩ := r
   have hn : n.val ≤ (Slice.len (Array.to_slice faults.SYSCALL_MESSAGE)).val ∧ X1 = X ∧ a1 = a := by
@@ -424,7 +424,9 @@ theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ 
     · simp only [interp, ok.injEq, Prod.mk.injEq] at h1
       obtain ⟨rfl, rfl, rfl⟩ := h1
       exact ⟨le_refl _, rfl, rfl⟩
-  obtain ⟨hn, rfl, rfl⟩ := hn
+  obtain ⟨hn, h2, h3⟩ := hn
+  subst X1
+  subst a1
   dsimp only at h ⊢
   -- loop 0 (registers)
   refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.faults.copy_mrs_fault_reply_loop0_nz _ _ _ _ _) h
@@ -446,6 +448,7 @@ theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ 
   · simp only [SProg.sbind] at h ⊢
     exact hK X2 _ w02 h _ _
   -- the buffer
+  rw [SProg.sbind_assoc] at h ⊢
   refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.msg.lookup_ipc_buffer_nz _ _) h
     (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
   · rw [R.msg.lookup_ipc_buffer_eq] at h1 ⊢
@@ -460,6 +463,7 @@ theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ 
   · simp only [SProg.sbind] at h ⊢
     exact hK X2 _ w02 h _ _
   -- loop 1 (the buffer words)
+  try rw [SProg.sbind_assoc] at h ⊢
   unfold R.faults.copy_mrs_fault_reply_loop1 at h ⊢
   refine loop1_once_iter u _ n buf syscall_message_lt hn syscall_message_len hrw
     (fun s1 a1 => WritesIn st X s1 (XferRegW ({u} : Set U64) ∅) ∧ a1 = a) ?_ _ ?_ _ i2 X2 a Wd ∅
@@ -476,5 +480,123 @@ theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ 
     exact hK s1 _ hW h' Wd' T'
 
 end hfr
+
+/-! ## `Once` carried to a state agreeing on a guarded run's words -/
+
+section agree
+open Classical
+variable {S A : Type} {st : machine.Store S} [L : LawfulStore st] {ar : machine.Arch A} {Rd User : U64 → Prop}
+
+/-- **`Once` at an agreeing state**: if `p` runs from `s` on `guard st R0 W0` (aligned sets) and `s'`
+agrees with `s` on `R0`, kernel base, core and masks, then `Once` of `p` from `s` gives `Once` from `s'`
+(the two runs read the same words with the same values, `PathAgree`'s `interp_agree`). -/
+theorem once_agree (hm : ∀ s a v, st.frame_masks (L.wr s a v) = st.frame_masks s) {R0 W0 : U64 → Prop}
+    (hRal : ∀ w, R0 w → Aligned w) (hWal : ∀ w, W0 w → Aligned w) {X : Type} (p : SProg X) (hz : NoZero p) :
+    ∀ (s s' : S) (a : A) (r : X × S × A) (Wd T : Set U64), L.ksb s' = L.ksb s → L.cpu s' = L.cpu s →
+      st.frame_masks s' = st.frame_masks s → (∀ w, R0 w → L.mem s' w = L.mem s w) →
+      interp (guard st R0 W0) ar p s a = ok r →
+      Once st ar Rd User Wd T p s a → Once st ar Rd User Wd T p s' a := by
+  induction p with
+  | ret x => intros; simp only [Once]
+  | err e => intros; simp only [Once]
+  | rd q k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    by_cases hq : R0 q
+    · rw [guard_read hq] at hv
+      simp only [Once] at ho ⊢
+      refine ⟨ho.1, fun v' hv' => ?_⟩
+      have ev : v' = v := by
+        rw [L.read_eq] at hv hv'
+        rw [← ok_inj_ff hv', ← ok_inj_ff hv, e4 q hq]
+      subst ev
+      exact ih v' (hz v') s s' a r _ _ e1 e2 e3 e4 hk (ho.2 v' hv)
+    · rw [guard_read_out hq] at hv; exact absurd hv fail_not_ok
+  | rdp q k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    by_cases hq : R0 q ∧ R0 (core.num.U64.wrapping_add q 8#u64)
+    · rw [guard_read_pair hq.1 hq.2] at hv
+      simp only [Once] at ho ⊢
+      refine ⟨ho.1, ho.2.1, fun v' hv' => ?_⟩
+      have ev : v' = v := by
+        rw [L.read_pair_eq] at hv hv'
+        rw [← ok_inj_ff hv', ← ok_inj_ff hv, e4 q hq.1, e4 _ hq.2]
+      subst ev
+      exact ih v' (hz v') s s' a r _ _ e1 e2 e3 e4 hk (ho.2.2 v' hv)
+    · have : (guard st R0 W0).read_pair s q = fail .panic := by
+        show (if R0 q ∧ R0 (core.num.U64.wrapping_add q 8#u64) then st.read_pair s q else fail .panic) = _
+        rw [if_neg hq]
+      rw [this] at hv; exact absurd hv fail_not_ok
+  | wr q v k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨s2, hv, hk⟩ := bok.mp h
+    by_cases hq : W0 q
+    · rw [guard_write hq, L.write_eq] at hv
+      obtain rfl := Result.ok_injective hv
+      simp only [Once] at ho ⊢
+      intro s2' hs2'
+      rw [L.write_eq] at hs2'
+      obtain rfl := Result.ok_injective hs2'
+      exact ih hz (L.wr s q v) (L.wr s' q v) a r _ _ (by rw [L.ksb_wr, L.ksb_wr, e1])
+        (by rw [L.cpu_wr, L.cpu_wr, e2]) (by rw [hm, hm, e3])
+        (fun w hw => by
+          rw [L.mem_wr _ _ _ _ (hWal q hq) (hRal w hw), L.mem_wr _ _ _ _ (hWal q hq) (hRal w hw), e4 w hw]) hk
+        (ho _ (L.write_eq _ _ _))
+    · rw [guard_write_out hq] at hv; exact absurd hv fail_not_ok
+  | zero q n k ih => exact absurd hz id
+  | clr q n k ih => exact absurd hz id
+  | ksb k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv2 : st.ks_base s = ok v := hv
+    simp only [Once] at ho ⊢
+    intro v' hv'
+    have ev : v' = v := by
+      rw [L.ks_base_eq] at hv2 hv'
+      rw [← ok_inj_ff hv', ← ok_inj_ff hv2, e1]
+    subst ev
+    exact ih v' (hz v') s s' a r _ _ e1 e2 e3 e4 hk (ho v' hv2)
+  | cpu k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv2 : st.cur_cpu s = ok v := hv
+    simp only [Once] at ho ⊢
+    intro v' hv'
+    have ev : v' = v := by
+      rw [L.cur_cpu_eq] at hv2 hv'
+      rw [← ok_inj_ff hv', ← ok_inj_ff hv2, e2]
+    subst ev
+    exact ih v' (hz v') s s' a r _ _ e1 e2 e3 e4 hk (ho v' hv2)
+  | masks k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨v, hv, hk⟩ := bok.mp h
+    have hv2 : st.frame_masks s = ok v := hv
+    simp only [Once] at ho ⊢
+    intro v' hv'
+    have ev : v' = v := by
+      rw [e3] at hv'
+      exact ok_inj_ff (hv'.symm.trans hv2)
+    subst ev
+    exact ih v' (hz v') s s' a r _ _ e1 e2 e3 e4 hk (ho v' hv2)
+  | arch op k ih =>
+    intro s s' a r Wd T e1 e2 e3 e4 h ho
+    simp only [interp] at h
+    obtain ⟨⟨v, a'⟩, hv, hk⟩ := bok.mp h
+    simp only [Once] at ho ⊢
+    intro v' a'' hv'
+    rw [hv] at hv'
+    obtain ⟨e5, e6⟩ := Prod.mk.inj (ok_inj_ff hv')
+    subst e5
+    subst e6
+    exact ih _ (hz _) s s' _ r _ _ e1 e2 e3 e4 hk (ho _ _ hv)
+
+end agree
 
 end Fl4Proofs.P2.PathObl
