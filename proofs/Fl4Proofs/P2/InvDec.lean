@@ -37,6 +37,34 @@ open Fl4Proofs.P2.OwnMap (KLayout InNode InW fld own region RegionOK GateField T
 section tail
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {m : machine.Store S}
 
+/-- The reply after the decode (`handle_invocation_local`'s `match` on the decode's result). -/
+def invRep {A : Type} (m : machine.Store S) (t : obj.Tcb) (s3 : S) (a2 : A) (r : core.result.Result Unit error.Exc) :
+    Result (S × A × core.result.Result Unit error.Exc) :=
+  match r with
+  | core.result.Result.Ok _ =>
+    do
+    let i6 ← obj.Tcb.state m t s3
+    let t1 ←
+      if i6 = sched.TS_RESTART
+      then
+        do
+        let s5 ← msg.reply_success_empty m s3 t
+        sched.set_thread_state m s5 t sched.TS_RUNNING
+      else ok s3
+    ok (t1, a2, core.result.Result.Ok ())
+  | core.result.Result.Err e =>
+    do
+    let (t1, r2) ←
+      match e with
+      | error.Exc.Fault _ => ok (s3, core.result.Result.Ok ())
+      | error.Exc.Lookup _ => ok (s3, core.result.Result.Ok ())
+      | error.Exc.Sys e1 =>
+        do
+        let s5 ← syscall.reply_error m s3 t e1
+        ok (s5, core.result.Result.Ok ())
+      | error.Exc.Preempted => ok (s3, r)
+    ok (t1, a2, r2)
+
 /-- The frame-cap invocation local path after the syscall-number check. -/
 def invTail {A : Type} (m : machine.Store S) (ar : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
     (info : msginfo.MessageInfo) (p : localinv.Plan) : Result (Bool × S × A) := do
@@ -77,31 +105,7 @@ def invTail {A : Type} (m : machine.Store S) (ar : machine.Arch A) (s : S) (a : 
               let cap ← obj.Slot.cap m p.slot s2
               let (r, s3, a2) ←
                 syscall.decode_invocation m ar s2 a1 info.label length p.slot cap true true true false buf p.extra
-              let (s4, a3, r1) ←
-                match r with
-                | core.result.Result.Ok _ =>
-                  do
-                  let i6 ← obj.Tcb.state m t s3
-                  let t1 ←
-                    if i6 = sched.TS_RESTART
-                    then
-                      do
-                      let s5 ← msg.reply_success_empty m s3 t
-                      sched.set_thread_state m s5 t sched.TS_RUNNING
-                    else ok s3
-                  ok (t1, a2, core.result.Result.Ok ())
-                | core.result.Result.Err e =>
-                  do
-                  let (t1, r2) ←
-                    match e with
-                    | error.Exc.Fault _ => ok (s3, core.result.Result.Ok ())
-                    | error.Exc.Lookup _ => ok (s3, core.result.Result.Ok ())
-                    | error.Exc.Sys e1 =>
-                      do
-                      let s5 ← syscall.reply_error m s3 t e1
-                      ok (s5, core.result.Result.Ok ())
-                    | error.Exc.Preempted => ok (s3, r)
-                  ok (t1, a2, r2)
+              let (s4, a3, r1) ← invRep m t s3 a2 r
               let (_, s5, a4) ← syscall.after_invocation m ar s4 a3 r1
               let (s6, a5) ← syscall.finish m ar s5 a4
               ok (true, s6, a5)

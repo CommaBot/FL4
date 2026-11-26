@@ -12,6 +12,8 @@ sets, e.g. `fun _ => True`):
   `cancel_ipc`'s writes (`CnD`: `t`'s fault word, the endpoint queue's footprint, the reply's `TCB` word, `t`'s
   `STATE`).
 
+* (lvm gen 10) `wake_wait_st` also gives: the notification is not left `ACTIVE` (`ntfn_dequeue.rel`: idle or
+  unchanged `WAITING`; `wakeTail` writes none of its words), when the SC ring size is 0 for a null SC.
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireWt
@@ -39,7 +41,8 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
     a' = a ∧
       WritesIn st X X' (fun b => EpFoot (EQ n) n b ∨ WkD st X w b ∨ InRing (L.mem X (scA w)) sb b ∨
         b = L.nodeA X layout.node.REPROGRAM) ∧
-      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) ∧ L.mem X' (stA w) = sched.TS_RUNNING := by
+      (L.actionW X' = sched.ACTION_RESUME_CURRENT ∨ L.actionW X' = w) ∧ L.mem X' (stA w) = sched.TS_RUNNING ∧
+      ((L.mem X (scA w) = 0#u64 → sb = 0) → L.epState X' n ≠ obj.NTFN_ACTIVE) := by
   obtain ⟨hE, hEN, hq⟩ := hEW.1 n he
   have hT := h.tcbs
   have hw : w ∈ T := hq.mem w hmem
@@ -158,7 +161,40 @@ theorem wake_wait_st {A : Type} (ar : machine.Arch A) (X : S) (a : A) (n badge w
       rw [sc1]; intro h0 b hb e; subst e
       exact out_ne_field (h.omega _ (hscΩ h0 _ aS hb.inSC)) hw ht' (K := 3328#u64) (by simp) (by rw [← stA_eq]))
     (fun e => nF layout.node.REPROGRAM 3328#u64 (by simp [layout.node.REPROGRAM]) (by simp) (by rw [← stA_eq]; exact e)) hr
-  refine ⟨ea, (wi.trans wT).mono fun b hb => ?_, acT, rT⟩
+  refine ⟨ea, (wi.trans wT).mono fun b hb => ?_, acT, rT, fun hsb => ?_⟩
+  rotate_left
+  · -- lvm gen 10: the dequeue leaves `n` idle or waiting, and the rest writes none of its words
+    have hrel := notification.ntfn_dequeue.rel (st := st) X n w (EQ n) hT hE hq hmem
+    rw [hX1, WP.spec_ok] at hrel
+    have eS1 : L.epState X1 n ≠ obj.NTFN_ACTIVE := by
+      rw [hrel.2]
+      split
+      · unfold obj.NTFN_ACTIVE; decide
+      · rw [hwt]; unfold obj.NTFN_ACTIVE obj.NTFN_WAITING; decide
+    have aT : Aligned (epTSA n) := (ep_aligned hE).2
+    have oT : OutsideObjs st T Cs X1 (epTSA n) := (ep_out hE hEN).2.ksb k1
+    have nΩ : epTSA n ∉ Ω := fun hΩ => by
+      have := hEW.2.2.1 n he _ hΩ
+      rw [epTSA_val hE] at this
+      omega
+    have eT : L.mem X' (epTSA n) = L.mem X1 (epTSA n) := by
+      refine wT.mem_eq aT ?_
+      rintro ((e | e | e) | hr' | e)
+      · rw [stA_eq] at e; exact out_ne_field oT hw ht' (by simp) (congrArg UScalar.val e).symm
+      · rw [eKB] at e; exact out_ne_field oT hw ht' (by omega) (congrArg UScalar.val e).symm
+      · exact out_ne_node oT (by rw [c1]; exact hcC) hN1 (by rw [act_val]; omega) (congrArg UScalar.val e).symm
+      · by_cases h0 : L.mem X1 (scA w) = 0#u64
+        · rw [sc1] at h0
+          have := hsb h0
+          subst this
+          have i1 := hr'.1; have i2 := hr'.2
+          simp only [pow_zero] at i2
+          omega
+        · rw [sc1] at h0 hr'
+          exact nΩ (hscΩ h0 _ aT hr'.inSC)
+      · exact out_ne_node oT (by rw [c1]; exact hcC) hN1 (by simp [layout.node.REPROGRAM]) (congrArg UScalar.val e).symm
+    unfold LawfulStore.epState at eS1 ⊢
+    rw [eT]; exact eS1
   rcases hb with hb | hb | hb | hb
   · exact Or.inl hb
   · refine Or.inr (Or.inl ?_)

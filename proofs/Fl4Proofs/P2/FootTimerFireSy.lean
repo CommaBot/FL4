@@ -12,6 +12,8 @@
   P1's `SCsOK` at `Y` (`TInv`), and the switch block (`SWN`) writes none of them.
 * `fire_tail_wk2`: `fire_tail_wk` with `hSwT` discharged by `aw_tail_sw`.
 
+* (lvm gen 10) `aw_tail_sw_core` (`hy0`, `VcG`: a new current thread running a VM is the entry's, re-queued and
+  chosen again), `fire_tail_wk2_core` (by `fire_wk_aw_core`, `hVc` at every post-`awaken` state with `AwFacts`/`WkV`).
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireSy2
@@ -40,8 +42,10 @@ theorem scacc_of {s : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s) {p : U64} (hp : p 
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 64000000 in
-/-- **The waking tail when the action is the woken thread** (module docstring). -/
-theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+/-- **The waking tail when the action is the woken thread, without `current_ok`** (`aw_tail_sw_core`, lvm gen 10):
+`aw_tail_sw` with `eok` replaced by the yield fact it used (`hy0`) and the final `vcpu::check` of the entry's current
+thread, when it runs a VM and stays (or becomes again) current, by `VcG`. -/
+theorem aw_tail_sw_core {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
     (hA : P0.ArchTotal ar) {s Y : S} {aY : A} {now w : U64} {Lk : U64 → Prop}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hok : IrqOk st s) (hAs : AsidOff (L := L) Ω Sg s)
     (gRd : ∀ w, Aligned w → FireRd st T Z s w → R w)
@@ -60,9 +64,9 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     (hSlot : ∀ y, LocT st T s y → R (vtA y) ∧ R (core.num.U64.wrapping_add (vtA y) 8#u64))
     (hKr : R (krA (L := L) s)) (hTab : PathObl.RdTab (L := L) R s)
     (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
-    (eok : localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) = ok true)
+    (hy0 : L.mem s (yieldA (L.curW s)) = 0#u64)
     (hF : AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w)
-    (hact : L.actionW Y = w) :
+    (hact : L.actionW Y = w) (hvc : VcG st gS ar T Cs Scs Z s Y) :
     AwTailG st gS ar Y aY := by
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
@@ -71,9 +75,6 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
   have hcT : L.curW s ∈ T := h0.curT
   have ht' := hT _ hcT
   obtain ⟨haff, hsct, hcore⟩ := hok
-  obtain ⟨hmr, -, -⟩ := current_ok_true eok
-  obtain ⟨-, -, hnvm, -⟩ := may_run_here_true hmr
-  have hy0 : L.mem s (yieldA (L.curW s)) = 0#u64 := mrh_yield hmr
   have hXI := hI.2.2.1
   have hS := hI.2.2.2.2
   have hO := hXI.1
@@ -210,7 +211,8 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     · rw [hcurY, scaY _ hcT, hsct]; exact rMc
   -- the tail after the switch block, for its new current thread `d`
   have key : ∀ X a' d, WritesIn st Y X (SWN st T Y) → L.curW X = d → d ∈ T → L.mem s (affA d) = L.cpu s →
-      L.mem Y (yieldA d) = 0#u64 → L.mem Y (stA d) ≠ sched.TS_RUNNING_VM → L.mem s (scA d) ≠ 0#u64 →
+      L.mem Y (yieldA d) = 0#u64 → (L.mem Y (stA d) = sched.TS_RUNNING_VM → d = L.curW s) →
+      L.mem s (scA d) ≠ 0#u64 →
       (L.mem s (scA d) = L.cscW s ∨ L.rmax Y (L.mem s (scA d)) ≠ 0#u64) → SwTail st gS ar X a' := by
     intro X a' d hW hcur hd d2 d3 d4 d5 d6
     have hd' := hT d hd
@@ -247,7 +249,7 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       ⟨hT, hd, by rw [hW.2.1]; exact hNY.ksb hW.1, by rw [hW.2.1]; exact hcCY,
         fun b hb => (hq.omega b hb).ksb hW.1⟩
     have cX : L.cpu X = L.cpu s := hW.2.1.trans cY
-    refine sw_tail (gS := gS) ar hA X a' P hcur (zc := Z (L.cscW s)) (zt := Z (L.mem s (scA d))) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+    refine sw_tail_core (gS := gS) ar hA X a' P hcur (zc := Z (L.cscW s)) (zt := Z (L.mem s (scA d))) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
       ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
     · rw [hcsX]
       exact SCq.agree' hcq (fun b hb hin => (kXsc _ hcs b hb hin).trans (scY _ hcs hcw b hb hin))
@@ -296,7 +298,6 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       have hc' := coreS d hd d2 d5
       exact scacc_of hO hpS (fun b hb hin => rS _ hpS hc' b hb hin) (fun b hb hin h16 => wS _ hpS hc' b hb hin h16)
     · unfold yieldA; rw [kXt d hd _ (by simp) (by simp) (by simp) (by simp) (by simp)]; exact d3
-    · rw [stA_eq, kXt d hd _ (by simp) (by simp) (by simp) (by simp) (by simp), ← stA_eq]; exact d4
     · unfold affA; rw [kXt d hd _ (by simp) (by simp) (by simp) (by simp) (by simp)]
       change L.mem Y (affA d) = _
       rw [affY d hd, d2, cX]
@@ -319,6 +320,37 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     · intro X' h1 h2
       exact hSW X' d sched.TS_RUNNING hl (by rw [h2, cX]) (fun hq' => absurd hq' (by
         rw [h1]; unfold QueuedState; simp [sched.TS_RESTART])) (by unfold QueuedState; simp [sched.TS_RUNNING])
+    · -- lvm gen 10: `d` runs a VM, so it is the entry's current thread (`d4`), and `VcG` applies
+      intro hvm s4 a4 w4 hc4 s5 a5 eac
+      have hvmY : L.mem Y (stA d) = sched.TS_RUNNING_VM := by
+        rw [stA_eq, ← kXt d hd _ (by simp) (by simp) (by simp) (by simp) (by simp), ← stA_eq]; exact hvm
+      obtain rfl := d4 hvmY
+      have tK : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3480 → K.val ≠ 3488 → K.val ≠ 3592 →
+          L.mem s4 (core.num.U64.wrapping_add (L.curW s) K) = L.mem Y (core.num.U64.wrapping_add (L.curW s) K) := by
+        intro K hK h8 h1 h2 h3
+        rw [← kXt _ hcT K hK h8 h1 h2 h3]
+        refine w4.mem_eq (field_aligned hd' hK h8) ?_
+        rintro (⟨o, ho', e⟩ | hin | ⟨-, hin⟩)
+        · exact node_ne_field hNY ho' hcT hd' hK (by rw [← eXN]; exact e.symm)
+        · rw [hcsX] at hin
+          exact out_ne_field (h0.omega _ (hcq.2.1 _ (field_aligned hd' hK h8) hin)) hcT hd' hK rfl
+        · rw [pX, hsct] at hin
+          exact out_ne_field (h0.omega _ (hcq.2.1 _ (field_aligned hd' hK h8) hin)) hcT hd' hK rfl
+      have hst4 : L.mem s4 (stA (L.curW s)) = sched.TS_RUNNING_VM := by
+        rw [stA_eq, tK _ (by simp) (by simp) (by simp) (by simp) (by simp), ← stA_eq]; exact hvmY
+      have hy4 : L.mem s4 (yieldA (L.curW s)) = 0#u64 := by
+        unfold yieldA; rw [tK _ (by simp) (by simp) (by simp) (by simp) (by simp)]; exact d3
+      have eac' := activate_nr ar s4 a4 (by rw [hc4]; exact hy4)
+        (by rw [hc4, hst4]; simp [sched.TS_RUNNING_VM, sched.TS_RESTART])
+      rw [eac'] at eac
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj (ok_inj_ff eac)
+      refine hvc (by rw [← stY _ hcT (fun e => wcur e.symm)]; exact hvmY) s4 a4 hc4 (fun b hv => ?_) tK
+      rw [w4.mem_eq hv.1.1 ?_]
+      · exact hW.mem_eq hv.1.1 (swn_out hT hNY hcCY (hv.1.ksb kY))
+      rintro (⟨o, ho', e⟩ | hin | ⟨-, hin⟩)
+      · exact out_ne_node hv.1 hcC hN ho' (by rw [e, eXN, eYN])
+      · rw [hcsX] at hin; exact hv.2 _ hcs hin
+      · rw [pX, hsct] at hin; exact hv.2 _ hcs hin
   refine aw_of_sw (gS := gS) ar Y aY (by rw [eYN]; exact nR _ (by rw [act_val]; omega) (by rw [act_val]))
     (by rw [hact, resume_val]; exact fun e => hwT'.ne0 (by rw [e]; rfl)) hsw ?_
   intro X a' e
@@ -329,14 +361,14 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     rw [hcurY] at hc
     refine key X a' _ hW hc hcT haff ?_ ?_ hsc0 (Or.inl hsct)
     · rw [yldY _ hcT]; exact hy0
-    · rw [stY _ hcT (fun e => wcur e.symm)]; exact hnvm
+    · exact fun _ => rfl
   · -- the woken thread
     have hwY0 : L.mem Y (scA w) ≠ 0#u64 := by
       have := hBd.act (by rw [hact]; exact hwT); rwa [hact] at this
     have hAcw : L.mem Y (scA w) ∈ Ac := hBd.sact w hwT (Or.inr (Or.inr (Or.inl hact))) hwY0
     have hwS : L.mem Y (scA w) ∈ Scs := (hXY.2.2.bound w hwT hwY0).1
     refine key X a' w hW hc hwT waff (by rw [yldY _ hwT]; exact hyw)
-      (by rw [hstw]; simp [sched.TS_RUNNING, sched.TS_RUNNING_VM])
+      (fun h => absurd (hstw.symm.trans h) (by simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]))
       (by rw [← scaY _ hwT]; exact hwY0) (Or.inr ?_)
     rw [← scaY _ hwT]; exact (hSY.act _ hwS).1 hAcw
   · -- the old head of the highest ready queue
@@ -350,9 +382,39 @@ theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     have hdY0 : L.mem Y (scA d) ≠ 0#u64 := hBd.q d hd hqd
     have hAcd : L.mem Y (scA d) ∈ Ac := hBd.sact d hd (Or.inl hqd) hdY0
     have hdS : L.mem Y (scA d) ∈ Scs := (hXY.2.2.bound d hd hdY0).1
-    refine key X a' d hW hc hd t3 (by rw [yldY _ hd]; exact t1) (by rw [stY _ hd hdw]; exact t2)
+    refine key X a' d hW hc hd t3 (by rw [yldY _ hd]; exact t1)
+      (fun h => absurd (by rw [← stY _ hd hdw]; exact h) t2)
       (by rw [← scaY _ hd]; exact hdY0) (Or.inr ?_)
     rw [← scaY _ hd]; exact (hSY.act _ hdS).1 hAcd
+
+/-- **The waking tail when the action is the woken thread** (module docstring). -/
+theorem aw_tail_sw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s Y : S} {aY : A} {now w : U64} {Lk : U64 → Prop}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hok : IrqOk st s) (hAs : AsidOff (L := L) Ω Sg s)
+    (gRd : ∀ w, Aligned w → FireRd st T Z s w → R w)
+    (gWr : ∀ w, Aligned w → FireWr st T Z s w → w ≠ stA (L.curW s) → W w)
+    (hD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hAffSc : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
+    (rL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ TimerField K.val →
+      ¬ GField K.val → R (core.num.U64.wrapping_add y K))
+    (wL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ GateField K.val →
+      ¬ TimerField K.val → ¬ GField K.val → K.val ≠ 3328 → K.val ≠ 3336 →
+      W (core.num.U64.wrapping_add y K))
+    (rS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → R b)
+    (wS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → b.val ≠ p.val + 16 → W b)
+    (rCD : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hSW : StW st gS T Lk s)
+    (hSlot : ∀ y, LocT st T s y → R (vtA y) ∧ R (core.num.U64.wrapping_add (vtA y) 8#u64))
+    (hKr : R (krA (L := L) s)) (hTab : PathObl.RdTab (L := L) R s)
+    (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
+    (eok : localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) = ok true)
+    (hF : AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w)
+    (hact : L.actionW Y = w) :
+    AwTailG st gS ar Y aY := by
+  obtain ⟨hmr, -, -⟩ := current_ok_true eok
+  obtain ⟨-, -, hnvm, -⟩ := may_run_here_true hmr
+  exact aw_tail_sw_core ar hA hI hok hAs gRd gWr hD2 hAffSc rL wL rS wS rCD hSW hSlot hKr hTab eq (mrh_yield hmr) hF
+    hact (fun h => absurd h hnvm)
 
 set_option maxHeartbeats 4000000 in
 /-- **The waking fire tail**, its action-`w` tail by `aw_tail_sw` (module docstring). -/
@@ -414,6 +476,73 @@ theorem fire_tail_wk2 {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr 
         (fun hact => aw_tail_sw ar hA hI hok hAs gRd gWr hD2 hAffSc rL wL rS wS rCD hSW hSlot hKr hTab eq eok
           hF hact))
 
+
+set_option maxHeartbeats 4000000 in
+/-- **The waking fire tail without `current_ok`** (`fire_tail_wk2_core`, lvm gen 10): `fire_tail_wk2` with `eok`
+replaced by the yield fact (`hy0`), the current thread's `STATE` write asked only when it is in `RESTART` at `s`,
+and the final `vcpu::check` of a current thread running a VM by `VcG` at every post-`awaken` state with `AwFacts`
+and `WkV` (`hVc`); by `fire_wk_aw_core`, `aw_resume_core`, `aw_tail_sw_core`. -/
+theorem fire_tail_wk2_core {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 : S} {a a1 a2 a3 : A} {mx irq now i2 : U64} {x : Bool}
+    {tip p : localtimer.TimerIrqPlan}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hok : IrqOk st s)
+    (gRd : ∀ w, Aligned w → FireRd st T Z s w → R w)
+    (gWr : ∀ w, Aligned w → FireWr st T Z s w → w ≠ stA (L.curW s) → W w)
+    (hD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hwS : L.mem s (stA (L.curW s)) = sched.TS_RESTART → ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART →
+      L.mem X (affA (L.curW s)) = L.cpu s →
+      gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
+    (hwH : ∀ X y v, y ∈ T → FootLtArmed st s (L.cpu s) y →
+      (L.mem X (tdA y) ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val ∧ v.val >>> 8 = (L.cpu s).val) →
+      gS.write X (thA y) v = st.write X (thA y) v)
+    (hwD : ∀ X y v, y ∈ T → FootLtArmed st s (L.cpu s) y → L.mem X (affA y) = L.cpu s →
+      L.mem s (affA y) = L.cpu s →
+      (L.mem X (tdA y) ≠ 0#u64 ∨ v ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val) →
+      gS.write X (tdA y) v = st.write X (tdA y) v)
+    (hWk : ¬ NoWake st s) {Lk : U64 → Prop} {U : Set U64}
+    (hAffSc : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
+    (rL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ TimerField K.val →
+      ¬ GField K.val → R (core.num.U64.wrapping_add y K))
+    (wL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ GateField K.val →
+      ¬ TimerField K.val → ¬ GField K.val → K.val ≠ 3328 → K.val ≠ 3336 →
+      W (core.num.U64.wrapping_add y K))
+    (rS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → R b)
+    (wS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → b.val ≠ p.val + 16 → W b)
+    (lkL : ∀ y ∈ T, QueuedState (L.mem s (stA y)) → Lk (L.mem s (blockA y)) → ∀ k : U64,
+      (k.val = 3496 ∨ k.val = 3504) → R (core.num.U64.wrapping_add y k) ∧ W (core.num.U64.wrapping_add y k))
+    (rCD : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hSW : StW st gS T Lk s)
+    (hLkN : Lk p.ntfn) (hLkE : p.ep ≠ 0#u64 → Lk p.ep)
+    (wNt : ∀ k : U64, k.val < 64 → k.val % 8 = 0 → k.val ≠ 24 → W (core.num.U64.wrapping_add p.ntfn k))
+    (rwE : p.ep ≠ 0#u64 → ∀ k : U64, k.val < 16 → k.val % 8 = 0 →
+      R (core.num.U64.wrapping_add p.ep k) ∧ W (core.num.U64.wrapping_add p.ep k))
+    (wRt : p.reply ≠ 0#u64 → W (rTcbA p.reply))
+    (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
+    (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
+    (hy0 : L.mem s (yieldA (L.curW s)) = 0#u64)
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
+    (erel : localtimer.release_due st s1 (L.cpu s) = ok false) (ei2 : sched.consumed st s1 = ok i2)
+    (eb4 : sporadic.sufficient st ar s1 a1 (L.cscW s) i2 = ok true)
+    (edue : localtimer.timer_due st s1 (L.cpu s) now = ok true)
+    (efo : localtimer.fire_ok st s1 (L.cpu s) (L.curW s) p now = ok true)
+    (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
+    (emx : layout.irq.MAX = ok mx) (hle : ¬ irq > mx)
+    (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
+    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
+    (hBA : BufAt st T Cs H Sg Scs Z U s3)
+    (hAs : AsidOff (L := L) Ω Sg s)
+    (hSlot : ∀ y, LocT st T s y → R (vtA y) ∧ R (core.num.U64.wrapping_add (vtA y) 8#u64))
+    (hKr : R (krA (L := L) s)) (hTab : PathObl.RdTab (L := L) R s)
+    (hVc : ∀ Y now w, AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w →
+      WkV st T Cs Ω H s Y (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) →
+      VcG st gS ar T Cs Scs Z s Y) :
+    FireTailG st gS ar s3 a3 :=
+  fire_wk_aw_core ar hA hI hNt hok gRd gWr hD2 hwH hwD hWk hAffSc rL wL rS wS lkL rCD hSW hLkN hLkE wNt rwE wRt
+    etip eb eq eu enow erel ei2 eb4 edue efo ecb emx hle ei1 ehi hBA (fun Y aY w haw hF hV =>
+      hF.2.2.2.2.2.2.2.2.2.2.2.2.2.1.elim
+        (fun hact => aw_resume_core ar hA hI hok gRd gWr hD2 hwS eq hy0 hF hact (hVc Y _ w hF hV))
+        (fun hact => aw_tail_sw_core ar hA hI hok hAs gRd gWr hD2 hAffSc rL wL rS wS rCD hSW hSlot hKr hTab eq hy0
+          hF hact (hVc Y _ w hF hV)))
 
 end main
 

@@ -11,6 +11,8 @@ stopping second iteration (`fire_stop_sig`, from `BufAt`).
 * `fire_wk_step`: `fire gS = fire st`, `fire st = ok (Y, aY)` with `TInv Y`, `FireStop` at `Y`, `ksb` / `cpu`
   kept, the action at `Y` `RESUME_CURRENT` or the woken thread `w`, and `FwKeep X Y w`.
 
+* (lvm gen 10) `fire_wk_step` also returns `WkV` from its start to its end (`remove` / `REPROGRAM` write only timer
+  and node words).
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireWa
@@ -98,7 +100,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac Y ∧ FireStop st R Y now ∧ L.ksb Y = L.ksb s ∧ L.cpu Y = L.cpu s ∧
       ∃ w ∈ T, (L.actionW Y = sched.ACTION_RESUME_CURRENT ∨ L.actionW Y = w) ∧ FwKeep st T Ω Sg Scs Z X Y w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
-        L.mem Y (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
+        L.mem Y (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 ∧ WkV st T Cs Ω H X Y N := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, -, hXX, -, -⟩ := hTX
   have hN := hq.nodes _ hq.cur
@@ -128,7 +130,7 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     hac1 (hwk X1 w31) rN wN rL wL rS wS lkL hLk nRW rCD hSW
   obtain ⟨⟨X2, a2⟩, eX2, -⟩ := spec_ex_fd
     (notification.send_signal.tagree hA X1 a N (L.mem X (tbA TM)) hT1 hNN (hNt N hNN) BA1.1 BA1.2)
-  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp, wbl, waf, wcur, wrun, wyl⟩ := ssig X2 a2 eX2
+  obtain ⟨T2, -, k2, c2, w, hwT, act2, kp, wbl, waf, wcur, wrun, wyl, kv⟩ := ssig X2 a2 eX2
   have hsg : (if L.mem X1 (boundA TM) != 0#u64 then
       notification.send_signal st ar X1 a (L.mem X1 (boundA TM)) (L.mem X (tbA TM)) else ok (X1, a)) =
       ok (X2, a2) := by
@@ -214,8 +216,27 @@ theorem fire_wk_step {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s 
     rw [stA_eq, mem_wr_ne' aRP (field_aligned (hT w hwT) (by simp) (by simp))
       (node_ne_field hN2 (by simp [layout.node.REPROGRAM]) hwT (hT w hwT) (by simp)), ← stA_eq]
     exact wrun
+  -- lvm gen 10: the words outside the objects and `Ω`, and `N`'s state
+  have eRP' : L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM = L.nodeAt X (L.cpu X) layout.node.REPROGRAM := by
+    rw [e2N, eXN]
+  have kX2 : L.ksb X2 = L.ksb X := k2.trans (kX1.trans kX.symm)
+  have kV : WkV st T Cs Ω H X (L.wr X2 (L.nodeAt X2 (L.cpu X2) layout.node.REPROGRAM) 1#u64) N := by
+    refine ⟨fun b hb ho hΩ h1 h2 h3 => ?_, fun hw => ?_⟩
+    · rw [mem_wr_ne' aRP hb (fun e => out_ne_node (o := layout.node.REPROGRAM) ho hq.cur hN
+          (by simp [layout.node.REPROGRAM]) (by rw [← eRP', e])),
+        kv.1 b hb (ho.ksb (kX1.trans kX.symm)) hΩ h1 h2 h3]
+      exact w31.mem_eq hb (out_not_tw hT hq.nodes ho)
+    · have oT : OutsideObjs st T Cs X (epTSA N) := ntfn_ts_out hq (hNt N hNN)
+      have e1 : L.epState X1 N = L.epState X N := by
+        unfold LawfulStore.epState
+        rw [w31.mem_eq oT.1 (out_not_tw hT hq.nodes oT)]
+      have hna := kv.2 (by rw [e1]; exact hw)
+      unfold LawfulStore.epState at hna ⊢
+      rw [mem_wr_ne' aRP oT.1 (fun e => out_ne_node (o := layout.node.REPROGRAM) oT hq.cur hN
+          (by simp [layout.node.REPROGRAM]) (by rw [← eRP', e]))]
+      exact hna
   refine ⟨_, a2, hfire, gfire, reprogram.tinv T2, hst, ?_, ?_, w, hwT, by rw [eA]; exact act2, kY, wfacts.1,
-    wfacts.2.1, wfacts.2.2, rY, ?_⟩
+    wfacts.2.1, wfacts.2.2, rY, ?_, kV⟩
   · rw [L.ksb_wr]; exact k2.trans kX1
   · rw [LawfulStore.cpu_wr]; exact c2.trans cX1
   · rw [← wyl]; exact (tk1 w hwT 3472#u64 (by simp) (by simp) (Or.inl (by simp))).symm

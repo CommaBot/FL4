@@ -1,4 +1,5 @@
-import Fl4Proofs.P2.InvDec
+import Fl4Proofs.P2.InvAcc
+#print axioms Fl4Proofs.P2.PathObl.invRep
 #print axioms Fl4Proofs.P2.PathObl.invTail_dec_m
 #print axioms Fl4Proofs.P2.PathObl.handle_inv_dec_m
 #print axioms Fl4Proofs.P2.PathObl.invTail_inv
@@ -13,3 +14,9 @@ import Fl4Proofs.P2.InvDec
 #print axioms Fl4Proofs.P2.PathObl.invRaW_of
 #print axioms Fl4Proofs.P2.PathObl.inv_pathsKD
 #print axioms Fl4Proofs.P2.PathObl.inv_pathsKD_startAt
+#print axioms Fl4Proofs.P2.PathObl.invTail.guard
+#print axioms Fl4Proofs.P2.PathObl.syscall.handle_invocation_local.guard_acc
+#print axioms Fl4Proofs.P2.PathObl.inv_acc_gen
+#print axioms Fl4Proofs.P2.PathObl.invAccW_of
+#print axioms Fl4Proofs.P2.PathObl.invMoveW_of
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKA

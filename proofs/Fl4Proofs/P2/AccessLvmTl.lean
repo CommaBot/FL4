@@ -17,14 +17,14 @@ Assembled as `vexit_localPath` (`P2/AccessLvmLP.lean`, itself p2lt's `irq_localP
 Premises of `vtimer_localPath`:
 * `hp` [P] `IsProg`, `hz` [W] `NoZero`, `hm` [P] `MasksWr`, `hro` [W] `ReadOnce` (as every `LocalPath`);
 * `hK` [J] `RegionOKV`, `hU` [J] `UserOKV`; `VtmEnt`'s fields (`P2/AccessLvmTo.lean`); `hEU` [J] (`VtmEnt` survives
-  a user write), `hlk` [P] (so do the glue's locks);
+  a user write), `hlk` [P] (so do the glue's locks, for an aligned user word: gen 10 added `Aligned b`);
 * **`hF` / `hFm` [W]: the fire case** (a due timer whose `fire_ok` holds: the timer interrupt's fire walk,
   p2lf's `FootTimerFire*`, with the VM head and the two `vcpu::check`s; as the old `irq_localPath`'s `hF` / `hFm`);
-* **`hD` [W]: a declined run is the same run on `guard st VexitRS IrqDec`** (the decline walk: the VM head as
-  `vexit_decG`, the timer checks as `irq_dec_guard`, whose declined `fire_ok` read set `fire_rd` is stated for
-  `own`'s `MaxR` and has to be redone for `VexitRS`).
+* `hNt` (P1's notifications typed in its heap `H`; `fun _ h => h` at `Nt = H.ntfns`): declines are discharged
+  (gen 9) by `vtimer_dec_own` (`P2/AccessLvmTd.lean`), `vtimer_pathObl` / `vtimer_pathSide` keep `hD` as a
+  parameter.
 -/
-import Fl4Proofs.P2.AccessLvmTo
+import Fl4Proofs.P2.AccessLvmTd
 import Fl4Proofs.P2.AccessLvmLP
 open Aeneas Aeneas.Std Result
 
@@ -186,13 +186,13 @@ theorem vtimer_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV 
         ok (false, s1, a1))
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s) :
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s) :
     PathObl.PathSide st (fun mm s a => localvm.handle_vm_timer_irq_local mm ar s a irq pl n) (OwnMap.cls K.toKLayout)
       (OwnMap.ko K.toKLayout m) (· ∈ K.user) lk (VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n)
       (VexitRS K st lk) (VexitWS K st lk) (IrqDec st) := by
   refine ⟨?_, fun s x _ hx => hx.1, OwnMap.ko_aligned hK.base hU.base m, fun s b v' hE hb hba =>
-    ⟨hEU s b v' hE hb hba, hlk s b v' hb, vexitRS_wr_user hK hU hb hba (hlk s b v' hb),
-      vexitWS_wr_user hK hU hb hba (hlk s b v' hb), irq_dec_user s b v'⟩⟩
+    ⟨hEU s b v' hE hb hba, hlk s b v' hb hba, vexitRS_wr_user hK hU hb hba (hlk s b v' hb hba),
+      vexitWS_wr_user hK hU hb hba (hlk s b v' hb hba), irq_dec_user s b v'⟩⟩
   intro s s' a r hE hAlt h
   have eP : ∀ (mm : machine.Store S) (x : S),
       localvm.handle_vm_timer_irq_local mm ar x a irq pl n = interp mm ar p x a :=
@@ -208,14 +208,14 @@ theorem vtimer_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV 
     exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) p hz s' a r h2
 
 /-- **`local_vm_timer_irq` is a local path under `ownV`** (module docstring); the fire case is the premise
-`hF` / `hFm` [W], the declines `hD` [W]. -/
+`hF` / `hFm` [W]; declines by `vtimer_dec_own` (gen 9). -/
 noncomputable def vtimer_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hp : IsProg (vtimerBody S irq pl n) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hro : E2E.ReadOnce st ar p (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user)
       (VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n) (VexitRS K st lk))
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s)
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s)
     (hF : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a irq pl n =
@@ -225,10 +225,7 @@ noncomputable def vtimer_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU
       localvm.handle_vm_timer_irq_local (mguard st
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
           (lk s) (L.mem x) (L.mem y))) ar s a irq pl n = ok (true, s1, a1))
-    (hD : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s →
-      localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (false, s1, a1) →
-      localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (IrqDec st s)) ar s a irq pl n =
-        ok (false, s1, a1)) :
+    (hNt : ∀ q ∈ Nt, H q = some .ntfn) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) where
   S := S
   A := A
@@ -245,8 +242,8 @@ noncomputable def vtimer_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU
   WS := VexitWS K st lk
   DS := IrqDec st
   isProg := PathObl.IsProg.on hp _ _ _
-  obl := vtimer_pathObl ar hA hK hU hp hz hm hF hFm hD
-  side := vtimer_pathSide ar hA hK hU hp hz hm hF hD hEU hlk
+  obl := vtimer_pathObl ar hA hK hU hp hz hm hF hFm (fun _ _ _ _ hE h => vtimer_dec_own ar hA hK hNt hE h)
+  side := vtimer_pathSide ar hA hK hU hp hz hm hF (fun _ _ _ _ hE h => vtimer_dec_own ar hA hK hNt hE h) hEU hlk
   once := hro
   total := fun s a => by
     obtain ⟨r, e, -⟩ := spec_ex_fd (P0.localvm.handle_vm_timer_irq_local.p0 st ar s a irq pl n LawfulStore.total hA)

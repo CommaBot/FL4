@@ -16,6 +16,8 @@
   (`AwTailG`) is asked for every `Y` with `AwFacts` (`hTail`). Premise `hBA` (`BufAt` at the state after
   `handle_interrupt`) is still the caller's.
 
+* (lvm gen 10) `fire_wk_aw_core`: `fire_wk_aw` without `eok` / `hwS` (unused), its tail also given `WkV` from `s`;
+  `fire_wk_aw` keeps its statement.
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireWe
@@ -344,16 +346,17 @@ variable {A : Type} (ar : machine.Arch A)
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 64000000 in
-/-- **The waking fire case up to `awaken`** (module docstring). -/
-theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+/-- **The waking fire case up to `awaken`, without `current_ok`** (`fire_wk_aw_core`, lvm gen 10): `fire_wk_aw`
+without `eok` (it used none of its facts) and `hwS`, its tail asked with also `WkV` from the entry state `s` to the
+post-`awaken` state (the words outside the objects and `Ω` but the due notification's and the endpoints' queue
+words kept; a `WAITING` due notification not left `ACTIVE`). -/
+theorem fire_wk_aw_core {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
     (hA : P0.ArchTotal ar) {s s1 s2 s3 : S} {a a1 a2 a3 : A} {mx irq now i2 : U64} {x : Bool}
     {tip p : localtimer.TimerIrqPlan}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hok : IrqOk st s)
     (gRd : ∀ w, Aligned w → FireRd st T Z s w → R w)
     (gWr : ∀ w, Aligned w → FireWr st T Z s w → w ≠ stA (L.curW s) → W w)
     (hD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
-    (hwS : ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART → L.mem X (affA (L.curW s)) = L.cpu s →
-      gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
     (hwH : ∀ X y v, y ∈ T → FootLtArmed st s (L.cpu s) y →
       (L.mem X (tdA y) ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val ∧ v.val >>> 8 = (L.cpu s).val) →
       gS.write X (thA y) v = st.write X (thA y) v)
@@ -381,7 +384,6 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     (wRt : p.reply ≠ 0#u64 → W (rTcbA p.reply))
     (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
     (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
-    (eok : localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) = ok true)
     (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
     (erel : localtimer.release_due st s1 (L.cpu s) = ok false) (ei2 : sched.consumed st s1 = ok i2)
     (eb4 : sporadic.sufficient st ar s1 a1 (L.cscW s) i2 = ok true)
@@ -393,7 +395,9 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
     (hBA : BufAt st T Cs H Sg Scs Z U s3)
     (hTail : ∀ Y aY w, sched.awaken st ar s3 a3 = ok (Y, aY) →
-      AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w → AwTailG st gS ar Y aY) :
+      AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w →
+      WkV st T Cs Ω H s Y (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) →
+      AwTailG st gS ar Y aY) :
     FireTailG st gS ar s3 a3 := by
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
@@ -403,9 +407,6 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
   have hcT : L.curW s ∈ T := h0.curT
   have ht' := hT _ hcT
   obtain ⟨haff, hsct, hcore⟩ := hok
-  obtain ⟨hmr, -, -⟩ := current_ok_true eok
-  obtain ⟨-, -, hnvm, -⟩ := may_run_here_true hmr
-  have hy0 : L.mem s (yieldA (L.curW s)) = 0#u64 := mrh_yield hmr
   have hX := hI.2.2.1
   have hS := hI.2.2.2.2
   have hSg := hI.2.2.2.1
@@ -798,7 +799,7 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
       (by rw [act_val]; omega) (by rw [act_val]; omega)]
     exact hact0
   have eN3 : L.mem s3 (boundA TM) = N := by rw [← eN]; exact htcb3 hTMs.1 (K := 3368#u64) (by simp) (by simp)
-  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur, wrun, wyl⟩ :=
+  obtain ⟨Y, aY, hfire, gfire, TY, hstY, kY, cY, w, hwT, actY, fk, wbl, waf, wcur, wrun, wyl, kV⟩ :=
     fire_wk_step ar hA (s := s) a3 (t := TM) (Lk := Lk) (U := U) (s1 := s1) (cpu := L.cpu s) (ct := L.curW s)
       (p := p) hT3 hBA hNt hAffSc k3 c3 (fun y hy K hK h8 _ => htcb3 hy hK h8) tm3 hne hTMs.1 haffTM ct3
       (by rw [d3]; exact not_lt.mpr hdue1) eN3 hN0 hac3 hwk hpTM
@@ -915,9 +916,68 @@ theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS 
     · exact (htcb1 hdT (K := 3472#u64) (by simp) (by simp)).symm.trans hyl
     · rw [stA_eq, ← htcb1 hdT (K := 3328#u64) (by simp) (by simp), ← stA_eq]; exact hvm
     · exact (htcb1 hdT (K := 3520#u64) (by simp) (by simp)).symm.trans (haf.trans c1)
+  have aV : WkV st T Cs Ω H s Y (L.mem s (boundA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)))) := by
+    rw [eTM, eN]
+    refine ⟨fun b hb ho hΩ h1 h2 h3 => (kV.1 b hb (ho.ksb k3) hΩ h1 h2 h3).trans (hout3 b ho), fun hw => ?_⟩
+    have e3 : L.epState s3 N = L.epState s N := by unfold LawfulStore.epState; rw [hout3 _ (oT hN0)]
+    exact kV.2 (by rw [e3]; exact hw)
   exact fire_tail_of_aw ar hawg haw (hTail Y aY w haw ⟨TY, kY, cY, nY, tY, scY, relY, hstY, ctY, hwT, wbl', waf',
     wcur', actY, wrun, by rw [← wyl]; exact (htcb3 hwT (K := 3472#u64) (by simp) (by simp)).symm, htopY,
-    fun b hb hΩ hSg => (fk.2.2.2 b hb hΩ hSg).trans (hout3 b (h0.omega b hΩ))⟩)
+    fun b hb hΩ hSg => (fk.2.2.2 b hb hΩ hSg).trans (hout3 b (h0.omega b hΩ))⟩ aV)
+
+/-- **The waking fire case up to `awaken`** (module docstring). -/
+theorem fire_wk_aw {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 : S} {a a1 a2 a3 : A} {mx irq now i2 : U64} {x : Bool}
+    {tip p : localtimer.TimerIrqPlan}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hNt : ∀ n ∈ Nt, H n = some .ntfn) (hok : IrqOk st s)
+    (gRd : ∀ w, Aligned w → FireRd st T Z s w → R w)
+    (gWr : ∀ w, Aligned w → FireWr st T Z s w → w ≠ stA (L.curW s) → W w)
+    (hD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hwS : ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART → L.mem X (affA (L.curW s)) = L.cpu s →
+      gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
+    (hwH : ∀ X y v, y ∈ T → FootLtArmed st s (L.cpu s) y →
+      (L.mem X (tdA y) ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val ∧ v.val >>> 8 = (L.cpu s).val) →
+      gS.write X (thA y) v = st.write X (thA y) v)
+    (hwD : ∀ X y v, y ∈ T → FootLtArmed st s (L.cpu s) y → L.mem X (affA y) = L.cpu s →
+      L.mem s (affA y) = L.cpu s →
+      (L.mem X (tdA y) ≠ 0#u64 ∨ v ≠ 0#u64 → (L.mem X (thA y)).val >>> 8 = (L.cpu s).val) →
+      gS.write X (tdA y) v = st.write X (tdA y) v)
+    (hWk : ¬ NoWake st s) {Lk : U64 → Prop} {U : Set U64}
+    (hAffSc : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 → L.mem s (scCoreA (L.mem s (scA t))) = L.mem s (affA t))
+    (rL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ TimerField K.val →
+      ¬ GField K.val → R (core.num.U64.wrapping_add y K))
+    (wL : ∀ y, LocT st T s y → ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → ¬ GateField K.val →
+      ¬ TimerField K.val → ¬ GField K.val → K.val ≠ 3328 → K.val ≠ 3336 →
+      W (core.num.U64.wrapping_add y K))
+    (rS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → R b)
+    (wS : ∀ p ∈ Scs, L.mem s (scCoreA p) = L.cpu s → ∀ b, Aligned b → InSC p (Z p) b → b.val ≠ p.val + 16 → W b)
+    (lkL : ∀ y ∈ T, QueuedState (L.mem s (stA y)) → Lk (L.mem s (blockA y)) → ∀ k : U64,
+      (k.val = 3496 ∨ k.val = 3504) → R (core.num.U64.wrapping_add y k) ∧ W (core.num.U64.wrapping_add y k))
+    (rCD : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hSW : StW st gS T Lk s)
+    (hLkN : Lk p.ntfn) (hLkE : p.ep ≠ 0#u64 → Lk p.ep)
+    (wNt : ∀ k : U64, k.val < 64 → k.val % 8 = 0 → k.val ≠ 24 → W (core.num.U64.wrapping_add p.ntfn k))
+    (rwE : p.ep ≠ 0#u64 → ∀ k : U64, k.val < 16 → k.val % 8 = 0 →
+      R (core.num.U64.wrapping_add p.ep k) ∧ W (core.num.U64.wrapping_add p.ep k))
+    (wRt : p.reply ≠ 0#u64 → W (rTcbA p.reply))
+    (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
+    (eq : localtimer.sched_quiet st s (L.cpu s) = ok true)
+    (eok : localtimer.current_ok st s (L.cpu s) (L.curW s) (L.cscW s) = ok true)
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
+    (erel : localtimer.release_due st s1 (L.cpu s) = ok false) (ei2 : sched.consumed st s1 = ok i2)
+    (eb4 : sporadic.sufficient st ar s1 a1 (L.cscW s) i2 = ok true)
+    (edue : localtimer.timer_due st s1 (L.cpu s) now = ok true)
+    (efo : localtimer.fire_ok st s1 (L.cpu s) (L.curW s) p now = ok true)
+    (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
+    (emx : layout.irq.MAX = ok mx) (hle : ¬ irq > mx)
+    (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
+    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
+    (hBA : BufAt st T Cs H Sg Scs Z U s3)
+    (hTail : ∀ Y aY w, sched.awaken st ar s3 a3 = ok (Y, aY) →
+      AwFacts st T Cs Ω H Sg Rp Scs Nt Z Ac R s Y now w → AwTailG st gS ar Y aY) :
+    FireTailG st gS ar s3 a3 :=
+  fire_wk_aw_core ar hA hI hNt hok gRd gWr hD2 hwH hwD hWk hAffSc rL wL rS wS lkL rCD hSW hLkN hLkE wNt rwE wRt
+    etip eb eq eu enow erel ei2 eb4 edue efo ecb emx hle ei1 ehi hBA (fun Y aY w haw hF _ => hTail Y aY w haw hF)
 
 end main
 
