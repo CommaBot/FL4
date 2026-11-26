@@ -8,9 +8,8 @@ words, `KernDetAt`, P2/SlJLk.lean) and discharged by `hlk_of_kernelDet`, the sam
 
 Premises of `irq_pathsJ3L`: `hA`, `hp` [P], `hz` [W], `hm` [P], `hro` [W], `hKD` [P], `hPL` [P].
 
-(Integration note: lives on par/slhuf as `proofs/scratch/slhuf6/FootTimerIrqJ3Lk.lean`, because par/slhuf is based on
-int/j11, which has no `FootTimerIrqJ3`; at integration move it to `proofs/Fl4Proofs/P2/FootTimerIrqJ3Lk.lean` and
-root-import it after `FootTimerIrqJ3` and `SlJLk`.)
+(Written on par/slhuf as `proofs/scratch/slhuf6/FootTimerIrqJ3Lk.lean` (based on int/j11, no `FootTimerIrqJ3`); moved here
+at integration int/j15, root-imported after `FootTimerIrqJ3` and `SlJLk`.)
 -/
 import Fl4Proofs.P2.FootTimerIrqJ3
 import Fl4Proofs.P2.SlJLk
