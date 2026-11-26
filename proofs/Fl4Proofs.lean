@@ -2174,3 +2174,4 @@ import Fl4Proofs.P2.FootTimerGED
 import Fl4Proofs.P2.FootTimerSetAccD
 import Fl4Proofs.P2.StAccVW
 import Fl4Proofs.P2.StVPin
+import Fl4Proofs.P2.StDecG
