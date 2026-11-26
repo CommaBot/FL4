@@ -1,15 +1,19 @@
 /-
-P3 (line stpost, generation 8): **the frame-cap invocation at stable ghosts**
+P3 (line stpost, generations 8–9): **the frame-cap invocation at stable ghosts**
 (`handle_invocation_frameCapJSt`, `dispatch_frameCapJSt`; StPostTmInv's shape, the route is described
 in StPostInvTop's module docstring).
 
 `handle_invocation call true don false cptr` at `J` where `CAP` finds the plan's slot and the label is a
-local one other than `CNodeDelete` (`hlc`: `P1.InvLocCap` and `≠ CNodeDelete`): StPostInv's
+local one (`hlc`: `P1.InvLocCap`, and at `CNodeDelete` the plan's target `P1.InvDelDest`): StPostInv's
 `refinesMXPF` at `X := JStabM Z H Cs`, `XP := False`; fault by `faultHypJZGSt`, tails by `flTailJSt` /
 `replyFailJSt`; the cap case by StPostInvLeaf's `decode_cnodeCopyJSt` (CNode at Copy / Mint) and
-`decode_frameMapJSt` (small RAM frame at `X86PageMap`). Never preempted. No premise added.
+`decode_frameMapJSt` (small RAM frame at `X86PageMap`) and, since gen 9, StPostDelLeaf's
+`decode_cnodeDeleteJSt` (CNode at `CNodeDelete`, the target a small frame: never preempted; it reads
+`hnd hPA hmax htu`, `ValidMachineTime` / `ValidIrqMasks` and the zero-consumed readiness `hRd0` at the
+dispatch state). Never preempted. No premise added.
 -/
 import Fl4Proofs.P3.StPostInvLeaf
+import Fl4Proofs.P3.StPostDelLeaf
 import Fl4Proofs.P3.StPostInvAcc
 import Fl4Proofs.P3.StPostIoTop
 open Aeneas Aeneas.Std Result
@@ -26,8 +30,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
 set_option maxHeartbeats 8000000 in
-/-- (stpost) **The invocation of the plan's cap at `J` at a local label other than `CNodeDelete`, stable
-ghosts** (module docstring). -/
+/-- (stpost) **The invocation of the plan's cap at `J` at a local label, stable ghosts** (module
+docstring). -/
 theorem handle_invocation_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
@@ -35,10 +39,16 @@ theorem handle_invocation_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar :
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (hsg : SpecGlob σ) (hR : MR ar σ.machineState)
+    (hnd : Fl4Spec.numDomains = 1) (hPA : PPPlatA arI AR) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (is_call can_donate : Bool) (cptr : U64)
     (found : cspace.Resolved) (hls : cspace.lookup_slot st s ct cptr = ok (.Ok found))
     (hlc : ∀ info, msg.msg_info st s ct = ok info →
-      P1.InvLocCap st s info.label found.slot ∧ info.label ≠ fl4_abi.label.CNodeDelete) :
+      P1.InvLocCap st s info.label found.slot ∧
+        (info.label = fl4_abi.label.CNodeDelete → P1.InvDelDest st s ct found.slot)) :
     syscall.handle_invocation st arI s ar is_call true can_donate false cptr ⦃ res =>
       HIPostMXP (L := L) (JStabM (L := L) arI AR MR Z H Cs) (fun _ _ _ => False) true σ is_call true can_donate
         false (Fl4Spec.toBl cptr.bv) res ⦄ := by
@@ -83,7 +93,7 @@ theorem handle_invocation_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar :
   obtain ⟨hLen, hArgs, -⟩ := J.argsJ J.xferH.1 J.xferH.2.1 hct hinfo hmi hbuf hbuffer hmrs
   obtain ⟨hLb, hXO⟩ := J.frontJ J.xferH.1 J.xferH.2.1 hct hinfo hmi hbuf hbuffer hr2 her
   intro sl c e exs hsl hfs hc hget h1 h2
-  obtain ⟨⟨hl4, hCN, hFR⟩, hnD⟩ := hlc info hinfo
+  obtain ⟨⟨hl4, hCN, hFR⟩, hdel⟩ := hlc info hinfo
   have hPl : Placed Z.th := J.xtop.rel.1
   have hXe := hXO e exs h1 h2
   have hAs : AbsSlot Z.th sl := by
@@ -104,7 +114,21 @@ theorem handle_invocation_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar :
     exact decode_cnodeCopyJSt s ar σ J hni hARI hA hM hKD hR hsg info.label (Or.inr hl) (msgLen info buf) buf ct
       hct argsU hLen hArgs sl hAs p r gs g (capV_of_capAt hc) e exs (ExtraOK.rel2 hPl hXe) true is_call can_donate
       false (Fl4Spec.toBl cptr.bv) buffer
-  · exact absurd hl hnD
+  · obtain ⟨p, r, gs, g, hcap⟩ := hCN (Or.inr (Or.inr hl))
+    have hc' := hcc hcap
+    subst hc'
+    have hfr : ∀ y0 y1, msg.syscall_arg st s ct buf 0#u64 = ok y0 → msg.syscall_arg st s ct buf 1#u64 = ok y1 →
+        ∃ dest, cspace.lookup_target_slot st s (.CNode p r gs g) y0 y1 = ok (.Ok dest) ∧
+          ∃ p0 sz rt dv mp ep asid va, obj.Slot.cap st dest s = ok (.Frame p0 sz rt dv mp ep asid va) := by
+      intro y0 y1 e0 e1
+      obtain ⟨c1, dest, hc1, hl1, fp, rt, m, asid, va, hf⟩ := hdel hl buf y0 y1 e0 e1
+      rw [hcap] at hc1
+      cases P1.ok_inj_ff hc1
+      exact ⟨dest, hl1, fp, .Small, rt, false, m, false, asid, va, hf⟩
+    rw [hl]
+    exact decode_cnodeDeleteJSt arI s ar σ J hni hARI hA hRef hmax htu hnd hM hKD hPA ⟨hR, hVT, hVI⟩ hsg hRd0 hnq
+      (msgLen info buf) buf ct hct argsU hLen hArgs sl hAs p r gs g (capV_of_capAt hc) e exs true is_call
+      can_donate false (Fl4Spec.toBl cptr.bv) buffer hfr
   · obtain ⟨fp, rt, m, asid, va, hcap⟩ := hFR hl
     have hc' := hcc hcap
     subst hc'
@@ -117,8 +141,8 @@ theorem handle_invocation_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar :
       hc e exs (ExtraOK.vsExtra hPl hXe) true is_call can_donate false (Fl4Spec.toBl cptr.bv) buffer
 
 set_option maxHeartbeats 8000000 in
-/-- (stpost) **`dispatch_syscall` for an invoking number with the plan's cap in `CAP` at a local label
-other than `CNodeDelete`, stable ghosts** (module docstring). -/
+/-- (stpost) **`dispatch_syscall` for an invoking number with the plan's cap in `CAP` at a local label,
+stable ghosts** (module docstring). -/
 theorem dispatch_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
@@ -126,11 +150,17 @@ theorem dispatch_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (hsg : SpecGlob σ) (hR : MR ar σ.machineState)
+    (hnd : Fl4Spec.numDomains = 1) (hPA : PPPlatA arI AR) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call don : Bool)
     (hn : InvSys number call true don) (found : cspace.Resolved)
     (hls : cspace.lookup_slot st s ct (L.mem s (regA ct layout.reg.CAP)) = ok (.Ok found))
     (hlc : ∀ info, msg.msg_info st s ct = ok info →
-      P1.InvLocCap st s info.label found.slot ∧ info.label ≠ fl4_abi.label.CNodeDelete) :
+      P1.InvLocCap st s info.label found.slot ∧
+        (info.label = fl4_abi.label.CNodeDelete → P1.InvDelDest st s ct found.slot)) :
     syscall.dispatch_syscall st arI s ar number ⦃ r =>
       ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) true (invSysOf call true)).run σ).1, y.1 = .ok () ∧
         RelTopM (L := L) r.1 y.2 ∧ JStab (L := L) arI AR Z H Cs r.1 r.2 y.2 ∧ MR r.2 y.2.machineState ⦄ := by
@@ -149,8 +179,8 @@ theorem dispatch_frameCapJSt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       let (_, s2, a2) ← syscall.after_invocation st arI s1 a1 r
       ok (s2, a2)) ⦃ r => ∃ y ∈ ((DispInv call true don).run σ).1, y.1 = .ok () ∧
         RelTopM (L := L) r.1 y.2 ∧ JStab (L := L) arI AR Z H Cs r.1 r.2 y.2 ∧ MR r.2 y.2.machineState ⦄ := by
-    refine WP.spec_bind (handle_invocation_frameCapJSt s ar σ J hARI hA hM hKD hRef hni hnq hvfh hsg hR ct hct
-      call don _ found hls hlc) ?_
+    refine WP.spec_bind (handle_invocation_frameCapJSt s ar σ J hARI hA hM hKD hRef hni hnq hvfh hsg hR hnd hPA
+      hmax htu hVT hVI hRd0 ct hct call don _ found hls hlc) ?_
     rintro ⟨r, s1, a1⟩ ⟨y, hy, hres, hrel, hX⟩
     rcases hres with ⟨rfl, hy1⟩ | ⟨rfl, hy1⟩
     · show (do

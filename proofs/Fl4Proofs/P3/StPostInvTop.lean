@@ -1,5 +1,5 @@
 /-
-P3 (line stpost, generation 8): **the accepted frame-cap invocation beside the gate at stable ghosts**
+P3 (line stpost, generations 8–9): **the accepted frame-cap invocation beside the gate at stable ghosts**
 (`syscall.handle_invocation_local`, U29V's entry; StPostTmTop's route).
 
 `handle_invocation_local … n p` (fl4-sync's `local_invocation`, `p` the plan `localinv.plan s n` at the
@@ -11,25 +11,26 @@ the local entry runs only on the plan's cap: a CNode at `CNodeCopy` / `CNodeMint
 small RAM frame at `X86PageMap`. So:
 
 * `P1.inv_local_acc` (StPostInvAcc): an accepted run has number `SysCall`, and at the general entry's
-  dispatch state the current thread is unchanged, the `CAP` lookup finds the plan's slot and
-  `InvLocCap` holds for the message label there (the label read at the entry state).
+  dispatch state the current thread is unchanged, the `CAP` lookup finds the plan's slot,
+  `InvLocCap` holds for the message label there (the label read at the entry state) and, at
+  `CNodeDelete`, the plan's target (a small RAM frame) is still the decode's target (`InvDelDest`).
 * `handle_invocation_frameCapJSt` / `dispatch_frameCapJSt` (StPostInvInv): the invocation at
   `X := JStabM Z H Cs`, `XP := False`, for the labels Copy / Mint / Map (StPostInvLeaf's
-  `decode_cnodeCopyJSt`, `decode_frameMapJSt`).
+  `decode_cnodeCopyJSt`, `decode_frameMapJSt`) and Delete (StPostDelLeaf's `decode_cnodeDeleteJSt`).
 * `kernel_entry_invSt`: the general path `handle_syscall_old` (`kernel_entry_tmSt`'s shape) given
-  `hinv` (the dispatch-state facts above, label not `CNodeDelete`).
+  `hinv` (the dispatch-state facts above); `OffReady` at the dispatch state by
+  `offReady_updateTimeStamp` (its `rd0` for the delete), `ValidMachineTime` by `BudgetAt.vmt`.
 * **`kernel_entry_inv_localSt17`**: from `JReachU17` and given `JAtZ Z H Cs` (with `VxE Z`), under
   U29V's clause inputs that this route reads (`hct`, `hn : NativeSys n c`, `hflag`, `hFin` at
-  `KFinAtR13`, fl4-sync's plan contract `hp`; not `hK` / `hDL`) **and `hnD`: the message label at the
-  entry state is not `CNodeDelete`**, an accepted `handle_invocation_local … n p` ends at a
-  `fl4KernelEntrySyscall true c` outcome that is `JReachU17` **and** `JStab Z H Cs`.
+  `KFinAtR13`, fl4-sync's plan contract `hp`; not `hK` / `hDL`), an accepted
+  `handle_invocation_local … n p` ends at a `fl4KernelEntrySyscall true c` outcome that is `JReachU17`
+  **and** `JStab Z H Cs`, at every label the plan accepts.
 
-`CNodeDelete` is left out (an input restricting the runs, not a premise): the general delete arm is
-the deletion loop with a preemption point, and its preempted outcome (`JAtPreMV`, through
-`hPre_ofZQIMNM` / `afterInv_of_mcsIMNM`) has no stable-ghost copy yet. The loop invariant itself
-(`EJLM`, `WJR`) is at `Z.mv G V`, `H`, `Cs`, so the ok exit is stable; what is missing is either a
-stable copy of the preemption path or an FL4 fact that deleting a small frame cap reaches no
-preemption point (`finalise_slot_immediate` returns at its first round: a frame cap is removable).
+History: gen 8 took `hnD` (the entry label not `CNodeDelete`) as a temporary run restriction, since
+the general delete arm's preempted outcome (`JAtPreMV`) has no stable copy. Gen 9 removed it: the
+plan's delete target holds a small frame cap, and deleting a frame cap reaches no preemption point
+(StPostDelLeaf: `finalise_slot_immediate` returns at its first round), so the preempted outcome is
+refuted instead of carried.
 
 Premises: a subset of U29's platform facts (`hRef : ArchRefines` added to the TCB_SetTimer list; U29
 has it). No new premise.
@@ -51,7 +52,8 @@ variable {MR : A → Fl4Spec.MachineState → Prop}
 
 set_option maxHeartbeats 16000000 in
 /-- (stpost) **The frame-cap invocation entry at stable ghosts, where `CAP` finds a slot whose cap and
-label satisfy `InvLocCap`, label not `CNodeDelete`** (module docstring; `kernel_entry_ioSt`'s shape). -/
+label satisfy `InvLocCap` (and `InvDelDest` at `CNodeDelete`)** (module docstring; `kernel_entry_ioSt`'s
+shape). -/
 theorem kernel_entry_invSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
@@ -72,8 +74,9 @@ theorem kernel_entry_invSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
       sched.cur_thread st s2 = ok ct ∧ ∃ found : cspace.Resolved,
         cspace.lookup_slot st s2 ct (L.mem s2 (regA ct layout.reg.CAP)) = ok (.Ok found) ∧
         ∀ info, msg.msg_info st s2 ct = ok info →
-          P1.InvLocCap st s2 info.label found.slot ∧ info.label ≠ fl4_abi.label.CNodeDelete)
-    (hRef : ArchRefines arI AR) (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
+          P1.InvLocCap st s2 info.label found.slot ∧
+            (info.label = fl4_abi.label.CNodeDelete → P1.InvDelDest st s2 ct found.slot))
+    (hRef : ArchRefines arI AR) (hPA : PPPlatA arI AR) (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -156,14 +159,18 @@ theorem kernel_entry_invSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
       unfold specBudget
       rw [he]; exact Set.mem_singleton _
     have hBA : BudgetAt σ σb true := ⟨_, hF, hb⟩
-    obtain ⟨hMRσb, -⟩ := budget_mr_at (σ0 := faultIPSt σ σ.curThread x) hM hnd
+    obtain ⟨hMRσb, hVIb⟩ := budget_mr_at (σ0 := faultIPSt σ σ.curThread x) hM hnd
       (show (true, σb) ∈ _ by rw [he]; exact Set.mem_singleton _) hMRb hVI
     have hnib : Entered σb := ⟨by rw [ect, eidle]; exact hni0.1, by rw [eact]; exact hni0.2⟩
     -- the plan's cap and the label at the dispatch state
     obtain ⟨hct2, found, hls, hlc⟩ := hinv ct nx s2 a1 hct hnx' (by rw [hv]; exact hbeq)
     -- the dispatch state's entry facts (`KDispHypsKV27.to26`)
     obtain ⟨x0, hk0, -⟩ := hS.1.2
-    obtain ⟨-, ek0, ect0, en0, ei0, eq0⟩ := BudgetAt.shape27 hnd hk0 hBA
+    obtain ⟨⟨σu, hu, ebu⟩, ek0, ect0, en0, ei0, eq0⟩ := BudgetAt.shape27 hnd hk0 hBA
+    have hOb : OffReady σb := by
+      rw [ebu]
+      exact SInvO.offReady_updateTimeStamp (σ := faultIPSt σ σ.curThread x0) hS.1.1.vmt (hB x0 hk0).off hu
+    have hVTb : ValidMachineTime σb := BudgetAt.vmt hnd hBA
     have ek0' : σb.kheap = Function.update σ.kheap σ.curThread
         (some (.tcb (setReg x0 .faultIP (x0.tcbArch.tcbContext.userRegs .nextIP - 2)))) := ek0
     obtain ⟨hvfh, -⟩ := SInvAll.sinvB_disp (x' := setReg x0 .faultIP (x0.tcbArch.tcbContext.userRegs .nextIP - 2))
@@ -173,7 +180,7 @@ theorem kernel_entry_invSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
         en0 ei0
     have hqb : ∀ d p, σb.curThread ∉ σb.readyQueues d p := by rw [ect0, eq0]; exact hQ
     refine WP.spec_bind (spec_and_eq (dispatch_frameCapJSt s2 a1 σb J' hARI hA hM hKD hRef hnib hqb hvfh hsg
-      hMRσb ct hct2 n call don hi found hls hlc) fun _ h => h) ?_
+      hMRσb hnd hPA hmax htu hVTb hVIb hOb.rd0 ct hct2 n call don hi found hls hlc) fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨⟨⟨u, σm⟩, hy, hy1, hRm, hJm, hMy⟩, hdeq⟩
     simp only at hy1; subst hy1
     obtain ⟨Gm, Vm, Acm, Lstm, Dm, Jm⟩ := hJm
@@ -186,8 +193,8 @@ theorem kernel_entry_invSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
       fun r ⟨σ', hmem, hRJ, hM', hSt⟩ => ⟨σ', mem_kentry hx hmem, hRJ, hM', hSt.mv⟩
 
 set_option maxHeartbeats 8000000 in
-/-- (stpost) **The accepted frame-cap invocation beside the gate at a label other than `CNodeDelete`, at
-given ghosts, stable** (module docstring). -/
+/-- (stpost) **The accepted frame-cap invocation beside the gate, at given ghosts, stable** (module
+docstring). -/
 theorem kernel_entry_inv_localSt17 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
@@ -205,9 +212,7 @@ theorem kernel_entry_inv_localSt17 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4S
         KFrontF (L := L) arI n s a s' a' →
         JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
         KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hp : localinv.plan st s n = ok (some p))
-    (hnD : ∀ t info, sched.cur_thread st s = ok t → msg.msg_info st s t = ok info →
-      info.label ≠ fl4_abi.label.CNodeDelete) :
+    (hp : localinv.plan st s n = ok (some p)) :
     syscall.handle_invocation_local st arI s a n p ⦃ r => r.1 = true →
       ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
         JReachU17 (L := L) arI AR MR r.2.1 r.2.2 σ' ∧ JStab (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ := by
@@ -259,11 +264,11 @@ theorem kernel_entry_inv_localSt17 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4S
   subst hc
   have hG := kernel_entry_invSt s a σ J hni hR hS.1.1.vim hS.1.1.ns _ true true hi hflag hB hS hQ hFin'
     (fun ct nx s2 a2 h1 h2 h3 => by
-      obtain ⟨e1, f, info0, hl, hi0, hlc, hi1⟩ := hacc ct nx s2 a2 h1 h2 h3
+      obtain ⟨e1, f, info0, hl, hi0, hlc, -, hdel⟩ := hacc ct nx s2 a2 h1 h2 h3
       refine ⟨e1, f, hl, fun info hi => ?_⟩
       rw [hi0] at hi
       cases P1.ok_inj_ff hi
-      exact ⟨hlc, hnD ct info0 h1 hi1⟩) hRef hARI hA
+      exact ⟨hlc, hdel⟩) hRef hPA hARI hA
     hnd hM hKD hmrt hmb hT hmax htu
   have hG' : syscall.handle_syscall st arI s a fl4_abi.syscall.SysCall ⦃ r =>
       ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true (invSysOf true true) σ).1 ∧

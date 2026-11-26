@@ -18,6 +18,10 @@ import Fl4Proofs.P3.StPostInvAcc
 import Fl4Proofs.P3.StPostInvLeaf
 import Fl4Proofs.P3.StPostInvInv
 import Fl4Proofs.P3.StPostInvTop
+import Fl4Proofs.P3.StPostDelLeaf
+import Fl4Proofs.P3.StPostVmTop
+import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P2.SlJStPostInv
 import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
@@ -109,3 +113,17 @@ import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_invSt
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_inv_localSt17
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_invSt
+#print axioms Fl4Proofs.P1.sarg0_reg
+#print axioms Fl4Proofs.P1.sarg1_reg
+#print axioms Fl4Proofs.P1.plan_with_del
+#print axioms Fl4Proofs.P1.target_keep
+#print axioms Fl4Proofs.P3.finObj_frame_null
+#print axioms Fl4Proofs.P3.finCap_frame_null
+#print axioms Fl4Proofs.P3.finImm_frame
+#print axioms Fl4Proofs.P3.delete_frame_ok
+#print axioms Fl4Proofs.P3.cnode_delete_frame_noPre
+#print axioms Fl4Proofs.P3.cn_del_topJStM
+#print axioms Fl4Proofs.P3.decode_cnodeDeleteJSt
+#print axioms Fl4Proofs.P3.jFltHyp_vmfSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_vmf_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_vmfSt

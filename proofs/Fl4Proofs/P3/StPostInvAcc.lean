@@ -1,5 +1,5 @@
 /-
-P3 (line stpost, generation 8): **an accepted frame-cap invocation's dispatch-state facts**
+P3 (line stpost, generations 8–9): **an accepted frame-cap invocation's dispatch-state facts**
 (`P1.inv_local_acc`; the P1 side of StPostInvTop's route).
 
 fl4-sync's plan `localinv.plan s n = some p` decides from the invoked cap and the label
@@ -17,7 +17,15 @@ the words read are the slot's cap words). So:
   at the general entry's dispatch state (after its `FAULT_IP` write and passing `budget_ok`) the
   current thread is unchanged, the `CAP` lookup finds the plan's slot, and with the message info
   there `InvLocCap` holds (the message-info register and the slot's cap words survive the
-  prefix: `reg_keepK`, `found_cap_keep`). `inv_local_same`'s walk, stopped at the budget check.
+  prefix: `reg_keepK`, `found_cap_keep`); at `CNodeDelete` (gen 9) `InvDelDest` holds there.
+  `inv_local_same`'s walk, stopped at the budget check.
+* (gen 9) `P1.InvDelDest st s t sl`: with the first two message registers (any buffer: they are
+  registers, `sarg0_reg` / `sarg1_reg`), the cap in `sl` resolves a target slot holding a small RAM
+  frame cap. `P1.plan_with_del`: the plan at `CNodeDelete` gives it at the entry state (the target cap
+  read first from a fresh plan, `read_cap_new`; `small_ram_frame`). `P1.target_keep`: the target
+  lookup from the cap the `CAP` lookup found, and the target's cap, survive a write that misses the
+  cap-slot words the walks reach (`CnOff`'s closure: the invoked CNode is reached from the root,
+  `rab_loop_slot`, `rab_loop_congr2`).
 
 No premise added (the placement facts `BXI` / `CnOff` are those of `inv_local_same`).
 -/
@@ -206,6 +214,143 @@ theorem plan_fieldsW {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st
       try simp only at h
       exact ⟨t, info, cptr, r1, buf, e, et, ei, ec, er, eb, er2, h⟩
 
+/-- (stpost) **The plan's delete target at a state**: with the message registers' first two words as
+the decode reads them (any buffer), the slot's cap resolves a target slot holding a small RAM frame
+cap (non-EPT). -/
+def InvDelDest (st : machine.Store S) (s : S) (t : U64) (sl : obj.Slot) : Prop :=
+  ∀ buf y0 y1, msg.syscall_arg st s t buf 0#u64 = ok y0 → msg.syscall_arg st s t buf 1#u64 = ok y1 →
+    ∃ c dest, obj.Slot.cap st sl s = ok c ∧ cspace.lookup_target_slot st s c y0 y1 = ok (.Ok dest) ∧
+      ∃ fp rt m asid va, obj.Slot.cap st dest s = ok (.Frame fp .Small rt false m false asid va)
+
+theorem sarg0_reg (s : S) (t buf : U64) :
+    msg.syscall_arg st s t buf 0#u64 = obj.Tcb.reg st t s layout.reg.R10 := by
+  unfold msg.syscall_arg
+  rw [if_pos (by simp [msg.N_MSG_REGISTERS])]
+  simp [msg.msg_register]
+
+theorem sarg1_reg (s : S) (t buf : U64) :
+    msg.syscall_arg st s t buf 1#u64 = obj.Tcb.reg st t s layout.reg.R8 := by
+  unfold msg.syscall_arg
+  rw [if_pos (by simp [msg.N_MSG_REGISTERS])]
+  simp [msg.msg_register]
+
+set_option maxHeartbeats 16000000 in
+/-- (stpost) **What `plan_with` decides at `CNodeDelete`**: the target slot the first two message
+registers name holds a small RAM frame cap. -/
+theorem plan_with_del {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array obj.Slot 3#usize}
+    {p : localinv.Plan} (h : localinv.plan_with st s t fl4_abi.label.CNodeDelete slot extra = ok (some p)) :
+    ∃ c i i1 dest, obj.Slot.cap st slot s = ok c ∧ localinv.reg_arg st s t 0#u64 = ok i ∧
+      localinv.reg_arg st s t 1#u64 = ok i1 ∧ cspace.lookup_target_slot st s c i i1 = ok (.Ok dest) ∧
+      ∃ fp rt m asid va, obj.Slot.cap st dest s = ok (.Frame fp .Small rt false m false asid va) := by
+  unfold localinv.plan_with at h
+  obtain ⟨q, eq, h⟩ := bind_eq_ok h
+  obtain ⟨cap, ecap, h⟩ := bind_eq_ok h
+  have hq : q.nseen = 0#usize := by
+    unfold localinv.Plan.new at eq; rw [← ok_inj_ff eq]
+  rw [if_neg lbl_del_ne_copy, if_neg lbl_del_ne_mint, if_pos rfl] at h
+  obtain ⟨b, -, h⟩ := bind_eq_ok h
+  cases b
+  · simp at h
+  simp only [↓reduceIte] at h
+  obtain ⟨i, ei, h⟩ := bind_eq_ok h
+  obtain ⟨i1, ei1, h⟩ := bind_eq_ok h
+  obtain ⟨r, er, h⟩ := bind_eq_ok h
+  obtain ⟨o, eo, h⟩ := bind_eq_ok h
+  obtain ⟨cf, ecf, h⟩ := bind_eq_ok h
+  cases r with
+  | Err e =>
+    simp only [core.result.Result.ok] at eo
+    cases ok_inj_ff eo
+    simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch] at ecf
+    cases ok_inj_ff ecf
+    simp [core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual] at h
+  | Ok dest =>
+    simp only [core.result.Result.ok] at eo
+    cases ok_inj_ff eo
+    simp only [core.option.Option.Insts.CoreOpsTry_traitTry.branch] at ecf
+    cases ok_inj_ff ecf
+    try simp only at h
+    obtain ⟨⟨c, q1⟩, ec, h⟩ := bind_eq_ok h
+    try simp only [uncurry_apply_pair] at h
+    try dsimp only at h
+    have hc := read_cap_new hq ec
+    simp only at hc
+    refine ⟨cap, i, i1, dest, ecap, ei, ei1, er, ?_⟩
+    obtain ⟨i2, -, h⟩ := bind_eq_ok h
+    obtain ⟨⟨i3, q2⟩, -, h⟩ := bind_eq_ok h
+    try simp only [uncurry_apply_pair] at h
+    try dsimp only at h
+    obtain ⟨i4, -, h⟩ := bind_eq_ok h
+    obtain ⟨⟨i5, q3⟩, -, h⟩ := bind_eq_ok h
+    try simp only [uncurry_apply_pair] at h
+    try dsimp only at h
+    obtain ⟨nx, -, h⟩ := bind_eq_ok h
+    obtain ⟨b1, eb1, h⟩ := bind_eq_ok h
+    cases b1
+    · simp at h
+    rw [hc]
+    unfold localinv.small_ram_frame at eb1
+    cases c with
+    | Frame fp fs rt d m ep asid va =>
+      cases fs <;> cases d <;> cases ep <;> simp at eb1
+      exact ⟨fp, rt, m, asid, va, rfl⟩
+    | _ => simp at eb1
+
+/-- (stpost) **`lookup_target_slot` from the cap a `CAP` lookup found, across a write that misses `t`'s
+root slot and the cap-slot words the walks reach** (`CnOff`): the same target, its cap kept. -/
+theorem target_keep {T Cs Sg : Set U64} {s s' : S} {t c : U64} {r : cspace.Resolved} {cn : capability.Cap}
+    {y0 y1 : U64} {dest : obj.Slot}
+    (hCn : CnOff (L := L) T Cs Sg s t)
+    (oK : ∀ b, OutsideObjs st T Cs s b → L.mem s' b = L.mem s b)
+    (h : cspace.lookup_slot st s t c = ok (core.result.Result.Ok r)) (hc : obj.Slot.cap st r.slot s = ok cn)
+    (hl : cspace.lookup_target_slot st s cn y0 y1 = ok (.Ok dest)) :
+    cspace.lookup_target_slot st s' cn y0 y1 = ok (.Ok dest) ∧
+      obj.Slot.cap st dest s' = obj.Slot.cap st dest s := by
+  unfold cspace.lookup_slot at h
+  obtain ⟨sl, hsl, h⟩ := bind_eq_ok h
+  obtain ⟨root, hroot, h⟩ := bind_eq_ok h
+  obtain ⟨C, hC0, hcl, hWc⟩ := hCn sl root hsl hroot
+  have slotK : ∀ p r, C p r → ∀ m, cspace.mask r = ok m → ∀ x : U64,
+      obj.Slot.cap st (cnSlot p (x &&& m)) s' = obj.Slot.cap st (cnSlot p (x &&& m)) s := by
+    intro p r hp m hm x
+    obtain ⟨h1, h2⟩ := hWc p r m x hp hm
+    unfold obj.Slot.cap; rw [L.read_pair_eq, L.read_pair_eq, oK _ h1.1, oK _ h2.1]
+  obtain ⟨p, r', m, y, hp, hm, hs⟩ := rab_loop_slot st C hcl 66 root _ 65#u64 r (by simp) hC0 h
+  have hCn' : ∀ p1 r1 gs1 g1, cn = .CNode p1 r1 gs1 g1 → C p1 r1 := by
+    rintro p1 r1 gs1 g1 rfl
+    rw [hs] at hc
+    exact hcl p r' m y p1 r1 gs1 g1 hp hm hc
+  cases cn with
+  | CNode p1 r1 gs1 g1 =>
+    unfold cspace.lookup_target_slot cspace.lookup_slot_for_cnode_op at hl ⊢
+    simp only [bind_ok, ↓reduceIte] at hl ⊢
+    by_cases d1 : y1 < 1#u64
+    · rw [if_pos d1] at hl; simp at hl
+    rw [if_neg d1] at hl ⊢
+    by_cases d2 : y1 > cspace.WORD_BITS
+    · rw [if_pos d2] at hl; simp at hl
+    rw [if_neg d2] at hl ⊢
+    unfold cspace.resolve_address_bits at hl ⊢
+    obtain ⟨res, eres, hl⟩ := bind_eq_ok hl
+    have eres' := rab_loop_congr2 st C slotK hcl 66 _ _ 65#u64 res (by simp) hCn' eres
+    rw [eres']; simp only [bind_ok]
+    refine ⟨hl, ?_⟩
+    cases res with
+    | Err lf => simp at hl
+    | Ok r2 =>
+      simp only at hl
+      by_cases hb : (r2.bits_left != 0#u64) = true
+      · rw [if_pos hb] at hl; simp at hl
+      rw [if_neg hb] at hl
+      have e := ok_inj_ff hl
+      simp only [core.result.Result.Ok.injEq] at e
+      subst e
+      obtain ⟨p2, r3, m2, y2, hp2, hm2, hs2⟩ := rab_loop_slot st C hcl 66 _ _ 65#u64 r2 (by simp) hCn' eres
+      rw [hs2]; exact slotK p2 r3 hp2 m2 hm2 y2
+  | _ =>
+    unfold cspace.lookup_target_slot cspace.lookup_slot_for_cnode_op at hl
+    simp at hl
+
 end
 
 section
@@ -227,7 +372,8 @@ theorem inv_local_acc (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {a a
       sched.cur_thread st s2 = ok ct ∧ ∃ (found : cspace.Resolved) (info : msginfo.MessageInfo),
         cspace.lookup_slot st s2 ct (L.mem s2 (regA ct layout.reg.CAP)) = ok (.Ok found) ∧
         msg.msg_info st s2 ct = ok info ∧ InvLocCap st s2 info.label found.slot ∧
-        msg.msg_info st s ct = ok info := by
+        msg.msg_info st s ct = ok info ∧
+        (info.label = fl4_abi.label.CNodeDelete → InvDelDest st s2 ct found.slot) := by
   obtain ⟨⟨Q, R, hSQ⟩, -, -, -, -⟩ := hI
   have hT : TcbPlaced T := hSQ.tcbs
   have hcC : L.cpu s ∈ Cs := hSQ.cur
@@ -311,11 +457,29 @@ theorem inv_local_acc (hA : P0.ArchTotal ar) {T Cs Sg : Set U64} {s s' : S} {a a
   have er2 := lookup_slot_keep ht' (hCn ct et) tK oK er0
   have hcap : ∀ c, obj.Slot.cap st r0.slot s = ok c → obj.Slot.cap st r0.slot s2 = ok c := fun c hc => by
     rw [found_cap_keep (hCn ct et) oK er0]; exact hc
-  refine ⟨et2, r0, info0, by rw [ec2']; exact er2, ei2, ?_, ei⟩
-  obtain ⟨hl, hC, hF⟩ := hLC
-  refine ⟨hl, fun hc => ?_, fun hm => ?_⟩
-  · obtain ⟨p1, p2, p3, p4, e⟩ := hC hc; exact ⟨p1, p2, p3, p4, hcap _ e⟩
-  · obtain ⟨p1, p2, p3, p4, p5, e⟩ := hF hm; exact ⟨p1, p2, p3, p4, p5, hcap _ e⟩
+  refine ⟨et2, r0, info0, by rw [ec2']; exact er2, ei2, ?_, ei, ?_⟩
+  · obtain ⟨hl, hC, hF⟩ := hLC
+    refine ⟨hl, fun hc => ?_, fun hm => ?_⟩
+    · obtain ⟨p1, p2, p3, p4, e⟩ := hC hc; exact ⟨p1, p2, p3, p4, hcap _ e⟩
+    · obtain ⟨p1, p2, p3, p4, p5, e⟩ := hF hm; exact ⟨p1, p2, p3, p4, p5, hcap _ e⟩
+  · -- the delete target, read at the entry state, kept to the dispatch state
+    intro hd
+    rw [hd] at hpw
+    obtain ⟨c, i, i1, dest, hc, ei0', ei1', hl, fr⟩ := plan_with_del hpw
+    have hk := target_keep (hCn ct et) oK er0 hc hl
+    intro buf y0 y1 e0 e1
+    have r0e : msg.syscall_arg st s2 ct buf 0#u64 = localinv.reg_arg st s ct 0#u64 := by
+      unfold localinv.reg_arg
+      rw [sarg0_reg, sarg0_reg, reg_keepK ht' (r := layout.reg.R10) (by simp) (by simp) tK]
+    have r1e : msg.syscall_arg st s2 ct buf 1#u64 = localinv.reg_arg st s ct 1#u64 := by
+      unfold localinv.reg_arg
+      rw [sarg1_reg, sarg1_reg, reg_keepK ht' (r := layout.reg.R8) (by simp) (by simp) tK]
+    rw [r0e, ei0'] at e0
+    rw [r1e, ei1'] at e1
+    cases ok_inj_ff e0
+    cases ok_inj_ff e1
+    obtain ⟨fp, rt, m, asid, va, e⟩ := fr
+    exact ⟨c, dest, hcap _ hc, hk.1, fp, rt, m, asid, va, by rw [hk.2]; exact e⟩
 
 end
 
