@@ -11,6 +11,8 @@ for an action other than `RESUME_CURRENT`, `schedRes`).
   current SC, from P1 facts at `Y` (as `fire_tail_nw`'s end, stated at `Y`: `resume_hsw_hfr`, `schedTail_fp`,
   `activate_thread.gw`, `vcpu.check.guard_nvm`). Used for a waking signal that leaves the action `RESUME_CURRENT`.
 
+* (lvm gen 10) `aw_tail_resume_core`: without `hnvm`; a current thread running a VM gets its final `vcpu::check`
+  from `hvc` (`schedule` wrote only node words and the current SC's); `RESTART → RUNNING` asked only from `RESTART`.
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireNw
@@ -80,8 +82,11 @@ theorem actTail.guard (Y : S) (a : A)
     exact hres s3 a2 hy
 
 set_option maxHeartbeats 16000000 in
-/-- **The tail after `awaken` when the action is `RESUME_CURRENT`** (module docstring). -/
-theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
+/-- **The tail after `awaken` when the action is `RESUME_CURRENT`, final `vcpu::check` of a thread running a VM
+asked** (`aw_tail_resume_core`, lvm gen 10): `aw_tail_resume` with `hnvm` dropped; when the current thread runs a VM
+the final `vcpu::check` is `hvc`'s, given that `schedule` wrote only this core's node words and the current SC's
+words; the current thread's `STATE` write `RESTART → RUNNING` is asked only when it is in `RESTART` at `Y`. -/
+theorem aw_tail_resume_core (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
     (hcC : L.cpu Y ∈ Cs) (hN : NodePlaced st T Y (L.cpu Y)) (hT : TcbPlaced T)
     (homega : ∀ b ∈ Ω, OutsideObjs st T Cs Y b) (hct : L.curW Y ∈ T)
     (hsame : L.mem Y (scA (L.curW Y)) = L.cscW Y) (hc : SCq st Y Ω (L.cscW Y) zc)
@@ -100,12 +105,17 @@ theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
     (htd : L.mem Y (tmA (L := L) Y) ≠ 0#u64 → L.mem Y (tmA (L := L) Y) ∈ T ∧
       R (core.num.U64.wrapping_add (L.mem Y (tmA (L := L) Y)) 3528#u64))
     (hact : L.actionW Y = sched.ACTION_RESUME_CURRENT)
-    (hy0 : L.mem Y (yieldA (L.curW Y)) = 0#u64) (hnvm : L.mem Y (stA (L.curW Y)) ≠ sched.TS_RUNNING_VM)
+    (hy0 : L.mem Y (yieldA (L.curW Y)) = 0#u64)
     (haff : L.mem Y (affA (L.curW Y)) = L.cpu Y)
     (rYt : R (yieldA (L.curW Y))) (rSt : R (stA (L.curW Y))) (rFi : R (regA (L.curW Y) layout.reg.FAULT_IP))
     (wNi : W (regA (L.curW Y) layout.reg.NEXT_IP)) (rSc : R (scA (L.curW Y))) (rIq : R (inqA (L.curW Y)))
-    (hwS : ∀ X, L.mem X (stA (L.curW Y)) = sched.TS_RESTART → L.mem X (affA (L.curW Y)) = L.cpu Y →
-      gS.write X (stA (L.curW Y)) sched.TS_RUNNING = st.write X (stA (L.curW Y)) sched.TS_RUNNING) :
+    (hwS : L.mem Y (stA (L.curW Y)) = sched.TS_RESTART → ∀ X, L.mem X (stA (L.curW Y)) = sched.TS_RESTART →
+      L.mem X (affA (L.curW Y)) = L.cpu Y →
+      gS.write X (stA (L.curW Y)) sched.TS_RUNNING = st.write X (stA (L.curW Y)) sched.TS_RUNNING)
+    (hvc : L.mem Y (stA (L.curW Y)) = sched.TS_RUNNING_VM → ∀ s4 a4,
+      WritesIn st Y s4 (fun b => (∃ o : U64, o.val < 4288 ∧ b = L.nodeAt Y (L.cpu Y) o) ∨ InSC (L.cscW Y) zc b) →
+      L.curW s4 = L.curW Y → ∀ s5 a5, sched.activate_thread st ar s4 a4 = ok (s5, a5) →
+      vcpu.check gS ar s5 a5 (L.curW Y) = vcpu.check st ar s5 a5 (L.curW Y)) :
     AwTailG st gS ar Y a := by
   have ht' := hT _ hct
   have hres := resume_hsw_hfr (gS := gS) ar hA Y a hcC hN hT homega hct hsame hc hmx hNd hSc rSc hdt hrs htd
@@ -122,18 +132,19 @@ theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (ok_inj_ff e')
     exact PathObl.LT.schedRes.guard ar Y a hNd hres.1 hres.2
   have hfp := schedTail_fp ar hA Y a (zc := zc)
-    (B := fun b => (∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add (L.curW Y) K) ∧
-      b ≠ L.nodeAt Y (L.cpu Y) layout.node.CUR_THREAD)
+    (B := fun b => ((∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add (L.curW Y) K) ∧
+      b ≠ L.nodeAt Y (L.cpu Y) layout.node.CUR_THREAD) ∧
+      ((∃ o : U64, o.val < 4288 ∧ b = L.nodeAt Y (L.cpu Y) o) ∨ InSC (L.cscW Y) zc b))
     hcC hN hT homega hct hsame hc
     (fun o ho h8 hz => by
-      refine ⟨fun K hK => node_ne_field hN ho hct ht' hK, fun e => hz ?_⟩
+      refine ⟨⟨fun K hK => node_ne_field hN ho hct ht' hK, fun e => hz ?_⟩, Or.inl ⟨o, ho, rfl⟩⟩
       have e' := congrArg UScalar.val e
       rw [nodeAt_val hN ho, nodeAt_val hN (by rw [curth_val]; omega), curth_val] at e'
       omega)
     (fun b hb hin => by
       have ho := homega b (hc.2.1 b hb hin)
-      exact ⟨fun K hK e => out_ne_field ho hct ht' hK (congrArg UScalar.val e).symm,
-        fun e => out_ne_node ho hcC hN (by rw [curth_val]; omega) (congrArg UScalar.val e).symm⟩)
+      exact ⟨⟨fun K hK e => out_ne_field ho hct ht' hK (congrArg UScalar.val e).symm,
+        fun e => out_ne_node ho hcC hN (by rw [curth_val]; omega) (congrArg UScalar.val e).symm⟩, Or.inr hin⟩)
   rw [← eT, esc, WP.spec_ok] at hfp
   have w34 := hfp
   have e4N : ∀ o, L.nodeAt s4 (L.cpu s4) o = L.nodeAt Y (L.cpu Y) o := fun o => by
@@ -141,10 +152,10 @@ theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
   have hcur4 : L.curW s4 = L.curW Y := by
     unfold LawfulStore.curW
     rw [w34.2.1, nodeAt_of_ksb w34.1,
-      w34.mem_eq (nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val])) (fun hb => hb.2 rfl)]
+      w34.mem_eq (nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val])) (fun hb => hb.1.2 rfl)]
   have tK4 : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       L.mem s4 (core.num.U64.wrapping_add (L.curW Y) K) = L.mem Y (core.num.U64.wrapping_add (L.curW Y) K) :=
-    fun K hK h8 => w34.mem_eq (field_aligned ht' hK h8) (fun hb => hb.1 K hK rfl)
+    fun K hK h8 => w34.mem_eq (field_aligned ht' hK h8) (fun hb => hb.1.1 K hK rfl)
   have hy4 : L.mem s4 (yieldA (L.curW Y)) = 0#u64 := by
     unfold yieldA; rw [tK4 _ (by simp) (by simp)]; exact hy0
   have hst4 : L.mem s4 (stA (L.curW Y)) = L.mem Y (stA (L.curW Y)) := by
@@ -176,16 +187,13 @@ theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
     rw [eNx]; exact tcb_word_ne ht' ht' (by simp) (by simp) (fun _ => by simp)
   have gac : sched.activate_thread gS ar s4 a4 = sched.activate_thread st ar s4 a4 :=
     activate_thread.gw ar s4 a4 hcur4 ht' hy4 nrm4 rYt rSt rFi wNi
-      (fun hr pc => hwS _ (by rw [mem_wr_ne' aNx sA nNs]; exact hr) (by rw [mem_wr_ne' aNx aA nNa]; exact aff4))
+      (fun hr pc => hwS (by rw [← hst4]; exact hr) _ (by rw [mem_wr_ne' aNx sA nNs]; exact hr)
+        (by rw [mem_wr_ne' aNx aA nNa]; exact aff4))
       rSc (by rw [sc4]; exact rMx) rIq
   refine ⟨gac, fun s5 a5 eac => ?_⟩
   obtain ⟨w45, hst5⟩ := activate_fp ar hT hct hN4 hcur4 hy4 eac
   have e5N : ∀ o, L.nodeAt s5 (L.cpu s5) o = L.nodeAt Y (L.cpu Y) o := fun o => by
     rw [w45.2.1, nodeAt_of_ksb w45.1, e4N]
-  have hst5' : L.mem s5 (stA (L.curW Y)) ≠ sched.TS_RUNNING_VM := by
-    rcases hst5 with e | e
-    · rw [e]; simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
-    · rw [e, hst4]; exact hnvm
   have hcur5 : L.curW s5 = L.curW Y := by
     have e : L.curW s5 = L.curW s4 := by
       unfold LawfulStore.curW
@@ -205,7 +213,43 @@ theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
   rw [cur_thread_ok, hcur5] at et
   have et' := ok_inj_ff et
   subst et'
+  by_cases hvm : L.mem Y (stA (L.curW Y)) = sched.TS_RUNNING_VM
+  · exact hvc hvm s4 a4 (w34.mono fun b hb => hb.2) hcur4 s5 a5 eac
+  have hst5' : L.mem s5 (stA (L.curW Y)) ≠ sched.TS_RUNNING_VM := by
+    rcases hst5 with e | e
+    · rw [e]; simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
+    · rw [e, hst4]; exact hvm
   exact vcpu.check.guard_nvm ar s5 a5 (L.curW Y) rSt hst5'
+
+/-- **The tail after `awaken` when the action is `RESUME_CURRENT`** (module docstring). -/
+theorem aw_tail_resume (hA : P0.ArchTotal ar) (Y : S) (a : A) {zc : Nat}
+    (hcC : L.cpu Y ∈ Cs) (hN : NodePlaced st T Y (L.cpu Y)) (hT : TcbPlaced T)
+    (homega : ∀ b ∈ Ω, OutsideObjs st T Cs Y b) (hct : L.curW Y ∈ T)
+    (hsame : L.mem Y (scA (L.curW Y)) = L.cscW Y) (hc : SCq st Y Ω (L.cscW Y) zc)
+    (hmx : L.rmax Y (L.cscW Y) ≠ 0#u64)
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt Y (L.cpu Y) o) ∧ W (L.nodeAt Y (L.cpu Y) o))
+    (hSc : ScAcc R W (L.cscW Y) zc)
+    (hdt : R (core.num.U64.wrapping_add (L.ksb Y) layout.ks.DOMAIN_TIME))
+    (hrs : L.mem Y (rhA (L := L) Y) ≠ 0#u64 → ∃ zr, L.mem Y (rhA (L := L) Y) ∈ T ∧
+      R (scA (L.mem Y (rhA (L := L) Y))) ∧
+      SCq st Y Ω (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zr ∧
+      L.rmax Y (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) ≠ 0#u64 ∧
+      (∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zr b → Aligned b → R b) ∧
+      (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) ≠ L.cscW Y →
+        ∀ b, InSC (L.mem Y (scA (L.mem Y (rhA (L := L) Y)))) zr b → Outside b (L.cscW Y) zc) ∧
+      (L.mem Y (scA (L.mem Y (rhA (L := L) Y))) = L.cscW Y → zr = zc))
+    (htd : L.mem Y (tmA (L := L) Y) ≠ 0#u64 → L.mem Y (tmA (L := L) Y) ∈ T ∧
+      R (core.num.U64.wrapping_add (L.mem Y (tmA (L := L) Y)) 3528#u64))
+    (hact : L.actionW Y = sched.ACTION_RESUME_CURRENT)
+    (hy0 : L.mem Y (yieldA (L.curW Y)) = 0#u64) (hnvm : L.mem Y (stA (L.curW Y)) ≠ sched.TS_RUNNING_VM)
+    (haff : L.mem Y (affA (L.curW Y)) = L.cpu Y)
+    (rYt : R (yieldA (L.curW Y))) (rSt : R (stA (L.curW Y))) (rFi : R (regA (L.curW Y) layout.reg.FAULT_IP))
+    (wNi : W (regA (L.curW Y) layout.reg.NEXT_IP)) (rSc : R (scA (L.curW Y))) (rIq : R (inqA (L.curW Y)))
+    (hwS : ∀ X, L.mem X (stA (L.curW Y)) = sched.TS_RESTART → L.mem X (affA (L.curW Y)) = L.cpu Y →
+      gS.write X (stA (L.curW Y)) sched.TS_RUNNING = st.write X (stA (L.curW Y)) sched.TS_RUNNING) :
+    AwTailG st gS ar Y a :=
+  aw_tail_resume_core ar hA Y a hcC hN hT homega hct hsame hc hmx hNd hSc hdt hrs htd hact hy0 haff rYt rSt rFi wNi
+    rSc rIq (fun _ => hwS) (fun h => absurd h hnvm)
 
 end main
 

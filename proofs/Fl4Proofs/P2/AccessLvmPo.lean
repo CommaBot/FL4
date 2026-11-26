@@ -28,7 +28,7 @@ Premises (fields of `VexitPEnt`):
 * `aff0` [J]: the ownership map's memory `m` agrees with the entry state on the current thread's `AFFINITY` (as
   `IrqEntK.mem`).
 Premises of `vexit_localPathP` otherwise gen 6's: `hp` [P], `hz` [W], `hm` [P], `hro` [W], `hK` / `hU` [J],
-`VexitEnt`'s fields, `hEU` [J] (now for `VexitEnt ∧ VexitPEnt`), `hlk` [P].
+`VexitEnt`'s fields, `hEU` [J] (now for `VexitEnt ∧ VexitPEnt`), `hlk` [P] (aligned user writes only, gen 10).
 -/
 import Fl4Proofs.P2.AccessLvmPw
 import Fl4Proofs.P2.AccessLvmLP
@@ -238,7 +238,7 @@ noncomputable def vexit_localPathP (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU
       b ∈ K.user → Aligned b →
       VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v') ∧
         VexitPEnt K st T Cs H Sg Scs Z m v (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s) :
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
   vexit_localPath ar hA hK hU hp hz hm hro hEU hlk
     (fun _ _ _ _ hE hX hpd h => vexit_acc_own_p ar hA hK hE hX hpd h)

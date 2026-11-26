@@ -608,7 +608,7 @@ noncomputable def vtimer_localPathW (hA : P0.ArchTotal ar) (hK : RegionOKV K) (h
       (VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n) (VexitRS K st lk))
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s)
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s)
     (hF : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a → ¬ NoWake st s →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a irq pl n =
