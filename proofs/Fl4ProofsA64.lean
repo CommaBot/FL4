@@ -73,3 +73,5 @@ import Fl4ProofsA64.P1.QueueReply
 import Fl4ProofsA64.P1.QueueFootD
 import Fl4ProofsA64.P1.QueueReplyPop
 import Fl4ProofsA64.P1.QueueRecv
+import Fl4ProofsA64.P1.FastFault
+import Fl4ProofsA64.P1.FastSched

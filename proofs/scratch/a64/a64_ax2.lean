@@ -69,6 +69,8 @@ import Fl4ProofsA64.P1.QueueReply
 import Fl4ProofsA64.P1.QueueFootD
 import Fl4ProofsA64.P1.QueueReplyPop
 import Fl4ProofsA64.P1.QueueRecv
+import Fl4ProofsA64.P1.FastFault
+import Fl4ProofsA64.P1.FastSched
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -82,10 +84,6 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.sched.set_priority.rv
-#print axioms Fl4ProofsA64.P1.schedcontext.bind_tcb.blk
-#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blk
-#print axioms Fl4ProofsA64.P1.schedcontext.donate.gen
 #print axioms Fl4ProofsA64.P1.schedcontext.donate.kwCB
 #print axioms Fl4ProofsA64.P1.schedcontext.donate.idle
 #print axioms Fl4ProofsA64.P1.ipc.reply_pop.blk
@@ -96,3 +94,7 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.faults.handle_timeout.bxi
 #print axioms Fl4ProofsA64.P1.notification.receive_signal.ipc
 #print axioms Fl4ProofsA64.P1.sched.reschedule_required.rv0
+#print axioms Fl4ProofsA64.P1.fault_accG
+#print axioms Fl4ProofsA64.P1.fault_acc
+#print axioms Fl4ProofsA64.P1.fault_sync2
+#print axioms Fl4ProofsA64.P1.enqueue_ne
