@@ -2031,3 +2031,13 @@ import Fl4Proofs.P2.InvURoTr
 import Fl4Proofs.P2.InvPmPdw
 import Fl4Proofs.P3.VsLeafNz
 import Fl4Proofs.P2.InvPmTop3
+import Fl4Proofs.P2.InvDelPte
+import Fl4Proofs.P2.InvDelPteEnt
+import Fl4Proofs.P2.InvDelPteRun
+import Fl4Proofs.P2.InvDelPteFin
+import Fl4Proofs.P2.InvDelPteKeep
+import Fl4Proofs.P2.InvDelPteDec
+import Fl4Proofs.P2.InvDelPteFinOK
+import Fl4Proofs.P2.InvDelPteAcc
+import Fl4Proofs.P2.InvDelPteR
+import Fl4Proofs.P2.InvDelPteG
