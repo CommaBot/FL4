@@ -2314,3 +2314,5 @@ import Fl4Spec.Ext.VirtRelBase
 import Fl4Spec.Ext.VirtRelVmx
 import Fl4Spec.Ext.VirtRelSvm
 import Fl4Proofs.P3.VirtVcpuRel
+import Fl4Proofs.P3.JAtZV3
+import Fl4Proofs.P3.JAtZV3Detach
