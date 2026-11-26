@@ -2358,3 +2358,10 @@ import Fl4Proofs.P3.P3JNsKit
 import Fl4Proofs.P3.P3JNsGen
 import Fl4Proofs.P3.P3JNsSys
 import Fl4Proofs.P3.P3JMcNs
+import Fl4Proofs.P3.P3JRrF
+import Fl4Proofs.P3.P3JRrG
+import Fl4Proofs.P3.P3JRrE
+import Fl4Proofs.P3.P3JRrSys
+import Fl4Proofs.P3.P3JMcIrqR
+import Fl4Proofs.P3.P3JMcIrqRQ
+import Fl4Proofs.P3.P3JMcLiftR
