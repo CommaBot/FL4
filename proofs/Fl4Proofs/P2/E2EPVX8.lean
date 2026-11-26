@@ -1,5 +1,84 @@
 /-
-# P2 (line vmscope, gen 8): the invocation slots in VM epochs — `serializable_fl4_localVX8` (draft)
+# P2 (line vmscope, gen 8): CNodeDelete and Copy / Mint in VM epochs — `serializable_fl4_localVX8`
+
+`serializable_fl4_localVX7` (P2/E2EPVX7.lean) runs vx, vt, io, st, irq and sl in VM epochs. This module adds the
+two route-C invocation slots of U1 (P2/E2EPU2.lean): **CNodeDelete without a PTE lock** (`invSlotU`) and
+**CNodeCopy / CNodeMint** (`cmSlotU`). Their native paths read P3's bundle `SlJAt` (false at every VM-epoch state:
+`JExt.vw`), cut VCPUs by `avoidV_nv` / `avoidE_cutLiftV_empty` (`K.vcpus = ∅`), and read PTE avoidance from `CvP`
+through the bundle (`ptesR_sub`, `SlJAtZ.vsJX`).
+
+## 1. The paths without a P3 bundle (`PathObl`)
+* **`UReach`** (aligned user-word writes), **`InvLXS`** (`cdt`, `buf8`, `bufS8`, `vs`: what `slJAt_cdt`,
+  `invBufJ8_of`, `invBufSJ8_of`, `invVsJ_of` give natively), **`InvLX st F K s`**: the layout facts of the bundle
+  (`regionOK`, `userOK`, `ioLayA`, `ul : UserLayX`, `hz : 0 ∉ K.slots`) and `InvLXS ∧ F` at every `UReach` state.
+  `InvLX.wr` (kept by user writes, by construction), `hzX_of`, `invCdtJX_of`, `invVsJX_of`, `curW_wrI`,
+  `ioRWDS_wrI` (`ownDep`), **`hufX`** (the paths' `huf`; locks by `hlk` [P]).
+* Copies at `InvLX st F K` in place of `SlJAt K` (a renaming script over the original text, no other change):
+  `invBlkUW2_of8X`, `invBlkGdUW2_of8X`, `invBlkW2_ofX`, `invCMBlkUW3_ofZX`, `invCMBlkGdUW3_ofZX`, `invU_decOnceX`,
+  `invURoTrW_ofX`; small ones by hand: `invSeenX_of`, `invPsX_of`, `invSlotCNX_of`, `cmPsX_ofW`, `cmSeenX_ofW`,
+  `cmSCX_ofZ`. **`inv_pathDelX`** / **`inv_pathCMX`**: `inv_pathDelE` / `inv_pathCME` at `Pre := InvLX st F K ∧
+  InvQF` (resp. `InvQCMW`), `F` giving the entry fact (`hF`), `hufX` for `huf`.
+
+## 2. Avoidance with VCPUs present (`E2EP`)
+* `XD K b := (Aligned b ∧ VData b) ∨ b ∈ K.ptes`; **`VsXW`**: a mapped frame cap's walk reads no `XD` word (natively
+  `SlJAtZ.vsJX` + `ptesR_sub` at `CvP`); `InvVF` (`UserObj`, `VcpuKsOff`, from the epoch's `VtxBundle4`);
+  **`ExOK K Ex`** (the conditions on an excluded set) with **`exOK_V`** (`Ex := VData`) and **`exOK_VP`**
+  (`Ex := VData ∨ ptes`, using `QPs.ks`); `ioRSR_rsEX`, `userW_rsEX`, `invSeenRNX`, `cmSeenRNX`.
+* Copies of unify's blocks for any `ExOK` set: `invBlkNX` (the walk arm by `delAccN` at `X := XD K`, its read
+  facts from `VsXW`), `invAccNX`, `invCMBlkNX`, `invCMAccNX`; **`avoidE_delX`** / **`avoidE_cmX`**: `AvoidE Ex` of the
+  `QPs`-restricted paths for every `ExOK` set (**this is `avoidE_delE` / `avoidE_cmE` redone so that it avoids
+  VCPU-data and PTE words**; no `CvP`).
+
+## 3. Slots, start facts, tops
+* `FDel` / `FCM` (entry fact, `VsXW` for Delete, `InvVF`); record **`InvPremX`** (one for both slots: [P] `lk`);
+  `invPathDX` / `cmPathDX` (`own`, restricted to `QPs`); **`invAvVD`** / **`cmAvVD`**: **`AvoidV` without
+  `K.vcpus = ∅`** (`avoidE_*X` at `exOK_V`); `invPathVX` / `cmPathVX` (`cutLiftV`); **`invAvPX`** / **`cmAvPX`**
+  (`AvoidP`, by gen 7's `avoidE_cutLiftV_X` at `exOK_VP`); **`invSlotVX`** / **`cmSlotVX`** (`ownP`).
+* Start entry **`InvEntV K G s`** [S] (one record for both slots: `hz`, `cl`, `qps`); start facts **`InvStartX`** /
+  **`CMStartX`** (`K.vcpus ≠ ∅`, record, a start state with `InvEntV` whose `G` is U1's `InvQF ∧ VsXW` resp.
+  `InvQCMW`, core / locks / memory link as `GlueAt` [P], the armed program the cut of the body); `invLX_of_ent`;
+  **`invStartX_at`** / **`cmStartX_at`** (`InvLX` from `InvEntV` and the epoch's `VtxBundle4`);
+  satisfiability of the record: `invPremX_const`, **`invPremX_planLocks`** (the canonical lock map).
+* **`StartVX8`**, **`serializable_fl4_localVX8G`**, **`serializable_fl4_localVX8`** = VX7's family ⊕ `invSlotVX` ⊕
+  `cmSlotVX`, glue `ExecVX4`.
+
+Slots starting in VM epochs: vx, vt, io, st, irq, sl, **CNodeDelete (no PTE lock), Copy / Mint**. Not yet: the
+Delete PTE arm (`delPteSlot`: its path `inv_localPathPP` is built under `ownP` with `nv` in `obl`/`side`/`once`, about
+20 files, and its `Pre` contains `SlJAt` and `CvP`), vmF / vmR.
+
+## Premise diff vs `serializable_fl4_localVX7`
+| where | VX7 | VX8 |
+|---|---|---|
+| CNodeDelete / Copy-Mint record | native epochs only (`InvPremW`: `nv`, `bunS`, `lk` [P] at `SlJAt` states) | also VM epochs: `InvPremX.lk` [P] (U1's `lk`, read at `InvLX` states); satisfiable by `invPremX_planLocks` |
+| their start entry | native: `Ch σ ∧ InvQF` / `InvQCMW` (P3 chain), `CvP` | VM epochs: `InvEntV` [S] (`hz`, `cl`, `qps`) with U1's `InvQF` / `InvQCMW` inside `cl`; `GlueAt` data [P] |
+| everything else | | unchanged |
+No new [J], no [W].
+
+## [S] justification (Rust: fl4-core `cspace.rs`, `cnode.rs`, `localinv.rs`, `msg.rs`, `arch/x86_64/vspace.rs`,
+`arch/x86_64/objects.rs`, `vcpu.rs`)
+A guest writes only its VCPU's data words and guest frames (`HwStepP`); VCPUs are untyped-retyped `bits::VCPU`
+(`other 15`) objects, never frames, CNode slots, TCBs or paging structures (`VtxBundle`). User-word writes change no
+kernel word. So each field is the fact P3 gives at the last native state, and it is insensitive to user writes:
+* `InvEntV.hz`: capability slots are CNode entries and TCB slots (`IsSlotAt`, address > 0); untyped retype never
+  places an object at physical address 0 (natively `slJAt_slot0`).
+* `InvEntV.cl`, `InvLXS.cdt`: the CDT links (`PREV` / `NEXT` of a slot, `cspace.rs` `mdb_insert` / `mdb_remove`)
+  only ever name capability slots or 0 (natively `slJAt_cdt` / `MdbLinks.nb`).
+* `buf8` / `bufS8`: `msg::lookup_ipc_buffer` reads the TCB's `SLOT_BUFFER` frame cap, a user frame page (VCPUs are
+  never frames; natively `JAtZ.bufOK` / `xferH`).
+* `vs` and `VsXW`: a mapped small frame cap's `small_page_entry` walk reads the ASID table, the pool and the PML4 /
+  PDPT / PD entries (`vspace.rs` `find_vspace_for_asid`, `lookup_pt_slot`), all words of retyped paging objects and
+  ASID pools (never `bits::VCPU` objects, never user frames), and no leaf PTE (natively `invVsJ_of`, `SlJAtZ.vsRdX`,
+  `ptesR_sub`).
+* `cl`'s `G` part: U1's entry fact (`InvQF` / `InvQCMW`: P1's `IoPre`, the plan, the lookup). Its closure under user
+  writes is natively the theorem `hufQF_of2` / `hufQCMW_of` (the plan and lookup read TCB registers, CNode slots and
+  paging words; `localinv.rs` `plan_with`), here asked of the start state.
+* `InvEntV.qps`: as VX4's / VX7's `qps`.
+
+## [P]s
+`InvPremX.lk` = U1's `InvPremW.lk` read at `InvLX` states (fl4-sync `local_invocation` locks the plan's objects,
+read from kernel words; the canonical `planLocks p` is state-independent). `GlueAt` data as every slot.
+
+No sorry / admit / native_decide / bv_decide. No existing statement or file changed except the root import list.
 -/
 import Fl4Proofs.P2.E2EPVX7
 open Aeneas Aeneas.Std Result
@@ -195,7 +274,7 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {F : S → Prop}
 
 /-- (vmscope gen 8: copy at `InvLX st F K` in place of `SlJAt K`) (stpost gen 14) **`InvBlkUW2` for the uncut CNodeDelete arm** at `Pre := SlJAt K ∧ InvQF`: `length ≥ 2` by
 `delAcc` / `delFin` (the `IoRS` / `IoWS` words are user-word-set words), `length < 2` by `truncAcc8` / `truncFin8`;
-from [J] `hvs`, [J] `hcdt`, [J] `hz`, [J] `hbuf`. -/
+from `hvs`, `hcdt`, `hz`, `hbuf` (hypotheses here, supplied from `InvLX`). -/
 theorem invBlkUW2_of8X {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω Sg Ac : Set U64}
     {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayout} {μ : U64 → U64}
     (hvs : InvVsJ st K (fun s => InvLX st F K s ∧ InvQF st Cs Ω Sg Ac Locks p K μ s))
@@ -297,7 +376,7 @@ theorem invBlkGdUW2_of8X {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
 
 /-- (vmscope gen 8: copy at `InvLX st F K` in place of `SlJAt K`) (stpost gen 13) **`InvBlkW2` for the CNodeDelete-no-PTE arm** at `Pre := SlJAt K ∧ InvQL`: `delAcc` (the decode
 and the reply on the guarded store) and `delFin` (reply `Ok ()`, `FinOK`), from the entry facts `DelEnt`
-(`delEnt_of`: [J] `hvs`, [J] `hcdt`, [J] `hz`). -/
+(`delEnt_of`: `hvs`, `hcdt`, `hz`) (hypotheses here, supplied from `InvLX`). -/
 theorem invBlkW2_ofX {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω Sg Ac : Set U64}
     {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayout} {μ : U64 → U64}
     (hvs : InvVsJ st K (fun s => InvLX st F K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s))
@@ -323,7 +402,7 @@ theorem invBlkW2_ofX {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs
   exact ⟨hrep z hz', h1, h2⟩
 
 /-- (vmscope gen 8: copy at `InvLX st F K` in place of `SlJAt K`) (slhuf gen 14; gen 12's `invCMBlkUW3_of8` without `hnul`) **The Copy / Mint decode block on `guard st (InvCMRS s) (InvCMWS s)`** at `Pre := SlJAt K ∧
-InvQCMW`, from [J] `hcdt`, `hz`, `hbuf`, `hbufS` (the target's zero word from the plan, `cmDestZ_of`). -/
+InvQCMW`, from `hcdt`, `hz`, `hbuf`, `hbufS` (the target's zero word from the plan, `cmDestZ_of`) (hypotheses here, supplied from `InvLX`). -/
 theorem invCMBlkUW3_ofZX {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω Sg Ac : Set U64}
     {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayout} {μ : U64 → U64}
     (hcdt : InvCdtJ st K (fun s => InvLX st F K s ∧ InvQCMW st Cs Ω Sg Ac Locks p K μ s))
@@ -975,4 +1054,296 @@ theorem avoidE_cmX {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (number 
 
 end av
 
+end Fl4Proofs.P2.E2EP
+
+/-! ## Part 3: the slots, their start facts and the tops -/
+
+namespace Fl4Proofs.P2.E2EP
+open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1 Fl4Proofs.P2 Fl4Proofs.P2.PathObl Fl4Proofs.P2.OwnMapV
+  Fl4Proofs.P2.OwnMapP
+open Fl4Proofs.P2.E2EV
+open Fl4Proofs.P2.OwnMap (KLayout region fld InW RegionOK LayP)
+open Fl4Proofs.P2.E2E (StartAt SP)
+open Fl4Proofs.P2.Serial (Owner ClsOwner Cfg Init ArmInv NoLoc RunAll)
+
+noncomputable section
+open Classical
+
+section slot
+variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
+variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
+
+/-- **The CNodeDelete path's `InvLX` target**: U1's entry fact `InvQF`, the walk avoidance `VsXW` [S] and the
+epoch's VCPU layout facts. -/
+def FDel (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (s : S) : Prop :=
+  (InvQF st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout m s ∧ VsXW st K s) ∧ InvVF K
+
+/-- **The Copy / Mint path's `InvLX` target**: U1's entry fact `InvQCMW` and the epoch's VCPU layout facts. -/
+def FCM (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (s : S) : Prop :=
+  InvQCMW st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout m s ∧ InvVF K
+
+/-- **The invocation slots' record in VM epochs** [P]: U1's `InvPremW.lk` (the locks are kept by an aligned
+user-word write) read at `InvLX` states. -/
+structure InvPremX (j : InvArg S) (K : KLayoutP) : Prop where
+  /-- [P] (U1's `InvPremW.lk` at `InvLX` states). -/
+  lk : ∀ s b v, (∃ F, InvLX st F K.toKLayout s) → b ∈ K.user → Aligned b → j.Locks (L.wr s b v) = j.Locks s
+
+/-- The CNodeDelete path at `InvLX (FDel)`, restricted to `QPs` (`own`). -/
+noncomputable def invPathDX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) :
+    E2E.LocalPath (OwnMap.own K.toKLayout) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
+  (inv_pathDelX (Cs := j.Cs) (Ω := j.Ω) (Sg := j.Sg) (Ac := j.Ac) (Locks := j.Locks) (F := FDel st j K m)
+    ar hA j.number j.p hm K.toKLayout m hK.base.base hU.base.base (fun _ h => h.1.1)
+    (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)).restrQ (fun s => QPs K st s)
+    (fun _ _ _ _ h hb ha => h.wr (Or.inl hb) ha)
+
+/-- The Copy / Mint path at `InvLX (FCM)`, restricted to `QPs` (`own`). -/
+noncomputable def cmPathDX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) :
+    E2E.LocalPath (OwnMap.own K.toKLayout) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
+  (inv_pathCMX (Cs := j.Cs) (Ω := j.Ω) (Sg := j.Sg) (Ac := j.Ac) (Locks := j.Locks) (F := FCM st j K m)
+    ar hA j.number j.p hm K.toKLayout m hK.base.base hU.base.base (fun _ h => h.1)
+    (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)).restrQ (fun s => QPs K st s)
+    (fun _ _ _ _ h hb ha => h.wr (Or.inl hb) ha)
+
+/-- The kernel block's fit from an `InvQF` / `InvQCMW` state (`IoLay.ksf`). -/
+theorem ksfit_of_ioPre {K : KLayout} {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s : S}
+    (P : IoPre st K T Cs Ω H Sg Rp Scs Nt Z Ac s) : K.ksb.val + 13568 ≤ 2 ^ 64 := P.lay.ksf.2
+
+/-- **`AvoidV` of the CNodeDelete path** (no `K.vcpus = ∅`: `avoidE_delX` at `Ex := VData`). -/
+theorem invAvVD (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) : AvoidV K.toKLayoutV (invPathDX st ar hA hm j K m hK hU h) := by
+  have a := avoidE_delX ar hA (Ex := VData K.toKLayoutV) j.number j.p hm K m hK hU
+    (F := FDel st j K m) (fun _ h => h.1.1) (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)
+    (fun _ h => h.1.2) (fun _ hF _ => exOK_V hK hU hF.2 (ksfit_of_ioPre st hF.1.1.1.1.1))
+  exact ⟨a.acc, a.dec, a.prog⟩
+
+/-- **`AvoidV` of the Copy / Mint path** (`avoidE_cmX` at `Ex := VData`). -/
+theorem cmAvVD (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) : AvoidV K.toKLayoutV (cmPathDX st ar hA hm j K m hK hU h) := by
+  have a := avoidE_cmX ar hA (Ex := VData K.toKLayoutV) j.number j.p hm K m hK hU
+    (F := FCM st j K m) (fun _ h => h.1) (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)
+    (fun _ hF _ => exOK_V hK hU hF.2 (ksfit_of_ioPre st hF.1.1.1.1))
+  exact ⟨a.acc, a.dec, a.prog⟩
+
+/-- **The CNodeDelete path under `ownV` in a VM epoch** (route C with VCPUs). -/
+noncomputable def invPathVX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) :
+    E2E.LocalPath (ownV K.toKLayoutV) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
+  LocalPath.cutLiftV hK.base hU.base (fun x ⟨_, hv, _⟩ => ko_vcpu hK.base hv m) _ (invAvVD st ar hA hm j K m hK hU h)
+
+/-- **The Copy / Mint path under `ownV` in a VM epoch** (route C with VCPUs). -/
+noncomputable def cmPathVX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) :
+    E2E.LocalPath (ownV K.toKLayoutV) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
+  LocalPath.cutLiftV hK.base hU.base (fun x ⟨_, hv, _⟩ => ko_vcpu hK.base hv m) _ (cmAvVD st ar hA hm j K m hK hU h)
+
+/-- **`AvoidP` of the CNodeDelete path in a VM epoch** (`avoidE_cutLiftV_X`, the path avoiding `VData ∨ ptes` by
+`avoidE_delX`). No premise. -/
+theorem invAvPX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) : AvoidP K (invPathVX st ar hA hm j K m hK hU h) :=
+  avoidE_cutLiftV_X hK.base hU.base _ _ _ (avoidE_delX ar hA j.number j.p hm K m hK hU
+    (F := FDel st j K m) (fun _ h => h.1.1) (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)
+    (fun _ h => h.1.2) (fun _ hF hq => exOK_VP hK hU hF.2 (ksfit_of_ioPre st hF.1.1.1.1.1) hq.ks))
+
+/-- **`AvoidP` of the Copy / Mint path in a VM epoch**. No premise. -/
+theorem cmAvPX (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : InvPremX st j K) : AvoidP K (cmPathVX st ar hA hm j K m hK hU h) :=
+  avoidE_cutLiftV_X hK.base hU.base _ _ _ (avoidE_cmX ar hA j.number j.p hm K m hK hU
+    (F := FCM st j K m) (fun _ h => h.1) (fun s b v hJ hb hba => h.lk s b v ⟨_, hJ⟩ hb hba)
+    (fun _ hF hq => exOK_VP hK hU hF.2 (ksfit_of_ioPre st hF.1.1.1.1) hq.ks))
+
+/-- **The CNodeDelete (no PTE lock) slot in VM epochs, under `ownP`**. -/
+noncomputable def invSlotVX : PathsP (InvArg S) :=
+  fun j K m hK hU => if h : InvPremX st j K then
+      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (invAvPX st ar hA hm j K m hK hU h)
+    else E2EV.LocalPath.void (fl4Dflt st ar hm)
+      (fun x hx => Fl4Proofs.P2.ko_aligned hK.base.base hU.base.base x hx)
+
+/-- **The Copy / Mint slot in VM epochs, under `ownP`**. -/
+noncomputable def cmSlotVX : PathsP (InvArg S) :=
+  fun j K m hK hU => if h : InvPremX st j K then
+      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (cmAvPX st ar hA hm j K m hK hU h)
+    else E2EV.LocalPath.void (fl4Dflt st ar hm)
+      (fun x hx => Fl4Proofs.P2.ko_aligned hK.base.base hU.base.base x hx)
+
+theorem invSlotVX_pos {j : InvArg S} {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K}
+    (h : InvPremX st j K) :
+    invSlotVX st ar hA hm j K m hK hU =
+      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (invAvPX st ar hA hm j K m hK hU h) :=
+  dif_pos h
+
+theorem cmSlotVX_pos {j : InvArg S} {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K}
+    (h : InvPremX st j K) :
+    cmSlotVX st ar hA hm j K m hK hU =
+      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (cmAvPX st ar hA hm j K m hK hU h) :=
+  dif_pos h
+
+/-- **The invocation entry's facts at a guest-running start state** [S] (module docstring; one record for both
+slots, `G` the slot's entry fact). -/
+structure InvEntV (K : KLayoutP) (G : S → Prop) (s : S) : Prop where
+  /-- [S] no capability slot at address 0 (natively `slJAt_slot0`). -/
+  hz : (0#u64) ∉ K.slots
+  /-- [S] `InvLXS` and the entry fact at every state reached by aligned user-word writes (natively `slJAt_cdt`,
+  `invBufJ8_of`, `invBufSJ8_of`, `invVsJ_of`, `SlJAtZ.vsJX`, and `hufQF_of2` / `hufQCMW_of` for `G`). -/
+  cl : ∀ s', UReach (L := L) K.toKLayout s s' → InvLXS st K.toKLayout s' ∧ G s'
+  /-- [S] the PTE facts at the start state (as VX4's / VX7's `qps`). -/
+  qps : QPs K st s
+
+/-- **The CNodeDelete slot's start fact in a VM epoch**: the record, a start state with `InvEntV` ([S]; its entry
+part `InvQF` is U1's), core / locks / memory link ([P], as `GlueAt`), the armed program the cut of the path's body. -/
+def InvStartX (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (hs : U64 → Prop)
+    (q : SP) (j : InvArg S) : Prop :=
+  K.vcpus ≠ ∅ ∧ ∃ h : InvPremX st j K, ∃ (σ : S) (a : A),
+    InvEntV st K (fun s => InvQF st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout m s ∧ VsXW st K s) σ ∧
+    L.cpu σ = c ∧ j.Locks σ = hs ∧ (∀ x, Aligned x → ¬ x ∈ K.user → L.mem σ x = m x) ∧
+    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c
+      ((invPathVX st ar hA hm j K m hK hU h).body σ a) ∅
+
+/-- **The Copy / Mint slot's start fact in a VM epoch** (as `InvStartX`, entry part U1's `InvQCMW`). -/
+def CMStartX (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (hs : U64 → Prop)
+    (q : SP) (j : InvArg S) : Prop :=
+  K.vcpus ≠ ∅ ∧ ∃ h : InvPremX st j K, ∃ (σ : S) (a : A),
+    InvEntV st K (fun s => InvQCMW st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout m s) σ ∧
+    L.cpu σ = c ∧ j.Locks σ = hs ∧ (∀ x, Aligned x → ¬ x ∈ K.user → L.mem σ x = m x) ∧
+    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c
+      ((cmPathVX st ar hA hm j K m hK hU h).body σ a) ∅
+
+variable {st ar hA hm}
+
+/-- `InvLX` at a start state from `InvEntV` and the epoch's bundle. -/
+theorem invLX_of_ent {K : KLayoutP} {G F : S → Prop} {σ : S} (hK : RegionOKP K) (hU : UserOKP K)
+    (E : VtxBundle4 st L K) (he : InvEntV st K G σ) (hGF : ∀ s, G s → InvVF K → F s) :
+    InvLX st F K.toKLayout σ :=
+  ⟨hK.base.base, hU.base.base, E.la, E.b.ul, he.hz,
+    fun s' hr => ⟨(he.cl s' hr).1, hGF _ (he.cl s' hr).2 ⟨E.b.vu, E.ko⟩⟩⟩
+
+/-- **`StartAt` of the CNodeDelete slot in a VM epoch** from its start fact and the epoch's bundle. -/
+theorem invStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
+    {hs : U64 → Prop} {q : SP} {j : InvArg S} (E : VtxBundle4 st L K)
+    (h : InvStartX st ar hA hm K μ hK hU c hs q j) :
+    StartAt (invSlotVX st ar hA hm j K μ hK hU) c hs μ q := by
+  obtain ⟨-, hp, σ, a, he, hc, hl, hμ, rfl⟩ := h
+  have hJ : InvLX st (FDel st j K μ) K.toKLayout σ := invLX_of_ent hK hU E he (fun _ hG hv => ⟨hG, hv⟩)
+  rw [invSlotVX_pos st ar hA hm hp]
+  refine ⟨σ, a, ⟨⟨hJ, hJ.here.2.1.1⟩, he.qps⟩, hc, hl, hμ, ?_⟩
+  rw [body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ (invAvPX st ar hA hm j K μ hK hU hp) σ a, ← hc]
+  rfl
+
+/-- **`StartAt` of the Copy / Mint slot in a VM epoch** from its start fact and the epoch's bundle. -/
+theorem cmStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
+    {hs : U64 → Prop} {q : SP} {j : InvArg S} (E : VtxBundle4 st L K)
+    (h : CMStartX st ar hA hm K μ hK hU c hs q j) :
+    StartAt (cmSlotVX st ar hA hm j K μ hK hU) c hs μ q := by
+  obtain ⟨-, hp, σ, a, he, hc, hl, hμ, rfl⟩ := h
+  have hJ : InvLX st (FCM st j K μ) K.toKLayout σ := invLX_of_ent hK hU E he (fun _ hG hv => ⟨hG, hv⟩)
+  rw [cmSlotVX_pos st ar hA hm hp]
+  refine ⟨σ, a, ⟨⟨hJ, hJ.here.2.1⟩, he.qps⟩, hc, hl, hμ, ?_⟩
+  rw [body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ (cmAvPX st ar hA hm j K μ hK hU hp) σ a, ← hc]
+  rfl
+
+/-- **`InvPremX` holds for every index with a state-independent lock map** (the canonical `planLocks p`,
+`invPremX_planLocks`). -/
+theorem invPremX_const {j : InvArg S} {K : KLayoutP} (hj : ∀ s s' : S, j.Locks s = j.Locks s') :
+    InvPremX st j K :=
+  ⟨fun _ _ _ _ _ _ => hj _ _⟩
+
+theorem invPremX_planLocks {j : InvArg S} {K : KLayoutP} {p : localinv.Plan} (e : j.Locks = planLocks p) :
+    InvPremX st j K :=
+  invPremX_const (fun _ _ => by rw [e]; rfl)
+
+end slot
+
+/-! ## The tops -/
+
+section top
+variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
+variable {A : Type} (ar : machine.Arch A)
+variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
+variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
+
+/-- **The start facts with the CNodeDelete and Copy / Mint slots in VM epochs too** (VX7's, plus `InvStartX`,
+`CMStartX`). -/
+def StartVX8 {ιN : Type}
+    (SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop)
+    (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
+    (hs : U64 → Prop) (q : SP) :
+    (((((((ιN ⊕ VxArg S) ⊕ VtArg S) ⊕ IoArg S) ⊕ StArg S) ⊕ IrqArg S) ⊕ SlArg S) ⊕ InvArg S) ⊕ InvArg S → Prop
+  | .inl (.inl i) => StartVX7 st ar hA hm hSt a0 SFN Ch K m hK hU c hs q i
+  | .inl (.inr j) => InvStartX st ar hA hm K m hK hU c hs q j
+  | .inr j => CMStartX st ar hA hm K m hK hU c hs q j
+
+/-- **FL4 end to end with native and VM epochs; the VM-exit, VM-timer, I/O-port, `TCB_SetTimer`, timer-interrupt,
+syscall, CNodeDelete and Copy / Mint slots in VM epochs; generic in the native family**
+(`serializable_fl4_localVX7G` with `invSlotVX` and `cmSlotVX` added). -/
+theorem serializable_fl4_localVX8G (P : LocPlat st arI AR MR) {ιN : Type} (LN : PathsP ιN)
+    {SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop}
+    (hSFN : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
+      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
+      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
+      SFN Ch K s.mem hK hU c hs q i → StartAt (LN i K s.mem hK hU) c hs s.mem q)
+    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
+    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0)
+    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum LN
+        (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
+        (irqSlotPX st ar hA hm)) (slSlotPX st ar hA hm hSt a0)) (invSlotVX st ar hA hm)) (cmSlotVX st ar hA hm))
+      (StartVX8 st ar hA hm hSt a0 SFN) P s0 K0 Ch0 s K Ch)
+    (hq : NoLoc s) :
+    RunAll s.log s0.mem s.mem := by
+  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
+  have hX := (execVX_of_VX4 hc0.1 h).1
+  refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_VX P ?_ h0 hA0 hB hc0 hM0 hX).1 hq
+  intro Ch K s hK hU c hs q i hN hsf
+  obtain ⟨hV, hsf⟩ := hsf
+  rcases i with (((((((i | j) | j) | j) | j) | j) | j) | j) | j
+  · have hsf' : K.vcpus = ∅ ∧ SFN Ch K s.mem hK hU c hs q i := hsf
+    obtain ⟨nv, hsf'⟩ := hsf'
+    obtain ⟨hX, hE⟩ := hN nv
+    exact hSFN Ch K s hK hU c hs q i hX.chainOf hE hsf'
+  · have hsf' : VxStartV2 st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact vxStartV_at st ar hA hm (vxStartV_of_V2 (hV (vxStartV2_ne hsf')).b hsf')
+  · have hsf' : VtStartV4 st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact vtStartV2_at (hV hsf'.1).b (vtStartV2_of_V4 (hV hsf'.1).b hsf')
+  · have hsf' : IoStartX5 st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact ioStartX_at (hV hsf'.1) (ioStartX_of_X5 (hV hsf'.1) hsf')
+  · have hsf' : StStartX st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact stStartX_at (hV hsf'.1) hsf'
+  · have hsf' : IrqStartX st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact irqStartX_at (hV hsf'.1) hsf'
+  · have hsf' : SlStartX st ar hA hm hSt a0 K s.mem hK hU c hs q j := hsf
+    exact slStartX_at (hV hsf'.1) hsf'
+  · have hsf' : InvStartX st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact invStartX_at (hV hsf'.1) hsf'
+  · have hsf' : CMStartX st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact cmStartX_at (hV hsf'.1) hsf'
+
+/-- **FL4 end to end with every U1 slot in native epochs and the VM-exit, VM-timer, I/O-port, `TCB_SetTimer`,
+timer-interrupt, syscall, CNodeDelete and Copy / Mint slots in VM epochs** (module docstring):
+`serializable_fl4_localVX7` with `invSlotVX` and `cmSlotVX` added (record `InvPremX`: U1's `lk` [P] at `InvLX`
+states; start entry `InvEntV` [S] with U1's `InvQF` / `InvQCMW`). No new [J], no [W]. -/
+theorem serializable_fl4_localVX8 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
+    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
+    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0)
+    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum
+        (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0)
+          (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotU st ar hA hm)) (cmSlotU st ar hA hm)))
+        (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
+        (irqSlotPX st ar hA hm)) (slSlotPX st ar hA hm hSt a0)) (invSlotVX st ar hA hm)) (cmSlotVX st ar hA hm))
+      (StartVX8 st ar hA hm hSt a0 (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU2 st ar hA hm)))
+      P s0 K0 Ch0 s K Ch)
+    (hq : NoLoc s) :
+    RunAll s.log s0.mem s.mem := by
+  refine serializable_fl4_localVX8G st ar hA hm hSt a0 P _ ?_ h0 hA0 hB hc0 hM0 h hq
+  intro Ch K s hK hU c hs q i hC hE hsf
+  rcases i with i | ((j | j) | j)
+  · exact startAt_U st ar hA hm hSt a0 P hIoa hC hE hsf
+  · exact delPteStart_at st ar hA hm hC hE hsf
+  · exact invStartU2_at st ar hA hm hC hE hsf
+  · exact cmStartU2_at st ar hA hm hC hE hsf
+
+end top
+
+end
 end Fl4Proofs.P2.E2EP
