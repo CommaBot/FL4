@@ -17,7 +17,7 @@ Assembled as `vexit_localPath` (`P2/AccessLvmLP.lean`, itself p2lt's `irq_localP
 Premises of `vtimer_localPath`:
 * `hp` [P] `IsProg`, `hz` [W] `NoZero`, `hm` [P] `MasksWr`, `hro` [W] `ReadOnce` (as every `LocalPath`);
 * `hK` [J] `RegionOKV`, `hU` [J] `UserOKV`; `VtmEnt`'s fields (`P2/AccessLvmTo.lean`); `hEU` [J] (`VtmEnt` survives
-  a user write), `hlk` [P] (so do the glue's locks);
+  a user write), `hlk` [P] (so do the glue's locks, for an aligned user word: gen 10 added `Aligned b`);
 * **`hF` / `hFm` [W]: the fire case** (a due timer whose `fire_ok` holds: the timer interrupt's fire walk,
   p2lf's `FootTimerFire*`, with the VM head and the two `vcpu::check`s; as the old `irq_localPath`'s `hF` / `hFm`);
 * `hNt` (P1's notifications typed in its heap `H`; `fun _ h => h` at `Nt = H.ntfns`): declines are discharged
@@ -186,13 +186,13 @@ theorem vtimer_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV 
         ok (false, s1, a1))
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s) :
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s) :
     PathObl.PathSide st (fun mm s a => localvm.handle_vm_timer_irq_local mm ar s a irq pl n) (OwnMap.cls K.toKLayout)
       (OwnMap.ko K.toKLayout m) (· ∈ K.user) lk (VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n)
       (VexitRS K st lk) (VexitWS K st lk) (IrqDec st) := by
   refine ⟨?_, fun s x _ hx => hx.1, OwnMap.ko_aligned hK.base hU.base m, fun s b v' hE hb hba =>
-    ⟨hEU s b v' hE hb hba, hlk s b v' hb, vexitRS_wr_user hK hU hb hba (hlk s b v' hb),
-      vexitWS_wr_user hK hU hb hba (hlk s b v' hb), irq_dec_user s b v'⟩⟩
+    ⟨hEU s b v' hE hb hba, hlk s b v' hb hba, vexitRS_wr_user hK hU hb hba (hlk s b v' hb hba),
+      vexitWS_wr_user hK hU hb hba (hlk s b v' hb hba), irq_dec_user s b v'⟩⟩
   intro s s' a r hE hAlt h
   have eP : ∀ (mm : machine.Store S) (x : S),
       localvm.handle_vm_timer_irq_local mm ar x a irq pl n = interp mm ar p x a :=
@@ -215,7 +215,7 @@ noncomputable def vtimer_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU
       (VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n) (VexitRS K st lk))
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s)
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s)
     (hF : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a irq pl n =
