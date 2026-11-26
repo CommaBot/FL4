@@ -436,7 +436,7 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
   have e1N : ∀ o, L.nodeAt s1 (L.cpu s1) o = L.nodeAt s (L.cpu s) o := fun o => by rw [c1, nodeAt_of_ksb k1]
   -- readable words
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
-    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2⟩
+    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2, hL.nu_node h1⟩
   have ndR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s1 (L.cpu s1) o) := fun o h1 h2 => by
     rw [e1N]; exact nR o h1 h2
   have gateR : ∀ {x : U64} {k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → GateField k.val →
@@ -444,11 +444,11 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
     ⟨Or.inr (by
       have e := hL.own_tcb hT (L.mem s) hx h1 h2
       unfold fld at e
-      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8⟩
+      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8, hL.nu_tcb hx h1 h2⟩
   have homeX : ∀ {x k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
       (k.val < 3528 ∨ 3576 ≤ k.val) → k.val ≠ 3496 → k.val ≠ 3504 → L.mem s (affA x) = L.cpu s →
       R (core.num.U64.wrapping_add x k) := @fun x k hx h1 h2 h3 h4 h5 h6 hax => by
-    refine ⟨?_, field_aligned (hT _ hx) h2 h3⟩
+    refine ⟨?_, field_aligned (hT _ hx) h2 h3, hL.nu_tcb hx h1 h2⟩
     have e := hL.own_tcb hT (L.mem s) hx h1 h2
     unfold fld at e
     unfold RPerm GateOnly
@@ -462,7 +462,7 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
   have keyR : ∀ {y k : U64}, y ∈ tr.keys → 3528 ≤ k.val → k.val < 3576 → k.val % 8 = 0 →
       R (core.num.U64.wrapping_add y k) := @fun y k hy h1 h2 h3 => by
     have hyT := ctr.inT y hy
-    refine ⟨Or.inl ?_, field_aligned (hT _ hyT) (by omega) h3⟩
+    refine ⟨Or.inl ?_, field_aligned (hT _ hyT) (by omega) h3, hL.nu_tcb hyT (by omega) (by omega)⟩
     have e := hL.own_tcb hT (L.mem s) hyT (k := k) (by omega) (by omega)
     unfold fld at e
     rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
@@ -481,8 +481,8 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
     have e : own K (L.mem s) (scCoreA q) = .gate := by
       simp only [own, hL.sc q hq _ hin]
       rw [if_pos (by unfold scCoreA; rw [hv, hcv])]
-    exact ⟨Or.inr e, by unfold Aligned scCoreA; rw [hv, hcv]; omega⟩
-  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := ⟨rperm_none hL.dom _, hL.domA⟩
+    exact ⟨Or.inr e, by unfold Aligned scCoreA; rw [hv, hcv]; omega, hL.nu_sc hq hin⟩
+  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩
   -- what `may_run_here` reads of a null thread or a TCB, at `s1`
   have mayZ : ∀ x : U64, (x = 0#u64 ∨ x ∈ T) → MayRdC st R s1 (L.cpu s1) x ∧
       (x ≠ 0#u64 → L.mem s1 (affA x) = L.cpu s1 → R (domA x) ∧ R (inqA x)) := fun x hx => by
@@ -588,7 +588,8 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
         rw [eA]; exact eBt
       have ht : K.heap TM = some .tcb := hK.tcbOf _ _ (hL.tcb _ q1 3328#u64 (by simp) (by simp))
       have ntR : ∀ k : U64, k.val < 64 → k.val % 8 = 0 → R (core.num.U64.wrapping_add N k) := fun k hk h8 => by
-        refine ⟨?_, by unfold Aligned; rw [ntfn_word_val p1 p2 hk]; omega⟩
+        refine ⟨?_, by unfold Aligned; rw [ntfn_word_val p1 p2 hk]; omega,
+          hL.nu (by rw [hY.ntw _ hNN k hk]; intro e; cases e)⟩
         have e : own K (L.mem s) (core.num.U64.wrapping_add N k) = ntfnOwner K (L.mem s) N k.val := by
           simp only [own, hY.ntw _ hNN k hk]
           rw [ntfn_word_val p1 p2 hk, Nat.add_sub_cancel_left]

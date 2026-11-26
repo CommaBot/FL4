@@ -133,12 +133,17 @@ structure IrqLayR (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt 
     ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
       Aligned (peAF (L.mem s (atAF (L.ksb s) hi)) lo) ∧ region K (peAF (L.mem s (atAF (L.ksb s) hi)) lo) = .none
   ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n
+  /-- As `IrqLay.iqU` / `krU` / `tabU` (vlift gen 3). -/
+  iqU : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i → core.num.U64.wrapping_add (L.ksb s) i ∉ K.user
+  krU : krA (L := L) s ∉ K.user
+  tabU : ∀ hi : U64, hi.val < 2048 → atAF (L.ksb s) hi ∉ K.user ∧
+    ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 → peAF (L.mem s (atAF (L.ksb s) hi)) lo ∉ K.user
 
 theorem IrqLayR.lay {irq : U64} {s : S} (h : IrqLayR K st Nt irq s)
     (hcs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p,
       region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧ TcbSlot K p ∧
         (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16) : IrqLay K st Nt irq s :=
-  ⟨h.iq, h.kr, h.tab, h.ntw, hcs⟩
+  ⟨h.iq, h.kr, h.tab, h.ntw, hcs, h.iqU, h.krU, h.tabU⟩
 
 /-- `IrqEnt` with `IrqLayR` for `IrqLay` (its [J] parts but `cs`). -/
 structure IrqEntR (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
@@ -358,6 +363,35 @@ theorem _root_.Fl4Proofs.P2.OwnMap.LayP.region_ntfnW (h : LayP K) {p b : U64} (h
 
 end lay2
 
+section ku
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+variable {K : KLayout} {s : S} {A' : Type} {arI : machine.Arch A'} {AR : A' → Fl4Spec.Cr3 → Prop}
+  {Zx : Fl4Proofs.P3.XSets} {Cx Ax : Set U64} {Lst : U64 → List U64} {D : Set U64} {a' : A'}
+  {σ : Fl4Spec.State Unit}
+
+/-- (line vlift gen 4) **User words lie outside the kernel-state block**: they are IPC-buffer words of `Zx.B`
+(`SlJAtZ.user`), which P3 keeps apart from the block (`JAtZ.ks`, `KsApart.buf`). -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.ksU (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) {b : U64}
+    (hb : b ∈ K.user) : b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val := by
+  rw [B.user] at hb
+  obtain ⟨wp, hw, rfl⟩ := hb
+  exact B.j.ks.buf wp hw
+
+/-- (line vlift gen 4) **No ASID-table or ASID-pool word is a user word**: P3's VSpace placement keeps the
+objects the VSpace code writes (`VObj`, which holds every `VsWrite` word) apart from the IPC-buffer words
+(`TopPlaced.disj`, `OObj`'s last part). -/
+theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.vsU (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ) {b : U64}
+    (hv : Fl4Proofs.P3.Vs.VsWrite Zx.P (L.ksb s) b) : b ∉ K.user := by
+  intro hb
+  rw [B.user] at hb
+  obtain ⟨wp, hw, rfl⟩ := hb
+  have hTP := B.j.xtop.fin.1.2
+  exact hTP.disj wp.1 (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))))))
+    (Fl4Proofs.P3.Vs.vsWrite_vobj (th := Zx.th) (L4 := Zx.L4) (L3 := Zx.L3) (L2 := Zx.L2) (L1 := Zx.L1)
+      hTP.vs hv)
+
+end ku
+
 section k
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : KLayout}
@@ -370,6 +404,13 @@ structure IrqLayK (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt 
     ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
       Aligned (peAF (L.mem s (atAF (L.ksb s) hi)) lo) ∧ region K (peAF (L.mem s (atAF (L.ksb s) hi)) lo) = .none
   ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n
+  /-- (vlift gen 3/4) The IRQ state words, the kernel root word and the ASID table and pool words are no user
+  words (`IrqLay.iqU` / `krU` / `tabU`). -/
+  iqU : ∀ irq : U64, irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
+    core.num.U64.wrapping_add (L.ksb s) i ∉ K.user
+  krU : krA (L := L) s ∉ K.user
+  tabU : ∀ hi : U64, hi.val < 2048 → atAF (L.ksb s) hi ∉ K.user ∧
+    ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 → peAF (L.mem s (atAF (L.ksb s) hi)) lo ∉ K.user
 
 /-- **`IrqLayK` from line slj's bundle** at a P1 state (the kernel-state block's placement): the kernel root word
 is a kernel global below `ksb + 256` (`RegionOKX.ks`), the ASID table words are `RegionOKX.asidT`, the pools
@@ -382,7 +423,11 @@ theorem irqLayK_of_slJAt {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (h 
   have hk : L.ksb s = K.ksb := B.ksb
   have h0 := hI.1.choose_spec.choose_spec
   have hN : NodePlaced st T s (L.cpu s) := h0.nodes _ h0.cur
-  refine ⟨?_, ?_, ?_⟩
+  have hv48 : (krA (L := L) s).val = (L.ksb s).val + 48 := by
+    unfold krA
+    rw [Fl4Proofs.P2.ks_word_val hN (by simp [layout.ks.KERNEL_ROOT])]
+    simp [layout.ks.KERNEL_ROOT]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · have ha : Aligned (krA (L := L) s) := by
       unfold krA
       exact Fl4Proofs.P2.ks_aligned hN (by simp [layout.ks.KERNEL_ROOT]) (by simp [layout.ks.KERNEL_ROOT])
@@ -401,6 +446,21 @@ theorem irqLayK_of_slJAt {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (h 
     refine hP.region_ntfnW hn' ⟨?_, ?_⟩ <;>
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] <;>
       rw [Nat.mod_eq_of_lt (by omega)] <;> omega
+  · intro irq hb i hi hu
+    rw [Fl4Proofs.P3.state_off_eq] at hi
+    have hi' := ok_inj_ff hi
+    subst hi'
+    have hv := Fl4Proofs.P3.irqStA_val B.j.kern.ksbFit hb
+    change Fl4Proofs.P3.irqStA (L.ksb s) irq ∈ K.user at hu
+    rcases B.ksU hu with e | e <;> omega
+  · intro hu
+    rcases B.ksU hu with e | e <;> omega
+  · intro hi hhi
+    have e : atAF (L.ksb s) hi = Fl4Proofs.P3.Vs.atA (L.ksb s) hi := rfl
+    refine ⟨by rw [e]; exact B.vsU (Or.inl ⟨hi, hhi, rfl⟩), fun lo hlo h0' => ?_⟩
+    rw [e] at h0' ⊢
+    have hP := B.j.xtop.fin.2.1.tmem hi hhi h0'
+    exact B.vsU (Or.inr ⟨_, hP, lo, hlo, rfl⟩)
 
 /-- `IrqEnt` with only `IrqLay.iq` of its layout part (gen14 stage 2: `cs` from `SlotJ.cs`, `kr` / `tab` / `ntw`
 from `irqLayK_of_slJAt`). [J] parts: `inv` / `lay` / `iq` / `asid` / `aff` / `nth`. -/
@@ -422,7 +482,7 @@ structure IrqEntIM (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T 
 
 theorem IrqEntI.entR {irq : U64} {s : S} (h : IrqEntI K st T Cs Ω H Sg Rp Scs Nt Z Ac irq s)
     (hk : IrqLayK K st Nt s) : IrqEntR K st T Cs Ω H Sg Rp Scs Nt Z Ac irq s :=
-  ⟨h.inv, h.lay, ⟨h.iq, hk.kr, hk.tab, hk.ntw⟩, h.asid, h.aff, h.nth⟩
+  ⟨h.inv, h.lay, ⟨h.iq, hk.kr, hk.tab, hk.ntw, hk.iqU irq, hk.krU, hk.tabU⟩, h.asid, h.aff, h.nth⟩
 
 theorem IrqEntIM.entRM {irq : U64} {m : U64 → U64} {s : S} (h : IrqEntIM K st T Cs Ω H Sg Rp Scs Nt Z Ac irq m s)
     (hk : IrqLayK K st Nt s) : IrqEntRM K st T Cs Ω H Sg Rp Scs Nt Z Ac irq m s :=

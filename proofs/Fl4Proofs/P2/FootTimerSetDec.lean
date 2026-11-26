@@ -120,13 +120,13 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
     ⟨Or.inr (by
       have e := hL.own_tcb hT (L.mem s) hx h1 h2
       unfold fld at e
-      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8⟩
+      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8, hL.nu_tcb hx h1 h2⟩
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
-    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2⟩
+    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2, hL.nu_node h1⟩
   have cR : ∀ k : U64, 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → (k.val < 3528 ∨ 3576 ≤ k.val) →
       R (core.num.U64.wrapping_add (L.curW s) k) := fun k h1 h2 h3 h4 => by
     have e := caller_own' hL hT hcT hP.aff hP.nq h1 h2 h4
-    refine ⟨?_, field_aligned ht' h2 h3⟩
+    refine ⟨?_, field_aligned ht' h2 h3, hL.nu_tcb hcT h1 h2⟩
     split at e
     · exact Or.inr e
     · exact Or.inl (held_core e)
@@ -136,7 +136,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
   have scw : ∀ {p b : U64}, p ∈ Scs → InSC p (Z p) b → L.mem s (scCoreA p) = L.cpu s → Aligned b → R b :=
     fun hp hb hc ha => by
     have e := sc_own hL hp hb hc
-    refine ⟨?_, ha⟩
+    refine ⟨?_, ha, hL.nu_sc hp hb⟩
     split at e
     · exact Or.inr e
     · exact Or.inl (held_core e)
@@ -144,7 +144,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
   have hcq := scq_of hO hS hP.csc
   have keyR : ∀ y, y ∈ T → FootLtArmed st s (L.cpu s) y → ∀ k : U64, 3528 ≤ k.val → k.val < 3576 → k.val % 8 = 0 →
       R (core.num.U64.wrapping_add y k) := fun y hy ha k h1 h2 h3 => by
-    refine ⟨Or.inl (held_core ?_), field_aligned (hT y hy) (by omega) h3⟩
+    refine ⟨Or.inl (held_core ?_), field_aligned (hT y hy) (by omega) h3, hL.nu_tcb hy (by omega) (by omega)⟩
     have e := hL.own_tcb hT (L.mem s) hy (k := k) (by omega) (by omega)
     unfold fld at e
     rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
@@ -159,9 +159,9 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
   have rYt : R (yieldA (L.curW s)) := cR _ (by simp) (by simp) (by simp) (by simp)
   have rMx : R (maxA (L.cscW s)) := scR _ hcq.2.2.2.1 hcq.2.2.2.2
   have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) :=
-    ⟨Or.inr (by unfold GateOnly; simp only [own, hL.dom]), hL.domA⟩
+    ⟨Or.inr (by unfold GateOnly; simp only [own, hL.dom]), hL.domA, hL.domU⟩
   have rD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME) :=
-    ⟨Or.inr (by unfold GateOnly; simp only [own, hL.dtm]), hL.dtmA⟩
+    ⟨Or.inr (by unfold GateOnly; simp only [own, hL.dtm]), hL.dtmA, hL.dtmU⟩
   have rCore : R (scCoreA (L.cscW s)) := by
     obtain ⟨hPl, hz⟩ := hO.sc _ hP.csc
     obtain ⟨h8, h128, -⟩ := sc_lo hPl hz
@@ -181,7 +181,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
       have tgR : ∀ k : U64, 3528 ≤ k.val → k.val < 3576 → k.val % 8 = 0 → R (core.num.U64.wrapping_add target k) := by
         intro k h1 h2 h3
         by_cases hd : L.mem s (tdA target) = 0#u64
-        · refine ⟨Or.inl (held_core ?_), field_aligned (hT _ htg) (by omega) h3⟩
+        · refine ⟨Or.inl (held_core ?_), field_aligned (hT _ htg) (by omega) h3, hL.nu_tcb htg (by omega) (by omega)⟩
           have e := hL.own_tcb hT (L.mem s) htg (k := k) (by omega) (by omega)
           unfold fld at e
           rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),

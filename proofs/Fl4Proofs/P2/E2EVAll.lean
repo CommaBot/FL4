@@ -14,10 +14,16 @@ Which existing paths go where, and with which premises (status of this generatio
     `vmPre_userV` / `vmRRPre_userV` / `ioLay_userV` give it from the `K` one plus `VcpuKs` (derived from
     `VcpuHeap` [J] and `JKern.hksIn`, `P2/E2EVHeap.lean`) and `TabNoV` (from `VcpuHeap`, `VcpuTabOff`,
     `PoolObj` [J]).
-  - SetTimer, timer IRQ (`MaxR` paths): **not yet** (`MaxR` contains the VCPU data words at `userV K`; the
-    `x ∉ K.user` conjunct decided in handoff `vlift.md` §gen2 is pending).
+  - SetTimer `set_timer_localPath`, timer IRQ `irq_localPath` / `irq_localPathW` / `irq_localPathP` (`MaxR`
+    paths): `NoVcpuRW` **proved** (gen 3: `MaxR` carries `x ∉ K.user`; `set_timer_noVcpuRW`, `irq_noVcpuRW`,
+    `irqW_noVcpuRW`, `irqP_noVcpuRW`, `P2/E2EVTimer.lean`). Their `Pre` at `userV K` from the `K` one:
+    `stEntK_userV` / `irqEntM_userV` (`P2/E2EVTimerLay.lean`; `VcpuKs`, `TabNoV`, `L.ksb s = K.ksb`, the
+    block's fit, `irq < 128`).
 * `LC` (route C, premise `AvoidV` [W] per path, the path's runs read no VCPU data word):
-  - syscall_local `sl_localPathK`: `AvoidV` not discharged (handoff `vlift.md`).
+  - syscall_local `sl_localPathK`: `AvoidV` **proved** (gen 4: `sl_avoidVK`, `P2/E2EVSlD.lean`; generic
+    `sl_localPath`: `sl_avoidV`), from `RegionOKV` [J], `VcpuHeap` [J], `VcpuTabOff` [J], `PoolObj` [J] (per
+    state) and `UserObj` [J]; `VcpuKs`, the block's fit, `HeapOK` and `TabNoV` come from P3's `SlJAt`
+    (`slJAt_vfacts`). The cut read set's word facts: `P2/E2EVSlW.lean`, `P2/E2EVSlA.lean`.
 * `hW` / `hAv` are asked for every `K` with `RegionOKV` / `UserOKV`, as `E2E.Paths` asks its paths.
 
 Premises: `serializable_e2eV`'s, plus `hW` [W] and `hAv` [W].

@@ -37,14 +37,15 @@ def SlotLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T : Set U
     region K (core.num.U64.wrapping_add y k) = .slot p ∧ TcbSlot K p ∧
       (core.num.U64.wrapping_add y k).val - p.val < 16
 
-theorem slot_maxR {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : SlotLay K st T s) {y : U64}
+theorem slot_maxR {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : SlotLay K st T s)
+    (hu : ∀ b ∈ K.user, region K b = .none) {y : U64}
     (hy : LocT st T s y) :
     MaxR K st lk s (vtA y) ∧ MaxR K st lk s (core.num.U64.wrapping_add (vtA y) 8#u64) := by
   have hy' := hT y hy.1
   have one : ∀ k : U64, k.val < 256 → k.val % 32 < 16 → k.val % 8 = 0 →
       MaxR K st lk s (core.num.U64.wrapping_add y k) := fun k hk hk32 hk8 => by
     obtain ⟨p, hr, hts, hlt⟩ := hSL y hy k hk hk32
-    refine ⟨Or.inr ?_, field_aligned hy' (by omega) hk8⟩
+    refine ⟨Or.inr ?_, field_aligned hy' (by omega) hk8, fun hb => by rw [hu _ hb] at hr; cases hr⟩
     unfold GateOnly
     simp only [own, hr, slotOwner]
     rw [if_neg (by omega), if_pos hts]
@@ -71,14 +72,15 @@ def SlotLayV (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (T : Set 
 theorem SlotLay.v {s : S} (h : SlotLay K st T s) : SlotLayV K st T s :=
   fun y hy k hk => h y hy k (by omega) (by omega)
 
-theorem slot_maxRV {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : SlotLayV K st T s) {y : U64}
+theorem slot_maxRV {s : S} {lk : S → U64 → Prop} (hT : TcbPlaced T) (hSL : SlotLayV K st T s)
+    (hu : ∀ b ∈ K.user, region K b = .none) {y : U64}
     (hy : LocT st T s y) :
     MaxR K st lk s (vtA y) ∧ MaxR K st lk s (core.num.U64.wrapping_add (vtA y) 8#u64) := by
   have hy' := hT y hy.1
   have one : ∀ k : U64, (k.val = 32 ∨ k.val = 40) → MaxR K st lk s (core.num.U64.wrapping_add y k) :=
     fun k hk => by
     obtain ⟨p, hr, hts, hlt⟩ := hSL y hy k hk
-    refine ⟨Or.inr ?_, field_aligned hy' (by omega) (by omega)⟩
+    refine ⟨Or.inr ?_, field_aligned hy' (by omega) (by omega), fun hb => by rw [hu _ hb] at hr; cases hr⟩
     unfold GateOnly
     simp only [own, hr, slotOwner]
     rw [if_neg (by omega), if_pos hts]
@@ -141,11 +143,11 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
   have wS : IrqWr st Z s (stA (L.curW s)) := Or.inr (Or.inl ⟨3328#u64, by simp, by simp, by simp, stA_eq _⟩)
   refine irq_accG_fire_pre (gS := guard st (MaxR K st lk s) (MaxW K st lk s)) (R := MaxR K st lk s)
     (W := MaxW K st lk s) ar hA hI hq
-    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
+    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha, irq_rd_nu hI hL hY hw⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
-    (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
-    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩) ?_ ?_ h
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1, hY.iqU hb i hi⟩)
+    (fun _ => ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩)
+    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩) ?_ ?_ h
   · intro _ s1' a1' now' eu' _
     obtain ⟨n1, -, er⟩ := ut_now ar hA hN eu'
     simp only at er
@@ -163,9 +165,9 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
     have f3328 : ¬ GField (3328#u64 : U64).val := by unfold GField; simp
     exact fire_tail_wk2 (gS := guard st (MaxR K st lk s) (MaxW K st lk s)) (R := MaxR K st lk s)
       (W := MaxW K st lk s) (Lk := lk s) (U := U) ar hA hI hNt hok
-      (fun w ha hw => ⟨fire_rd_own hK hI hL hY hAff hok hTm hw, ha⟩)
+      (fun w ha hw => ⟨fire_rd_own hK hI hL hY hAff hok hTm hw, ha, fire_rd_nu hI hL hY hw⟩)
       (fun w ha hw _ => ⟨fire_wr_own hK hI hL hY hok hTm hw, ha⟩)
-      ⟨rperm_none hL.dtm _, hL.dtmA⟩
+      ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩
       (fun X _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))
         ⟨irq_wr_own hI hL hok wS, aS⟩ X _)
       (fun X y v hy ha _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))
@@ -176,17 +178,17 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
           field_aligned (hT y hy) (by simp) (by simp)⟩ X v)
       hW hAff
       (fun y hy K h1 h2 h3 ht hg => ⟨loc_rd_own hI hL (Or.inr (Or.inl ⟨y, hy, K, h1, h2, h3, ht, hg, rfl⟩)),
-        field_aligned (hT y hy.1) h2 h3⟩)
+        field_aligned (hT y hy.1) h2 h3, hL.nu_tcb hy.1 h1 h2⟩)
       (fun y hy K h1 h2 h3 hga ht hg _ _ =>
         ⟨loc_wr_own hI hL (Or.inr (Or.inl ⟨y, hy, K, h1, h2, h3, hga, ht, hg, rfl⟩)),
           field_aligned (hT y hy.1) h2 h3⟩)
-      (fun q hq hc b ha hb => ⟨loc_rd_own hI hL (Or.inr (Or.inr ⟨q, hq, hc, hb⟩)), ha⟩)
+      (fun q hq hc b ha hb => ⟨loc_rd_own hI hL (Or.inr (Or.inr ⟨q, hq, hc, hb⟩)), ha, hL.nu_sc hq hb⟩)
       (fun q hq hc b ha hb h16 => ⟨loc_wr_own hI hL (Or.inr (Or.inr ⟨q, hq, hc, hb, h16⟩)), ha⟩)
       (fun y hy hqs hlk k hk => by
         have o := lkw_own hI hL (Lk := lk s) (fun _ h => h) (Or.inl ⟨y, hy, hqs, hlk, k, hk, rfl⟩)
         have ha := field_aligned (hT y hy) (K := k) (by omega) (by omega)
-        exact ⟨⟨o.2, ha⟩, ⟨o.1, ha⟩⟩)
-      ⟨rperm_none hL.dom _, hL.domA⟩
+        exact ⟨⟨o.2, ha, hL.nu_held o.1⟩, ⟨o.1, ha⟩⟩)
+      ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩
       (fun X y v hy _ _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))
         ⟨loc_wr_own hI hL (Or.inr (Or.inl ⟨y, hy, 3328#u64, by simp, by simp, by simp, g3328, t3328, f3328,
           stA_eq _⟩)), by rw [stA_eq]; exact field_aligned (hT y hy.1) (by simp) (by simp)⟩ X v)
@@ -198,16 +200,17 @@ theorem irq_acc_fire_wk2 (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a 
       (fun hep k h1 h2 => by
         obtain ⟨hH, hal⟩ := hPE hep
         have o := lkw_own hI hL (Lk := lk s) (fun _ h => h) (Or.inr ⟨p.ep, (hPL s).2.1 hep, hOL.1 _ hH k h1⟩)
-        exact ⟨⟨o.2, hal k h1 h2⟩, ⟨o.1, hal k h1 h2⟩⟩)
+        exact ⟨⟨o.2, hal k h1 h2, hL.nu_held o.1⟩, ⟨o.1, hal k h1 h2⟩⟩)
       (fun hr => by
         obtain ⟨hR, hal⟩ := hPR hr
         have o := lkw_own hI hL (Lk := lk s) (w := rTcbA p.reply) (fun _ h => h)
           (Or.inr ⟨p.reply, (hPL s).2.2 hr, by unfold rTcbA; exact hOL.2 _ hR _ (by simp [layout.reply.TCB])⟩)
         exact ⟨o.1, hal⟩)
       etip eb eq eok eu enow erel ei2 eb4 edue efo' ecb' emx hle ei1 ehi' (hBA _ _ _ _ _ _ _ eu ecb' ehi') hE.asid
-        (fun y hy => slot_maxRV hT hSL hy) ⟨rperm_none hY.kr.2 _, hY.kr.1⟩
-        (fun hi hhi => ⟨⟨rperm_none (hY.tab hi hhi).1.2 _, (hY.tab hi hhi).1.1⟩,
-          fun lo hlo hne => ⟨rperm_none ((hY.tab hi hhi).2 lo hlo hne).2 _, ((hY.tab hi hhi).2 lo hlo hne).1⟩⟩)
+        (fun y hy => slot_maxRV hT hSL hL.user hy) ⟨rperm_none hY.kr.2 _, hY.kr.1, hY.krU⟩
+        (fun hi hhi => ⟨⟨rperm_none (hY.tab hi hhi).1.2 _, (hY.tab hi hhi).1.1, (hY.tabU hi hhi).1⟩,
+          fun lo hlo hne => ⟨rperm_none ((hY.tab hi hhi).2 lo hlo hne).2 _, ((hY.tab hi hhi).2 lo hlo hne).1,
+            (hY.tabU hi hhi).2 lo hlo hne⟩⟩)
 
 end acc
 
