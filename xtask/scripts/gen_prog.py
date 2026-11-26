@@ -13,15 +13,24 @@ bottom-up, emit
     `interp_iterS`.
 Pure heads used by `SProg.liftR` get `nd.<g>` (never `div`, from P0's `<g>.p0`).
 
-Usage: python3 xtask/scripts/gen_prog.py <Prefix> <root> [<root> ...]
+Usage: python3 xtask/scripts/gen_prog.py [--arch aarch64] <Prefix> <root> [<root> ...]
   writes proofs/Fl4Proofs/P2/ProgGen<Prefix><n>.lean (split by dependency level / size) and prints the
-  module list. Run from the repository root.
+  module list. Run from the repository root. With `--arch aarch64` it reads the AArch64 extraction
+  (proofs/Fl4CoreA64, namespace `fl4_core_a64`, P0 in Fl4ProofsA64/P0) and writes
+  proofs/Fl4ProofsA64/P2/ProgGen<Prefix><n>.lean in `Fl4ProofsA64.P2.PathObl`, against AArch64's Arch
+  methods (`gen_arch_leaves.ARCH_A64`). Without it the output is unchanged.
 """
 import re, sys, os, collections
 
-FUNS = 'proofs/Fl4Core/Funs.lean'
-P0AUTO = 'proofs/Fl4Proofs/P0/Auto.lean'
-OUTDIR = 'proofs/Fl4Proofs/P2'
+ARGS = sys.argv[1:]  # as written in the generated headers
+A64 = sys.argv[1:3] == ['--arch', 'aarch64']
+if A64:
+    del sys.argv[1:3]
+CORE = 'fl4_core_a64' if A64 else 'fl4_core'
+PROOFS = 'Fl4ProofsA64' if A64 else 'Fl4Proofs'
+FUNS = 'proofs/Fl4CoreA64/Funs.lean' if A64 else 'proofs/Fl4Core/Funs.lean'
+P0AUTO = f'proofs/{PROOFS}/P0/Auto.lean'
+OUTDIR = f'proofs/{PROOFS}/P2'
 
 src = open(FUNS).read()
 p0src = open(P0AUTO).read()
@@ -158,7 +167,7 @@ for _path in os.environ.get('GEN_EXTRA', '').split():
 
 
 def qn(name):
-    return ('Fl4Proofs.P2.PathObl.' if name in LOCAL else 'fl4_core.') + name
+    return (f'{PROOFS}.P2.PathObl.' if name in LOCAL else f'{CORE}.') + name
 
 
 def ret_kinds(ret):
@@ -327,7 +336,7 @@ STORE_LEAF = {
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gen_arch_leaves  # noqa: E402
 ARCH_K = {m: ([('A', 'A')] if k == 'A' else [('V', vt)] if k == 'V' else [('V', vt), ('A', 'A')])
-          for (m, _, k, _, vt) in gen_arch_leaves.ARCH}
+          for (m, _, k, _, vt) in (gen_arch_leaves.ARCH_A64 if A64 else gen_arch_leaves.ARCH)}
 
 
 class Ctx:
@@ -982,8 +991,8 @@ set_option linter.unusedSimpArgs false
 set_option linter.unusedTactic false
 set_option linter.unreachableTactic false
 
-namespace Fl4Proofs.P2.PathObl
-open fl4_core
+namespace {proofs}.P2.PathObl
+open {core}
 
 section
 variable {{S : Type}} {{A : Type}} (mS : machine.Store S) (mA : machine.Arch A)
@@ -991,7 +1000,7 @@ variable {{S : Type}} {{A : Type}} (mS : machine.Store S) (mA : machine.Arch A)
 """
 POST = """end
 
-end Fl4Proofs.P2.PathObl
+end {proofs}.P2.PathObl
 """
 
 
@@ -1004,8 +1013,8 @@ def nd_lemmas(heads):
         f = FUNCS[h]
         b = ' '.join(f'({n} : {"Type" if ty == "Type _" else ty})' for n, ty, _ in f.params)
         a = ' '.join(n for n, _, _ in f.params)
-        out.append(f'@[reif_simps] theorem nd.{h} {b} : fl4_core.{h} {a} ≠ div :=')
-        out.append(f'  ne_div_of_spec (Fl4Proofs.P0.{h}.p0 {a})')
+        out.append(f'@[reif_simps] theorem nd.{h} {b} : {CORE}.{h} {a} ≠ div :=')
+        out.append(f'  ne_div_of_spec ({PROOFS}.P0.{h}.p0 {a})')
         out.append('')
     return out
 
@@ -1019,7 +1028,7 @@ def inst_lemmas(insts):
         typ = i.split('.Insts.')[0]
         out.append(f'@[reif_simps] theorem nd.{i}.ne (x y : {typ}) :')
         out.append(f'    core.cmp.PartialEq.ne.trait_default {i} x y ≠ div :=')
-        out.append(f'  nd_ne_default _ x y (fun x y => ne_div_of_spec (Fl4Proofs.P0.{i}.eq.p0 x y))')
+        out.append(f'  nd_ne_default _ x y (fun x y => ne_div_of_spec ({PROOFS}.P0.{i}.eq.p0 x y))')
         out.append('')
     return out
 
@@ -1032,13 +1041,13 @@ def main():
     # GEN_BASE="root ...": trees of the base roots' closure already exist in GEN_BASE_MOD (imported, not
     # regenerated); GEN_IMPORTS="Mod ...": further imports of the first module.
     base_roots = os.environ.get('GEN_BASE', '').split()
-    base_mod = os.environ.get('GEN_BASE_MOD', 'Fl4Proofs.P2.ProgGenBase')
+    base_mod = os.environ.get('GEN_BASE_MOD', f'{PROOFS}.P2.ProgGenBase')
     names -= closure(base_roots)
     have = set()
     todo, seen = [base_mod], set()
     while todo:
         mo = todo.pop()
-        if mo in seen or not mo.startswith('Fl4Proofs.P2.ProgGen'):
+        if mo in seen or not mo.startswith(f'{PROOFS}.P2.ProgGen'):
             continue
         seen.add(mo)
         fp = os.path.join(OUTDIR, mo.split('.')[-1] + '.lean')
@@ -1090,17 +1099,18 @@ def main():
             body += ['/-! ## Pure steps never diverge (from P0) -/', ''] + ndl
         for n, _, out, _ in fl:
             body += out
-        txt = PRELUDE.format(part=k, prefix=prefix, args=' '.join(sys.argv[1:]), imports=imports) + \
-            '\n'.join(body) + '\n' + POST
+        txt = PRELUDE.format(part=k, prefix=prefix, args=' '.join(ARGS), imports=imports,
+                             proofs=PROOFS, core=CORE) + \
+            '\n'.join(body) + '\n' + POST.format(proofs=PROOFS)
         open(os.path.join(OUTDIR, mod + '.lean'), 'w').write(txt)
         mods.append(mod)
-        prev = f'Fl4Proofs.P2.{mod}'
+        prev = f'{PROOFS}.P2.{mod}'
     top = f'ProgGen{prefix}Top'
     open(os.path.join(OUTDIR, top + '.lean'), 'w').write(
-        f'/- GENERATED by `xtask/scripts/gen_prog.py {" ".join(sys.argv[1:])}`: all generated trees of `{prefix}`. -/\n'
-        + ''.join(f'import Fl4Proofs.P2.{m}\n' for m in mods))
+        f'/- GENERATED by `xtask/scripts/gen_prog.py {" ".join(ARGS)}`: all generated trees of `{prefix}`. -/\n'
+        + ''.join(f'import {PROOFS}.P2.{m}\n' for m in mods))
     mods.append(top)
-    print(' '.join(f'Fl4Proofs.P2.{m}' for m in mods))
+    print(' '.join(f'{PROOFS}.P2.{m}' for m in mods))
     print(len(order), 'functions,', sum(len(c[2]) for c in chunks), 'lines', file=sys.stderr)
 
 

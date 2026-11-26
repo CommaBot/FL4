@@ -1,0 +1,564 @@
+/-
+P3 (line jboot, gen 4): **the spec invariants at the richer witness state `σ1`** (JBoot1St: `fInitASt` plus a
+running root thread on its own SC, with a radix-1 CSpace root CNode holding its thread and SC caps).
+
+* **`σ1_sinvX`** (`SInvX`: every field of `SInvA`, `CtExit`, `OnlyIdle`, the queue / readiness / domain
+  bundles, `BlockedScActive`, `VB`, `Rdy`, `OffReady`, `CAx`, `RPos`), **`σ1_sinvIP`**, **`σ1_utPgR`**,
+  **`σ1_devRangeS`**, **`σ1_gpmOut`**, **`σ1_idleVtS`**;
+* the scheduler facts of `JAtZ` (spec only): **`σ1_inv`**, **`σ1_curInv`**, **`σ1_off`**, **`σ1_act`**,
+  **`σ1_sv`**, **`σ1_isorted`**, **`σ1_slink`**, **`σ1_curRun`**, **`σ1_bsa`**, and with the ghost sets
+  `T1 = {idle TCB, root TCB}`, `C1 = {idle SC, root SC}`: **`σ1_own`**, **`σ1_nsc`**, **`σ1_obj`**.
+
+The root SC is the idle SC's configuration bound to the root TCB (`rootScV`), so its refill facts are the idle
+SC's (`rootSc_*`). The non-vacuous rows: `IfLiveT` / `ScLiveT` (the root TCB and SC are named by the CNode's
+caps), `ScSym`, `CnDom` (the CNode cap's CNode full), `CapKindV` / `CnShapeV` / `ScKindR` (the three caps'
+kinds and shapes), `CtExit` / `CB` / `CurRun` (the root TCB running), `CAx` / `CurInv` (bound to an active SC),
+`OffReady` (its head released at time 0).
+
+No sorry; no premises. New module; no existing statement changed.
+-/
+import Fl4Proofs.P3.JBoot1St
+import Fl4Proofs.P3.JBootInv
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.JBoot
+open fl4_core Fl4Spec Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P3.Notif
+
+noncomputable section
+
+set_option maxHeartbeats 1000000
+
+/-! ## Facts of the new objects -/
+
+theorem rootSc_refills : rootScV.scRefills = idleScV.scRefills := rfl
+theorem rootSc_active : scActive rootScV = scActive idleScV := rfl
+theorem idleSc_active : scActive idleScV = true := by
+  simp [scActive, activeSc, idleScV, MIN_REFILLS]
+
+/-- The objects referenced by a spec cap of `σ1` (its `covR`): the three new objects only. -/
+theorem covR1 {sl : CslotPtr} {c : Cap} (h : SInvU.capAt σ1 sl = some c) {r : ObjRef} (hr : r ∈ SInvU.covR c) :
+    r = rT.bv ∨ r = rS.bv ∨ r = rC.bv := by
+  rcases capAt1 h with rfl | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ <;>
+    simp [SInvU.covR, SInvU.capRng, objRefs] at hr
+  · exact Or.inr (Or.inr hr)
+  · exact Or.inl hr
+  · exact Or.inr (Or.inl hr)
+
+theorem objRefs1 {sl : CslotPtr} {c : Cap} (h : SInvU.capAt σ1 sl = some c) {r : ObjRef} (hr : r ∈ objRefs c) :
+    r = rT.bv ∨ r = rS.bv ∨ r = rC.bv := by
+  rcases capAt1 h with rfl | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [objRefs] at hr
+  · exact Or.inr (Or.inr hr)
+  · exact Or.inl hr
+  · exact Or.inr (Or.inl hr)
+
+/-- An address of no new object is outside every cap's `covR`. -/
+theorem irqOut1 (N : Irq → ObjRef) (hN : ∀ irq, N irq ≠ rT.bv ∧ N irq ≠ rS.bv ∧ N irq ≠ rC.bv) :
+    SInvU.IrqOutV N (SInvU.uV σ1) := by
+  intro irq s c hs hr
+  rcases covR1 hs hr with e | e | e
+  · exact (hN irq).1 e
+  · exact (hN irq).2.1 e
+  · exact (hN irq).2.2 e
+
+theorem capOpt1 {p : ObjRef} {cref : CnodeIndex} {c : Cap} (h : capOpt (σ1.kheap p) cref = some c) :
+    SInvU.capAt σ1 (p, cref) = some c := (SInvUZ.capAt_capOpt σ1 (p, cref)).trans h
+
+/-- No untyped, IRQ-handler, IO-port or zombie cap in `σ1`. -/
+theorem capAt1_ut {sl : CslotPtr} {d : Bool} {b : ObjRef} {n f : Nat}
+    (h : SInvU.capAt σ1 sl = some (.untypedCap d b n f)) : False := by
+  rcases capAt1 h with e | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+
+theorem capAt1_cases' {sl : CslotPtr} {c : Cap} (h : SInvU.capAt σ1 sl = some c) :
+    c = .nullCap ∨ c = rootCnCap ∨ c = .threadCap rT.bv ∨ c = .schedContextCap rS.bv 0 := by
+  rcases capAt1 h with e | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩
+  · exact Or.inl e
+  · exact Or.inr (Or.inl e)
+  · exact Or.inr (Or.inr (Or.inl e))
+  · exact Or.inr (Or.inr (Or.inr e))
+
+theorem rT_irq (irq : Irq) : fIrqNode irq ≠ rT.bv := fIrqNode_ne (by rw [rT_toNat]; omega) irq
+theorem rS_irq (irq : Irq) : fIrqNode irq ≠ rS.bv := fIrqNode_ne (by rw [rS_toNat]; omega) irq
+theorem rC_irq (irq : Irq) : fIrqNode irq ≠ rC.bv := fIrqNode_ne (by rw [rC_toNat]; omega) irq
+
+theorem ti1 {Q : Tcb → Prop} (h0 : SInv.TI Q (initASt (Z := Unit))) (h1 : Q rootTcbV) : SInv.TI Q σ1 := by
+  intro p x hp
+  rcases kh1_tcb_of hp with ⟨-, rfl⟩ | ⟨-, rfl⟩
+  · exact h1
+  · exact h0 _ _ initA_idleT
+
+/-! ## `SInvA`'s fields -/
+
+theorem σ1_vfh : SInv.VfhAll σ1 := ti1 SInv.boot_vfhAll (Or.inr rfl)
+
+theorem σ1_cnDom : SInv.CnDom σ1 := by
+  intro sl c hc p r g e
+  subst e
+  rcases capAt1 (capOpt1 hc) with e | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  intro l hl
+  rw [σ1_kheap, kh1_rC, capOpt_rC]
+  match l, hl with
+  | [false], _ => simp [rootCs]
+  | [true], _ => simp [rootCs]
+
+theorem σ1_fts : SInv.FaultTcbsS σ1 := ti1 SInv.boot_faultTcbsS (fun h => absurd rfl h)
+
+theorem σ1_nqb : SInv.NQB σ1 := by
+  rintro t ⟨n, x, hn, -⟩
+  exact (kh1_no_ntfn hn).elim
+
+theorem σ1_ns : SInv.NativeScopeS σ1 := ti1 SInv.boot_nativeScope (by simp [SInv.nsQ, rootTcbV])
+
+theorem σ1_specGlob : SInvG.SpecGlobS σ1 ∧ SInvG.IdleOutV σ1 := by
+  refine ⟨⟨fun irq a ha => ?_, fun p cref a ha _ irq hr => ?_, fun p cref a ha _ hr => ?_⟩, ?_⟩
+  · left
+    rcases capAt1 ha with e | ⟨e, -⟩ | ⟨e, -⟩ | ⟨e, -⟩
+    · exact e
+    · exact absurd (congrArg Prod.fst e) (rT_irq irq)
+    · exact absurd (congrArg Prod.fst e) (rC_irq irq)
+    · exact absurd (congrArg Prod.fst e) (rC_irq irq)
+  · rcases objRefs1 ha hr with e | e | e
+    · exact rT_irq irq e
+    · exact rS_irq irq e
+    · exact rC_irq irq e
+  · rcases objRefs1 ha hr with e | e | e <;> exact absurd e (by decide)
+  · exact irqOut1 _ (fun _ => ⟨by decide, by decide, by decide⟩)
+
+theorem σ1_dom : DomListOK σ1 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp [σ1, fInitASt, initASt]
+  · intro e he _; simp only [σ1, fInitASt, initASt, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl <;> rfl
+  · simp [σ1, fInitASt, initASt]
+  · simp only [σ1, fInitASt, initASt, domainEndMarker]; decide
+  · simp only [σ1, fInitASt, initASt, domainEndMarker]; decide
+  · simp [σ1, fInitASt, initASt]
+  · intro e he; simp only [σ1, fInitASt, initASt, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl <;> rfl
+
+theorem σ1_vim : SInvV.ValidIrqMasks σ1 := fun _ _ => rfl
+
+theorem σ1_vih : SInvV.ValidIrqHandlers σ1 := by
+  intro p cref irq hc
+  rcases capAt1 (capOpt1 hc) with e | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+
+theorem σ1_vmt : SInvV.ValidMachineTime σ1 :=
+  ⟨BitVec.le_refl _, by show (0 : Nat) ≤ _; exact Nat.zero_le _⟩
+
+theorem σ1_utInv : SInvU.UtInv σ1 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro sl _ _ _ _ hc; exact (capAt1_ut hc).elim
+  · intro sl _ _ _ _ hc; exact (capAt1_ut hc).elim
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; exact (capAt1_ut hc).elim
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; exact (capAt1_ut hc).elim
+  · intro sl _ _ _ _ hc; exact (capAt1_ut hc).elim
+
+theorem σ1_utInv' : SInvU.UtInv' σ1 := by
+  refine ⟨σ1_utInv, fun c p h => ?_, fun x hx => ?_⟩
+  · exact absurd h (by simp [SInvU.uV, σ1, fInitASt, initASt, initCdt])
+  · obtain ⟨c, hc⟩ := SInvU.tg_first hx
+    exact absurd hc (by simp [SInvU.uV, σ1, fInitASt, initASt, initCdt])
+
+theorem σ1_utNV : SInvU.UtNV (SInvU.uV σ1) := by
+  have hc : ∀ sl c, (SInvU.uV σ1).2.1 sl = some c → SInvU.capAt σ1 sl = some c := fun _ _ h => h
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro u dev b n fi hu; exact (capAt1_ut (hc _ _ hu)).elim
+  · rintro p c - - ⟨u, dev, b, n, fi, hu, -⟩; exact (capAt1_ut (hc _ _ hu)).elim
+  · intro u dev b n fi hu; exact (capAt1_ut (hc _ _ hu)).elim
+  · intro s c s' c' r hs hs' hr hr'
+    rcases capAt1_cases' (hc _ _ hs) with rfl | rfl | rfl | rfl <;>
+    rcases capAt1_cases' (hc _ _ hs') with rfl | rfl | rfl | rfl <;>
+      simp [SInvU.capRng, SInvU.sRefs, objRefs] at hr hr' <;> (try subst hr) <;>
+      first | rfl | (exact absurd hr' (by decide)) | (exact absurd hr'.symm (by decide)) |
+        (rw [hr] at hr'; exact absurd hr' (by decide))
+  · intro s c r hs hr i c' hc' hne
+    rcases capAt1_cases' (hc _ _ hs) with rfl | rfl | rfl | rfl <;> simp [SInvU.sRefs] at hr <;> subst hr
+    · -- the CNode: its non-null slots have length 1
+      rcases capAt1 (hc _ _ hc') with e | ⟨e, -⟩ | ⟨e, -⟩ | ⟨e, -⟩
+      · exact absurd e hne
+      · exact absurd (congrArg Prod.fst e) (by dsimp only; decide)
+      · cases e; rfl
+      · cases e; rfl
+    · rcases capAt1 (hc _ _ hc') with e | ⟨e, -⟩ | ⟨e, -⟩ | ⟨e, -⟩
+      · exact absurd e hne
+      · cases e; exact ⟨0, by decide, rfl⟩
+      · exact absurd (congrArg Prod.fst e) (by dsimp only; decide)
+      · exact absurd (congrArg Prod.fst e) (by dsimp only; decide)
+  · intro s r b n hs; rcases capAt1_cases' (hc _ _ hs) with e | e | e | e <;> cases e
+  · intro s c hs b hb
+    rcases capAt1_cases' (hc _ _ hs) with rfl | rfl | rfl | rfl <;> simp [SInvU.shp] at hb
+    omega
+
+theorem σ1_utInv3 : SInvU.UtInv3 σ1 :=
+  ⟨⟨σ1_utInv', σ1_utNV⟩, irqOut1 _ (fun irq => ⟨rT_irq irq, rS_irq irq, rC_irq irq⟩)⟩
+
+theorem σ1_ntfnQB : SInv.NtfnQB σ1 := fun _ _ _ hn _ => (kh1_no_ntfn hn).elim
+
+theorem σ1_epQB : SInv.EpQB σ1 := fun _ _ _ hn _ => (kh1_no_ep hn).elim
+
+theorem capAt1_thr : SInvU.capAt σ1 (rC.bv, [false]) = some (.threadCap rT.bv) := by
+  have e : SInvU.capAt σ1 (rC.bv, [false]) = SInvU.capView (.cnode 1 rootCs) [false] := by
+    unfold SInvU.capAt; rw [σ1_kheap, kh1_rC]
+  rw [e, capView_rC]; rfl
+
+theorem capAt1_scc : SInvU.capAt σ1 (rC.bv, [true]) = some (.schedContextCap rS.bv 0) := by
+  have e : SInvU.capAt σ1 (rC.bv, [true]) = SInvU.capView (.cnode 1 rootCs) [true] := by
+    unfold SInvU.capAt; rw [σ1_kheap, kh1_rC]
+  rw [e, capView_rC]; rfl
+
+theorem σ1_ifLiveT : SInv.IfLiveT σ1 := by
+  intro t y ht hl
+  rcases kh1_tcb_of ht with ⟨rfl, rfl⟩ | ⟨-, rfl⟩
+  · exact ⟨_, capAt1_thr⟩
+  · exact False.elim hl
+
+theorem σ1_validIdle : SInvI.ValidIdle σ1 := by
+  unfold SInvI.ValidIdle SInvI.VI SInvI.VIT
+  refine ⟨rfl, rfl, fun e => absurd e Bool.false_ne_true, ⟨_, kh1_idleT⟩, ⟨_, 0, kh1_idleS⟩, ?_⟩
+  intro p o hp
+  change SInvI.ObjOK idleThreadPtr idleScPtr idleThreadPtr p o
+  rcases kh1_some hp with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨-, -, -, h'⟩
+  · refine ⟨fun e => absurd e (by decide), fun _ => ?_, fun e => absurd e (by decide)⟩
+    simp only [rootTcbV, ne_eq, Option.some.injEq]; decide
+  · refine ⟨fun e => absurd e (by decide), fun _ => ?_⟩
+    simp only [rootScV, ne_eq, Option.some.injEq]; decide
+  · trivial
+  · exact (BootHeap.validIdle (N := fIrqNode) bootHeap_fInit).2.2.2.2.2 _ _ h'
+
+theorem σ1_ft : SInvF.FT σ1 := fun t ht => by
+  simp [σ1, fInitASt, initASt, initArchState] at ht
+
+theorem σ1_scLiveT : SInvL.ScLiveT (SInvL.idleP σ1) σ1 := by
+  intro p o hp hl h1 h2
+  rcases kh1_some hp with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨-, -, -, h'⟩
+  · exact ⟨_, _, capAt1_thr, rfl⟩
+  · exact ⟨_, _, capAt1_scc, rfl⟩
+  · exact hl.elim
+  · exfalso
+    rcases bootHeap_fInit.obj _ _ h' with rfl | rfl | rfl | rfl | rfl | rfl
+    · exact h1 rfl
+    · exact h2 rfl
+    all_goals exact hl
+
+theorem σ1_idleScOutV : SInvL.IdleScOutV σ1 := irqOut1 _ (fun _ => ⟨by decide, by decide, by decide⟩)
+
+theorem σ1_ntfnScB : SInvL.NtfnScB σ1 := fun _ _ _ hn _ => (kh1_no_ntfn hn).elim
+
+theorem idleSc_rne : SInvB.rneQ idleScV :=
+  (BootHeap.scInv (N := fIrqNode) bootHeap_fInit).2 idleScPtr idleScV 0 bootHeap_fInit.sc
+
+theorem σ1_scInv : SInvB.ScInv σ1 := by
+  refine ⟨⟨fun u xu c hu hc => ?_, fun p y n u hp hu => ?_⟩, fun p y n hp => ?_⟩
+  · rcases kh1_tcb_of hu with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · cases hc; exact ⟨rootScV, 0, kh1_rS, rfl, idleSc_rne⟩
+    · cases hc; exact ⟨idleScV, 0, kh1_idleS, rfl, idleSc_rne⟩
+  · rcases kh1_sc_of hp with ⟨rfl, rfl, -⟩ | ⟨rfl, rfl, -⟩
+    · cases hu; exact ⟨rootTcbV, kh1_rT, rfl⟩
+    · cases hu; exact ⟨idleTcbV, kh1_idleT, rfl⟩
+  · rcases kh1_sc_of hp with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact idleSc_rne
+    · exact idleSc_rne
+
+theorem σ1_scKindR : SInvL.ScKindR σ1 := by
+  intro s r b s' c' h1 h2 hr
+  have h1' : SInvU.capAt σ1 s = some (.schedContextCap r b) := h1
+  rcases capAt1_cases' h1' with e | e | e | e <;> cases e
+  rcases capAt1_cases' h2 with rfl | rfl | rfl | rfl <;> simp [SInvU.capRng, objRefs] at hr
+  · exact absurd hr (by decide)
+  · exact absurd hr (by decide)
+  · exact ⟨0, rfl⟩
+
+theorem σ1_curScT : SInvQ.CurScT σ1 := by
+  intro x hx
+  rw [σ1_cur, σ1_kheap, kh1_rT] at hx; cases hx; rfl
+
+theorem σ1_sinvA : SInvAll.SInvA σ1 where
+  vfh := σ1_vfh
+  cnDom := σ1_cnDom
+  fts := σ1_fts
+  nqb := σ1_nqb
+  ns := σ1_ns
+  sg := σ1_specGlob.1
+  idleOut := σ1_specGlob.2
+  dom := σ1_dom
+  vim := σ1_vim
+  vih := σ1_vih
+  vmt := σ1_vmt
+  ut := σ1_utInv3
+  nq := σ1_ntfnQB
+  epq := σ1_epQB
+  live := σ1_ifLiveT
+  vi := σ1_validIdle
+  ft := σ1_ft
+  sl := ⟨⟨σ1_scLiveT, σ1_idleScOutV, σ1_ntfnScB, σ1_scInv⟩, σ1_scKindR⟩
+  cs := σ1_curScT
+
+theorem σ1_ctExit : SInvAll.CtExit σ1 := ⟨_, kh1_rT, Or.inl rfl⟩
+
+theorem σ1_onlyIdle : SInvAll.OnlyIdle σ1 := by
+  intro t x ht hs
+  rcases kh1_tcb_of ht with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · cases hs
+  · rfl
+
+theorem σ1_sinvB : SInvAll.SInvB σ1 := ⟨⟨σ1_sinvA, σ1_ctExit⟩, σ1_onlyIdle⟩
+
+/-! ## The queue, domain and readiness facts -/
+
+theorem σ1_rq (d : Domain) (p : Priority) : σ1.readyQueues d p = [] := rfl
+theorem σ1_rel : σ1.releaseQueue = [] := rfl
+theorem σ1_act' : σ1.schedulerAction = .resumeCurThread := rfl
+
+theorem σ1_ctNQR : SInvV.CtNQR σ1 := fun _ _ _ h => List.not_mem_nil h
+
+theorem σ1_sa : SInvQ.SA σ1 :=
+  ⟨fun _ h => by simp [σ1, fInitASt, initASt] at h, fun _ h => by simp [σ1, fInitASt, initASt] at h, σ1_ctNQR⟩
+
+theorem σ1_tq : SInvQ.TQ σ1 := ⟨fun _ _ _ h => (List.not_mem_nil h).elim, trivial⟩
+
+theorem σ1_schedQ : SInvQ.SchedQ σ1 := ⟨σ1_tq, σ1_sa⟩
+
+theorem σ1_ex : SInvQ.EX σ1 :=
+  ⟨σ1_schedQ, ⟨fun _ _ h => by simp [σ1, fInitASt, initASt] at h,
+    ⟨fun _ h => by simp [σ1, fInitASt, initASt] at h, σ1_curScT⟩⟩⟩
+
+theorem σ1_rb (k : Bool) : SInvQ.RBk k σ1 := by
+  refine ⟨⟨⟨fun _ _ _ h => by simp [σ1, fInitASt, initASt] at h, fun _ h => by simp [σ1, fInitASt, initASt] at h⟩,
+    fun _ => ⟨fun _ _ h => by simp [σ1, fInitASt, initASt] at h, ⟨fun h => by simp [σ1, fInitASt, initASt] at h,
+      fun h => by simp [σ1, fInitASt, initASt] at h⟩⟩, fun _ h => by simp [σ1, fInitASt, initASt] at h⟩,
+    fun _ => Or.inl ⟨rootTcbV, kh1_rT, rfl⟩⟩
+
+theorem σ1_t4 : SInvQ.T4 σ1 :=
+  ⟨SInvQ.boot_t4.1, rfl, ti1 SInvQ.boot_t4.2.2 (by have h := SInvQ.boot_t4.2.2 idleThreadPtr idleTcbV initA_idleT; exact h)⟩
+
+theorem σ1_sinvCQ : SInvAll.SInvCQ σ1 := ⟨σ1_sinvB, σ1_ex, σ1_rb true, σ1_t4⟩
+
+theorem σ1_rs : SInvQ.RS σ1 := rfl
+
+theorem σ1_sinvCR : SInvAll.SInvCR σ1 := ⟨σ1_sinvCQ, σ1_rs⟩
+
+/-- **`BlockedScActive` at `σ1`.** -/
+theorem σ1_bsa : Sched.BlockedScActive σ1 := by
+  refine ⟨fun p y n t x hp hyt hx hq => ?_, fun p y n hp hr => ?_⟩
+  · rcases kh1_sc_of hp with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact idleSc_active
+    · exact idleSc_active
+  · rcases kh1_sc_of hp with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact idleSc_active
+    · exact idleSc_active
+
+theorem σ1_sinvCRB : SInvR.B8l.SInvCRB σ1 := ⟨σ1_sinvCR, σ1_bsa⟩
+
+theorem σ1_vb : SInvR.B8n.VB σ1 := by
+  intro t hs hne _
+  obtain ⟨x, -, -, -, hx, -, hr, -, -, -⟩ := Sched.schedulable_inv hs
+  rcases kh1_tcb_of hx with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact absurd rfl hne
+  · simp [idleTcbV, runnable] at hr
+
+theorem idleSc_rvs : SInvR.RVs idleScV :=
+  SInvR.boot_rdy.2.2.2.1 _ _ _ initA_idleS idleSc_active
+
+theorem σ1_rdy : SInvR.Rdy σ1 := by
+  refine ⟨fun d p t h => by simp [σ1, fInitASt, initASt] at h, fun t h => by simp [σ1, fInitASt, initASt] at h,
+    fun t x c hx hb _ => ?_, fun p y n hy ha => ?_, fun t h => by simp [σ1, fInitASt, initASt] at h, fun y n hy => ?_⟩
+  · exfalso
+    rcases kh1_tcb_of hx with ⟨-, rfl⟩ | ⟨-, rfl⟩
+    · have e : rootTcbV.tcbState = .running := rfl
+      rcases hb with ⟨_, h⟩ | ⟨_, _, h, _⟩ | ⟨_, _, _, h⟩ <;> rw [e] at h <;> cases h
+    · have e : idleTcbV.tcbState = .idleThreadState := rfl
+      rcases hb with ⟨_, h⟩ | ⟨_, _, h, _⟩ | ⟨_, _, _, h⟩ <;> rw [e] at h <;> cases h
+  · rcases kh1_sc_of hy with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact idleSc_rvs
+    · exact idleSc_rvs
+  · have hy' : kh1 idleScPtr = some (.schedContext y n) := hy
+    rw [kh1_idleS] at hy'; cases hy'
+    exact SInvR.boot_rdy.2.2.2.2.2 _ _ initA_idleS
+
+theorem σ1_offReady : Sched.OffReady σ1 := by
+  intro y n hy
+  have hy' : kh1 rS.bv = some (.schedContext y n) := hy
+  rw [kh1_rS] at hy'; cases hy'
+  have h := SInvV.boot_offReady idleScV 0 initA_idleS
+  exact h
+
+theorem σ1_cAx : SInvR.CAx σ1 := fun _ => ⟨rootTcbV, rS.bv, rootScV, 0, kh1_rT, rfl, kh1_rS, idleSc_active⟩
+
+theorem σ1_sinvW : SInvR.B8w.SInvW σ1 := ⟨⟨σ1_sinvCRB, σ1_vb⟩, σ1_rdy, σ1_offReady, σ1_cAx⟩
+
+theorem σ1_rpos : SInvE.RPos σ1 := by
+  intro p y n hy
+  rcases kh1_sc_of hy with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+  · exact SInvE.boot_rpos idleScPtr idleScV 0 initA_idleS
+  · exact SInvE.boot_rpos idleScPtr idleScV 0 initA_idleS
+
+/-- **`SInvX` at `σ1`.** -/
+theorem σ1_sinvX : SInvR.G4.SInvX σ1 := ⟨σ1_sinvW, σ1_rpos⟩
+
+/-! ## The other spec facts of `JReachU17`'s start -/
+
+theorem σ1_sinvIP : SInvR.G5.SInvIP σ1 where
+  ioP := fun _ _ _ hc => by rcases capAt1_cases' hc with e | e | e | e <;> cases e
+  ioN := fun _ _ _ _ _ _ hc _ _ => by rcases capAt1_cases' hc with e | e | e | e <;> cases e
+  utZ := fun _ _ _ _ hc => (capAt1_ut hc).elim
+
+theorem σ1_utPgR : SInvUZ.UtPgR σ1 :=
+  fun _ _ _ _ _ hc => (capAt1_ut (capOpt1 hc)).elim
+
+theorem σ1_devRangeS : SInvDV.DevRangeS σ1 :=
+  fun _ _ _ _ _ hc => (capAt1_ut (capOpt1 hc)).elim
+
+theorem σ1_gpmOut : SInvGp.GpmOutV σ1 := irqOut1 _ (fun _ => ⟨by decide, by decide, by decide⟩)
+
+theorem σ1_idleVtS : SInvIV.IdleVtS σ1 := by
+  intro a ha
+  rcases capAt1 (sl := (σ1.idleThread, tcbCnodeIndex 1)) ha with e | ⟨e, -⟩ | ⟨e, -⟩ | ⟨e, -⟩
+  · exact e
+  all_goals exact absurd (congrArg Prod.fst e) (by dsimp only; decide)
+
+/-- **The spec part of `JReachU17`'s start, jointly, at `σ1`.** -/
+theorem σ1_jReachSpec :
+    SInvR.G4.SInvX σ1 ∧ SInvR.G5.SInvIP σ1 ∧ SInvUZ.UtPgR σ1 ∧
+      SInvGp.GpmOutV σ1 ∧ SInvIV.IdleVtS σ1 ∧ SInvDV.DevRangeS σ1 :=
+  ⟨σ1_sinvX, σ1_sinvIP, σ1_utPgR, σ1_gpmOut, σ1_idleVtS, σ1_devRangeS⟩
+
+/-! ## The scheduler facts of `JAtZ` (spec only) -/
+
+/-- `T`: the idle and root TCBs. -/
+def T1 : Set U64 := {idT, rT}
+/-- `C`: the idle and root SCs. -/
+def C1 : Set U64 := {idS, rS}
+
+theorem σ1_nsc : Sched.NSC ∅ C1 σ1 := fun _ hn => hn.elim
+
+theorem root_released : released σ1 rootScV := by
+  have e : (refillHd rootScV).rTime = 0 := rfl
+  refine ⟨?_, Sched.suff0_of idleSc_rvs.2.1⟩
+  simp [refillReady', e, σ1, fInitASt, initASt]
+
+/-- **`Inv` at `σ1`.** -/
+theorem σ1_inv : Sched.Inv σ1 where
+  rq _ _ _ h := (List.not_mem_nil h).elim
+  rel _ h := (List.not_mem_nil h).elim
+  sorted := List.Pairwise.nil
+  rd u x hk hc := by
+    rcases kh1_tcb_of hk with ⟨rfl, rfl⟩ | ⟨-, rfl⟩
+    · intro x' scp y n hx hs hy _ _
+      rw [σ1_kheap, kh1_rT] at hx; cases hx; cases hs
+      rw [σ1_kheap, kh1_rS] at hy; cases hy
+      exact root_released
+    · exfalso
+      rcases hc with h | ⟨n, h⟩ | ⟨e, d, h, -⟩ | ⟨e, r, d, h⟩
+      · exact absurd h (by decide)
+      all_goals simp [idleTcbV] at h
+  refills p y n hk _ hper := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact absurd rfl hper
+    · exact absurd rfl hper
+  back u x p hk hp := by
+    rcases kh1_tcb_of hk with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · cases hp; exact ⟨rootScV, 0, kh1_rS, rfl⟩
+    · cases hp; exact ⟨idleScV, 0, kh1_idleS, rfl⟩
+  ntfnSc _ _ _ h _ := (kh1_no_ntfn h).elim
+  ne p y n hk _ := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩ <;> simp [rootScV, idleScV]
+  rr p y n hk _ _ := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · exact idleSc_rrok
+    · exact idleSc_rrok
+
+theorem root_notIpcBlk : NotIpcBlk rootTcbV.tcbState := by
+  unfold NotIpcBlk
+  refine ⟨fun q h => ?_, fun e d h => ?_, fun e r d h => ?_⟩ <;> simp [rootTcbV] at h
+
+/-- **`CurInv` at `σ1`** (the root thread current, bound to the root SC, active). -/
+theorem σ1_curInv : Sched.CurInv σ1 where
+  tcb := ⟨rootTcbV, kh1_rT, rfl, root_notIpcBlk⟩
+  sc := ⟨rootScV, 0, kh1_rS⟩
+  active _ x n hk := by
+    have hk' : kh1 rS.bv = some (.schedContext x n) := hk
+    rw [kh1_rS] at hk'; cases hk'; exact idleSc_active
+  notRel := List.not_mem_nil
+
+theorem rT_mem : rT ∈ T1 := Or.inr rfl
+theorem idT_mem : idT ∈ T1 := Or.inl rfl
+theorem rS_mem : rS ∈ C1 := Or.inr rfl
+theorem idS_mem : idS ∈ C1 := Or.inl rfl
+
+/-- **`CurOwnW` at `σ1`**: the root TCB owns the current (root) SC. -/
+theorem σ1_own : Sched.CurOwnW T1 C1 σ1 := by
+  refine Or.inl ⟨rT, rT_mem, rootTcbV, kh1_rT, rfl, fun x n hk => ?_, fun h => absurd h (by decide)⟩
+  have hk' : kh1 rS.bv = some (.schedContext x n) := hk
+  rw [kh1_rS] at hk'; cases hk'; rfl
+
+theorem σ1_off : Sched.OffOK σ1 := fun h => absurd h (by decide)
+
+/-- **`ActIdle` at `σ1`.** -/
+theorem σ1_act : Sched.ActIdle σ1 := by
+  unfold ActIdle ActSched IdleOK
+  exact ⟨fun _ h => by simp [σ1, fInitASt, initASt] at h, ⟨idleTcbV, kh1_idleT, rfl, rfl, List.not_mem_nil⟩⟩
+
+/-- **`SchedValid` at `σ1`.** -/
+theorem σ1_sv : Sched.SchedValid σ1 where
+  epQ _ _ h := (kh1_no_ep h).elim
+  ntfnQ _ _ h := (kh1_no_ntfn h).elim
+  recvQ t x ep ro d hk hs := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hs
+  sendQ t x ep pl hk hs := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hs
+  ntfnW t x n hk hs := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hs
+  recvReply t x ep r d hk hs := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hs
+  onReply t x r hk hs := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hs
+  replyTcb _ _ _ h _ := (kh1_no_reply h).elim
+  replies sc y k r hk hr := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩ <;> simp [rootScV, idleScV, defaultSchedContext] at hr
+  scTcb sc y k f hk hf := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩
+    · cases hf; exact ⟨rootTcbV, kh1_rT⟩
+    · cases hf; exact ⟨idleTcbV, kh1_idleT⟩
+  scNtfn sc y k n hk hf := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩ <;> simp [rootScV, idleScV, defaultSchedContext] at hf
+  scYieldFrom sc y k t hk hf := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩ <;> simp [rootScV, idleScV, defaultSchedContext] at hf
+  tcbYieldTo t x p hk hy := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hy
+  tcbNtfn t x n hk hn := by
+    rcases kh1_tcb_of hk with ⟨-, rfl⟩ | ⟨-, rfl⟩ <;> simp [rootTcbV, idleTcbV] at hn
+  ntfnTcb _ _ _ h _ := (kh1_no_ntfn h).elim
+  scSpor sc y k hk hs := by
+    rcases kh1_sc_of hk with ⟨-, rfl, -⟩ | ⟨-, rfl, -⟩ <;> simp [rootScV, idleScV, defaultSchedContext] at hs
+
+/-- **`IpcSorted` at `σ1`** (no endpoint, no notification). -/
+theorem σ1_isorted : Sched.IpcSorted σ1 :=
+  ⟨fun _ _ h => (kh1_no_ep h).elim, fun _ _ h => (kh1_no_ntfn h).elim⟩
+
+theorem σ1_slink : Sched.ScLinkHyp σ1 := σ1_sv.toLink
+
+/-- **`CurRunM` at `σ1`** (the root thread running). -/
+theorem σ1_curRun : CurRunM σ1 := by
+  refine Or.inr (Or.inl fun x hx => ?_)
+  rw [σ1_cur, σ1_kheap, kh1_rT] at hx; cases hx; rfl
+
+/-- **`ObjCover` at `σ1`** (`N = E = R = ∅`, `T = T1`, `C = C1`). -/
+theorem σ1_obj : Sched.ObjCover ∅ T1 ∅ ∅ C1 σ1 where
+  tcb o x h := by
+    rcases kh1_tcb_of h with ⟨rfl, -⟩ | ⟨rfl, -⟩
+    · exact ⟨rT, rT_mem, rfl⟩
+    · exact ⟨idT, idT_mem, idT_bv⟩
+  ntfn _ _ h := (kh1_no_ntfn h).elim
+  ep _ _ h := (kh1_no_ep h).elim
+  reply _ _ h := (kh1_no_reply h).elim
+  sc o y k h := by
+    rcases kh1_sc_of h with ⟨rfl, -⟩ | ⟨rfl, -⟩
+    · exact ⟨rS, rS_mem, rfl⟩
+    · exact ⟨idS, idS_mem, idS_bv⟩
+
+/-- **The current thread of `σ1` is not idle.** -/
+theorem σ1_nonIdle : σ1.curThread ≠ σ1.idleThread := by
+  rw [σ1_cur, σ1_idle]; decide
+
+end
+
+end Fl4Proofs.P3.JBoot

@@ -47,9 +47,36 @@ ARCH = [
 ]
 KIND = {m: k for (m, _, k, _, _) in ARCH}
 
-def emit():
+# The AArch64 extraction's `machine.Arch` (Fl4CoreA64/Types.lean): the same methods, `send_reschedule`
+# taking a 128-bit core mask, and the AArch64 ones (cache, GIC, stage-2, VCPU, PAC, high VSpace).
+ARCH_A64 = [e if e[0] != "send_reschedule" else ("send_reschedule", ["U128"], "A", None, None)
+            for e in ARCH[:-3]] + [
+ ("cache_op", ["U64"] * 6, "A", None, None),
+ ("hw_access_flag", [], "V", "b", "Bool"),
+ ("max_spi", [], "V", "u", "U64"),
+ ("configure_irq", ["U64", "Bool", "U64"], "A", None, None),
+ ("msi_map", ["U64"] * 4, "VA", "u", "U64"),
+ ("s2_ipa_bits", [], "V", "u", "U64"),
+ ("set_stage2_vspace", ["U64", "U64"], "A", None, None),
+ ("invalidate_stage2_page", ["U64", "U64"], "A", None, None),
+ ("invalidate_stage2_vmid", ["U64"], "A", None, None),
+ ("vcpu_flush", ["U64"], "A", None, None),
+ ("vcpu_flush_state", ["U64", "U64"], "A", None, None),
+ ("vcpu_vgic_vtr", [], "V", "u", "U64"),
+ ("vcpu_gic_version", [], "V", "u", "U64"),
+ ("vcpu_midr", [], "V", "u", "U64"),
+ ("has_pauth", [], "V", "b", "Bool"),
+ ("next_pac_epoch", [], "VA", "u", "U64"),
+ ("kernel_ttbr1_entry", ["U64", "U64"], "V", "u", "U64"),
+ ("set_high_vspace", ["U64", "U64"], "A", None, None),
+ ("invalidate_high_page", ["U64"], "A", None, None),
+ ("invalidate_high_vspace", ["U64"], "A", None, None),
+] + ARCH[-3:]
+assert [e[0] for e in ARCH[-3:]] == ["putc", "get_char", "halt"]
+
+def emit(arch=None):
     out = []
-    for (m, tys, kind, ctor, vty) in ARCH:
+    for (m, tys, kind, ctor, vty) in (ARCH if arch is None else arch):
         xs = [f"x{i}" for i in range(len(tys))]
         binders = " ".join(f"({x} : {t})" for x, t in zip(xs, tys))
         args = " ".join(xs)
@@ -75,4 +102,5 @@ def emit():
     return "\n".join(out)
 
 if __name__ == "__main__":
-    print(emit())
+    import sys
+    print(emit(ARCH_A64 if sys.argv[1:] == ["--arch", "aarch64"] else None))

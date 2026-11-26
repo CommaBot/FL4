@@ -1,0 +1,21 @@
+import Fl4Proofs.P3.JBootLay
+#print axioms Fl4Proofs.P3.JBoot.w0_topPlaced
+#print axioms Fl4Proofs.P3.JBoot.w0_ipcApart
+#print axioms Fl4Proofs.P3.JBoot.w0_scApart
+#print axioms Fl4Proofs.P3.JBoot.w0_ks
+#print axioms Fl4Proofs.P3.JBoot.w0_ip
+#print axioms Fl4Proofs.P3.JBoot.w0_rp
+#print axioms Fl4Proofs.P3.JBoot.w0_apart
+#print axioms Fl4Proofs.P3.JBoot.w0_nk
+#print axioms Fl4Proofs.P3.JBoot.w0_nodeB
+#print axioms Fl4Proofs.P3.JBoot.heapOK_Hw
+#print axioms Fl4Proofs.P3.JBoot.w0_jplaced
+#print axioms Fl4Proofs.P3.JBoot.w0_jpl
+#print axioms Fl4Proofs.P3.JBoot.w0_cover
+#print axioms Fl4Proofs.P3.JBoot.w0_zH
+#print axioms Fl4Proofs.P3.JBoot.w0_hset
+#print axioms Fl4Proofs.P3.JBoot.w0_hscC
+#print axioms Fl4Proofs.P3.JBoot.w0_jcov
+#print axioms Fl4Proofs.P3.JBoot.lay_orig
+#print axioms Fl4Proofs.P3.JBoot.w0_jkern
+#print axioms Fl4Proofs.P3.JBoot.w0_zD
