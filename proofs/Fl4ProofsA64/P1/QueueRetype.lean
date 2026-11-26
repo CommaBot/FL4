@@ -1,5 +1,6 @@
 -- AArch64 port of Fl4Proofs.P1.QueueRetype (proofs/scratch/a64/port.py): the x86_64 text, re-checked
 -- over Fl4CoreA64. Edits beyond the renaming are marked `-- a64:`.
+-- a64 (gen 21): `newKind` is the AArch64 object table (see its docstring).
 /-
 P1: **retype keeps the invariants, over the heap with the region's dead
 objects dropped and the new objects added** — the statement
@@ -37,17 +38,19 @@ def NewAt (A k w : Nat) (q : U64) : Prop := ∃ j, j < w ∧ q.val = A + j * k
 
 /-- The heap kind of the new objects of FL4 type `n` (user size `us`), if
 they are heap objects: TCB, endpoint, notification, CNode, SC, reply, and the
-untracked kernel objects (`.other`): the VSpace tables (PDPT, PML4, page
-table, page directory), the EPT tables (4 KiB), VCPUs (32 KiB) and the
-frames (4 KiB, 2 MiB, 1 GiB: P1 reads none of their words, which are user
-words; as `other` objects they are what P3's `SpecCover.arch` asks of the
-spec's frames, and `FrApartH` exempts them). -/
+untracked kernel objects (`.other`). a64: the AArch64 object numbering and sizes
+(`fl4_abi::consts::object`, `objects::object_size`, crates/fl4-core/src/arch/aarch64/objects.rs): 7 ArmHugePage
+(1 GiB), 8 ArmVSpace (4 KiB), 9 ArmSmallPage (4 KiB), 10 ArmLargePage (2 MiB), 11 ArmPageTable (4 KiB), 12 ArmVcpu
+(`bits::VCPU` = 12), 13 ArmStage2VSpace (`bits::STAGE2_VSPACE` = 13), 14 ArmHighVSpace (`bits::HIGH_VSPACE` = 13);
+x86_64's table (PDPT/PML4/EPT tables, a 32 KiB VCPU at 14) does not apply. Frames: P1 reads none of their words,
+which are user words; as `other` objects they are what P3's `SpecCover.arch` asks of the spec's frames, and
+`FrApartH` exempts them. -/
 def newKind (n us : Nat) : Option HKind :=
   if n = 1 then some .tcb else if n = 2 then some .ep else if n = 3 then some .ntfn else
   if n = 4 then some (.other (us + 5)) else if n = 5 then some (.sc us) else if n = 6 then some .reply else
-  if n = 7 ∨ n = 8 ∨ n = 12 ∨ n = 13 ∨ (15 ≤ n ∧ n ≤ 18) then some (.other 12) else
-  if n = 14 then some (.other 15) else if n = 9 then some (.other 30) else if n = 10 then some (.other 12) else
-  if n = 11 then some (.other 21) else none
+  if n = 8 ∨ n = 9 ∨ n = 11 ∨ n = 12 then some (.other 12) else
+  if n = 13 ∨ n = 14 then some (.other 13) else if n = 7 then some (.other 30) else
+  if n = 10 then some (.other 21) else none
 
 /-- Only type 5 makes SCs, of the user size. -/
 theorem newKind_sc {n us z : Nat} (h : newKind n us = some (.sc z)) : n = 5 ∧ z = us := by

@@ -134,6 +134,14 @@ import Fl4ProofsA64.P1.QueueHeapDrop
 import Fl4ProofsA64.P1.QueueRetype
 import Fl4ProofsA64.P1.QueueHeapFree
 import Fl4ProofsA64.P1.QueueReset
+import Fl4ProofsA64.P1.QueueHeapAdd
+import Fl4ProofsA64.P1.QueueHeapAddO
+import Fl4ProofsA64.P1.QueueHeapAddSc
+import Fl4ProofsA64.P1.QueueHeapDbg
+import Fl4ProofsA64.P1.QueueHeapAddTcb
+import Fl4ProofsA64.P1.QueueRetypeP1
+import Fl4ProofsA64.P1.QueueRetypeTcb
+import Fl4ProofsA64.P1.QueueUtRetype
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -223,3 +231,5 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.decGap_untyped
 #print axioms Fl4ProofsA64.P1.BlkOK.drop
 #print axioms Fl4ProofsA64.P1.resetP1Step_holds
+#print axioms Fl4ProofsA64.P1.retypeP1Step
+#print axioms Fl4ProofsA64.P1.UtRetypeP3.utPlace

@@ -138,3 +138,11 @@ import Fl4ProofsA64.P1.QueueHeapDrop
 import Fl4ProofsA64.P1.QueueRetype
 import Fl4ProofsA64.P1.QueueHeapFree
 import Fl4ProofsA64.P1.QueueReset
+import Fl4ProofsA64.P1.QueueHeapAdd
+import Fl4ProofsA64.P1.QueueHeapAddO
+import Fl4ProofsA64.P1.QueueHeapAddSc
+import Fl4ProofsA64.P1.QueueHeapDbg
+import Fl4ProofsA64.P1.QueueHeapAddTcb
+import Fl4ProofsA64.P1.QueueRetypeP1
+import Fl4ProofsA64.P1.QueueRetypeTcb
+import Fl4ProofsA64.P1.QueueUtRetype

@@ -1,7 +1,7 @@
 -- AArch64 port of Fl4Proofs.P1.QueueDecUt (proofs/scratch/a64/port.py): the x86_64 text, re-checked
 -- over Fl4CoreA64. Edits beyond the renaming are marked `-- a64:`.
 -- a64 (gen 21): imports QueueDecIrq (the A64 rewrite) instead of the unported QueueDecVs, whose two helpers the
--- decode uses are restated here as `shl_and63u` / `spec_exists_u` (so a later A64 QueueDecVs keeps its names);
+-- decode uses are restated here as `shl_and63u` / `spec_exists_dut` (so a later A64 QueueDecVs keeps its names);
 -- the object-type checks are AArch64's (crates/fl4-core/src/untyped.rs: `ArmVcpu` and `ArmStage2VSpace` need
 -- virtualization, x86_64's `X86Vcpu ≤ nt < Count`). Named premises: as x86_64 (`UtPlace`, `UtOkAt`); none new.
 /-
@@ -86,7 +86,7 @@ structure UtPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
 theorem shl_and63u (x : U64) : (1#u64 <<< (x &&& 63#u64) : Result U64) ⦃ _ => True ⦄ := by
   p0_auto
 
-theorem spec_exists_u {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ r => P r ⦄) : ∃ v, m = ok v ∧ P v := by
+theorem spec_exists_dut {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ r => P r ⦄) : ∃ v, m = ok v ∧ P v := by
   revert h; cases m <;> simp [WP.spec_vis, WP.spec_div, WP.spec_ok]
 
 theorem shr_and63 (x y : U64) : (x >>> (y &&& 63#u64) : Result U64) ⦃ _ => True ⦄ := by
@@ -112,7 +112,7 @@ theorem DecPost.toG' {Adm : PSets → Prop} {s s' : S} {cap : capability.Cap}
 set_option hygiene false in
 /-- The aligned base, the restart and the retype premise. -/
 local macro "utalign" dv:term : tactic => `(tactic| (
-  obtain ⟨al, eal, -⟩ := spec_exists_u (P0.untyped.align_up.p0 _ val)
+  obtain ⟨al, eal, -⟩ := spec_exists_dut (P0.untyped.align_up.p0 _ val)
   rw [eal]
   simp only [bind_ok]
   refine WP.spec_bind (spec_eqv (Cur0.restart D)) fun s2 ⟨erst, h2⟩ => ?_
@@ -126,21 +126,21 @@ local macro "utalign" dv:term : tactic => `(tactic| (
 set_option hygiene false in
 /-- The decode's tail, from the object size. -/
 local macro "uttail" : tactic => `(tactic| (
-  obtain ⟨rs, ers, -⟩ := spec_exists_u (P0.untyped.retype_size.p0 nt us)
+  obtain ⟨rs, ers, -⟩ := spec_exists_dut (P0.untyped.retype_size.p0 nt us)
   rw [ers]
   simp only [bind_ok]
   rcases rs with val | e
   swap
   · errU
   simp only [irq_branch_ok, bind_ok]
-  obtain ⟨rd, erd, -⟩ := spec_exists_u (P0.untyped.retype_dest.p0 st s x idx dep off win hS)
+  obtain ⟨rd, erd, -⟩ := spec_exists_dut (P0.untyped.retype_dest.p0 st s x idx dep off win hS)
   rw [erd]
   simp only [bind_ok]
   rcases rd with dest | e
   swap
   · errU
   simp only [irq_branch_ok, bind_ok, lift]
-  obtain ⟨re, ere, -⟩ := spec_exists_u (P0.untyped.ensure_empty_slots.p0 st s dest off
+  obtain ⟨re, ere, -⟩ := spec_exists_dut (P0.untyped.ensure_empty_slots.p0 st s dest off
     (core.num.U64.wrapping_add off win) hS)
   rw [ere]
   simp only [bind_ok]
@@ -148,16 +148,16 @@ local macro "uttail" : tactic => `(tactic| (
   swap
   · errU
   simp only [irq_branch_ok, bind_ok, untyped.as_untyped]
-  obtain ⟨rn, ern, -⟩ := spec_exists_u (P0.cdt.ensure_no_children.p0 st s slot hS)
+  obtain ⟨rn, ern, -⟩ := spec_exists_dut (P0.cdt.ensure_no_children.p0 st s slot hS)
   rw [ern]
   simp only [bind_ok]
   rcases rn with v | e
   all_goals
     simp only [bind_ok, uncurry_apply_pair, lift]
-    obtain ⟨i2, e2, -⟩ := spec_exists_u (shl_and63u sb)
+    obtain ⟨i2, e2, -⟩ := spec_exists_dut (shl_and63u sb)
     rw [e2]
     simp only [bind_ok, lift]
-    obtain ⟨i4, e4, -⟩ := spec_exists_u (shr_and63 _ val)
+    obtain ⟨i4, e4, -⟩ := spec_exists_dut (shr_and63 _ val)
     rw [e4]
     simp only [bind_ok]
     split
@@ -168,7 +168,7 @@ local macro "uttail" : tactic => `(tactic| (
     rename_i h64
     have hv64 : val.val < 64 := by scalar_tac
     split
-    · obtain ⟨bf, ebf, -⟩ := spec_exists_u (P0.objects.is_frame_type.p0 nt)
+    · obtain ⟨bf, ebf, -⟩ := spec_exists_dut (P0.objects.is_frame_type.p0 nt)
       rw [ebf]
       simp only [bind_ok]
       split
@@ -196,7 +196,7 @@ theorem untyped.decode.dec {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
   by_cases c1 : (lbl != fl4_abi.label.UntypedRetype) = true
   · rw [if_pos c1]
     split
-    · obtain ⟨b, hb, -⟩ := spec_exists_u (P0.machine.sharing_enabled.p0 st s hS)
+    · obtain ⟨b, hb, -⟩ := spec_exists_dut (P0.machine.sharing_enabled.p0 st s hS)
       rw [hb]
       cases b
       · simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]; errU
