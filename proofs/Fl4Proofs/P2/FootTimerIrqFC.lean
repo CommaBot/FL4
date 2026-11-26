@@ -364,15 +364,20 @@ theorem headD_tz {T : Set U64} (l : List U64) (hl : ∀ t ∈ l, t ∈ T) :
   | cons a l => exact Or.inr (hl a List.mem_cons_self)
 
 set_option maxHeartbeats 32000000 in
-/-- **A declined `fire_ok` on the guarded store** (module docstring). -/
-theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Prop} {W : U64 → Prop}
-    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s)
+/-- **A declined `fire_ok` on a guarded store, any read set `R`** that contains every word `own K` lets the path
+read at `s` in a region other than `.none` (`hR`) and the `CUR_DOMAIN` word (`hRD`); the layout facts are
+`StLay` and the notification regions `ntw` (`IrqLay.ntw`). `fire_rd` is `R = MaxR`. -/
+theorem fire_rdG (hK : RegionOK K) {s s1 : S} {lk : U64 → Prop} {R W : U64 → Prop}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s)
+    (ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n)
+    (hR : ∀ w, RPerm (own K) (L.cpu s) lk (L.mem s) w → Aligned w → region K w ≠ .none → R w)
+    (hRD : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     (k1 : L.ksb s1 = L.ksb s) (c1 : L.cpu s1 = L.cpu s)
     (m1 : ∀ b, Aligned b → b ≠ ctA (L := L) s → b ≠ cnA (L := L) s → L.mem s1 b = L.mem s b)
     {tip p : localtimer.TimerIrqPlan} (etip : localtimer.plan_objects st s = ok tip)
     (esp : localtimer.same_plan tip p = ok true) (ct : obj.Tcb) (now : U64) :
-    localtimer.fire_ok (guard st (MaxR K st lk s) W) s1 (L.cpu s) ct p now =
+    localtimer.fire_ok (guard st R W) s1 (L.cpu s) ct p now =
       localtimer.fire_ok st s1 (L.cpu s) ct p now := by
   have hsp := same_plan_tm esp
   rcases plan_facts etip with ⟨t1, -⟩ | ⟨t1, t2, t3, t4⟩
@@ -384,7 +389,11 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
   have hN : NodePlaced st T s (L.cpu s) := h0.nodes _ hcC
   have hX := hI.2.2.1
   have hO := hX.1
-  set R : U64 → Prop := MaxR K st lk s with eR
+  have treg : ∀ {x k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 →
+      region K (core.num.U64.wrapping_add x k) ≠ .none := fun hx h1 h2 => by
+    have e := hL.tcb _ hx _ h1 h2
+    unfold fld at e
+    rw [e]; intro e; cases e
   obtain ⟨TM, eTM⟩ : ∃ x, L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = x := ⟨_, rfl⟩
   have hpt : p.tm = TM := by rw [← hsp.1, t1, eTM]
   have hne : TM ≠ 0#u64 := by rw [← hpt, ← hsp.1]; exact t2
@@ -415,7 +424,7 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
       L.mem s1 (core.num.U64.wrapping_add n k) = L.mem s (core.num.U64.wrapping_add n k) := by
     intro n k hn hk h8
     obtain ⟨p1, p2⟩ := hO.ntP _ hn
-    have hr := hY.ntw _ hn k hk
+    have hr := ntw _ hn k hk
     refine m1 _ (by unfold Aligned; rw [ntfn_word_val p1 p2 hk]; omega) (fun e => ?_) (fun e => ?_)
     · rw [e, hL.nd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME])] at hr
       cases hr
@@ -436,19 +445,19 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
   have e1N : ∀ o, L.nodeAt s1 (L.cpu s1) o = L.nodeAt s (L.cpu s) o := fun o => by rw [c1, nodeAt_of_ksb k1]
   -- readable words
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
-    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2, hL.nu_node h1⟩
+    hR _ (Or.inl (held_core (hL.own_node _ h1))) (nodeAt_aligned hN h1 h2) (by rw [hL.nd _ h1]; intro e; cases e)
   have ndR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s1 (L.cpu s1) o) := fun o h1 h2 => by
     rw [e1N]; exact nR o h1 h2
   have gateR : ∀ {x : U64} {k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → GateField k.val →
       R (core.num.U64.wrapping_add x k) := fun hx h1 h2 h8 hg =>
-    ⟨Or.inr (by
+    hR _ (Or.inr (by
       have e := hL.own_tcb hT (L.mem s) hx h1 h2
       unfold fld at e
-      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8, hL.nu_tcb hx h1 h2⟩
+      unfold GateOnly; rw [e, tcbOwner, if_pos hg])) (field_aligned (hT _ hx) h2 h8) (treg hx h1 h2)
   have homeX : ∀ {x k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
       (k.val < 3528 ∨ 3576 ≤ k.val) → k.val ≠ 3496 → k.val ≠ 3504 → L.mem s (affA x) = L.cpu s →
       R (core.num.U64.wrapping_add x k) := @fun x k hx h1 h2 h3 h4 h5 h6 hax => by
-    refine ⟨?_, field_aligned (hT _ hx) h2 h3, hL.nu_tcb hx h1 h2⟩
+    refine hR _ ?_ (field_aligned (hT _ hx) h2 h3) (treg hx h1 h2)
     have e := hL.own_tcb hT (L.mem s) hx h1 h2
     unfold fld at e
     unfold RPerm GateOnly
@@ -462,7 +471,7 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
   have keyR : ∀ {y k : U64}, y ∈ tr.keys → 3528 ≤ k.val → k.val < 3576 → k.val % 8 = 0 →
       R (core.num.U64.wrapping_add y k) := @fun y k hy h1 h2 h3 => by
     have hyT := ctr.inT y hy
-    refine ⟨Or.inl ?_, field_aligned (hT _ hyT) (by omega) h3, hL.nu_tcb hyT (by omega) (by omega)⟩
+    refine hR _ (Or.inl ?_) (field_aligned (hT _ hyT) (by omega) h3) (treg hyT (by omega) (by omega))
     have e := hL.own_tcb hT (L.mem s) hyT (k := k) (by omega) (by omega)
     unfold fld at e
     rw [e, tcbOwner, if_neg (show ¬ GateField k.val by unfold GateField; omega),
@@ -481,8 +490,8 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
     have e : own K (L.mem s) (scCoreA q) = .gate := by
       simp only [own, hL.sc q hq _ hin]
       rw [if_pos (by unfold scCoreA; rw [hv, hcv])]
-    exact ⟨Or.inr e, by unfold Aligned scCoreA; rw [hv, hcv]; omega, hL.nu_sc hq hin⟩
-  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩
+    exact hR _ (Or.inr e) (by unfold Aligned scCoreA; rw [hv, hcv]; omega) (by rw [hL.sc q hq _ hin]; intro e; cases e)
+  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := hRD
   -- what `may_run_here` reads of a null thread or a TCB, at `s1`
   have mayZ : ∀ x : U64, (x = 0#u64 ∨ x ∈ T) → MayRdC st R s1 (L.cpu s1) x ∧
       (x ≠ 0#u64 → L.mem s1 (affA x) = L.cpu s1 → R (domA x) ∧ R (inqA x)) := fun x hx => by
@@ -588,10 +597,10 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
         rw [eA]; exact eBt
       have ht : K.heap TM = some .tcb := hK.tcbOf _ _ (hL.tcb _ q1 3328#u64 (by simp) (by simp))
       have ntR : ∀ k : U64, k.val < 64 → k.val % 8 = 0 → R (core.num.U64.wrapping_add N k) := fun k hk h8 => by
-        refine ⟨?_, by unfold Aligned; rw [ntfn_word_val p1 p2 hk]; omega,
-          hL.nu (by rw [hY.ntw _ hNN k hk]; intro e; cases e)⟩
+        refine hR _ ?_ (by unfold Aligned; rw [ntfn_word_val p1 p2 hk]; omega)
+          (by rw [ntw _ hNN k hk]; intro e; cases e)
         have e : own K (L.mem s) (core.num.U64.wrapping_add N k) = ntfnOwner K (L.mem s) N k.val := by
-          simp only [own, hY.ntw _ hNN k hk]
+          simp only [own, ntw _ hNN k hk]
           rw [ntfn_word_val p1 p2 hk, Nat.add_sub_cancel_left]
         by_cases h24 : k.val = 24
         · refine Or.inr ?_
@@ -630,6 +639,20 @@ theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Pro
     (fun _ => by rw [hpt]; exact keyR hk (by simp) (by simp) (by simp))
     hd1 hP0 hP (fun x hx => keyR hx (by simp) (by simp) (by simp)) hTl
   rwa [c1] at g
+
+
+/-- **A declined `fire_ok` on the guarded store** (module docstring): `fire_rdG` at `R = MaxR`. -/
+theorem fire_rd (hK : RegionOK K) {irq : U64} {s s1 : S} {lk : S → U64 → Prop} {W : U64 → Prop}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    (k1 : L.ksb s1 = L.ksb s) (c1 : L.cpu s1 = L.cpu s)
+    (m1 : ∀ b, Aligned b → b ≠ ctA (L := L) s → b ≠ cnA (L := L) s → L.mem s1 b = L.mem s b)
+    {tip p : localtimer.TimerIrqPlan} (etip : localtimer.plan_objects st s = ok tip)
+    (esp : localtimer.same_plan tip p = ok true) (ct : obj.Tcb) (now : U64) :
+    localtimer.fire_ok (guard st (MaxR K st lk s) W) s1 (L.cpu s) ct p now =
+      localtimer.fire_ok st s1 (L.cpu s) ct p now :=
+  fire_rdG hK hI hL hY.ntw (fun _ hp ha hr => ⟨hp, ha, hL.nu hr⟩) ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩ hNt k1 c1
+    m1 etip esp ct now
 
 end own
 
