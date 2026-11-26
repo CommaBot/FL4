@@ -402,22 +402,23 @@ theorem emptySlot_keep {x : S} {a : A} {slot : U64} {y : S × A} (hL : Slot8 K) 
 
 /-- `finalise_cap` of an unmapped (or ASID 0) non-device non-EPT frame cap: no access, null remainder and
 cleanup. -/
-theorem finCap_frame_keep {x : S} {a : A} {fp rt asid va : U64} {sz : capability.FrameSize} {mp fin : Bool}
-    (hm : mp = false ∨ asid = 0#u64) {y : (capability.Cap × capability.Cap) × S × A}
-    (h : objects.finalise_cap st ar x a (.Frame fp sz rt false mp false asid va) fin false = ok y) :
+theorem finCap_frame_keep {x : S} {a : A} {fp rt asid va : U64} {mp fin : Bool}
+    (hm : FrNo st ar x mp asid va fp) {y : (capability.Cap × capability.Cap) × S × A}
+    (h : objects.finalise_cap st ar x a (.Frame fp .Small rt false mp false asid va) fin false = ok y) :
     y = ((.Null, .Null), x, a) := by
   unfold objects.finalise_cap objects.finalise_cap_object at h
   simp only [bind_ok] at h
-  rcases hm with rfl | rfl
+  rcases hm with rfl | rfl | hu
   · cases fin <;> simp at h <;> exact h.symm
   · cases mp <;> cases fin <;> simp at h <;> exact h.symm
+  · cases mp <;> by_cases hA : asid = 0#u64 <;> cases fin <;> simp [hA, hu] at h <;> first | exact h.symm | exact h
 
 set_option maxHeartbeats 4000000 in
 /-- **`finalise_slot_immediate` on such a frame cap returns at its first round**, the state unchanged, with a null
 cleanup. -/
 theorem finImm_frame_keep {x : S} {a : A} {slot fp rt asid va : U64} {mp : Bool}
     (hc : obj.Slot.cap st slot x = ok (.Frame fp .Small rt false mp false asid va))
-    (hm : mp = false ∨ asid = 0#u64) {y : core.result.Result cdt.Finalised error.Exc × S × A}
+    (hm : FrNo st ar x mp asid va fp) {y : core.result.Result cdt.Finalised error.Exc × S × A}
     (h : cdt.finalise_slot_immediate st ar x a slot = ok y) :
     y = (.Ok { success := true, cleanup := .Null }, x, a) := by
   unfold cdt.finalise_slot_immediate cdt.finalise_slot_immediate_loop at h
@@ -443,7 +444,7 @@ theorem finImm_frame_keep {x : S} {a : A} {slot fp rt asid va : U64} {mp : Bool}
 words only. -/
 theorem del_frame_keep {x : S} {a : A} {dest fp rt asid va : U64} {mp : Bool} (hL : Slot8 K) (hd : dest ∈ K.slots)
     (hc : obj.Slot.cap st dest x = ok (.Frame fp .Small rt false mp false asid va))
-    (hm : mp = false ∨ asid = 0#u64)
+    (hm : FrNo st ar x mp asid va fp)
     (hp : L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ≠ 0#u64 →
       L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ∈ K.slots)
     (hn : ∀ nx, obj.Slot.next st dest x = ok nx → nx ≠ 0#u64 → nx ∈ K.slots)
@@ -528,7 +529,7 @@ theorem cnDel_keep {x : S} {a : A} {t length buf cp cr cg cgb dest fp rt asid va
     (hlk : cspace.lookup_target_slot st x (.CNode cp cr cg cgb) (L.mem x (regA t layout.reg.R10))
       (L.mem x (regA t layout.reg.R8)) = ok (.Ok dest))
     (hd : dest ∈ K.slots) (hc : obj.Slot.cap st dest x = ok (.Frame fp .Small rt false mp false asid va))
-    (hm : mp = false ∨ asid = 0#u64)
+    (hm : ∀ x3, sched.set_thread_state st x t sched.TS_RESTART = ok x3 → FrNo st ar x3 mp asid va fp)
     (hp : L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ≠ 0#u64 →
       L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ∈ K.slots)
     (hn : ∀ nx, obj.Slot.next st dest x = ok nx → nx ≠ 0#u64 → nx ∈ K.slots)
@@ -552,7 +553,7 @@ theorem cnDel_keep {x : S} {a : A} {t length buf cp cr cg cgb dest fp rt asid va
       L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) :=
     ag _ (slotW_of hL hd (by simp [layout.cte.PREV])) (slot_al hL hd (by simp [layout.cte.PREV])
       (by simp [layout.cte.PREV]))
-  obtain ⟨hy1, wd⟩ := del_frame_keep ar hL hd hc3 hm (by rw [ep]; exact hp)
+  obtain ⟨hy1, wd⟩ := del_frame_keep ar hL hd hc3 (hm s3 hs3) (by rw [ep]; exact hp)
     (fun nx e => hn nx (by rw [← next_agree hL hd ag]; exact e)) h
   exact ⟨hy1, (KeepS.of_keepA K3).slots F O wd⟩
 
@@ -603,7 +604,7 @@ theorem decDel_keep {x : S} {a : A} {t length buf cp cr cg cgb dest fp rt asid v
     (hlk : cspace.lookup_target_slot st x (.CNode cp cr cg cgb) (L.mem x (regA t layout.reg.R10))
       (L.mem x (regA t layout.reg.R8)) = ok (.Ok dest))
     (hd : dest ∈ K.slots) (hc : obj.Slot.cap st dest x = ok (.Frame fp .Small rt false mp false asid va))
-    (hm : mp = false ∨ asid = 0#u64)
+    (hm : ∀ x3, sched.set_thread_state st x t sched.TS_RESTART = ok x3 → FrNo st ar x3 mp asid va fp)
     (hp : L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ≠ 0#u64 →
       L.mem x (core.num.U64.wrapping_add dest layout.cte.PREV) ∈ K.slots)
     (hn : ∀ nx, obj.Slot.next st dest x = ok nx → nx ≠ 0#u64 → nx ∈ K.slots)
@@ -660,6 +661,10 @@ theorem delFin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (P : IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s)
     (hW : IoWr st W K.heap.scBits s) (hsw : W (stA (L.curW s)))
     (E : DelEnt st K Cs Locks p s) (hsl : p.slot ∈ K.slots) (hlen : ¬ length < 2#u64)
+    (hvs : ∀ sl fp rt asid va, sl ∈ K.slots →
+      obj.Slot.cap st sl s = ok (.Frame fp .Small rt false true false asid va) → asid ≠ 0#u64 →
+      va ≤ fl4_abi.consts.USER_TOP ∧ localinv.small_page_entry st s asid va ≠ ok (some 0#u64) ∧
+        VsRd st K s asid va)
     (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
     (hcap : obj.Slot.cap st p.slot s2 = ok cap)
     (hy : syscall.decode_invocation st ar s2 a1 fl4_abi.label.CNodeDelete length p.slot cap true true true false
@@ -744,7 +749,23 @@ theorem delFin {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
   have O : SlotOK (L := L) K s2 (L.curW s) :=
     ⟨hn2, fun k h1 h2 => P.tcb_notSlot (P.hT _ P.cT) h1 h2, hmx⟩
   -- the run
-  obtain ⟨hz2, kz⟩ := decDel_keep ar hK O ha2 hrun hL hlen hlk2 hd hdc2 hm hpv2 hnx2 hy hz
+  have hm3 : ∀ x3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok x3 →
+      FrNo st ar x3 mp asid va fp := by
+    intro x3 hs3
+    have K3 : KeepA (L := L) s2 (L.curW s) x3 := (KeepA.refl ha2 hrun).sts hK (Or.inl rfl) hs3
+    rcases hm with h0 | h0 | hn
+    · exact Or.inl h0
+    · exact Or.inr (Or.inl h0)
+    · cases mp with
+      | false => exact Or.inl rfl
+      | true =>
+        by_cases hA : asid = 0#u64
+        · exact Or.inr (Or.inl hA)
+        · obtain ⟨hva, -, hV⟩ := hvs dest fp rt asid va hd hdc hA
+          refine Or.inr (Or.inr (fun a' => unmap_nop ar (fun b hb => ?_) ?_ hV hva hn a'))
+          · rw [L.read_eq, L.read_eq, K3.mem hb.1 (P.vs_notIoTW hb), w0.2.2 b hb.1 (P.vs_notPreW hb)]
+          · rw [L.ks_base_eq, L.ks_base_eq, K3.1.1, w0.1]
+  obtain ⟨hz2, kz⟩ := decDel_keep ar hK O ha2 hrun hL hlen hlk2 hd hdc2 hm3 hpv2 hnx2 hy hz
   refine ⟨hz2, ?_⟩
   -- `Ω` cut to the SC words
   have hrh0 : L.mem s (rhA (L := L) s) ≠ 0#u64 → L.mem s (scA (L.mem s (rhA (L := L) s))) ∈ K.heap.scs ∧
