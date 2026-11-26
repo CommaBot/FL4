@@ -2282,3 +2282,5 @@ import Fl4Proofs.P3.VirtTcbOK
 import Fl4Proofs.P3.VirtNvInv
 import Fl4Proofs.P3.VirtNvK1
 import Fl4Proofs.P3.VirtTyK7
+import Fl4Proofs.P3.VirtNvK2
+import Fl4Proofs.P3.VirtExtTop
