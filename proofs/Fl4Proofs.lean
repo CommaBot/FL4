@@ -2326,3 +2326,5 @@ import Fl4Proofs.P3.JBootM2U40
 import Fl4Proofs.P3.P3JMc
 import Fl4Proofs.P3.P3JMcRun
 import Fl4Proofs.P3.JBootM2Mc
+import Fl4Proofs.P3.P3JMcStep
+import Fl4Proofs.P3.P3JMcIrq
