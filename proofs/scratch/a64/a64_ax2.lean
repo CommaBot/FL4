@@ -79,6 +79,8 @@ import Fl4ProofsA64.P1.QueueCaiFr
 import Fl4ProofsA64.P1.QueueDelete
 import Fl4ProofsA64.P1.QueueDeleteRv
 import Fl4ProofsA64.P1.QueueFinCap
+import Fl4ProofsA64.P1.QueueFootS
+import Fl4ProofsA64.P1.QueueInvoke
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -106,3 +108,10 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blk_d
 #print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkC_d
 #print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkE_d
+#print axioms Fl4ProofsA64.P1.notification.send_signal.tinvFK
+#print axioms Fl4ProofsA64.P1.timer.fire.tinvF
+#print axioms Fl4ProofsA64.P1.sched.schedule.kw
+#print axioms Fl4ProofsA64.P1.notification.kick_guest.kwB
+#print axioms Fl4ProofsA64.P1.schedcontext.bind_tcb.blkF
+#print axioms Fl4ProofsA64.P1.ntfn_signal.blkF
+#print axioms Fl4ProofsA64.P1.ep_send.blk
