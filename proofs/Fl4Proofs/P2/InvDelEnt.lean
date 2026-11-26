@@ -17,7 +17,7 @@ objects, and the locks the glue holds on `dest` and its CDT neighbours (each a c
 
 No existing statement changes; no `kernel_entry_reach*` is touched.
 -/
-import Fl4Proofs.P2.InvAcc
+import Fl4Proofs.P2.InvVs
 import Fl4Proofs.P3.Encode
 open Aeneas Aeneas.Std Result
 
@@ -132,7 +132,8 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable (st) in
 /-- (stpost gen 13) **The entry facts of the CNodeDelete-no-PTE arm** at the entry `s` (module docstring): the
 invoked CNode cap at the plan's slot; the target `dest` its lookup finds from `R10` / `R8` (the first two message
-registers, `sarg0_reg` / `sarg1_reg`); `dest`'s cap, a small RAM frame, unmapped or with ASID 0; the walk's closure
+registers, `sarg0_reg` / `sarg1_reg`); `dest`'s cap, a small RAM frame, unmapped, with ASID 0, or with no PTE `small_page_entry` finds (gen 14: stale
+mapped caps); the walk's closure
 `C` (the invoked CNode in it, closed, its radix-masked slots capability slots outside the objects); `dest` a
 capability slot outside the objects with its lock held; its CDT neighbours (`PREV` word, `Slot.next`), when not
 null, capability slots with their locks held. -/
@@ -142,7 +143,7 @@ def DelEnt (K : KLayout) (Cs : Set U64) (Locks : S → U64 → Prop) (p : locali
     cspace.lookup_target_slot st s (.CNode cp cr cg cgb) (L.mem s (regA (L.curW s) layout.reg.R10))
       (L.mem s (regA (L.curW s) layout.reg.R8)) = ok (.Ok dest) ∧
     obj.Slot.cap st dest s = ok (.Frame fp .Small rt false mp false asid va) ∧
-    (mp = false ∨ asid = 0#u64) ∧
+    (mp = false ∨ asid = 0#u64 ∨ localinv.small_page_entry st s asid va = ok none) ∧
     C cp cr ∧ WalkCl (st := st) s C ∧
     (∀ p r m y, C p r → cspace.mask r = ok m → cnSlot p (y &&& m) ∈ K.slots ∧
       OutsideObjs st K.heap.tcbs Cs s (cnSlot p (y &&& m)) ∧
@@ -166,7 +167,8 @@ def InvQF (Cs Ω Sg Ac : Set U64) (Locks : S → U64 → Prop) (p : localinv.Pla
   InvQ st Cs Ω Sg Ac Locks p K m s ∧ InvLk st p s
 
 variable (st) in
-/-- [J] **A mapped small RAM frame cap with a non-zero ASID has its page-table entry** (seL4's valid mappings):
+/-- (Superseded, gen 14: **false at P3 states** — stale mapped frame caps survive a VSpace root's deletion; no longer
+used, replaced by `InvVsJ`.) A mapped small RAM frame cap with a non-zero ASID has its page-table entry:
 at a state of `P`, a capability slot holding it has `small_page_entry` find a non-zero entry. -/
 def InvMapJ (K : KLayout) (P : S → Prop) : Prop :=
   ∀ s sl fp rt asid va, P s → sl ∈ K.slots →

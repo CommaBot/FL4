@@ -29,6 +29,7 @@ Premises (named, tagged in their docstrings): `InvCMBlkW` [W], `InvCMRoAccW` [W]
 `NoZero` [W], `InvRoW` [W]), `hSeen` [J], `hps` [J].
 -/
 import Fl4Proofs.P2.InvAcc
+import Fl4Proofs.P2.InvCMSets
 import Fl4Proofs.P2.SlOnceL
 open Aeneas Aeneas.Std Result
 
@@ -39,73 +40,8 @@ open Fl4Proofs.P2.E2E (Once ReadOnce)
 
 /-! ## The sets -/
 
-section sets
-variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-
-/-- **What the Copy / Mint path may read**: aligned user words (the caller's IPC buffer among them) and `IoRS`. -/
-def InvCMRS (K : KLayout) (Locks : S → U64 → Prop) (s : S) (x : U64) : Prop :=
-  Aligned x ∧ (x ∈ K.user ∨ IoRS (st := st) K Locks s x)
-
-/-- **What an accepted Copy / Mint run may write**: aligned user words (a `Sys` error's reply writes the caller's
-buffer) and `IoWS`. -/
-def InvCMWS (K : KLayout) (Locks : S → U64 → Prop) (s : S) (x : U64) : Prop :=
-  Aligned x ∧ (x ∈ K.user ∨ IoWS (st := st) K Locks s x)
-
-variable {K : KLayout} {Locks : S → U64 → Prop} {s : S} {x : U64}
-
-theorem ioRS_cm (h : IoRS (st := st) K Locks s x) : InvCMRS (st := st) K Locks s x := ⟨h.1, Or.inr h⟩
-
-theorem ioWS_cm (h : IoWS (st := st) K Locks s x) : InvCMWS (st := st) K Locks s x := ⟨h.1, Or.inr h⟩
-
-theorem cmRS_nu (h : InvCMRS (st := st) K Locks s x) (hu : x ∉ K.user) : IoRS (st := st) K Locks s x :=
-  h.2.resolve_left hu
-
-theorem cmWS_nu (h : InvCMWS (st := st) K Locks s x) (hu : x ∉ K.user) : IoWS (st := st) K Locks s x :=
-  h.2.resolve_left hu
-
-/-- `InvCMRS` is user-write independent where `IoRS` is. -/
-theorem cmRS_eq {s' : S} (h : IoRS (st := st) K Locks s' = IoRS (st := st) K Locks s) :
-    InvCMRS (st := st) K Locks s' = InvCMRS (st := st) K Locks s := by
-  funext y; unfold InvCMRS; rw [h]
-
-/-- `InvCMWS` is user-write independent where `IoWS` is. -/
-theorem cmWS_eq {s' : S} (h : IoWS (st := st) K Locks s' = IoWS (st := st) K Locks s) :
-    InvCMWS (st := st) K Locks s' = InvCMWS (st := st) K Locks s := by
-  funext y; unfold InvCMWS; rw [h]
-
-/-- **An alternative for `InvCMRS s` is one for `IoRS s`.** -/
-theorem alt_cm_io {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {s' : S}
-    (Al : Alt st (InvCMRS (st := st) K Locks s) cls ko (· ∈ K.user) s s') :
-    Alt st (IoRS (st := st) K Locks s) cls ko (· ∈ K.user) s s' :=
-  ⟨Al.cpu, Al.ksb, Al.masks, fun y hy => Al.read y (ioRS_cm hy),
-    fun y hy hu ho => Al.clsEq y (fun h => hy (cmRS_nu h hu)) hu ho⟩
-
-/-- `AltOf` for `InvCMRS` lies in `AltOf` for `IoRS`. -/
-theorem altOf_cm_io {P : S → Prop} {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {s' : S}
-    (h : AltOf st P (InvCMRS (st := st) K Locks) cls ko (· ∈ K.user) s') :
-    AltOf st P (IoRS (st := st) K Locks) cls ko (· ∈ K.user) s' :=
-  let ⟨s0, hP, Al⟩ := h; ⟨s0, hP, alt_cm_io Al⟩
-
-/-- A store guarded to `R` reads every word of a smaller `R'` as `st`. -/
-theorem grd_sub {R R' W : U64 → Prop} (h : ∀ y, R' y → R y) : GRd (guard st R W) st R' where
-  read hy _ := guard_read (h _ hy)
-  read_pair hy h8 _ := guard_read_pair (h _ hy) (h _ h8)
-  ks_base := rfl
-  cur_cpu := rfl
-  frame_masks := rfl
-
-/-- `IoWr` for a larger write set. -/
-theorem IoWr.mono {W W' : U64 → Prop} {Z : U64 → Nat} (h : ∀ y, W y → W' y) (w : IoWr st W Z s) :
-    IoWr st W' Z s :=
-  ⟨fun o h1 h2 => h _ (w.nd o h1 h2), fun r hr => h _ (w.reg r hr), fun b hb hi => h _ (w.ring b hb hi),
-    h _ w.cons⟩
-
-/-- `IsProgOn` on a smaller set of entry states. -/
-theorem IsProgOn.mono {A X : Type} {f : machine.Store S → S → A → Result (X × S × A)} {ar : machine.Arch A}
-    {G G' : S → Prop} {q : SProg X} (h : IsProgOn f ar st G q) (hG : ∀ y, G' y → G y) :
-    IsProgOn f ar st G' q := fun st' N y hy a => h st' N y (hG y hy) a
-
-end sets
+-- (gen 12) The `sets` section (InvCMRS, InvCMWS, ioRS_cm, …, IsProgOn.mono) moved verbatim to `P2/InvCMSets.lean`
+-- (stpost gen 14), shared with the uncut CNodeDelete path.
 
 /-! ## The arm and the premises -/
 
