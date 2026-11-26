@@ -2279,3 +2279,6 @@ import Fl4Proofs.P3.VirtR7eK2
 import Fl4Proofs.P3.VirtOffNv
 import Fl4Proofs.P3.VirtInvOK
 import Fl4Proofs.P3.VirtTcbOK
+import Fl4Proofs.P3.VirtNvInv
+import Fl4Proofs.P3.VirtNvK1
+import Fl4Proofs.P3.VirtTyK7
