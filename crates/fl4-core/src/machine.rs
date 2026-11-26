@@ -137,7 +137,7 @@ pub trait Arch {
     /// `doRemoteStall`), and has done so when this returns.
     fn remote_stall(&mut self, cpu: u64);
     /// Ask the cores in `mask` to reschedule (seL4 `doMaskReschedule`).
-    fn send_reschedule(&mut self, mask: u64);
+    fn send_reschedule(&mut self, mask: CoreMask);
 
     arch_machine_methods!();
 
