@@ -2289,3 +2289,5 @@ import Fl4Proofs.P2.WitU34
 import Fl4Proofs.P3.JBoot6Find
 import Fl4Proofs.P3.ArchSwThr
 import Fl4Proofs.P3.XTopJointKEntryU43
+import Fl4Proofs.P3.KCfgFL4
+import Fl4Proofs.P3.XTopJointKEntryU44
