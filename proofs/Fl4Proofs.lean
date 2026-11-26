@@ -1937,3 +1937,5 @@ import Fl4Proofs.P2.OwnMapPte
 import Fl4Proofs.P2.E2EP
 import Fl4Proofs.P2.E2EPCut
 import Fl4Proofs.P2.E2EPFl4
+import Fl4Proofs.P2.E2EPSl
+import Fl4Proofs.P2.E2EPSlP
