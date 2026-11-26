@@ -2113,3 +2113,6 @@ import Fl4Proofs.P3.StallNarrowTcb
 import Fl4Proofs.P3.StallNarrowRec
 import Fl4Proofs.P3.StallNarrowGen
 import Fl4Proofs.P3.XTopJointKEntryU31
+import Fl4Proofs.P3.ArchIrqNarrow
+import Fl4Proofs.P3.ArchIrqNarrowGen
+import Fl4Proofs.P3.XTopJointKEntryU32

@@ -28,11 +28,20 @@ namespace Fl4Proofs.P3.StallNarrow
 
 /-- A constant of this development (`Fl4Proofs.…`, or private to one of its modules). -/
 def ours (n : Name) : Bool :=
-  (`Fl4Proofs).isPrefixOf n || (isPrivateName n && (n.toString.startsWith "_private.Fl4Proofs."))
+  (`Fl4Proofs).isPrefixOf n || (`Fl4ProofsN).isPrefixOf n ||
+    (isPrivateName n && (n.toString.startsWith "_private.Fl4Proofs."))
+
+/-- A transport: the records renamed (prefix renaming: their generated constants follow), the
+single constants replaced by hand-proved ones of the narrowed statement, and the root of the
+copies' names. -/
+structure Spec where
+  recMap : List (Name × Name)
+  constMap : List (Name × Name)
+  dst : Name
 
 /-- The seven records, renamed to their narrowed copies (prefix renaming: their generated
 constants follow). -/
-def recMap : List (Name × Name) :=
+def stallRecs : List (Name × Name) :=
   [(``Fl4Proofs.P3.JEntryAt, ``Fl4Proofs.P3.JEntryAtN),
    (``Fl4Proofs.P3.JEntryAtR, ``Fl4Proofs.P3.JEntryAtRN),
    (``Fl4Proofs.P3.JEntryAtR2, ``Fl4Proofs.P3.JEntryAtR2N),
@@ -42,18 +51,19 @@ def recMap : List (Name × Name) :=
    (``Fl4Proofs.P3.SInvR.G5.JEntryAtR7, ``Fl4Proofs.P3.SInvR.G5.JEntryAtR7N)]
 
 /-- Single constants replaced by hand-proved ones of the narrowed statement. -/
-def constMap : List (Name × Name) :=
+def stallConsts : List (Name × Name) :=
   [(``Fl4Proofs.P3.decode_invocation_threadJ_stepMM, ``Fl4Proofs.P3.decode_invocation_threadJ_stepMMN),
    (``Fl4Proofs.P3.decode_invocation_threadJ_stepM, ``Fl4Proofs.P3.decode_invocation_threadJ_stepMN)]
 
 /-- The name of a constant's copy. -/
-def mapName (n : Name) : Name := Id.run do
-  for (a, b) in constMap do
+def mapName (σ : Spec) (n : Name) : Name := Id.run do
+  for (a, b) in σ.constMap do
     if n == a then return b
-  for (a, b) in recMap do
+  for (a, b) in σ.recMap do
     if a.isPrefixOf n then return n.replacePrefix a b
-  if (`Fl4Proofs).isPrefixOf n then return n.replacePrefix `Fl4Proofs `Fl4ProofsN
-  return `Fl4ProofsN.priv ++ n
+  if (`Fl4Proofs).isPrefixOf n then return n.replacePrefix `Fl4Proofs σ.dst
+  if (`Fl4ProofsN).isPrefixOf n then return n.replacePrefix `Fl4ProofsN σ.dst
+  return σ.dst ++ `priv ++ n
 
 /-- The constants a constant's type, value and (for an inductive) constructors use. -/
 def depsOf (env : Environment) (n : Name) : Array Name :=
@@ -69,10 +79,10 @@ def depsOf (env : Environment) (n : Name) : Array Name :=
 
 /-- The constants rewritten: `Tr` and the single replacements (one cached pass, so the proof
 terms keep their sharing). -/
-def trE (tr : NameSet) (e : Expr) : CoreM Expr :=
+def trE (σ : Spec) (tr : NameSet) (e : Expr) : CoreM Expr :=
   Core.transform e (post := fun x => pure <| match x with
-    | .const n ls => if tr.contains n || constMap.any (·.1 == n) then .done (.const (mapName n) ls) else .done x
-    | .proj s i b => if tr.contains s then .done (.proj (mapName s) i b) else .done x
+    | .const n ls => if tr.contains n || σ.constMap.any (·.1 == n) then .done (.const (mapName σ n) ls) else .done x
+    | .proj s i b => if tr.contains s then .done (.proj (mapName σ s) i b) else .done x
     | _ => .done x)
 
 /-- Copy the constants of `Tr` reached from `root`, in dependency order. -/
@@ -82,7 +92,7 @@ def stamp (msg : String) : IO Unit := do
     h.putStrLn s!"{← IO.monoMsNow} {msg}"
     h.flush
 
-def transport (root : Name) : CoreM Nat := do
+def transport (σ : Spec) (root : Name) : CoreM Nat := do
   let env ← getEnv
   stamp "start"
   -- the proof cone of `root`
@@ -108,7 +118,7 @@ def transport (root : Name) : CoreM Nat := do
     for d in deps.getD n #[] do
       rev := rev.insert d (n :: rev.getD d [])
   let mut tr : NameSet := {}
-  let mut wl2 : List Name := coneL.filter (fun n => recMap.any (fun (a, _) => a.isPrefixOf n))
+  let mut wl2 : List Name := coneL.filter (fun n => σ.recMap.any (fun (a, _) => a.isPrefixOf n))
   repeat
     match wl2 with
     | [] => break
@@ -145,7 +155,7 @@ def transport (root : Name) : CoreM Nat := do
   let logf? ← IO.getEnv "FL4_TRANSPORT_LOG"
   stamp s!"order {order.size}"
   for n in order do
-    let n' := mapName n
+    let n' := mapName σ n
     if (← getEnv).contains n' then continue
     if let some f := logf? then
       let h ← IO.FS.Handle.mk f .append
@@ -156,17 +166,17 @@ def transport (root : Name) : CoreM Nat := do
     withCurrHeartbeats do
       match ci with
       | .thmInfo v =>
-        addDecl (.thmDecl (⟨⟨n', v.levelParams, (← trE tr v.type)⟩, (← trE tr v.value), [n']⟩ : TheoremVal))
+        addDecl (.thmDecl (⟨⟨n', v.levelParams, (← trE σ tr v.type)⟩, (← trE σ tr v.value), [n']⟩ : TheoremVal))
       | .defnInfo v =>
-        addDecl (.defnDecl (mkDefinitionValEx n' v.levelParams (← trE tr v.type) (← trE tr v.value) v.hints v.safety [n']))
+        addDecl (.defnDecl (mkDefinitionValEx n' v.levelParams (← trE σ tr v.type) (← trE σ tr v.value) v.hints v.safety [n']))
       | .opaqueInfo v =>
-        addDecl (.opaqueDecl (⟨⟨n', v.levelParams, (← trE tr v.type)⟩, (← trE tr v.value), v.isUnsafe, [n']⟩ : OpaqueVal))
+        addDecl (.opaqueDecl (⟨⟨n', v.levelParams, (← trE σ tr v.type)⟩, (← trE σ tr v.value), v.isUnsafe, [n']⟩ : OpaqueVal))
       | .inductInfo v =>
         unless v.all.length == 1 do throwError "transport: mutual inductive {n}"
         let ctors ← v.ctors.mapM fun k => do
           let some kc := (← getEnv).find? k | throwError "transport: missing constructor {k}"
-          pure (⟨mapName k, (← trE tr kc.type)⟩ : Constructor)
-        addDecl (.inductDecl v.levelParams v.numParams [(⟨n', (← trE tr v.type), ctors⟩ : InductiveType)] v.isUnsafe)
+          pure (⟨mapName σ k, (← trE σ tr kc.type)⟩ : Constructor)
+        addDecl (.inductDecl v.levelParams v.numParams [(⟨n', (← trE σ tr v.type), ctors⟩ : InductiveType)] v.isUnsafe)
       | .ctorInfo _ | .recInfo _ => pure ()
       | _ => throwError "transport: unsupported constant {n}"
     cnt := cnt + 1
@@ -176,5 +186,5 @@ end Fl4Proofs.P3.StallNarrow
 
 open Fl4Proofs.P3.StallNarrow in
 run_cmd liftCoreM do
-  let n ← transport ``Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU30
+  let n ← transport ⟨stallRecs, stallConsts, `Fl4ProofsN⟩ ``Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU30
   logInfo m!"narrow_transport: {n} constants copied"
