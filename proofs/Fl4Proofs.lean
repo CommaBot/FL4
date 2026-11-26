@@ -2180,3 +2180,7 @@ import Fl4Proofs.P3.IrqFixGenB
 import Fl4Proofs.P3.IrqFixC
 import Fl4Proofs.P3.IrqFixGen
 import Fl4Proofs.P3.XTopJointKEntryU33
+import Fl4Proofs.P3.SpecInvIrqBoundKit
+import Fl4Proofs.P3.SpecInvIrqBoundGen
+import Fl4Proofs.P3.SpecInvIrqBound
+import Fl4Proofs.P3.XTopJointKEntryU34
