@@ -2334,3 +2334,9 @@ import Fl4Proofs.P3.JAtZV3Pend
 import Fl4Proofs.P3.JAtZV3MrSet
 import Fl4Proofs.P3.JAtZV3MrMem
 import Fl4Proofs.P3.JAtZV3MrJ
+import Fl4Proofs.P3.JAtZV3RepSpec
+import Fl4Proofs.P3.JAtZV3RunVm
+import Fl4Proofs.P3.JAtZV3VRead
+import Fl4Proofs.P3.JAtZV3RepLoop
+import Fl4Proofs.P3.JAtZV3RepFoot
+import Fl4Proofs.P3.JAtZV3RepFin
