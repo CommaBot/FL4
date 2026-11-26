@@ -29,7 +29,7 @@ structure IoNar (K : KLayout) (Z : U64 → Nat) (NN NW : U64 → Prop) (s : S) :
   curW : ∀ off : U64, 192 ≤ off.val → off.val < 4096 → off.val ≠ 3520 →
     NW (core.num.U64.wrapping_add (L.curW s) off)
   slot : ∀ sl ∈ K.slots, NN sl ∧ NN (core.num.U64.wrapping_add sl 8#u64)
-  ks : ∀ o : U64, o.val < 256 → NN (core.num.U64.wrapping_add (L.ksb s) o)
+  ks : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → NN (core.num.U64.wrapping_add (L.ksb s) o)
   csc : L.mem s (scA (L.curW s)) ≠ 0#u64 → ScAcc NN NW (L.cscW s) (Z (L.cscW s))
   td : L.mem s (tmA (L := L) s) ≠ 0#u64 → NN (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)
   rs : L.mem s (rhA (L := L) s) ≠ 0#u64 → NN (scA (L.mem s (rhA (L := L) s))) ∧
@@ -82,7 +82,7 @@ theorem IoPre.iaccN {NN NW : U64 → Prop} (N : IoNar (L := L) K Z NN NW s) (hsc
   sc := ⟨P.gate (off := 3464#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]),
     N.cur 3464#u64 (by simp) (by simp)⟩
   dt := ⟨P.ksw (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME]),
-    N.ks _ (by simp [layout.ks.DOMAIN_TIME])⟩
+    N.ks _ (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])⟩
   td := fun h0 => ⟨P.td h0, N.td h0⟩
   rs := fun h0 => ⟨(P.rsN N h0).1, (P.rsN N h0).2⟩
   ryl := ⟨(P.home (off := 3472#u64) (by simp) (by simp) (by simp) (by simp [GateField]) (by simp [TimerField])).1,
@@ -134,8 +134,8 @@ theorem IoPre.midN {NN NW : U64 → Prop} (N : IoNar (L := L) K Z NN NW s) {C : 
     rh := rhN
     td := fun h0 => ⟨M.td h0, N.td h0⟩
     rs := fun h0 => ⟨(P.rsN N h0).1, (P.rsN N h0).2⟩
-    dt := ⟨M.dt, N.ks _ (by simp [layout.ks.DOMAIN_TIME])⟩
-    cd := ⟨M.cd, N.ks _ (by simp [layout.ks.CUR_DOMAIN])⟩
+    dt := ⟨M.dt, N.ks _ (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])⟩
+    cd := ⟨M.cd, N.ks _ (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN])⟩
     af := ⟨M.af, N.cur 3520#u64 (by simp) (by simp)⟩
     dom := ⟨M.dom, N.cur 3432#u64 (by simp) (by simp)⟩
     iok := ⟨

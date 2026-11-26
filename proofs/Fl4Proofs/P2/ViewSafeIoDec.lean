@@ -148,7 +148,7 @@ structure IoNarD (K : KLayout) (R W : U64 → Prop) (s : S) : Prop where
   cur : ∀ off : U64, 192 ≤ off.val → off.val < 4096 → R (core.num.U64.wrapping_add (L.curW s) off)
   fi : W (regA (L.curW s) layout.reg.FAULT_IP)
   slot : ∀ sl ∈ K.slots, R sl ∧ R (core.num.U64.wrapping_add sl 8#u64)
-  ks : ∀ o : U64, o.val < 256 → R (core.num.U64.wrapping_add (L.ksb s) o)
+  ks : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → R (core.num.U64.wrapping_add (L.ksb s) o)
   rh : L.mem s (scA (L.curW s)) ≠ 0#u64 → RdHead (L := L) R s (L.cscW s)
   td : L.mem s (tmA (L := L) s) ≠ 0#u64 → R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)
   rs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
@@ -307,10 +307,10 @@ theorem io_alt_midDN {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
         exact ⟨n1, rdT _ (hd hxS) r2 n2⟩
       dt := by
         rw [w.1, Al.ksb]
-        exact N.ks _ (by simp [layout.ks.DOMAIN_TIME])
+        exact N.ks _ (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])
       cd := by
         rw [w.1, Al.ksb]
-        exact N.ks _ (by simp [layout.ks.CUR_DOMAIN])
+        exact N.ks _ (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN])
       af := N.cur 3520#u64 (by simp) (by simp)
       dom := N.cur 3432#u64 (by simp) (by simp)
       sc := N.cur 3464#u64 (by simp) (by simp)
