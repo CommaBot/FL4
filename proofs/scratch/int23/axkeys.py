@@ -1,13 +1,7 @@
-# axkeys.py LOG: print the axiom line of each requested top (int22). Run anywhere.
+# axkeys.py LOG: print the axiom line of each requested top (int23; fully qualified names). Run anywhere.
 import re,sys
 t=open(sys.argv[1],errors='replace').read(); t=re.sub(r'\n(?=\s)',' ',t)
-names=['kernel_entry_reachU35','kernel_entry_reachU34_of35','kernel_entry_reachU36','kernel_entry_reachU35_of36',
- 'kernel_entry_reachU36I','kernel_entry_reachU34_of36I','serializable_fl4_localU8','serializable_fl4_localU7of8',
- 'serializable_fl4_localU9','serializable_fl4_localU8of9','serializable_fl4_localU3c_of','serializable_U3c_of',
- 'serializable_safeD','jAtZ_w1','jReachU17_w1','jReachU34_w1','jReachU34_w1I','u34_w1I','w1_nonIdle',
- 'wit_U2_uncond','wit_U2_uncond\'','irqStB_false_of_ipiWord','idle2_not_sinvX','view_home_rd_unsafe',
- 'u9_home_safe_iff','insTP_write_mapping','ioRSR_ptU_notPWE','fInitIpi_irqCarry',
- 'Fl4ProofsJ.P3.SInvR.G5.kernel_entry_reachU35']
+names=['Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU37', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU38', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU36_of38', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU39', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU40', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU39_of40', 'Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU36I_of40', 'Fl4Proofs.P3.JBootQ.jReachU40_w0I1', 'Fl4Proofs.P3.JBootQ.u40_w0I1', 'Fl4Proofs.P3.JBootQ.not_jReachU34_w0', 'Fl4Proofs.P3.JBoot.jReachU40_w0I1', 'Fl4Proofs.P3.JBoot.u40_w0I1', 'Fl4Proofs.P3.JBoot.warI_not_ioaRel', 'Fl4Proofs.P3.JBoot.warI1_ioaRel', 'Fl4Proofs.P3.JBoot.warI1_ioaMap', 'Fl4Proofs.P3.JBoot.u39_w0I1', 'Fl4Proofs.P3.SInvIox.kentry_ioxV', 'Fl4Proofs.P3.SInvR.G5.vtxInv_of_virtRoute', 'Fl4Proofs.P3.SInvR.G5.decodeV_eq_of_noVtx', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU3c', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU3d', 'Fl4Proofs.P2.E2EP.pmAccIns', 'Fl4Proofs.P2.E2EP.serializable_fl4_localVX11AD', 'Fl4Proofs.P2.E2EP.execVX4b_aRunR', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU10', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU9of10', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU11', 'Fl4Proofs.P2.E2EP.serializable_fl4_localU10of11', 'Fl4Proofs.P2.E2EP.vmF_annV_fh', 'Fl4Proofs.P2.E2EP.vmF_annV_dis', 'Fl4Proofs.P3.setEptRoot_decode_err', 'Fl4Proofs.P3.setEptRoot_decode_ok', 'Fl4ProofsA64.P1.RunVcpuInv.zero', 'Fl4ProofsA64.P1.sched.suspend.inv_rv', 'Fl4ProofsA64.P1.sched.suspend.all_rv', 'Fl4ProofsA64.P1.sched.suspend.inv', 'Fl4ProofsA64.P1.sched.suspend.all', 'Fl4ProofsA64.P1.endpoint.send_ipc.ipc', 'Fl4ProofsA64.P1.endpoint.receive_ipc.ipc', 'Fl4ProofsA64.P1.notification.complete_signal.ipc', 'Fl4ProofsA64.P1.vcpu.report.id', 'Fl4ProofsA64.P1.timer.remove.rb', 'Fl4ProofsA64.P1.TRB.height_le_128', 'Fl4ProofsA64.P1.sched.schedule.inv']
 for n in names:
-  m=re.findall(r"(?m)^'([^']*\.%s)' (depends on axioms: \[[^\]]*\]|does not depend on any axioms)"%re.escape(n),t)
+  m=re.findall(r"(?m)^'(%s)' (depends on axioms: \[[^\]]*\]|does not depend on any axioms)"%re.escape(n),t)
   print(n, m if m else 'MISSING')
