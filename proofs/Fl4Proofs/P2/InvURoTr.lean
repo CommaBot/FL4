@@ -75,7 +75,6 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : K
 variable {Locks : S → U64 → Prop}
 variable {A : Type} {ar : machine.Arch A}
 
-set_option maxHeartbeats 8000000 in
 /-- **`ReadOnce` of an accepted run at its entry, up to the decode** (module docstring): the walk of
 `R.invBodyG` from the entry (slhuf gen 10's `invCM_entOnce`, copied); `hdo` the decode onward (`InvUDecOnceW`). -/
 theorem invU_entOnce (hA : P0.ArchTotal ar) {number : I64} {p : localinv.Plan} {P : S → Prop}
