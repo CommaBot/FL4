@@ -2187,3 +2187,13 @@ import Fl4Proofs.P2.MmuADDelP
 import Fl4Proofs.P2.E2EPU3f
 import Fl4Proofs.P2.E2EPU6
 import Fl4Proofs.P2.E2EPU7
+import Fl4Proofs.P3.IrqFixXport
+import Fl4Proofs.P3.IrqFixA
+import Fl4Proofs.P3.IrqFixGenB
+import Fl4Proofs.P3.IrqFixC
+import Fl4Proofs.P3.IrqFixGen
+import Fl4Proofs.P3.XTopJointKEntryU33
+import Fl4Proofs.P3.SpecInvIrqBoundKit
+import Fl4Proofs.P3.SpecInvIrqBoundGen
+import Fl4Proofs.P3.SpecInvIrqBound
+import Fl4Proofs.P3.XTopJointKEntryU34
