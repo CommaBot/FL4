@@ -2117,3 +2117,4 @@ import Fl4Proofs.P2.GlueAdeq
 import Fl4Proofs.P2.GlueFrame
 import Fl4Proofs.P2.GlueCross
 import Fl4Proofs.P2.CoreView
+import Fl4Proofs.P2.E2EPU6
