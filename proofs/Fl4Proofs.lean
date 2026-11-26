@@ -1872,6 +1872,8 @@ import Fl4Proofs.P2.InvBlk
 import Fl4Proofs.P2.MoveSlS
 import Fl4Proofs.P2.InvMove
 import Fl4Proofs.P2.InvTrunc
+import Fl4Proofs.P2.InvCMSets
+import Fl4Proofs.P2.InvDelU
 import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.E2EVHeap
 import Fl4Proofs.P2.E2EVAll
