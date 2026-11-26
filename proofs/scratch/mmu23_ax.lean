@@ -1,4 +1,4 @@
-import Fl4Proofs.P3.JExtVListSteps
+import Fl4Proofs.P3.JAtZV
 open Fl4Proofs.P3
 #print axioms VSeg.unlink
 #print axioms VSeg.insert
@@ -16,3 +16,12 @@ open Fl4Proofs.P3
 #print axioms vcpu_finalise_vl
 #print axioms JAtZ.hhc
 #print axioms vcpu_finalise_vlJ
+#print axioms JAtZ.toB
+#print axioms JAtZB.toJAtZ
+#print axioms JAtZV.toJAtZ
+#print axioms JAtZ.toV
+#print axioms JAtZV.of_native
+#print axioms JAtZ.rvm_of_ns
+#print axioms JAtZV.vcpuWr0
+#print axioms Fl4Proofs.P3.JBoot.w1_vhd
+#print axioms Fl4Proofs.P3.JBoot.jAtZV_w1
