@@ -1863,6 +1863,7 @@ import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.SlJStLocStart
 import Fl4Proofs.P2.InvLP
 import Fl4Proofs.P2.InvDec
+import Fl4Proofs.P2.InvAcc
 import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.E2EVHeap
 import Fl4Proofs.P2.E2EVAll
