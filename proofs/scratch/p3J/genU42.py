@@ -24,13 +24,16 @@ def proof(fn,conv):
   · intro n hct hU hD hE; exact hSU n hct hU hD (fun ev hev w hw => (hE ev hev w hw).{conv})
 '''
 head='''/-
-P3 (line p3J, gen 9): **`kernel_entry_reachU42`** = `kernel_entry_reachU41` with the idle half of the
+P3 (line p3J, gen 10): **`kernel_entry_reachU42`** = `kernel_entry_reachU41` with the idle half of the
 per-entry `ArchSwF` [P] removed (it is a theorem where it is used).
 
-* P3KGen: U41's proof transported (P3KXport) with `ArchSwF` ↦ `ArchSwF'` (ArchSwIdle: the idle half asks
-  `IdleVt σ`) and G7eChain's `scnt_refines0FA` ↦ `scnt_refines0FAI` (its two idle instances take
-  `RootOK.idle`, carried by `RootFr` at every intermediate scheduler state); every other constant of U41's
-  cone using `ArchSwF` ↦ its kernel-checked copy `Fl4ProofsK…`.
+* P3KGen1 / P3KFin / P3KGen: U41's proof transported (P3KXport) with `ArchSwF` ↦ `ArchSwF'` (ArchSwIdle:
+  the idle half asks `IdleVt σ`, and is a theorem there, `archSwFI_of`). The pre-g7e finish path
+  (`KFinAtR5/31/27/KFinAtR` records, `jat_finishJRNM/JRN/JRP`, `jat_scheduleSR2ZRP/FR2ZR/WP0FZR`) is moved
+  onto the g7e scheduler chain (`jat_scheduleWP0FZRI` on the transported `schedule_refinesWP0FRA`, `RootFr`
+  from `IdleVt` carried in the records as `FinRootR`); ScNextDomCFR's `schedule_refinesWP0FR` and the
+  `cn_*0F` / `scnt_refines0F` chain leave the cone. Every other constant of U41's cone using these ↦ its
+  kernel-checked copy `Fl4ProofsK…`.
 * `KFinAtR42` = `KFinAtR41` with `arch : ArchSwFT` (the thread half only); `KFinEv42`.
   `KFinAtR42.toK` / `KFinEv42.toK` (into the transported records, with `archSwFI_of` from `ArchTotal`),
   `KFinAtR41.to42` / `KFinEv41.to42` (`ArchSwF → ArchSwFT`, the first half).
