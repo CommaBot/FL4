@@ -97,3 +97,5 @@ import Fl4ProofsA64.P1.QueueDebug
 import Fl4ProofsA64.P1.QueueXferA
 import Fl4ProofsA64.P1.QueueEntryA
 import Fl4ProofsA64.P1.QueueXfer
+import Fl4ProofsA64.P1.QueueInvAll
+import Fl4ProofsA64.P1.QueueXferFoot
