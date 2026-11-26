@@ -4,7 +4,8 @@ import re
 FILES = [('Fl4Proofs.P3.VirtF13', 'Fl4Proofs/P3/VirtF13.lean'),
          ('Fl4Proofs.P3.VirtKEntryV3F', 'Fl4Proofs/P3/VirtKEntryV3F.lean'),
          ('Fl4Proofs.P3.VirtWit13', 'Fl4Proofs/P3/VirtWit13.lean'),
-         ('Fl4Proofs.P3.VirtMsrEq', 'Fl4Proofs/P3/VirtMsrEq.lean')]
+         ('Fl4Proofs.P3.VirtMsrEq', 'Fl4Proofs/P3/VirtMsrEq.lean'),
+         ('Fl4Proofs.P3.VirtInitIo', 'Fl4Proofs/P3/VirtInitIo.lean')]
 out = ['import %s' % m for m, _ in FILES]
 for _, f in FILES:
     ns = []

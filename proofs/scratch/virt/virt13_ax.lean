@@ -2,6 +2,7 @@ import Fl4Proofs.P3.VirtF13
 import Fl4Proofs.P3.VirtKEntryV3F
 import Fl4Proofs.P3.VirtWit13
 import Fl4Proofs.P3.VirtMsrEq
+import Fl4Proofs.P3.VirtInitIo
 #print axioms Fl4Proofs.P3.VirtF13.vmSignalCompletes_det
 #print axioms Fl4Proofs.P3.VirtF13.sendSignalVF_eq_nr
 #print axioms Fl4Proofs.P3.VirtF13.vmCheckF_ctExit
@@ -86,3 +87,6 @@ import Fl4Proofs.P3.VirtMsrEq
 #print axioms Fl4Proofs.P3.VirtMsrEq.MsrResRel
 #print axioms Fl4Proofs.P3.VirtMsrEq.gt1_iff
 #print axioms Fl4Proofs.P3.VirtMsrEq.fl4WriteMsr_rel
+#print axioms Fl4Proofs.P3.VirtInitIo.IoR
+#print axioms Fl4Proofs.P3.VirtInitIo.init_loop0_io
+#print axioms Fl4Proofs.P3.VirtInitIo.init_loop0_img
