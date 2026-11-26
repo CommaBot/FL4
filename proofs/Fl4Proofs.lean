@@ -2168,3 +2168,7 @@ import Fl4Proofs.P2.E2EPVX6
 import Fl4Proofs.P2.E2EPVX7
 import Fl4Proofs.P2.WitPlat
 import Fl4Proofs.P2.WitExec
+import Fl4Proofs.P3.JBootInitA
+import Fl4Proofs.P3.JBootIpi
+import Fl4Proofs.P3.JBootSpec
+import Fl4Proofs.P3.JBootSt
