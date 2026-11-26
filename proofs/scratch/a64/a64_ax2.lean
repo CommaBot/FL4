@@ -125,6 +125,7 @@ import Fl4ProofsA64.P1.QueueSchedCtl
 import Fl4ProofsA64.P1.QueueDelRv
 import Fl4ProofsA64.P1.QueueIrqWide
 import Fl4ProofsA64.P1.QueueDecTcbRv
+import Fl4ProofsA64.P1.QueueFinRv
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -185,3 +186,8 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.W7.R.decGap_thread
 #print axioms Fl4ProofsA64.P1.W7.R.tcb.decode.dec
 #print axioms Fl4ProofsA64.P1.Stalled.restart0R
+#print axioms Fl4ProofsA64.P1.W7.R.finRvAt_of
+#print axioms Fl4ProofsA64.P1.W7.R.decGap_cnode_rv2
+#print axioms Fl4ProofsA64.P1.W7.R.decGap_thread2
+#print axioms Fl4ProofsA64.P1.fin_ntfn_obj.rvi
+#print axioms Fl4ProofsA64.P1.fin_endpoint.rvi
