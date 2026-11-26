@@ -20,7 +20,10 @@ Which existing paths go where, and with which premises (status of this generatio
     `stEntK_userV` / `irqEntM_userV` (`P2/E2EVTimerLay.lean`; `VcpuKs`, `TabNoV`, `L.ksb s = K.ksb`, the
     block's fit, `irq < 128`).
 * `LC` (route C, premise `AvoidV` [W] per path, the path's runs read no VCPU data word):
-  - syscall_local `sl_localPathK`: `AvoidV` not discharged (handoff `vlift.md`).
+  - syscall_local `sl_localPathK`: `AvoidV` **proved** (gen 4: `sl_avoidVK`, `P2/E2EVSlD.lean`; generic
+    `sl_localPath`: `sl_avoidV`), from `RegionOKV` [J], `VcpuHeap` [J], `VcpuTabOff` [J], `PoolObj` [J] (per
+    state) and `UserObj` [J]; `VcpuKs`, the block's fit, `HeapOK` and `TabNoV` come from P3's `SlJAt`
+    (`slJAt_vfacts`). The cut read set's word facts: `P2/E2EVSlW.lean`, `P2/E2EVSlA.lean`.
 * `hW` / `hAv` are asked for every `K` with `RegionOKV` / `UserOKV`, as `E2E.Paths` asks its paths.
 
 Premises: `serializable_e2eV`'s, plus `hW` [W] and `hAv` [W].

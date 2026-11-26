@@ -49,7 +49,15 @@ open Classical
 
 /-! ## The layout convention and the derivation of `VcpuKs` -/
 
-/-- **`VcpuHeap`** [J]: every VCPU of the layout is a heap object of kind `.other 15` (module docstring). -/
+/-- **`VcpuHeap`** [J]: every VCPU of the layout is a heap object of kind `.other 15` (module docstring).
+
+Why it stays [J] (lead decision, vlift gen 4): `KLayoutV.vcpus` is a free set; nothing in P3 builds a `KLayoutV`
+(`SlJAtZ.lay` pins only the `KLayout` part to `layoutJ`), and P3's joint invariant covers native threads only
+(`JExt.nat`: no VCPU / EPT cap in any slot; `JExt.vw`: every TCB's VCPU word is 0), so at a P3-related state no
+thread is bound to a VCPU and P3 says nothing about VCPU objects beyond `SpecCover.arch` (a spec arch object is an
+`H` `other n` object with `12 ≤ n ≤ 15`: neither the size 15 nor an `H → spec` direction). Closing it, together with
+lvm's `VexitEnt.vin` (the exiting VCPU is one of `K.vcpus`) and `K.vcpus` itself, needs a joint invariant over VT-x
+states (VCPUs as spec `ArchKernelObj.vcpu` objects related to `H`), a separate project. -/
 def VcpuHeap (K : KLayoutV) : Prop := ∀ v ∈ K.vcpus, K.heap v = some (.other 15)
 
 /-- `K`'s heap's `other` objects lie off the kernel-state block or inside it (P3 `JKern.hksIn`). -/
@@ -113,7 +121,9 @@ theorem inVcpu_off (hH : HeapOK K.heap) (hV : VcpuHeap K) {v : U64} (hv : v ∈ 
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
   exact ⟨hv, by rw [e]; omega, by rw [e]; omega⟩
 
-/-- **lvm's `vin`** (`VexitEnt.vin`) for a VCPU of the layout. -/
+/-- **lvm's `vin`** (`VexitEnt.vin`) for a VCPU of the layout. The remaining premise `v ∈ K.vcpus` (the exiting
+VCPU is one of the layout's) stays [J]: a VM exit is outside P3's native-thread scope (`JExt.nat` / `JExt.vw`, see
+`VcpuHeap`), so no P3-related state binds a thread to a VCPU. -/
 theorem vin_of (hH : HeapOK K.heap) (hV : VcpuHeap K) {v : U64} (hv : v ∈ K.vcpus) :
     InVcpu K v (core.num.U64.wrapping_add v vcpu.PENDING) :=
   inVcpu_off hH hV hv (by simp [vcpu.PENDING])
@@ -214,7 +224,13 @@ section tab
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {K : KLayoutV}
 
 /-- **`VcpuTabOff`** [J]: no VCPU of the layout meets the ASID-table area `[ksb + 288000, ksb + 304384)`, which
-fits below 2^64 (module docstring: P3 has this for untyped ranges, `UtKsApart`, not for `H`'s `other` objects). -/
+fits below 2^64.
+
+Why it stays [J] (lead decision, vlift gen 4): P3 keeps the ASID-table area apart from untyped ranges
+(`UtKsApart`, third part), pools (`VsPlaced.ptab`), SCs (`VsApart.scOut`) and the ep / ntfn / reply objects
+(`JAtZ.vobj_apart`), but never from `H`'s `other` objects (`JKern.hks` excludes `other`; `JKern.hksIn` covers only
+the 13568-byte block). The P3 fact that would close it: **every heap object lies in an untyped** (each `H` object,
+VCPUs included, inside some untyped range, so `UtKsApart` applies). -/
 def VcpuTabOff (K : KLayoutV) : Prop :=
   K.ksb.val + 304384 ≤ 2 ^ 64 ∧
     ∀ v ∈ K.vcpus, v.val + 32768 ≤ K.ksb.val + 288000 ∨ K.ksb.val + 304384 ≤ v.val

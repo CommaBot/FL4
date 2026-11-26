@@ -1846,3 +1846,7 @@ import Fl4Proofs.P2.E2EVHeap
 import Fl4Proofs.P2.E2EVAll
 import Fl4Proofs.P2.E2EVTimer
 import Fl4Proofs.P2.E2EVTimerLay
+import Fl4Proofs.P2.E2EVSlW
+import Fl4Proofs.P2.E2EVSlA
+import Fl4Proofs.P2.E2EVSlD
+import Fl4Proofs.P2.E2EVLvmP
