@@ -151,7 +151,7 @@ structure SlOF (K : KLayout) (Locks : S → U64 → Prop) (m0 : U64 → U64) (n 
   D : SlDecIn (st := st) ar K Locks found s
 
 theorem slOF_of (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (a0 : A) {s : S} (hJ : SlJAt (L := L) K s)
-    (hq : SlQ st ar Locks n found Cs Ω Sg Ac K m0 s) : SlOF ar K Locks m0 n found Cs Ω Sg Ac s := by
+    (hq : SlQ st ar Locks n found Cs Ω Sg Ac K m0 s) : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac s := by
   obtain ⟨E, El, C, Ar⟩ := hq
   have hK := hJ.regionOK
   have hX := hJ.regionOKX
@@ -233,7 +233,7 @@ theorem rdTabN (hA : P0.ArchTotal ar) {s : S} (hJ : SlJAt (L := L) K s)
 set_option maxHeartbeats 4000000 in
 /-- **The trap arm's access facts at `NU K`** (`fltAcc_wn` with every read word shown not a user word;
 writes unconstrained). -/
-theorem fltAcc_nuT (hA : P0.ArchTotal ar) {s : S} (F : SlOF ar K Locks m0 n found Cs Ω Sg Ac s)
+theorem fltAcc_nuT (hA : P0.ArchTotal ar) {s : S} (F : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac s)
     (hS : SlTrap st s) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1)) {ptr badge dest r : U64}
     (hc : FaultChecks st X (L.curW s) ptr badge dest r) :
     FltAcc (L := L) K.heap.scBits (NU K) (fun _ => True) X (L.curW s) ptr dest r := by
@@ -331,7 +331,7 @@ theorem fltAcc_nuT (hA : P0.ArchTotal ar) {s : S} (F : SlOF ar K Locks m0 n foun
       exact fun b ha hb => nu_sc hX hz' ha hb }
 
 /-- **An accepted trap arm runs on `guard st (NU K) ⊤`** (`guard_acc` at `R := NU K`, `W := ⊤`). -/
-theorem sl_trap_acc_guardN (hA : P0.ArchTotal ar) {s : S} (F : SlOF ar K Locks m0 n found Cs Ω Sg Ac s)
+theorem sl_trap_acc_guardN (hA : P0.ArchTotal ar) {s : S} (F : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac s)
     (hS : SlTrap st s) {a : A} {s1 : S} {a1 : A}
     (h : syscall.handle_syscall_local st ar s a n found = ok (true, s1, a1)) :
     syscall.handle_syscall_local (guard st (NU K) (fun _ => True)) ar s a n found = ok (true, s1, a1) := by
@@ -358,6 +358,80 @@ theorem sl_trap_acc_guardN (hA : P0.ArchTotal ar) {s : S} (F : SlOF ar K Locks m
       fun _ _ => SWr.of_W (W := fun _ => True) trivial⟩)
     (fun h' => absurd hS h') (fun h' => absurd hS h') (fun h' => absurd hS h') (fun h' => absurd hS h')
     (fun h' => absurd hS h') h
+
+set_option maxHeartbeats 4000000 in
+/-- **The ReplyRecv arm's declining reads at `NU K`** (`rrDR_nu`, with the current thread's `REFILL_MAX` and
+the replied thread's state, fault and SC words unconditionally, its SC head from `SlHere`). -/
+theorem rrDec_nu (hA : P0.ArchTotal ar) {s : S} (F : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac s)
+    (hS : ¬ SlTrap st s) {a X a1} (LP : LocalPre (st := st) ar s a (X, a1)) :
+    RrDec (L := L) (NU K) X (L.curW s) found.1 found.2 := by
+  have B := F.B
+  have E := F.E
+  have Hh := F.Hh
+  have I := F.I
+  have hX := B.regionOKX
+  have D' := rrDR_nu ar hA B E F.C hS LP
+  have C := slCom_nu ar hA B E LP
+  obtain ⟨-, hcX, aT, -, -, -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT E.hN E.hcT LP
+  have hc := E.hSt.1
+  have nT : ∀ {t o : U64}, K.heap t = some .tcb → 192 ≤ o.val → o.val < 4096 → o.val % 8 = 0 →
+      o.val ≠ 392 → ¬ SlDS (L := L) s (core.num.U64.wrapping_add t o) := fun ht h1 h2 h3 h4 =>
+    not_slDS_tcb hX E.hN E.hT E.hcT hc Hh.ksb Hh.cpu ht h1 h2 h3 h4
+  obtain ⟨hz, -, -, -⟩ := Hh.csc hS
+  have eS : L.mem X (scA (L.curW s)) = L.mem s (scA (L.curW s)) :=
+    aT _ E.hcT 3464#u64 (by simp) (by simp) (by simp)
+  refine RrDec.of ⟨D'.nd, D'.dt, D'.cd, C.bm, D'.tm, D'.rh, D'.tSt, D'.tSc, ?_, D'.tIq, D'.tMi, D'.tBn,
+    D'.tPr, ?_, D'.rRt, D'.rNx, D'.eTS⟩ ?_
+  · rw [eS]
+    exact nu_scw hX hz (o := layout.sc.REFILL_MAX) (by simp [layout.sc.REFILL_MAX]) (by simp [layout.sc.REFILL_MAX])
+  · intro nt hnt hne
+    have e1 := (eq_of_spec_fd (obj.Tcb.bound_ntfn.val X (L.curW s))).symm.trans hnt
+    have en : nt = L.mem X (boundA (L.curW s)) := (ok_inj_ff e1).symm
+    subst en
+    exact D'.ntf (fun h0 => by rw [h0] at hne; simp at hne)
+  · intro u hu hu0
+    have h1 := obj.Reply.tcb.blk (st := st) X found.1
+    rw [hu, WP.spec_ok, slThr_hd_rr ar hA E.hT E.hN E.hcT I hS LP] at h1
+    have lv := slLive_rr (st := st) hS (by rw [← h1]; exact hu0)
+    have ht := F.N.hthr lv
+    rw [h1]
+    have tw : ∀ o : U64, 192 ≤ o.val → o.val < 4096 → o.val % 8 = 0 →
+        NU K (core.num.U64.wrapping_add (slThr st found.1 s) o) := fun o h1 h2 h3 => nu_tcb hX ht h1 h2 h3
+    refine ⟨by rw [stA_eq]; exact tw _ (by simp) (by simp) (by simp), tw 3376#u64 (by simp) (by simp) (by simp),
+      tw 3464#u64 (by simp) (by simp) (by simp), tw 3520#u64 (by simp) (by simp) (by simp),
+      fun hh => ⟨tw 3432#u64 (by simp) (by simp) (by simp), tw 3592#u64 (by simp) (by simp) (by simp),
+        tw 3448#u64 (by simp) (by simp) (by simp), fun usc eu hne => ?_⟩⟩
+    have af := I.af lv
+    have hh' : L.mem s (affA (slThr st found.1 s)) = L.cpu s := by
+      rw [← lp_mem ar hA E.hT E.hN E.hcT LP af.1.1 af.2, hh, hcX]
+    have eU : L.mem X (scA (slThr st found.1 s)) = L.mem s (scA (slThr st found.1 s)) :=
+      lp_mem ar hA E.hT E.hN E.hcT LP (hX.tcbW _ ht 3464#u64 (by simp) (by simp) (by simp)).2.2
+        (nT ht (by simp) (by simp) (by simp) (by simp))
+    have e1 : usc = L.mem s (scA (slThr st found.1 s)) := by
+      rw [tcb_sc_ok] at eu; rw [← ok_inj_ff eu, eU]
+    subst e1
+    exact rdHead_hereN ar hA hX E Hh LP (Hh.usc hS lv hh' hne)
+
+/-- **A declined run of the syscall entry runs on `guard st (NU K) ⊤`** (`guard_dec` at `R := NU K`: the trap
+arm by `fltDec_nu`, the ReplyRecv arm by `rrDec_nu`, whoever the decided thread's home). -/
+theorem sl_dec_guardN (hA : P0.ArchTotal ar) {s : S} (F : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac s)
+    {a : A} {r : Bool × S × A} (h : syscall.handle_syscall_local st ar s a n found = ok r) (hn : r.1 ≠ true) :
+    syscall.handle_syscall_local (guard st (NU K) (fun _ => True)) ar s a n found = ok r := by
+  have E := F.E
+  have hX := F.B.regionOKX
+  have hp : PreDec (L := L) (NU K) (fun _ => True) s :=
+    ⟨fun o h1 h2 => F.B.nuNode E.hN h1 h2, trivial, trivial,
+      nu_tcb hX E.hSt.1 (o := 3456#u64) (by simp) (by simp) (by simp),
+      nuReg hX E.hSt.1 (r := layout.reg.NEXT_IP) (by simp [layout.reg.NEXT_IP]), trivial⟩
+  refine syscall.handle_syscall_local.guard_dec (gS := guard st (NU K) (fun _ => True)) hA E.hT E.hN E.hcT hp
+    (fun X a1 csc LP hcs => ?_) (fun _ X a1 n' LP hf => fastpath.fault.guard_dec (fltDec_nu ar hA F.B E LP) hf hn)
+    (fun hS X a1 LP hf => fastpath.reply_recv_found.guard_dec (rrDec_nu ar hA F hS LP) hf hn) h
+  obtain ⟨-, -, -, -, ecs, -⟩ := sl_pre_agree (Cs := ∅) ar hA E.hT E.hN E.hcT LP
+  have e : csc = L.cscW s := by
+    rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) X)] at hcs
+    rw [← ok_inj_ff hcs]; exact ecs
+  subst e
+  exact rdHead_hereN ar hA hX E F.Hh LP F.Hh.cs
 
 /-- **`Once` at every alternative of an entry whose run is guarded on `SlRS s ∧ NU K`** (`interp_agree`,
 `once_of_guardG`, `once_monoR`). -/
