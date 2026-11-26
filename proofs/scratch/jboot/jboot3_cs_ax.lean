@@ -1,0 +1,20 @@
+import Fl4Proofs.P3.JBootCs
+#print axioms Fl4Proofs.P3.JBoot.w0_crel
+#print axioms Fl4Proofs.P3.JBoot.w0_finInv
+#print axioms Fl4Proofs.P3.JBoot.w0_finM
+#print axioms Fl4Proofs.P3.JBoot.w0_utInv
+#print axioms Fl4Proofs.P3.JBoot.w0_mdbOKV
+#print axioms Fl4Proofs.P3.JBoot.w0_delInv
+#print axioms Fl4Proofs.P3.JBoot.w0_delBound
+#print axioms Fl4Proofs.P3.JBoot.w0_sfree
+#print axioms Fl4Proofs.P3.JBoot.w0_utc
+#print axioms Fl4Proofs.P3.JBoot.w0_vsc
+#print axioms Fl4Proofs.P3.JBoot.w0_fcap
+#print axioms Fl4Proofs.P3.JBoot.w0_ext
+#print axioms Fl4Proofs.P3.JBoot.w0_bok
+#print axioms Fl4Proofs.P3.JBoot.w0_fcov
+#print axioms Fl4Proofs.P3.JBoot.w0_vsRel
+#print axioms Fl4Proofs.P3.JBoot.w0_ptRel
+#print axioms Fl4Proofs.P3.JBoot.w0_poolsIn
+#print axioms Fl4Proofs.P3.JBoot.w0_curOK
+#print axioms Fl4Proofs.P3.JBoot.w0_orig

@@ -1,6 +1,31 @@
-import Fl4Proofs.P3.JBootZ
+import Fl4Proofs.P3.JBootJAt
 open Fl4Proofs.P3
 #print axioms Fl4Proofs.P3.JBoot.placed_thW
 #print axioms Fl4Proofs.P3.JBoot.kTyped_thW
 #print axioms Fl4Proofs.P3.JBoot.intL_thW
 #print axioms Fl4Proofs.P3.JBoot.capV_slot
+#print axioms Fl4Proofs.P3.JBoot.w0_crel
+#print axioms Fl4Proofs.P3.JBoot.w0_finInv
+#print axioms Fl4Proofs.P3.JBoot.w0_mdbOKV
+#print axioms Fl4Proofs.P3.JBoot.w0_utc
+#print axioms Fl4Proofs.P3.JBoot.w0_vsc
+#print axioms Fl4Proofs.P3.JBoot.w0_ext
+#print axioms Fl4Proofs.P3.JBoot.fInit_inv
+#print axioms Fl4Proofs.P3.JBoot.fInit_curInv
+#print axioms Fl4Proofs.P3.JBoot.fInit_sv
+#print axioms Fl4Proofs.P3.JBoot.fInit_act
+#print axioms Fl4Proofs.P3.JBoot.w0_ipc
+#print axioms Fl4Proofs.P3.JBoot.w0_esa
+#print axioms Fl4Proofs.P3.JBoot.w0_call
+#print axioms Fl4Proofs.P3.JBoot.w0_topPlaced
+#print axioms Fl4Proofs.P3.JBoot.w0_jpl
+#print axioms Fl4Proofs.P3.JBoot.w0_jcov
+#print axioms Fl4Proofs.P3.JBoot.w0_jkern
+#print axioms Fl4Proofs.P3.JBoot.w0_zD
+#print axioms Fl4Proofs.P3.JBoot.w0_blk
+#print axioms Fl4Proofs.P3.JBoot.w0_live
+#print axioms Fl4Proofs.P3.JBoot.w0_carry
+#print axioms Fl4Proofs.P3.JBoot.jAtZ_w0
+#print axioms Fl4Proofs.P3.JBoot.jAt_w0
+#print axioms Fl4Proofs.P3.JBoot.jReachU3_w0
+#print axioms Fl4Proofs.P3.JBoot.jReachU17_w0
