@@ -2329,3 +2329,5 @@ import Fl4Spec.Ext.VirtKernelF
 import Fl4Proofs.P3.VirtReportEq
 import Fl4Proofs.P3.VirtSanSvm
 import Fl4Proofs.P3.JAtZV3Report
+import Fl4Proofs.P3.JAtZV3RegW
+import Fl4Proofs.P3.JAtZV3Pend
