@@ -2258,6 +2258,8 @@ import Fl4Proofs.P3.JBootQJAt
 import Fl4Proofs.P3.JBootQU40
 import Fl4Proofs.P3.ScFpuNd
 import Fl4Proofs.P3.XTopJointKEntryU41
+import Fl4Proofs.P3.ArchSwIdle
+import Fl4Proofs.P3.P3KXport
 import Fl4Proofs.P2.ViewSafeGen
 import Fl4Proofs.P2.ViewSafeOwn
 import Fl4Proofs.P2.ViewSafeIoAcc

@@ -1,0 +1,32 @@
+/-
+P3 (line p3J, gen 9): **`kernel_entry_reachU41`'s proof transported onto `ArchSwF'`** (P3KXport's
+kernel-checked copy).
+
+Definition `ArchSwF` ↦ `ArchSwF'` (ArchSwIdle: the idle half asks `IdleVt σ`); G7eChain's
+`scnt_refines0FA` (the only constant of the cone applying the idle half) ↦ `scnt_refines0FAI`; every other
+constant of U41's cone using `ArchSwF` ↦ its copy under `Fl4ProofsK…` (`Fl4ProofsKJ…` for the p3J copies,
+…). The copy `Fl4ProofsK.P3.SInvR.G5.kernel_entry_reachU41` is U41 with `KFinAtR41` / `KFinEv41` ↦ their
+copies (`arch : ArchSwF'`); XTopJointKEntryU42 states it. No premise added; no sorry.
+-/
+import Fl4Proofs.P3.P3KXport
+import Fl4Proofs.P3.ArchSwIdle
+import Fl4Proofs.P3.XTopJointKEntryU41
+open Lean Meta Elab Command
+
+namespace Fl4Proofs.P3.P3KX
+
+/-- The narrowing's maps (module docstring). -/
+def specK : Spec where
+  recMap := []
+  defMap := [(`Fl4Proofs.P3.Sched.ArchSwF, `Fl4Proofs.P3.Sched.ArchSwF')]
+  constMap := [(`Fl4Proofs.P3.Sched.scnt_refines0FA, `Fl4Proofs.P3.Sched.scnt_refines0FAI)]
+
+end Fl4Proofs.P3.P3KX
+
+set_option maxRecDepth 200000 in
+open Fl4Proofs.P3.P3KX in
+run_cmd liftCoreM do
+  let (n, r) ← transport specK [``Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU41]
+  logInfo m!"p3K transport: {n} copied, {r} reused"
+
+#check @Fl4ProofsK.P3.SInvR.G5.kernel_entry_reachU41
