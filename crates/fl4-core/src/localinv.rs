@@ -241,10 +241,18 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
         if !small_ram_frame(frame) || extra[0].is_null() {
             return None;
         }
-        let root = match extra[0].cap(s) {
-            Cap::Pml4 { ptr, mapped: true, .. } => ptr,
+        let (root, asid) = match extra[0].cap(s) {
+            Cap::Pml4 { ptr, mapped: true, asid } => (ptr, asid),
             _ => return None,
         };
+        // Only a VSpace its ASID still names, as `check_vspace` requires:
+        // the tables of one it no longer names (its pool deleted) may since
+        // have been reused, and the walk below would read them. Such a map
+        // fails in the decode; it is left to the gate.
+        match crate::vspace::find_vspace_for_asid(s, asid) {
+            Ok(r) if r == root => {}
+            _ => return None,
+        }
         if !map_attr_local(reg_arg(s, t, 2)) {
             return None;
         }
