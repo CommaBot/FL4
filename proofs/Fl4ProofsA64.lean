@@ -120,3 +120,5 @@ import Fl4ProofsA64.P1.QueueTimerC
 import Fl4ProofsA64.P1.QueueFinThr
 import Fl4ProofsA64.P1.QueueFinIo
 import Fl4ProofsA64.P1.RunVcpuFam
+import Fl4ProofsA64.P1.QueueSlots7
+import Fl4ProofsA64.P1.QueueFinThr7

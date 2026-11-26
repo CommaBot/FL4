@@ -116,6 +116,8 @@ import Fl4ProofsA64.P1.QueueTimerC
 import Fl4ProofsA64.P1.QueueFinThr
 import Fl4ProofsA64.P1.QueueFinIo
 import Fl4ProofsA64.P1.RunVcpuFam
+import Fl4ProofsA64.P1.QueueSlots7
+import Fl4ProofsA64.P1.QueueFinThr7
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -147,3 +149,12 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.finGap_ioPort
 #print axioms Fl4ProofsA64.P1.sched.set_thread_state.rvi
 #print axioms Fl4ProofsA64.P1.vcpu.run_tail.rvi
+
+#print axioms Fl4ProofsA64.P1.W7.blk_of_capw
+#print axioms Fl4ProofsA64.P1.W7.delGaps_of
+#print axioms Fl4ProofsA64.P1.W7.decGap_cnode2
+#print axioms Fl4ProofsA64.P1.vcpu.detach.w7
+#print axioms Fl4ProofsA64.P1.fin_thread.blk7
+#print axioms Fl4ProofsA64.P1.fin_thread.curR7
+#print axioms Fl4ProofsA64.P1.W7.finGap_thread
+#print axioms Fl4ProofsA64.P1.W7.delGaps_of_gaps
