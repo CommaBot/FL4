@@ -2180,3 +2180,8 @@ import Fl4Proofs.P2.E2EPVX9D
 import Fl4Proofs.P2.E2EPVX10A
 import Fl4Proofs.P2.E2EPVX10
 import Fl4Proofs.P2.E2EPVX11
+import Fl4Proofs.P2.MmuADStep
+import Fl4Proofs.P2.MmuADEnt
+import Fl4Proofs.P2.MmuADDel
+import Fl4Proofs.P2.MmuADDelP
+import Fl4Proofs.P2.E2EPU3f
