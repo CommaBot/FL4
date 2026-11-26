@@ -99,16 +99,16 @@ local macro "rr_dec" c:term : tactic => `(tactic| (
 
 set_option hygiene false in
 local macro "rr_fft" : tactic => `(tactic| (
-    rw [if_pos rfl] at ht ⊢
+    first | rw [if_pos rfl] at ht ⊢ | rw [if_pos trivial] at ht ⊢
     rr_gs PathObl.R.sched.cur_domain_eq (sched.cur_domain.guard (gS := PathObl.guard st R W) X0 K.cd)
     obtain ⟨i11, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
     obtain ⟨i12, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_gs PathObl.R.sched.is_highest_prio_eq (sched.is_highest_prio.guard (gS := PathObl.guard st R W) X0 i11 _ hBm)
     obtain ⟨b8, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb8 : b8 = true
     swap
     · rw [if_neg hb8]; simp only [Once]
@@ -117,19 +117,19 @@ local macro "rr_fft" : tactic => `(tactic| (
 
 set_option hygiene false in
 local macro "rr_fff" : tactic => `(tactic| (
-    rw [if_neg Bool.false_ne_true] at ht ⊢
+    first | rw [if_neg Bool.false_ne_true] at ht ⊢ | rw [if_neg not_false] at ht ⊢
     exact tailOnce Wd ht))
 
 set_option hygiene false in
 local macro "rr_ep" : tactic => `(tactic| (
     rr_gs PathObl.R.obj.Ep.state_eq (obj.Ep.state.guard (gS := PathObl.guard st R W) ep X0 K.eTS)
     obtain ⟨i10, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_dec ((i10 != obj.EP_IDLE) = true)
     rr_gs PathObl.R.sched.idle_thread_eq (sched.idle_thread.guard (gS := PathObl.guard st R W) X0
       (K.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])).1)
     obtain ⟨t1, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     refine once_liftR ht (fun b7 _ ht => ?_)
     unfold SProg.blk at ht ⊢
     refine once_ite ht (fun _ ht => ?_) (fun _ ht => ?_)
@@ -138,11 +138,11 @@ local macro "rr_ep" : tactic => `(tactic| (
     · rw [SProg.sbind_assoc] at ht ⊢
       rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
       obtain ⟨j1, -, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       rw [SProg.sbind_assoc] at ht ⊢
       rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) t X0 K.tPr)
       obtain ⟨j2, -, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       refine once_ite ht (fun _ ht => ?_) (fun _ ht => ?_)
       · simp only [SProg.sbind] at ht ⊢
         rr_fft
@@ -154,7 +154,7 @@ local macro "rr_rest" : tactic => `(tactic| (
     rr_gs PathObl.R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) u X0 K.uSc)
     obtain ⟨i5, ei5, rfl⟩ := bind_shape h1
     obtain rfl : usc = i5 := ok_inj_ff (ecs.symm.trans ei5)
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     refine once_liftR ht (fun b3 _ ht => ?_)
     rr_dec (b3 = true)
     rr_gs PathObl.R.fastpath.schedulable_here_eq (fastpath.schedulable_here.guard (gS := PathObl.guard st R W) X0 u
@@ -163,7 +163,7 @@ local macro "rr_rest" : tactic => `(tactic| (
       (K.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
       K.tm hrs K.dt K.cd K.uAf K.uDo K.uSc K.uIq)
     obtain ⟨b4, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb4 : b4 = true
     swap
     · rw [if_neg hb4]; simp only [Once]
@@ -171,35 +171,35 @@ local macro "rr_rest" : tactic => `(tactic| (
     rr_gs PathObl.R.sporadic.ready_eq (sporadic.ready.guard (gS := PathObl.guard st R W) X0 usc K.uHd
       (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1)
     obtain ⟨b5, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb5 : b5 = true
     swap
     · rw [if_neg hb5]; simp only [Once]
     rw [if_pos hb5] at ht ⊢
     rr_gs PathObl.R.sporadic.sufficient_eq (sporadic.sufficient.guard (gS := PathObl.guard st R W) ar X0 a usc 0#u64 K.uHd)
     obtain ⟨b6, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb6 : b6 = true
     swap
     · rw [if_neg hb6]; simp only [Once]
     rw [if_pos hb6] at ht ⊢
     rr_gs PathObl.R.obj.Tcb.bound_ntfn_eq (obj.Tcb.bound_ntfn.guard (gS := PathObl.guard st R W) t X0 K.tBn)
     obtain ⟨i6, e6, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases h6 : (i6 != 0#u64) = true
     · rw [if_pos h6] at ht ⊢
       rr_gs PathObl.R.obj.Ntfn.state_eq (obj.Ntfn.state.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).1)
       obtain ⟨i7, -, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       rr_dec (i7 = obj.NTFN_ACTIVE)
       rr_gs PathObl.R.obj.Ntfn.sc_eq (obj.Ntfn.sc.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).2)
       obtain ⟨i8, -, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       by_cases h8 : (i8 != 0#u64) = true
       · rw [if_pos h8] at ht ⊢
         rr_gs PathObl.R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) t X0 K.tSc)
         obtain ⟨i9, -, rfl⟩ := bind_shape h1
-        dsimp only at ht ⊢
+        try dsimp only at ht ⊢
         rr_dec (i8 = i9)
         rr_ep
       · rw [if_neg h8] at ht ⊢
@@ -212,43 +212,43 @@ local macro "rr_checks" : tactic => `(tactic| (
     rr_gs PathObl.R.sched.action_eq (sched.action.guard (gS := PathObl.guard st R W) X0
       (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1)
     obtain ⟨i, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_dec ((i != sched.ACTION_RESUME_CURRENT) = true)
     rr_gs PathObl.R.sched.is_schedulable_eq (sched.is_schedulable.guard (gS := PathObl.guard st R W) X0 t K.tSt K.tSc
       K.tMx K.tIq)
     obtain ⟨b, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb : b = true
     swap
     · rw [if_neg hb]; simp only [Once]
     rw [if_pos hb] at ht ⊢
     rr_gs PathObl.R.msg.msg_info_eq (msg.msg_info.guard (gS := PathObl.guard st R W) X0 t K.tMi)
     obtain ⟨info, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_dec ((info.extra_caps != 0#u64) = true)
     rr_dec ((info.label != 0#u64) = true)
     rr_gs PathObl.R.obj.Reply.tcb_eq (obj.Reply.tcb.guard (gS := PathObl.guard st R W) rptr X0 K.rRt)
     obtain ⟨i1, ei1, rfl⟩ := bind_shape h1
     obtain rfl : u = i1 := ok_inj_ff (ecu.symm.trans ei1)
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     refine once_liftR ht (fun b1 _ ht => ?_)
     rr_dec (b1 = true)
     rr_gs PathObl.R.obj.Tcb.state_eq (obj.Tcb.state.guard (gS := PathObl.guard st R W) u X0 K.uSt)
     obtain ⟨i2, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_dec ((i2 != sched.TS_BLOCKED_ON_REPLY) = true)
     rr_gs PathObl.R.obj.Tcb.fault_type_eq (obj.Tcb.fault_type.guard (gS := PathObl.guard st R W) u X0 K.uFt.1)
     obtain ⟨i3, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     rr_dec ((i3 != fl4_abi.consts.fault.UnknownSyscall) = true)
     rr_gs PathObl.R.obj.Reply.next_eq (obj.Reply.next.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
     obtain ⟨i4, -, rfl⟩ := bind_shape h1
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hi4 : (i4 != 0#u64) = true
     · rw [if_pos hi4] at ht ⊢
       rr_gs PathObl.R.obj.Reply.next_is_head_eq (obj.Reply.next_is_head.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
       obtain ⟨b2, -, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       rr_dec (b2 = true)
       rr_rest
     · rw [if_neg hi4] at ht ⊢
@@ -773,14 +773,14 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     intro Wd hh
     refine hfr_once hR0 hu' (fun r hr => hW0 _ (K.uReg r hr)) K.tMi K.uFt.1 K.tReg K.tBuf hty3 _ hh ?_ Wd
     intro s1 b wX h' Wd' T'
-    dsimp only at h' ⊢
+    try dsimp only at h' ⊢
     refine once_gstep hR0 hW0 (PathObl.R.faults.clear_fault_nz _) h' (fun r h1 => ?_) (fun r h1 hk Wd'' _ => ?_)
     · rw [PathObl.R.faults.clear_fault_eq] at h1 ⊢
       rw [faults.clear_fault.guard (gS := PathObl.guard st R W) s1 u K.uFt.2]
       exact h1
     rw [PathObl.R.faults.clear_fault_eq] at h1
     obtain ⟨X5, e5, rfl⟩ := bind_shape h1
-    dsimp only at hk ⊢
+    try dsimp only at hk ⊢
     exact endOnce s1 X5 b wX e5 _ hk Wd'' T'
   -- the tail
   have hn1 : NodeSt (L := L) R W X1 := by
@@ -822,7 +822,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     rw [PathObl.R.obj.Tcb.set_state_eq] at h1
     obtain ⟨Y1, ey1, rfl⟩ := bind_shape h1
     obtain rfl : X1 = Y1 := ok_inj_ff (e1.symm.trans ey1)
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     refine once_gstep hR0 hW0 (PathObl.R.ipc.reply_remove_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
     · rw [PathObl.R.ipc.reply_remove_eq] at h1 ⊢
       rw [hrem]
@@ -831,7 +831,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     rw [PathObl.R.ipc.reply_remove_eq] at h1
     obtain ⟨⟨Y2, b2⟩, ey2, rfl⟩ := bind_shape h1
     obtain ⟨rfl, rfl⟩ : X2 = Y2 ∧ a1 = b2 := Prod.mk.inj (ok_inj_ff (e2.symm.trans ey2))
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     refine once_gstep hR0 hW0 (PathObl.R.sporadic.sc_sporadic_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
     · rw [PathObl.R.sporadic.sc_sporadic_eq] at h1 ⊢
       rw [sporadic.sc_sporadic.guard (gS := PathObl.guard st R W) X2 usc (fun _ => K.spo)]
@@ -840,7 +840,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     rw [PathObl.R.sporadic.sc_sporadic_eq] at h1
     obtain ⟨c9, ec9, rfl⟩ := bind_shape h1
     obtain rfl : b9 = c9 := ok_inj_ff (hb9r.symm.trans ec9)
-    dsimp only at ht ⊢
+    try dsimp only at ht ⊢
     by_cases hb : b9 = true
     · rw [if_pos hb] at ht ⊢ e3
       rw [SProg.sbind_assoc] at ht ⊢
@@ -851,7 +851,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
       replace ht := hk
       rw [PathObl.R.obj.Sc.cpu_eq] at h1
       obtain ⟨i13, hi13, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       have ei : i13 = L.mem X0 (core.num.U64.wrapping_add usc layout.sc.CORE) := by
         have hi13' := hi13
         unfold obj.Sc.cpu at hi13'
@@ -868,7 +868,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
       replace ht := hk
       rw [PathObl.R.obj.node_get_eq] at h1
       obtain ⟨i14, hi14, rfl⟩ := bind_shape h1
-      dsimp only at ht ⊢
+      try dsimp only at ht ⊢
       rw [hi13] at e3
       simp only [bind_ok, bind_tc_ok] at e3
       rw [hi14] at e3
@@ -885,7 +885,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
         rw [PathObl.R.sporadic.unblock_check_eq] at h1
         obtain ⟨Y3, ey3, rfl⟩ := bind_shape h1
         obtain rfl : X3 = Y3 := ok_inj_ff (e3.symm.trans ey3)
-        dsimp only at hk ⊢
+        try dsimp only at hk ⊢
         exact afterBlk Wd hk
       · rw [if_neg hne] at e3
         simp only [SProg.sbind] at ht ⊢
