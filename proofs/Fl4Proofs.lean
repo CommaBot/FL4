@@ -1968,6 +1968,7 @@ import Fl4Proofs.P2.InvCMQ
 import Fl4Proofs.P2.InvCMAcc8
 import Fl4Proofs.P2.InvCMFin8
 import Fl4Proofs.P2.InvCMTail8
+import Fl4Proofs.P2.InvCMPath8
 import Fl4Proofs.P2.InvProgSrc
 import Fl4Proofs.P2.ProgGenCd0
 import Fl4Proofs.P2.ProgGenCd1
