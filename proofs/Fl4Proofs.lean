@@ -2293,3 +2293,5 @@ import Fl4Proofs.P3.VirtScope8
 import Fl4Proofs.P3.VirtScope8J
 import Fl4Proofs.P3.VirtScope8B
 import Fl4Proofs.P3.VirtKEntryV2
+import Fl4Proofs.P3.VirtKEntryV3
+import Fl4Proofs.P3.VirtWit9
