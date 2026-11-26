@@ -53,7 +53,7 @@ theorem ko_congrP (hK : RegionOKP K) {m m' : U64 → U64} (h : ∀ y, ownP K m y
   funext b
   unfold OwnMap.ko
   cases hr : OwnMap.region K.toKLayout b with
-  | tcb t => rw [h _ (ownP_aff_gate hK hr m)]
+  | tcb t => simp only [h _ (ownP_aff_gate hK hr m)]
   | _ => rfl
 
 end ko
