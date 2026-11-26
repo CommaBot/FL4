@@ -1964,6 +1964,7 @@ import Fl4Proofs.P2.InvCMTail
 import Fl4Proofs.P2.InvCMBlk
 import Fl4Proofs.P2.InvCMPath
 import Fl4Proofs.P2.InvCMBuf8
+import Fl4Proofs.P2.InvCMQ
 import Fl4Proofs.P2.InvProgSrc
 import Fl4Proofs.P2.ProgGenCd0
 import Fl4Proofs.P2.ProgGenCd1
