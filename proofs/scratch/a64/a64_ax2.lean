@@ -110,6 +110,10 @@ import Fl4ProofsA64.P1.EntryFin
 import Fl4ProofsA64.P1.QueueEntryGaps3
 import Fl4ProofsA64.P1.QueueFinFr
 import Fl4ProofsA64.P1.QueueYield
+import Fl4ProofsA64.P1.QueueDelFin
+import Fl4ProofsA64.P1.QueueFinCur
+import Fl4ProofsA64.P1.QueueTimerC
+import Fl4ProofsA64.P1.QueueFinThr
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -123,10 +127,6 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.InvGaps2F.gaps
-#print axioms Fl4ProofsA64.P1.migrate_tail_f
-#print axioms Fl4ProofsA64.P1.tmoXG_holds
-#print axioms Fl4ProofsA64.P1.ipc.do_reply_transfer.foot
 #print axioms Fl4ProofsA64.P1.syscall.handle_recv.xg
 #print axioms Fl4ProofsA64.P1.EntryHypsA.of_gaps
 #print axioms Fl4ProofsA64.P1.xferFootOK_ofA
@@ -139,3 +139,8 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.InvGaps3.gaps
 #print axioms Fl4ProofsA64.P1.sched.suspend.keepF
 #print axioms Fl4ProofsA64.P1.scYieldGap_holds
+
+#print axioms Fl4ProofsA64.P1.delGaps_of
+#print axioms Fl4ProofsA64.P1.finGap_reply
+#print axioms Fl4ProofsA64.P1.FinGapsAt.kinds
+#print axioms Fl4ProofsA64.P1.fin_thread.curR
