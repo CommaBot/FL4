@@ -2437,3 +2437,4 @@ import Fl4Proofs.P3.VirtRetypeLoop
 import Fl4Proofs.P3.VirtVmcbDec
 import Fl4Proofs.P3.VirtVmcbTail
 import Fl4Proofs.P3.VirtVmcbE2E
+import Fl4Proofs.P3.VirtArgsSpec
