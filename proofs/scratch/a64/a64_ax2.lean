@@ -119,6 +119,7 @@ import Fl4ProofsA64.P1.RunVcpuFam
 import Fl4ProofsA64.P1.QueueSlots7
 import Fl4ProofsA64.P1.QueueFinThr7
 import Fl4ProofsA64.P1.QueueDecTcb
+import Fl4ProofsA64.P1.QueueDecTcbRR
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -161,3 +162,4 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.W7.delGaps_of_gaps
 #print axioms Fl4ProofsA64.P1.tcb.decode_write_registers.dec
 #print axioms Fl4ProofsA64.P1.tcb.decode_get_breakpoint.dec
+#print axioms Fl4ProofsA64.P1.tcb.decode_read_registers.dec
