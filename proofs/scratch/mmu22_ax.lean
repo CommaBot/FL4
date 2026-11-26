@@ -1,6 +1,20 @@
-import Fl4Proofs.P3.JExtVSig
+import Fl4Proofs.P3.JExtVInit
 #print axioms Fl4Proofs.P1.capw_not_dbgB
 #print axioms Fl4Proofs.P1.capw_keep_footDB
 #print axioms Fl4Proofs.P1.notification.maybe_donate_sched_context.stK
 #print axioms Fl4Proofs.P1.notification.complete_signal.vmK
 #print axioms Fl4Proofs.P3.vcpu_enter_boundK
+#print axioms Fl4Proofs.P3.vfits_wadd
+#print axioms Fl4Proofs.P3.vw_of_off
+#print axioms Fl4Proofs.P3.vw_of_val
+#print axioms Fl4Proofs.P3.not_vw_tcb
+#print axioms Fl4Proofs.P3.vset_w
+#print axioms Fl4Proofs.P3.vmcs_w
+#print axioms Fl4Proofs.P3.vcpu.init_loop0.foot
+#print axioms Fl4Proofs.P3.vcpu.init_loop1.foot
+#print axioms Fl4Proofs.P3.vcpu.reset_svm_loop.foot
+#print axioms Fl4Proofs.P3.vcpu.reset_svm.foot
+#print axioms Fl4Proofs.P3.vcpu.init.foot
+#print axioms Fl4Proofs.P3.vcpu.init.tcb0
+#print axioms Fl4Proofs.P3.create_vcpu_grow
+#print axioms Fl4Proofs.P3.create_vcpu_grow_win
