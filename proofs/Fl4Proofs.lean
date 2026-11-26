@@ -2425,3 +2425,6 @@ import Fl4Proofs.P3.VirtMsrEq
 import Fl4Proofs.P3.VirtInitIo
 import Fl4Proofs.P3.VirtInitWalk
 import Fl4Proofs.P3.VirtMsrDec
+import Fl4Proofs.P3.JExtVList
+import Fl4Proofs.P3.JExtVListSteps
+import Fl4Proofs.P3.VirtRetypeInit
