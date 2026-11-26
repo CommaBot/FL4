@@ -2170,3 +2170,5 @@ import Fl4Proofs.P2.E2EPU17
 import Fl4Proofs.P2.StVTimer
 import Fl4Proofs.P2.ViewSafeGenW
 import Fl4Proofs.P2.SafeVQW
+import Fl4Proofs.P2.FootTimerGED
+import Fl4Proofs.P2.FootTimerSetAccD
