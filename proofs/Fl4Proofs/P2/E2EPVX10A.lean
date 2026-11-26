@@ -301,14 +301,14 @@ theorem invBlkPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω 
   have hlbl := (hq.1.2.2.1 (L.curW s) info (cur_thread_ok s) emi).1
   rw [hlbl] at hy ⊢
   have hW : IoWr st (InvWSP st K Locks s) K.heap.scBits s := PE.ioWr.mono (fun _ h => ioWS_inv h)
-  haveI : GRd (guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) st (IoRSR st K.toKLayout Locks s) :=
-    grd_sub hR
   by_cases hlen : length < 2#u64
   · obtain ⟨hdec, hrep⟩ := truncAccR (R := InvRSV st K Locks s)
       (gS := guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) hA PE
       hR (fun _ h => rsv_user hK hU vf hf h) hW
       (fun _ h => ⟨h.1, Or.inl h.2⟩) hcs hsK hJ.buf8 C hcap hlen hy
     refine ⟨hdec, fun z hz' => ?_⟩
+    haveI : GRd (guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) st (IoRSR st K.toKLayout Locks s) :=
+      grd_sub hR
     obtain ⟨h1, h2⟩ :=
       truncFinR (gS := guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) hA PE hW
       (SWr.of_W (ioWS_inv PE.stw.2)) hcs hsK hJ.buf8 C hcap hlen hy hz'
@@ -325,6 +325,8 @@ theorem invBlkPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω 
       (fun asid va e he hl' => ⟨(hU.kern e (hlf asid va e he).1).1, Or.inr (Or.inr ⟨(hlf asid va e he).1, hl'⟩)⟩)
       C hcap hy
     refine ⟨hdec, fun z hz' => ?_⟩
+    haveI : GRd (guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) st (IoRSR st K.toKLayout Locks s) :=
+      grd_sub hR
     obtain ⟨h1, h2⟩ :=
       delFinR (gS := guard st (InvRSV st K Locks s) (InvWSP st K Locks s)) hA PE hW
       (ioWS_inv PE.stw.2) E hsK hlen
@@ -470,9 +472,10 @@ theorem invBlkGdPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs �
       (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) hA PE
       hR (fun _ h => rsv_user hKP hUP vf hf h) hW hWu hcs hsK hJ.buf8 C hcap hlen hy
     refine ⟨hdec, fun z hz' => ?_⟩
-    obtain ⟨h1, h2⟩ := haveI : GRd (gd st (InvRSV st K Locks s)
-          (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
-        gdr_sub hR
+    haveI : GRd (gd st (InvRSV st K Locks s)
+        (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
+      gdr_sub hR
+    obtain ⟨h1, h2⟩ :=
       truncFinR (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s)))
         hA PE hW (hst _ (Or.inr rfl)) hcs hsK hJ.buf8 C hcap hlen hy hz'
     exact ⟨hrep z hz', h1, h2⟩
@@ -504,9 +507,10 @@ theorem invBlkGdPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs �
       (fun asid va e he _ _ _ => Or.inl (Or.inl ⟨(hUP.kern e (hlf asid va e he).1).1,
         pte_nondec hKP (hlf asid va e he).1⟩)) C hcap hy
     refine ⟨hdec, fun z hz' => ?_⟩
-    obtain ⟨h1, h2⟩ := haveI : GRd (gd st (InvRSV st K Locks s)
-          (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
-        gdr_sub hR
+    haveI : GRd (gd st (InvRSV st K Locks s)
+        (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
+      gdr_sub hR
+    obtain ⟨h1, h2⟩ :=
       delFin2R (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s)))
         hA PE hW (hst _ (Or.inr rfl)) E hsK hlen
         (fun sl fp rt asid va hsl hc' hA' => hvs s sl fp rt asid va hJ hsl hc' hA')
@@ -537,8 +541,7 @@ theorem invMovePV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω
       (gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) ar s a number p =
       ok (true, s', a') :=
     haveI : (GRd (gd st (InvRSV st K Locks s)
-        (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s)) :=
-      gdr_sub (hE.rsv hKP hUP)
+        (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s)) := gdr_sub (hE.rsv hKP hUP)
     inv_acc_genR hA PE (mvWrS PE hK hLA) (invSeenR_ofZ hE.1.hz hq) (invPsR_of hq)
       (fun info nx s1 s2 a1 buf length cap emi hc hl hk y hy => invBlkGdPV hA hKP hUP hE emi hc hl hk y hy) h
   rw [inv_hp hp (Narrow.gd _ _ _) (AltOf.pre hE) a] at hg
