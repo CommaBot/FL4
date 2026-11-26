@@ -2281,3 +2281,4 @@ import Fl4Proofs.P3.JExtVStepsB
 import Fl4Proofs.P3.JExtVLay
 import Fl4Proofs.P3.JExtVSig
 import Fl4Proofs.P3.JExtVInit
+import Fl4Proofs.P3.JExtVFin

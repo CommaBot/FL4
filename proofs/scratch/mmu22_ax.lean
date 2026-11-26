@@ -1,4 +1,4 @@
-import Fl4Proofs.P3.JExtVInit
+import Fl4Proofs.P3.JExtVFin
 #print axioms Fl4Proofs.P1.capw_not_dbgB
 #print axioms Fl4Proofs.P1.capw_keep_footDB
 #print axioms Fl4Proofs.P1.notification.maybe_donate_sched_context.stK
@@ -18,3 +18,14 @@ import Fl4Proofs.P3.JExtVInit
 #print axioms Fl4Proofs.P3.vcpu.init.tcb0
 #print axioms Fl4Proofs.P3.create_vcpu_grow
 #print axioms Fl4Proofs.P3.create_vcpu_grow_win
+#print axioms Fl4Proofs.P3.lay_next_val
+#print axioms Fl4Proofs.P3.lay_prev_val
+#print axioms Fl4Proofs.P3.fin_next_mem
+#print axioms Fl4Proofs.P3.JVLay.finOwn
+#print axioms Fl4Proofs.P3.JVLay.finPl
+#print axioms Fl4Proofs.P3.JAtZ.finPl
+#print axioms Fl4Proofs.P3.vcpu_finalise_jv_lay
+#print axioms Fl4Proofs.P3.vcpuOm_of_heap
+#print axioms Fl4Proofs.P3.JAtZ.vcpuOm
+#print axioms Fl4Proofs.P3.JAtZ.hTt
+#print axioms Fl4Proofs.P3.vcpu_enter_boundL
