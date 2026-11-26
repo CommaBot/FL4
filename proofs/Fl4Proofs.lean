@@ -151,6 +151,7 @@ import Fl4Proofs.P1.QueueEntryGaps4
 import Fl4Proofs.P1.QueueDelVsX5
 import Fl4Proofs.P1.QueueDecTcbX5
 import Fl4Proofs.P1.QueueDecVsX5
+import Fl4Proofs.P1.QueueEntryGapsX5
 import Fl4Proofs.P1.QueueSuspendP1
 import Fl4Proofs.P1.QueueSorted
 import Fl4Proofs.P1.QueueXferFoot
