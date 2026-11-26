@@ -261,7 +261,7 @@ noncomputable def vexit_localPathPG2 (hA : P0.ArchTotal ar) (hK : RegionOKV K) (
       b ∈ K.user → Aligned b →
       VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v') ∧
         VexitPEnt K st T Cs H Sg Scs Z m v (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s) :
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s) :
     E2E.LocalPath (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) :=
   vexit_localPathPG ar hA hK hU hm (vexit_hroP ar hA hK hVU hm) hEU hlk
 
@@ -366,7 +366,7 @@ noncomputable def vtimer_localPathG2 (hA : P0.ArchTotal ar) (hK : RegionOKV K) (
     (hTU : ∀ s, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → VtmU K st irq s)
     (hEU : ∀ s b v', VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → b ∈ K.user → Aligned b →
       VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n (L.wr s b v'))
-    (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s)
+    (hlk : ∀ s b v', b ∈ K.user → Aligned b → lk (L.wr s b v') = lk s)
     (hFU : ∀ s a s1 a1, VtmEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk irq n s → IrqFire st ar s a →
       localvm.handle_vm_timer_irq_local st ar s a irq pl n = ok (true, s1, a1) →
       localvm.handle_vm_timer_irq_local (guard st (VexitRSU K st lk s) (VexitWS K st lk s)) ar s a irq pl n =

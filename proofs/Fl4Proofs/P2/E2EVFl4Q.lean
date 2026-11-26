@@ -154,7 +154,7 @@ def vxSlot : SlotN (VxArg S) where
   path i K m hK hU h :=
     vexit_localPathP (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Rp := i.Rp) (Scs := i.Scs) (Nt := i.Nt)
       (Ac := i.Ac) (H := i.H) (Z := i.Z) (lk := i.lk) (v := i.v) (n := i.n) (m := m) ar hA hK hU
-      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu h.lk
+      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu (fun s b v' hb _ => h.lk s b v' hb)
 
 /-- **`local_vm_timer_irq` slot** (`vtimer_localPath`). -/
 def vtSlot : SlotN (VtArg S) where
@@ -162,7 +162,8 @@ def vtSlot : SlotN (VtArg S) where
   path i K m hK hU h :=
     vtimer_localPath (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Rp := i.Rp) (Scs := i.Scs) (Nt := i.Nt)
       (Ac := i.Ac) (H := i.H) (Z := i.Z) (lk := i.lk) (irq := i.irq) (n := i.n) (pl := i.pl) (m := m) ar hA hK hU
-      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu h.lk h.F h.Fm h.Nt
+      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu (fun s b v' hb _ => h.lk s b v' hb)
+      h.F h.Fm h.Nt
 
 /-- **lvm's paths as one `PathsV` family** (`vq` of `fl4Loc`). -/
 def fl4LQ (D : Dflt) : PathsV (VxArg S ⊕ VtArg S) :=

@@ -161,7 +161,8 @@ def vtSlotW : SlotN (VtArg S) where
   path i K m hK hU h :=
     vtimer_localPathW (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Rp := i.Rp) (Scs := i.Scs) (Nt := i.Nt)
       (Ac := i.Ac) (H := i.H) (Z := i.Z) (lk := i.lk) (irq := i.irq) (n := i.n) (pl := i.pl) (m := m) ar hA hK hU
-      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu h.lk h.F h.Fm h.Nt h.M
+      h.pz.choose_spec.1 h.pz.choose_spec.2.1 hm h.pz.choose_spec.2.2 h.eu (fun s b v' hb _ => h.lk s b v' hb)
+      h.F h.Fm h.Nt h.M
 
 /-- lvm's paths with the timer slot at `vtimer_localPathW`. -/
 def fl4LQW (D : Dflt) : PathsV (VxArg S ⊕ VtArg S) :=
