@@ -90,6 +90,17 @@ import Fl4ProofsA64.P1.QueueKeeps
 import Fl4ProofsA64.P1.QueueCbs
 import Fl4ProofsA64.P1.QueueFpu
 import Fl4ProofsA64.P1.QueueDebug
+import Fl4ProofsA64.P1.QueueXferA
+import Fl4ProofsA64.P1.QueueEntryA
+import Fl4ProofsA64.P1.QueueXfer
+import Fl4ProofsA64.P1.QueueInvAll
+import Fl4ProofsA64.P1.QueueXferFoot
+import Fl4ProofsA64.P1.QueueDecSc
+import Fl4ProofsA64.P1.QueueDecDom
+import Fl4ProofsA64.P1.QueueDecCnode
+import Fl4ProofsA64.P1.QueueDecTdx
+import Fl4ProofsA64.P1.QueueEntryGaps
+import Fl4ProofsA64.P1.QueueReplyX
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -103,17 +114,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.vcpu.check.entry
-#print axioms Fl4ProofsA64.P1.vcpu.check.rv
-#print axioms Fl4ProofsA64.P1.vcpu.check.vck
-#print axioms Fl4ProofsA64.P1.vcpu.complete_run.vck
-#print axioms Fl4ProofsA64.P1.vcpu.read_state_to_frame.fw
-#print axioms Fl4ProofsA64.P1.vck_fin
-#print axioms Fl4ProofsA64.P1.rv_all
-#print axioms Fl4ProofsA64.P1.syscall.finish.entry
-#print axioms Fl4ProofsA64.P1.interrupt.handle_interrupt.bxi
-#print axioms Fl4ProofsA64.P1.syscall.dispatch_syscall.bxi
-#print axioms Fl4ProofsA64.P1.EntryHyps.of
-#print axioms Fl4ProofsA64.P1.sched.activate_thread.entry
-#print axioms Fl4ProofsA64.P1.tcb.fpu_transfer.blk
-#print axioms Fl4ProofsA64.P1.sched.schedule.entry_ib
+#print axioms Fl4ProofsA64.P1.xferOK_ofA
+#print axioms Fl4ProofsA64.P1.XferOK.toA
+#print axioms Fl4ProofsA64.P1.endpoint.send_ipc.ipcA
+#print axioms Fl4ProofsA64.P1.endpoint.receive_ipc.ipcA
+#print axioms Fl4ProofsA64.P1.syscall.handle_recv.bxiA
+#print axioms Fl4ProofsA64.P1.faults.handle_fault.bxiA
+#print axioms Fl4ProofsA64.P1.syscall.dispatch_syscall.bxiA
+#print axioms Fl4ProofsA64.P1.EntryHypsA.of
+#print axioms Fl4ProofsA64.P1.EntryHypsA.of_gaps
+#print axioms Fl4ProofsA64.P1.xferFootOK_ofA
+#print axioms Fl4ProofsA64.P1.decGap_sc
+#print axioms Fl4ProofsA64.P1.InvGaps2.gaps
+#print axioms Fl4ProofsA64.P1.decGap_tdx
+#print axioms Fl4ProofsA64.P1.decGap_reply
