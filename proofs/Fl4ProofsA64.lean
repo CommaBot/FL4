@@ -27,3 +27,8 @@ import Fl4ProofsA64.P1.QueueBudget2
 import Fl4ProofsA64.P1.FastDecline
 -- P2 for the AArch64 extraction: the program-tree base and the VM-fault body tree.
 import Fl4ProofsA64.P2.ProgVmF
+import Fl4ProofsA64.P1.QueueBlock
+import Fl4ProofsA64.P1.QueueTimerW
+import Fl4ProofsA64.P1.TimerRB
+import Fl4ProofsA64.P1.TimerRBZip
+import Fl4ProofsA64.P1.VcpuReport
