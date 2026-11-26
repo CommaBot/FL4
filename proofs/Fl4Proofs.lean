@@ -2332,3 +2332,5 @@ import Fl4Proofs.P3.JAtZV3Report
 import Fl4Proofs.P3.JAtZV3RegW
 import Fl4Proofs.P3.JAtZV3Pend
 import Fl4Proofs.P3.JAtZV3MrSet
+import Fl4Proofs.P3.JAtZV3MrMem
+import Fl4Proofs.P3.JAtZV3MrJ
