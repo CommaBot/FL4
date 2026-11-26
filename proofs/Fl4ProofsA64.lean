@@ -153,3 +153,4 @@ import Fl4ProofsA64.P1.QueueDelVs5
 import Fl4ProofsA64.P1.QueueDecDel5
 import Fl4ProofsA64.P1.QueueEntryGaps5
 import Fl4ProofsA64.P1.QueueDecVcpuA
+import Fl4ProofsA64.P1.QueueDecVcpuRegA
