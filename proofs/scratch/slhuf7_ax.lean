@@ -1,4 +1,4 @@
-import Fl4Proofs.P2.SlOnce
+import Fl4Proofs.P2.SlOnceR1
 open Fl4Proofs.P2.PathObl
 #print axioms once_monoR
 #print axioms once_agree
@@ -20,3 +20,7 @@ open Fl4Proofs.P2.PathObl
 #print axioms sl_hro
 #print axioms sl_pathsKC6
 #print axioms sl_pathsKC6_startAt
+#print axioms RrAcc.toNB
+#print axioms RrAccNB.meet
+#print axioms scAccNN
+#print axioms rrAccNB_nu
