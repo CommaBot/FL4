@@ -1869,6 +1869,7 @@ import Fl4Proofs.P2.E2EVSlW
 import Fl4Proofs.P2.E2EVSlA
 import Fl4Proofs.P2.E2EVSlD
 import Fl4Proofs.P2.E2EVLvmP
+import Fl4Proofs.P2.E2EVLvmPW
 import Fl4Proofs.P2.IoProgSrc
 import Fl4Proofs.P2.ProgGenIo0
 import Fl4Proofs.P2.ProgGenIo1
