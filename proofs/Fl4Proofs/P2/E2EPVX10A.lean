@@ -465,15 +465,14 @@ theorem invBlkGdPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs �
   have hWu : ∀ b, UserW K.toKLayout b →
       WAll (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s)) b :=
     fun b hb _ _ => Or.inl (Or.inl ⟨hb.1, fun hd => (OwnMap.decW_ok hU hd).2 hb.2⟩)
-  haveI : GRd (gd st (InvRSV st K Locks s)
-      (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
-    gdr_sub hR
   by_cases hlen : length < 2#u64
   · obtain ⟨hdec, hrep⟩ := truncAccR (R := InvRSV st K Locks s)
       (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) hA PE
       hR (fun _ h => rsv_user hKP hUP vf hf h) hW hWu hcs hsK hJ.buf8 C hcap hlen hy
     refine ⟨hdec, fun z hz' => ?_⟩
-    obtain ⟨h1, h2⟩ :=
+    obtain ⟨h1, h2⟩ := haveI : GRd (gd st (InvRSV st K Locks s)
+          (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
+        gdr_sub hR
       truncFinR (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s)))
         hA PE hW (hst _ (Or.inr rfl)) hcs hsK hJ.buf8 C hcap hlen hy hz'
     exact ⟨hrep z hz', h1, h2⟩
@@ -505,7 +504,9 @@ theorem invBlkGdPV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs �
       (fun asid va e he _ _ _ => Or.inl (Or.inl ⟨(hUP.kern e (hlf asid va e he).1).1,
         pte_nondec hKP (hlf asid va e he).1⟩)) C hcap hy
     refine ⟨hdec, fun z hz' => ?_⟩
-    obtain ⟨h1, h2⟩ :=
+    obtain ⟨h1, h2⟩ := haveI : GRd (gd st (InvRSV st K Locks s)
+          (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s))) st (IoRSR st K.toKLayout Locks s) :=
+        gdr_sub hR
       delFin2R (gS := gd st (InvRSV st K Locks s) (OwnMap.PWs (L := L) K.toKLayout (L.cpu s) (Locks s) (L.mem s)))
         hA PE hW (hst _ (Or.inr rfl)) E hsK hlen
         (fun sl fp rt asid va hsl hc' hA' => hvs s sl fp rt asid va hJ hsl hc' hA')
@@ -608,7 +609,7 @@ theorem invRaPV (hA : P0.ArchTotal ar) (hKP : RegionOKP K) (hUP : UserOKP K) (hm
     rw [inv_hp hp (Narrow.guard _ _ _) ⟨s, hE, Al⟩ a]
     rw [hs] at h
     rw [← h]
-    exact interp_mono (fun _ hw => hw.1) (fun _ _ => trivial) _ hz s' a _ hg'
+    exact interp_mono (fun _ hw => hw.1.1) (fun _ _ => trivial) _ hz s' a _ hg'
   · obtain ⟨r0, h0⟩ := inv_total (st := st) hA number p s a
     have hr0 : r0.1 ≠ true := by
       obtain ⟨b, z, c⟩ := r0
