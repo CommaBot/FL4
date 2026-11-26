@@ -1,8 +1,8 @@
 # usage: sh scratch/stpost/chkw.sh File1.lean [...]  (from proofs/); single-file check with an RSS watchdog
-# (kills the exact lean PID if its RSS exceeds 16 GB; never by name).
+# (kills the exact lean PID if its RSS exceeds 8 GB (LIM); never by name).
 export ELAN_HOME=/data/fl4/elan PATH=/data/fl4/leanq-root/bin:/data/fl4/elan/bin:$PATH
 echo OLEANS $(find -L .lake/build/lib -name '*.olean' 2>/dev/null | wc -l)
-LIM=16000000
+LIM=${LIM:-8000000}
 for f in "$@"; do
   t0=$(date +%s)
   log=/tmp/stpost9-chk-$$.log
