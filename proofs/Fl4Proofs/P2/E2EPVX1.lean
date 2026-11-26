@@ -157,25 +157,20 @@ def VxStartV (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K
 theorem vxStartV_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
     {hs : U64 → Prop} {q : SP} {j : VxArg S} (h : VxStartV st ar hA hm K μ hK hU c hs q j) :
     StartAt (vxSlotPV st ar hA hm j K μ hK hU) c hs μ q := by
-  obtain ⟨q0, ⟨hp, σ, a, he, hc, hl, hμ, e⟩, rfl⟩ := h
-  have ef : (vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base =
-      (vxSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base hp := SlotN.fam_pos _ _ hp
-  refine ⟨σ, a, ?_, ?_, ?_, ?_, ?_⟩
-  · show ((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).Pre σ ∧ _
-    rw [ef]; exact he
-  · show ((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).L.cpu σ = c
-    rw [ef]; exact hc
-  · show ((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).Locks σ = hs
-    rw [ef]; exact hl
-  · show ∀ x, Aligned x → x ∉ K.user →
-      ((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).L.mem σ x = μ x
-    rw [ef]; exact hμ
-  · refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ (vx_avoidPV st ar hA hm j K μ hK hU)
-      σ a).symm
-    change _ = cutP _ _ _ _
-      (((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).L.cpu σ)
-      (((vxSlotV st ar hA hm).fam (fl4Dflt st ar hm) j K.toKLayoutV μ hK.base hU.base).body σ a) ∅
-    rw [ef, hc, ← e]
+  obtain ⟨q0, ⟨hp, hG⟩, rfl⟩ := h
+  have key : ∀ (Pf : LocalPath (ownV K.toKLayoutV) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user))
+      (hAv : AvoidP K (Pf.rJ K (fun b hb => Or.inl hb))),
+      Pf = (vxSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base hp →
+      StartAt (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv) c hs μ
+        (cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c q0 ∅) := by
+    rintro Pf hAv rfl
+    obtain ⟨σ, a, he, hc, hl, hμ, e⟩ := hG
+    refine ⟨σ, a, he, hc, hl, hμ, ?_⟩
+    refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv σ a).symm
+    change _ = cutP _ _ _ _ (((vxSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base hp).L.cpu σ)
+      (((vxSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base hp).body σ a) ∅
+    rw [hc, ← e]
+  exact key _ _ (SlotN.fam_pos _ _ hp)
 
 /-- **Every start of the VM-exit slot is a real VM exit**: the exiting VCPU is one of the layout's, so the layout
 has VCPUs (the start is outside P3's scope, where `vOf = 0` and `K.vcpus = ∅`). -/
