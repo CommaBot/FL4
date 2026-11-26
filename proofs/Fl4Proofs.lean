@@ -1915,3 +1915,5 @@ import Fl4Proofs.P2.IoOnceC
 import Fl4Proofs.P2.IoOnce
 import Fl4Proofs.P2.StOnce
 import Fl4Proofs.P2.TmOnce
+import Fl4Proofs.P3.JVm
+import Fl4Proofs.P2.E2EVJVm
