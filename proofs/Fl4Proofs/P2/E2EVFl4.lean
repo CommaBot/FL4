@@ -51,6 +51,9 @@ Per slot, the premise record (asked at the `(K, m)` of each start):
   gen 6 `VcpuSpec` [J] (each VCPU is a spec `vcpu` object of the bundle's σ) and `VcpuKsOff` [J] (no VCPU meets
   `[ksb, ksb + 304384)`), which replace gen 5's `wr` [J]: `VFacts.wr` (a VCPU-data-word write keeps P3's bundle) is
   now proved (`slJAt_vcpuWr`, P3's `JAtZ.vcpuWrJ`: `JAtZ` reads no VCPU word).
+  **Gen 7: the whole record is `VFacts.ofJVm hJ hb`** (`P2/E2EVJVm.lean`) from the one [J] `JVmL L K` (P3's
+  `JVm` at the layout's VCPUs at every bundle) and any bundle state `hb` (the slot's start state), so the six [J]s
+  above reduce to `JVmL`.
 * `vmF` (`VmFPrem`): `lay` [J] `IoLayA` (alignment facts of the layout), `mA` [J] (`ko`'s memory agrees on TCB
   affinity words at `VmPre` states), `uf` [J] (`VmPre` / locks / sets kept by user writes). (gen 5's `ro` [W]: proved,
   `vm_hro`.) Start: `VmPre (userV K)` from `VmPre K` by `vmPre_userV` (`VcpuKs`, `TabNoV`).
