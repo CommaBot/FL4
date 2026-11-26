@@ -23,3 +23,19 @@ for M in "$@"; do
   [ "$ec" = 0 ] && [ "$ne" = 0 ] || exit 1
   timeout 900 lake build $M 2>&1 | tail -2
 done
+if [ -n "$F" ]; then
+  echo "=== scratch $F"
+  timeout ${TO:-1200} lake env lean "$F" > /tmp/virt12s.log 2>&1 &
+  P=$!; peak=0
+  while kill -0 $P 2>/dev/null; do
+    for q in $(pgrep -f "lean $F"); do
+      r=$(awk '/VmRSS/{print $2}' /proc/$q/status 2>/dev/null); r=${r:-0}
+      [ $r -gt $peak ] && peak=$r
+      if [ $r -gt ${MAXKB:-16000000} ]; then echo "KILL rss $r"; kill -9 $q; fi
+    done
+    sleep 1
+  done
+  wait $P; ec=$?
+  awk -v N=${N:-30} '/^[^ ]*:[0-9]+:[0-9]+: (error|warning|info)/{p=0} /^[^ ]*:[0-9]+:[0-9]+: (error|info)/{p=1;c=0} p{if(c<N)print; c++}' /tmp/virt12s.log
+  echo "=== scratch exit $ec errors $(grep -c ': error' /tmp/virt12s.log) peakRSS ${peak}KB"
+fi
