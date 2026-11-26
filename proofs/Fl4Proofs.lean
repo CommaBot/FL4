@@ -2277,3 +2277,5 @@ import Fl4Proofs.P2.E2EPAD3
 import Fl4Proofs.P3.JExtV
 import Fl4Proofs.P3.JExtVSteps
 import Fl4Proofs.P3.JExtVSteps2
+import Fl4Proofs.P3.JExtVStepsB
+import Fl4Proofs.P3.JExtVLay
