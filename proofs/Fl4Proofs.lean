@@ -1960,4 +1960,6 @@ import Fl4Proofs.P2.InvLPG
 import Fl4Proofs.P2.InvSC
 import Fl4Proofs.P2.InvLay
 import Fl4Proofs.P2.InvHuf
+import Fl4Proofs.P3.VsUserApart
+import Fl4Proofs.P2.InvPD
 import Fl4Proofs.P2.E2EVFl4Top
