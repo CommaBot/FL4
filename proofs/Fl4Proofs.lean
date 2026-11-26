@@ -1958,4 +1958,6 @@ import Fl4Proofs.P2.InvPrune
 import Fl4Proofs.P2.InvOnce
 import Fl4Proofs.P2.InvLPG
 import Fl4Proofs.P2.InvSC
+import Fl4Proofs.P2.InvLay
+import Fl4Proofs.P2.InvHuf
 import Fl4Proofs.P2.E2EVFl4Top
