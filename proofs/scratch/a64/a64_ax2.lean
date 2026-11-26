@@ -103,31 +103,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.finish_eq_old
-#print axioms Fl4ProofsA64.P1.finish_ok_of_old
-#print axioms Fl4ProofsA64.P1.set_vm_root_wr
-#print axioms Fl4ProofsA64.P1.set_vm_root_wrs
-#print axioms Fl4ProofsA64.P1.set_vm_root_ok_s
-#print axioms Fl4ProofsA64.P1.VmOff.wr
-#print axioms Fl4ProofsA64.P1.set_stage2_root_wr
-#print axioms Fl4ProofsA64.P1.fault_same
-#print axioms Fl4ProofsA64.P1.fault_fin
-#print axioms Fl4ProofsA64.P1.endpoint.cancel_all_ipc.rv
-#print axioms Fl4ProofsA64.P1.tcb.install_tcb_cap.rvT
-#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blk_d
-#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkC_d
-#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blkE_d
-#print axioms Fl4ProofsA64.P1.notification.send_signal.tinvFK
-#print axioms Fl4ProofsA64.P1.timer.fire.tinvF
-#print axioms Fl4ProofsA64.P1.sched.schedule.kw
-#print axioms Fl4ProofsA64.P1.notification.kick_guest.kwB
-#print axioms Fl4ProofsA64.P1.schedcontext.bind_tcb.blkF
-#print axioms Fl4ProofsA64.P1.ntfn_signal.blkF
-#print axioms Fl4ProofsA64.P1.ep_send.blk
-#print axioms Fl4ProofsA64.P1.vspace.unmap_page_table.vs
-#print axioms Fl4ProofsA64.P1.vspace.unmap_page.vs
-#print axioms Fl4ProofsA64.P1.vspace.delete_asid.vs
-#print axioms Fl4ProofsA64.P1.vspace.delete_asid_pool.vs
-#print axioms Fl4ProofsA64.P1.notification.send_signal.ibFr
+#print axioms Fl4ProofsA64.P1.vcpu.check.entry
+#print axioms Fl4ProofsA64.P1.vcpu.check.rv
+#print axioms Fl4ProofsA64.P1.vcpu.check.vck
+#print axioms Fl4ProofsA64.P1.vcpu.complete_run.vck
+#print axioms Fl4ProofsA64.P1.vcpu.read_state_to_frame.fw
+#print axioms Fl4ProofsA64.P1.vck_fin
+#print axioms Fl4ProofsA64.P1.rv_all
+#print axioms Fl4ProofsA64.P1.syscall.finish.entry
+#print axioms Fl4ProofsA64.P1.interrupt.handle_interrupt.bxi
+#print axioms Fl4ProofsA64.P1.syscall.dispatch_syscall.bxi
+#print axioms Fl4ProofsA64.P1.EntryHyps.of
+#print axioms Fl4ProofsA64.P1.sched.activate_thread.entry
+#print axioms Fl4ProofsA64.P1.tcb.fpu_transfer.blk
 #print axioms Fl4ProofsA64.P1.sched.schedule.entry_ib
-#print axioms Fl4ProofsA64.P1.sched.schedule.kw_ib
