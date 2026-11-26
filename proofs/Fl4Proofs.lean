@@ -2370,3 +2370,12 @@ import Fl4Proofs.P2.SlFhCert
 import Fl4Proofs.P2.SlFhView
 import Fl4Proofs.P2.SlFamB
 import Fl4Proofs.P2.E2EPU16
+import Fl4Proofs.P2.E2EPAD3
+import Fl4Proofs.P3.JExtV
+import Fl4Proofs.P3.JExtVSteps
+import Fl4Proofs.P3.JExtVSteps2
+import Fl4Proofs.P3.JExtVStepsB
+import Fl4Proofs.P3.JExtVLay
+import Fl4Proofs.P3.JExtVSig
+import Fl4Proofs.P3.JExtVInit
+import Fl4Proofs.P3.JExtVFin
