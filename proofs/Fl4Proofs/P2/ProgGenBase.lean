@@ -468,6 +468,14 @@ def AR.vcpu_barrier  : SProg Unit := .arch .vcpu_barrier fun _ => .ret ()
 @[reif_nz] theorem AR.vcpu_barrier_nz  : NoZero (AR.vcpu_barrier ) := by
   intro v; trivial
 
+def AR.vcpu_release (x0 : U64) : SProg Unit := .arch (.vcpu_release x0) fun _ => .ret ()
+@[reif_simps] theorem AR.vcpu_release_eq (x0 : U64) (s : S) (a : A) :
+    interp st ar (AR.vcpu_release x0) s a = (ar.vcpu_release a x0 >>= fun a' => ok ((), s, a')) := by
+  rcases result_trichotomy (ar.vcpu_release a x0) with ⟨r, e⟩ | ⟨er, e⟩ | e <;>
+    simp [AR.vcpu_release, interp, callArch, e]
+@[reif_nz] theorem AR.vcpu_release_nz (x0 : U64) : NoZero (AR.vcpu_release x0) := by
+  intro v; trivial
+
 def AR.invalidate_ept (x0 : U64) (x1 : U64) : SProg Unit := .arch (.invalidate_ept x0 x1) fun _ => .ret ()
 @[reif_simps] theorem AR.invalidate_ept_eq (x0 : U64) (x1 : U64) (s : S) (a : A) :
     interp st ar (AR.invalidate_ept x0 x1) s a = (ar.invalidate_ept a x0 x1 >>= fun a' => ok ((), s, a')) := by
