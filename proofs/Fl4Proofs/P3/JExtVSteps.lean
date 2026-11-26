@@ -420,6 +420,133 @@ theorem DetPost.footJ {t : U64} {s s' : S} (Dp : DetPost st V X th Ub t s s') (h
     · exact Or.inl (Or.inr (Or.inr ⟨_, hb h0, e⟩))
     · exact Or.inr c
 
+set_option maxHeartbeats 8000000 in
+/-- **`vcpu.detach` keeps the extension** (module docstring): `JExtV V X th` and `RunVmB th` afterwards, `t`'s VCPU
+word 0, its old VCPU's `TCB` word 0, the writes those two words and `CW` words. -/
+theorem vcpu_detach_jv (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da : DetAt st V th Ub s)
+    (E : JExtV (L := L) V X th s) (R : RunVmB (L := L) th s) (a : A) {t : U64} (ht : th t = some .tcb) :
+    vcpu.detach st ar s a t ⦃ r => DetPost st V X th Ub t s r.1 ⦄ := by
+  have P := D.pl
+  have JWt : JW V th (tVcpuA t) := Or.inr (Or.inl ⟨t, ht, rfl⟩)
+  have aT : P1.Aligned (tVcpuA t) := P.jw _ JWt
+  unfold vcpu.detach vcpu.bound
+  step as ⟨o, ho⟩
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (P1.LawfulStore.read_spec s _) fun v ev => ?_
+  subst ho
+  have ev' : v = L.mem s (tVcpuA t) := ev
+  split
+  · rename_i hv0
+    have h0 : L.mem s (tVcpuA t) = 0#u64 := by rw [← ev']; exact hv0
+    exact (WP.spec_ok _).2 ⟨E, R, h0,
+      fun w hw (e : L.mem s (tVcpuA t) = w) => absurd (e.symm.trans h0) (E.nz w hw), P1.WritesIn.refl _ _⟩
+  rename_i hv0
+  have hvne : L.mem s (tVcpuA t) ≠ 0#u64 := by rw [← ev']; exact hv0
+  obtain ⟨hvV, hvt⟩ := (E.bnd t ht).resolve_left hvne
+  rw [← ev'] at hvV hvt
+  have JWb : JW V th (vTcbA v) := Or.inr (Or.inr ⟨v, hvV, rfl⟩)
+  have aB : P1.Aligned (vTcbA v) := P.jw _ JWb
+  have aS : P1.Aligned (svmA v) := (D.vca v hvV).2
+  have clS : ∀ b, b = svmA v → ¬ JW V th b ∧ ¬ SW th b := fun b e => D.vc v hvV b (Or.inr e)
+  refine WP.spec_bind (vcpu_stall_w hA s a v Da.ipiA_al) ?_
+  rintro ⟨s1, a1⟩ w1
+  try simp only [uncurry_apply_pair]
+  have w1' : P1.WritesIn st s s1 (· = ipiA st s) := w1
+  have cl1 : ∀ b, b = ipiA st s → ¬ JW V th b ∧ ¬ SW th b := fun b e => Da.nd b (Or.inl e)
+  have E1 := E.of_writes P w1' fun b hb => (cl1 b hb).1
+  have R1 := R.of_clean P w1' cl1
+  have kJ : ∀ b, JW V th b → L.mem s1 b = L.mem s b := fun b hb =>
+    w1'.mem_eq (P.jw b hb) fun e => (cl1 b e).1 hb
+  have Da1 : DetAt st V th Ub s1 := Da.mono (w1'.mono fun b e => Or.inr (Or.inl e))
+  refine WP.spec_bind (P1.obj.Tcb.state.spec s1 t) fun i ei => ?_
+  refine WP.spec_bind (Pₘ := fun s2 => P1.WritesIn st s1 s2 (fun b => P1.RepW t (Ub t) b ∨ b = pendA v ∨
+      b = P1.stA t ∨ b = actA st s) ∧ L.mem s2 (P1.stA t) ≠ 8#u64) ?_ ?_
+  · split
+    · have hpa : P1.Aligned (pendA (L.mem s1 (tVcpuA t))) := by
+        rw [kJ _ JWt, ← ev']; exact (D.vca v hvV).1
+      have hne : actA st s1 ≠ P1.stA t := fun e => (Da1.nd _ (Or.inr rfl)).2 ⟨t, ht, e⟩
+      refine WP.spec_mono (vcpu_report_w hA a1 (D.ta t ht) (D.ua t ht) (Da1.buf s1 (P1.WritesIn.refl _ _) t ht)
+        hpa (P.sw _ ⟨t, ht, rfl⟩) Da1.actA_al hne) fun s2 ⟨w, e⟩ => ⟨?_, by rw [e]; simp [sched.TS_RUNNING]⟩
+      rw [kJ _ JWt, ← ev', actA_of w1'] at w
+      exact w
+    · rename_i hi8
+      exact (WP.spec_ok _).2 ⟨P1.WritesIn.refl _ _, by rw [← ei]; simpa [sched.TS_RUNNING_VM] using hi8⟩
+  intro s2 ⟨w2, h82⟩
+  have cl2 : ∀ b, (P1.RepW t (Ub t) b ∨ b = pendA v ∨ b = P1.stA t ∨ b = actA st s) → ¬ JW V th b := by
+    rintro b (h | e | e | e)
+    · exact (D.rep t ht b h).1
+    · exact (D.vc v hvV b (Or.inl e)).1
+    · exact P.swjw b ⟨t, ht, e⟩
+    · exact (Da.nd b (Or.inr e)).1
+  have E2 := E1.of_writes P w2 cl2
+  have R2 : RunVmB (L := L) th s2 := R1.of_foot P w2
+    (fun t' ht' hw => by
+      rcases hw with h | e | e | e
+      · exact ((D.rep t ht _ h).2 ⟨t', ht', rfl⟩).elim
+      · exact ((D.vc v hvV _ (Or.inl e)).2 ⟨t', ht', rfl⟩).elim
+      · exact Or.inl (by rw [stA_inj e]; exact h82)
+      · exact ((Da.nd _ (Or.inr e)).2 ⟨t', ht', rfl⟩).elim)
+    (fun t' ht' hw => by
+      have J' : JW V th (tVcpuA t') := Or.inr (Or.inl ⟨t', ht', rfl⟩)
+      rcases hw with h | e | e | e
+      · exact ((D.rep t ht _ h).1 J').elim
+      · exact ((D.vc v hvV _ (Or.inl e)).1 J').elim
+      · exact (P.swjw _ ⟨t, ht, e⟩ J').elim
+      · exact ((Da.nd _ (Or.inr e)).1 J').elim)
+  have k2 : ∀ b, JW V th b → L.mem s2 b = L.mem s1 b := fun b hb =>
+    w2.mem_eq (P.jw b hb) fun h => cl2 b h hb
+  have htv2 : L.mem s2 (tVcpuA t) = v := by rw [k2 _ JWt, kJ _ JWt]; exact ev'.symm
+  have hvt2 : L.mem s2 (vTcbA v) = t := by rw [k2 _ JWb, kJ _ JWb]; exact hvt
+  simp only [vcpu.set, lift, bind_ok]
+  refine WP.spec_bind (P1.LawfulStore.write_spec s2 _ _) fun s3 e3 => ?_
+  subst e3
+  step as ⟨o2, ho2⟩
+  subst ho2
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (P1.LawfulStore.write_spec _ _ _) fun s4 e4 => ?_
+  subst e4
+  refine WP.spec_bind (P1.LawfulStore.write_spec _ _ _) fun s5 e5 => ?_
+  subst e5
+  refine (WP.spec_ok _).2 ?_
+  show DetPost st V X th Ub t s (L.wr (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64) (svmA v) 0#u64)
+  have w34 : P1.WritesIn st s2 (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64)
+      (fun b => b = vTcbA v ∨ b = tVcpuA t) := (P1.writesIn_wr aB).trans (P1.writesIn_wr aT)
+  have m4T : L.mem (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64) (tVcpuA t) = 0#u64 := by
+    rw [L.mem_wr _ _ _ _ aT aT, if_pos rfl]
+  have m4B : L.mem (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64) (vTcbA v) = 0#u64 := by
+    rw [L.mem_wr _ _ _ _ aT aB, if_neg (P.vb t ht v hvV), L.mem_wr _ _ _ _ aB aB, if_pos rfl]
+  have E4 := E2.unbind_w P ht hvV htv2 hvt2 w34 m4T m4B
+  have w5 : P1.WritesIn st (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64)
+      (L.wr (L.wr (L.wr s2 (vTcbA v) 0#u64) (tVcpuA t) 0#u64) (svmA v) 0#u64) (· = svmA v) :=
+    P1.writesIn_wr aS
+  refine ⟨E4.of_writes P w5 fun b e => (clS b e).1, ?_, ?_, ?_, ?_⟩
+  · refine R2.of_foot P (w34.trans w5) (fun t' ht' hw => ?_) (fun t' ht' hw => ?_)
+    · have S' : SW th (P1.stA t') := ⟨t', ht', rfl⟩
+      rcases hw with (e | e) | e
+      · exact (P.swjw _ S' (Or.inr (Or.inr ⟨v, hvV, e⟩))).elim
+      · exact (P.swjw _ S' (Or.inr (Or.inl ⟨t, ht, e⟩))).elim
+      · exact ((clS _ e).2 S').elim
+    · rcases hw with (e | e) | e
+      · exact (P.vb t' ht' v hvV e).elim
+      · exact Or.inl (by rw [tVcpuA_inj e]; exact h82)
+      · exact ((clS _ e).1 (Or.inr (Or.inl ⟨t', ht', rfl⟩))).elim
+  · rw [w5.mem_eq aT fun e => (clS _ e).1 JWt]; exact m4T
+  · intro w hw e
+    have ew : w = v := e.symm.trans ev'.symm
+    subst ew
+    rw [w5.mem_eq aB fun e => (clS _ e).1 JWb]; exact m4B
+  · refine (((w1'.trans w2).trans w34).trans w5).mono fun b h => ?_
+    unfold CW
+    rcases h with ((e | (h | e | e | e)) | (e | e)) | e
+    · exact Or.inr (Or.inl e)
+    · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl h⟩)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨v, hvV, Or.inl e⟩)))
+    · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inr e⟩)))
+    · exact Or.inr (Or.inr (Or.inl e))
+    · exact Or.inl ⟨hvne, Or.inr (by rw [← ev']; exact e)⟩
+    · exact Or.inl ⟨hvne, Or.inl e⟩
+    · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨v, hvV, Or.inr e⟩)))
+
 end
 
 end
