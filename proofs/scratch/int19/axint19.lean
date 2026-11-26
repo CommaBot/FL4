@@ -3052,6 +3052,22 @@ open Fl4Proofs.P2.E2EP
 #print axioms Fl4Proofs.P2.PathObl.SlJAtZ.slSu
 end
 
+-- from scratch/jsweep8_ax.lean
+section
+open Fl4Proofs.P2.E2EP
+#print axioms Fl4Proofs.P2.E2EP.and_not1_even
+#print axioms Fl4Proofs.P2.E2EP.callRel_nb_of_masked
+#print axioms Fl4Proofs.P2.E2EP.SlNbC.mem
+#print axioms Fl4Proofs.P2.E2EP.vmNb_of
+#print axioms Fl4Proofs.P2.E2EP.slHrz_of
+#print axioms Fl4Proofs.P2.E2EP.SlEntJ12.toJ11
+#print axioms Fl4Proofs.P2.E2EP.VmREntJ12.toJ11
+#print axioms Fl4Proofs.P2.E2EP.startC_of_D
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ12
+#print axioms Fl4Proofs.P2.E2EP.startD_sl_sat
+#print axioms Fl4Proofs.P2.E2EP.startD_vmR_sat
+end
+
 -- from scratch/lay_ax.lean
 section
 end
