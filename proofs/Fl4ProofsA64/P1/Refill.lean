@@ -74,10 +74,10 @@ def LawfulStore.refill (s : S) (sc : obj.Sc) (i : U64) : sporadic.Refill :=
 def LawfulStore.putS (s : S) (sc : obj.Sc) (i : U64) (r : sporadic.Refill) : S :=
   L.wr (L.wr s (rtA sc i) r.time) (raA sc i) r.amount
 /-- The address of word `off` of core `cpu`'s node (`node_base`: the
-nodes start at `ks::NODES` = 13568 and are `node::SIZE` = 4288 bytes). -/
+nodes start at `ks::NODES` = 223488 on AArch64 (13568 on x86_64) and are `node::SIZE` = 4288 bytes). -/
 def LawfulStore.nodeAt (s : S) (cpu off : U64) : U64 :=
   core.num.U64.wrapping_add
-    (core.num.U64.wrapping_add (core.num.U64.wrapping_add (L.ksb s) 13568#u64)
+    (core.num.U64.wrapping_add (core.num.U64.wrapping_add (L.ksb s) 223488#u64) -- a64: ks::NODES (x86_64: 13568)
       (core.num.U64.wrapping_mul cpu 4288#u64)) off
 /-- The address of word `off` of the current core's node. -/
 def LawfulStore.nodeA (s : S) (off : U64) : U64 := L.nodeAt s (L.cpu s) off
