@@ -16,6 +16,10 @@ module holds what both need.
   (`PtW L1 e`, `lookup_pt_slot_rel`'s landing clause), also at a state agreeing with `s` on the upper levels;
 * **`ptw_up_ne`**: a leaf entry is no upper-level entry (4 KiB-aligned tables; a table is of one kind).
 
+**0. The plan builder** (namespace `PathObl`; the one copy for both lines, statements and proofs as invj's
+`InvDelPte` f4dbf5ac3): `plan_add_at` (one `Plan.add`: a zero address keeps the plan; otherwise the address is
+`locks[n]` and `n` grows, from below `MAX_LOCKS`), `plan_add_n4` (`n ≤ 4` is kept).
+
 **2. Ownership under `ownP` with a leaf PTE set** (namespace `E2EP`; the ptesE convention, nscope `E2EPJEp2`, with
 the leaf choice of `pteConv_of`: `K.ptes ⊆ {b | PtW Zx.L1 b}`), at a bundle state of `K.toKLayout` with ghost `Zx`:
 * **`gateW_up`**: every upper-level entry is `GateW` (region `.none` by `region_none_ptw`, off `K.ptes` by
@@ -28,8 +32,66 @@ the leaf choice of `pteConv_of`: `K.ptes ⊆ {b | PtW Zx.L1 b}`), at a bundle st
 No named premise. New module; no existing statement changes; no `kernel_entry_reach*` touched.
 -/
 import Fl4Proofs.P2.E2EPJEp2
+import Fl4Proofs.P2.InvSeen
 import Fl4Proofs.P3.VsUserApart
 open Aeneas Aeneas.Std Result
+
+
+/-! ## 0. The plan builder -/
+
+namespace Fl4Proofs.P2.PathObl
+open fl4_core Fl4Proofs.P1
+
+section plan
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+/-- **One `Plan.add`**, exactly: a zero address keeps the plan; otherwise the address is `locks[n]` and `n` grows. -/
+theorem plan_add_at {q : localinv.Plan} {a : U64} {x : Bool × localinv.Plan}
+    (h : localinv.Plan.add q a = ok x) (ht : x.1 = true) :
+    (a = 0#u64 → x.2 = q) ∧
+      (a ≠ 0#u64 → x.2.locks.val[q.n.val]? = some a ∧ x.2.n.val = q.n.val + 1 ∧ q.n.val < 4) := by
+  unfold localinv.Plan.add at h
+  by_cases h0 : a = 0#u64
+  · rw [if_pos h0] at h
+    cases ok_inj_ff h
+    exact ⟨fun _ => rfl, fun hn => absurd h0 hn⟩
+  rw [if_neg h0] at h
+  by_cases h1 : q.n >= localinv.MAX_LOCKS
+  · rw [if_pos h1] at h
+    cases ok_inj_ff h
+    simp at ht
+  rw [if_neg h1] at h
+  have hn : q.n.val < 4 := by
+    have h2 : ¬ localinv.MAX_LOCKS.val ≤ q.n.val := fun hc => h1 hc
+    rw [maxLocks_val] at h2; omega
+  have hlen : q.locks.val.length = 4 := by have hp := q.locks.property; simpa using hp
+  have hl : q.n.val < q.locks.length := by
+    simp only [Aeneas.Std.Array.length]; omega
+  obtain ⟨a1, ea1, h⟩ := bind_eq_ok h
+  obtain ⟨n1, en1, h⟩ := bind_eq_ok h
+  rw [eq_of_spec_fd (Aeneas.Std.Array.update_spec q.locks q.n a hl)] at ea1
+  have ha1 : q.locks.set q.n a = a1 := ok_inj_ff ea1
+  obtain ⟨z, ze, zv⟩ := spec_ex_fd (Usize.add_spec (x := q.n) (y := 1#usize) (by scalar_tac))
+  rw [ze] at en1
+  have hz : z = n1 := ok_inj_ff en1
+  subst hz ha1
+  cases ok_inj_ff h
+  have hzv : z.val = q.n.val + 1 := by simpa using zv
+  refine ⟨fun e => absurd e h0, fun _ => ⟨?_, hzv, hn⟩⟩
+  simp only [Aeneas.Std.Array.set_val_eq]
+  rw [List.getElem?_set_self (by omega)]
+
+theorem plan_add_n4 {q : localinv.Plan} {a : U64} {x : Bool × localinv.Plan}
+    (h : localinv.Plan.add q a = ok x) (ht : x.1 = true) (hq : q.n.val ≤ 4) : x.2.n.val ≤ 4 := by
+  obtain ⟨h0, h1⟩ := plan_add_at h ht
+  by_cases ha : a = 0#u64
+  · rw [h0 ha]; exact hq
+  · obtain ⟨-, hn, hl⟩ := h1 ha
+    omega
+
+end plan
+
+end Fl4Proofs.P2.PathObl
 
 namespace Fl4Proofs.P2.PathObl
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Vs
