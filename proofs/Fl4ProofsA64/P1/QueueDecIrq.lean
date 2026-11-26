@@ -16,7 +16,7 @@ The IRQ handler family runs over the `rv`-free deletion forms (`W7.R.Cur0R`, `W7
 The I/O-port families (`ioport.decode_control`, `ioport.decode`) are the shared fl4-core code: x86_64 text.
 
 Named premises:
-* **[J] `MaxSpi`** (new, `decGap_irqControl`): the arch's `max_spi` is at most 1019. Source:
+* **[P] `MaxSpi`** (new, `decGap_irqControl`): the arch's `max_spi` is at most 1019. Source:
   crates/fl4-arch-aarch64/src/gic.rs:115–117 `max_spi() = (lines() - 1).min(1019)` (arch.rs:180 `fn max_spi`);
   1019 is the GIC architecture's last SPI ID. A fact about the trusted `Arch` implementation (P0's
   `ArchTotal.max_spi` only says it returns).
@@ -143,7 +143,7 @@ local macro "irqtail" : tactic => `(tactic| (
 
 /-! ## The IRQ control family (AArch64 GIC) -/
 
-/-- **[J] (a64) `MaxSpi`**: the interrupt controller's largest SPI ID is at most 1019 (the GIC architecture's
+/-- **[P] (a64) `MaxSpi`**: the interrupt controller's largest SPI ID is at most 1019 (the GIC architecture's
 last SPI). crates/fl4-arch-aarch64/src/gic.rs:115–117: `max_spi() = (lines() - 1).min(1019)`. -/
 def MaxSpi {A : Type _} (ar : machine.Arch A) : Prop := ∀ a, ar.max_spi a ⦃ m => m.val ≤ 1019 ⦄
 
@@ -280,7 +280,7 @@ theorem interrupt.decode_irq_control_msi.dec {A : Type _} {ar : machine.Arch A} 
   all_goals errI
 
 set_option maxHeartbeats 16000000 in
-/-- **`decode_irq_control`** (AArch64) keeps the invariants, from [J] `MaxSpi`. -/
+/-- **`decode_irq_control`** (AArch64) keeps the invariants, from [P] `MaxSpi`. -/
 theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (hM : MaxSpi ar) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) {s : S} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} (a : A) (lbl len slot buf : U64)
@@ -297,7 +297,7 @@ theorem interrupt.decode_irq_control.dec {A : Type _} {ar : machine.Arch A} (hA 
   subst e
   gicR
 
-/-- **InvGaps' `irqControl`, discharged** (AArch64) from the CSpace placement facts and [J] `MaxSpi`. -/
+/-- **InvGaps' `irqControl`, discharged** (AArch64) from the CSpace placement facts and [P] `MaxSpi`. -/
 theorem decGap_irqControl {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (hM : MaxSpi ar)
     (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .irqControl := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
