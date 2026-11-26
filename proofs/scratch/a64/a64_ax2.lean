@@ -120,6 +120,7 @@ import Fl4ProofsA64.P1.QueueSlots7
 import Fl4ProofsA64.P1.QueueFinThr7
 import Fl4ProofsA64.P1.QueueDecTcb
 import Fl4ProofsA64.P1.QueueDecTcbRR
+import Fl4ProofsA64.P1.QueueDecTcb2
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -163,3 +164,10 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.tcb.decode_write_registers.dec
 #print axioms Fl4ProofsA64.P1.tcb.decode_get_breakpoint.dec
 #print axioms Fl4ProofsA64.P1.tcb.decode_read_registers.dec
+#print axioms Fl4ProofsA64.P1.decGap_thread
+#print axioms Fl4ProofsA64.P1.tcb.decode.dec
+#print axioms Fl4ProofsA64.P1.tcb.decode_set_high_vspace.dec
+#print axioms Fl4ProofsA64.P1.tcb.decode_set_pac_keys.dec
+#print axioms Fl4ProofsA64.P1.tcb.install_tcb_cap.cur0
+#print axioms Fl4ProofsA64.P1.sched.suspend.blk7
+#print axioms Fl4ProofsA64.P1.tcb.decode_read_registers.dec7
