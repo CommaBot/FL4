@@ -2242,6 +2242,8 @@ import Fl4Proofs.P3.SpecInvIox
 import Fl4Proofs.P3.XTopJointKEntryU38
 import Fl4Proofs.P3.XTopJointKEntryU39
 import Fl4Proofs.P3.JBootIoa
+import Fl4Proofs.P3.XTopJointKEntryU40
+import Fl4Proofs.P3.JBootU40
 import Fl4Proofs.P2.ViewSafeGen
 import Fl4Proofs.P2.ViewSafeOwn
 import Fl4Proofs.P2.ViewSafeIoAcc
