@@ -2340,3 +2340,6 @@ import Fl4Proofs.P3.JAtZV3VRead
 import Fl4Proofs.P3.JAtZV3RepLoop
 import Fl4Proofs.P3.JAtZV3RepFoot
 import Fl4Proofs.P3.JAtZV3RepFin
+import Fl4Proofs.P3.JAtZV3RepVal
+import Fl4Proofs.P3.JAtZV3RepTail
+import Fl4Proofs.P3.JAtZV3RepMrs
