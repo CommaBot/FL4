@@ -2343,3 +2343,8 @@ import Fl4Proofs.P3.JAtZV3RepFin
 import Fl4Proofs.P3.JAtZV3RepVal
 import Fl4Proofs.P3.JAtZV3RepTail
 import Fl4Proofs.P3.JAtZV3RepMrs
+import Fl4Proofs.P3.JAtZV3RepBr0
+import Fl4Proofs.P3.JAtZV3RepBrB
+import Fl4Proofs.P3.JAtZV3RepBrC
+import Fl4Proofs.P3.JAtZV3RepBrA
+import Fl4Proofs.P3.JAtZV3ReportJ3
