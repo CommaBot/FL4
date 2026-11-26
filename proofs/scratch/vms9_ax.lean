@@ -1,4 +1,4 @@
-import Fl4Proofs.P2.E2EPVX9
+import Fl4Proofs.P2.E2EPVX9D
 #print axioms Fl4Proofs.P2.PathObl.planDel_userWrX
 #print axioms Fl4Proofs.P2.PathObl.planCM_userWrX
 #print axioms Fl4Proofs.P2.PathObl.invLXS_wrX
@@ -13,3 +13,6 @@ import Fl4Proofs.P2.E2EPVX9
 #print axioms Fl4Proofs.P2.E2EP.cmStartX_of9
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX9G
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX9
+#print axioms Fl4Proofs.P2.PathObl.invPlanD_wrPX
+#print axioms Fl4Proofs.P2.PathObl.invQFP_wrX
+#print axioms Fl4Proofs.P2.PathObl.invEntP_cl
