@@ -33072,24 +33072,22 @@ def localinv.plan_with
               | capability.Cap.TdxControl => ok (p3, false)
             if b2
             then
-              let c1 ← capability.Cap.decode dest_w0 0#u64
-              let b3 ← capability.Cap.is_null c1
-              if b3
-              then
-                let (b4, p5) ← localinv.Plan.add p4 val
+              if dest_w0 != 0#u64
+              then ok none
+              else
+                let (b3, p5) ← localinv.Plan.add p4 val
                 let (p6, ok1) ←
-                  if b4
+                  if b3
                   then
                     do
-                    let (b5, p7) ← localinv.Plan.add p5 val1
-                    if b5
+                    let (b4, p7) ← localinv.Plan.add p5 val1
+                    if b4
                     then
                       let (ok2, p8) ← localinv.Plan.add p7 next
                       ok (p8, ok2)
                     else ok (p7, false)
                   else ok (p5, false)
                 localinv.some_if ok1 p6
-              else ok none
             else ok none
           | core.ops.control_flow.ControlFlow.Break residual =>
             core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
@@ -33191,24 +33189,22 @@ def localinv.plan_with
                 | capability.Cap.TdxControl => ok (p3, false)
               if b2
               then
-                let c1 ← capability.Cap.decode dest_w0 0#u64
-                let b3 ← capability.Cap.is_null c1
-                if b3
-                then
-                  let (b4, p5) ← localinv.Plan.add p4 val
+                if dest_w0 != 0#u64
+                then ok none
+                else
+                  let (b3, p5) ← localinv.Plan.add p4 val
                   let (p6, ok1) ←
-                    if b4
+                    if b3
                     then
                       do
-                      let (b5, p7) ← localinv.Plan.add p5 val1
-                      if b5
+                      let (b4, p7) ← localinv.Plan.add p5 val1
+                      if b4
                       then
                         let (ok2, p8) ← localinv.Plan.add p7 next
                         ok (p8, ok2)
                       else ok (p7, false)
                     else ok (p5, false)
                   localinv.some_if ok1 p6
-                else ok none
               else ok none
             | core.ops.control_flow.ControlFlow.Break residual =>
               core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
