@@ -1,0 +1,26 @@
+import Fl4Proofs.P2.E2EVFl4WIC
+open Fl4Proofs.P2.PathObl Fl4Proofs.P2.E2EV
+#print axioms invBufSJ8_of
+#print axioms invExW_of_ex
+#print axioms invQCMW_of_F
+#print axioms invQCMW_of_plan
+#print axioms cm_coreW
+#print axioms cmEnt_ofW
+#print axioms cmSeen_ofW
+#print axioms lookupSlot_userWr
+#print axioms planCM_userWr
+#print axioms invExW_wr
+#print axioms hufQCMW_of
+#print axioms cmAcc8
+#print axioms cmAccG8
+#print axioms cmAccGd8
+#print axioms cmFin8
+#print axioms invCMTailW_of8
+#print axioms invCMBlkUW3_of8
+#print axioms invCMBlkGdUW3_of8
+#print axioms cmSC_ofW
+#print axioms inv_pathsKCM4
+#print axioms inv_pathsKCM5
+#print axioms startAt_P3WIC
+#print axioms serializable_fl4_localWIC
+#print axioms cmStartW_sat
