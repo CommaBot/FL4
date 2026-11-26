@@ -2132,3 +2132,4 @@ import Fl4Proofs.P2.NarrowTr
 import Fl4Proofs.P2.ViewSafeReal
 import Fl4Proofs.P2.VmFh
 import Fl4Proofs.P2.VmFhOnce
+import Fl4Proofs.P2.VmFhSafe
