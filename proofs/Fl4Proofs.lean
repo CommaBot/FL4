@@ -2371,3 +2371,5 @@ import Fl4Proofs.P3.P3JFltX
 import Fl4Proofs.P3.P3JMcFlt
 import Fl4Proofs.P3.P3JMcFltS
 import Fl4Proofs.P3.P3JMcFltQ
+import Fl4Proofs.P3.P3JSysYield
+import Fl4Proofs.P3.P3JRecvN
