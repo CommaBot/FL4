@@ -2194,3 +2194,5 @@ import Fl4Proofs.P2.IrqHnG
 import Fl4Proofs.P2.IrqHnAnn
 import Fl4Proofs.P2.E2EPU22
 import Fl4Proofs.P2.IrqWfG
+import Fl4Proofs.P2.IrqWfAnn
+import Fl4Proofs.P2.E2EPU23
