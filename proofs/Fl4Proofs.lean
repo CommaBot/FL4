@@ -1873,6 +1873,10 @@ import Fl4Proofs.P2.SlJStLocStart
 import Fl4Proofs.P2.InvLP
 import Fl4Proofs.P2.InvDec
 import Fl4Proofs.P2.InvAcc
+import Fl4Proofs.P2.InvDelEnt
+import Fl4Proofs.P2.InvSeen
+import Fl4Proofs.P2.InvBlkFin
+import Fl4Proofs.P2.InvBlk
 import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.E2EVHeap
 import Fl4Proofs.P2.E2EVAll
