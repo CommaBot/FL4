@@ -87,6 +87,7 @@ def gd (st : machine.Store S) (R : U64 → Prop) (P : S → U64 → U64 → Prop
   clear_free _ _ _ := fail .panic
   ks_base := st.ks_base
   cur_cpu := st.cur_cpu
+  fetch_and _ _ _ := fail .panic
 
 /-- `gd` narrows `st` (`PathBridge.Narrow`). -/
 theorem Narrow.gd (st : machine.Store S) (R : U64 → Prop) (P : S → U64 → U64 → Prop) :

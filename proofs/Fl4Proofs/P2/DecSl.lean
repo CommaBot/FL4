@@ -40,6 +40,7 @@ def slCst (rd : U64 → Result U64) (rp : U64 → Result (U64 × U64)) (ks cp : 
   clear_free := fun _ _ _ => fail .panic
   ks_base := fun _ => ks
   cur_cpu := fun _ => cp
+  fetch_and := fun _ _ _ => fail .panic
 
 /-- `m` reads as `st`. -/
 structure SlRdEq (st m : machine.Store S) : Prop where

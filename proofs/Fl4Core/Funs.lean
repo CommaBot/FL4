@@ -18455,7 +18455,7 @@ def ept.map_frame
           ok (r, s, a)
 
 /-- [fl4_core::vspace::insert_subframes]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 993:4-1005:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 994:4-1006:5 -/
 @[rust_loop_body]
 def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
@@ -18477,7 +18477,7 @@ def vspace.insert_subframes_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::insert_subframes]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 993:4-1005:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 994:4-1006:5 -/
 @[rust_loop]
 def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -18491,7 +18491,7 @@ def vspace.insert_subframes_loop
     (s, i)
 
 /-- [fl4_core::vspace::insert_subframes]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 991:0-1006:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 992:0-1007:1 -/
 @[reducible]
 def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -18503,7 +18503,7 @@ def vspace.insert_subframes
     0#u64
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 984:4-989:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 985:4-990:1 -/
 @[rust_loop_body]
 def vspace.ensure_empty_run_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -18528,7 +18528,7 @@ def vspace.ensure_empty_run_loop.body
   else ok (done (core.result.Result.Ok ()))
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 984:4-989:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 985:4-990:1 -/
 @[rust_loop]
 def vspace.ensure_empty_run_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -18541,7 +18541,7 @@ def vspace.ensure_empty_run_loop
     i
 
 /-- [fl4_core::vspace::ensure_empty_run]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 982:0-989:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 983:0-990:1 -/
 @[reducible]
 def vspace.ensure_empty_run
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -18551,7 +18551,7 @@ def vspace.ensure_empty_run
   vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
 /-- [fl4_core::vspace::cnode_of]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 921:0-926:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 922:0-927:1 -/
 def vspace.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -18582,7 +18582,7 @@ def vspace.cnode_of
   | capability.Cap.TdxControl => ok none
 
 /-- [fl4_core::vspace::subframe_dest]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 963:0-980:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 964:0-981:1 -/
 def vspace.subframe_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -18647,7 +18647,7 @@ def vspace.subframe_dest
         else ok (core.result.Result.Ok dest)
 
 /-- [fl4_core::vspace::large_ram_frame]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 913:0-918:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 914:0-919:1 -/
 def vspace.large_ram_frame
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -18685,7 +18685,7 @@ def vspace.large_ram_frame
   | capability.Cap.TdxControl => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 929:0-959:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 930:0-960:1 -/
 def vspace.derive_subframe
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -18817,7 +18817,7 @@ def vspace.mapped_entry
   | core.result.Result.Err _ => ok none
 
 /-- [fl4_core::vspace::decode_test_and_clear_accessed]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 893:0-910:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 893:0-911:1 -/
 def vspace.decode_test_and_clear_accessed
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (call : Bool) :
@@ -18848,13 +18848,11 @@ def vspace.decode_test_and_clear_accessed
                     ok (r2, s)
           | some x =>
             let ct ← sched.cur_thread machineStoreInst s
-            let old ← machineStoreInst.read s x
             let i ← vspace.P_ACCESSED
             let i1 ← lift (~~~ i)
-            let i2 ← lift (old &&& i1)
-            let s1 ← machineStoreInst.write s x i2
-            let i3 ← lift (old &&& i)
-            if i3 != 0#u64
+            let (old, s1) ← machineStoreInst.fetch_and s x i1
+            let i2 ← lift (old &&& i)
+            if i2 != 0#u64
             then
               let s2 ← vspace.reply1 machineStoreInst s1 ct call 1#u64
               ok (core.result.Result.Ok (), s2)
@@ -19970,7 +19968,7 @@ def sched.suspend
   ok (s7, a2)
 
 /-- [fl4_core::machine::sharing_enabled]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 36:0-39:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 41:0-44:1
     Visibility: public -/
 def machine.sharing_enabled
   {S : Type _} (StoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -22842,14 +22840,14 @@ def vspace.decode_frame_batch
        ok (r, s, a)
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}::clone]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1010:9-1010:14
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1011:9-1011:14
     Visibility: public -/
 def vspace.TableCap.Insts.CoreCloneClone.clone
   (self : vspace.TableCap) : Result vspace.TableCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1010:9-1010:14 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1011:9-1011:14 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
   := {
@@ -22857,7 +22855,7 @@ def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1010:16-1010:20 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1011:16-1011:20 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.TableCap
   := {
@@ -22865,7 +22863,7 @@ def vspace.TableCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.TableCap
 }
 
 /-- [fl4_core::vspace::as_table]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1021:0-1032:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1022:0-1033:1 -/
 def vspace.as_table
   (c : capability.Cap) : Result (Option vspace.TableCap) := do
   match c with
@@ -22926,7 +22924,7 @@ def vspace.as_table
   | capability.Cap.TdxControl => ok none
 
 /-- [fl4_core::vspace::with_mapping]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1129:0-1137:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1130:0-1138:1 -/
 def vspace.with_mapping
   (c : capability.Cap) (mapped : Bool) (asid : Std.U64) (vaddr : Std.U64) :
   Result capability.Cap
@@ -22966,7 +22964,7 @@ def vspace.with_mapping
   | capability.Cap.TdxControl => ok capability.Cap.TdxControl
 
 /-- [fl4_core::vspace::table_entry_slot]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1086:0-1098:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1087:0-1099:1 -/
 def vspace.table_entry_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) (level : Std.U64) :
@@ -22988,7 +22986,7 @@ def vspace.table_entry_slot
   | core.result.Result.Err lf => vspace.failed_lookup Std.U64 lf
 
 /-- [fl4_core::vspace::decode_table_map]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1101:0-1127:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1102:0-1128:1 -/
 def vspace.decode_table_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -23072,7 +23070,7 @@ def cdt.is_final_capability
   cdt.is_final_capability_with_cap machineStoreInst s slot cap
 
 /-- [fl4_core::vspace::decode_table_unmap]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1065:0-1083:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1066:0-1084:1 -/
 def vspace.decode_table_unmap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
@@ -23113,7 +23111,7 @@ def vspace.decode_table_unmap
       a)
 
 /-- [fl4_core::vspace::decode_table]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1035:0-1062:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1036:0-1063:1 -/
 def vspace.decode_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -23152,7 +23150,7 @@ def vspace.decode_table
            ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1193:12-1195:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1194:12-1196:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -23169,7 +23167,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1193:12-1195:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1194:12-1196:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -23181,7 +23179,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1237:12-1239:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1238:12-1240:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -23206,7 +23204,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1237:12-1239:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1238:12-1240:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -23219,7 +23217,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1237:12-1239:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1238:12-1240:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -23244,7 +23242,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1237:12-1239:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1238:12-1240:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -23257,7 +23255,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1141:0-1252:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1142:0-1253:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40345,7 +40343,7 @@ def machine.Store.read_pair.default
   ok (i, i2)
 
 /-- [fl4_core::machine::Arch::private_device_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 46:4-46:65
+    Source: 'crates/fl4-core/src/machine.rs', lines 51:4-51:65
     Visibility: public -/
 @[trait_default]
 def machine.Arch.private_device_frame.default
@@ -40353,7 +40351,7 @@ def machine.Arch.private_device_frame.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_ram]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 48:4-48:63
+    Source: 'crates/fl4-core/src/machine.rs', lines 53:4-53:63
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_ram.default
@@ -40363,7 +40361,7 @@ def machine.Arch.dma_ram.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 50:4-50:69
+    Source: 'crates/fl4-core/src/machine.rs', lines 55:4-55:69
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_frame.default
@@ -40374,7 +40372,7 @@ def machine.Arch.dma_frame.default
   ok self
 
 /-- [fl4_core::machine::Arch::virtualization]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 52:4-52:41
+    Source: 'crates/fl4-core/src/machine.rs', lines 57:4-57:41
     Visibility: public -/
 @[trait_default]
 def machine.Arch.virtualization.default
@@ -40382,7 +40380,7 @@ def machine.Arch.virtualization.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_capability]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 54:4-54:55
+    Source: 'crates/fl4-core/src/machine.rs', lines 59:4-59:55
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_capability.default
@@ -40390,7 +40388,7 @@ def machine.Arch.vcpu_capability.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_barrier]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 56:4-56:33
+    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:33
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_barrier.default
@@ -40398,7 +40396,7 @@ def machine.Arch.vcpu_barrier.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_sync]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:52
+    Source: 'crates/fl4-core/src/machine.rs', lines 66:4-66:52
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_sync.default
@@ -40408,7 +40406,7 @@ def machine.Arch.vcpu_sync.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_release]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 64:4-64:42
+    Source: 'crates/fl4-core/src/machine.rs', lines 69:4-69:42
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_release.default
@@ -40416,7 +40414,7 @@ def machine.Arch.vcpu_release.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_ept]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 66:4-66:59
+    Source: 'crates/fl4-core/src/machine.rs', lines 71:4-71:59
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_ept.default
@@ -40426,7 +40424,7 @@ def machine.Arch.invalidate_ept.default
   ok self
 
 /-- [fl4_core::machine::Arch::tdx_active]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 69:4-69:42
+    Source: 'crates/fl4-core/src/machine.rs', lines 74:4-74:42
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_active.default
@@ -40434,7 +40432,7 @@ def machine.Arch.tdx_active.default
   ok false
 
 /-- [fl4_core::machine::Arch::tdx_report]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 73:4-73:145
+    Source: 'crates/fl4-core/src/machine.rs', lines 78:4-78:145
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_report.default
@@ -40446,7 +40444,7 @@ def machine.Arch.tdx_report.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_extend_rtmr]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 76:4-76:126
+    Source: 'crates/fl4-core/src/machine.rs', lines 81:4-81:126
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_extend_rtmr.default
@@ -40458,7 +40456,7 @@ def machine.Arch.tdx_extend_rtmr.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_get_quote]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 79:4-79:83
+    Source: 'crates/fl4-core/src/machine.rs', lines 84:4-84:83
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_get_quote.default
@@ -40468,7 +40466,7 @@ def machine.Arch.tdx_get_quote.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::irq_free]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 100:4-100:40
+    Source: 'crates/fl4-core/src/machine.rs', lines 105:4-105:40
     Visibility: public -/
 @[trait_default]
 def machine.Arch.irq_free.default

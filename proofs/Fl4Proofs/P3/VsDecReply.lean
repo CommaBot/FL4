@@ -166,15 +166,14 @@ theorem tac_gen [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 : Set U64} (s : S) (
       dsimp only
       rw [hct]
       apply Endp.ok_bind_spec
-      rw [L.read_eq]
-      apply Endp.ok_bind_spec
       rw [P_ACCESSED_eq]
       apply Endp.ok_bind_spec
       unfold lift
       apply Endp.ok_bind_spec
+      rw [L.fetch_and_eq]
       apply Endp.ok_bind_spec
-      rw [L.write_eq]
-      apply Endp.ok_bind_spec
+      try simp only [uncurry_apply_pair]
+      try dsimp only
       apply Endp.ok_bind_spec
       have hqa := hPP q (Or.inr (Or.inr (Or.inr hq)))
       have hj := vIdx_lt fv 12
@@ -227,15 +226,14 @@ theorem tac_gen [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 : Set U64} (s : S) (
       dsimp only
       rw [hct]
       apply Endp.ok_bind_spec
-      rw [L.read_eq]
-      apply Endp.ok_bind_spec
       rw [P_ACCESSED_eq]
       apply Endp.ok_bind_spec
       unfold lift
       apply Endp.ok_bind_spec
+      rw [L.fetch_and_eq]
       apply Endp.ok_bind_spec
-      rw [L.write_eq]
-      apply Endp.ok_bind_spec
+      try simp only [uncurry_apply_pair]
+      try dsimp only
       apply Endp.ok_bind_spec
       have hqa := hPP q (Or.inr (Or.inr (Or.inl hq)))
       have hj := vIdx_lt fv 21
