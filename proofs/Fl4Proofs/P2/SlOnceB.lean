@@ -33,8 +33,7 @@ theorem wadd_ne {u c1 c2 : U64} (h : c1.val ≠ c2.val) (h1 : c1.val < 4096) (h2
   intro e
   have e' := congrArg UScalar.val e
   have hb := u.hBounds
-  simp only [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] at e'
-  simp only [U64.size_def, U64.numBits, UScalarTy.numBits] at hb
+  simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] at e' hb
   omega
 
 section
