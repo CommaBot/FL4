@@ -1,7 +1,7 @@
 /-
 # P2 (line slhuf, gen 8): `Once` of an accepted ReplyRecv run at its entry state
 
-Discharges `SlRROnce` (P2/SlOnce.lean). The accepted run of `R.fastpath.reply_recv_found` is walked on
+Discharges `SlRROnce` (P2/SlOnce.lean). The accepted run of `PathObl.R.fastpath.reply_recv_found` is walked on
 `guard st R W` (`R`, `W` without user words; at the syscall entry `SlRS s ∧ NU K` / `SlWS s ∧ NU K`, from
 `RrAccNB`, P2/SlOnceR1.lean), except the fault reply's buffer loop (`hfr_once`, P2/SlOnceL.lean):
 
@@ -25,38 +25,38 @@ open Fl4Proofs.P2.E2E (Once)
 
 /-- The end of an accepted ReplyRecv fast path as a tree (`rrEnd`'s writes and the switch). -/
 noncomputable def endT (t : obj.Tcb) (rptr ep_ptr : Std.U64) (i1 : obj.Tcb) (v : Std.U64) : SProg Bool := do
-  let _ ← R.obj.Tcb.set_state i1 v
-  let _ ← R.sched.set_action i1
-  let _ ← R.obj.Tcb.set_state t sched.TS_RUNNING
-  let _ ← R.obj.Tcb.set_block_obj t ep_ptr
-  let _ ← R.obj.Tcb.set_state t sched.TS_BLOCKED_ON_RECV
-  let _ ← R.obj.Tcb.set_reply_obj t rptr
-  let _ ← R.obj.Reply.set_tcb rptr t
-  let _ ← R.obj.Tcb.set_ep_next t 0#u64
-  let _ ← R.obj.Tcb.set_ep_prev t 0#u64
-  let _ ← R.obj.Ep.set_queue ep_ptr t t obj.EP_RECV
-  let _ ← R.fastpath.switch_to i1
+  let _ ← PathObl.R.obj.Tcb.set_state i1 v
+  let _ ← PathObl.R.sched.set_action i1
+  let _ ← PathObl.R.obj.Tcb.set_state t sched.TS_RUNNING
+  let _ ← PathObl.R.obj.Tcb.set_block_obj t ep_ptr
+  let _ ← PathObl.R.obj.Tcb.set_state t sched.TS_BLOCKED_ON_RECV
+  let _ ← PathObl.R.obj.Tcb.set_reply_obj t rptr
+  let _ ← PathObl.R.obj.Reply.set_tcb rptr t
+  let _ ← PathObl.R.obj.Tcb.set_ep_next t 0#u64
+  let _ ← PathObl.R.obj.Tcb.set_ep_prev t 0#u64
+  let _ ← PathObl.R.obj.Ep.set_queue ep_ptr t t obj.EP_RECV
+  let _ ← PathObl.R.fastpath.switch_to i1
   pure (true)
 
 /-- The write part of an accepted ReplyRecv fast path as a tree (`rrTail`; each copy in
-`R.fastpath.reply_recv_found` is this one up to `SProg.blk`). -/
+`PathObl.R.fastpath.reply_recv_found` is this one up to `SProg.blk`). -/
 noncomputable def rrTailT (t : obj.Tcb) (rptr ep_ptr : Std.U64) (i1 : obj.Tcb) (i5 : Std.U64) : SProg Bool := do
-  let _ ← R.obj.Tcb.set_state t sched.TS_RESTART
-  let _ ← R.ipc.reply_remove rptr i1
-  let b9 ← R.sporadic.sc_sporadic i5
+  let _ ← PathObl.R.obj.Tcb.set_state t sched.TS_RESTART
+  let _ ← PathObl.R.ipc.reply_remove rptr i1
+  let b9 ← PathObl.R.sporadic.sc_sporadic i5
   let _ ← (
       if b9 then do
         do
-          let i13 ← R.obj.Sc.cpu i5
-          let i14 ← R.obj.node_get i13 layout.node.CUR_SC
+          let i13 ← PathObl.R.obj.Sc.cpu i5
+          let i14 ← PathObl.R.obj.node_get i13 layout.node.CUR_SC
           if i5 != i14 then do
-            R.sporadic.unblock_check i5
+            PathObl.R.sporadic.unblock_check i5
           else do
             pure (())
       else do
         pure (()))
-  let restart ← R.faults.handle_fault_reply i1 t
-  let _ ← R.faults.clear_fault i1
+  let restart ← PathObl.R.faults.handle_fault_reply i1 t
+  let _ ← PathObl.R.faults.clear_fault i1
   if restart then endT t rptr ep_ptr i1 sched.TS_RESTART else endT t rptr ep_ptr i1 sched.TS_INACTIVE
 
 theorem endT_nz (t : obj.Tcb) (rptr ep_ptr : Std.U64) (i1 : obj.Tcb) (v : Std.U64) :
@@ -86,7 +86,7 @@ set_option hygiene false in
 local macro "rr_gs" eq:ident g:term : tactic => `(tactic| (
     refine once_gstep hR0 hW0 (by nz_walk) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
     · rw [$eq:ident] at h1 ⊢
-      rw [$g]
+      rw [($g)]
       exact h1
     replace ht := hk
     rw [$eq:ident] at h1))
@@ -100,13 +100,13 @@ local macro "rr_dec" c:term : tactic => `(tactic| (
 set_option hygiene false in
 local macro "rr_fft" : tactic => `(tactic| (
     rw [if_pos rfl] at ht ⊢
-    rr_gs R.sched.cur_domain_eq (sched.cur_domain.guard (gS := PathObl.guard st R W) X0 K.cd)
+    rr_gs PathObl.R.sched.cur_domain_eq (sched.cur_domain.guard (gS := PathObl.guard st R W) X0 K.cd)
     obtain ⟨i11, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
-    rr_gs R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
+    rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
     obtain ⟨i12, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
-    rr_gs R.sched.is_highest_prio_eq (sched.is_highest_prio.guard (gS := PathObl.guard st R W) X0 i11 _ hBm)
+    rr_gs PathObl.R.sched.is_highest_prio_eq (sched.is_highest_prio.guard (gS := PathObl.guard st R W) X0 i11 _ hBm)
     obtain ⟨b8, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     by_cases hb8 : b8 = true
@@ -122,11 +122,11 @@ local macro "rr_fff" : tactic => `(tactic| (
 
 set_option hygiene false in
 local macro "rr_ep" : tactic => `(tactic| (
-    rr_gs R.obj.Ep.state_eq (obj.Ep.state.guard (gS := PathObl.guard st R W) ep X0 K.eTS)
+    rr_gs PathObl.R.obj.Ep.state_eq (obj.Ep.state.guard (gS := PathObl.guard st R W) ep X0 K.eTS)
     obtain ⟨i10, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     rr_dec ((i10 != obj.EP_IDLE) = true)
-    rr_gs R.sched.idle_thread_eq (sched.idle_thread.guard (gS := PathObl.guard st R W) X0
+    rr_gs PathObl.R.sched.idle_thread_eq (sched.idle_thread.guard (gS := PathObl.guard st R W) X0
       (K.nd _ (by simp [layout.node.IDLE_THREAD]) (by simp [layout.node.IDLE_THREAD])).1)
     obtain ⟨t1, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
@@ -136,11 +136,11 @@ local macro "rr_ep" : tactic => `(tactic| (
     · simp only [SProg.sbind] at ht ⊢
       rr_fft
     · rw [SProg.sbind_assoc] at ht ⊢
-      rr_gs R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
+      rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) u X0 K.uPr)
       obtain ⟨j1, -, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       rw [SProg.sbind_assoc] at ht ⊢
-      rr_gs R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) t X0 K.tPr)
+      rr_gs PathObl.R.obj.Tcb.prio_eq (obj.Tcb.prio.guard (gS := PathObl.guard st R W) t X0 K.tPr)
       obtain ⟨j2, -, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       refine once_ite ht (fun _ ht => ?_) (fun _ ht => ?_)
@@ -151,13 +151,13 @@ local macro "rr_ep" : tactic => `(tactic| (
 
 set_option hygiene false in
 local macro "rr_rest" : tactic => `(tactic| (
-    rr_gs R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) u X0 K.uSc)
+    rr_gs PathObl.R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) u X0 K.uSc)
     obtain ⟨i5, ei5, rfl⟩ := bind_shape h1
     obtain rfl : usc = i5 := ok_inj_ff (ecs.symm.trans ei5)
     dsimp only at ht ⊢
     refine once_liftR ht (fun b3 _ ht => ?_)
     rr_dec (b3 = true)
-    rr_gs R.fastpath.schedulable_here_eq (fastpath.schedulable_here.guard (gS := PathObl.guard st R W) X0 u
+    rr_gs PathObl.R.fastpath.schedulable_here_eq (fastpath.schedulable_here.guard (gS := PathObl.guard st R W) X0 u
       (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
       (K.nd _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1
       (K.nd _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
@@ -168,7 +168,7 @@ local macro "rr_rest" : tactic => `(tactic| (
     swap
     · rw [if_neg hb4]; simp only [Once]
     rw [if_pos hb4] at ht ⊢
-    rr_gs R.sporadic.ready_eq (sporadic.ready.guard (gS := PathObl.guard st R W) X0 usc K.uHd
+    rr_gs PathObl.R.sporadic.ready_eq (sporadic.ready.guard (gS := PathObl.guard st R W) X0 usc K.uHd
       (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1)
     obtain ⟨b5, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
@@ -176,28 +176,28 @@ local macro "rr_rest" : tactic => `(tactic| (
     swap
     · rw [if_neg hb5]; simp only [Once]
     rw [if_pos hb5] at ht ⊢
-    rr_gs R.sporadic.sufficient_eq (sporadic.sufficient.guard (gS := PathObl.guard st R W) ar X0 a usc 0#u64 K.uHd)
+    rr_gs PathObl.R.sporadic.sufficient_eq (sporadic.sufficient.guard (gS := PathObl.guard st R W) ar X0 a usc 0#u64 K.uHd)
     obtain ⟨b6, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     by_cases hb6 : b6 = true
     swap
     · rw [if_neg hb6]; simp only [Once]
     rw [if_pos hb6] at ht ⊢
-    rr_gs R.obj.Tcb.bound_ntfn_eq (obj.Tcb.bound_ntfn.guard (gS := PathObl.guard st R W) t X0 K.tBn)
+    rr_gs PathObl.R.obj.Tcb.bound_ntfn_eq (obj.Tcb.bound_ntfn.guard (gS := PathObl.guard st R W) t X0 K.tBn)
     obtain ⟨i6, e6, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     by_cases h6 : (i6 != 0#u64) = true
     · rw [if_pos h6] at ht ⊢
-      rr_gs R.obj.Ntfn.state_eq (obj.Ntfn.state.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).1)
+      rr_gs PathObl.R.obj.Ntfn.state_eq (obj.Ntfn.state.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).1)
       obtain ⟨i7, -, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       rr_dec (i7 = obj.NTFN_ACTIVE)
-      rr_gs R.obj.Ntfn.sc_eq (obj.Ntfn.sc.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).2)
+      rr_gs PathObl.R.obj.Ntfn.sc_eq (obj.Ntfn.sc.guard (gS := PathObl.guard st R W) i6 X0 (K.ntf i6 e6 h6).2)
       obtain ⟨i8, -, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       by_cases h8 : (i8 != 0#u64) = true
       · rw [if_pos h8] at ht ⊢
-        rr_gs R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) t X0 K.tSc)
+        rr_gs PathObl.R.obj.Tcb.sc_eq (obj.Tcb.sc.guard (gS := PathObl.guard st R W) t X0 K.tSc)
         obtain ⟨i9, -, rfl⟩ := bind_shape h1
         dsimp only at ht ⊢
         rr_dec (i8 = i9)
@@ -209,12 +209,12 @@ local macro "rr_rest" : tactic => `(tactic| (
 
 set_option hygiene false in
 local macro "rr_checks" : tactic => `(tactic| (
-    rr_gs R.sched.action_eq (sched.action.guard (gS := PathObl.guard st R W) X0
+    rr_gs PathObl.R.sched.action_eq (sched.action.guard (gS := PathObl.guard st R W) X0
       (K.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1)
     obtain ⟨i, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     rr_dec ((i != sched.ACTION_RESUME_CURRENT) = true)
-    rr_gs R.sched.is_schedulable_eq (sched.is_schedulable.guard (gS := PathObl.guard st R W) X0 t K.tSt K.tSc
+    rr_gs PathObl.R.sched.is_schedulable_eq (sched.is_schedulable.guard (gS := PathObl.guard st R W) X0 t K.tSt K.tSc
       K.tMx K.tIq)
     obtain ⟨b, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
@@ -222,31 +222,31 @@ local macro "rr_checks" : tactic => `(tactic| (
     swap
     · rw [if_neg hb]; simp only [Once]
     rw [if_pos hb] at ht ⊢
-    rr_gs R.msg.msg_info_eq (msg.msg_info.guard (gS := PathObl.guard st R W) X0 t K.tMi)
+    rr_gs PathObl.R.msg.msg_info_eq (msg.msg_info.guard (gS := PathObl.guard st R W) X0 t K.tMi)
     obtain ⟨info, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     rr_dec ((info.extra_caps != 0#u64) = true)
     rr_dec ((info.label != 0#u64) = true)
-    rr_gs R.obj.Reply.tcb_eq (obj.Reply.tcb.guard (gS := PathObl.guard st R W) rptr X0 K.rRt)
+    rr_gs PathObl.R.obj.Reply.tcb_eq (obj.Reply.tcb.guard (gS := PathObl.guard st R W) rptr X0 K.rRt)
     obtain ⟨i1, ei1, rfl⟩ := bind_shape h1
     obtain rfl : u = i1 := ok_inj_ff (ecu.symm.trans ei1)
     dsimp only at ht ⊢
     refine once_liftR ht (fun b1 _ ht => ?_)
     rr_dec (b1 = true)
-    rr_gs R.obj.Tcb.state_eq (obj.Tcb.state.guard (gS := PathObl.guard st R W) u X0 K.uSt)
+    rr_gs PathObl.R.obj.Tcb.state_eq (obj.Tcb.state.guard (gS := PathObl.guard st R W) u X0 K.uSt)
     obtain ⟨i2, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     rr_dec ((i2 != sched.TS_BLOCKED_ON_REPLY) = true)
-    rr_gs R.obj.Tcb.fault_type_eq (obj.Tcb.fault_type.guard (gS := PathObl.guard st R W) u X0 K.uFt.1)
+    rr_gs PathObl.R.obj.Tcb.fault_type_eq (obj.Tcb.fault_type.guard (gS := PathObl.guard st R W) u X0 K.uFt.1)
     obtain ⟨i3, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     rr_dec ((i3 != fl4_abi.consts.fault.UnknownSyscall) = true)
-    rr_gs R.obj.Reply.next_eq (obj.Reply.next.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
+    rr_gs PathObl.R.obj.Reply.next_eq (obj.Reply.next.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
     obtain ⟨i4, -, rfl⟩ := bind_shape h1
     dsimp only at ht ⊢
     by_cases hi4 : (i4 != 0#u64) = true
     · rw [if_pos hi4] at ht ⊢
-      rr_gs R.obj.Reply.next_is_head_eq (obj.Reply.next_is_head.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
+      rr_gs PathObl.R.obj.Reply.next_is_head_eq (obj.Reply.next_is_head.guard (gS := PathObl.guard st R W) X0 rptr K.rNx)
       obtain ⟨b2, -, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       rr_dec (b2 = true)
@@ -271,8 +271,8 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     (hRW : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → RrAccNB (L := L) Z R W X0 t rptr ep u usc)
     (hSW : ∀ u usc, RRChecks st ar X0 a t rptr ep u usc → RrSW (L := L) (PathObl.guard st R W) t ep u)
     {sF : S} {aF : A} (h : fastpath.reply_recv_found st ar X0 a t rptr ep = ok (true, sF, aF))
-    (ht : interp st ar (R.fastpath.reply_recv_found t rptr ep) X0 a = ok (true, sF, aF)) (Wd : Set U64) :
-    Once st ar Rd User Wd ∅ (R.fastpath.reply_recv_found t rptr ep) X0 a := by
+    (ht : interp st ar (PathObl.R.fastpath.reply_recv_found t rptr ep) X0 a = ok (true, sF, aF)) (Wd : Set U64) :
+    Once st ar Rd User Wd ∅ (PathObl.R.fastpath.reply_recv_found t rptr ep) X0 a := by
   obtain ⟨u, usc, C, hrt⟩ := reply_recv_found_acc st ar h
   have P := hP u usc C
   have hyu := hy0 u usc C
@@ -539,9 +539,9 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
   have endOnce : ∀ (X4 X5 : S) (b : Bool), WritesIn st X3 X4 (XferRegW ({u} : Set U64) ∅) →
       faults.clear_fault st X4 u = ok X5 → ∀ (r'' : Bool × S × A),
       interp st ar (if b = true then endT t rptr ep u sched.TS_RESTART else endT t rptr ep u sched.TS_INACTIVE)
-        X5 a1 = ok r'' → ∀ Wd T, Once st ar Rd User Wd T
+        X5 a1 = ok r'' → ∀ Wd T0, Once st ar Rd User Wd T0
       (if b = true then endT t rptr ep u sched.TS_RESTART else endT t rptr ep u sched.TS_INACTIVE) X5 a1 := by
-    intro X4 X5 b wX e5 r'' hE Wd T
+    intro X4 X5 b wX e5 r'' hE Wd T0
     -- the fault reply, `clear_fault`
     have hTu : TcbPlaced ({u} : Set U64) := fun y hy => by rw [Set.mem_singleton_iff] at hy; rw [hy]; exact hu'
     have w34 : WritesIn st X3 X4 N := by
@@ -752,33 +752,33 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
         rw [rrEnd.guard ar _ X5 a1 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt SW.uI wAc5 SW.tN SW.bl SW.tB
           K.wRp K.wRt K.wEn K.wEp K.wEh K.wEt hswG]
         exact hE
-      exact once_monoR (fun q hq => (hR0 q hq).1) _ Wd T T X5 a1
-        (once_of_guardG (fun q hq => (hR0 q hq).2) _ (endT_nz _ _ _ _ _) Wd T X5 a1 r'' hg) subset_rfl
+      exact once_monoR (fun q hq => (hR0 q hq).1) _ Wd T0 T0 X5 a1
+        (once_of_guardG (fun q hq => (hR0 q hq).2) _ (endT_nz _ _ _ _ _) Wd T0 X5 a1 r'' hg) subset_rfl
     · rw [if_pos rfl] at hE ⊢
       have hg : interp (PathObl.guard st R W) ar (endT t rptr ep u sched.TS_RESTART) X5 a1 = ok r'' := by
         rw [endT_eq] at hE ⊢
         rw [rrEnd.guard ar _ X5 a1 t rptr ep u aSu aAc5 aSt aBl aRp aRt aEn aEp aEh aEt SW.uR wAc5 SW.tN SW.bl SW.tB
           K.wRp K.wRt K.wEn K.wEp K.wEh K.wEt hswG]
         exact hE
-      exact once_monoR (fun q hq => (hR0 q hq).1) _ Wd T T X5 a1
-        (once_of_guardG (fun q hq => (hR0 q hq).2) _ (endT_nz _ _ _ _ _) Wd T X5 a1 r'' hg) subset_rfl
+      exact once_monoR (fun q hq => (hR0 q hq).1) _ Wd T0 T0 X5 a1
+        (once_of_guardG (fun q hq => (hR0 q hq).2) _ (endT_nz _ _ _ _ _) Wd T0 X5 a1 r'' hg) subset_rfl
   -- after the SC block: the fault reply, then the end
-  have afterBlk : ∀ Wd, interp st ar ((R.faults.handle_fault_reply u t).sbind fun restart =>
-        (R.faults.clear_fault u).sbind fun _ =>
+  have afterBlk : ∀ Wd, interp st ar ((PathObl.R.faults.handle_fault_reply u t).sbind fun restart =>
+        (PathObl.R.faults.clear_fault u).sbind fun _ =>
           if restart = true then endT t rptr ep u sched.TS_RESTART else endT t rptr ep u sched.TS_INACTIVE)
         X3 a1 = ok (true, sF, aF) →
-      Once st ar Rd User Wd ∅ ((R.faults.handle_fault_reply u t).sbind fun restart =>
-        (R.faults.clear_fault u).sbind fun _ =>
+      Once st ar Rd User Wd ∅ ((PathObl.R.faults.handle_fault_reply u t).sbind fun restart =>
+        (PathObl.R.faults.clear_fault u).sbind fun _ =>
           if restart = true then endT t rptr ep u sched.TS_RESTART else endT t rptr ep u sched.TS_INACTIVE) X3 a1 := by
     intro Wd hh
     refine hfr_once hR0 hu' (fun r hr => hW0 _ (K.uReg r hr)) K.tMi K.uFt.1 K.tReg K.tBuf hty3 _ hh ?_ Wd
     intro s1 b wX h' Wd' T'
     dsimp only at h' ⊢
-    refine once_gstep hR0 hW0 (R.faults.clear_fault_nz _) h' (fun r h1 => ?_) (fun r h1 hk Wd'' _ => ?_)
-    · rw [R.faults.clear_fault_eq] at h1 ⊢
+    refine once_gstep hR0 hW0 (PathObl.R.faults.clear_fault_nz _) h' (fun r h1 => ?_) (fun r h1 hk Wd'' _ => ?_)
+    · rw [PathObl.R.faults.clear_fault_eq] at h1 ⊢
       rw [faults.clear_fault.guard (gS := PathObl.guard st R W) s1 u K.uFt.2]
       exact h1
-    rw [R.faults.clear_fault_eq] at h1
+    rw [PathObl.R.faults.clear_fault_eq] at h1
     obtain ⟨X5, e5, rfl⟩ := bind_shape h1
     dsimp only at hk ⊢
     exact endOnce s1 X5 b wX e5 _ hk Wd'' T'
@@ -814,42 +814,42 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
     intro Wd ht
     unfold rrTailT at ht ⊢
     simp only [SProg.bind_eq_sbind, SProg.pure_eq_ret] at ht ⊢
-    refine once_gstep hR0 hW0 (R.obj.Tcb.set_state_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-    · rw [R.obj.Tcb.set_state_eq] at h1 ⊢
+    refine once_gstep hR0 hW0 (PathObl.R.obj.Tcb.set_state_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+    · rw [PathObl.R.obj.Tcb.set_state_eq] at h1 ⊢
       rw [obj.Tcb.set_state.guardV t X0 _ SW.tR]
       exact h1
     replace ht := hk
-    rw [R.obj.Tcb.set_state_eq] at h1
+    rw [PathObl.R.obj.Tcb.set_state_eq] at h1
     obtain ⟨Y1, ey1, rfl⟩ := bind_shape h1
     obtain rfl : X1 = Y1 := ok_inj_ff (e1.symm.trans ey1)
     dsimp only at ht ⊢
-    refine once_gstep hR0 hW0 (R.ipc.reply_remove_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-    · rw [R.ipc.reply_remove_eq] at h1 ⊢
+    refine once_gstep hR0 hW0 (PathObl.R.ipc.reply_remove_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+    · rw [PathObl.R.ipc.reply_remove_eq] at h1 ⊢
       rw [hrem]
       exact h1
     replace ht := hk
-    rw [R.ipc.reply_remove_eq] at h1
+    rw [PathObl.R.ipc.reply_remove_eq] at h1
     obtain ⟨⟨Y2, b2⟩, ey2, rfl⟩ := bind_shape h1
     obtain ⟨rfl, rfl⟩ : X2 = Y2 ∧ a1 = b2 := Prod.mk.inj (ok_inj_ff (e2.symm.trans ey2))
     dsimp only at ht ⊢
-    refine once_gstep hR0 hW0 (R.sporadic.sc_sporadic_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-    · rw [R.sporadic.sc_sporadic_eq] at h1 ⊢
+    refine once_gstep hR0 hW0 (PathObl.R.sporadic.sc_sporadic_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+    · rw [PathObl.R.sporadic.sc_sporadic_eq] at h1 ⊢
       rw [sporadic.sc_sporadic.guard (gS := PathObl.guard st R W) X2 usc (fun _ => K.spo)]
       exact h1
     replace ht := hk
-    rw [R.sporadic.sc_sporadic_eq] at h1
+    rw [PathObl.R.sporadic.sc_sporadic_eq] at h1
     obtain ⟨c9, ec9, rfl⟩ := bind_shape h1
     obtain rfl : b9 = c9 := ok_inj_ff (hb9r.symm.trans ec9)
     dsimp only at ht ⊢
     by_cases hb : b9 = true
     · rw [if_pos hb] at ht ⊢ e3
       rw [SProg.sbind_assoc] at ht ⊢
-      refine once_gstep hR0 hW0 (R.obj.Sc.cpu_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-      · rw [R.obj.Sc.cpu_eq] at h1 ⊢
+      refine once_gstep hR0 hW0 (PathObl.R.obj.Sc.cpu_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+      · rw [PathObl.R.obj.Sc.cpu_eq] at h1 ⊢
         rw [obj.Sc.cpu.guard (gS := PathObl.guard st R W) usc X2 K.cor]
         exact h1
       replace ht := hk
-      rw [R.obj.Sc.cpu_eq] at h1
+      rw [PathObl.R.obj.Sc.cpu_eq] at h1
       obtain ⟨i13, hi13, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       have ei : i13 = L.mem X0 (core.num.U64.wrapping_add usc layout.sc.CORE) := by
@@ -860,13 +860,13 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
         obtain ⟨n1, n2, n3⟩ := scRp usc P.hcS _ aCo.2
         exact w02.mem_eq aCo.1 (oN _ (scΩ _ aCo.1 aCo.2) n1 n2 n3)
       rw [SProg.sbind_assoc] at ht ⊢
-      refine once_gstep hR0 hW0 (R.obj.node_get_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-      · rw [R.obj.node_get_eq] at h1 ⊢
+      refine once_gstep hR0 hW0 (PathObl.R.obj.node_get_nz _ _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+      · rw [PathObl.R.obj.node_get_eq] at h1 ⊢
         rw [obj.node_get.guard (gS := PathObl.guard st R W) X2 i13 _
           (by rw [nodeAt_of_ksb w02.1, ei]; exact K.ccs)]
         exact h1
       replace ht := hk
-      rw [R.obj.node_get_eq] at h1
+      rw [PathObl.R.obj.node_get_eq] at h1
       obtain ⟨i14, hi14, rfl⟩ := bind_shape h1
       dsimp only at ht ⊢
       rw [hi13] at e3
@@ -875,14 +875,14 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
       simp only [bind_ok, bind_tc_ok] at e3
       refine once_ite ht (fun hne ht => ?_) (fun hne ht => ?_)
       · rw [if_pos hne] at e3
-        refine once_gstep hR0 hW0 (R.sporadic.unblock_check_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
-        · rw [R.sporadic.unblock_check_eq] at h1 ⊢
+        refine once_gstep hR0 hW0 (PathObl.R.sporadic.unblock_check_nz _) ht (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+        · rw [PathObl.R.sporadic.unblock_check_eq] at h1 ⊢
           rw [sporadic.unblock_check.guardS (gS := PathObl.guard st R W) K.uscA hW2 hrep
             (by show R (L.nodeAt X2 (L.cpu X2) _); rw [w02.2.1, nodeAt_of_ksb w02.1];
                 exact (K.nd _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1)
             (by rw [eN2]; exact (K.nd _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])).2)]
           exact h1
-        rw [R.sporadic.unblock_check_eq] at h1
+        rw [PathObl.R.sporadic.unblock_check_eq] at h1
         obtain ⟨Y3, ey3, rfl⟩ := bind_shape h1
         obtain rfl : X3 = Y3 := ok_inj_ff (e3.symm.trans ey3)
         dsimp only at hk ⊢
@@ -898,7 +898,7 @@ theorem rr_acc_once {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → 
   -- the checks
   have ecu := C.tcb
   have ecs := C.sc
-  unfold R.fastpath.reply_recv_found at ht ⊢
+  unfold PathObl.R.fastpath.reply_recv_found at ht ⊢
   simp only [SProg.bind_eq_sbind, SProg.pure_eq_ret] at ht ⊢
   rr_checks
 
