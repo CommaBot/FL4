@@ -2102,3 +2102,8 @@ import Fl4Proofs.P2.E2EVFl4W16
 import Fl4Proofs.P2.E2EPW11J12
 import Fl4Proofs.P2.E2EPU1
 import Fl4Proofs.P2.E2EPU1W
+import Fl4Proofs.P2.InvDelNoPteR
+import Fl4Proofs.P2.E2EPU2D
+import Fl4Proofs.P2.InvCMNoPteR
+import Fl4Proofs.P2.E2EPU2C
+import Fl4Proofs.P2.E2EPU2
