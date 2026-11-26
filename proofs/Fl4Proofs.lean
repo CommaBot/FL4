@@ -1944,3 +1944,5 @@ import Fl4Proofs.P2.SlOnce
 import Fl4Proofs.P2.SlOnceR1
 import Fl4Proofs.P2.SlOnceR2
 import Fl4Proofs.P2.SlOnceR3
+import Fl4Proofs.P2.OwnMapPte
+import Fl4Proofs.P2.E2EP
