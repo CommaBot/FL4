@@ -2168,3 +2168,5 @@ import Fl4Proofs.P2.StFhCert
 import Fl4Proofs.P2.StFhView
 import Fl4Proofs.P2.E2EPU17
 import Fl4Proofs.P2.StVTimer
+import Fl4Proofs.P2.ViewSafeGenW
+import Fl4Proofs.P2.SafeVQW
