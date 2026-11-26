@@ -1909,3 +1909,5 @@ import Fl4Proofs.P2.SlOnceA
 import Fl4Proofs.P2.SlOnceB
 import Fl4Proofs.P2.SlOnce
 import Fl4Proofs.P2.SlOnceR1
+import Fl4Proofs.P2.SlOnceR2
+import Fl4Proofs.P2.SlOnceR3
