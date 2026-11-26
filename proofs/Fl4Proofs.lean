@@ -1987,6 +1987,7 @@ import Fl4Proofs.P2.InvJ
 import Fl4Proofs.P2.InvURoTr
 import Fl4Proofs.P2.E2EVFl4WI
 import Fl4Proofs.P2.E2EVFl4WIS
+import Fl4Proofs.P2.InvDelPte
 import Fl4Proofs.P2.E2EVFl4W4
 import Fl4Proofs.P2.E2EVFl4W5
 import Fl4Proofs.P2.OwnMapPte
