@@ -1935,3 +1935,5 @@ import Fl4Proofs.P2.RrOnce
 import Fl4Proofs.P2.E2EVFl4Top
 import Fl4Proofs.P2.OwnMapPte
 import Fl4Proofs.P2.E2EP
+import Fl4Proofs.P2.E2EPCut
+import Fl4Proofs.P2.E2EPFl4
