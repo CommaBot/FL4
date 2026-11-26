@@ -2213,3 +2213,5 @@ import Fl4Proofs.P3.P3JLook
 import Fl4Proofs.P3.P3JXport
 import Fl4Proofs.P3.P3JGen
 import Fl4Proofs.P3.XTopJointKEntryU36
+import Fl4Proofs.P3.XTopJointKEntryU37
+import Fl4Proofs.P3.P3JVtxBridge
