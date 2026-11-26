@@ -2424,3 +2424,4 @@ import Fl4Proofs.P3.VirtWit13
 import Fl4Proofs.P3.VirtMsrEq
 import Fl4Proofs.P3.VirtInitIo
 import Fl4Proofs.P3.VirtInitWalk
+import Fl4Proofs.P3.VirtMsrDec
