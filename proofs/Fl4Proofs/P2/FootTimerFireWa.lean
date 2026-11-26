@@ -14,6 +14,8 @@ the woken thread (`wake_wait_st` / `wake_recv_st`, with `WkPre` from `wkpre_true
   outside the frame `Sg`: the kernel-global words, the ASID table).
 * `wk_sig`: the waking signal on both stores, with `WkKeep` for the `st` run.
 
+* (lvm gen 10) `WkV`: the words outside the objects and `Ω` but the notification's and the endpoints' queue words are
+  kept, a `WAITING` notification is not left `ACTIVE`; `wk_sig` also returns it.
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerFireWp
@@ -52,6 +54,14 @@ end
 section keep
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+
+/-- **What a waking signal keeps outside `Ω`, and the signalled notification's state** (lvm gen 10), from its start
+`X` to its end `X2`: every word outside the TCBs, the nodes and `Ω` but the notification `N`'s queue words and
+every endpoint's; a `WAITING` notification is not left `ACTIVE`. -/
+def WkV (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (X X2 : S) (N : U64) : Prop :=
+  (∀ b, Aligned b → OutsideObjs st T Cs X b → b ∉ Ω → b ≠ epHeadA N → b ≠ epTSA N →
+    (∀ e, H e = some .ep → b ≠ epHeadA e ∧ b ≠ epTSA e) → L.mem X2 b = L.mem X b) ∧
+  (L.epState X N = obj.NTFN_WAITING → L.epState X2 N ≠ obj.NTFN_ACTIVE)
 
 /-- A word that every run writing only `D` keeps is not in `D` (probe it with one write). -/
 theorem probe_nd {X : S} {D : U64 → Prop} {b : U64} (hb : Aligned b)
@@ -219,7 +229,7 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
       TInv st T Cs Ω H Sg Rp Scs Nt Z Ac X2 ∧ TAgree st T Cs X X2 ∧ L.ksb X2 = L.ksb X ∧ L.cpu X2 = L.cpu X ∧
       ∃ w ∈ T, (L.actionW X2 = sched.ACTION_RESUME_CURRENT ∨ L.actionW X2 = w) ∧ WkKeep st T Ω Sg Scs Z X X2 w ∧
         Blocked (L.mem X (stA w)) ∧ L.mem X (affA w) = L.cpu s ∧ w ≠ L.curW X ∧
-        L.mem X2 (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 := by
+        L.mem X2 (stA w) = sched.TS_RUNNING ∧ L.mem X (yieldA w) = 0#u64 ∧ WkV st T Cs Ω H X X2 N := by
   have hTX' := hTX
   obtain ⟨⟨Q, Rq, hq⟩, hBd, hXX, hSS, hSgX⟩ := hTX
   obtain ⟨E, EQ, hEW⟩ := hq.eps
@@ -234,6 +244,38 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     rw [hr, WP.spec_ok] at tg
     try simp only [WP.uncurry'_pair] at tg
     exact tg
+  -- lvm gen 10: the frame's common cases
+  have hN0 : NodePlaced st T X (L.cpu X) := hq.nodes _ hq.cur
+  have vT : ∀ b y K, OutsideObjs st T Cs X b → y ∈ T → K.val < 4096 → b ≠ core.num.U64.wrapping_add y K :=
+    fun b y K ho hy hK e => out_ne_field ho hy (hT y hy) hK (congrArg UScalar.val e).symm
+  have vN : ∀ b o, OutsideObjs st T Cs X b → o.val < 4288 → b ≠ L.nodeAt X (L.cpu X) o :=
+    fun b o ho h e => out_ne_node ho hq.cur hN0 h (congrArg UScalar.val e).symm
+  have vL : ∀ b (xs : List U64), (∀ y ∈ xs, y ∈ T) → OutsideObjs st T Cs X b → ¬ LinkOf .Ep xs b := by
+    rintro b xs hxs ho ⟨y, hy, e | e⟩
+    · rw [nextA_eq'] at e; exact vT b y _ ho (hxs y hy) (by simp [nextOff]) e
+    · rw [prevA_eq'] at e; exact vT b y _ ho (hxs y hy) (by simp [prevOff]) e
+  have vR : ∀ b w, b ∉ Ω → w ∈ T → Aligned b → ¬ InRing (L.mem X (scA w)) (scSb Z (L.mem X (scA w))) b := by
+    intro b w hΩ hw hb hr
+    by_cases h0 : L.mem X (scA w) = 0#u64
+    · rw [h0] at hr; unfold scSb at hr; rw [if_pos rfl] at hr
+      have i1 := hr.1; have i2 := hr.2
+      simp only [pow_zero] at i2
+      omega
+    · rw [scSb_ne h0] at hr
+      exact hΩ (hXX.1.scW _ (hXX.2.2.bound w hw h0).1 b hb hr.inSC)
+  have vB : ∀ b w, w ∈ T → OutsideObjs st T Cs X b → b ≠ regA w layout.reg.BADGE := by
+    intro b w hw ho e
+    have hbv : layout.reg.BADGE.val = 0 := by unfold layout.reg.BADGE layout.reg.RDI; rfl
+    obtain ⟨KB, hKB, eB⟩ := regA_eq (hT w hw) (r := layout.reg.BADGE) (by rw [hbv]; omega)
+    rw [eB] at e
+    exact vT b w KB ho hw (by rw [hKB, hbv]; omega) e
+  have vW : ∀ b w, w ∈ T → OutsideObjs st T Cs X b → ¬ WkD st X w b := by
+    rintro b w hw ho (e | e | e)
+    · rw [stA_eq] at e; exact vT b w _ ho hw (by simp) e
+    · exact vB b w hw ho e
+    · exact vN b _ ho (by rw [act_val]; omega) e
+  have vP : ∀ b, OutsideObjs st T Cs X b → b ≠ L.nodeA X layout.node.REPROGRAM :=
+    fun b ho e => vN b _ ho (by simp [layout.node.REPROGRAM]) e
   rcases hwk with ⟨hwt, hcur, haf, hdom, hnd, hyl⟩ | ⟨hidle, hbt, ht0, hrecv, hcur, haf, hdom, hnd, hLkE, rwE, wRt, hyl⟩
   · -- `WAITING`
     refine ⟨wake_wait_fire ar a hTX' hNN hHN hAffSc kX cX kT hcur hac hwt haf hdom hnd rN wN rL wL rS wS lkL hLk
@@ -252,12 +294,20 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
     obtain ⟨-, -, hbl⟩ := hEW.2.2.2.1 N he w hmem
     have hwT : w ∈ T := hqr.mem w hmem
     obtain ⟨P, hscΩ, hAo⟩ := wkpre_true (N := N) hTX' hAffSc kX cX kT hwT hbl haf hdom hnd
-    obtain ⟨-, wi, act, wrun⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
+    obtain ⟨-, wi, act, wrun, wna⟩ := wake_wait_st ar X a N badge w hq hEW he hwt ew hmem hcur hac P hnsΩ hscΩ hAo hr
     obtain ⟨dΩ, dN, dT⟩ := epfoot_nd (n := N) hq hEW he (fun y hy => hqr.mem y hy)
-    exact ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
+    refine ⟨p1, p2, p3, wi.2.1, w, hwT, act, wk_keep hTX' hwT wi (fun o ho h8 => dN o ho h8)
       (fun y hy K hK h8 h1 h2 _ => dT y hy K hK h8 h1 h2) (fun c hc b hb hin => dΩ b hb (hXX.1.scW c hc b hb hin))
       (fun b hb hΩ _ => dΩ b hb hΩ),
-      hbl, haf, hcur, wrun, hyl⟩
+      hbl, haf, hcur, wrun, hyl, fun b hb ho hΩ h1 h2 _ => wi.mem_eq hb ?_,
+      fun _ => wna (fun h0 => by unfold scSb; rw [if_pos h0])⟩
+    rintro ((hl | e | e) | hd | hr' | e)
+    · exact vL b _ (fun y hy => hqr.mem y hy) ho hl
+    · exact h1 e
+    · exact h2 e
+    · exact vW b w hwT ho hd
+    · exact vR b w hΩ hwT hb hr'
+    · exact vP b ho e
   · -- idle-bound `Recv`
     obtain ⟨ep, heq⟩ : ∃ ep, L.mem X (blockA t) = ep := ⟨_, rfl⟩
     obtain ⟨r, hr⟩ : ∃ r, L.mem X (replyA t) = r := ⟨_, rfl⟩
@@ -288,7 +338,25 @@ theorem wk_sig {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) {s X : S}
         have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
       obtain ⟨-, rv, -, -⟩ := rp_facts hXX.1 hrp
       exact ⟨hq.omega _ (hSgX.sub _ (hXX.1.tcbW hrp)), rv, hXX.1.rpSc r hrp⟩
-    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_ ?_, hblk, haf, hcur, wrun, hyl⟩
+    obtain ⟨k1, -⟩ := hEW.2.2.2.2.2
+    have hHep : H ep = some .ep := by have := k1 t htT (by simp) (Or.inr hrecv); rwa [heq] at this
+    refine ⟨p1, p2, p3, wi.2.1, t, htT, act, wk_keep hTX' htT wi ?_ ?_ ?_ ?_, hblk, haf, hcur, wrun, hyl,
+      fun b hb ho hΩ _ _ h3 => wi.mem_eq hb ?_,
+      fun hw => absurd (hidle.symm.trans hw) (by unfold obj.NTFN_IDLE obj.NTFN_WAITING; decide)⟩
+    rotate_left 4
+    · rintro ((e | hf | ⟨hr0, e⟩ | e) | hd | hr' | e)
+      · unfold faultA at e; exact vT b t _ ho htT (by simp) e
+      · rcases hf with hl | e | e
+        · exact vL b _ (fun y hy => (hEW.1 ep hep).2.2.mem y hy) ho hl
+        · exact (h3 ep hHep).1 e
+        · exact (h3 ep hHep).2 e
+      · have hrp : r ∈ Rp := by
+          have := (hXX.2.1.recv t htT hrecv (by rw [hr]; exact hr0)).1; rwa [hr] at this
+        subst e; exact hΩ (hSgX.sub _ (hXX.1.tcbW hrp))
+      · rw [stA_eq] at e; exact vT b t _ ho htT (by simp) e
+      · exact vW b t htT ho hd
+      · exact vR b t hΩ htT hb hr'
+      · exact vP b ho e
     · intro o ho h8
       rintro (e | hf | ⟨hr0, e⟩ | e)
       · unfold faultA at e; exact node_ne_field hN ho htT ht' (by simp) e
