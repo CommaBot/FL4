@@ -2318,3 +2318,5 @@ import Fl4Proofs.P3.JAtZV3
 import Fl4Proofs.P3.JAtZV3Detach
 import Fl4Proofs.P3.JAtZV3Sched
 import Fl4Proofs.P3.JAtZV3Gpr
+import Fl4Proofs.P3.VirtSanRel
+import Fl4Proofs.P3.VirtSanEq
