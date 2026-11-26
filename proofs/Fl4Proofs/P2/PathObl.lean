@@ -298,8 +298,10 @@ inductive ArchCall where
   | virtualization
   | vcpu_capability (x : U64)
   | vcpu_barrier
-  /-- (hpzg gen 6) VCPU `v` is being deleted (`vcpu::finalise`, reached by `cdt::delete` of a VCPU cap): like
-  every Arch method here it returns only the arch state. -/
+  /-- (hpzg gen 6) `machine.Arch.vcpu_release` (Fl4Core/Types.lean, field `vcpu_release : Self → Std.U64 →
+  Result Self`; Rust `fl4_core::machine::Arch::vcpu_release`, crates/fl4-core/src/machine.rs l.62–64, default body
+  `machine.Arch.vcpu_release.default` in Fl4Core/Funs.lean): VCPU `v` is being deleted (`vcpu::finalise`, reached by
+  `cdt::delete` of a VCPU cap). Like every Arch method here it returns only the arch state. -/
   | vcpu_release (x : U64)
   | invalidate_ept (x y : U64)
   | tdx_active
