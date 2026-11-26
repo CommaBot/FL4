@@ -63,6 +63,7 @@ import Fl4ProofsA64.P1.QueueTimerSet
 import Fl4ProofsA64.P1.RunVcpuKeep
 import Fl4ProofsA64.P1.QueueFinal
 import Fl4ProofsA64.P1.QueueFinSc
+import Fl4ProofsA64.P1.QueueTcbInv
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
