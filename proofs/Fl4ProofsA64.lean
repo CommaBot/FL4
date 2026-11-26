@@ -125,3 +125,6 @@ import Fl4ProofsA64.P1.QueueFinThr7
 import Fl4ProofsA64.P1.QueueDecTcb
 import Fl4ProofsA64.P1.QueueDecTcbRR
 import Fl4ProofsA64.P1.QueueDecTcb2
+import Fl4ProofsA64.P1.QueueSchedCtl
+import Fl4ProofsA64.P1.QueueDelRv
+import Fl4ProofsA64.P1.QueueIrqWide
