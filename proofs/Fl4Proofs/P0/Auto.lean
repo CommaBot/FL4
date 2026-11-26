@@ -762,6 +762,10 @@ theorem layout.tcb.END.p0  :
     layout.tcb.END ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.tcb.END.spec (fun _ _ => trivial)
 
+@[step] theorem machine.core_bit.p0 (cpu : Std.U64) :
+    machine.core_bit cpu ⦃ _ => True ⦄ := by
+  unfold machine.core_bit; p0_auto
+
 @[step] theorem objects.object_size.p0 (t : Std.U64) (user_size : Std.U64) :
     objects.object_size t user_size ⦃ _ => True ⦄ := by
   unfold objects.object_size; p0_auto

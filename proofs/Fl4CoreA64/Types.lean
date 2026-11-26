@@ -164,7 +164,7 @@ structure machine.Arch (Self : Type _) where
   fpu_reload : Self → Std.U64 → Result Self
   fpu_release : Self → Std.U64 → Result Self
   remote_stall : Self → Std.U64 → Result Self
-  send_reschedule : Self → Std.U64 → Result Self
+  send_reschedule : Self → Std.U128 → Result Self
   cache_op : Self → Std.U64 → Std.U64 → Std.U64 → Std.U64 → Std.U64
     → Std.U64 → Result Self
   hw_access_flag : Self → Result Bool
@@ -421,13 +421,13 @@ inductive boot.BootError where
 | TooManyUntypeds : boot.BootError
 
 /-- [fl4_core::boot::Pick]
-    Source: 'crates/fl4-core/src/boot.rs', lines 463:0-466:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 465:0-468:1 -/
 structure boot.Pick where
   k : Std.Usize
   start : Std.U64
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 515:0-527:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 517:0-529:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -442,7 +442,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 532:0-542:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 534:0-544:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64
@@ -468,7 +468,7 @@ structure localinv.Plan where
   ok_words : Bool
 
 /-- [fl4_core::localtimer::TimerIrqPlan]
-    Source: 'crates/fl4-core/src/localtimer.rs', lines 316:0-333:1
+    Source: 'crates/fl4-core/src/localtimer.rs', lines 325:0-342:1
     Visibility: public -/
 structure localtimer.TimerIrqPlan where
   tm : Std.U64

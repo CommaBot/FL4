@@ -1,6 +1,6 @@
 {
- "functions": 1183,
- "proved": 1183,
+ "functions": 1184,
+ "proved": 1184,
  "manual": [
   "boot.create_untypeds",
   "boot.create_untypeds_for_region_loop",

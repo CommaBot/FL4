@@ -1,6 +1,6 @@
 {
- "functions": 1204,
- "proved": 1204,
+ "functions": 1207,
+ "proved": 1207,
  "manual": [
   "boot.create_untypeds",
   "boot.init_irq_states_loop",

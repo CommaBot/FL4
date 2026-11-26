@@ -281,7 +281,7 @@
 @[step] theorem boot.init_irq_states_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.init_irq_states_loop machineStoreInst s i ⦃ _ => True ⦄ := by
   unfold boot.init_irq_states_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 3327 + 1 - x1.val) (inv := fun _ => True)
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 5375 + 1 - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
     unfold boot.init_irq_states_loop.body
     p0_body

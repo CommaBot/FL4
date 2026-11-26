@@ -267,7 +267,7 @@ theorem layout.irq.MAX.p0  :
 @[step] theorem boot.init_irq_states_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.init_irq_states_loop machineStoreInst s i ⦃ _ => True ⦄ := by
   unfold boot.init_irq_states_loop
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 3327 + 1 - x1.val) (inv := fun _ => True)
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 5375 + 1 - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
     unfold boot.init_irq_states_loop.body
     p0_body
@@ -1103,6 +1103,10 @@ theorem layout.tcb.END.p0  :
     layout.irq.core irq ⦃ _ => True ⦄ := by
   unfold layout.irq.core; p0_auto
 
+@[step] theorem machine.core_bit.p0 (cpu : Std.U64) :
+    machine.core_bit cpu ⦃ _ => True ⦄ := by
+  unfold machine.core_bit; p0_auto
+
 @[step] theorem objects.object_size.p0 (t : Std.U64) (user_size : Std.U64) :
     objects.object_size t user_size ⦃ _ => True ⦄ := by
   unfold objects.object_size; p0_auto
@@ -1236,6 +1240,10 @@ theorem vcpu.HCR_FORCED_1.p0  :
 @[step] theorem tcbqueue.prepend.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link) (q : tcbqueue.Queue) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     tcbqueue.prepend machineStoreInst s l q t ⦃ _ => True ⦄ := by
   unfold tcbqueue.prepend; p0_auto
+
+@[step] theorem smp.add_pending.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
+    smp.add_pending machineStoreInst s cpu ⦃ _ => True ⦄ := by
+  unfold smp.add_pending; p0_split
 
 @[step] theorem sched.cur_domain.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
     sched.cur_domain machineStoreInst s ⦃ _ => True ⦄ := by
@@ -4335,6 +4343,10 @@ theorem layout.ks.SIZE.p0  :
 @[step] theorem localtimer.timer_due.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (now : Std.U64) (hS : StoreTotal machineStoreInst) :
     localtimer.timer_due machineStoreInst s cpu now ⦃ _ => True ⦄ := by
   unfold localtimer.timer_due; p0_auto
+
+@[step] theorem smp.none_pending.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
+    smp.none_pending machineStoreInst s cpu ⦃ _ => True ⦄ := by
+  unfold smp.none_pending; p0_auto
 
 @[step] theorem localtimer.sched_quiet.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
     localtimer.sched_quiet machineStoreInst s cpu ⦃ _ => True ⦄ := by

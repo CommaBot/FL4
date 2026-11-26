@@ -78,10 +78,10 @@ open fl4_core_a64
 @[step] theorem layout.ks.IRQ_STATE.spec : layout.ks.IRQ_STATE ⦃ v => v = 224#u64 ⦄ := by
   unfold layout.ks.IRQ_STATE; simp only [fl4_abi.config.NUM_DOMAIN_SCHEDULES, layout.NUM_DOMAIN_SCHEDULES, layout.WORD]; step*
 
-@[step] theorem layout.irq.LPI_BASE.spec : layout.irq.LPI_BASE ⦃ v => v = 3072#u64 ⦄ := by
+@[step] theorem layout.irq.LPI_BASE.spec : layout.irq.LPI_BASE ⦃ v => v = 5120#u64 ⦄ := by
   unfold layout.irq.LPI_BASE; simp only [layout.irq.BANKED_BASE, layout.irq.BANKED_CORES, layout.irq.NUM_BANKED]; step*
 
-@[step] theorem layout.irq.MAX.spec : layout.irq.MAX ⦃ v => v = 3327#u64 ⦄ := by
+@[step] theorem layout.irq.MAX.spec : layout.irq.MAX ⦃ v => v = 5375#u64 ⦄ := by
   unfold layout.irq.MAX; simp only [layout.irq.NUM_LPIS]; step*
 
 @[step] theorem ept.D_VALID.spec : ept.D_VALID ⦃ v => v = 1#u64 ⦄ := by
@@ -119,34 +119,34 @@ open fl4_core_a64
 @[step] theorem layout.ks.IOPORT_WORDS.spec : layout.ks.IOPORT_WORDS ⦃ v => v = 1024#u64 ⦄ := by
   unfold layout.ks.IOPORT_WORDS; step*
 
-@[step] theorem layout.irq.COUNT.spec : layout.irq.COUNT ⦃ v => v = 3328#u64 ⦄ := by
+@[step] theorem layout.irq.COUNT.spec : layout.irq.COUNT ⦃ v => v = 5376#u64 ⦄ := by
   unfold layout.irq.COUNT; step*
 
-@[step] theorem layout.ks.IRQ_NODE.spec : layout.ks.IRQ_NODE ⦃ v => v = 26848#u64 ⦄ := by
+@[step] theorem layout.ks.IRQ_NODE.spec : layout.ks.IRQ_NODE ⦃ v => v = 43232#u64 ⦄ := by
   unfold layout.ks.IRQ_NODE; simp only [layout.WORD]; step*
 
-@[step] theorem layout.ks.IOPORT_BITMAP.spec : layout.ks.IOPORT_BITMAP ⦃ v => v = 133344#u64 ⦄ := by
+@[step] theorem layout.ks.IOPORT_BITMAP.spec : layout.ks.IOPORT_BITMAP ⦃ v => v = 215264#u64 ⦄ := by
   unfold layout.ks.IOPORT_BITMAP; simp only [layout.cte.SIZE]; step*
 
-@[step] theorem layout.ks.NODES.spec : layout.ks.NODES ⦃ v => v = 141568#u64 ⦄ := by
+@[step] theorem layout.ks.NODES.spec : layout.ks.NODES ⦃ v => v = 223488#u64 ⦄ := by
   unfold layout.ks.NODES; simp only [layout.WORD]; step*
 
-@[step] theorem layout.node.L2_BITMAP.spec : layout.node.L2_BITMAP ⦃ v => v = 136#u64 ⦄ := by
+@[step] theorem layout.node.L2_BITMAP.spec : layout.node.L2_BITMAP ⦃ v => v = 144#u64 ⦄ := by
   unfold layout.node.L2_BITMAP; simp only [fl4_abi.config.NUM_DOMAINS, layout.NUM_DOMAINS, layout.WORD, layout.node.L1_BITMAP]; step*
 
 @[step] theorem layout.L2_BITMAP_WORDS.spec : layout.L2_BITMAP_WORDS ⦃ v => v = 4#u64 ⦄ := by
   unfold layout.L2_BITMAP_WORDS; simp only [layout.NUM_PRIORITIES]; step*
 
-@[step] theorem layout.node.READY_QUEUES.spec : layout.node.READY_QUEUES ⦃ v => v = 168#u64 ⦄ := by
+@[step] theorem layout.node.READY_QUEUES.spec : layout.node.READY_QUEUES ⦃ v => v = 176#u64 ⦄ := by
   unfold layout.node.READY_QUEUES; simp only [fl4_abi.config.NUM_DOMAINS, layout.NUM_DOMAINS, layout.WORD]; step*
 
-@[step] theorem layout.node.SIZE_RAW.spec : layout.node.SIZE_RAW ⦃ v => v = 4264#u64 ⦄ := by
+@[step] theorem layout.node.SIZE_RAW.spec : layout.node.SIZE_RAW ⦃ v => v = 4272#u64 ⦄ := by
   unfold layout.node.SIZE_RAW; simp only [fl4_abi.config.NUM_DOMAINS, layout.NUM_DOMAINS, layout.NUM_PRIORITIES, layout.WORD]; step*
 
 @[step] theorem layout.node.SIZE.spec : layout.node.SIZE ⦃ v => v = 4288#u64 ⦄ := by
   unfold layout.node.SIZE; step*
 
-@[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 416000#u64 ⦄ := by
+@[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 772352#u64 ⦄ := by
   unfold layout.ks.ASID_TABLE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
 
 @[step] theorem vspace.N_ASID_POOLS.spec : vspace.N_ASID_POOLS ⦃ v => v = 128#u64 ⦄ := by
@@ -322,7 +322,7 @@ open fl4_core_a64
 @[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
   unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
 
-@[step] theorem boot.extra_ut_reserve.spec : boot.extra_ut_reserve ⦃ v => v = 0#u64 ⦄ := by
+@[step] theorem boot.extra_ut_reserve.spec : boot.extra_ut_reserve ⦃ v => v = 65552#u64 ⦄ := by
   unfold boot.extra_ut_reserve; simp only [boot.EXTRA_UNTYPEDS]; step*
 
 @[step] theorem domain.MAX_DURATION.spec : domain.MAX_DURATION ⦃ v => v = 72057594037927935#u64 ⦄ := by
@@ -334,7 +334,7 @@ open fl4_core_a64
 @[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
   unfold layout.node.RELEASE_TAIL; simp only [layout.node.RELEASE_HEAD]; step*
 
-@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 432384#u64 ⦄ := by
+@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 788736#u64 ⦄ := by
   unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
 
 @[step] theorem localvm.MAX_VM_LOCKS.spec : localvm.MAX_VM_LOCKS ⦃ v => v = 5#usize ⦄ := by
@@ -883,13 +883,13 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem fl4_abi.config.NUM_DOMAIN_SCHEDULES.val_eq : fl4_abi.config.NUM_DOMAIN_SCHEDULES.val = 2 := by
   unfold fl4_abi.config.NUM_DOMAIN_SCHEDULES; rfl
 
-@[simp, scalar_tac_simps] theorem fl4_abi.config.MAX_NUM_NODES.val_eq : fl4_abi.config.MAX_NUM_NODES.val = 64 := by
+@[simp, scalar_tac_simps] theorem fl4_abi.config.MAX_NUM_NODES.val_eq : fl4_abi.config.MAX_NUM_NODES.val = 128 := by
   unfold fl4_abi.config.MAX_NUM_NODES; rfl
 
 @[simp, scalar_tac_simps] theorem fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq : fl4_abi.config.ROOT_CNODE_SIZE_BITS.val = 13 := by
   unfold fl4_abi.config.ROOT_CNODE_SIZE_BITS; rfl
 
-@[simp, scalar_tac_simps] theorem boot.EXTRA_UNTYPEDS.val_eq : boot.EXTRA_UNTYPEDS.val = 0 := by
+@[simp, scalar_tac_simps] theorem boot.EXTRA_UNTYPEDS.val_eq : boot.EXTRA_UNTYPEDS.val = 4096 := by
   unfold boot.EXTRA_UNTYPEDS; rfl
 
 @[simp, scalar_tac_simps] theorem layout.PPTR_BASE.val_eq : layout.PPTR_BASE.val = 18446603336221196288 := by
@@ -958,7 +958,7 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem layout.irq.LPI_ID_BASE.val_eq : layout.irq.LPI_ID_BASE.val = 8192 := by
   unfold layout.irq.LPI_ID_BASE; rfl
 
-@[simp, scalar_tac_simps] theorem layout.irq.BANKED_CORES.val_eq : layout.irq.BANKED_CORES.val = 64 := by
+@[simp, scalar_tac_simps] theorem layout.irq.BANKED_CORES.val_eq : layout.irq.BANKED_CORES.val = 128 := by
   unfold layout.irq.BANKED_CORES; rfl
 
 @[simp, scalar_tac_simps] theorem layout.irq.BANKED_BASE.val_eq : layout.irq.BANKED_BASE.val = 1024 := by
@@ -1015,7 +1015,7 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem capability.VM_KERNEL_ONLY.val_eq : capability.VM_KERNEL_ONLY.val = 1 := by
   unfold capability.VM_KERNEL_ONLY; rfl
 
-@[simp, scalar_tac_simps] theorem layout.node.L1_BITMAP.val_eq : layout.node.L1_BITMAP.val = 128 := by
+@[simp, scalar_tac_simps] theorem layout.node.L1_BITMAP.val_eq : layout.node.L1_BITMAP.val = 136 := by
   unfold layout.node.L1_BITMAP; rfl
 
 @[simp, scalar_tac_simps] theorem layout.NUM_DOMAINS.val_eq : layout.NUM_DOMAINS.val = 1 := by
@@ -1357,11 +1357,14 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem vcpu.OWNER_CPU.val_eq : vcpu.OWNER_CPU.val = 8 := by
   unfold vcpu.OWNER_CPU; rfl
 
-@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
-  unfold layout.ks.CUR_DOMAIN; rfl
+@[simp, scalar_tac_simps] theorem layout.node.IPI_PENDING_HI.val_eq : layout.node.IPI_PENDING_HI.val = 128 := by
+  unfold layout.node.IPI_PENDING_HI; rfl
 
 @[simp, scalar_tac_simps] theorem layout.node.IPI_PENDING.val_eq : layout.node.IPI_PENDING.val = 120 := by
   unfold layout.node.IPI_PENDING; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
+  unfold layout.ks.CUR_DOMAIN; rfl
 
 @[simp, scalar_tac_simps] theorem layout.node.REPROGRAM.val_eq : layout.node.REPROGRAM.val = 56 := by
   unfold layout.node.REPROGRAM; rfl
