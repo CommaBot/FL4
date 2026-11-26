@@ -2109,3 +2109,5 @@ import Fl4Proofs.P2.E2EPU2C
 import Fl4Proofs.P2.E2EPU2
 import Fl4Proofs.P2.E2EPU2P
 import Fl4Proofs.P2.SerialH
+import Fl4Proofs.P2.E2EH
+import Fl4Proofs.P2.E2EPH

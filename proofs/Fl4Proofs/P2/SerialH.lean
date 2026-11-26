@@ -513,7 +513,7 @@ theorem lock_iff {lk : L → Option C} {c d : C} {l : L} {b : Bool} (hdc : d ≠
     by_cases hl : l' = l
     · subst hl
       rw [Function.update_self, hb rfl]
-      exact ⟨fun h => by cases h, fun h => absurd (Option.some.inj h) (Ne.symm hdc)⟩
+      exact ⟨(fun h => by cases h), fun h => absurd (Option.some.inj h) (Ne.symm hdc)⟩
     · rw [Function.update_of_ne hl]
 
 theorem release_iff {lk : L → Option C} {c d : C} (hdc : d ≠ c) (l' : L) :
@@ -548,7 +548,7 @@ theorem sw_step {s s' : Cfg A V C L} {c : C} (hno : s.gate = .closed → NoLoc s
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      have hS := Sw d _ _ W1 hc hW
+      have hS := Sw d _ _ _ hc hW
       cases hS with
       | rd _ h => exact h _ (.refl _)
     · rw [Function.update_of_ne hdc] at hd'; exact Sw d p0 q W hd' hW
@@ -556,7 +556,7 @@ theorem sw_step {s s' : Cfg A V C L} {c : C} (hno : s.gate = .closed → NoLoc s
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      have hS := Sw d _ _ W1 hc hW
+      have hS := Sw d _ _ _ hc hW
       cases hS with
       | rds h => exact h _ (.refl _)
     · rw [Function.update_of_ne hdc] at hd'; exact Sw d p0 q W hd' hW
@@ -564,7 +564,7 @@ theorem sw_step {s s' : Cfg A V C L} {c : C} (hno : s.gate = .closed → NoLoc s
     have hd' : Function.update s.ph c (.loc p1 (k (s.mem a)) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      have hS := Sw d _ _ W1 hc hW
+      have hS := Sw d _ _ _ hc hW
       cases hS with
       | rdc _ _ h => exact h _ (.refl _)
     · rw [Function.update_of_ne hdc] at hd'; exact Sw d p0 q W hd' hW
@@ -572,7 +572,7 @@ theorem sw_step {s s' : Cfg A V C L} {c : C} (hno : s.gate = .closed → NoLoc s
     have hd' : Function.update s.ph c (.loc p1 k W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      have hS := Sw d _ _ W1 hc hW
+      have hS := Sw d _ _ _ hc hW
       cases hS
     · rw [Function.update_of_ne hdc] at hd'; exact Sw d p0 q W hd' hW
   | @wr p1 a v k W1 hc =>
@@ -604,7 +604,7 @@ theorem sw_step {s s' : Cfg A V C L} {c : C} (hno : s.gate = .closed → NoLoc s
     have hd' : Function.update s.ph c (.loc p1 (k b) W1) d = .loc p0 q W := hd
     by_cases hdc : d = c
     · subst hdc; rw [Function.update_self] at hd'; cases hd'
-      have hS := Sw d _ _ W1 hc hW
+      have hS := Sw d _ _ _ hc hW
       cases hS
     · rw [Function.update_of_ne hdc] at hd'
       exact Safe.congr (lock_iff hdc hb) (Sw d p0 q W hd' hW)
