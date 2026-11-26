@@ -28,11 +28,6 @@ namespace Fl4Proofs.P2
 open fl4_core Fl4Proofs.P0.Consts Fl4Proofs.P1
 open Fl4Proofs.P2.PathObl (ScAcc rhA tmA RdHead NodeSt)
 
-/-- A word outside every TCB and node and every SC of P1's sets. -/
-def VFar {S : Type} (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (Z : U64 → Nat) (s : S)
-    (b : U64) : Prop :=
-  OutsideObjs st T Cs s b ∧ ∀ c ∈ Scs, ¬ InSC c (Z c) b
-
 section main
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {R W : U64 → Prop}
 variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
