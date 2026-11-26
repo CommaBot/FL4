@@ -101,6 +101,7 @@ import Fl4ProofsA64.P1.QueueDecCnode
 import Fl4ProofsA64.P1.QueueDecTdx
 import Fl4ProofsA64.P1.QueueEntryGaps
 import Fl4ProofsA64.P1.QueueReplyX
+import Fl4ProofsA64.P1.QueueDecDel
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -128,3 +129,4 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.InvGaps2.gaps
 #print axioms Fl4ProofsA64.P1.decGap_tdx
 #print axioms Fl4ProofsA64.P1.decGap_reply
+#print axioms Fl4ProofsA64.P1.decGap_cnode2
