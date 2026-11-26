@@ -2365,3 +2365,5 @@ import Fl4Proofs.P3.P3JRrSys
 import Fl4Proofs.P3.P3JMcIrqR
 import Fl4Proofs.P3.P3JMcIrqRQ
 import Fl4Proofs.P3.P3JMcLiftR
+import Fl4Proofs.P3.P3JFinW
+import Fl4Proofs.P3.P3JMcFin
