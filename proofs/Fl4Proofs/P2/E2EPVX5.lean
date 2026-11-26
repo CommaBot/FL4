@@ -1,7 +1,64 @@
 /-
-# P2 (line vmscope, gen 5): the VM-epoch I/O-port slot without [J] — `serializable_fl4_localVX5`
+# P2 (line vmscope, gen 5): io without [J]; `TCB_SetTimer` and the timer interrupt in VM epochs —
+# `serializable_fl4_localVX5`
 
-(module docstring: see the end of the gen-5 work, below the imports' summary.)
+`serializable_fl4_localVX4` (P2/E2EPVX4.lean) ran the I/O-port slot in VM epochs under two [J]s U1 does not have
+(`IoPremX2.iw`: `IoPre` survives a user / VCPU-data write; `.qf`: the caller's `Q` does). This module
+
+1. **discharges both**: every frame fact the io path needs follows from the layout alone once the VCPU data words
+   are counted as user memory. **`userLayX_userV`**: `UserLayX` (the store-free user-word layout of VX2) holds at
+   `userV K`, from the epoch's `VtxBundle4` (`VcpuHeap`, `vsl`, `VcpuKsOff`, `RegionOKV.none`) and the kernel base's
+   fit (any node placement). **`ioPre_wrL`**: `IoPre` is kept by an aligned user-word write at any layout with
+   `UserLayX` (`SlJAt.ioPre_wr` without a bundle: `BXI` by `bxi_userX`, node / TCB / SC words by `RegionOKX`, the
+   CSpace walk's slot words by `LayP.userSlot` via `cap_wrL`). `qf` follows once the index's `Q` is U1's `IoQ`
+   (index convention `hQ`, as U1's `IoPremW9.hQ`). Record **`IoPremX5`** (`hQ`, `hCs` conventions; `kd` [P]),
+   **`IoPremX5.toX2`**, **`IoStartX5`**, **`ioStartX_of_X5`**.
+2. **`TCB_SetTimer` in VM epochs** (`stSlotX`: `set_timer_localPathA` at `userV K`, `Pre := StEntV`, no P3 bundle):
+   **`stEnt_wrL`** (`stEnt_wr` from `UserLayX` instead of a bundle state) gives st's `eu`; `ReadOnce` by `st_hro`,
+   the node words by `StLay.nu_node`, the locks by U1's `kd` [P]. PTE avoidance **`st_avoidPX_path`** (copy of
+   `stm_avoidPJ_path`), **`stSlotPX`**, record **`StPremX5`** (`hCs`, `kd` [P]), start **`StStartX`**,
+   **`stStartX_at`**.
+3. **the timer interrupt in VM epochs** (`irqSlotX`: `irq_localPathX`, `Pre := IrqPreX` = `IrqEntM` at `userV K`
+   with a `BufAt` placement, no `SlJAt`, no `VFacts`): **`irqLay_wrL`**, **`irqFx_wr`** (the `Pre` across a
+   `userV K` user write), **`irq_pathOblX`** / **`irq_pathSideX`** / **`irq_hroX`** (the `_V` proofs with `ObjLay`
+   by `objLay_of_layP`, `SlotLayV` by `slotLayV_ofLayX`, `BufAt` from the state), **`irq_avoidPX_path`**,
+   **`irqSlotPX`**, record **`IrqPremX5`** (`lt`, `kd` [P], `pl` [P]), start **`IrqStartX`**, **`irqStartX_at`**.
+4. Tops: **`StartVX5`**, **`serializable_fl4_localVX5G`**, **`serializable_fl4_localVX5`** = VX4's family
+   ⊕ `stSlotPX` ⊕ `irqSlotPX`, the io slot at `IoStartX5`. Glue `ExecVX4` (VM exits carry `VtxBundle4` [S]).
+
+Slots that start in VM epochs: VM exit (vx), VM timer (vt), I/O port (io), `TCB_SetTimer` (st), timer interrupt
+(irq). Native epochs: all of U1's (vmF, vmR, io, st, irq, sl, vx, vt, delPte, CNodeDelete, Copy/Mint).
+
+## Premise diff vs `serializable_fl4_localVX4`
+| where | VX4 | VX5 |
+|---|---|---|
+| io record | `IoPremX2`: `iw` [J], `qf` [J], `kd` [P] | `IoPremX5`: `hQ` (conv., U1's `IoPremW9.hQ`), `hCs` (conv., VX2's `VxIx.hCs`), `kd` [P] (unchanged) — **no [J]** |
+| io start entry | `IoPre ∧ Q ∧ QPs` [S] | unchanged |
+| st | native epochs only | also VM epochs: record `StPremX5` (`hCs` conv., `kd` [P] = U1's `StPremW3B.kd`); start entry `StEnt ∧ QPs` [S]; `GlueAt` data [P] |
+| irq | native epochs only | also VM epochs: record `IrqPremX5` (`lt` as U1's, `kd` [P] = U1's `IrqPremK2B.kd` at entry states instead of bundle states, `pl` [P] = U1's); start entry `IrqEnt (userV K) ∧ BufAt ∧ QPs` [S]; `GlueAt` data [P] |
+| everything else | | unchanged |
+No new [J] and no [W]; VX4's two [J]s are gone, so VX5's VM-epoch slots carry no [J] at all.
+
+## [S] justification (Rust: fl4-core `localtimer.rs`, `timer.rs`, `arch/x86_64/objects.rs`, `vcpu.rs`, `asid.rs`)
+* st start entry `StEnt K ∧ QPs` — P1's entry facts of `handle_set_timer_local` (`BXI`, the layout's `StLay`, the
+  current thread's scheduling facts, `target ∈ T`) at a state where another core runs a guest. They read the current
+  thread, its SC, the timer tree and the target TCB; a guest writes only its VCPU's data words and guest frames
+  (`HwStepP`), none of which is a TCB / SC / node word (`VtxBundle`: VCPUs are `other 15` objects). P3 has no such
+  state (`JExt.vw`), so the fact is scope, not [J]; natively it is `StEntJ7`'s bundle consequence.
+* irq start entry `IrqEnt (userV K) ∧ BufAt ∧ QPs` — `handle_timer_irq_local`'s P1 entry facts: as st's, plus
+  `IrqLay` at `userV K` (the IRQ-state / kernel-root / ASID-table words are ks-block words, the ASID-pool entries
+  words of untyped-retyped ASID-pool objects: none is a user frame word or a word of a `bits::VCPU` object) and
+  `BufAt` (every TCB's IPC buffer is a frame-cap page: `msg::lookup_ipc_buffer` reads the `SLOT_BUFFER` cap, and
+  VCPUs are never frames). Natively `IrqPreJ3.entM` / `SlotJC.bufAt` from the bundle.
+* `VtxBundle4`, the vx / vt / io entries — unchanged from VX4 (justified there).
+
+## [P]s
+* `IoPremX5.kd` — VX4's `IoPremX2.kd` unchanged. `StPremX5.kd` — U1's `StPremW3B.kd` unchanged (unconditional).
+  `IrqPremX5.kd` — U1's `IrqPremK2B.kd` ("at bundle states") read at the interrupt's entry states (no `m`): the
+  locks are fl4-sync `local_timer_irq`'s `plan_timer_irq` objects, which `plan_timer_irq` reads from this core's node and the timer tree (kernel words) only.
+  `IrqPremX5.pl` — U1's `PlanLk`.
+
+No sorry / admit / native_decide / bv_decide. No existing statement or file changed except the root import list.
 -/
 import Fl4Proofs.P2.E2EPVX4
 open Aeneas Aeneas.Std Result
@@ -579,6 +636,407 @@ theorem ioStartX_of_X5 {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU 
 
 end ioSt
 
+/-! ## Part 6a: the timer interrupt at any layout -/
+
+section irqF
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {K : KLayoutV}
+
+/-- **The timer interrupt's state facts in a VM epoch** (module docstring): P1's entry facts at `userV K` with the
+store agreeing with `m` off `userV K`'s user words (`IrqEntM`, as `IrqPreV.entM` produces), and an IPC-buffer
+placement (`BufAt`, as `SlotJC.bufAt`); no P3 bundle. -/
+structure IrqFx (K : KLayoutV) (st : machine.Store S) [L : LawfulStore st] (Ω Ac : Set U64) (irq : U64)
+    (m : U64 → U64) (s : S) : Prop where
+  ent : IrqEntM (userV K) st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap (Heap.frame K.heap)
+    (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac irq m s
+  buf : ∃ U : Set U64, BufAt st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} K.heap (Heap.frame K.heap)
+    (Heap.scs K.heap) (Heap.scBits K.heap) U s
+
+/-- **The timer interrupt path's `Pre` in VM epochs** (`IrqPreV` without `SlJAt`). -/
+abbrev IrqPreX (K : KLayoutV) (st : machine.Store S) [L : LawfulStore st] (irq : U64) (m : U64 → U64) (s : S) :
+    Prop :=
+  ∃ Ω Ac : Set U64, IrqFx K st Ω Ac irq m s
+
+/-- `UserLayX` at `userV K` and the kernel base at an `IrqFx` state. -/
+theorem irqFx_ul (ul : UserLayX L K.toKLayout) (hK : RegionOKV K) (vh : VcpuHeap K) (ko : VcpuKsOff K)
+    (vsl : ∀ p ∈ K.slots, ∀ b, InW p 32 b → ¬ ∃ v, InVcpu K v b) {Ω Ac : Set U64} {irq : U64} {m : U64 → U64}
+    {s : S} (h : IrqFx K st Ω Ac irq m s) : UserLayX L (userV K) ∧ L.ksb s = K.ksb := by
+  have h0 := h.ent.ent.inv.1.choose_spec.choose_spec
+  have hN : NodePlaced st K.heap.tcbs s (L.cpu s) := h0.nodes _ h0.cur
+  have hk : L.ksb s = K.ksb := ksb_of_stLay (Kl := userV K) h.ent.ent.lay hN
+  exact ⟨userLayX_userV ul hK vh ko vsl (ksb_fit_of_np hN hk), hk⟩
+
+/-- **`IrqLay` across a user-word write** (the table and pool words it reads are no user words, its own `tabU`;
+the current thread by the node word). -/
+theorem irqLay_wrL {Kl : KLayout} {Nt : Set U64} {irq : U64} {X : S}
+    (hnd : NU Kl (L.nodeAt X (L.cpu X) layout.node.CUR_THREAD)) (h : IrqLay Kl st Nt irq X) {b : U64}
+    (hb : b ∈ Kl.user) (hba : Aligned b) (v : U64) : IrqLay Kl st Nt irq (L.wr X b v) := by
+  have ecur : L.curW (L.wr X b v) = L.curW X := by
+    unfold LawfulStore.curW
+    rw [nodeAt_wr, L.cpu_wr]
+    exact wr_nu hba hb v hnd
+  have ekr : krA (L := L) (L.wr X b v) = krA (L := L) X := by unfold krA; rw [L.ksb_wr]
+  have eA : ∀ hi : U64, hi.val < 2048 → L.mem (L.wr X b v) (atAF (L.ksb X) hi) = L.mem X (atAF (L.ksb X) hi) :=
+    fun hi hhi => wr_nu hba hb v ⟨(h.tab hi hhi).1.1, (h.tabU hi hhi).1⟩
+  refine ⟨?_, ?_, fun hi hhi => ?_, h.ntw, ?_, ?_, ?_, fun hi hhi => ?_⟩
+  · rw [L.ksb_wr]; exact h.iq
+  · rw [ekr]; exact h.kr
+  · rw [L.ksb_wr, eA hi hhi]; exact h.tab hi hhi
+  · rw [ecur]; exact h.cs
+  · rw [L.ksb_wr]; exact h.iqU
+  · rw [ekr]; exact h.krU
+  · rw [L.ksb_wr, eA hi hhi]; exact h.tabU hi hhi
+
+/-- **The timer interrupt's state facts across a write of a `userV K` user word** (`BXI` by `bxi_userX` at
+`userV K`; `StLay` by `stLay_wrU`; `IrqLay` by `irqLay_wrL`; `AsidOff` by `asidOff_agN` (table words `NU`, from
+`IrqLay`); `aff` by TCB / SC words; the memory link off user words; `BufAt` by TCB words, as `vtFx_wr`). -/
+theorem irqFx_wr (U : UserLayX L (userV K)) {Ω Ac : Set U64} {irq : U64} {m : U64 → U64} {X : S}
+    (h : IrqFx K st Ω Ac irq m X) (hk : L.ksb X = K.ksb) {b : U64} (hb : b ∈ (userV K).user) (hba : Aligned b)
+    (v : U64) : IrqFx K st Ω Ac irq m (L.wr X b v) := by
+  have hX := U.rx
+  have E := h.ent.ent
+  have h0 := E.inv.1.choose_spec.choose_spec
+  have hT : TcbPlaced K.heap.tcbs := h0.tcbs
+  have hN : NodePlaced st K.heap.tcbs X (L.cpu X) := h0.nodes _ h0.cur
+  have hCs : ∀ c ∈ ({c : U64 | c.val < K.ncores} : Set U64), c.val < 64 :=
+    fun c hc => Nat.lt_of_lt_of_le hc U.nc
+  have G : Ag st (NU (userV K)) X (L.wr X b v) :=
+    ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun x hx => wr_nu hba hb v hx⟩
+  have hnd : NU (userV K) (L.nodeAt X (L.cpu X) layout.node.CUR_THREAD) :=
+    ⟨nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val]), E.lay.nu_node (by rw [curth_val]; omega)⟩
+  have tw : ∀ y, K.heap y = some .tcb → ∀ o : U64, o.val < 4096 → o.val % 8 = 0 →
+      L.mem (L.wr X b v) (core.num.U64.wrapping_add y o) = L.mem X (core.num.U64.wrapping_add y o) :=
+    fun y hy o h1 h2 => wr_nu hba hb v ⟨field_aligned (hT y hy) h1 h2, fun hu => U.userObj hu hy
+      (fun z e => by cases e) (by unfold InW; rw [field_val (hT y hy) h1]; simp only [HKind.bits]; omega)⟩
+  have hna : ∀ hi : U64, hi.val < 2048 → NU (userV K) (atAF (L.ksb X) hi) :=
+    fun hi hhi => ⟨(E.ly.tab hi hhi).1.1, (E.ly.tabU hi hhi).1⟩
+  have hB := bxi_userX U hk hCs E.inv G
+  obtain ⟨⟨Qq, Rq, hq⟩, -, hXI, -, -⟩ := E.inv
+  refine ⟨⟨⟨hB, stLay_wrU E.lay b v, irqLay_wrL hnd E.ly hb hba v, asidOff_agN hna G E.asid, ?_, E.nth⟩,
+    fun x hx hxu => by rw [mem_wr_ne' hba hx (fun e => hxu (e ▸ hb))]; exact h.ent.mem x hx hxu⟩, ?_⟩
+  · intro t ht h1
+    have es : L.mem (L.wr X b v) (scA t) = L.mem X (scA t) :=
+      wr_nu hba hb v (nu_tcb hX ht (o := 3464#u64) (by simp) (by simp) (by simp))
+    rw [es] at h1 ⊢
+    have hsc := (hXI.2.2.bound t ht h1).1
+    have ec : L.mem (L.wr X b v) (scCoreA (L.mem X (scA t))) = L.mem X (scCoreA (L.mem X (scA t))) :=
+      wr_nu hba hb v (nu_scw hX (scs_heap hsc) (o := layout.sc.CORE) (by simp [layout.sc.CORE])
+        (by simp [layout.sc.CORE]))
+    have ea : L.mem (L.wr X b v) (affA t) = L.mem X (affA t) :=
+      wr_nu hba hb v (nu_tcb hX ht (o := 3520#u64) (by simp) (by simp) (by simp))
+    rw [ec, ea]; exact E.aff t ht h1
+  · obtain ⟨Ub, hB1, hB2⟩ := h.buf
+    refine ⟨Ub, fun c hc => (hB1 c hc).ksb (L.ksb_wr _ _ _), fun y hy => ?_⟩
+    have ht := hT y hy
+    have e1 : L.mem (L.wr X b v) (ibA y) = L.mem X (ibA y) := tw y hy 3512#u64 (by simp) (by simp)
+    have e2 : L.mem (L.wr X b v) (sbA y) = L.mem X (sbA y) := by
+      rw [sbA_field ht]; exact tw y hy 64#u64 (by simp) (by simp)
+    have e3 : L.mem (L.wr X b v) (core.num.U64.wrapping_add (sbA y) 8#u64) =
+        L.mem X (core.num.U64.wrapping_add (sbA y) 8#u64) := by
+      rw [sbA8_field ht]; exact tw y hy 72#u64 (by simp) (by simp)
+    rw [lookup_buf_agree e1 e2 e3]
+    exact hB2 y hy
+
+end irqF
+
+section irqP
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {A : Type} {ar : machine.Arch A}
+
+variable (st) in
+/-- **The timer interrupt's record at any layout** (module docstring): the epoch's layout facts, `lt`, and U1's
+two [P]s (`kd` asked at entry states instead of bundle states, `pl`). -/
+structure IrqPremX (i : IrqArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
+  /-- The user-word layout facts (from the epoch's `VtxBundle`). -/
+  ul : UserLayX L K.toKLayout
+  /-- `VcpuHeap` (from the epoch's `VtxBundle`). -/
+  vh : VcpuHeap K
+  /-- No VCPU word in a CNode slot (from the epoch's `VtxBundle`). -/
+  vsl : ∀ p ∈ K.slots, ∀ b, InW p 32 b → ¬ ∃ v, InVcpu K v b
+  /-- No VCPU meets the kernel-global area (from the epoch's `VtxBundle4`). -/
+  ko : VcpuKsOff K
+  /-- The IRQ's state word lies in the kernel-state block (the timer IRQ is 2; U1's `IrqPremK2B.lt`). -/
+  lt : i.irq.val < 128
+  /-- [P] at the interrupt's entry states the locks are determined by the words off `(userV K).user` (U1's
+  `IrqPremK2B.kd`, "bundle states" read as "entry states": no `m`). -/
+  kd : ∀ s, (∃ Ω Ac : Set U64, IrqEnt (userV K) st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap
+    (Heap.frame K.heap) (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac i.irq s) →
+    KernDetS (L := L) (userV K).user i.lk s
+  /-- [P] (U1's `IrqPremK2B.pl`). -/
+  pl : PlanLk i.lk i.pl
+
+/-- **`PathObl` of the timer interrupt at one VM-epoch entry state** (`irq_pathObl_V`'s proof; `ObjLay` and
+`SlotLayV` from `UserLayX`, `BufAt` from the state). -/
+theorem irq_pathOblX (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) {i : IrqArg S} {K : KLayoutV} {m : U64 → U64}
+    (hKV : RegionOKV K) (hUV : UserOKV K) (h : IrqPremX st i K m) {s0 : S} (h0 : IrqPreX K st i.irq m s0) :
+    PathObl.PathObl st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a i.irq i.pl) (fun b => b = true)
+      (OwnMap.own (userV K)) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user) i.lk
+      (fun s => s = s0) (MaxR (userV K) st i.lk) (MaxW (userV K) st i.lk) (IrqDec st) := by
+  have hK := regionOK_userV hKV
+  have hUO := userOK_userV hKV hUV
+  obtain ⟨Ω, Ac, hF⟩ := h0
+  have hE := hF.ent
+  have hOL : ObjLay (userV K) K.heap (Heap.replies K.heap) := objLay_of_layP h.ul.lp (fun r hr => hr)
+  have hSL : SlotLayV (userV K) st (Heap.tcbs K.heap) s0 := slotLayV_ofLayX h.ul (fun y hy => hy) s0
+  have hp := irq_isProg S i.irq i.pl
+  refine irq_pathObl ar hA hK hUO (P := fun s => s = s0) (fun s e => by subst e; exact hE.ent)
+    (fun mm => hp A ar mm) (irq_noZero i.irq i.pl) hm (fun s e q hq => by subst e; exact irq_koF hE.ent hq)
+    (Fl4Proofs.P2.ko_aligned hK hUO) ?_ ?_
+  · rintro s a s1 a1 rfl hf h'
+    by_cases hnw : NoWake st s
+    · exact irq_acc_fire_nw ar hA hK hE.k hE.ent.ly hE.ent.aff hE.ent.nth hf hnw h'
+    · obtain ⟨Ub, hB⟩ := hF.buf
+      exact irq_acc_fire_wk2 ar hA hK hE.k hE.ent.ly hE.ent.aff hE.ent.nth
+        hOL h.pl (irq_bufAt_runB ar hA hE.ent.inv hB hf h') hSL hf hnw h'
+  · rintro s a s1 a1 rfl h'
+    refine irq_move_acc ar hA hK hUO hp hE.k (fun hf => ?_) h'
+    by_cases hnw : NoWake st s
+    · exact irq_move_fire_nw ar hA hK hUO hp hE.k hE.ent.ly hE.ent.nth hf hnw h'
+    · obtain ⟨Ub, hB⟩ := hF.buf
+      exact irq_move_fire_wk2 ar hA hK hUO hp hE.k hE.ent.ly hE.ent.aff hE.ent.nth
+        hOL h.pl (irq_bufAt_runB ar hA hE.ent.inv hB hf h') hf hnw h'
+
+/-- **`PathSide` of the timer interrupt under `IrqPreX`** (`irq_pathSide_V`'s proof; `user_free` by `irqFx_wr`,
+the locks by `kd` at the entry state). -/
+theorem irq_pathSideX (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) {i : IrqArg S} {K : KLayoutV} {m : U64 → U64}
+    (hKV : RegionOKV K) (hUV : UserOKV K) (h : IrqPremX st i K m) :
+    PathObl.PathSide st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a i.irq i.pl) (OwnMap.cls (userV K))
+      (OwnMap.ko (userV K) m) (· ∈ (userV K).user) i.lk (IrqPreX K st i.irq m) (MaxR (userV K) st i.lk)
+      (MaxW (userV K) st i.lk) (IrqDec st) := by
+  have hK := regionOK_userV hKV
+  have hUO := userOK_userV hKV hUV
+  have hp := irq_isProg S i.irq i.pl
+  have hz := irq_noZero i.irq i.pl
+  refine ⟨?_, fun s x _ hx => hx.2.1, Fl4Proofs.P2.ko_aligned hK hUO, ?_⟩
+  · intro s s' a r hP hAlt h'
+    obtain ⟨Ω, Ac, hF⟩ := hP
+    have O := irq_pathOblX hA hm hKV hUV h ⟨Ω, Ac, hF⟩
+    have eP : ∀ (mm : machine.Store S) (x : S),
+        localtimer.handle_timer_irq_local mm ar x a i.irq i.pl =
+          interp mm ar (R.localtimer.handle_timer_irq_local i.irq i.pl) x a :=
+      fun mm x => congrFun (congrFun (hp A ar mm) x) a
+    rcases irq_alt ar hA hK (fun mm => hp A ar mm) hz hm hF.ent.ent
+      (fun s1 a1 _ h1 => O.acc s a (true, s1, a1) rfl h1 rfl) hAlt h' with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
+    · show localtimer.handle_timer_irq_local _ ar s' a i.irq i.pl = ok r
+      rw [eP] at h2 ⊢
+      exact interp_mono (fun _ hw => hw.2.1) (fun _ _ => trivial) _ hz s' a r h2
+    · show localtimer.handle_timer_irq_local _ ar s' a i.irq i.pl = ok r
+      rw [eP] at h2 ⊢
+      exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) _ hz s' a r h2
+  · intro s b v hP hb hba
+    obtain ⟨Ω, Ac, hF⟩ := hP
+    obtain ⟨U, hk⟩ := irqFx_ul h.ul hKV h.vh h.ko h.vsl hF
+    have keep : ∀ x, Aligned x → x ∉ (userV K).user → L.mem (L.wr s b v) x = L.mem s x :=
+      fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb))
+    have eo : OwnMap.own (userV K) (L.mem (L.wr s b v)) = OwnMap.own (userV K) (L.mem s) :=
+      E2E.ownDep hK hUO _ _ (fun x hx hxu => keep x hx hxu)
+    have hl : i.lk (L.wr s b v) = i.lk s := hlk_of_kernelDetU h.kd s b v ⟨Ω, Ac, hF.ent.ent⟩ hb hba
+    refine ⟨⟨Ω, Ac, irqFx_wr U hF hk hb hba v⟩, hl, ?_, ?_, irq_dec_user s b v⟩
+    · funext w; simp only [MaxR, RPerm, GateOnly, eo, hl, L.cpu_wr]
+    · funext w; simp only [MaxW, WPerm, eo, hl, L.cpu_wr]
+
+/-- **`ReadOnce` of the timer interrupt tree under `IrqPreX`** (`irq_hroV`'s proof). -/
+theorem irq_hroX (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) {i : IrqArg S} {K : KLayoutV} {m : U64 → U64}
+    (hKV : RegionOKV K) (hUV : UserOKV K) (h : IrqPremX st i K m) :
+    E2E.ReadOnce st ar (R.localtimer.handle_timer_irq_local i.irq i.pl) (OwnMap.cls (userV K))
+      (OwnMap.ko (userV K) m) (· ∈ (userV K).user) (IrqPreX K st i.irq m) (MaxR (userV K) st i.lk) := by
+  intro s s' a _ hP hAlt _
+  obtain ⟨Ω, Ac, hF⟩ := hP
+  have O := irq_pathOblX hA hm hKV hUV h ⟨Ω, Ac, hF⟩
+  exact irq_once_alt ar hA (regionOK_userV hKV) hm hF.ent.ent
+    (fun s1 a1 _ h1 => O.acc s a (true, s1, a1) rfl h1 rfl) hAlt
+
+/-- **The timer interrupt local path at `userV K` with `Pre := IrqPreX`** (`irq_localPathV` without `VFacts` and
+`SlJAt`). -/
+noncomputable def irq_localPathX (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) {i : IrqArg S} {K : KLayoutV}
+    {m : U64 → U64} (hKV : RegionOKV K) (hUV : UserOKV K) (h : IrqPremX st i K m) :
+    E2E.LocalPath (OwnMap.own (userV K)) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user) :=
+  { S := S
+    A := A
+    X := Bool
+    st := st
+    L := L
+    ar := ar
+    F := irqBody S i.irq i.pl
+    p := R.localtimer.handle_timer_irq_local i.irq i.pl
+    Acc := fun b => b = true
+    Locks := i.lk
+    Pre := IrqPreX K st i.irq m
+    RS := MaxR (userV K) st i.lk
+    WS := MaxW (userV K) st i.lk
+    DS := IrqDec st
+    isProg := PathObl.IsProg.on (irq_isProg S i.irq i.pl) _ _ _
+    obl := irq_obl_of_pt fun _ h0 => irq_pathOblX hA hm hKV hUV h h0
+    side := irq_pathSideX hA hm hKV hUV h
+    once := irq_hroX hA hm hKV hUV h
+    total := fun s a => by
+      obtain ⟨r, e, -⟩ :=
+        spec_ex_fd (P0.localtimer.handle_timer_irq_local.p0 st ar s a i.irq i.pl LawfulStore.total hA)
+      exact ⟨r, e⟩
+    masks := hm }
+
+end irqP
+
+section irqS
+variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
+variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
+
+/-- **The timer interrupt slot at any layout** (route U, `Pre := IrqPreX`). -/
+def irqSlotX : SlotU (IrqArg S) where
+  Prem i K m := IrqPremX st i K m
+  path i K m hK hU h := irq_localPathX hA hm hK hU h
+  W i K m hK hU h :=
+    ⟨fun _ _ _ hr => maxR_noV hr, fun s _ hp hw => hw.elim (maxW_noV hK) fun hd => by
+      obtain ⟨Ω, Ac, hF⟩ := (hp : IrqPreX K st i.irq m s)
+      exact Or.inl (irqDec_noV hK hF.ent.ent hd)⟩
+
+/-- **The timer interrupt path at any layout reads no PTE word under `QPs`** (`irq_avoidPJ_path`'s proof with
+`Pre := IrqPreX`; it never used `vcpus = ∅`). -/
+theorem irq_avoidPX_path (i : IrqArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
+    (h : (irqSlotX st ar hA hm).Prem i K.toKLayoutV m) :
+    AvoidE (· ∈ K.ptes) (((irqSlotX st ar hA hm).path i K.toKLayoutV m hK.base hU.base h).rJ K (fun b hb => hb)) := by
+  have hP : IrqPremX st i K.toKLayoutV m := h
+  have hKr := regionOK_userP hK.base
+  have facts : ∀ s, IrqPreX K.toKLayoutV st i.irq m s → QPs K st s →
+      ∃ Ω Ac : Set U64, IrqEnt (userP K) st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap
+        (Heap.frame K.heap) (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac
+        i.irq s := by
+    intro s hs hq
+    obtain ⟨Ω, Ac, hF⟩ := hs
+    exact ⟨Ω, Ac, irqEnt_userP hK hF.ent.ent (fun hb j hj => hq.ksw (state_off_lt hb hj))
+      (hq.ksw (by simp [layout.ks.KERNEL_ROOT])) hq.tab
+      (hq.ksw (by simp [layout.ks.CUR_DOMAIN]))
+      (hq.ksw (by simp [layout.ks.DOMAIN_TIME]))⟩
+  refine avoidE_of_entry (P := ((irqSlotX st ar hA hm).path i K.toKLayoutV m hK.base hU.base h).rJ K
+      (fun b hb => hb))
+    (E := (· ∈ K.ptes)) (irq_noZero i.irq i.pl) (IsProg.on (irq_isProg S i.irq i.pl) _ _ _)
+    (fun s => MaxR (L := L) (userP K) st i.lk s) (fun s => MaxW (L := L) (userP K) st i.lk s)
+    (fun s x _ hx hp => hx.2.2 (Or.inr hp)) ?_
+    (fun s => MaxR (L := L) (userP K) st i.lk s) (fun s => IrqDec (L := L) st s)
+    (fun s x _ hx => ⟨hx.2.1, ⟨hx.1, hx.2.1, fun hu => hx.2.2 (Or.inl hu)⟩, fun hp => hx.2.2 (Or.inr hp)⟩)
+    (fun s x hs hx => by
+      obtain ⟨hs1, hs2⟩ := hs
+      obtain ⟨Ω, Ac, hE⟩ := facts s hs1 hs2
+      exact (hE.dec hx).1) ?_
+  · intro s a r hs hr hb
+    obtain ⟨hs1, hs2⟩ := hs
+    have hs' : IrqPreX K.toKLayoutV st i.irq m s := hs1
+    have hq : QPs K st s := hs2
+    obtain ⟨b, s1, a1⟩ := r
+    have hb' : b = true := hb
+    subst hb'
+    have hr' : localtimer.handle_timer_irq_local st ar s a i.irq i.pl = ok (true, s1, a1) := hr
+    obtain ⟨Ω, Ac, hE⟩ := facts s hs' hq
+    have hEK : IrqEntK (userP K) st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap (Heap.frame K.heap)
+        (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac (L.mem s) s :=
+      ⟨hE.inv, hE.lay, fun _ _ _ => rfl, hE.asid⟩
+    obtain ⟨Ω', Ac', hF⟩ := hs'
+    have hOL : ObjLay (userP K) K.heap (Heap.replies K.heap) := objLay_of_layP hP.ul.lp (fun r hr => hr)
+    have hSL : SlotLayV (userP K) st (Heap.tcbs K.heap) s := slotLayV_ofLayX hP.ul (fun y hy => hy) s
+    have g : localtimer.handle_timer_irq_local (guard st (MaxR (userP K) st i.lk s) (MaxW (userP K) st i.lk s))
+        ar s a i.irq i.pl = ok (true, s1, a1) :=
+      irq_acc_own ar hA hKr hEK hE.ly hE.aff (fun hf => by
+        by_cases hnw : NoWake st s
+        · exact irq_acc_fire_nw ar hA hKr hEK hE.ly hE.aff hE.nth hf hnw hr'
+        · obtain ⟨U, hB⟩ := hF.buf
+          exact irq_acc_fire_wk2 ar hA hKr hEK hE.ly hE.aff hE.nth hOL hP.pl
+            (irq_bufAt_runB ar hA hE.inv hB hf hr') hSL hf hnw hr') hr'
+    exact g
+  · intro s a r hs hr hb
+    obtain ⟨hs1, hs2⟩ := hs
+    have hs' : IrqPreX K.toKLayoutV st i.irq m s := hs1
+    have hq : QPs K st s := hs2
+    obtain ⟨b, s1, a1⟩ := r
+    cases b
+    · have hr' : localtimer.handle_timer_irq_local st ar s a i.irq i.pl = ok (false, s1, a1) := hr
+      obtain ⟨Ω, Ac, hE⟩ := facts s hs' hq
+      have g : localtimer.handle_timer_irq_local (guard st (MaxR (userP K) st i.lk s) (IrqDec st s))
+          ar s a i.irq i.pl = ok (false, s1, a1) :=
+        irq_dec_guard ar hA hKr hE.inv hE.lay hE.ly hE.aff hE.nth hr'
+      exact g
+    · exact absurd rfl hb
+
+/-- **The timer interrupt slot's family member reads no PTE word under `QPs`.** -/
+theorem irq_avoidPX (i : IrqArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) :
+    AvoidP K (((irqSlotX st ar hA hm).lift (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base).rJ K
+      (fun b hb => Or.inl hb)) := by
+  by_cases hp : (irqSlotX st ar hA hm).Prem i K.toKLayoutV m
+  · have key : ∀ (P : E2E.LocalPath (OwnMap.own (userV K.toKLayoutV)) (OwnMap.cls (userV K.toKLayoutV))
+        (OwnMap.ko (userV K.toKLayoutV) m) (· ∈ (userV K.toKLayoutV).user)) (W : NoVcpuRW K.toKLayoutV P),
+        P = (irqSlotX st ar hA hm).path i K.toKLayoutV m hK.base hU.base hp →
+        AvoidP K ((LocalPath.liftV hK.base (LocalPath.atV hK.base P W) (noVcpuRd_atV hK.base P W)).rJ K
+          (fun b hb => Or.inl hb)) := by
+      rintro P W rfl
+      exact avoidE_liftAtV_rJ hK.base _ W (irq_avoidPX_path st ar hA hm i K m hK hU hp)
+    exact key _ _ (SlotU.fam_pos _ _ hp)
+  · exact avoidE_restrQ_noPre (SlotU.noPre (fl4Dflt st ar hm) _ hp)
+
+/-- **The timer interrupt slot under `ownP`**: lifted, restricted to `QPs` states, PTE-cut. -/
+def irqSlotPX : PathsP (IrqArg S) :=
+  fun i K m hK hU => LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (irq_avoidPX st ar hA hm i K m hK hU)
+
+/-- **The timer interrupt record without the bundle's fields**: `lt`, `kd` [P], `pl` [P]. -/
+structure IrqPremX5 (i : IrqArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
+  /-- The timer IRQ's state word lies in the kernel-state block (U1's `lt`). -/
+  lt : i.irq.val < 128
+  /-- [P] (as `IrqPremX.kd`). -/
+  kd : ∀ s, (∃ Ω Ac : Set U64, IrqEnt (userV K) st (Heap.tcbs K.heap) {c : U64 | c.val < K.ncores} Ω K.heap
+    (Heap.frame K.heap) (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac i.irq s) →
+    KernDetS (L := L) (userV K).user i.lk s
+  /-- [P] -/
+  pl : PlanLk i.lk i.pl
+
+variable {st}
+
+theorem IrqPremX5.toX {K : KLayoutP} {i : IrqArg S} {m : U64 → U64} (h : IrqPremX5 st i K.toKLayoutV m)
+    (E : VtxBundle4 st L K) : IrqPremX st i K.toKLayoutV m :=
+  ⟨E.b.ul, E.b.vh, E.b.vsl, E.ko, h.lt, h.kd, h.pl⟩
+
+variable (st)
+
+/-- **The timer interrupt slot's start fact in a VM epoch** (module docstring): the record, a start state with
+P1's `IrqEnt` at `userV K`, a `BufAt` placement and `QPs` ([S] entry), `GlueAt` data [P], the armed program the cut
+of the lifted slot's body there. -/
+def IrqStartX (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (hs : U64 → Prop)
+    (q : SP) (j : IrqArg S) : Prop :=
+  K.vcpus ≠ ∅ ∧ ∃ q0, (∃ h : IrqPremX5 st j K.toKLayoutV m, ∃ (σ : S) (a : A),
+      ((∃ Ω Ac : Set U64, IrqEnt (userV K.toKLayoutV) st (Heap.tcbs K.heap) {x : U64 | x.val < K.ncores} Ω K.heap
+          (Heap.frame K.heap) (Heap.replies K.heap) (Heap.scs K.heap) (Heap.ntfns K.heap) (Heap.scBits K.heap) Ac
+          j.irq σ) ∧
+        (∃ U : Set U64, BufAt st (Heap.tcbs K.heap) {x : U64 | x.val < K.ncores} K.heap (Heap.frame K.heap)
+          (Heap.scs K.heap) (Heap.scBits K.heap) U σ) ∧ QPs K st σ) ∧
+      L.cpu σ = c ∧ j.lk σ = hs ∧ (∀ x, Aligned x → ¬ x ∈ K.user → L.mem σ x = m x) ∧
+      ∀ E : VtxBundle4 st L K,
+        q0 = (LocalPath.liftV hK.base (LocalPath.atV hK.base
+          ((irqSlotX st ar hA hm).path j K.toKLayoutV m hK.base hU.base (h.toX E))
+          ((irqSlotX st ar hA hm).W _ _ _ _ _ _)) (noVcpuRd_atV hK.base _ _)).body σ a) ∧
+    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
+
+variable {st ar hA hm}
+
+/-- **`StartAt` of the timer interrupt slot** from its start fact and the epoch's bundle. -/
+theorem irqStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
+    {hs : U64 → Prop} {q : SP} {j : IrqArg S} (E : VtxBundle4 st L K) (h : IrqStartX st ar hA hm K μ hK hU c hs q j) :
+    StartAt (irqSlotPX st ar hA hm j K μ hK hU) c hs μ q := by
+  obtain ⟨-, q0, ⟨hp, σ, a, ⟨⟨Ω, Ac, hE⟩, hB, hq⟩, hc, hl, hμ, hb⟩, rfl⟩ := h
+  have hpre : IrqPreX K.toKLayoutV st j.irq μ σ :=
+    ⟨Ω, Ac, ⟨hE, fun x hx hxu => hμ x hx fun hu => hxu (Or.inl hu)⟩, hB⟩
+  have key : ∀ (P : E2E.LocalPath (OwnMap.own (userV K.toKLayoutV)) (OwnMap.cls (userV K.toKLayoutV))
+      (OwnMap.ko (userV K.toKLayoutV) μ) (· ∈ (userV K.toKLayoutV).user)) (W : NoVcpuRW K.toKLayoutV P)
+      (hAv : AvoidP K ((LocalPath.liftV hK.base (LocalPath.atV hK.base P W) (noVcpuRd_atV hK.base P W)).rJ K
+        (fun b hb => Or.inl hb))),
+      P = (irqSlotX st ar hA hm).path j K.toKLayoutV μ hK.base hU.base (hp.toX E) →
+      StartAt (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv) c hs μ
+        (cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c q0 ∅) := by
+    rintro P W hAv rfl
+    have e : q0 = (LocalPath.liftV hK.base (LocalPath.atV hK.base
+        ((irqSlotX st ar hA hm).path j K.toKLayoutV μ hK.base hU.base (hp.toX E)) W)
+        (noVcpuRd_atV hK.base _ W)).body σ a := hb E
+    refine ⟨σ, a, ⟨hpre, hq⟩, hc, hl, hμ, ?_⟩
+    rw [body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv σ a, e, ← hc]
+    rfl
+  exact key _ _ _ (SlotU.fam_pos _ _ (hp.toX E))
+
+end irqS
+
 /-! ## Part 6: the tops -/
 
 section top
@@ -592,11 +1050,12 @@ I/O-port slot at `IoStartX5`, the `TCB_SetTimer` slot at `StStartX`). -/
 def StartVX5 {ιN : Type}
     (SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop)
     (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : (((ιN ⊕ VxArg S) ⊕ VtArg S) ⊕ IoArg S) ⊕ StArg S → Prop
-  | .inl (.inl (.inl i)) => StartVX2 st ar hA hm SFN Ch K m hK hU c hs q i
-  | .inl (.inl (.inr j)) => VtStartV4 st ar hA hm K m hK hU c hs q j
-  | .inl (.inr j) => IoStartX5 st ar hA hm K m hK hU c hs q j
-  | .inr j => StStartX st ar hA hm K m hK hU c hs q j
+    (hs : U64 → Prop) (q : SP) : ((((ιN ⊕ VxArg S) ⊕ VtArg S) ⊕ IoArg S) ⊕ StArg S) ⊕ IrqArg S → Prop
+  | .inl (.inl (.inl (.inl i))) => StartVX2 st ar hA hm SFN Ch K m hK hU c hs q i
+  | .inl (.inl (.inl (.inr j))) => VtStartV4 st ar hA hm K m hK hU c hs q j
+  | .inl (.inl (.inr j)) => IoStartX5 st ar hA hm K m hK hU c hs q j
+  | .inl (.inr j) => StStartX st ar hA hm K m hK hU c hs q j
+  | .inr j => IrqStartX st ar hA hm K m hK hU c hs q j
 
 /-- **FL4 end to end with native and VM epochs; the VM-exit, VM-timer, I/O-port and `TCB_SetTimer` slots in VM
 epochs; generic in the native family** (`serializable_fl4_localVX4G` with `stSlotPX` added). -/
@@ -609,8 +1068,8 @@ theorem serializable_fl4_localVX5G (P : LocPlat st arI AR MR) {ιN : Type} (LN :
     {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
     (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
     (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum LN (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm))
-        (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
+    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum LN (vxSlotPV st ar hA hm))
+        (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm)) (irqSlotPX st ar hA hm))
       (StartVX5 st ar hA hm SFN) P s0 K0 Ch0 s K Ch)
     (hq : NoLoc s) :
     RunAll s.log s0.mem s.mem := by
@@ -619,7 +1078,7 @@ theorem serializable_fl4_localVX5G (P : LocPlat st arI AR MR) {ιN : Type} (LN :
   refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_VX P ?_ h0 hA0 hB hc0 hM0 hX).1 hq
   intro Ch K s hK hU c hs q i hN hsf
   obtain ⟨hV, hsf⟩ := hsf
-  rcases i with (((i | j) | j) | j) | j
+  rcases i with ((((i | j) | j) | j) | j) | j
   · have hsf' : K.vcpus = ∅ ∧ SFN Ch K s.mem hK hU c hs q i := hsf
     obtain ⟨nv, hsf'⟩ := hsf'
     obtain ⟨hX, hE⟩ := hN nv
@@ -632,6 +1091,8 @@ theorem serializable_fl4_localVX5G (P : LocPlat st arI AR MR) {ιN : Type} (LN :
     exact ioStartX_at (hV hsf'.1) (ioStartX_of_X5 (hV hsf'.1) hsf')
   · have hsf' : StStartX st ar hA hm K s.mem hK hU c hs q j := hsf
     exact stStartX_at (hV hsf'.1) hsf'
+  · have hsf' : IrqStartX st ar hA hm K s.mem hK hU c hs q j := hsf
+    exact irqStartX_at (hV hsf'.1) hsf'
 
 /-- **FL4 end to end with every U1 slot in native epochs and the VM-exit, VM-timer, I/O-port and `TCB_SetTimer`
 slots in VM epochs** (module docstring): `serializable_fl4_localVX4` with the I/O-port record's two [J]s (`iw`,
@@ -641,9 +1102,11 @@ theorem serializable_fl4_localVX5 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P
     {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
     (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
     (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0)
+    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum
+        (fl4LocW11JA st ar hA hm hSt a0)
         (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotU st ar hA hm)) (cmSlotU st ar hA hm)))
         (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
+        (irqSlotPX st ar hA hm))
       (StartVX5 st ar hA hm (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU2 st ar hA hm))) P s0 K0 Ch0 s K Ch)
     (hq : NoLoc s) :
     RunAll s.log s0.mem s.mem := by
