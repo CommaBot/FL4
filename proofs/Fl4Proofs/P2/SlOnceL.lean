@@ -327,7 +327,7 @@ theorem loop1_once_iter {Y : Type} (rcv : U64) (regs : Slice U64) (n : Usize) (b
     obtain ⟨z, hz, hzv⟩ := spec_ex_fd (Usize.add_spec (x := i) (y := 1#usize) (by scalar_tac))
     rw [hz] at hi5
     cases ok_inj_ff hi5
-    simp only [SProg.sbind] at h ⊢
+    try simp only [SProg.sbind] at h ⊢
     refine loop1_once_iter rcv regs n buf hreg hn hl hrw P hP k hk m z s' a _ _ ?_ (hP s a r i4 s' hPs hrv hs') h
     intro q hq hR
     obtain ⟨j, hj1, hj2, rfl⟩ := hR
