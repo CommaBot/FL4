@@ -1956,6 +1956,13 @@ import Fl4Proofs.P2.InvCM
 import Fl4Proofs.P2.InvCMOnce
 import Fl4Proofs.P2.InvCMG
 import Fl4Proofs.P2.InvCMEnt
+import Fl4Proofs.P2.InvCMAcc
+import Fl4Proofs.P2.InvCMFin
+import Fl4Proofs.P2.InvCMDecOnce
+import Fl4Proofs.P2.InvCMCore
+import Fl4Proofs.P2.InvCMTail
+import Fl4Proofs.P2.InvCMBlk
+import Fl4Proofs.P2.InvCMPath
 import Fl4Proofs.P2.InvProgSrc
 import Fl4Proofs.P2.ProgGenCd0
 import Fl4Proofs.P2.ProgGenCd1
