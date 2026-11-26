@@ -197,12 +197,17 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
         }
         let dest = cspace::lookup_target_slot(s, cap, reg_arg(s, t, 0), reg_arg(s, t, 1)).ok()?;
         let src = cspace::lookup_source_slot(s, extra[0].cap(s), reg_arg(s, t, 2), reg_arg(s, t, 3)).ok()?;
-        // An empty destination (its type tag, in the first word), the
-        // source cap, and the source's CDT link, which names the third slot.
+        // An empty destination (a first cap word of 0), the source cap, and
+        // the source's CDT link, which names the third slot. The test is on
+        // the raw word, not `Cap::decode(..).is_null()`: decode also maps
+        // the unused type tags to Null, but no kernel path writes one
+        // (`Slot::set_cap` encodes Null as 0, `Slot::clear` writes 0, new
+        // slots are zeroed), so at reachable states the two agree; a slot
+        // whose nonzero word decodes to Null is left to the gate.
         let dest_w0 = p.read(s, dest.0.wrapping_add(cte::CAP0));
         let src_cap = p.read_cap(s, src);
         let next = Slot::next_of_word(p.read(s, src.0.wrapping_add(cte::NEXT)));
-        if !matches!(src_cap, Cap::Frame { is_ept: false, .. }) || !Cap::decode(dest_w0, 0).is_null() {
+        if !matches!(src_cap, Cap::Frame { is_ept: false, .. }) || dest_w0 != 0 {
             return None;
         }
         let ok = p.add(dest.0) && p.add(src.0) && p.add(next.0);
@@ -296,4 +301,92 @@ fn small_page_entry<S: Store>(s: &S, asid: u64, vaddr: u64) -> Option<u64> {
 #[cfg(feature = "aarch64")]
 fn map_attr_local(attr: u64) -> bool {
     attr & fl4_abi::consts::arm_vm_attr::PAGE_CACHEABLE != 0
+}
+
+#[cfg(test)]
+mod tests {
+    //! The destination test of a local CNode Copy or Mint.
+    extern crate std;
+    use super::*;
+    use crate::capability::VM_READ_WRITE;
+    use std::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct Mem(BTreeMap<u64, u64>);
+    impl Store for Mem {
+        fn read(&self, a: u64) -> u64 {
+            *self.0.get(&a).unwrap_or(&0)
+        }
+        fn write(&mut self, a: u64, v: u64) {
+            self.0.insert(a, v);
+        }
+        fn zero(&mut self, a: u64, len: u64) {
+            for i in (0..len).step_by(8) {
+                self.write(a + i, 0);
+            }
+        }
+        fn clear_free(&mut self, a: u64, len: u64) {
+            self.zero(a, len);
+        }
+        fn ks_base(&self) -> u64 {
+            0x10_0000
+        }
+        fn cur_cpu(&self) -> u64 {
+            0
+        }
+    }
+
+    const THREAD: Tcb = Tcb(0x40_0000);
+    const ROOT: Slot = Slot(0x60_0000);
+    fn cnode() -> u64 {
+        crate::layout::pptr(0x90_0000)
+    }
+    const SRC: u64 = 3;
+    const DEST: u64 = 5;
+
+    /// A CNode of 16 slots, invoked through `ROOT` and named again by the
+    /// extra cap, slot `SRC` holding a frame cap; the call copies it to
+    /// slot `DEST`, whose first two words are `w0` and `w1`.
+    fn plan_for(lbl: u64, w0: u64, w1: u64) -> Option<Plan> {
+        let mut s = Mem::default();
+        ROOT.set_cap(&mut s, Cap::CNode { ptr: cnode(), radix: 4, guard_size: 0, guard: 0 });
+        Slot::index(cnode(), SRC).set_cap(
+            &mut s,
+            Cap::Frame { ptr: crate::layout::pptr(0x20_0000), size: FrameSize::Small, rights: VM_READ_WRITE, is_device: false, mapped: false, is_ept: false, asid: 0, vaddr: 0 },
+        );
+        let dest = Slot::index(cnode(), DEST);
+        s.write(dest.0 + cte::CAP0, w0);
+        s.write(dest.0 + cte::CAP1, w1);
+        for (i, v) in [DEST, 4, SRC, 4].into_iter().enumerate() {
+            THREAD.set_reg(&mut s, msg::msg_register(i as u64), v);
+        }
+        plan_with(&s, THREAD, lbl, ROOT, [ROOT, Slot(0), Slot(0)])
+    }
+
+    /// The plan takes a destination whose first cap word is 0, and locks
+    /// it with the source; a nonzero first word, even one that
+    /// `Cap::decode` reads as Null (an unused type tag, or tag 0 with other
+    /// bits set), leaves the invocation to the gate.
+    #[test]
+    fn copy_plan_requires_a_zero_destination_word() {
+        for lbl in [label::CNodeCopy, label::CNodeMint] {
+            let p = plan_for(lbl, 0, 0).expect("a local plan");
+            assert_eq!(&p.locks[..p.n], &[Slot::index(cnode(), DEST).0, Slot::index(cnode(), SRC).0]);
+            assert!(plan_for(lbl, 0, 0x1234).is_some(), "second word is not the type");
+            let mut odd = std::vec![1u64, 0x0000_ffff_ffff_f000];
+            for t in 0..32u64 {
+                if Cap::decode(t << 59, 0).is_null() && t != 0 {
+                    odd.push(t << 59);
+                }
+            }
+            assert!(odd.len() > 2, "some tags are unused");
+            for w0 in odd {
+                assert!(Cap::decode(w0, 0).is_null());
+                assert!(plan_for(lbl, w0, 0).is_none(), "{w0:#x}");
+            }
+            // A real cap in the destination: declined as before.
+            let (w0, w1) = Cap::Thread { ptr: crate::layout::pptr(0x30_0000) }.encode();
+            assert!(plan_for(lbl, w0, w1).is_none());
+        }
+    }
 }
