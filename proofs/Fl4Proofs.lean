@@ -1897,5 +1897,5 @@ import Fl4Proofs.P2.IoOnceA
 import Fl4Proofs.P2.IoOnceB
 import Fl4Proofs.P2.IoOnceC
 import Fl4Proofs.P2.IoOnce
-import Fl4Proofs.P2.StOnceA
 import Fl4Proofs.P2.StOnce
+import Fl4Proofs.P2.TmOnce
