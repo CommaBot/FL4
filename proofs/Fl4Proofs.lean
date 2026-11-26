@@ -2109,3 +2109,7 @@ import Fl4Proofs.P2.E2EPU2C
 import Fl4Proofs.P2.E2EPU2
 import Fl4Proofs.P3.XTopJointKEntryU30
 import Fl4Proofs.P3.StallFinding
+import Fl4Proofs.P3.StallNarrowTcb
+import Fl4Proofs.P3.StallNarrowRec
+import Fl4Proofs.P3.StallNarrowGen
+import Fl4Proofs.P3.XTopJointKEntryU31
