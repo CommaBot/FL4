@@ -46,7 +46,8 @@ open Classical
 section facts
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] {K : KLayoutV}
 
-/-- **The layout's VCPU facts** [J] (module docstring). -/
+/-- **The layout's VCPU facts** [J] (module docstring). Gen 7: all six fields follow from `JVmL` [J] and one bundle
+state (`VFacts.ofJVm`, `P2/E2EVJVm.lean`). -/
 structure VFacts (L : LawfulStore st) (K : KLayoutV) : Prop where
   /-- [J] `VcpuHeap`: the layout's VCPUs are `other 15` heap objects (gen 2; `K.vcpus` is free in P3). -/
   heap : VcpuHeap K

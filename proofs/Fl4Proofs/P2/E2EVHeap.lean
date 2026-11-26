@@ -23,8 +23,10 @@ analogue of `K.heap = H`, `SlSets`). From it and facts P1 / P3 already carry:
   (`tabNoV_of`) from `VcpuHeap`, `HeapOK`, **`VcpuTabOff`** [J] (no VCPU meets the ASID-table area
   `[ksb + 288000, ksb + 304384)`) and **`PoolObj`** [J] (each nonzero table entry is a heap `other` object of at
   least a page that is not a VCPU of the layout).
-* **User words**: **`UserObj`** [J] (each user word lies in a heap object that is not a VCPU of the layout),
-  `user_noVcpu`.
+* **User words**: **`UserObj`** [J] (no user word lies in a VCPU of the layout; gen 7 form), `user_noVcpu`.
+
+Gen 7: every [J] of this file is derived from the one P3-side fact `JVm` (`P3/JVm.lean`) at the layout's bundles,
+`P2/E2EVJVm.lean` (`JVmL`, `VFacts.ofJVm`).
 
 Premises, each [J] (and what P1 / P3 would have to state for it):
 * `VcpuHeap`: layout convention (`K.vcpus` chosen among `H`'s `.other 15` objects; P1's `VcpuPl.bound` /
@@ -241,9 +243,11 @@ def PoolObj (K : KLayoutV) (s : S) : Prop :=
   ∀ hi : U64, hi.val < 2048 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
     ∃ z, 12 ≤ z ∧ K.heap (L.mem s (atAF (L.ksb s) hi)) = some (.other z) ∧ L.mem s (atAF (L.ksb s) hi) ∉ K.vcpus
 
-/-- **`UserObj`** [J]: each user word lies in a heap object that is not a VCPU of the layout. -/
+/-- **`UserObj`** [J]: no user word lies in a VCPU of the layout. (Gen 7: restated as what its one consumer
+`user_noVcpu` uses; gen 2 asked a non-VCPU heap object of the exact P1 size around each user word, which P3 cannot
+give for large pages. Derived from P3's `JCarry.bufPg` and `JVm` by `userObj_of_jvm`, `P2/E2EVJVm.lean`.) -/
 def UserObj (K : KLayoutV) : Prop :=
-  ∀ b ∈ K.user, ∃ p k, K.heap p = some k ∧ p ∉ K.vcpus ∧ Fl4Proofs.P1.InObj p k b
+  ∀ b ∈ K.user, ¬ ∃ v, InVcpu K v b
 
 /-- The ASID words `set_vm_root` may read (`RdTab`) are no VCPU data words. -/
 def TabNoV (K : KLayoutV) (s : S) : Prop :=
@@ -281,10 +285,9 @@ theorem tabNoV_of (hH : HeapOK K.heap) (hV : VcpuHeap K) (hT : VcpuTabOff K) (hP
     unfold Fl4Proofs.P1.InObj; rw [ebits, e]; omega
 
 /-- No user word is a VCPU word, from `UserObj`. -/
-theorem user_noVcpu (hH : HeapOK K.heap) (hV : VcpuHeap K) (hU : UserObj K) {b : U64} (hb : b ∈ K.user) :
-    ¬ ∃ v, InVcpu K v b := by
-  obtain ⟨p, k, hp, hpv, hin⟩ := hU b hb
-  exact noVcpu_of_obj hH hV hp hpv hin
+theorem user_noVcpu (_hH : HeapOK K.heap) (_hV : VcpuHeap K) (hU : UserObj K) {b : U64} (hb : b ∈ K.user) :
+    ¬ ∃ v, InVcpu K v b :=
+  hU b hb
 
 theorem ioRS_userV {Locks : S → U64 → Prop} {s : S} {x : U64} (h : IoRS (st := st) K.toKLayout Locks s x)
     (hv : ¬ VData K x) : IoRS (st := st) (userV K) Locks s x :=
