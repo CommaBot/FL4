@@ -1957,3 +1957,5 @@ import Fl4Proofs.P3.JNativeScope
 import Fl4Proofs.P3.SpecInvYieldScopeT
 import Fl4Proofs.P3.SpecInvYieldScopeF4
 import Fl4Proofs.P3.SpecInvYieldScopeH
+import Fl4Proofs.P3.JYieldScope
+import Fl4Proofs.P2.E2EVFl4W12
