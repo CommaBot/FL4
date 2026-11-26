@@ -2048,3 +2048,7 @@ import Fl4Proofs.P2.InvPmDecRd
 import Fl4Proofs.P2.InvPmFoot
 import Fl4Proofs.P2.InvPmBlkA
 import Fl4Proofs.P2.InvPmBlkB
+import Fl4Proofs.P2.InvPmBlkC
+import Fl4Proofs.P2.InvPmBlkD
+import Fl4Proofs.P2.InvPmBlkE
+import Fl4Proofs.P2.InvPmBlkF
