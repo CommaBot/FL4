@@ -92,3 +92,5 @@ import Fl4ProofsA64.P1.VcpuCheckInv
 import Fl4ProofsA64.P1.QueueEntry
 import Fl4ProofsA64.P1.QueueKeeps
 import Fl4ProofsA64.P1.QueueCbs
+import Fl4ProofsA64.P1.QueueFpu
+import Fl4ProofsA64.P1.QueueDebug
