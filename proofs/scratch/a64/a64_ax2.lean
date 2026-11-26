@@ -64,6 +64,11 @@ import Fl4ProofsA64.P1.RunVcpuKeep
 import Fl4ProofsA64.P1.QueueFinal
 import Fl4ProofsA64.P1.QueueFinSc
 import Fl4ProofsA64.P1.QueueTcbInv
+import Fl4ProofsA64.P1.QueueBind
+import Fl4ProofsA64.P1.QueueReply
+import Fl4ProofsA64.P1.QueueFootD
+import Fl4ProofsA64.P1.QueueReplyPop
+import Fl4ProofsA64.P1.QueueRecv
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -77,17 +82,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.timer.remove.rvi
-#print axioms Fl4ProofsA64.P1.notification.send_signal.rvi
-#print axioms Fl4ProofsA64.P1.signal_tail.rv
-#print axioms Fl4ProofsA64.P1.schedcontext.donate.rv0
-#print axioms Fl4ProofsA64.P1.schedcontext.resume.fld
-#print axioms Fl4ProofsA64.P1.sched.possible_switch_to.fld
-#print axioms Fl4ProofsA64.P1.timer.fire.tinv_rv
-#print axioms Fl4ProofsA64.P1.sched.schedule.entry_rv
-#print axioms Fl4ProofsA64.P1.schedcontext.unbind_tcb.blkR
-#print axioms Fl4ProofsA64.P1.schedcontext.complete_yield_to.rvst
-#print axioms Fl4ProofsA64.P1.fin_thread.blk
-#print axioms Fl4ProofsA64.P1.smp.remote_tcb_stall.blkS
-#print axioms Fl4ProofsA64.P1.notification.send_signal.tinv
-#print axioms Fl4ProofsA64.P1.sched.schedule.entry
+#print axioms Fl4ProofsA64.P1.sched.set_priority.rv
+#print axioms Fl4ProofsA64.P1.schedcontext.bind_tcb.blk
+#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.blk
+#print axioms Fl4ProofsA64.P1.schedcontext.donate.gen
+#print axioms Fl4ProofsA64.P1.schedcontext.donate.kwCB
+#print axioms Fl4ProofsA64.P1.schedcontext.donate.idle
+#print axioms Fl4ProofsA64.P1.ipc.reply_pop.blk
+#print axioms Fl4ProofsA64.P1.fin_reply.blk
+#print axioms Fl4ProofsA64.P1.faults.set_fault.rv
+#print axioms Fl4ProofsA64.P1.syscall.handle_recv.bxi
+#print axioms Fl4ProofsA64.P1.faults.handle_fault.bxi
+#print axioms Fl4ProofsA64.P1.faults.handle_timeout.bxi
+#print axioms Fl4ProofsA64.P1.notification.receive_signal.ipc
+#print axioms Fl4ProofsA64.P1.sched.reschedule_required.rv0

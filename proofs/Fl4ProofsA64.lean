@@ -68,3 +68,8 @@ import Fl4ProofsA64.P1.RunVcpuKeep
 import Fl4ProofsA64.P1.QueueFinal
 import Fl4ProofsA64.P1.QueueFinSc
 import Fl4ProofsA64.P1.QueueTcbInv
+import Fl4ProofsA64.P1.QueueBind
+import Fl4ProofsA64.P1.QueueReply
+import Fl4ProofsA64.P1.QueueFootD
+import Fl4ProofsA64.P1.QueueReplyPop
+import Fl4ProofsA64.P1.QueueRecv
