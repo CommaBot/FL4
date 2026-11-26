@@ -21,12 +21,13 @@ p2lt's `irq_localPath` (`P2/FootTimerIrqObl.lean`):
 Premises of `vexit_localPath`:
 * `hp` [P] `IsProg`, `hz` [W] `NoZero`, `hm` [P] `MasksWr`, `hro` [W] `ReadOnce` (as `irq_localPath`);
 * `hK` [J] `RegionOKV`, `hU` [J] `UserOKV`; `VexitEnt`'s fields (`AccessLvmOwn`);
-* `hEU` [J]: `VexitEnt` survives a user write (as `irq_localPath`'s); `hlk` [P]: so do the glue's locks;
+* `Px`: an extra entry predicate (gen 7: `Pre = VexitEnt ∧ Px`; `AccessLvmPo` takes `Px = VexitPEnt`, the
+  pending case's facts, and discharges `hP` / `hPm` there: `vexit_localPathP`);
+* `hEU` [J]: `VexitEnt ∧ Px` survives a user write (as `irq_localPath`'s); `hlk` [P]: so do the glue's locks;
 * `hP` / `hPm` [W]: **the pending-exit case** (`PENDING ≠ 0` at the entry: `vcpu.check` runs `vcpu.report`, which
   writes the current thread's registers, its IPC buffer, `v.PENDING` and its `STATE`): an accepted run is the same
-  on `guard st VexitRS VexitWS` (`acc`) and on `mguard` for `ownV`'s `StepOK` (`move`). Gen 4's
-  `vcpu.report.guardP` and gen 5's report frame (`RepFr`, `repFr_steps`, `repFr_fin`) are the pieces; the walk
-  through `check_budget` / `schedule` after the report's writes is not done (handoff §15).
+  on `guard st VexitRS VexitWS` (`acc`) and on `mguard` for `ownV`'s `StepOK` (`move`), given `Px s`; discharged
+  in gen 7 by `AccessLvmPo` (`vexit_acc_own_p` / `vexit_move_p`, `Px = VexitPEnt`).
 -/
 import Fl4Proofs.P2.AccessLvmOwn
 open Aeneas Aeneas.Std Result
@@ -64,7 +65,7 @@ theorem VexitEnt.dec {s : S} (hE : VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk 
   · exact ⟨nodeAt_aligned hN (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]),
       hE.lay.own_node _ (by simp [layout.node.CONSUMED]), _, hE.lay.nd _ (by simp [layout.node.CONSUMED])⟩
 
-variable {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {User : U64 → Prop}
+variable {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {User : U64 → Prop} {Px : S → Prop}
 
 /-- **Every run at an alternative is the entry's** (module docstring), the pending-exit premise `hP`. -/
 theorem vexit_alt (hA : P0.ArchTotal ar) (hK : RegionOKV K)
@@ -123,18 +124,18 @@ theorem vexit_alt (hA : P0.ArchTotal ar) (hK : RegionOKV K)
 theorem vexit_pathObl (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hp : IsProg (vexitBody S v n) p) (hz : NoZero p)
     (hm : ∀ s a v', st.frame_masks (L.wr s a v') = st.frame_masks s)
-    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → VPend st v s →
+    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → Px s → VPend st v s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s1, a1) →
       localvm.handle_vcpu_exit_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a v n =
         ok (true, s1, a1))
-    (hPm : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → VPend st v s →
+    (hPm : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → Px s → VPend st v s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s1, a1) →
       localvm.handle_vcpu_exit_local (mguard st
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
           (lk s) (L.mem x) (L.mem y))) ar s a v n = ok (true, s1, a1)) :
     PathObl.PathObl st (fun mm s a => localvm.handle_vcpu_exit_local mm ar s a v n) (fun b => b = true)
       (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) lk
-      (VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n) (VexitRS K st lk) (VexitWS K st lk) (IrqDec st) := by
+      (fun s => VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s) (VexitRS K st lk) (VexitWS K st lk) (IrqDec st) := by
   have eP : ∀ (mm : machine.Store S) (x : S) (a : A),
       localvm.handle_vcpu_exit_local mm ar x a v n = interp mm ar p x a :=
     fun mm x a => congrFun (congrFun (hp A ar mm) x) a
@@ -150,7 +151,7 @@ theorem vexit_pathObl (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     · by_cases hf : OwnMap.ko K.toKLayout m w = .free
       · exact Or.inr (Or.inr hf)
       · exact absurd (mem_wr_ne' a1 (OwnMap.ko_aligned hK.base hU.base m w hf) (fun e => hwq e.symm)) hw
-  have dec : ∀ s a r, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s →
+  have dec : ∀ s a r, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok r → r.1 ≠ true →
       ∀ s' r', PathObl.Alt st (VexitRS K st lk s) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m)
         (· ∈ K.user) s s' →
@@ -161,45 +162,45 @@ theorem vexit_pathObl (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
           (lk s) (L.mem x) (L.mem y))) ar s' a v n = ok r' := by
     intro s a r hE hr hn s' r' hAlt h'
-    rcases vexit_alt ar hA hK (fun mm => hp A ar mm) hz hm hE (fun hpd s1 a1 => hP s a s1 a1 hE hpd)
+    rcases vexit_alt ar hA hK (fun mm => hp A ar mm) hz hm hE.1 (fun hpd s1 a1 => hP s a s1 a1 hE.1 hE.2 hpd)
       hAlt h' with ⟨s1, a1, e, -, -⟩ | ⟨s1, a1, -, h1, h2⟩
     · rw [hr] at e
       exact absurd (by rw [Result.ok_injective e]) hn
     · rw [eP] at h2
       refine ⟨by rw [h1]; exact Bool.false_ne_true, ?_, ?_⟩
       · rw [eP]; exact interp_mono (fun _ _ => trivial) (fun _ h => h) p hz s' a r' h2
-      · rw [eP]; exact interp_to_mguard (fun x q v' hq => hQ s hE x q v' hq) p hz s' a r' h2
+      · rw [eP]; exact interp_to_mguard (fun x q v' hq => hQ s hE.1 x q v' hq) p hz s' a r' h2
   refine ⟨?_, dec, ?_, ?_, ?_, ?_⟩
   · rintro s a ⟨b, s1, a1⟩ hE h hb
     subst hb
     by_cases hp0 : vcpu.get st s v vcpu.PENDING = ok 0#u64
-    · exact vexit_acc_own_np ar hA hK hE hp0 h
-    · exact hP s a s1 a1 hE hp0 h
+    · exact vexit_acc_own_np ar hA hK hE.1 hp0 h
+    · exact hP s a s1 a1 hE.1 hE.2 hp0 h
   · intro s x _ hx hu; exact vexit_read_own hx hu
   · intro s x hE hx hu
-    exact vexit_write_own hK (fun q hq => ⟨(hE.dec hq).2.1, (hE.dec hq).2.2⟩) hx hu
+    exact vexit_write_own hK (fun q hq => ⟨(hE.1.dec hq).2.1, (hE.1.dec hq).2.2⟩) hx hu
   · intro s x hE hx
-    exact vexit_aligned (fun q hq => (hE.dec hq).1) hx
+    exact vexit_aligned (fun q hq => (hE.1.dec hq).1) hx
   · rintro s a ⟨b, s1, a1⟩ hE h
     cases b
     · exact (dec s a _ hE h Bool.false_ne_true s _ (PathObl.Alt.refl s) h).2.2
     · by_cases hp0 : vcpu.get st s v vcpu.PENDING = ok 0#u64
-      · exact vexit_move_np ar hA hK hU hp (fun _ => rfl) hE hp0 h
-      · exact hPm s a s1 a1 hE hp0 h
+      · exact vexit_move_np ar hA hK hU hp (fun _ => rfl) hE.1 hp0 h
+      · exact hPm s a s1 a1 hE.1 hE.2 hp0 h
 
 /-- **`PathSide` for `local_vm_exit`** (module docstring). -/
 theorem vexit_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hp : IsProg (vexitBody S v n) p) (hz : NoZero p)
     (hm : ∀ s a v', st.frame_masks (L.wr s a v') = st.frame_masks s)
-    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → VPend st v s →
+    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → Px s → VPend st v s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s1, a1) →
       localvm.handle_vcpu_exit_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a v n =
         ok (true, s1, a1))
-    (hEU : ∀ s b v', VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → b ∈ K.user → Aligned b →
-      VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v'))
+    (hEU : ∀ s b v', VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s → b ∈ K.user → Aligned b →
+      VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v') ∧ Px (L.wr s b v'))
     (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s) :
     PathObl.PathSide st (fun mm s a => localvm.handle_vcpu_exit_local mm ar s a v n) (OwnMap.cls K.toKLayout)
-      (OwnMap.ko K.toKLayout m) (· ∈ K.user) lk (VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n)
+      (OwnMap.ko K.toKLayout m) (· ∈ K.user) lk (fun s => VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s)
       (VexitRS K st lk) (VexitWS K st lk) (IrqDec st) := by
   refine ⟨?_, fun s x _ hx => hx.1, OwnMap.ko_aligned hK.base hU.base m, fun s b v' hE hb hba =>
     ⟨hEU s b v' hE hb hba, hlk s b v' hb, vexitRS_wr_user hK hU hb hba (hlk s b v' hb),
@@ -208,7 +209,7 @@ theorem vexit_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K
   have eP : ∀ (mm : machine.Store S) (x : S),
       localvm.handle_vcpu_exit_local mm ar x a v n = interp mm ar p x a :=
     fun mm x => congrFun (congrFun (hp A ar mm) x) a
-  rcases vexit_alt ar hA hK (fun mm => hp A ar mm) hz hm hE (fun hpd s1 a1 => hP s a s1 a1 hE hpd)
+  rcases vexit_alt ar hA hK (fun mm => hp A ar mm) hz hm hE.1 (fun hpd s1 a1 => hP s a s1 a1 hE.1 hE.2 hpd)
     hAlt h with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
   · show localvm.handle_vcpu_exit_local _ ar s' a v n = ok r
     rw [eP] at h2 ⊢
@@ -222,15 +223,15 @@ theorem vexit_pathSide (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K
 noncomputable def vexit_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
     (hp : IsProg (vexitBody S v n) p) (hz : NoZero p) (hm : E2E.MasksWr st)
     (hro : E2E.ReadOnce st ar p (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user)
-      (VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n) (VexitRS K st lk))
-    (hEU : ∀ s b v', VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → b ∈ K.user → Aligned b →
-      VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v'))
+      (fun s => VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s) (VexitRS K st lk))
+    (hEU : ∀ s b v', VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s → b ∈ K.user → Aligned b →
+      VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n (L.wr s b v') ∧ Px (L.wr s b v'))
     (hlk : ∀ s b v', b ∈ K.user → lk (L.wr s b v') = lk s)
-    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → VPend st v s →
+    (hP : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → Px s → VPend st v s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s1, a1) →
       localvm.handle_vcpu_exit_local (guard st (VexitRS K st lk s) (VexitWS K st lk s)) ar s a v n =
         ok (true, s1, a1))
-    (hPm : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → VPend st v s →
+    (hPm : ∀ s a s1 a1, VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s → Px s → VPend st v s →
       localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s1, a1) →
       localvm.handle_vcpu_exit_local (mguard st
         (fun x y => StepOK (ownV K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) (· ∈ K.user) (L.cpu s)
@@ -246,7 +247,7 @@ noncomputable def vexit_localPath (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU 
   p := p
   Acc := fun b => b = true
   Locks := lk
-  Pre := VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n
+  Pre := fun s => VexitEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac lk v n s ∧ Px s
   RS := VexitRS K st lk
   WS := VexitWS K st lk
   DS := IrqDec st

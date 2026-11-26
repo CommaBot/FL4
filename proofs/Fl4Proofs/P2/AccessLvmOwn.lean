@@ -22,7 +22,10 @@ Premises (fields of `VexitEnt`):
   six TCB slots, `k < 192`, as `IrqLay.cs` since p2lf gen14: int13 narrowed it from `k < 256`);
 * `aff` [J]: p2j's `AffSc`; `curAff`, `cscCore` [J]: p2j's `OwnJ.curAff` / `EntryInv.cur_sc_core` (as `IoPre`'s);
 * `ksv` [J]: no VCPU covers `CUR_DOMAIN` / `DOMAIN_TIME` (the kernel-state block holds no VCPU);
-* `vin` [J]: the exiting VCPU `v` is a VCPU of the layout and `PENDING` lies inside it;
+* `vin` [J]: the exiting VCPU `v` is a VCPU of the layout and `PENDING` lies inside it. It stays [J] (lvm gen 8,
+  vlift gen 4): P3 covers native threads only (`JExt.nat` / `JExt.vw`), `SpecCover.arch` pins neither the object
+  size 15 nor the map `H` → spec, so closing it needs a VT-x joint invariant (line vlift's `vfit_ofK` / `pusr_ofK`
+  derive `VexitPEnt.vfit` / `.pusr` from `VcpuHeap` [J] and `vin`);
 * `vlk` [P]: fl4-sync's `local_vm_exit` holds `lock v` when it calls the body;
 * `vfar`, `nfar` [J]: P1's typed heap: `v`'s `PENDING` word and the bound notification's `TAIL_STATE` lie outside
   every TCB, node and SC (`VFar`).

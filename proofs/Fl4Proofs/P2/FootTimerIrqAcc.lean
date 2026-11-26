@@ -13,6 +13,13 @@ The walk is `irq_quiet_foot`'s; each guarded call is the real call at its state 
 New guards: `vcpu.check.guard_nvm` (a thread not running a VM: the state word only) and `activate_thread.gw`
 (p2sl's `activate_thread.guard` with the state write per write).
 
+lvm gen 8: the walk is split. `irq_accG_quiet_core` is the old walk with `current_ok` replaced by the facts the tail
+uses (`haff`, `hsct`, `hcore`, `hy0`) and the replay replaced by `IrqTailG` (every guarded call of the tail, the
+state after `activate_thread`, the frame at the `schedule` result: non-link words of the current thread, `VFar`
+words); `irq_accG_quiet_walk` (statement unchanged) is the core, `current_ok`'s guard and `irq_replay`. `hwS` of the
+core is asked only when the current thread restarts (`STATE = RESTART` at the entry). The core is reused by lvm's
+`local_vm_timer_irq` walk (`P2/AccessLvmTw.lean`). `VFar` moved here from `P2/AccessLvmWalk.lean`.
+
 No named premises.
 -/
 import Fl4Proofs.P2.FootTimerIrqQF
@@ -180,6 +187,54 @@ theorem irq_quiet_pre (hA : P0.ArchTotal ar) {s s1 s3 : S} {a a1 : A} {now : U64
 
 end pre
 
+/-! ## What an accepted tail answers on the guarded store -/
+
+section tailg
+variable {S : Type}
+
+/-- A word outside every TCB and node and every SC of P1's sets (lvm: the VCPU's `PENDING`, a notification's
+`TAIL_STATE`). -/
+def VFar (st : machine.Store S) [L : LawfulStore st] (T Cs Scs : Set U64) (Z : U64 → Nat) (s : S)
+    (b : U64) : Prop :=
+  OutsideObjs st T Cs s b ∧ ∀ c ∈ Scs, ¬ InSC c (Z c) b
+
+/-- **The guarded calls of an accepted timer-interrupt run, head check and final `vcpu::check` aside**
+(`irq_accG_quiet_core` / `irq_accG_rr_core`, lvm gen 8): every call `irq_replay` asks about, answered on `gS` as on
+`st` at the run's arguments (`current_ok`'s answer included, though a VM-timer run never asks it), and what the
+final `vcpu::check` and a VM-timer run's guards need: the state word readable, the state after `activate_thread`,
+the current thread and its non-link words at the `activate_thread` state, and the `VFar` words untouched there. -/
+structure IrqTailG (st gS : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
+    (R : U64 → Prop) (T Cs Scs : Set U64) (Z : U64 → Nat) (s : S) (a : A) (irq cpu ct csc now i2 : U64)
+    (p : localtimer.TimerIrqPlan) (b4 : Bool) (s1 s2 s3 s4 s5 : S) (a1 a2 a3 a4 : A) (t : U64) : Prop where
+  gi1 : interrupt.irq_state gS s irq = interrupt.irq_state st s irq
+  gtip : localtimer.plan_objects gS s = localtimer.plan_objects st s
+  gct : sched.cur_thread gS s = sched.cur_thread st s
+  gcsc : sched.cur_sc gS s = sched.cur_sc st s
+  gcok : localtimer.current_ok gS s cpu ct csc = localtimer.current_ok st s cpu ct csc
+  gb2 : localtimer.sched_quiet gS s cpu = localtimer.sched_quiet st s cpu
+  gu : sched.update_timestamp gS ar s a = sched.update_timestamp st ar s a
+  gnow : sched.cur_time gS s1 = sched.cur_time st s1
+  gb3 : localtimer.release_due gS s1 cpu = localtimer.release_due st s1 cpu
+  gi2 : sched.consumed gS s1 = sched.consumed st s1
+  gb4 : sporadic.sufficient gS ar s1 a1 csc i2 = sporadic.sufficient st ar s1 a1 csc i2
+  gdue : localtimer.timer_due gS s1 cpu now = localtimer.timer_due st s1 cpu now
+  grr : b4 = false →
+    localtimer.round_robin_ok gS ar s1 a1 cpu ct csc now = localtimer.round_robin_ok st ar s1 a1 cpu ct csc now
+  gcb : sched.check_budget gS ar s1 a1 = sched.check_budget st ar s1 a1
+  ghi : interrupt.handle_interrupt gS ar s2 a2 irq = interrupt.handle_interrupt st ar s2 a2 irq
+  gsc : sched.schedule gS ar s3 a3 = sched.schedule st ar s3 a3
+  gac : sched.activate_thread gS ar s4 a4 = sched.activate_thread st ar s4 a4
+  gt : sched.cur_thread gS s5 = sched.cur_thread st s5
+  et : t = ct
+  rSt : R (stA ct)
+  st5 : L.mem s5 (stA ct) = sched.TS_RUNNING ∨ L.mem s5 (stA ct) = L.mem s (stA ct)
+  cur4 : L.curW s4 = ct
+  tK4 : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3480 → K.val ≠ 3488 → K.val ≠ 3592 →
+    L.mem s4 (core.num.U64.wrapping_add ct K) = L.mem s (core.num.U64.wrapping_add ct K)
+  fr4 : ∀ b, VFar st T Cs Scs Z s b → L.mem s4 b = L.mem s b
+
+end tailg
+
 /-! ## The quiet case on the guarded store -/
 
 section main
@@ -188,10 +243,11 @@ variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
 variable {A : Type} (ar : machine.Arch A)
 
 set_option maxHeartbeats 32000000 in
-/-- **The quiet case of an accepted timer interrupt on the guarded store**, from `irq_accept_walk`'s equations
-with `IrqCase.quiet` (module docstring). -/
-theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
-    (hA : P0.ArchTotal ar) {s s1 s2 s3 s4 s5 s' : S} {a a1 a2 a3 a4 a5 a' : A}
+/-- **The quiet case of an accepted timer-interrupt tail on the guarded store** (`IrqTailG`): `irq_accG_quiet_walk`
+with the head check `current_ok` replaced by the facts the tail uses (`haff`, `hsct`, `hcore`, `hy0`; also what a
+VM-timer run's head `current_vm_ok` checked), shared with lvm's `local_vm_timer_irq` walk. -/
+theorem irq_accG_quiet_core {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 s4 s5 : S} {a a1 a2 a3 a4 a5 : A}
     {cpu mx irq ct csc now i2 t : U64} {x : Bool} {tip p : localtimer.TimerIrqPlan}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
@@ -199,13 +255,15 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
     (hIq : IrqOk st s → ∀ i, interrupt.state_off irq = ok i → R (core.num.U64.wrapping_add (L.ksb s) i))
     (hD1 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
     (hD2 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
-    (hwS : IrqOk st s → ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART → L.mem X (affA (L.curW s)) = L.cpu s →
+    (hwS : IrqOk st s → L.mem s (stA (L.curW s)) = sched.TS_RESTART → ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART → L.mem X (affA (L.curW s)) = L.cpu s →
       gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
     (ecpu : st.cur_cpu s = ok cpu) (emx : layout.irq.MAX = ok mx)
     (hle : ¬ irq > mx) (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
     (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
     (ect : sched.cur_thread st s = ok ct) (ecsc : sched.cur_sc st s = ok csc)
-    (eok : localtimer.current_ok st s cpu ct csc = ok true) (eq : localtimer.sched_quiet st s cpu = ok true)
+    (haff : L.mem s (affA (L.curW s)) = L.cpu s) (hsct : L.mem s (scA (L.curW s)) = L.cscW s)
+    (hcore : L.mem s (scCoreA (L.cscW s)) = L.cpu s) (hy0 : L.mem s (yieldA (L.curW s)) = 0#u64)
+    (eq : localtimer.sched_quiet st s cpu = ok true)
     (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
     (erel : localtimer.release_due st s1 cpu = ok false) (ei2 : sched.consumed st s1 = ok i2)
     (eb4 : sporadic.sufficient st ar s1 a1 csc i2 = ok true)
@@ -213,8 +271,8 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
     (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
     (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
     (esc : sched.schedule st ar s3 a3 = ok (s4, a4)) (eac : sched.activate_thread st ar s4 a4 = ok (s5, a5))
-    (et : sched.cur_thread st s5 = ok t) (evc : vcpu.check st ar s5 a5 t = ok (s', a')) :
-    localtimer.handle_timer_irq_local gS ar s a irq p = ok (true, s', a') := by
+    (et : sched.cur_thread st s5 = ok t) :
+    IrqTailG st gS ar R T Cs Scs Z s a irq cpu ct csc now i2 p true s1 s2 s3 s4 s5 a1 a2 a3 a4 t := by
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced T := h0.tcbs
   have hcC : L.cpu s ∈ Cs := h0.cur
@@ -224,8 +282,6 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   have ectr := ect
   have ecscr := ecsc
   have ecbr := ecb
-  have etr := et
-  have evcr := evc
   rw [L.cur_cpu_eq] at ecpu
   have hcpu : cpu = L.cpu s := (ok_inj_ff ecpu).symm
   subst hcpu
@@ -236,9 +292,6 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   have ecs' : L.cscW s = csc := ok_inj_ff ecsc
   subst ecs'
   have ht' := hT _ hcT
-  obtain ⟨hmr, hsct, hcore⟩ := current_ok_true eok
-  obtain ⟨-, haff, hnvm, -⟩ := may_run_here_true hmr
-  have hy0 : L.mem s (yieldA (L.curW s)) = 0#u64 := mrh_yield hmr
   -- the current SC
   have hX := hI.2.2.1
   have hS := hI.2.2.2.2
@@ -357,12 +410,13 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   -- `schedule`
   have hfp := schedTail_fp ar hA s3 a3 (zc := Z (L.cscW s))
     (B := fun b => (∀ K : U64, K.val < 4096 → b ≠ core.num.U64.wrapping_add (L.curW s) K) ∧
-      b ≠ L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)
+      b ≠ L.nodeAt s (L.cpu s) layout.node.CUR_THREAD ∧ ¬ VFar st T Cs Scs Z s b)
     hcC3 hN3 hT (fun b hb => (h0.omega b hb).ksb k3)
     (by rw [hcur3]; exact hcT) (by rw [hcur3, hsc3, hcs3]; exact hsct) (by rw [hcs3]; exact SCq.agree hcq hout3)
     (fun o ho h8 hz => by
       rw [e3N]
-      refine ⟨fun K hK => node_ne_field hN ho hcT ht' hK, fun e => hz ?_⟩
+      refine ⟨fun K hK => node_ne_field hN ho hcT ht' hK, fun e => hz ?_,
+        fun hv => out_ne_node hv.1 hcC hN ho rfl⟩
       have e' := congrArg UScalar.val e
       rw [nodeAt_val hN ho, nodeAt_val hN (by rw [curth_val]; omega), curth_val] at e'
       omega)
@@ -370,7 +424,8 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
       rw [hcs3] at hin
       have ho := h0.omega b (hcq.2.1 b hb hin)
       exact ⟨fun K hK e => out_ne_field ho hcT ht' hK (congrArg UScalar.val e).symm,
-        fun e => out_ne_node ho hcC hN (by rw [curth_val]; omega) (congrArg UScalar.val e).symm⟩)
+        fun e => out_ne_node ho hcC hN (by rw [curth_val]; omega) (congrArg UScalar.val e).symm,
+        fun hv => hv.2 _ hcs hin⟩)
   rw [← hsch, esc, WP.spec_ok] at hfp
   have w34 := hfp
   have k4 : L.ksb s4 = L.ksb s := w34.1.trans k3
@@ -381,7 +436,7 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
     unfold LawfulStore.curW at h3 ⊢
     rw [e3N] at h3
     rw [w34.2.1, nodeAt_of_ksb w34.1, e3N,
-      w34.mem_eq (nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val])) (fun hb => hb.2 rfl)]
+      w34.mem_eq (nodeAt_aligned hN (by rw [curth_val]; omega) (by rw [curth_val])) (fun hb => hb.2.1 rfl)]
     exact h3
   have tK4 : ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       L.mem s4 (core.num.U64.wrapping_add (L.curW s) K) = L.mem s (core.num.U64.wrapping_add (L.curW s) K) :=
@@ -401,10 +456,11 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   obtain ⟨w45, hst5⟩ := activate_fp ar hT hcT hN4 hcur4 hy4 eac
   have e5N : ∀ o, L.nodeAt s5 (L.cpu s5) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [w45.2.1, nodeAt_of_ksb w45.1, e4N]
-  have hst5' : L.mem s5 (stA (L.curW s)) ≠ sched.TS_RUNNING_VM := by
+  have hst5' : L.mem s5 (stA (L.curW s)) = sched.TS_RUNNING ∨
+      L.mem s5 (stA (L.curW s)) = L.mem s (stA (L.curW s)) := by
     rcases hst5 with e | e
-    · rw [e]; simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
-    · rw [e, hst4]; exact hnvm
+    · exact Or.inl e
+    · rw [e, hst4]; exact Or.inr rfl
   have hcur5 : L.curW s5 = L.curW s := by
     have e : L.curW s5 = L.curW s4 := by
       unfold LawfulStore.curW
@@ -662,26 +718,97 @@ theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathOb
   have gac : sched.activate_thread gS ar s4 a4 = sched.activate_thread st ar s4 a4 :=
     activate_thread.gw ar s4 a4 hcur4 ht' hy4 (nrm s4 e4N) rYt rSt (rR _ (by simp [layout.reg.FAULT_IP]))
       (rW _ (by simp [layout.reg.NEXT_IP]))
-      (fun hr pc => hwS' _ (by rw [mem_wr_ne' aNx sA nNs]; exact hr) (by rw [mem_wr_ne' aNx aA nNa]; exact aff4))
+      (fun hr pc => hwS' (by rw [← hst4]; exact hr) _ (by rw [mem_wr_ne' aNx sA nNs]; exact hr) (by rw [mem_wr_ne' aNx aA nNa]; exact aff4))
       rSc (by rw [sc4]; exact rMx) rIq
-  have gvc : vcpu.check gS ar s5 a5 (L.curW s) = vcpu.check st ar s5 a5 (L.curW s) :=
-    vcpu.check.guard_nvm ar s5 a5 (L.curW s) rSt hst5'
-  exact irq_replay (st := st) (st' := gS) ar ecpur ‹PathObl.GRd gS st R›.cur_cpu emx hle ei1
-    (interrupt.irq_state.guard s irq hi hIq) rfl etip gtip eb ectr
-    (PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))) ecscr
-    (PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))) eok gcok
-    eq gquiet eu
-    (PathObl.sched.update_timestamp.guard ar s a
-      (nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
-      (nW _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
-      (nR _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
-      (nW _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])))
-    enow (PathObl.sched.cur_time.guard s1 (ndR s1 e1N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])))
-    erel grdue ei2
-    (PathObl.sched.consumed.guard s1 (ndR s1 e1N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])))
-    eb4 (PathObl.sporadic.sufficient.guard ar s1 a1 (L.cscW s) i2 (hdC s1 agΩ1)) edue gtdue
-    (IrqCase.quiet rfl rfl) (fun h => nomatch h) (fun h => nomatch h) ecbr gcb ehi ghi esc gsc eac gac etr
-    (PathObl.sched.cur_thread.guard s5 (ndR s5 e5N _ (by rw [curth_val]; omega) (by rw [curth_val]))) evcr gvc
+  have fr4 : ∀ b, VFar st T Cs Scs Z s b → L.mem s4 b = L.mem s b := fun b hv =>
+    (w34.mem_eq hv.1.1 (fun hb => hb.2.2 hv)).trans
+      ((hw_outside hN1 hcC1 w13 (hv.1.ksb k1)).trans (hout1 b hv.1))
+  exact
+    { gi1 := interrupt.irq_state.guard s irq hi hIq
+      gtip := gtip
+      gct := PathObl.sched.cur_thread.guard s (nR _ (by rw [curth_val]; omega) (by rw [curth_val]))
+      gcsc := PathObl.sched.cur_sc.guard s (nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]))
+      gcok := gcok
+      gb2 := gquiet
+      gu := PathObl.sched.update_timestamp.guard ar s a
+        (nR _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+        (nW _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+        (nR _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+        (nW _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+      gnow := PathObl.sched.cur_time.guard s1
+        (ndR s1 e1N _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]))
+      gb3 := grdue
+      gi2 := PathObl.sched.consumed.guard s1
+        (ndR s1 e1N _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+      gb4 := PathObl.sporadic.sufficient.guard ar s1 a1 (L.cscW s) i2 (hdC s1 agΩ1)
+      gdue := gtdue
+      grr := fun h => nomatch h
+      gcb := gcb
+      ghi := ghi
+      gsc := gsc
+      gac := gac
+      gt := PathObl.sched.cur_thread.guard s5 (ndR s5 e5N _ (by rw [curth_val]; omega) (by rw [curth_val]))
+      et := rfl
+      rSt := rSt
+      st5 := hst5'
+      cur4 := hcur4
+      tK4 := fun K hK h8 _ _ _ => tK4 K hK h8
+      fr4 := fr4 }
+
+set_option maxHeartbeats 4000000 in
+/-- **The quiet case of an accepted timer interrupt on the guarded store**, from `irq_accept_walk`'s equations
+with `IrqCase.quiet` (module docstring). -/
+theorem irq_accG_quiet_walk {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s1 s2 s3 s4 s5 s' : S} {a a1 a2 a3 a4 a5 a' : A}
+    {cpu mx irq ct csc now i2 t : U64} {x : Bool} {tip p : localtimer.TimerIrqPlan}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
+    (gWr : IrqOk st s → ∀ w, Aligned w → IrqWr st Z s w → w ≠ stA (L.curW s) → W w)
+    (hIq : IrqOk st s → ∀ i, interrupt.state_off irq = ok i → R (core.num.U64.wrapping_add (L.ksb s) i))
+    (hD1 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hD2 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hwS : IrqOk st s → ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RESTART → L.mem X (affA (L.curW s)) = L.cpu s →
+      gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
+    (ecpu : st.cur_cpu s = ok cpu) (emx : layout.irq.MAX = ok mx)
+    (hle : ¬ irq > mx) (ei1 : interrupt.irq_state st s irq = ok interrupt.IRQ_TIMER)
+    (etip : localtimer.plan_objects st s = ok tip) (eb : localtimer.same_plan tip p = ok true)
+    (ect : sched.cur_thread st s = ok ct) (ecsc : sched.cur_sc st s = ok csc)
+    (eok : localtimer.current_ok st s cpu ct csc = ok true) (eq : localtimer.sched_quiet st s cpu = ok true)
+    (eu : sched.update_timestamp st ar s a = ok (s1, a1)) (enow : sched.cur_time st s1 = ok now)
+    (erel : localtimer.release_due st s1 cpu = ok false) (ei2 : sched.consumed st s1 = ok i2)
+    (eb4 : sporadic.sufficient st ar s1 a1 csc i2 = ok true)
+    (edue : localtimer.timer_due st s1 cpu now = ok false)
+    (ecb : sched.check_budget st ar s1 a1 = ok (x, s2, a2))
+    (ehi : interrupt.handle_interrupt st ar s2 a2 irq = ok (s3, a3))
+    (esc : sched.schedule st ar s3 a3 = ok (s4, a4)) (eac : sched.activate_thread st ar s4 a4 = ok (s5, a5))
+    (et : sched.cur_thread st s5 = ok t) (evc : vcpu.check st ar s5 a5 t = ok (s', a')) :
+    localtimer.handle_timer_irq_local gS ar s a irq p = ok (true, s', a') := by
+  have ecpur := ecpu
+  have ectr := ect
+  have ecscr := ecsc
+  rw [L.cur_cpu_eq] at ecpu
+  have hcpu : cpu = L.cpu s := (ok_inj_ff ecpu).symm
+  subst hcpu
+  rw [cur_thread_ok] at ect
+  have etc : L.curW s = ct := ok_inj_ff ect
+  subst etc
+  rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s)] at ecsc
+  have ecs' : L.cscW s = csc := ok_inj_ff ecsc
+  subst ecs'
+  obtain ⟨hmr, hsct, hcore⟩ := current_ok_true eok
+  obtain ⟨-, haff, hnvm, -⟩ := may_run_here_true hmr
+  have G := irq_accG_quiet_core ar hA hI gRd gWr hIq hD1 hD2 (fun hok _ => hwS hok) ecpur emx hle ei1 etip eb ectr ecscr haff hsct
+    hcore (mrh_yield hmr) eq eu enow erel ei2 eb4 edue ecb ehi esc eac et
+  have et' := G.et
+  subst et'
+  have hst5 : L.mem s5 (stA (L.curW s)) ≠ sched.TS_RUNNING_VM := by
+    rcases G.st5 with e | e
+    · rw [e]; simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
+    · rw [e]; exact hnvm
+  exact irq_replay (st := st) (st' := gS) ar ecpur ‹PathObl.GRd gS st R›.cur_cpu emx hle ei1 G.gi1 rfl etip G.gtip
+    eb ectr G.gct ecscr G.gcsc eok G.gcok eq G.gb2 eu G.gu enow G.gnow erel G.gb3 ei2 G.gi2 eb4 G.gb4 edue G.gdue
+    (IrqCase.quiet rfl rfl) (fun h => nomatch h) (fun h => nomatch h) ecb G.gcb ehi G.ghi esc G.gsc eac G.gac et
+    G.gt evc (vcpu.check.guard_nvm ar s5 a5 (L.curW s) G.rSt hst5)
 
 /-- **An accepted quiet timer interrupt on the guarded store** (module docstring). -/
 theorem irq_accG_quiet {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]

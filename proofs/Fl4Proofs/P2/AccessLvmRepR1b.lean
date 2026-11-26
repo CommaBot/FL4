@@ -51,8 +51,8 @@ theorem vcpu.report.guardP1b {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal
   rw [e]
   simp only [bind_ok]
   have hV := G.vR hv0
-  have gget : ∀ (s' : S) (o : U64), o.val < 32768 → vcpu.get gS s' v o = vcpu.get st s' v o :=
-    fun s' o ho => lv_get hV s' o ho
+  have gget : ∀ (s' : S) (o : U64), o.val < 32768 → o.val % 8 = 0 → vcpu.get gS s' v o = vcpu.get st s' v o :=
+    fun s' o ho h8 => lv_get hV s' o ho h8
   have gvm := lv_vmcs (gS := gS) (G.vmcs hv0)
   have gset : ∀ (s' : S) (x : U64), vcpu.set gS s' v vcpu.PENDING x = vcpu.set st s' v vcpu.PENDING x :=
     fun s' x => lv_set s' v x (G.pW hv0)
@@ -64,7 +64,7 @@ theorem vcpu.report.guardP1b {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal
   simp only [hv0', hv0, ↓reduceIte, bind_ok, hlb, hb, gfr]
   have egp : vcpu.get st s v vcpu.PENDING = ok p := by
     unfold vcpu.get; simp only [lift, bind_ok, L.read_eq, hpd]
-  rw [gget s vcpu.PENDING (by scalar_tac), egp]
+  rw [gget s vcpu.PENDING (by scalar_tac) (by scalar_tac), egp]
   have hpb : (p != 0#u64) = false := by simpa using hp
   simp only [bind_ok, hpb, Bool.false_eq_true, ↓reduceIte]
   simp (config := { maxSteps := 20000000 }) only [eq_of_spec_fd vcpu.svm.RIP.spec,
@@ -72,7 +72,7 @@ theorem vcpu.report.guardP1b {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal
     e21208, bind_ok, gvm, gset, gl0, gl1, gl2, gl3, gsa, vcpu.finish_notification]
   simp only [fun s' x => gmr s' 0#u64 x (by scalar_tac), fun s' x => gmr s' 1#u64 x (by scalar_tac), fun s' x => gmr s' 2#u64 x (by scalar_tac), fun s' x => gmr s' 3#u64 x (by scalar_tac), fun s' x => gmr s' 4#u64 x (by scalar_tac), fun s' x => gmr s' 5#u64 x (by scalar_tac), fun s' x => gmr s' 6#u64 x (by scalar_tac), fun s' x => gmr s' 7#u64 x (by scalar_tac), fun s' x => gmr s' 8#u64 x (by scalar_tac), fun s' x => gmr s' 9#u64 x (by scalar_tac), fun s' x => gmr s' 25#u64 x (by scalar_tac), fun s' x => gmr s' 26#u64 x (by scalar_tac), fun s' x => gmr s' 29#u64 x (by scalar_tac),
     fun s' x => gsr s' layout.reg.MSG_INFO x (by scalar_tac), fun s' x => gsr s' layout.reg.BADGE x (by scalar_tac), fun s' x => gsr s' layout.reg.FAULT_IP x (by simp [layout.reg.FAULT_IP]), fun s' => grg s' layout.reg.NEXT_IP (by simp [layout.reg.NEXT_IP]),
-    fun s' => gget s' vcpu.PENDING (by scalar_tac), fun s' => gget s' vcpu.VALID (by scalar_tac), fun s' => gget s' vcpu.CR2 (by scalar_tac), fun s' => gget s' vcpu.svm.EVENT_INJ (by scalar_tac), fun s' => gget s' vcpu.svm.INT_STATE (by scalar_tac), fun s' => gget s' vcpu.svm.INTERCEPT_EXC (by scalar_tac), fun s' => gget s' 1400#u64 (by scalar_tac), fun s' => gget s' 1392#u64 (by scalar_tac), fun s' => gget s' 1360#u64 (by scalar_tac), fun s' => gget s' 1600#u64 (by scalar_tac), fun s' => gget s' 21208#u64 (by scalar_tac)]
+    fun s' => gget s' vcpu.PENDING (by scalar_tac) (by scalar_tac), fun s' => gget s' vcpu.VALID (by scalar_tac) (by scalar_tac), fun s' => gget s' vcpu.CR2 (by scalar_tac) (by scalar_tac), fun s' => gget s' vcpu.svm.EVENT_INJ (by scalar_tac) (by scalar_tac), fun s' => gget s' vcpu.svm.INT_STATE (by scalar_tac) (by scalar_tac), fun s' => gget s' vcpu.svm.INTERCEPT_EXC (by scalar_tac) (by scalar_tac), fun s' => gget s' 1400#u64 (by scalar_tac) (by scalar_tac), fun s' => gget s' 1392#u64 (by scalar_tac) (by scalar_tac), fun s' => gget s' 1360#u64 (by scalar_tac) (by scalar_tac), fun s' => gget s' 1600#u64 (by scalar_tac) (by scalar_tac), fun s' => gget s' 21208#u64 (by scalar_tac) (by scalar_tac)]
   repeat' (first
     | rfl
     | exact hfin _ (by assumption)
