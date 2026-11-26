@@ -32,6 +32,16 @@ user-word write cannot change it. This module proves `hlk` for the widest natura
   lock map over kernel words (a lock table in kernel static data, a per-core held record on the kernel stack)
   discharges, `hRu` being the boot layout's "kernel image and stacks are in no user frame".
 
+* **Any written-word set `U` and guard `P`** (`LkDetS`, `KernDetS`, `hlk_of_lkDetS`, **`hlk_of_kernelDetU`**,
+  `kernelDetS_of_reads`, `hlk_of_readsU`): the same for writes of aligned `U` words at `P` states. Line vlift's
+  concrete family writes `(userV K).user` = user words and VCPU data words: one hypothesis "the locks read no user
+  word and no VCPU data word" (`KernDetS (userV K).user` at `SlJAt K.toKLayout` states, or `kernelDetS_of_reads`
+  with `R` off both) gives vlift's guarded `IrqPrem.lk` by `hlk_of_kernelDetU` and, by `kernDetAt_of_S`
+  (`K.user ⊆ U`, `LkDetS.mono`), the `K.user` forms above, so it discharges both versions.
+* `hlk_of_ghost`: the unguarded, unaligned form (vlift's `StPrem.lk`) for a lock map that is a function of a ghost
+  projection every such write keeps. A memory-reading map cannot give it (`LawfulStore` says nothing about an
+  unaligned write), so `StPrem.lk` should take `Aligned b` like its `eu` / `uf`.
+
 ## `hCs` at P3's sets
 `sl_pathsKC4` / `rr_localPathJK` ask `hCs : ∀ c ∈ Cs, c.val < 64` [P] of their fixed core set. It holds at P3's
 sets: `SlJAtZ.csLt` (P3 `JKern.csLt` of the bundle's `JAtZ`), `SlJAt.ncores_le` (`K.ncores ≤ 64` at every bundle
@@ -97,6 +107,67 @@ theorem hlk_of_reads {R : Set U64} (hR : LkReads (L := L) R Locks) (hRa : ∀ x 
     (hRu : ∀ (K : KLayout) (s : S), SlJAt (L := L) K s → ∀ x ∈ R, x ∉ K.user) :
     ∀ (K : KLayout) s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s :=
   hlk_of_kernelDet (kernelDet_of_reads hR hRa hRu)
+
+/-! ### Any written-word set `U` and any guard `P` (line vlift's `userV`: user words and VCPU data words) -/
+
+/-- **`Locks` determined at `s` by `g`, the core, the kernel base and the aligned words outside `U`.** -/
+def LkDetS {G : Type} (U : Set U64) (g : S → G) (Locks : S → U64 → Prop) (s : S) : Prop :=
+  ∀ s' : S, g s' = g s → L.cpu s' = L.cpu s → L.ksb s' = L.ksb s →
+    (∀ x, Aligned x → x ∉ U → L.mem s' x = L.mem s x) → Locks s' = Locks s
+
+/-- **`Locks` determined at `s` by the core, the kernel base and the aligned words outside `U`.** -/
+def KernDetS (U : Set U64) (Locks : S → U64 → Prop) (s : S) : Prop :=
+  LkDetS (L := L) U (fun _ => ()) Locks s
+
+/-- Determined by the words outside a larger set is determined by the words outside a smaller one. -/
+theorem LkDetS.mono {G : Type} {g : S → G} {U U' : Set U64} {s : S} (hUU : U ⊆ U')
+    (h : LkDetS (L := L) U' g Locks s) : LkDetS (L := L) U g Locks s :=
+  fun s' hg hc hk hm => h s' hg hc hk (fun x hx hxu => hm x hx (fun h' => hxu (hUU h')))
+
+/-- **One hypothesis for both scopes**: locks determined by the words outside a set `U ⊇ K.user` (e.g. vlift's
+`(userV K).user`, user words and VCPU data words) are determined by kernel words in `KernDetAt K`'s sense. -/
+theorem kernDetAt_of_S {U : Set U64} {s : S} (hUU : K.user ⊆ U) (h : KernDetS (L := L) U Locks s) :
+    KernDetAt (L := L) K Locks s :=
+  LkDetS.mono hUU h
+
+/-- **A write of an aligned `U` word keeps a lock map determined by the words outside `U`** (and a
+write-stable ghost `g`). -/
+theorem hlk_of_lkDetS {G : Type} {g : S → G} {U : Set U64} {s : S} (hD : LkDetS (L := L) U g Locks s)
+    {b : U64} (hb : b ∈ U) (hba : Aligned b) (v : U64) (hg : g (L.wr s b v) = g s) :
+    Locks (L.wr s b v) = Locks s :=
+  hD _ hg (L.cpu_wr _ _ _) (L.ksb_wr _ _ _)
+    (fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb)))
+
+/-- **The guarded `hlk` for any written-word set `U` and guard `P`** from `hKD` [P]. At `U := (userV K).user`,
+`P := SlJAt K.toKLayout` it is line vlift's `IrqPrem.lk`; at `U := K.user`, `P := SlJAt K` the form of
+`sl_pathsKC4` / `rr_localPathJK` / `irq_pathsJ3`. -/
+theorem hlk_of_kernelDetU {P : S → Prop} {U : Set U64}
+    (hKD : ∀ s : S, P s → KernDetS (L := L) U Locks s) :
+    ∀ s b v, P s → b ∈ U → Aligned b → Locks (L.wr s b v) = Locks s :=
+  fun s _ v hP hb hba => hlk_of_lkDetS (hKD s hP) hb hba v rfl
+
+/-- **A lock map reading only aligned words off `U` at the guarded states is determined by the words outside
+`U`** there: `hR`, `hRa`, `hRU` [P] (for vlift: the lock words are no user word and no VCPU data word). -/
+theorem kernelDetS_of_reads {P : S → Prop} {U R : Set U64} (hR : LkReads (L := L) R Locks)
+    (hRa : ∀ x ∈ R, Aligned x) (hRU : ∀ s : S, P s → ∀ x ∈ R, x ∉ U) :
+    ∀ s : S, P s → KernDetS (L := L) U Locks s :=
+  fun s hP s' _ hc hk hm => hR s s' hc hk (fun x hx => hm x (hRa x hx) (hRU s hP x hx))
+
+/-- **The guarded `hlk` for `U`, `P` from a lock map reading only aligned words off `U`.** -/
+theorem hlk_of_readsU {P : S → Prop} {U R : Set U64} (hR : LkReads (L := L) R Locks)
+    (hRa : ∀ x ∈ R, Aligned x) (hRU : ∀ s : S, P s → ∀ x ∈ R, x ∉ U) :
+    ∀ s b v, P s → b ∈ U → Aligned b → Locks (L.wr s b v) = Locks s :=
+  hlk_of_kernelDetU (kernelDetS_of_reads hR hRa hRU)
+
+/-- **The unguarded, unaligned `hlk`** (line vlift's `StPrem.lk`: `∀ s b v, b ∈ U → …`, no `Aligned b`) holds for
+a lock map that is a function of a ghost projection `g` every such write keeps (`hg` [P]). A map reading memory
+cannot give it: `LawfulStore` states nothing about an unaligned write (`mem_wr` asks `Aligned a`), so such a write
+may change any word; vlift's `StPrem.lk` should take `Aligned b` (as its `eu` / `uf` / `IrqPrem.lk` do) to be
+dischargeable by `hlk_of_kernelDetU`. -/
+theorem hlk_of_ghost {G : Type} {F : G → U64 → Prop} {g : S → G} {U : Set U64}
+    (hL : ∀ s, Locks s = F (g s)) (hg : ∀ s b v, b ∈ U → g (L.wr s b v) = g s) :
+    ∀ s b v, b ∈ U → Locks (L.wr s b v) = Locks s :=
+  fun s b v hb => by rw [hL, hL, hg s b v hb]
 
 end
 

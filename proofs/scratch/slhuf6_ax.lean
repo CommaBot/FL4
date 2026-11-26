@@ -11,3 +11,10 @@ import Fl4Proofs.P2.SlJLk2
 #print axioms Fl4Proofs.P2.PathObl.sl_pathsKC5
 #print axioms Fl4Proofs.P2.PathObl.sl_pathsKC5_startAt
 #print axioms Fl4Proofs.P2.PathObl.rr_localPathJK2
+#print axioms Fl4Proofs.P2.PathObl.LkDetS.mono
+#print axioms Fl4Proofs.P2.PathObl.kernDetAt_of_S
+#print axioms Fl4Proofs.P2.PathObl.hlk_of_lkDetS
+#print axioms Fl4Proofs.P2.PathObl.hlk_of_kernelDetU
+#print axioms Fl4Proofs.P2.PathObl.kernelDetS_of_reads
+#print axioms Fl4Proofs.P2.PathObl.hlk_of_readsU
+#print axioms Fl4Proofs.P2.PathObl.hlk_of_ghost
