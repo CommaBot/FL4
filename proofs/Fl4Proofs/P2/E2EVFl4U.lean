@@ -7,14 +7,14 @@ gives `Pre := SlJAt (userV K)`, false once `K` has a VCPU (`SlJAtZ.lay` pins `us
 the same bodies are built at `userV K` with `Pre := SlJAt K.toKLayout ∧ …`:
 
 * `VFacts K` [J]: the layout's VCPU facts (`VcpuHeap`, `VcpuTabOff`, `UserObj`, `PoolObj` at every `SlJAt` state; all
-  [J] since gen 2, see `P2/E2EVHeap.lean`) and **`wr`** [J] (new): a write to a VCPU data word keeps P3's bundle
-  `SlJAt K.toKLayout` (the analogue of slhuf's `SlJAt.userWr` for user words; a VCPU's guest-state words are words of
-  an `other 15` heap object that P3's joint invariant, native-scoped (`JExt.nat`), does not read). `slJAt_wrV`: the
-  bundle is kept by every write to a `userV K` user word.
+  [J] since gen 2, see `P2/E2EVHeap.lean`) and, since gen 6, `VcpuSpec` [J] / `VcpuKsOff` [J]
+  (`P2/E2EVVcpuWr.lean`), from which **`VFacts.wr`** (gen 5's [J] field: a write to a VCPU data word keeps P3's
+  bundle `SlJAt K.toKLayout`) is now proved (`slJAt_vcpuWr`, via P3's `JAtZ.vcpuWrJ`). `slJAt_wrV`: the bundle is
+  kept by every write to a `userV K` user word.
 * `io_localPathV`: `io_localPathK` (the `ioBodyP` path, `Pre` generic) at `userV K` with `P := SlJAt K.toKLayout ∧ Q`;
   `IoLayA` by `SlJAt.ioLayA` (no `user` field), `IoPre (userV K)` from the `K` one (`ioPre_userV`, `VcpuKs` from
   `slJAt_vfacts`). **`io_noVcpuRWV`**.
-* `tm_localPathV`: `set_timer_localPathM` at `userV K` narrowed (`lpRestrict`) to `SlJAt K.toKLayout ∧ Q`, its
+* `tm_localPathV`: `set_timer_localPathA` (= `set_timer_localPathM` with `hlk` asked of aligned words) at `userV K` narrowed (`lpRestrict`) to `SlJAt K.toKLayout ∧ Q`, its
   `StEntK (userV K)` from the `K` one (`stEntK_userV`). **`tm_noVcpuRWV`**.
 * `IrqPreV K st m := SlJAt K.toKLayout ∧` memory agreement off `userV K`'s user words (closed under those writes),
   `IrqPreV.entM` (`IrqEntM (userV K)` from `SlJAt` via p2lf's `IrqPreJ3.entM` at the state's own memory and
@@ -31,6 +31,7 @@ import Fl4Proofs.P2.E2EVTimerLay
 import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.FootTimerIrqJ3
+import Fl4Proofs.P2.E2EVVcpuWr
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2EV
@@ -55,8 +56,15 @@ structure VFacts (L : LawfulStore st) (K : KLayoutV) : Prop where
   user : UserObj K
   /-- [J] `PoolObj` at every bundle state: ASID pools are non-VCPU heap objects. -/
   pool : ∀ s, SlJAt (L := L) K.toKLayout s → PoolObj (L := L) K s
-  /-- [J] a write to a VCPU data word keeps P3's bundle (module docstring). -/
-  wr : ∀ s b v, SlJAt (L := L) K.toKLayout s → VData K b → Aligned b → SlJAt (L := L) K.toKLayout (L.wr s b v)
+  /-- [J] `VcpuSpec` (gen 6): each VCPU is a spec `vcpu` object of every bundle's σ (`P2/E2EVVcpuWr.lean`). -/
+  spec : VcpuSpec L K
+  /-- [J] `VcpuKsOff` (gen 6): no VCPU meets the kernel-global area `[ksb, ksb + 304384)`. -/
+  ks : VcpuKsOff K
+
+/-- **A write to a VCPU data word keeps P3's bundle** (gen 5's [J] field `wr`, now `slJAt_vcpuWr`). -/
+theorem VFacts.wr (vf : VFacts L K) (s : S) (b v : U64) (h : SlJAt (L := L) K.toKLayout s) (hb : VData K b)
+    (hba : Aligned b) : SlJAt (L := L) K.toKLayout (L.wr s b v) :=
+  slJAt_vcpuWr vf.heap vf.spec vf.ks h hb hba v
 
 theorem slJAt_ksb {K : OwnMap.KLayout} {s : S} (h : SlJAt (L := L) K s) : L.ksb s = K.ksb := by
   obtain ⟨_, _, _, _, _, _, _, _, _, _, B⟩ := h
@@ -127,6 +135,67 @@ theorem io_noVcpuRWV (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK : RegionOK
 
 end io
 
+/-! ## `TCB_SetTimer` with an aligned lock premise -/
+
+section stA
+open OwnMap
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+variable {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {K : OwnMap.KLayout}
+variable {target : U64} {m : U64 → U64}
+variable {A : Type} (ar : machine.Arch A) (n : I64) {lk : S → U64 → Prop} {p : SProg Bool}
+
+/-- **`set_timer_localPathM` with the lock premise asked only for aligned user words** (`hlk`, the form slhuf's
+`hlk_of_kernelDetU` produces from a memory-determined lock predicate; `LawfulStore` has no law for unaligned
+writes). Same body, sets and `Pre` as `set_timer_localPath`; the side's `user_free` has `Aligned b` at hand. -/
+noncomputable def set_timer_localPathA (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.UserOK K)
+    (hp : IsProg (stBody S n target) p) (hz : NoZero p) (hm : E2E.MasksWr st)
+    (hro : E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
+      (StEntK K st T Cs Ω H Sg Rp Scs Nt Z Ac target m) (MaxR K st lk))
+    (hEU : ∀ s b v, StEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac target s → b ∈ K.user → Aligned b →
+      StEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac target (L.wr s b v))
+    (hlk : ∀ s b v, b ∈ K.user → Aligned b → lk (L.wr s b v) = lk s)
+    (hNU : ∀ s, StEnt K st T Cs Ω H Sg Rp Scs Nt Z Ac target s → ∀ o : U64, o.val < 4288 →
+      L.nodeAt s (L.cpu s) o ∉ K.user) :
+    E2E.LocalPath (own K) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) where
+  S := S
+  A := A
+  X := Bool
+  st := st
+  L := L
+  ar := ar
+  F := stBody S n target
+  p := p
+  Acc := fun b => b = true
+  Locks := lk
+  Pre := StEntK K st T Cs Ω H Sg Rp Scs Nt Z Ac target m
+  RS := MaxR K st lk
+  WS := MaxW K st lk
+  DS := StDec st
+  isProg := IsProg.on hp _ _ _
+  obl := set_timer_pathObl ar n hA hK hUO (fun s h => h.ent) (fun mm => hp A ar mm) hz hm
+    (fun s h => set_timer_cls h.ent) (fun s h => set_timer_ko hK hUO h)
+    (fun s h => set_timer_user hK hUO h.ent) (fun s h q hq => set_timer_koF h.ent hq)
+    (ko_aligned hK hUO) (fun _ _ _ _ hE h => set_timer_move ar n hA hK hUO hp hE h)
+  side := set_timer_pathSide ar n hA (fun s h => h.ent) (fun mm => hp A ar mm) hz hm
+    (fun s h => set_timer_cls h.ent) (fun s h => set_timer_ko hK hUO h)
+    (fun s h => set_timer_user hK hUO h.ent) (ko_aligned hK hUO) (fun s b v h hb hba => by
+      have keep : ∀ x, Aligned x → x ∉ K.user → L.mem (L.wr s b v) x = L.mem s x :=
+        fun x hx hxu => mem_wr_ne' hba hx (fun e => hxu (e ▸ hb))
+      have eo : own K (L.mem (L.wr s b v)) = own K (L.mem s) :=
+        E2E.ownDep hK hUO _ _ (fun x hx hxu => keep x hx hxu)
+      refine ⟨⟨hEU s b v h.ent hb hba, fun x hx hxu => by rw [keep x hx hxu]; exact h.mem x hx hxu⟩,
+        hlk s b v hb hba, ?_, ?_, ?_⟩
+      · funext w; simp only [MaxR, RPerm, GateOnly, eo, hlk s b v hb hba, L.cpu_wr]
+      · funext w; simp only [MaxW, WPerm, eo, hlk s b v hb hba, L.cpu_wr]
+      · exact set_timer_dec_user h.ent (hNU s h.ent) hb hba)
+  once := hro
+  total := fun s a => by
+    obtain ⟨r, e, -⟩ := spec_ex_fd (P0.localtimer.handle_set_timer_local.p0 st ar s a n target LawfulStore.total hA)
+    exact ⟨r, e⟩
+  masks := hm
+
+end stA
+
 /-! ## The `TCB_SetTimer` path -/
 
 section tm
@@ -152,13 +221,13 @@ noncomputable def tm_localPathV (ar : machine.Arch A) (hA : P0.ArchTotal ar) (n 
         K.heap.scBits Ac target s → b ∈ (userV K).user → Aligned b →
       StEnt (userV K) st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac target
         (L.wr s b v))
-    (hlk : ∀ s b v, b ∈ (userV K).user → lk (L.wr s b v) = lk s)
+    (hlk : ∀ s b v, b ∈ (userV K).user → Aligned b → lk (L.wr s b v) = lk s)
     (hNU : ∀ s, StEnt (userV K) st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
         K.heap.scBits Ac target s → ∀ o : U64, o.val < 4288 → L.nodeAt s (L.cpu s) o ∉ (userV K).user)
     (huf : ∀ s b v, SlJAt (L := L) K.toKLayout s → Q s → b ∈ (userV K).user → Aligned b → Q (L.wr s b v)) :
     E2E.LocalPath (OwnMap.own (userV K)) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user) :=
   lpRestrict
-    (set_timer_localPathM (K := userV K) (m := m) (lk := lk) ar n hA (regionOK_userV hK) (userOK_userV hK hU)
+    (set_timer_localPathA (K := userV K) (m := m) (lk := lk) ar n hA (regionOK_userV hK) (userOK_userV hK hU)
       hpz.choose_spec.1 hpz.choose_spec.2.1 hm hpz.choose_spec.2.2 hEU hlk hNU)
     (fun s => SlJAt (L := L) K.toKLayout s ∧ Q s)
     (fun s h => stEntK_userV hK (vf.v h.1).1 (vf.v h.1).2.1 (slJAt_ksb h.1) (hPE s h.1 h.2))

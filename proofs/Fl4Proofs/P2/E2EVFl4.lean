@@ -248,8 +248,8 @@ structure StPrem (i : StArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
       K.heap.scBits i.Ac i.target s → b ∈ (userV K).user → Aligned b →
     StEnt (userV K) st K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits i.Ac
       i.target (L.wr s b v)
-  /-- [P] -/
-  lk : ∀ s b v, b ∈ (userV K).user → i.lk (L.wr s b v) = i.lk s
+  /-- [P] (aligned user words only, gen 6: slhuf's `hlk_of_kernelDetU` form) -/
+  lk : ∀ s b v, b ∈ (userV K).user → Aligned b → i.lk (L.wr s b v) = i.lk s
   /-- [J] -/
   nu : ∀ s, StEnt (userV K) st K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns
       K.heap.scBits i.Ac i.target s → ∀ o : U64, o.val < 4288 → L.nodeAt s (L.cpu s) o ∉ (userV K).user
