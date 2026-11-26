@@ -2434,3 +2434,4 @@ import Fl4Proofs.P3.VirtNoRunF
 import Fl4Proofs.P3.VirtReplyKeep
 import Fl4Proofs.P3.VirtMsrE2E
 import Fl4Proofs.P3.VirtRetypeLoop
+import Fl4Proofs.P3.VirtVmcbDec
