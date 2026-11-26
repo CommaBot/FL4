@@ -24,6 +24,26 @@ from the other VCPUs, and every word of `U` aligned, in no slot, in no TCB and i
 * **`JAtZ.jwPl`**, **`JAtZ.detPl`** (at `Ub := fun _ => BufU Z σ`), and the native forms **`JAtZ.jwPl0`**,
   **`JAtZ.detPl0`** (`V = ∅`, `JVm.empty`: no premise beyond `JAtZ`).
 
+## Also derived (`JAtZ` + `JVm`)
+
+* **`JAtZ.detAtB`** (`DetAtB`, P3/JExtVStepsB, at `Ub := fun _ => BufU Z σ`): node placed (`JAtZ.nodePl`, from
+  `JKern.ksbAl` / `nodeFit` / `hnd`), IPI / action words outside the extension (`JAtZ.nodeW`), the buffer lookup kept
+  along binding / `CW` writes (`JAtZ.tw_nBC` + `P1.lookup_ipc_buffer_same`) and in `BufU` (`JAtZ.bufOK`).
+  `DetAt` itself is not derivable (P3/JExtVStepsB module docstring: its `buf` ranges over slot-word writes).
+* **`JAtZ.hact`** (`sts_jv`'s `hact`), **`JAtZ.hct`** (`vcpu_decode_settcb_jv`'s `hct`, `JKern.curT`),
+  **`JAtZ.thrCap`** (the `Thread` half of `hex`, `SlotsValid`), **`JVLay.hvi`** (`vcpu_enter_nosig`'s `hvi`, from
+  the layout and `JExtV.bnd`).
+
+## Step theorems without the derived premises
+
+* **`sts_jv_of`** (no `JWPl`, `hact`), **`vcpu_enter_unbound_of`** (no `DetPl`), **`vcpu_detach_jv_of`** (no `DetPl`,
+  `DetAt`), **`vcpu_decode_settcb_jv_of`** (no `DetPl`, `DetAt`, `hct`, `Thread` half of `hex`; `hexs` [J] stays:
+  the extra cap slots are slots of the typed heap, a syscall front-end fact, P1's `DecPre.extra`),
+  **`vcpu_finalise_jv_of`** (no `DetPl`, `DetAt`; `FinPl` [J] stays: the VCPU list's link words — no `JAtZ` / `JVm`
+  field says the VCPU list's members are `V`'s VCPUs, P1's `VListed` / `VtIoPlace`), **`vcpu_enter_nosig_lay`** /
+  **`vcpu_enter_bound_lay`** (no `hvi`; over `JVLay` + `DetAtB`, since at a `JAtZ` state every VCPU word is 0 and the
+  bound-thread theorems are vacuous; `hns` / `hcs` [J] stay).
+
 No premise is introduced here: every theorem's hypotheses are `JAtZ` (P3's proved joint invariant) and `JVm`
 (the existing VCPU placement record; for `V = ∅` it is `JVm.empty`). In VM epochs `JAtZ` is not a proved
 invariant (its `ext : JExt` fails, P3/JExtV.lean), so there these derivations need the `JVLay` record itself,
@@ -527,5 +547,17 @@ theorem vcpu_enter_nosig_lay {S : Type} {st : machine.Store S} [L : P1.LawfulSto
       n ≠ 0#u64 → obj.Ntfn.state st n s' ⦃ x => x ≠ obj.NTFN_ACTIVE ⦄ ⦄) :
     vcpu.enter st ar s a t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ :=
   vcpu_enter_nosigB hA Ly.detPl Da E R a ht hv0 (Ly.hvi E ht hv0) hns
+
+/-- **`vcpu_enter_boundB` without `hvi`** (every branch of `vcpu.enter` on a bound thread; `hcs` [J] stays:
+`complete_signal`'s effect, P3/JExtVStepsB). -/
+theorem vcpu_enter_bound_lay {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
+    {ar : machine.Arch A} {V X U : Set U64} {th : TypedHeap} (hA : P0.ArchTotal ar) (Ly : JVLay V th U)
+    {s : S} (Da : DetAtB st V th (fun _ => U) s) (E : JExtV (L := L) V X th s) (R : RunVmB (L := L) th s) (a : A)
+    {t : U64} (ht : th t = some .tcb) (hv0 : L.mem s (tVcpuA t) ≠ 0#u64)
+    (hcs : ∀ s3 (a1 : A) (n : U64), P1.WritesIn st s s3 (VW (L.mem s (tVcpuA t))) → n ≠ 0#u64 →
+      notification.complete_signal st ar s3 a1 n t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ∧
+        DetAtB st V th (fun _ => U) r.1 ∧ L.mem r.1 (tVcpuA t) = L.mem s (tVcpuA t) ⦄) :
+    vcpu.enter st ar s a t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ :=
+  vcpu_enter_boundB hA Ly.detPl Da E R a ht hv0 (Ly.hvi E ht hv0) hcs
 
 end Fl4Proofs.P3

@@ -20,8 +20,17 @@ footprints, whose `JW` part is the two **binding words** (`tVcpuA t`, `vTcbA v`)
   theorems (`vcpu_detach_jv`, `vcpu_decode_settcb_jv`, `vcpu_enter_nosig`, `vcpu_finalise_jv`) with `DetAt`
   replaced by `DetAtB`; the proofs are gen 20's (the `JW` footprints of the carried `DetAt` are `BW` ones).
 
+* **`vcpu_enter_boundB`**: `vcpu.enter` of a bound thread, **every branch**, including the signalled one
+  (vcpu.rs l. 1108-1116: `complete_signal`, then `report` on a full reply or `MSG_INFO := 0`), with `hns` replaced by
+  `hcs` [J]: `complete_signal` from a state reached by the VCPU writes keeps `JExtV` / `RunVmB` / `DetAtB` and the
+  thread's VCPU word. Missing fact behind `hcs`: a footprint of `notification.complete_signal` (badge register,
+  notification state, `maybe_donate_sched_context`, `sporadic.unblock_check`) that excludes the binding words and
+  writes no state word to `TS_RUNNING_VM`; P1 has it only as `Foot` (`KW`, which contains every TCB word at
+  offsets 192..4095 but 3576 / 3584, VCPU and state words included) under the BlkOK bundle at the call state, and no
+  VM-epoch fact provides that bundle.
+
 Named premises (as gen 20, with `DetAtB` for `DetAt`), all [J]: `DetPl`, `DetAtB`, `FinPl`, and
-`vcpu_decode_settcb_jvB`'s `hex` / `hct`, `vcpu_enter_nosigB`'s `hvi` / `hns`. P3/JExtVLay derives `DetPl`,
+`vcpu_decode_settcb_jvB`'s `hex` / `hct`, `vcpu_enter_nosigB`'s `hvi` / `hns`, `vcpu_enter_boundB`'s `hvi` / `hcs`. P3/JExtVLay derives `DetPl`,
 `DetAtB`, `hct`, `hvi` from `JAtZ` + `JVm`. No [P] / [W] / [S] premise. No existing statement changed.
 -/
 import Fl4Proofs.P3.JExtVSteps2
@@ -467,6 +476,142 @@ theorem vcpu_enter_nosigB (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da
     · exact FIN
   · exact FIN
 
+
+set_option maxHeartbeats 16000000 in
+/-- **`vcpu.enter` of a bound thread, every branch** (vcpu.rs l. 1073-1120): the VMCS / VMCB / `VALID` / `PENDING`
+writes, then (no notification bound, or not active) `TS_RUNNING_VM`, or (bound notification active, l. 1108-1116)
+`complete_signal`, then `report` (a full reply: registers / IPC buffer, `PENDING`, state `TS_RUNNING`) or
+`MSG_INFO := 0`. Keeps `JExtV` and `RunVmB`. Premises as `vcpu_enter_nosigB` but `hns` replaced by **`hcs`** [J]:
+`complete_signal` (badge register, notification state, SC donation `maybe_donate_sched_context`, sporadic
+`unblock_check`) from any state reached by the VCPU writes keeps `JExtV` / `RunVmB` / `DetAtB` and the thread's VCPU
+word. P1 gives its footprint only as `Foot` (`KW`: every TCB word at offsets 192..4095 but 3576 / 3584, so VCPU and
+state words included) under the BlkOK bundle (`notification.complete_signal.ipc` / `maybe_donate…tinvF`), which no
+VM-epoch fact provides; a footprint excluding the binding words (P3's `TFoot` style) for these three functions is the
+missing fact. -/
+theorem vcpu_enter_boundB (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da : DetAtB st V th Ub s)
+    (E : JExtV (L := L) V X th s) (R : RunVmB (L := L) th s) (a : A) {t : U64} (ht : th t = some .tcb)
+    (hv0 : L.mem s (tVcpuA t) ≠ 0#u64)
+    (hvi : ∀ b, VW (L.mem s (tVcpuA t)) b → P1.Aligned b ∧ ¬ JW V th b ∧ ¬ SW th b)
+    (hcs : ∀ s3 (a1 : A) (n : U64), P1.WritesIn st s s3 (VW (L.mem s (tVcpuA t))) → n ≠ 0#u64 →
+      notification.complete_signal st ar s3 a1 n t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ∧
+        DetAtB st V th Ub r.1 ∧ L.mem r.1 (tVcpuA t) = L.mem s (tVcpuA t) ⦄) :
+    vcpu.enter st ar s a t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ := by
+  have P := D.pl
+  have JWt : JW V th (tVcpuA t) := Or.inr (Or.inl ⟨t, ht, rfl⟩)
+  unfold vcpu.enter vcpu.bound
+  refine WP.spec_bind (hA.vcpu_barrier a) fun a1 _ => ?_
+  step as ⟨o, ho⟩
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (P1.LawfulStore.read_spec s _) fun v ev => ?_
+  subst ho
+  have ev' : v = L.mem s (tVcpuA t) := ev
+  have hvV : v ∈ V := by
+    have := ((E.bnd t ht).resolve_left hv0).1
+    rw [← ev'] at this; exact this
+  rw [← ev'] at hv0 hvi hcs
+  rw [if_neg hv0]
+  have VS : ∀ s1, P1.WritesIn st s s1 (VW v) → ∀ (o x : U64), o.val < 32768 → o.val % 8 = 0 →
+      o.val ≠ 20480 → vcpu.set st s1 v o x ⦃ s' => P1.WritesIn st s s' (VW v) ⦄ := by
+    intro s1 w1 o x h1 h2 h3
+    have hb : VW v (core.num.U64.wrapping_add v o) := ⟨o, h1, h2, h3, rfl⟩
+    unfold vcpu.set
+    simp only [lift, bind_ok]
+    exact WP.spec_mono (P1.LawfulStore.write_spec s1 _ _) fun s' e => by
+      subst e
+      exact (w1.trans (P1.writesIn_wr (hvi _ hb).1)).mono fun b h => h.elim id fun e => e ▸ hb
+  have VM : ∀ s1, P1.WritesIn st s s1 (VW v) → ∀ (f x : U64),
+      vcpu.write_vmcs st s1 v f x ⦃ s' => P1.WritesIn st s s' (VW v) ⦄ := by
+    intro s1 w1 f x
+    unfold vcpu.write_vmcs
+    refine WP.spec_bind (P1.vcpu.vmcs_addr.off v f) ?_
+    rintro _ ⟨o, h1, h2, rfl⟩
+    have hb : VW v (core.num.U64.wrapping_add v o) := ⟨o, by omega, h2, by omega, rfl⟩
+    exact WP.spec_mono (P1.LawfulStore.write_spec s1 _ _) fun s' e => by
+      subst e
+      exact (w1.trans (P1.writesIn_wr (hvi _ hb).1)).mono fun b h => h.elim id fun e => e ▸ hb
+  refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 _ _ _ _ L.total) fun b _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun ip _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun ctl _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun intr _ => ?_
+  refine WP.spec_bind (hA.virtualization a1) fun i _ => ?_
+  refine WP.spec_bind (Pₘ := fun s1 => P1.WritesIn st s s1 (VW v)) ?_ fun s1 w1 => ?_
+  · split
+    · have hRIP : vcpu.svm.RIP = ok 1400#u64 := by unfold vcpu.svm.RIP vcpu.svm.SAVE; rfl
+      simp only [hRIP, bind_ok, lift, vcpu.get, shl_eq _ 32#i32 (by decide) (by decide)]
+      refine WP.spec_bind (VS _ (P1.WritesIn.refl _ _) 1400#u64 _ (by simp) (by simp) (by simp)) fun s2 w2 => ?_
+      refine WP.spec_bind (P1.LawfulStore.read_spec s2 _) fun old _ => ?_
+      refine WP.spec_bind (VS _ w2 vcpu.svm.INTERCEPT_EXC _ (by simp [vcpu.svm.INTERCEPT_EXC])
+        (by simp [vcpu.svm.INTERCEPT_EXC]) (by simp [vcpu.svm.INTERCEPT_EXC])) fun s3 w3 => ?_
+      refine WP.spec_bind (P0.vcpu.full_reply.p0 _ _ _ L.total) fun b1 _ => ?_
+      refine WP.spec_bind (Pₘ := fun _ => True) ?_ fun intr1 _ => ?_
+      · cases b1
+        · simp only [Bool.false_eq_true, ↓reduceIte]
+          exact (WP.spec_ok _).2 trivial
+        · simp only [↓reduceIte]
+          exact WP.spec_bind (P1.LawfulStore.read_spec _ _) fun _ _ => (WP.spec_ok _).2 trivial
+      exact VS _ w3 vcpu.svm.EVENT_INJ _ (by simp [vcpu.svm.EVENT_INJ]) (by simp [vcpu.svm.EVENT_INJ])
+        (by simp [vcpu.svm.EVENT_INJ])
+    · try simp only [lift, bind_ok]
+      refine WP.spec_bind (VM _ (P1.WritesIn.refl _ _) _ _) fun s2 w2 => ?_
+      refine WP.spec_bind (P0.vcpu.sanitize_vmcs.p0 _ _ _ _ hA) fun r _ => ?_
+      refine WP.spec_bind P0.vcpu.PRIMARY_FORCED.p0 fun i1 _ => ?_
+      refine WP.spec_bind (VM _ w2 _ _) fun s3 w3 => ?_
+      exact VM _ w3 _ _
+  refine WP.spec_bind (VS _ w1 vcpu.VALID 0#u64 (by simp [vcpu.VALID]) (by simp [vcpu.VALID])
+    (by simp [vcpu.VALID])) fun s2 w2 => ?_
+  refine WP.spec_bind (VS _ w2 vcpu.PENDING 0#u64 (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING])
+    (by simp [vcpu.PENDING])) fun s3 w3 => ?_
+  have E3 := E.of_writes P w3 fun b h => (hvi b h).2.1
+  have R3 := R.of_clean P w3 fun b h => (hvi b h).2
+  have m3 : L.mem s3 (tVcpuA t) ≠ 0#u64 := by
+    rw [w3.mem_eq (P.jw _ JWt) fun h => (hvi _ h).2.1 JWt, ← ev']; exact hv0
+  have hact : P1.Aligned (actA st s3) ∧ ¬ JW V th (actA st s3) ∧ ¬ SW th (actA st s3) := by
+    rw [actA_of w3]; exact ⟨Da.actA_al, (Da.nd _ (Or.inr rfl)).1, (Da.nd _ (Or.inr rfl)).2⟩
+  have FIN : (do
+      let s4 ← sched.set_thread_state st s3 t sched.TS_RUNNING_VM
+      ok (s4, a1)) ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ :=
+    WP.spec_bind (sts_jv P E3 R3 ht hact (Or.inr m3)) fun s4 h4 => (WP.spec_ok _).2 h4
+  refine WP.spec_bind (P0.obj.Tcb.bound_ntfn.p0 st t s3 L.total) fun n _ => ?_
+  split
+  · rename_i hn0
+    refine WP.spec_bind (P0.obj.Ntfn.state.p0 st n s3 L.total) fun x _ => ?_
+    split
+    · refine WP.spec_bind (hcs s3 a1 n w3 (by simpa using hn0)) ?_
+      rintro ⟨s4, a2⟩ ⟨E4, R4, Da4, m4⟩
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (P0.vcpu.full_reply.p0 st s4 t L.total) fun b1 _ => ?_
+      split
+      · refine WP.spec_bind (P0.obj.Tcb.reg.p0 st t s4 _ L.total) fun i3 _ => ?_
+        have hpa : P1.Aligned (pendA (L.mem s4 (tVcpuA t))) := by rw [m4]; exact (D.vca v hvV).1
+        have hne : actA st s4 ≠ P1.stA t := fun e => (Da4.nd _ (Or.inr rfl)).2 ⟨t, ht, e⟩
+        refine WP.spec_bind (vcpu_report_w hA a2 (D.ta t ht) (D.ua t ht) (Da4.buf s4 (P1.WritesIn.refl _ _) t ht)
+          hpa (P.sw _ ⟨t, ht, rfl⟩) Da4.actA_al hne) fun s5 ⟨w, e5⟩ => ?_
+        have cl : ∀ b, (P1.RepW t (Ub t) b ∨ b = pendA (L.mem s4 (tVcpuA t)) ∨ b = P1.stA t ∨ b = actA st s4) →
+            ¬ JW V th b := by
+          rintro b (h | e | e | e)
+          · exact (D.rep t ht b h).1
+          · rw [m4] at e; exact (D.vc v hvV b (Or.inl e)).1
+          · exact P.swjw b ⟨t, ht, e⟩
+          · exact (Da4.nd b (Or.inr e)).1
+        refine (WP.spec_ok _).2 ⟨E4.of_writes P w cl, R4.of_foot P w (fun t' ht' hw => ?_) (fun t' ht' hw => ?_)⟩
+        · rcases hw with h | e | e | e
+          · exact ((D.rep t ht _ h).2 ⟨t', ht', rfl⟩).elim
+          · rw [m4] at e; exact ((D.vc v hvV _ (Or.inl e)).2 ⟨t', ht', rfl⟩).elim
+          · left; rw [stA_inj e, e5]; simp [sched.TS_RUNNING]
+          · exact ((Da4.nd _ (Or.inr e)).2 ⟨t', ht', rfl⟩).elim
+        · exact ((cl _ hw) (Or.inr (Or.inl ⟨t', ht', rfl⟩))).elim
+      · refine WP.spec_bind (P1.obj.Tcb.set_reg.wrS s4 t layout.reg.MSG_INFO 0#u64 (D.ta t ht)
+          (by simp [layout.reg.MSG_INFO, layout.reg.RSI])) fun s5 ⟨K, hK, e⟩ => ?_
+        subst e
+        have hr : (layout.reg.MSG_INFO).val = 1 := by simp [layout.reg.MSG_INFO, layout.reg.RSI]
+        have hw := P1.writesIn_wr (st := st) (s := s4) (v := 0#u64)
+          (P1.field_aligned (D.ta t ht) (K := K) (by omega) (by omega))
+        have hR : P1.RepW t (Ub t) (core.num.U64.wrapping_add t K) := Or.inl ⟨K, by omega, by omega, by omega, rfl⟩
+        have hd : ∀ b, b = core.num.U64.wrapping_add t K → ¬ JW V th b ∧ ¬ SW th b := fun b e =>
+          e ▸ D.rep t ht _ hR
+        exact (WP.spec_ok _).2 ⟨E4.of_writes P hw fun b h => (hd b h).1, R4.of_clean P hw hd⟩
+    · exact FIN
+  · exact FIN
 
 set_option maxHeartbeats 8000000 in
 /-- **`vcpu.finalise` keeps the extension** (module docstring) and leaves the VCPU's `TCB` word 0. -/

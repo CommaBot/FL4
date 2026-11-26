@@ -24,3 +24,5 @@ import Fl4Proofs.P3.JExtVLay
 #print axioms Fl4Proofs.P3.vcpu_decode_settcb_jv_of
 #print axioms Fl4Proofs.P3.vcpu_finalise_jv_of
 #print axioms Fl4Proofs.P3.vcpu_enter_nosig_lay
+#print axioms Fl4Proofs.P3.vcpu_enter_boundB
+#print axioms Fl4Proofs.P3.vcpu_enter_bound_lay
