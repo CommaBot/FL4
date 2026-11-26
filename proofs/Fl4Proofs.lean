@@ -2307,3 +2307,8 @@ import Fl4Proofs.P3.JBootQ1Live
 import Fl4Proofs.P3.JBootQ1JAt
 import Fl4Proofs.P3.JBootQ1U40
 import Fl4Proofs.P3.JBootQ1Disp
+import Fl4Proofs.P3.P3JCkW
+import Fl4Proofs.P3.P3JCkX
+import Fl4Proofs.P3.P3JCkS
+import Fl4Proofs.P3.JBootQ1Hfl
+import Fl4Proofs.P3.P3JCkRun
