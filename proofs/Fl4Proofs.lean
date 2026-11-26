@@ -2209,3 +2209,7 @@ import Fl4Proofs.P3.JBootLive
 import Fl4Proofs.P3.JBootJAt
 import Fl4Proofs.P3.JBootU34
 import Fl4Proofs.P3.XTopJointKEntryU35
+import Fl4Proofs.P3.P3JLook
+import Fl4Proofs.P3.P3JXport
+import Fl4Proofs.P3.P3JGen
+import Fl4Proofs.P3.XTopJointKEntryU36
