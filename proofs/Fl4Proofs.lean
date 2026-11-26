@@ -2304,3 +2304,9 @@ import Fl4Proofs.P2.VmDecView
 import Fl4Proofs.P2.VmDecTop
 import Fl4Proofs.P2.E2EPU11
 import Fl4Proofs.P3.VirtSetEptDec
+import Fl4Proofs.P2.E2EPU12a
+import Fl4Proofs.P2.VmAccN
+import Fl4Proofs.P2.SafeVQ
+import Fl4Proofs.P2.VmBView
+import Fl4Proofs.P2.VmBRun
+import Fl4Proofs.P2.E2EPU12
