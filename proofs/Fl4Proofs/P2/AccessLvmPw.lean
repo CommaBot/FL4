@@ -37,8 +37,10 @@ variable {T Cs Ω Sg Rp Scs Nt Ac U : Set U64} {H : Heap} {Z : U64 → Nat}
 variable {A : Type} (ar : machine.Arch A)
 
 set_option maxHeartbeats 32000000 in
-/-- **An accepted VM exit with a pending exit on the guarded store** (module docstring). -/
-theorem vexit_accG_p {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+/-- **An accepted VM exit with a pending exit on the guarded store** (module docstring), with the report's words `U`
+only written (`gU`) and `v.PENDING` read (`gRp`): `R` need not hold the IPC buffer's (user) words (line hpzg, gen 5,
+for `ReadOnce` on a user-free read set). -/
+theorem vexit_accG_pW {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
     (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {v n : U64}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
@@ -48,13 +50,14 @@ theorem vexit_accG_p {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
     (hRn : n ≠ 0#u64 → R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE))
     (hU : ∀ x ∈ U, UsrW st T Cs H Sg Scs Z s x) (hpU : core.num.U64.wrapping_add v vcpu.PENDING ∈ U)
     (hbuf : msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄)
-    (gU : ∀ x ∈ U, R x ∧ W x) (gV : VW R v) (gM : ∀ f b, vcpu.vmcs_addr v f = ok b → R b)
+    (gU : ∀ x ∈ U, W x) (gRp : R (core.num.U64.wrapping_add v vcpu.PENDING)) (gV : VW R v)
+    (gM : ∀ f b, vcpu.vmcs_addr v f = ok b → R b)
     (gSt : ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RUNNING_VM → L.mem X (affA (L.curW s)) = L.cpu s →
       gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
     (hpd : vcpu.get st s v vcpu.PENDING ≠ ok 0#u64)
     (h : localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s', a')) :
     localvm.handle_vcpu_exit_local gS ar s a v n = ok (true, s', a') := by
-  have hRp : R (core.num.U64.wrapping_add v vcpu.PENDING) := (gU _ hpU).1
+  have hRp : R (core.num.U64.wrapping_add v vcpu.PENDING) := gRp
   obtain ⟨i3, hstv, hv0, eb, en, ep, -, eok, esch, eq, et⟩ := vexit_split ar h
   have hi3 : i3 ≠ 0#u64 := fun e => hpd (by rw [ep, e])
   obtain ⟨haff, hy0, hsct, hcore⟩ := current_vm_ok_true eok
@@ -513,10 +516,10 @@ theorem vexit_accG_p {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
   have G : RepG R W (L.curW s) v b :=
     { regR := rR
       regW := rW
-      bufW := fun hb0 i hi => (gU _ (hbOK hb0 i hi)).2
+      bufW := fun hb0 i hi => gU _ (hbOK hb0 i hi)
       vR := fun _ => gV
       vmcs := fun _ => gM
-      pW := fun _ => (gU _ hpU).2 }
+      pW := fun _ => gU _ hpU }
   have grep : vcpu.report gS ar s1 a1 (L.curW s) 0#u64 = vcpu.report st ar s1 a1 (L.curW s) 0#u64 :=
     PathObl.vcpu.report.guardP hA s1 a1 (L.curW s) 0#u64 v b Rs hfin ⟨BXI.blk hB1, hst1, WritesIn.refl _ _⟩
       rVc hv1 hlb eb1' (fun _ => hpU) G
@@ -644,6 +647,26 @@ theorem vexit_accG_p {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr g
       ipi := nR _ (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]) }
   rw [vexit_acc ar s a v n (L.cscW s) (eq_of_spec_fd (sched.cur_sc.spec (L := L) s)) hR (fun _ => hRp) hRn V]
   exact h
+
+/-- **An accepted VM exit with a pending exit on the guarded store** (module docstring): `vexit_accG_pW` with the
+report's words `U` read and written. -/
+theorem vexit_accG_p {gS : machine.Store S} [PathObl.GRd gS st R] [PathObl.GWr gS st W]
+    (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {v n : U64}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (gRd : IrqOk st s → ∀ w, Aligned w → IrqRd st Z s w → R w)
+    (gWr : IrqOk st s → ∀ w, Aligned w → IrqWr st Z s w → w ≠ stA (L.curW s) → W w)
+    (hD1 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN))
+    (hD2 : IrqOk st s → R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
+    (hRn : n ≠ 0#u64 → R (core.num.U64.wrapping_add n layout.ntfn.TAIL_STATE))
+    (hU : ∀ x ∈ U, UsrW st T Cs H Sg Scs Z s x) (hpU : core.num.U64.wrapping_add v vcpu.PENDING ∈ U)
+    (hbuf : msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄)
+    (gU : ∀ x ∈ U, R x ∧ W x) (gV : VW R v) (gM : ∀ f b, vcpu.vmcs_addr v f = ok b → R b)
+    (gSt : ∀ X, L.mem X (stA (L.curW s)) = sched.TS_RUNNING_VM → L.mem X (affA (L.curW s)) = L.cpu s →
+      gS.write X (stA (L.curW s)) sched.TS_RUNNING = st.write X (stA (L.curW s)) sched.TS_RUNNING)
+    (hpd : vcpu.get st s v vcpu.PENDING ≠ ok 0#u64)
+    (h : localvm.handle_vcpu_exit_local st ar s a v n = ok (true, s', a')) :
+    localvm.handle_vcpu_exit_local gS ar s a v n = ok (true, s', a') :=
+  vexit_accG_pW ar hA hI gRd gWr hD1 hD2 hRn hU hpU hbuf (fun x hx => (gU x hx).2) (gU _ hpU).1 gV gM gSt hpd h
 
 end main
 
