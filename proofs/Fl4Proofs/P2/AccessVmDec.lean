@@ -264,7 +264,7 @@ structure VmDF (st : machine.Store S) [L : LawfulStore st] (K : KLayout) (T : Se
   k : L.ksb s1 = L.ksb s
   c : L.cpu s1 = L.cpu s
   nd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → IoRS (st := st) K Locks s (L.nodeAt s1 (L.cpu s1) o)
-  ksw : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 →
+  ksw : ∀ o : U64, o.val < 256 → o.val % 8 = 0 →
     IoRS (st := st) K Locks s (core.num.U64.wrapping_add (L.ksb s1) o)
   cur : L.curW s1 = L.curW s
   sl : ∀ sl, obj.Tcb.slot (L.curW s) layout.tcb.SLOT_FAULT_HANDLER = ok sl →

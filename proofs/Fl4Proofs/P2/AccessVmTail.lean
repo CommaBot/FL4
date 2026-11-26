@@ -25,7 +25,7 @@ Premises of `vm_acc`: `VmFPre`'s (`P2/AccessVmAcc.lean`: `base`, `hyp` [J], `lk`
   are: the ASID table is the 2048 words at `ks_base + 288000` (`layout.ks.ASID_TABLE`,
   `atAF (L.ksb s) hi`, `hi < 2048`), the pool words are `peAF p lo` (`lo < 512`) of each nonzero
   table entry `p`. Why gate-owned: `IoLay` covers the kernel-state area only up to
-  `ks_base + 13568` (`IoLay.ks`), and no typed object of the layout (node, slot, TCB, notification,
+  `ks_base + 256` (`IoLay.ks`, narrowed by line iolay from 13568), and no typed object of the layout (node, slot, TCB, notification,
   endpoint, reply object, SC) covers these words, so `region K` is `.none` and `own K` is `.gate`,
   readable by every path; they are not user memory (P1's `AsidOff` puts them among the kernel
   words `Ω`, disjoint from P1's user words `U` by `VmFootHyps.user`, which P3's layout takes as

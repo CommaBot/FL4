@@ -1,10 +1,7 @@
 import Fl4Proofs.P2.E2EVFl4W8
 open Fl4Proofs.P2.E2EV Fl4Proofs.P3
 #print axioms JAtZ.curRunR
-#print axioms SlJAt.not_ioLay
-#print axioms IoEntJ7.not
-#print axioms VmFEntJ7.not
-#print axioms VmREntJ7.not
+#print axioms SlJAt.not_ioLayWide
 #print axioms bunIxU_of
 #print axioms BunIxU.bxi
 #print axioms BunIxU.asidOff

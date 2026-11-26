@@ -3,19 +3,16 @@ P2 (line famw, gen 6): **`serializable_fl4_localW8` over W6's family, with the b
 layout finding for io / vmF / vmR** (new definitions only; no existing statement changes; no `kernel_entry_reach*`
 touched; one new P3-side lemma in P3/JCurRunR.lean).
 
-## 1. `IoLay` is false at every P3 layout (`SlJAt.not_ioLay`)
+## 1. `IoLay`'s old kernel-block field is false at every P3 layout (`SlJAt.not_ioLayWide`)
 
-`IoLay K` (P2/AccessIoOwn.lean) asks `region K b = .none` for **every** word of the 13568-byte kernel-state block.
-P3's layout `layoutJ` has slots there: the IRQ node's one-slot CNodes at `ksb + 1248 + 32 i` (`IntLayout.node`,
-`JAtZ.intL`), and a slot's region is `.slot` (`RegionOK.slot`). So **`SlJAt.not_ioLay`**: at any bundle state,
-`¬ IoLay K` — the same fact line slj met for `RegionOKX.ks` (narrowed in place there to the first 256 bytes).
-Consequences (proved: `IoEntJ7.not`, `VmFEntJ7.not`, `VmREntJ7.not`): io's `IoPre.lay` and vmF / vmR's `VmLay`
-(which contains `IoLay`) make their start entry facts **unsatisfiable** at P3 scope, so W7's io / vmF / vmR starts
-never fire (and io's `iw` [J] holds vacuously). Repairing it is a **statement change**: narrow `IoLay.ks` (as
-`RegionOKX.ks`) to the kernel words the I/O port / VM-fault paths read, then re-check their users
-(`AccessIo*`, `AccessVm*`, `E2EVUserIo.ioLay_userV`); left for a decision, not done here. For the same reason no
-`SlJAt.ioLay` exists, and `BunIxU` for the vmF / vmR indices would not make their records satisfiable (their `VmLay`
-is false whatever `Ω` is), so it is not wired for them here.
+`IoLay K` (P2/AccessIoOwn.lean) used to ask `region K b = .none` for **every** word of the 13568-byte kernel-state
+block (`IoLayKsWide`). P3's layout `layoutJ` has slots there: the IRQ node's one-slot CNodes at `ksb + 1248 + 32 i`
+(`IntLayout.node`, `JAtZ.intL`), and a slot's region is `.slot` (`RegionOK.slot`). So **`SlJAt.not_ioLayWide`**: at
+any bundle state, `¬ IoLayKsWide K` — the same fact line slj met for `RegionOKX.ks`. This made io's `IoPre.lay` and
+vmF / vmR's `VmLay` unsatisfiable at P3 scope. (Line iolay has since narrowed `IoLay.ks` in place to the aligned
+words of the first 256 bytes, as `RegionOKX.ks`; `SlJAt.ioLay` in P2/E2EVFl4W9.lean proves the narrowed `IoLay` at
+every bundle state. The former `SlJAt.not_ioLay`, `IoEntJ7.not`, `VmFEntJ7.not`, `VmREntJ7.not` were about the wide
+field and are restated here as `not_ioLayWide`; the start facts are satisfiable now, see W9.)
 
 ## 2. vt at `OmegaU` (`BunIxU`, `VtEntJ8`)
 
@@ -65,8 +62,13 @@ open Classical
 section lay
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
-/-- **`IoLay` is false at every bundle layout** (module docstring, item 1). -/
-theorem SlJAt.not_ioLay {K : OwnMap.KLayout} {s : S} (h : SlJAt (L := L) K s) : ¬ IoLay K := by
+/-- **The old (wide) kernel-block field of `IoLay`**: every word of `[ksb, ksb + 13568)` in no region (line iolay
+narrowed `IoLay.ks` to the first 256 bytes; this is the former field, kept for the finding). -/
+def IoLayKsWide (K : OwnMap.KLayout) : Prop :=
+  ∀ b : U64, K.ksb.val ≤ b.val → b.val < K.ksb.val + 13568 → region K b = .none
+
+/-- **The old wide kernel-block field is false at every bundle layout** (module docstring, item 1). -/
+theorem SlJAt.not_ioLayWide {K : OwnMap.KLayout} {s : S} (h : SlJAt (L := L) K s) : ¬ IoLayKsWide K := by
   intro hL
   have hRK := h.regionOK
   obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := h
@@ -82,28 +84,12 @@ theorem SlJAt.not_ioLay {K : OwnMap.KLayout} {s : S} (h : SlJAt (L := L) K s) : 
   have hs : Fl4Proofs.P3.slotOf (Fl4Proofs.P3.nodeA (L.ksb s) 0#u64) 0 ∈ K.slots := by
     rw [B.slots]
     exact ⟨_, 0, Or.inl ⟨0, hn, by norm_num⟩, rfl⟩
-  have hr := hL.ks _ (by rw [hv2, hk]; omega) (by rw [hv2, hk]; omega)
+  have hr := hL _ (by rw [hv2, hk]; omega) (by rw [hv2, hk]; omega)
   rw [hRK.slot _ hs] at hr
   cases hr
 
 end lay
 
-section nots
-variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
-
-/-- **io's start entry facts are unsatisfiable at P3 scope** (`IoLay`, module docstring item 1). -/
-theorem IoEntJ7.not {i : IoArg S} {K : KLayoutV} {s : S} (E : IoEntJ7 st i K s) : False :=
-  SlJAt.not_ioLay E.ix.ac.slJAt E.lay
-
-/-- **vmF's start entry facts are unsatisfiable at P3 scope** (`VmLay.io`). -/
-theorem VmFEntJ7.not {i : VmFArg S} {K : KLayoutV} {s : S} (E : VmFEntJ7 st ar i K s) : False :=
-  SlJAt.not_ioLay E.ix.ac.slJAt E.br.lay.io
-
-/-- **vmR's start entry facts are unsatisfiable at P3 scope** (`VmLay.io`). -/
-theorem VmREntJ7.not {i : VmRArg S} {Kl : OwnMap.KLayout} {s : S} (E : VmREntJ7 st ar i Kl s) : False :=
-  SlJAt.not_ioLay E.ix.ac.slJAt E.br.lay.io
-
-end nots
 
 /-! ## 2. The bundle at `OmegaU` -/
 
