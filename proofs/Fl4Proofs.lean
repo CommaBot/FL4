@@ -2043,3 +2043,5 @@ import Fl4Proofs.P2.InvDelPteR
 import Fl4Proofs.P2.InvDelPteG
 import Fl4Proofs.P2.InvPmWalk
 import Fl4Proofs.P2.InvPmRoot
+import Fl4Proofs.P2.InvPmDecG
+import Fl4Proofs.P2.InvPmDecRd
