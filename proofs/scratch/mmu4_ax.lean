@@ -1,6 +1,7 @@
 import Fl4Proofs.P2.SerialADR
 import Fl4Proofs.P2.SafeCertAD
 import Fl4Proofs.P2.E2EAD
+import Fl4Proofs.P2.E2EPU3c
 open Fl4Proofs.P2.Serial
 #print axioms FReachA.trans
 #print axioms InsA.reach
@@ -22,3 +23,6 @@ open Fl4Proofs.P2.Serial
 #print axioms Fl4Proofs.P2.E2E.noG_sim
 #print axioms Fl4Proofs.P2.E2E.body_insA
 #print axioms Fl4Proofs.P2.E2E.LocalPath.insA
+#print axioms Fl4Proofs.P2.E2EP.execU3b_aRunR
+#print axioms Fl4Proofs.P2.E2EP.serializable_U3b_of
+#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_of
