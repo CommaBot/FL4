@@ -197,12 +197,12 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
         }
         let dest = cspace::lookup_target_slot(s, cap, reg_arg(s, t, 0), reg_arg(s, t, 1)).ok()?;
         let src = cspace::lookup_source_slot(s, extra[0].cap(s), reg_arg(s, t, 2), reg_arg(s, t, 3)).ok()?;
-        // An empty destination (its type tag, in the first word), the
+        // An empty destination (its first word zero: a Null encoding), the
         // source cap, and the source's CDT link, which names the third slot.
         let dest_w0 = p.read(s, dest.0.wrapping_add(cte::CAP0));
         let src_cap = p.read_cap(s, src);
         let next = Slot::next_of_word(p.read(s, src.0.wrapping_add(cte::NEXT)));
-        if !matches!(src_cap, Cap::Frame { is_ept: false, .. }) || !Cap::decode(dest_w0, 0).is_null() {
+        if !matches!(src_cap, Cap::Frame { is_ept: false, .. }) || dest_w0 != 0 {
             return None;
         }
         let ok = p.add(dest.0) && p.add(src.0) && p.add(next.0);
