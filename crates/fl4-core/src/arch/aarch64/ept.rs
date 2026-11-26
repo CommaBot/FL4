@@ -447,6 +447,7 @@ mod tests {
         log: Rc<RefCell<Vec<Ev>>>,
     }
     impl Store for Mem {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
         fn read(&self, a: u64) -> u64 { *self.words.get(&a).unwrap_or(&0) }
         fn write(&mut self, a: u64, v: u64) {
             if a == self.watch { self.log.borrow_mut().push(Ev::Write(a, v)); }
