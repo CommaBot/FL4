@@ -281,6 +281,7 @@ theorem loop1_once_iter {Y : Type} (rcv : U64) (regs : Slice U64) (n : Usize) (b
   | 0, i, s, a, Wd, T, _, _, _ => by simp only [SProg.iter, SProg.sbind, Once]
   | m + 1, i, s, a, Wd, T, hT, hPs, h => by
     rw [SProg.iter, SProg.sbind_assoc] at h ⊢
+    generalize hI : SProg.iter (fun x => R.faults.copy_mrs_fault_reply_loop1.body rcv regs n buf x) m = I at h ⊢
     unfold R.faults.copy_mrs_fault_reply_loop1.body at h ⊢
     by_cases h1 : i < n
     swap
@@ -329,6 +330,7 @@ theorem loop1_once_iter {Y : Type} (rcv : U64) (regs : Slice U64) (n : Usize) (b
     have ez : i5 = z := (ok_inj_ff hi5).symm
     have hzv' : i5.val = i.val + 1 := by rw [ez, hzv]; simp
     try simp only [SProg.sbind] at h ⊢
+    rw [← hI] at h ⊢
     refine loop1_once_iter rcv regs n buf hreg hn hl hrw P hP k hk m i5 s' a _ _ ?_ (hP s a r i4 s' hPs hrv hs') h
     intro q hq hR
     obtain ⟨j, hj1, hj2, rfl⟩ := hR
