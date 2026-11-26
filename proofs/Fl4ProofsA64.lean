@@ -75,3 +75,6 @@ import Fl4ProofsA64.P1.QueueReplyPop
 import Fl4ProofsA64.P1.QueueRecv
 import Fl4ProofsA64.P1.FastFault
 import Fl4ProofsA64.P1.FastSched
+import Fl4ProofsA64.P1.VcpuHooks
+import Fl4ProofsA64.P1.VmRootRd
+import Fl4ProofsA64.P1.FastFin
