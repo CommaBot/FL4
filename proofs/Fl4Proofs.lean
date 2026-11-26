@@ -1902,3 +1902,9 @@ import Fl4Proofs.P2.IoOnceA
 import Fl4Proofs.P2.IoOnceB
 import Fl4Proofs.P2.IoOnceC
 import Fl4Proofs.P2.IoOnce
+import Fl4Proofs.P2.SlOnceL
+import Fl4Proofs.P2.SlOnceN
+import Fl4Proofs.P2.SlOnceP
+import Fl4Proofs.P2.SlOnceA
+import Fl4Proofs.P2.SlOnceB
+import Fl4Proofs.P2.SlOnce

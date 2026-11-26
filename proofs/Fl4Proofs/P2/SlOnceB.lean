@@ -248,7 +248,7 @@ theorem sl_once_rr_away (hA : P0.ArchTotal ar) {s s' : S} {a : A} {rp ep : U64}
   refine sl_pre_once (R0 := SlRN (st := st) K Locks s) (W0 := NU K) (fun q hq => ⟨hq.1, hq.2.2⟩)
     (fun q hq => hq.2) hA E.hT hN' hc' (sl_alt_preDec ar F Al) (sl_alt_hhd ar hA F Al) h
     (fun hS' => absurd (hTr.1 hS') hS) ?_
-  intro _ X' a1' a2 LP' h' Wd
+  intro _ X' a1' LP' h' Wd
   obtain ⟨X, LP, hag, hk, hc⟩ := sl_alt_pre ar hA F Al LP'
   have hag' : ∀ b, SlRN (st := st) K Locks s b → L.mem X' b = L.mem X b := fun b hb => hag b hb.1
   have DT : RrDecT (L := L) (SlRN (st := st) K Locks s) X' (L.curW s) rp ep :=

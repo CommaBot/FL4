@@ -106,8 +106,8 @@ local macro "sl_pre_walk" : tactic => `(tactic| (
     · rw [if_neg hb]; simp only [Once]
     rw [if_pos hb] at h ⊢
     first
-      | (rw [if_pos hi1] at h ⊢; exact hfa (htr hi1) X a1 _ _ LP h Wd)
-      | (rw [if_neg hi1] at h ⊢; exact hra (hntr hi1) X a1 _ LP h Wd)
+      | (rw [if_pos hi1] at h ⊢; exact hfa (htr hi1) X a1 _ LP h Wd)
+      | (rw [if_neg hi1] at h ⊢; exact hra (hntr hi1) X a1 LP h Wd)
 ))
 
 set_option maxHeartbeats 4000000 in
@@ -119,12 +119,12 @@ theorem sl_pre_once {R0 W0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ ¬ Us
     (hhd : ∀ X a1 csc, LocalPre (st := st) ar x a (X, a1) → sched.cur_sc st X = ok csc →
       RdHead (L := L) R0 X csc)
     {r' : Bool × S × A} (h : interp st ar (R.syscall.handle_syscall_local n (rp, ep)) x a = ok r')
-    (hfa : SlTrap st x → ∀ X a1 a2 n', LocalPre (st := st) ar x a (X, a1) →
-      interp st ar (R.fastpath.fault (L.curW x) n') X a2 = ok r' →
-      ∀ Wd, Once st ar Rd User Wd ∅ (R.fastpath.fault (L.curW x) n') X a2)
-    (hra : ¬ SlTrap st x → ∀ X a1 a2, LocalPre (st := st) ar x a (X, a1) →
-      interp st ar (R.fastpath.reply_recv_found (L.curW x) rp ep) X a2 = ok r' →
-      ∀ Wd, Once st ar Rd User Wd ∅ (R.fastpath.reply_recv_found (L.curW x) rp ep) X a2) :
+    (hfa : SlTrap st x → ∀ X a1 n', LocalPre (st := st) ar x a (X, a1) →
+      interp st ar (R.fastpath.fault (L.curW x) n') X a1 = ok r' →
+      ∀ Wd, Once st ar Rd User Wd ∅ (R.fastpath.fault (L.curW x) n') X a1)
+    (hra : ¬ SlTrap st x → ∀ X a1, LocalPre (st := st) ar x a (X, a1) →
+      interp st ar (R.fastpath.reply_recv_found (L.curW x) rp ep) X a1 = ok r' →
+      ∀ Wd, Once st ar Rd User Wd ∅ (R.fastpath.reply_recv_found (L.curW x) rp ep) X a1) :
     Once st ar Rd User ∅ ∅ (R.syscall.handle_syscall_local n (rp, ep)) x a := by
   have ht' := hT _ hcT
   unfold R.syscall.handle_syscall_local at h ⊢
