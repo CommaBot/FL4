@@ -15907,7 +15907,7 @@ def fastpath.schedulable_here
             else ok false
 
 /-- [fl4_core::fastpath::fault]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 85:0-146:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 85:0-153:1
     Visibility: public -/
 def fastpath.fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -28546,7 +28546,7 @@ def faults.handle_fault_reply
           else ok (true, s, a)
 
 /-- [fl4_core::fastpath::reply_recv_found]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 187:0-255:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 194:0-269:1
     Visibility: public -/
 def fastpath.reply_recv_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30071,7 +30071,7 @@ def fastpath.reply_recv_found
     else ok (false, s, a)
 
 /-- [fl4_core::fastpath::reply_caps]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 167:0-183:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 174:0-190:1
     Visibility: public -/
 def fastpath.reply_caps
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -30150,7 +30150,7 @@ def fastpath.reply_caps
   | core.result.Result.Err _ => ok none
 
 /-- [fl4_core::fastpath::reply_recv]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 155:0-161:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 162:0-168:1
     Visibility: public -/
 def fastpath.reply_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30167,7 +30167,7 @@ def fastpath.reply_recv
       ep_ptr
 
 /-- [fl4_core::fastpath_vm::vm_fault]:
-    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 29:0-90:1
+    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 29:0-97:1
     Visibility: public -/
 def fastpath_vm.vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30370,7 +30370,7 @@ def fastpath_vm.vm_fault
     | capability.Cap.TdxControl => ok (false, s, a)
 
 /-- [fl4_core::fastpath_vm::reply_recv_vm_found]:
-    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 95:0-163:1
+    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 102:0-177:1
     Visibility: public -/
 def fastpath_vm.reply_recv_vm_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
