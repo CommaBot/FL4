@@ -2119,3 +2119,4 @@ import Fl4Proofs.P2.GlueCross
 import Fl4Proofs.P2.CoreView
 import Fl4Proofs.P2.E2EPU6
 import Fl4Proofs.P2.E2EPU7
+import Fl4Proofs.P2.ViewSafeGen
