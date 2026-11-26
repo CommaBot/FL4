@@ -144,6 +144,7 @@ import Fl4ProofsA64.P1.QueueRetypeTcb
 import Fl4ProofsA64.P1.QueueUtRetype
 import Fl4ProofsA64.P1.QueueDecEpt
 import Fl4ProofsA64.P1.QueueDecVs
+import Fl4ProofsA64.P1.QueueEntryGaps4
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -257,3 +258,5 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.vspace.decode_frame.dec
 #print axioms Fl4ProofsA64.P1.vspace.decode.dec
 #print axioms Fl4ProofsA64.P1.decGap_vspace
+#print axioms Fl4ProofsA64.P1.InvGaps4.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of4
