@@ -1,0 +1,27 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P3.Mc.lookup_ipc_buffer_ckiR
+#print axioms Fl4Proofs.P3.Mc.bufOK_empty_ckiR
+#print axioms Fl4Proofs.P3.Mc.bufAt_empty_ckiR
+#print axioms Fl4Proofs.P3.Mc.vcpuZ_of_JR
+#print axioms Fl4Proofs.P3.Mc.sched_projWR
+#print axioms Fl4Proofs.P3.Mc.finOld_projWR
+#print axioms Fl4Proofs.P3.Mc.finFootJR
+#print axioms Fl4Proofs.P3.SInvCk.cki_front
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_sysStF
+#print axioms Fl4Proofs.P3.SInvR.G5.sys_entryStFU17
+#print axioms Fl4Proofs.P3.SInvR.G5.sys_entryStFU41
+#print axioms Fl4ProofsQ.P3.SInvR.G5.sys_entryStFU41
+#print axioms Fl4ProofsKQ.P3.SInvR.G5.sys_entryStFU41
+#print axioms Fl4Proofs.P3.Mc.sysStFtC_of_old
+#print axioms Fl4Proofs.P3.Mc.runCK_sysStep
+#print axioms Fl4Proofs.P3.Mc.sysStab_of_stFt
+#print axioms Fl4Proofs.P3.Mc.sysFootW_of_stFt
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysSF
+#print axioms Fl4Proofs.P3.Mc.sysStFtC_of_disp
+#print axioms Fl4Proofs.P3.Mc.sysStabC_sysFootWC_of_disp
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysD
+#print axioms Fl4Proofs.P3.Mc.dispYield_stFt
+#print axioms Fl4Proofs.P3.Mc.DispStabFoot.toL
+#print axioms Fl4Proofs.P3.Mc.nativeSys_yield
+#print axioms Fl4Proofs.P3.Mc.dispStabFoot_of_L
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysL
