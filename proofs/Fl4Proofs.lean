@@ -1959,3 +1959,6 @@ import Fl4Proofs.P2.E2EPSlP
 import Fl4Proofs.P2.E2EPLvm
 import Fl4Proofs.P2.E2EPIrq
 import Fl4Proofs.P2.E2EPStm
+import Fl4Proofs.P2.AccessIoRaU
+import Fl4Proofs.P2.E2EPIo
+import Fl4Proofs.P2.E2EPVm
