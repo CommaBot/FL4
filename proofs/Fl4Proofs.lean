@@ -2208,3 +2208,11 @@ import Fl4Proofs.P3.JBootBlk
 import Fl4Proofs.P3.JBootLive
 import Fl4Proofs.P3.JBootJAt
 import Fl4Proofs.P3.JBootU34
+import Fl4Proofs.P3.SpecInvVihL
+import Fl4Proofs.P3.SpecInvVihLW
+import Fl4Proofs.P3.SpecInvVihLX
+import Fl4Proofs.P3.SpecInvVihLY
+import Fl4Proofs.P3.SpecInvVihLG
+import Fl4Proofs.P3.SpecInvVihLS
+import Fl4Proofs.P3.SpecInvIrqStS
+import Fl4Proofs.P3.XTopJointKEntryU36I
