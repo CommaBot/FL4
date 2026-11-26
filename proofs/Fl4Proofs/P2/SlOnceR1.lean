@@ -220,10 +220,6 @@ theorem rrAccNB_nu (hA : P0.ArchTotal ar) {s : S} (F : SlOF (st := st) ar K Lock
       (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD]))
   have tw : ∀ y, K.heap y = some .tcb → ∀ o : U64, 192 ≤ o.val → o.val < 4096 → o.val % 8 = 0 →
       NU K (core.num.U64.wrapping_add y o) := fun y hy o h1 h2 h3 => nu_tcb hX hy h1 h2 h3
-  have sw : ∀ {o : U64}, o.val < 256 → o.val % 8 = 0 → NU K (core.num.U64.wrapping_add usc o) := by
-    intro o h1 h2
-    obtain ⟨-, am, hin, -⟩ := sc_off hX hz (o := o) h1 h2
-    exact nu_sc hX hz am hin
   exact
   { nd := fun o h1 h2 => ⟨C.nd o h1 h2, C.nd o h1 h2⟩
     dt := C.dt
