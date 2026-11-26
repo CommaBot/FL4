@@ -24,7 +24,7 @@ open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
   let ok : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  let mut n := 0
+  let mut n : Nat := 0
   let mut bad : Array (Name × Name) := #[]
   for (c, _) in env.constants.map₁.toList do
     if (`Fl4ProofsA64.P1).isPrefixOf c then
@@ -32,7 +32,7 @@ open Lean Elab Command in
       let axs ← Lean.collectAxioms c
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
-  logInfo m!"A64 P1 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {bad.toList.take 20}"
+  logInfo (s!"A64 P1 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
 #print axioms Fl4ProofsA64.P1.tcbqueue.append.rel
 #print axioms Fl4ProofsA64.P1.sporadic.budget_check.ordered
 #print axioms Fl4ProofsA64.P1.smp.add_pending.spec
