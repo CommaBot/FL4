@@ -2174,3 +2174,9 @@ import Fl4Proofs.P3.JBootSpec
 import Fl4Proofs.P3.JBootSt
 import Fl4Proofs.P2.CoreView
 import Fl4Proofs.P2.E2EPU1P
+import Fl4Proofs.P3.IrqFixXport
+import Fl4Proofs.P3.IrqFixA
+import Fl4Proofs.P3.IrqFixGenB
+import Fl4Proofs.P3.IrqFixC
+import Fl4Proofs.P3.IrqFixGen
+import Fl4Proofs.P3.XTopJointKEntryU33
