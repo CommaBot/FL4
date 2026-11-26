@@ -1012,7 +1012,7 @@ variable {m0 : U64 → U64} {n : I64} {found : U64 × U64} {Cs Ω Sg Ac : Set U6
 /-- **`SlEntAllE` at `SlLX ∧ SlEntX ∧ SlQ`** (`slEntsX`, `slAccIn_of`). -/
 theorem sl_entAllX (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (a0 : A) {s : S}
     (hJ : SlLX (L := L) K.toKLayout s) (hXe : SlEntX st K.toKLayout s)
-    (hq : SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s) :
+    (hq : Fl4Proofs.P2.PathObl.SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s) :
     SlEntAllE (st := st) ar K Locks m0 n found K.heap.tcbs Cs Ω K.user Sg K.heap.replies
       K.heap.scs K.heap.ntfns Ac K.heap K.heap.scBits s := by
   obtain ⟨N, Hh, Aj⟩ := slEntsX ar hSt hA a0 hJ hXe hq
@@ -1024,7 +1024,7 @@ theorem sl_avoidVKE_X (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.Ar
     (hm : Fl4Proofs.P2.E2E.MasksWr st) (a0 : A) (hK : RegionOKE Ex K) (hU : Fl4Proofs.P2.E2E.UserOK K.toKLayout)
     {P : S → Prop}
     (hJ : ∀ s, P s → SlLX (L := L) K.toKLayout s) (hXe : ∀ s, P s → SlEntX st K.toKLayout s)
-    (hQ' : ∀ s, P s → SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
+    (hQ' : ∀ s, P s → Fl4Proofs.P2.PathObl.SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         SlRS (st := st) K.toKLayout Locks (L.wr s b v) = SlRS (st := st) K.toKLayout Locks s ∧
@@ -1050,7 +1050,7 @@ theorem sl_avoidVKE_rQX (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.
     (hm : Fl4Proofs.P2.E2E.MasksWr st) (a0 : A) (hK : RegionOKE Ex K) (hU : Fl4Proofs.P2.E2E.UserOK K.toKLayout)
     {P : S → Prop}
     (hJ : ∀ s, P s → SlLX (L := L) K.toKLayout s) (hXe : ∀ s, P s → SlEntX st K.toKLayout s)
-    (hQ' : ∀ s, P s → SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
+    (hQ' : ∀ s, P s → Fl4Proofs.P2.PathObl.SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         SlRS (st := st) K.toKLayout Locks (L.wr s b v) = SlRS (st := st) K.toKLayout Locks s ∧
@@ -1081,7 +1081,7 @@ theorem sl_avoidVX (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.ArchT
     (hm : Fl4Proofs.P2.E2E.MasksWr st) (a0 : A) (hK : RegionOKV K) (hU : Fl4Proofs.P2.E2E.UserOK K.toKLayout)
     {P : S → Prop}
     (hJ : ∀ s, P s → SlLX (L := L) K.toKLayout s) (hXe : ∀ s, P s → SlEntX st K.toKLayout s)
-    (hQ' : ∀ s, P s → SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
+    (hQ' : ∀ s, P s → Fl4Proofs.P2.PathObl.SlQ st ar Locks n found Cs Ω Sg Ac K.toKLayout m0 s)
     (huf : ∀ s b v, P s → b ∈ K.user → Aligned b →
       P (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
         SlRS (st := st) K.toKLayout Locks (L.wr s b v) = SlRS (st := st) K.toKLayout Locks s ∧
@@ -1189,7 +1189,7 @@ variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (
 /-- **The syscall slot's `Pre` in a VM epoch**: `SlLX` (VX6), `SlEntX` [S], `TabNoV` [S] and the canonical `SlQ`. -/
 def SlPreX (i : SlArg S) (K : KLayoutV) (m : U64 → U64) (s : S) : Prop :=
   SlLX (L := L) K.toKLayout s ∧ SlEntX st K.toKLayout s ∧ TabNoV (L := L) K s ∧
-    SlQ st ar i.Locks i.n i.found i.Cs i.Ω i.Sg i.Ac K.toKLayout m s
+    Fl4Proofs.P2.PathObl.SlQ st ar i.Locks i.n i.found i.Cs i.Ω i.Sg i.Ac K.toKLayout m s
 
 /-- **The syscall record at any layout** (module docstring): the epoch's layout facts, U1's core-set premise and
 the lock premise at `SlLX` states. -/
@@ -1296,7 +1296,7 @@ structure SlEntV (K : KLayoutP) (j : SlArg S) (m : U64 → U64) (s : S) : Prop w
   /-- [S] no ASID-table or pool word is a VCPU data word (natively `VFacts`' `VcpuTabOff` / `PoolObj`). -/
   tab : TabNoV (L := L) K.toKLayoutV s
   /-- The canonical entry fact (as U1's sl start fact: `SlPreB` ∧ `SlEntL` [P] ∧ `SlSyncC` [P] ∧ `SlAccR` [P]). -/
-  q : SlQ st ar j.Locks j.n j.found j.Cs j.Ω j.Sg j.Ac K.toKLayout m s
+  q : Fl4Proofs.P2.PathObl.SlQ st ar j.Locks j.n j.found j.Cs j.Ω j.Sg j.Ac K.toKLayout m s
   /-- [S] the PTE facts at the start state. -/
   qps : QPs K st s
 
@@ -1329,7 +1329,7 @@ theorem slStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : U
   obtain ⟨-, q0, ⟨hp, σ, a, he, hc, hl, hμ, hb⟩, rfl⟩ := h
   have hpre : SlPreX st ar j K.toKLayoutV μ σ :=
     ⟨SlLX.ofVtx E.b he.qps he.q.1 he.ents, he.entx, he.tab, he.q⟩
-  have key : ∀ (Pf : LocalPath (ownV K.toKLayoutV) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user))
+  have key : ∀ (Pf : E2E.LocalPath (ownV K.toKLayoutV) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user))
       (hAv : AvoidP K (Pf.rJ K (fun b hb => Or.inl hb))),
       Pf = (slSlotX st ar hA hm hSt a0).liftAt j K.toKLayoutV μ hK.base hU.base (hp.toX E) →
       StartAt (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv) c hs μ
