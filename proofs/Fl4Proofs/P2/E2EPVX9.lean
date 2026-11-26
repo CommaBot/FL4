@@ -206,6 +206,24 @@ theorem invLk_wrX (U : Fl4Proofs.P2.E2EP.UserLayX L K)
   rw [ecur, ecap]
   exact hres
 
+/-- `small_ram_frame` accepts only small non-device non-EPT frames. -/
+theorem srf_true {c : capability.Cap} (h : localinv.small_ram_frame c = ok true) :
+    ∃ fp rt mp asid va, c = .Frame fp .Small rt false mp false asid va := by
+  unfold localinv.small_ram_frame at h
+  cases c with
+  | Frame fp fs rt dv mp ep asid va =>
+    cases fs <;> cases dv <;> cases ep <;> first | exact ⟨fp, rt, mp, asid, va, rfl⟩ | (simp at h)
+  | _ => simp at h
+
+/-- `small_ram_frame` answers `true` or `false`. -/
+theorem srf_false {c : capability.Cap} (h : ¬ localinv.small_ram_frame c = ok true) :
+    localinv.small_ram_frame c = ok false := by
+  unfold localinv.small_ram_frame at h ⊢
+  cases c with
+  | Frame fp fs rt dv mp ep asid va =>
+    cases fs <;> cases dv <;> cases ep <;> simp at h ⊢
+  | _ => rfl
+
 set_option maxHeartbeats 4000000 in
 /-- `planDel_userWr` without the bundle: **`plan_with` at `CNodeDelete` answers alike after a user write**, at an
 `IoPre` state, the target's `small_page_entry` kept by `hspe` (from the target's walk fact) instead of P3's
@@ -268,21 +286,21 @@ theorem planDel_userWrX
     refine bind_guard_congr rfl (fun x hx => ?_)
     obtain ⟨c, p1⟩ := x
     have hc := read_cap_val hx (by simp)
-    simp only at hc
-    cases c with
-    | Frame fp fs rt dv mp ep asid va =>
-      by_cases hg : fs = .Small ∧ dv = false ∧ mp = true ∧ ep = false ∧ asid ≠ 0#u64
-      · obtain ⟨rfl, rfl, rfl, rfl, ha⟩ := hg
-        rw [hspe _ hdK _ _ _ _ hc ha]
-      · generalize localinv.small_page_entry st (L.wr s b v) asid va = R1
-        generalize localinv.small_page_entry st s asid va = R2
-        rcases fs with _ | _ | _ <;> rcases dv with _ | _ <;> rcases mp with _ | _ <;> rcases ep with _ | _ <;>
-          simp only [localinv.small_ram_frame, bind_ok, ↓reduceIte, Bool.false_eq_true]
-        have ha : asid = 0#u64 := by
-          by_contra h0; exact hg ⟨rfl, rfl, rfl, rfl, h0⟩
-        subst ha
-        simp
-    | _ => rfl
+    try simp only at hc
+    try dsimp only
+    by_cases hsr : localinv.small_ram_frame c = ok true
+    · obtain ⟨fp, rt, mp, asid, va, rfl⟩ := srf_true hsr
+      rw [hsr]
+      simp only [bind_ok, ↓reduceIte]
+      cases mp with
+      | false => simp only [Bool.false_eq_true, ↓reduceIte]
+      | true =>
+        by_cases ha : asid = 0#u64
+        · subst ha
+          simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+        · rw [hspe _ hdK _ _ _ _ hc ha]
+    · rw [srf_false hsr]
+      simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
 
 /-- `invPlanD_wrF` without the bundle: the plan survives a user write at an `InvQF` state whose target's walk
 fact `hspe` holds. -/
