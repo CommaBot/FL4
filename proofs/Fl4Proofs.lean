@@ -2139,3 +2139,5 @@ import Fl4Proofs.P2.VmDecView
 import Fl4Proofs.P2.VmDecTop
 import Fl4Proofs.P2.E2EPU11
 import Fl4Proofs.P2.E2EPU12a
+import Fl4Proofs.P2.VmAccN
+import Fl4Proofs.P2.SafeVQ
