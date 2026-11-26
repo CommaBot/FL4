@@ -20,6 +20,7 @@ No premises.
 -/
 import Fl4Proofs.P2.InvSeen
 import Fl4Proofs.P2.InvCMG
+import Fl4Proofs.P2.InvCM
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -298,5 +299,120 @@ theorem plan_with_cmF {s : S} {t : obj.Tcb} {lbl : U64} {slot : obj.Slot} {extra
     cm_arm
 
 end plan
+
+/-! ## The entry facts of the arm (the Copy / Mint analogue of `DelEnt`) -/
+
+section ent
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+
+/-- `plan_fields` with the `plan_with` call it ends in (stpost's P3 `plan_fieldsW`, copied: P3 is not imported). -/
+theorem plan_fieldsWCM {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
+    ∃ t info cptr r buf e, sched.cur_thread st s = ok t ∧ msg.msg_info st s t = ok info ∧
+      obj.Tcb.reg st t s layout.reg.CAP = ok cptr ∧
+      cspace.lookup_slot st s t cptr = ok (core.result.Result.Ok r) ∧
+      msg.lookup_ipc_buffer st s false t = ok buf ∧
+      ipc.lookup_extra_caps st s t buf info = ok (core.result.Result.Ok e) ∧
+      localinv.plan_with st s t info.label r.slot e = ok (some p) := by
+  unfold localinv.plan at h
+  split at h
+  · simp at h
+  obtain ⟨t, et, h⟩ := bind_eq_ok h
+  obtain ⟨info, ei, h⟩ := bind_eq_ok h
+  obtain ⟨b, -, h⟩ := bind_eq_ok h
+  split at h
+  swap
+  · simp at h
+  obtain ⟨cptr, ec, h⟩ := bind_eq_ok h
+  obtain ⟨r, er, h⟩ := bind_eq_ok h
+  cases r with
+  | Err _ => simp at h
+  | Ok r1 =>
+    try simp only at h
+    obtain ⟨buf, eb, h⟩ := bind_eq_ok h
+    obtain ⟨r2, er2, h⟩ := bind_eq_ok h
+    cases r2 with
+    | Err _ => simp at h
+    | Ok e =>
+      try simp only at h
+      exact ⟨t, info, cptr, r1, buf, e, et, ei, ec, er, eb, er2, h⟩
+
+/-- (slhuf gen 12) **The plan's data flow at the entry**: its extra caps are `lookup_extra_caps`'s, and
+`plan_with` on its own slot and extra caps returns it. -/
+theorem plan_fieldsCM {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
+    ∃ t info buf, sched.cur_thread st s = ok t ∧ msg.msg_info st s t = ok info ∧
+      msg.lookup_ipc_buffer st s false t = ok buf ∧
+      ipc.lookup_extra_caps st s t buf info = ok (core.result.Result.Ok p.extra) ∧
+      localinv.plan_with st s t info.label p.slot p.extra = ok (some p) := by
+  obtain ⟨t, info, cptr, r, buf, e, et, ei, ec, er, eb, ee, hsl, hex⟩ := plan_fields h
+  obtain ⟨t', info', cptr', r', buf', e', et', ei', ec', er', eb', ee', hpw⟩ := plan_fieldsWCM h
+  have h1 : t' = t := ok_inj_ff (et'.symm.trans et)
+  rw [h1] at ei' ec' er' eb' ee' hpw
+  have h2 : info' = info := ok_inj_ff (ei'.symm.trans ei)
+  rw [h2] at ee' hpw
+  have h3 : cptr' = cptr := ok_inj_ff (ec'.symm.trans ec)
+  rw [h3] at er'
+  have h4 : r' = r := by have := ok_inj_ff (er'.symm.trans er); cases this; rfl
+  rw [h4] at hpw
+  have h5 : buf' = buf := ok_inj_ff (eb'.symm.trans eb)
+  rw [h5] at ee'
+  have h6 : e' = e := by have := ok_inj_ff (ee'.symm.trans ee); cases this; rfl
+  rw [h6] at hpw
+  rw [hsl, hex]
+  exact ⟨t, info, buf, et, ei, eb, ee, hpw⟩
+
+variable (st) in
+/-- (slhuf gen 12) **The plan's extra caps at the entry** (`localinv.plan`'s data flow, kept: `InvPlanD` forgets
+where its extra caps come from): `lookup_extra_caps` returns them and `plan_with` on them returns the plan. -/
+def InvEx (p : localinv.Plan) (s : S) : Prop :=
+  ∃ info buf, msg.msg_info st s (L.curW s) = ok info ∧ msg.lookup_ipc_buffer st s false (L.curW s) = ok buf ∧
+    ipc.lookup_extra_caps st s (L.curW s) buf info = ok (core.result.Result.Ok p.extra) ∧
+    localinv.plan_with st s (L.curW s) info.label p.slot p.extra = ok (some p)
+
+/-- (slhuf gen 12) **`InvEx` from the plan at the entry** (`loc_chain_all` clause 8's input `hp`). -/
+theorem invEx_of_plan {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
+    InvEx st p s := by
+  obtain ⟨t, info, buf, et, ei, eb, ee, hpw⟩ := plan_fieldsCM h
+  have ht : t = L.curW s := ok_inj_ff (et.symm.trans (cur_thread_ok s))
+  subst ht
+  exact ⟨info, buf, ei, eb, ee, hpw⟩
+
+variable (st) in
+/-- (slhuf gen 12) **The canonical `Q` of the Copy / Mint path**: `InvQCM` with the plan's lookup (`InvLk`) and its
+extra caps (`InvEx`); all three from `localinv.plan` at the entry (`invQCM_intro`, `invLk_of_plan`,
+`invEx_of_plan`). -/
+def InvQCMF (Cs Ω Sg Ac : Set U64) (Locks : S → U64 → Prop) (p : localinv.Plan) (K : KLayout)
+    (m : U64 → U64) (s : S) : Prop :=
+  InvQCM st Cs Ω Sg Ac Locks p K m s ∧ InvLk st p s ∧ InvEx st p s
+
+variable (st) in
+/-- (slhuf gen 12) **The Copy / Mint arm's facts at the entry** (the `DelEnt` analogue): the invoked slot holds a
+CNode cap; the target `dest` (from `R10` / `R8` over it) is a capability slot outside the objects, its first word
+decoding to `Null`, its lock held; the first extra cap `s1 ≠ 0` is a capability slot holding a CNode cap; the source
+`src` (from `R9` / `R15` over it) is a capability slot outside the objects holding a non-EPT Frame cap, its lock
+held; `src`'s CDT successor, when not null, is a capability slot whose lock is held; both CNodes lie in a closed
+walk set `C` whose radix-masked slots are capability slots outside the objects. -/
+def CMEnt (K : KLayout) (Cs : Set U64) (Locks : S → U64 → Prop) (p : localinv.Plan) (s : S) : Prop :=
+  ∃ (cp cr cg cgb dest s1 rp rr rg rgb src fp rt asid va : U64) (sz : capability.FrameSize) (d mp : Bool)
+    (c1 : capability.Cap) (C : U64 → U64 → Prop),
+    obj.Slot.cap st p.slot s = ok (.CNode cp cr cg cgb) ∧
+    Aeneas.Std.Array.index_usize p.extra 0#usize = ok s1 ∧ s1 ≠ 0#u64 ∧
+    cspace.lookup_target_slot st s (.CNode cp cr cg cgb) (L.mem s (regA (L.curW s) layout.reg.R10))
+      (L.mem s (regA (L.curW s) layout.reg.R8)) = ok (.Ok dest) ∧
+    obj.Slot.cap st s1 s = ok (.CNode rp rr rg rgb) ∧
+    cspace.lookup_source_slot st s (.CNode rp rr rg rgb) (L.mem s (regA (L.curW s) layout.reg.R9))
+      (L.mem s (regA (L.curW s) layout.reg.R15)) = ok (.Ok src) ∧
+    obj.Slot.cap st src s = ok (.Frame fp sz rt d mp false asid va) ∧
+    capability.Cap.decode (L.mem s (core.num.U64.wrapping_add dest layout.cte.CAP0)) 0#u64 = ok c1 ∧
+    capability.Cap.is_null c1 = ok true ∧
+    C cp cr ∧ C rp rr ∧ WalkCl (st := st) s C ∧
+    (∀ p r m y, C p r → cspace.mask r = ok m → cnSlot p (y &&& m) ∈ K.slots ∧
+      OutsideObjs st K.heap.tcbs Cs s (cnSlot p (y &&& m)) ∧
+      OutsideObjs st K.heap.tcbs Cs s (core.num.U64.wrapping_add (cnSlot p (y &&& m)) 8#u64)) ∧
+    s1 ∈ K.slots ∧ OutsideObjs st K.heap.tcbs Cs s s1 ∧
+    dest ∈ K.slots ∧ OutsideObjs st K.heap.tcbs Cs s dest ∧ Locks s dest ∧
+    src ∈ K.slots ∧ OutsideObjs st K.heap.tcbs Cs s src ∧ Locks s src ∧
+    (∀ nx, obj.Slot.next st src s = ok nx → nx ≠ 0#u64 → nx ∈ K.slots ∧ Locks s nx)
+
+end ent
 
 end Fl4Proofs.P2.PathObl
