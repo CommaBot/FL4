@@ -1,0 +1,29 @@
+import Fl4Proofs.P2.IoOnce
+import Fl4Proofs.P2.StOnce
+open Fl4Proofs.P2.PathObl Fl4Proofs.P2
+#print axioms rab_body_once
+#print axioms rab_loop_once
+#print axioms io_alt_midR
+#print axioms io_inv_once
+#print axioms io_tail_once
+#print axioms io_body_once
+#print axioms io_hro
+#print axioms io_localPathG2
+#print axioms io_pathsKG2
+#print axioms io_pathsKG2_startAt
+#print axioms io_pathsKG
+#print axioms io_pathsKG_startAt
+#print axioms tm_pathsKG
+#print axioms tm_pathsKG_startAt
+#print axioms sl_pathsKCG
+#print axioms sl_pathsKCG_startAt
+#print axioms irq_pathsJ3G
+#print axioms irq_pathsJ3G_startAt
+#print axioms irq_pathsKG_startAt
+#print axioms set_timer_dec_guardU
+#print axioms st_rd_nouser
+#print axioms st_hro
+#print axioms set_timer_localPathG2
+#print axioms tm_pathsKG2
+#print axioms tm_pathsKG2_startAt
+#print axioms vm_localPathG2
