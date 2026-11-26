@@ -2295,3 +2295,14 @@ import Fl4Proofs.P3.P3JVtxMR
 import Fl4Proofs.P3.XTopJointKEntryU45
 import Fl4Proofs.P3.P3JVtxR
 import Fl4Proofs.P3.XTopJointKEntryU46
+import Fl4Proofs.P3.JBootQ1St
+import Fl4Proofs.P3.JBootQ1Spec
+import Fl4Proofs.P3.JBootQ1Mem
+import Fl4Proofs.P3.JBootQ1Z
+import Fl4Proofs.P3.JBootQ1Cs
+import Fl4Proofs.P3.JBootQ1Lay
+import Fl4Proofs.P3.JBootQ1Inv
+import Fl4Proofs.P3.JBootQ1Blk
+import Fl4Proofs.P3.JBootQ1Live
+import Fl4Proofs.P3.JBootQ1JAt
+import Fl4Proofs.P3.JBootQ1U40
