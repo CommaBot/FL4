@@ -56,6 +56,10 @@ import Fl4ProofsA64.P1.TimerRBRfx
 import Fl4ProofsA64.P1.TimerRBRfxL
 import Fl4ProofsA64.P1.TimerRBRmv
 import Fl4ProofsA64.P1.QueueTimerR
+import Fl4ProofsA64.P1.RunVcpuRecv
+import Fl4ProofsA64.P1.QueueSignal
+import Fl4ProofsA64.P1.QueueFire
+import Fl4ProofsA64.P1.QueueTimerSet
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -69,34 +73,17 @@ open Lean Elab Command in
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
-#print axioms Fl4ProofsA64.P1.tcbqueue.append.rel
-#print axioms Fl4ProofsA64.P1.sporadic.budget_check.ordered
-#print axioms Fl4ProofsA64.P1.smp.add_pending.spec
-#print axioms Fl4ProofsA64.P1.smp.remote_queue_update.spec
-#print axioms Fl4ProofsA64.P1.smp.send_pending.fp
-#print axioms Fl4ProofsA64.P1.sched.suspend.inv
-#print axioms Fl4ProofsA64.P1.sched.suspend.all
-#print axioms Fl4ProofsA64.P1.vcpu.cancel_run.idle
-#print axioms Fl4ProofsA64.P2.PathObl.vm_isProg
-#print axioms Fl4ProofsA64.P2.PathObl.vm_noZero
-#print axioms Fl4ProofsA64.P2.PathObl.vm_prog
-#print axioms Fl4ProofsA64.P1.syscall_decline
-#print axioms Fl4ProofsA64.P1.FastAgree.of_acc
-#print axioms Fl4ProofsA64.P1.vcpu.report.keep
-#print axioms Fl4ProofsA64.P1.set_vm_root_same
-#print axioms Fl4ProofsA64.P1.sched.switch_to_thread.inv
-#print axioms Fl4ProofsA64.P1.smp.send_pending.two
-#print axioms Fl4ProofsA64.P1.RunVcpuInv.zero
-#print axioms Fl4ProofsA64.P1.sched.suspend.inv_rv
-#print axioms Fl4ProofsA64.P1.sched.suspend.all_rv
-#print axioms Fl4ProofsA64.P1.RecvPre.stt
-#print axioms Fl4ProofsA64.P1.migrate_vcpu_idle
-#print axioms Fl4ProofsA64.P1.smp.migrate_tcb.frame
-#print axioms Fl4ProofsA64.P1.migrate_tail
-#print axioms Fl4ProofsA64.P1.schedcontext.donate.ipc
-#print axioms Fl4ProofsA64.P1.endpoint.send_ipc.ipc
-#print axioms Fl4ProofsA64.P1.endpoint.receive_ipc.ipc
 #print axioms Fl4ProofsA64.P1.notification.complete_signal.ipc
 #print axioms Fl4ProofsA64.P1.smp.remote_tcb_stall.ipi
 #print axioms Fl4ProofsA64.P1.sched.schedule.inv
 #print axioms Fl4ProofsA64.P1.TFB.tf
+#print axioms Fl4ProofsA64.P1.endpoint.receive_ipc.ipc_rv
+#print axioms Fl4ProofsA64.P1.RecvPre.rvi
+#print axioms Fl4ProofsA64.P1.endpoint.take_reply.rvi
+#print axioms Fl4ProofsA64.P1.notification.maybe_return_sched_context.rvi
+#print axioms Fl4ProofsA64.P1.vcpu.signal_completes.never
+#print axioms Fl4ProofsA64.P1.notification.kick_guest.tinv
+#print axioms Fl4ProofsA64.P1.notification.send_signal.tinv
+#print axioms Fl4ProofsA64.P1.timer.fire.tinv
+#print axioms Fl4ProofsA64.P1.sched.schedule.entry
+#print axioms Fl4ProofsA64.P1.sched.suspend.tinv
