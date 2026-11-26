@@ -1,26 +1,30 @@
 /-
-P2 (line vlift, gen 5): **FL4's concrete local-path family under rule 7, and the end-to-end theorem over it**.
+P2 (line vlift, gen 5, gen 6): **FL4's concrete local-path family under rule 7, and the end-to-end theorem over it**.
 
-`fl4Loc LQ : Fl4Loc …` (shape: `P2/E2EVFam.lean`) fills every slot with the latest path on `int/j13`:
+`fl4LocAll : Fl4Loc …` (shape: `P2/E2EVFam.lean`) fills every slot with the newest path on `int/j14` (gen 6):
 
 | slot | path (at) | index (the glue's choice) | lift |
 |---|---|---|---|
-| `vmF` VM fault | `vm_localPathG` (hpzg: program discharged) at `userV K` | `VmFArg`: `addr code`, P1 sets, `Locks` | U, `NoVcpuRW` proved (`vmFSlot.W`: `IoRS` / `IoWS` / `VmBase.dsSafe`) |
+| `vmF` VM fault | `vm_localPathG2` (hpzg gen 2: `IsProg` / `NoZero` / `ReadOnce` discharged) at `userV K` | `VmFArg`: `addr code`, P1 sets, `Locks` | U, `NoVcpuRW` proved (`vmFSlot.W`: `IoRS` / `IoWS` / `VmBase.dsSafe`) |
 | `vmR` VM ReplyRecv | `rr_localPath` at `userV K` | `VmRArg`: `rptr ep`, P1 sets, `Locks` | U, proved (`rr_noVcpuRW`) |
-| `io` I/O port | `io_localPathV` = `io_localPathK` (`ioBodyP`) at `userV K`, `Pre := SlJAt K ∧ Q` | `IoArg`: `number`, sets, `Locks`, `Q` | U, proved (`io_noVcpuRWV`) |
-| `st` `TCB_SetTimer` | `tm_localPathV` = `set_timer_localPathM` at `userV K` narrowed to `SlJAt K ∧ Q` | `StArg`: `n target`, sets, `lk`, `Q` | U, proved (`tm_noVcpuRWV`) |
-| `irq` timer interrupt | `irq_localPathV` (p2lf gen17's `irq_localPathJ3` at `userV K`, `Pre := SlJAt K ∧` memory) | `IrqArg`: `irq pl lk p` | U, proved (`irq_noVcpuRWV`) |
-| `sl` syscall_local | `sl_pathsKC` (canonical `SlQ`) at `K` | `SlArg`: `n found`, sets, `Locks` | C, `AvoidV` proved (`sl_avoidVK`) |
-| `vq` | `LQ : PathsV ν`, stated for `ownV` (lvm: `vexit_localPath` / `vexit_localPathP`; `vtimer_localPath` from par/lvm4) | `ν` | none needed |
+| `io` I/O port | `io_localPathVG` = hpzg's `io_localPathG` (tree `R.ioBodyG`) at `userV K`, `Pre := SlJAt K ∧ Q` | `IoArg`: `number`, sets, `Locks`, `Q` | U, proved (`io_noVcpuRWVG`) |
+| `st` `TCB_SetTimer` | `tm_localPathV` = `set_timer_localPathA` (aligned `hlk`) at `userV K`, tree by `st_isProg`, narrowed to `SlJAt K ∧ Q` | `StArg`: `n target`, sets, `lk`, `Q` | U, proved (`tm_noVcpuRWV`) |
+| `irq` timer interrupt | `irq_localPathV` (p2lf gen17's J3 proof at `userV K`) at the tree of `irq_isProg` (hpzg's `irq_localPathG` part) | `IrqArg`: `irq pl lk` | U, proved (`irq_noVcpuRWV`) |
+| `sl` syscall_local | `sl_pathsKC` (canonical `SlQ`) at `K`, tree by `sl_isProg` | `SlArg`: `n found`, sets, `Locks` | C, `AvoidV` proved (`sl_avoidVK`) |
+| `vq` | `fl4LQ = PathsV.sum vxSlot vtSlot` (`P2/E2EVFl4Q.lean`): lvm's `vexit_localPathP` (start `Pre` by `vexitPre_ofHeap`, i.e. `VexitPEnt.ofHeap`) and `vtimer_localPath` | `VxArg ⊕ VtArg` | none needed (stated for `ownV`) |
 
-Each route-U / route-C slot is conditional (`SlotU` / `SlotC`): its path is present at `(K, m)` exactly where its
-premise record (`VmFPrem` … `SlPrem`) holds, and is the empty path elsewhere, so the records are asked only where the
-glue starts the path (`SlotU.startAt` / `SlotC.startAt`).
+Not used: slhuf's `sl_pathsKC3` (its `hUO` is unsatisfiable); `sl_pathsKC` stays until `sl_pathsKC4`. `vmR` has no
+generated-tree version yet.
+
+Each slot is conditional (`SlotU` / `SlotC` / `SlotN`): its path is present at `(K, m)` exactly where its premise
+record (`VmFPrem` … `SlPrem`, `VxPrem`, `VtPrem`) holds, and is the empty path elsewhere, so the records are asked
+only where the glue starts the path (`SlotU.startAt` / `SlotC.startAt` / `SlotN.startAt`).
 
 **`serializable_fl4_local`**: every `ExecV` of FL4 (core steps and hardware VCPU writes) whose local runs are starts
-of `fl4Loc LQ`'s paths, and which reaches a state with no local path in progress, is serializable (`RunAll`).
+of `fl4LocAll`'s eight paths, and which reaches a state with no local path in progress, is serializable (`RunAll`).
+`serializable_fl4_localQ` is gen 5's form (any `vq : PathsV ν`).
 
-## Premise table
+## Premise table (gen 6)
 
 Global (once, for the kernel's one store `st` and Arch instance `ar`):
 * `hA : ArchTotal ar` — proved for FL4's Arch model by P0 (totality); a parameter here.
@@ -43,31 +47,44 @@ Per slot, the premise record (asked at the `(K, m)` of each start):
 * All U slots at `userV K` (`P2/E2EVUser.lean`): their obligations are about `userV K`'s user words
   (`K.user` plus the VCPU data words).
 * `VFacts` [J] (`io`, `st`, `irq`, `sl`; `P2/E2EVFl4U.lean`): `VcpuHeap` [J] (`K.vcpus` free in P3), `VcpuTabOff`
-  [J] (needs "every heap object lies in an untyped"), `UserObj` [J], `PoolObj` [J] (at bundle states), `wr` [J]
-  (a VCPU-data-word write keeps P3's bundle `SlJAt`, as slhuf's `SlJAt.userWr` for user words).
+  [J] (needs "every heap object lies in an untyped"), `UserObj` [J], `PoolObj` [J] (at bundle states), and since
+  gen 6 `VcpuSpec` [J] (each VCPU is a spec `vcpu` object of the bundle's σ) and `VcpuKsOff` [J] (no VCPU meets
+  `[ksb, ksb + 304384)`), which replace gen 5's `wr` [J]: `VFacts.wr` (a VCPU-data-word write keeps P3's bundle) is
+  now proved (`slJAt_vcpuWr`, P3's `JAtZ.vcpuWrJ`: `JAtZ` reads no VCPU word).
 * `vmF` (`VmFPrem`): `lay` [J] `IoLayA` (alignment facts of the layout), `mA` [J] (`ko`'s memory agrees on TCB
-  affinity words at `VmPre` states), `uf` [J] (`VmPre` / locks / sets kept by user writes), `ro` [W] (declining
-  `ReadOnce` of the generated tree). Start: `VmPre (userV K)` from `VmPre K` by `vmPre_userV` (`VcpuKs`, `TabNoV`).
+  affinity words at `VmPre` states), `uf` [J] (`VmPre` / locks / sets kept by user writes). (gen 5's `ro` [W]: proved,
+  `vm_hro`.) Start: `VmPre (userV K)` from `VmPre K` by `vmPre_userV` (`VcpuKs`, `TabNoV`).
 * `vmR` (`VmRPrem`): `lay` [J], `mA` [J], `uf` [J], `pz` ([P] `IsProg`, [W] `NoZero`, [W] declining `ReadOnce`).
   Start: `vmRRPre_userV`.
 * `io` (`IoPrem`): `vf` [J], `pe` (`IoPre` at bundle states: [J] P1 facts + fl4-sync contract), `mA` [J], `uf` [J]
-  (`Q`, locks, sets kept by `userV K` user writes; the bundle part is derived), `pz` ([P] `IsProg` of `ioBodyP`, [W]
-  `NoZero`, [W] declining `ReadOnce`). Start: `SlJAt K σ ∧ Q K m σ`.
-* `st` (`StPrem`): `vf` [J], `pe` (`StEntK` at bundle states, [J]), `pz` ([P] `IsProg`, [W] `NoZero`, [W]
-  `ReadOnce`), `eu` [J] (`StEnt` kept by user writes), `lk` [P] (locks kept by user writes), `nu` [J] (the node
-  words are not user words), `uf` [J] (`Q` kept). Start: `SlJAt K σ ∧ Q K m σ`.
-* `irq` (`IrqPrem`): `vf` [J], `lt` (`irq < 128`; the timer IRQ is 2), `hp` [P] (`IsProg`), `hz` [W] (`NoZero`),
-  `ro` [W] (`ReadOnce` under `IrqPreV`), `lk` [P] (guarded lock contract), `pl` [P] (`PlanLk`). Start:
+  (`Q`, locks, sets kept by `userV K` user writes; the bundle part is derived), `bun` (some bundle state of the
+  layout: the start state itself, no premise), `ro` [W] (declining `ReadOnce` of `R.ioBodyG number`). (gen 5's `pz`
+  [P] `IsProg` / [W] `NoZero`: proved, `io_isProg` / `io_noZero`.) Start: `SlJAt K σ ∧ Q K m σ`.
+* `st` (`StPrem`): `vf` [J], `pe` (`StEntK` at bundle states, [J]), `ro` [W] (`ReadOnce` of the tree; `IsProg` /
+  `NoZero` proved), `eu` [J] (`StEnt` kept by user writes), `lk` [P] (locks kept by **aligned** user writes; gen 6,
+  slhuf's `hlk_of_kernelDetU` form), `nu` [J] (the node words are not user words), `uf` [J] (`Q` kept). Start:
+  `SlJAt K σ ∧ Q K m σ`.
+* `irq` (`IrqPrem`): `vf` [J], `lt` (`irq < 128`; the timer IRQ is 2), `ro` [W] (`ReadOnce` under `IrqPreV` of the
+  tree; gen 5's `hp` [P] / `hz` [W] proved), `lk` [P] (guarded lock contract), `pl` [P] (`PlanLk`). Start:
   `SlJAt K σ` and the memory agreement off `userV K`'s user words.
-* `sl` (`SlPrem`): `vf` [J]; `sl_pathsKC`'s `hPBw` [J], `hArw` [P], `hlk` [P], `hpz` ([P] `IsProg`, [W] `NoZero`,
-  [W] `ReadOnce`). Start: `SlJAt K σ ∧ SlQ … K m σ` (`SlPreB`, `SlEntL` [P], `SlSyncC` [P], `SlAccR` [P]).
-* `vq`: lvm's paths carry their own premises (`VexitEnt`'s fields, `vin` [J] etc.).
+* `sl` (`SlPrem`): `vf` [J]; `sl_pathsKC`'s `hPBw` [J], `hArw` [P], `hlk` [P], `ro` [W] (`ReadOnce` of the tree;
+  gen 5's `IsProg` [P] / `NoZero` [W] proved). Start: `SlJAt K σ ∧ SlQ … K m σ` (`SlPreB`, `SlEntL` [P], `SlSyncC`
+  [P], `SlAccR` [P]).
+* `vq` (`P2/E2EVFl4Q.lean`): `VxPrem` — `pz` ([P] `IsProg`, [W] `NoZero`, [W] `ReadOnce`), `eu` [J], `lk` [P];
+  start `VexitEnt` (lvm's [J] `vin` / `ksv` / `vfar` / `nfar`) plus `VexitPEnt.ofHeap`'s `usr` [J], `buf` [P],
+  `aff0` [J], `VcpuHeap` [J]. `VtPrem` — `pz` (as above), `eu` [J], `lk` [P], `F` / `Fm` [W] (fire), `D` [W]
+  (declines); start `VtmEnt`.
 
-Swapping a newer path in (integration: slhuf's `sl_pathsKC3`, hpzg's G2 versions, lvm's `vtimer_localPath`): replace
-that slot's `SlotU` / `SlotC` value in `fl4Loc` (a premise record, a path under it and its lift lemma) or pass the
-lvm paths as `LQ` (`PathsV.sum` for several); `serializable_fl4_localG` is unchanged.
+Swapping a newer path in: replace that slot's `SlotU` / `SlotC` / `SlotN` value in `fl4Loc` / `fl4LQ` (a premise
+record, a path under it and its lift lemma); `serializable_fl4_localG` is unchanged.
 -/
 import Fl4Proofs.P2.E2EVFl4U
+import Fl4Proofs.P2.E2EVFl4Q
+import Fl4Proofs.P2.VmOnce
+import Fl4Proofs.P2.ProgGenIoLP
+import Fl4Proofs.P2.ProgGenTmLP
+import Fl4Proofs.P2.ProgGenStLP
+import Fl4Proofs.P2.ProgGenSyLP
 import Fl4Proofs.P2.ProgGenVmLP
 import Fl4Proofs.P2.SlJQ
 open Aeneas Aeneas.Std Result
@@ -141,7 +158,6 @@ structure IrqArg (S : Type) : Type where
   irq : U64
   pl : localtimer.TimerIrqPlan
   lk : S → U64 → Prop
-  p : SProg Bool
 
 /-- syscall_local: the syscall number and the found capability, P1's sets and the locks. -/
 structure SlArg (S : Type) : Type where
@@ -173,14 +189,6 @@ structure VmFPrem (i : VmFArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
       IoRS (st := st) (userV K) i.Locks (L.wr s b v) = IoRS (st := st) (userV K) i.Locks s ∧
       IoWS (st := st) (userV K) i.Locks (L.wr s b v) = IoWS (st := st) (userV K) i.Locks s ∧
       IoDS (st := st) (L.wr s b v) = IoDS (st := st) s
-  /-- [W] declining `ReadOnce` of the generated tree. -/
-  ro : ∀ s s' a r, VmPre st ar (userV K) i.T i.Cs i.Ω i.U i.H i.Sg i.Rp i.Scs i.Nt i.Z i.Ac i.Locks s →
-    (∃ b, VmRep st ar s a b) →
-    Alt st (IoRS (st := st) (userV K) i.Locks s) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m)
-      (· ∈ (userV K).user) s s' →
-    interp st ar (R.syscall.handle_vm_fault_local i.addr i.code) s' a = ok r →
-    E2E.Once st ar (IoRS (st := st) (userV K) i.Locks s) (· ∈ (userV K).user) ∅ ∅
-      (R.syscall.handle_vm_fault_local i.addr i.code) s' a
 
 /-- **VM ReplyRecv's premises at `(K, m)`** (`rr_localPath`'s, at `userV K`). -/
 structure VmRPrem (i : VmRArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
@@ -222,14 +230,15 @@ structure IoPrem (i : IoArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
       IoRS (st := st) (userV K) i.Locks (L.wr s b v) = IoRS (st := st) (userV K) i.Locks s ∧
       IoWS (st := st) (userV K) i.Locks (L.wr s b v) = IoWS (st := st) (userV K) i.Locks s ∧
       IoDS (st := st) (L.wr s b v) = IoDS (st := st) s
-  /-- [P] `IsProg` of `ioBodyP`, [W] `NoZero`, [W] declining `ReadOnce`. -/
-  pz : ∃ p : SProg Bool, IsProg (ioBodyP S i.number) p ∧ NoZero p ∧
-    ∀ s s' a r, (SlJAt (L := L) K.toKLayout s ∧ i.Q K m s) →
-      (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a i.number = ok (true, s1, a1)) →
-      Alt st (IoRS (st := st) (userV K) i.Locks s) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m)
-        (· ∈ (userV K).user) s s' →
-      interp st ar p s' a = ok r →
-      E2E.Once st ar (IoRS (st := st) (userV K) i.Locks s) (· ∈ (userV K).user) ∅ ∅ p s' a
+  /-- The layout is a bundle layout (no premise: the start state itself, whose `Pre` is `SlJAt K ∧ Q`). -/
+  bun : ∃ σ : S, SlJAt (L := L) K.toKLayout σ
+  /-- [W] declining `ReadOnce` of the generated tree `R.ioBodyG number` (`IsProg` / `NoZero` proved, hpzg). -/
+  ro : ∀ s s' a r, (SlJAt (L := L) K.toKLayout s ∧ i.Q K m s) →
+    (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a i.number = ok (true, s1, a1)) →
+    Alt st (IoRS (st := st) (userV K) i.Locks s) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m)
+      (· ∈ (userV K).user) s s' →
+    interp st ar (R.ioBodyG i.number) s' a = ok r →
+    E2E.Once st ar (IoRS (st := st) (userV K) i.Locks s) (· ∈ (userV K).user) ∅ ∅ (R.ioBodyG i.number) s' a
 
 /-- **`TCB_SetTimer`'s premises at `(K, m)`** (`tm_localPathV`'s). -/
 structure StPrem (i : StArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
@@ -239,9 +248,8 @@ structure StPrem (i : StArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
   pe : ∀ s, SlJAt (L := L) K.toKLayout s → i.Q K m s →
     StEntK K.toKLayout st K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits i.Ac
       i.target m s
-  /-- [P] `IsProg`, [W] `NoZero`, [W] `ReadOnce`. -/
-  pz : ∃ p : SProg Bool, IsProg (stBody S i.n i.target) p ∧ NoZero p ∧
-    E2E.ReadOnce st ar p (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user)
+  /-- [W] `ReadOnce` of the generated tree (`IsProg` / `NoZero` proved: `st_isProg` / `st_noZero`). -/
+  ro : E2E.ReadOnce st ar (R.localtimer.handle_set_timer_local i.n i.target) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user)
       (StEntV K st i.Cs i.Ω i.Sg i.Ac i.target m) (MaxR (userV K) st i.lk)
   /-- [J] -/
   eu : ∀ s b v, StEnt (userV K) st K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns
@@ -262,12 +270,8 @@ structure IrqPrem (i : IrqArg S) (K : KLayoutV) (m : U64 → U64) : Prop where
   vf : VFacts L K
   /-- The IRQ's state word lies in the kernel-state block (the timer IRQ is 2). -/
   lt : i.irq.val < 128
-  /-- [P] -/
-  hp : IsProg (irqBody S i.irq i.pl) i.p
-  /-- [W] -/
-  hz : NoZero i.p
-  /-- [W] -/
-  ro : E2E.ReadOnce st ar i.p (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user)
+  /-- [W] `ReadOnce` of the generated tree (`IsProg` / `NoZero` proved: `irq_isProg` / `irq_noZero`). -/
+  ro : E2E.ReadOnce st ar (R.localtimer.handle_timer_irq_local i.irq i.pl) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m) (· ∈ (userV K).user)
     (IrqPreV K st m) (MaxR (userV K) st i.lk)
   /-- [P] -/
   lk : ∀ s b v, SlJAt (L := L) K.toKLayout s → b ∈ (userV K).user → Aligned b → i.lk (L.wr s b v) = i.lk s
@@ -289,9 +293,8 @@ structure SlPrem (i : SlArg S) (K : KLayoutV) : Prop where
     Aligned b → SlAccR (st := st) ar K i.Locks i.found (L.wr s b v)
   /-- [P] -/
   lk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → i.Locks (L.wr s b v) = i.Locks s
-  /-- [P] `IsProg`, [W] `NoZero`, [W] `ReadOnce`. -/
-  pz : ∀ K m, ∃ p : SProg Bool, IsProg (slBody S i.n i.found) p ∧ NoZero p ∧
-    E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
+  /-- [W] `ReadOnce` of the generated tree (`IsProg` / `NoZero` proved: `sl_isProg` / `sl_noZero`). -/
+  ro : ∀ K m, E2E.ReadOnce st ar (R.syscall.handle_syscall_local i.n i.found) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
       (fun s => SlJAt (L := L) K s ∧ Fl4Proofs.P2.PathObl.SlQ st ar i.Locks i.n i.found
         i.Cs i.Ω i.Sg i.Ac K m s)
       (SlRS (st := st) K i.Locks)
@@ -304,9 +307,9 @@ variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (
 def vmFSlot : SlotU (VmFArg S) where
   Prem i K m := VmFPrem st ar i K m
   path i K m hK hU h :=
-    vm_localPathG (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (U := i.U) (H := i.H) (Sg := i.Sg) (Rp := i.Rp)
+    vm_localPathG2 (T := i.T) (Cs := i.Cs) (Ω := i.Ω) (U := i.U) (H := i.H) (Sg := i.Sg) (Rp := i.Rp)
       (Scs := i.Scs) (Nt := i.Nt) (Z := i.Z) (Ac := i.Ac) (Locks := i.Locks) (m0 := m)
-      ar hA (regionOK_userV hK) (userOK_userV hK hU) h.lay (addr := i.addr) (code := i.code) hm h.mA h.uf h.ro
+      ar hA (regionOK_userV hK) (userOK_userV hK hU) h.lay (addr := i.addr) (code := i.code) hm h.mA h.uf
   W i K m hK hU h :=
     { rd := fun _ _ _ hr => ioRS_noV hr
       wr := fun s _ hp hw => hw.elim (ioWS_noV hK) fun hd =>
@@ -327,30 +330,34 @@ def vmRSlot : SlotU (VmRArg S) where
 def ioSlot : SlotU (IoArg S) where
   Prem i K m := IoPrem st ar i K m
   path i K m hK hU h :=
-    io_localPathV (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Ac := i.Ac) (m0 := m) (Locks := i.Locks) ar hA hK hU h.vf
-      (number := i.number) hm (i.Q K m) h.pe h.mA h.uf h.pz
-  W i K m hK hU h := io_noVcpuRWV ar hA hK hU h.vf hm (i.Q K m) h.pe h.mA h.uf h.pz
+    io_localPathVG (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Ac := i.Ac) (m0 := m) (Locks := i.Locks) ar hA hK hU h.vf
+      h.bun (number := i.number) hm (i.Q K m) h.pe h.mA h.uf h.ro
+  W i K m hK hU h := io_noVcpuRWVG ar hA hK hU h.vf h.bun hm (i.Q K m) h.pe h.mA h.uf h.ro
 
 /-- **`TCB_SetTimer` slot.** -/
 def stSlot : SlotU (StArg S) where
   Prem i K m := StPrem st ar i K m
   path i K m hK hU h :=
     tm_localPathV (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Ac := i.Ac) (lk := i.lk) (m := m) ar hA i.n i.target hK hU
-      h.vf hm (i.Q K m) h.pe h.pz h.eu h.lk h.nu h.uf
-  W i K m hK hU h := tm_noVcpuRWV ar hA i.n i.target hK hU h.vf hm (i.Q K m) h.pe h.pz h.eu h.lk h.nu h.uf
+      h.vf hm (i.Q K m) h.pe ⟨_, st_isProg S i.n i.target, st_noZero i.n i.target, h.ro⟩ h.eu h.lk h.nu h.uf
+  W i K m hK hU h := tm_noVcpuRWV ar hA i.n i.target hK hU h.vf hm (i.Q K m) h.pe
+    ⟨_, st_isProg S i.n i.target, st_noZero i.n i.target, h.ro⟩ h.eu h.lk h.nu h.uf
 
 /-- **Timer interrupt slot.** -/
 def irqSlot : SlotU (IrqArg S) where
   Prem i K m := IrqPrem st ar i K m
-  path i K m hK hU h := irq_localPathV (m := m) ar hA hK hU h.vf h.lt h.hp h.hz hm h.ro h.lk h.pl
-  W i K m hK hU h := irq_noVcpuRWV ar hA hK hU h.vf h.lt h.hp h.hz hm h.ro h.lk h.pl
+  path i K m hK hU h := irq_localPathV (m := m) ar hA hK hU h.vf h.lt (irq_isProg S i.irq i.pl)
+    (irq_noZero i.irq i.pl) hm h.ro h.lk h.pl
+  W i K m hK hU h := irq_noVcpuRWV ar hA hK hU h.vf h.lt (irq_isProg S i.irq i.pl) (irq_noZero i.irq i.pl) hm h.ro
+    h.lk h.pl
 
 /-- **syscall_local slot** (route C). -/
 def slSlot : SlotC (SlArg S) where
   Prem i K _ := SlPrem st ar i K
   path i K m hK hU h :=
     sl_pathsKC (Locks := i.Locks) (n := i.n) (found := i.found) (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Ac := i.Ac)
-      ar hSt hA hm a0 h.PBw h.Arw h.lk h.pz () K.toKLayout m hK.base hU.base
+      ar hSt hA hm a0 h.PBw h.Arw h.lk
+      (fun K' m' => ⟨_, sl_isProg S i.n i.found, sl_noZero i.n i.found, h.ro K' m'⟩) () K.toKLayout m hK.base hU.base
   Av i K m hK hU h := by
     unfold sl_pathsKC sl_pathsKF sl_pathsKU sl_pathsK
     exact sl_avoidVK ar hSt hA hm a0 hK hU.base (fun _ h' => h'.1) _ _ _ _ _ _ h.vf.heap h.vf.tab
@@ -370,13 +377,25 @@ def fl4Loc {ν : Type} (LQ : PathsV ν) :
   sl := slSlot st ar hA hSt hm a0
   vq := LQ
 
-/-- **FL4 end to end with rule 7 over its concrete local-path family** (module docstring; premise table there):
-every execution of FL4 whose local runs are starts of `fl4Loc LQ`'s paths (and whose hardware steps write only
-running VCPUs' words), at a state with no local path in progress, ran exactly as some serial order of its completed
-entries. -/
-theorem serializable_fl4_local {ν : Type} (LQ : PathsV ν) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
+/-- **FL4 end to end with rule 7, any `ownV`-native family as `vq`** (gen 5's form). -/
+theorem serializable_fl4_localQ {ν : Type} (LQ : PathsV ν) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
     (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
     (h : ExecV ((fl4Loc st ar hA hSt hm a0 LQ).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
+    RunAll s.log s0.mem s.mem :=
+  serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
+
+/-- **FL4's eight local paths** (module docstring's table): `fl4Loc` with lvm's two paths as `vq` (`fl4LQ`). -/
+def fl4LocAll : Fl4Loc (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) (VxArg S ⊕ VtArg S) :=
+  fl4Loc st ar hA hSt hm a0 (fl4LQ st ar hA hm (fl4Dflt st ar hm))
+
+/-- **FL4 end to end with rule 7 over its eight local paths** (module docstring; premise table there): every
+execution of FL4 whose local runs are starts of `fl4LocAll`'s paths (VM fault, VM ReplyRecv, I/O port,
+`TCB_SetTimer`, timer interrupt, syscall_local, `local_vm_exit`, `local_vm_timer_irq`), and whose hardware steps
+write only running VCPUs' words, at a state with no local path in progress, ran exactly as some serial order of its
+completed entries. -/
+theorem serializable_fl4_local {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
+    (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
+    (h : ExecV ((fl4LocAll st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
     RunAll s.log s0.mem s.mem :=
   serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
 

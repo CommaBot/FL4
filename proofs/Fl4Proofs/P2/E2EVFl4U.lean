@@ -32,6 +32,7 @@ import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.FootTimerIrqJ3
 import Fl4Proofs.P2.E2EVVcpuWr
+import Fl4Proofs.P2.ProgGenIoLP
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2EV
@@ -129,6 +130,46 @@ theorem io_noVcpuRWV (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK : RegionOK
     (vf : VFacts L K) {number : I64} (hm : E2E.MasksWr st) (Q : S → Prop) (hPE) (hmA) (huf) (hpz) :
     NoVcpuRW K (io_localPathV (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (m0 := m0) (Locks := Locks) ar hA hK hU vf
       (number := number) hm Q hPE hmA huf hpz) where
+  rd _ _ _ hr := ioRS_noV hr
+  wr s _ hp hw := hw.elim (ioWS_noV hK) fun hd =>
+    Or.inl (safeW_noV hK (IoDS.safe (ioPre_userV hK (vf.v hp.1).1 (hPE s hp.1 hp.2)) hd).2)
+
+/-- **The I/O port path at `userV K` over the generated tree** (gen 6: hpzg's `io_localPathG`, `IsProg` / `NoZero`
+discharged; `hro` [W] about `R.ioBodyG number`). `IoLayA` from any bundle state of the layout (`hb`: the start state
+itself). -/
+noncomputable def io_localPathVG (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
+    (vf : VFacts L K) (hb : ∃ σ : S, SlJAt (L := L) K.toKLayout σ) {number : I64} (hm : E2E.MasksWr st)
+    (Q : S → Prop)
+    (hPE : ∀ s, SlJAt (L := L) K.toKLayout s → Q s →
+      IoPre st K.toKLayout K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s)
+    (hmA : ∀ s, SlJAt (L := L) K.toKLayout s → Q s → ∀ d, K.heap d = some .tcb →
+      m0 (fld d oAFFINITY) = L.mem s (fld d oAFFINITY))
+    (huf : ∀ s b v, SlJAt (L := L) K.toKLayout s → Q s → b ∈ (userV K).user → Aligned b →
+      Q (L.wr s b v) ∧ Locks (L.wr s b v) = Locks s ∧
+        IoRS (st := st) (userV K) Locks (L.wr s b v) = IoRS (st := st) (userV K) Locks s ∧
+        IoWS (st := st) (userV K) Locks (L.wr s b v) = IoWS (st := st) (userV K) Locks s ∧
+        IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
+    (hro : ∀ s s' a r, (SlJAt (L := L) K.toKLayout s ∧ Q s) →
+      (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
+      Alt st (IoRS (st := st) (userV K) Locks s) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m0)
+        (· ∈ (userV K).user) s s' →
+      interp st ar (R.ioBodyG number) s' a = ok r →
+      E2E.Once st ar (IoRS (st := st) (userV K) Locks s) (· ∈ (userV K).user) ∅ ∅ (R.ioBodyG number) s' a) :
+    E2E.LocalPath (OwnMap.own (userV K)) (OwnMap.cls (userV K)) (OwnMap.ko (userV K) m0) (· ∈ (userV K).user) :=
+  io_localPathG (K := userV K) (m0 := m0) (Locks := Locks) ar hA (regionOK_userV hK) (userOK_userV hK hU)
+    (ioLayA_userV hb.choose_spec.ioLayA) hm
+    (P := fun s => SlJAt (L := L) K.toKLayout s ∧ Q s)
+    (fun s h => ioPre_userV hK (vf.v h.1).1 (hPE s h.1 h.2)) (fun s h => hmA s h.1 h.2)
+    (fun s b v h hb hba => by
+      obtain ⟨h1, h2⟩ := huf s b v h.1 h.2 hb hba
+      exact ⟨⟨slJAt_wrV vf h.1 hb hba v, h1⟩, h2⟩) hro
+
+/-- **`NoVcpuRW` of `io_localPathVG`.** -/
+theorem io_noVcpuRWVG (ar : machine.Arch A) (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hU : UserOKV K)
+    (vf : VFacts L K) (hb : ∃ σ : S, SlJAt (L := L) K.toKLayout σ) {number : I64} (hm : E2E.MasksWr st)
+    (Q : S → Prop) (hPE) (hmA) (huf) (hro) :
+    NoVcpuRW K (io_localPathVG (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (m0 := m0) (Locks := Locks) ar hA hK hU vf
+      hb (number := number) hm Q hPE hmA huf hro) where
   rd _ _ _ hr := ioRS_noV hr
   wr s _ hp hw := hw.elim (ioWS_noV hK) fun hd =>
     Or.inl (safeW_noV hK (IoDS.safe (ioPre_userV hK (vf.v hp.1).1 (hPE s hp.1 hp.2)) hd).2)
