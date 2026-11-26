@@ -127,6 +127,7 @@ import Fl4ProofsA64.P1.QueueIrqWide
 import Fl4ProofsA64.P1.QueueDecTcbRv
 import Fl4ProofsA64.P1.QueueFinRv
 import Fl4ProofsA64.P1.QueueFinRvSt
+import Fl4ProofsA64.P1.QueueFinRvReply
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -198,3 +199,9 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.W7.R.finRvRest_of3
 #print axioms Fl4ProofsA64.P1.W7.R.decGap_cnode_rv3
 #print axioms Fl4ProofsA64.P1.W7.R.decGap_thread3
+#print axioms Fl4ProofsA64.P1.schedcontext.donate.genR
+#print axioms Fl4ProofsA64.P1.ipc.reply_remove.rvi
+#print axioms Fl4ProofsA64.P1.fin_reply.rvi
+#print axioms Fl4ProofsA64.P1.W7.R.finRvRest3_of4
+#print axioms Fl4ProofsA64.P1.W7.R.decGap_cnode_rv4
+#print axioms Fl4ProofsA64.P1.W7.R.decGap_thread4
