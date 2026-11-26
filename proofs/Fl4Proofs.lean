@@ -2215,3 +2215,8 @@ import Fl4Proofs.P3.P3JGen
 import Fl4Proofs.P3.XTopJointKEntryU36
 import Fl4Proofs.P3.XTopJointKEntryU37
 import Fl4Proofs.P3.P3JVtxBridge
+import Fl4Proofs.P3.SpecInvIoxF
+import Fl4Proofs.P3.SpecInvIoxG
+import Fl4Proofs.P3.SpecInvIoxE
+import Fl4Proofs.P3.SpecInvIox
+import Fl4Proofs.P3.XTopJointKEntryU38
