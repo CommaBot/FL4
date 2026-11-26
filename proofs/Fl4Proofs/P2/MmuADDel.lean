@@ -55,7 +55,7 @@ theorem insT_finCap {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → ¬ G q) {x : S} {
         cases fin <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> trivial)
 
 /-- `finalise_cap` of such a cap returns `(Null, Null)`. -/
-theorem finCap_frame_null {x : S} {a : A} {fp rt asid va : U64} {mp fin : Bool}
+theorem finCap_frame_nullAD {x : S} {a : A} {fp rt asid va : U64} {mp fin : Bool}
     {y : (capability.Cap × capability.Cap) × S × A}
     (h : objects.finalise_cap st ar x a (.Frame fp .Small rt false mp false asid va) fin false = ok y) :
     y.1 = (.Null, .Null) := by
@@ -132,7 +132,7 @@ theorem insT_finImm {R0 W0 Rf : U64 → Prop} (hR0 : ∀ q, R0 q → ¬ G q) (hW
   rw [R.objects.finalise_cap_eq] at hy0'
   obtain ⟨y1, ey1, e1⟩ := bind_eq_ok' hy0'
   cases ok_inj_ff e1
-  have hn := finCap_frame_null ey1
+  have hn := finCap_frame_nullAD ey1
   obtain ⟨⟨rem, cl⟩, x1, a1⟩ := y1
   simp only [Prod.mk.injEq] at hn
   obtain ⟨rfl, rfl⟩ := hn

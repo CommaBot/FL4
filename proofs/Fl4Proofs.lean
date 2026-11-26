@@ -2123,3 +2123,8 @@ import Fl4Proofs.P2.SafeCertADQ
 import Fl4Proofs.P2.E2EADQ
 import Fl4Proofs.P2.E2EPU3e
 import Fl4Proofs.P2.MmuADTree
+import Fl4Proofs.P2.MmuADStep
+import Fl4Proofs.P2.MmuADEnt
+import Fl4Proofs.P2.MmuADDel
+import Fl4Proofs.P2.MmuADDelP
+import Fl4Proofs.P2.E2EPU3f
