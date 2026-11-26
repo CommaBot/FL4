@@ -2146,3 +2146,5 @@ import Fl4Proofs.P2.VmBRun
 import Fl4Proofs.P2.E2EPU12
 import Fl4Proofs.P2.RrFh
 import Fl4Proofs.P2.RrFhSafe
+import Fl4Proofs.P2.RrFhView
+import Fl4Proofs.P2.E2EPU13
