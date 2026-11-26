@@ -2388,3 +2388,6 @@ import Fl4Proofs.P3.P3JRecvStC
 import Fl4Proofs.P3.P3JRecvStD
 import Fl4Proofs.P3.P3JRecvSt
 import Fl4Proofs.P3.P3JRecvStTop
+import Fl4Proofs.P3.P3JRecvFtN
+import Fl4Proofs.P3.P3JRecvFtW
+import Fl4Proofs.P3.P3JRecvFtTop
