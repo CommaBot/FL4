@@ -2289,3 +2289,7 @@ import Fl4Proofs.P3.VirtAgreeDec
 import Fl4Proofs.P3.VirtExtTopU36
 import Fl4Proofs.P3.VirtVcpuExit
 import Fl4Proofs.P3.VirtKEntryV
+import Fl4Proofs.P3.VirtScope8
+import Fl4Proofs.P3.VirtScope8J
+import Fl4Proofs.P3.VirtScope8B
+import Fl4Proofs.P3.VirtKEntryV2
