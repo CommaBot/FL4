@@ -2348,3 +2348,6 @@ import Fl4Proofs.P3.JAtZV3RepBrB
 import Fl4Proofs.P3.JAtZV3RepBrC
 import Fl4Proofs.P3.JAtZV3RepBrA
 import Fl4Proofs.P3.JAtZV3ReportJ3
+import Fl4Proofs.P3.JAtZBSigPost
+import Fl4Proofs.P3.JAtZV3Ntfn
+import Fl4Proofs.P3.JAtZV3Check
