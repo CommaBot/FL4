@@ -2294,3 +2294,6 @@ import Fl4Proofs.P3.JAtZBSched
 import Fl4Proofs.P3.JAtZBBind
 import Fl4Proofs.P3.JAtZBSched2
 import Fl4Proofs.P3.JAtZBRunPost
+import Fl4Proofs.P3.JAtZBDetach
+import Fl4Proofs.P3.JAtZBYield
+import Fl4Proofs.P3.JAtZBRunPostV
