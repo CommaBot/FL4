@@ -14,6 +14,17 @@ import Fl4Proofs.P2.SlJStPostIo
 import Fl4Proofs.P2.SlJStPostTm
 import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P3.StPostInvAcc
+import Fl4Proofs.P3.StPostInvLeaf
+import Fl4Proofs.P3.StPostInvInv
+import Fl4Proofs.P3.StPostInvTop
+import Fl4Proofs.P3.StPostDelLeaf
+import Fl4Proofs.P3.StPostVmTop
+import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P3.StPostRRVm
+import Fl4Proofs.P2.SlJStPostRRVm
+import Fl4Proofs.P2.SlJStPostInv
+import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
 #print axioms Fl4Proofs.P3.JAtZ.budgetOkBSt
 #print axioms Fl4Proofs.P3.jat_finishJRNMSt
@@ -92,3 +103,34 @@ import Fl4Proofs.P2.SlJStPostIrq
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_irq_localSt17
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_irqSt
 #print axioms Fl4Proofs.P2.PathObl.irqPreK_of_chain
+#print axioms Fl4Proofs.P1.read_cap_new
+#print axioms Fl4Proofs.P1.plan_with_cap
+#print axioms Fl4Proofs.P1.plan_fieldsW
+#print axioms Fl4Proofs.P1.inv_local_acc
+#print axioms Fl4Proofs.P3.JAtZ.vsPostJSt
+#print axioms Fl4Proofs.P3.decode_frameMapJSt
+#print axioms Fl4Proofs.P3.decode_cnodeCopyJSt
+#print axioms Fl4Proofs.P3.handle_invocation_frameCapJSt
+#print axioms Fl4Proofs.P3.dispatch_frameCapJSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_invSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_inv_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_invSt
+#print axioms Fl4Proofs.P1.sarg0_reg
+#print axioms Fl4Proofs.P1.sarg1_reg
+#print axioms Fl4Proofs.P1.plan_with_del
+#print axioms Fl4Proofs.P1.target_keep
+#print axioms Fl4Proofs.P3.finObj_frame_null
+#print axioms Fl4Proofs.P3.finCap_frame_null
+#print axioms Fl4Proofs.P3.finImm_frame
+#print axioms Fl4Proofs.P3.delete_frame_ok
+#print axioms Fl4Proofs.P3.cnode_delete_frame_noPre
+#print axioms Fl4Proofs.P3.cn_del_topJStM
+#print axioms Fl4Proofs.P3.decode_cnodeDeleteJSt
+#print axioms Fl4Proofs.P3.jFltHyp_vmfSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_vmf_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_vmfSt
+#print axioms Fl4Proofs.P1.rr_vm_local_acc
+#print axioms Fl4Proofs.P3.rrMidVm_of
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rrVmSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rrVm_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_rrVmSt

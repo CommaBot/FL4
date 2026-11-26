@@ -1,11 +1,17 @@
 /-
-# P2 (line stpost, generations 6–7): the I/O port, `TCB_SetTimer` and timer-interrupt local paths' layout chain, closed
+# P2 (line stpost, generations 6–9): the I/O port, `TCB_SetTimer` and timer-interrupt local paths' layout chain, closed
 
 SlJStTop's `sl_pathsK_startAt_loc` for the syscall local path, extended to every local entry line
 stpost proved stable: the chain's step relation is now the union `LocAll` of the accepted syscall
 local runs (`LocSys`: trap arm and ReplyRecv fast path), the accepted I/O port runs (`LocIo`), the
-accepted `TCB_SetTimer` runs (`LocTm`) and the accepted timer interrupts (`LocIrq`, gen 7), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
+accepted `TCB_SetTimer` runs (`LocTm`), the accepted timer interrupts (`LocIrq`, gen 7) and the accepted
+frame-cap invocations (`LocInv`, gen 8; every label the plan accepts since gen 9, `CNodeDelete` included)
+the accepted VM faults (`LocVmf`, gen 9) and the accepted VM ReplyRecv runs (`LocRrVm`, gen 9), each as a `LocSt` step (stable ghosts kept), so `LocKeepSt`
 of it is `locKeepSt_st` (no premise).
+
+Local entries left out of `LocAll`: the declined entries (U29D: a declining local entry falls back to the
+general entry under the serial gate, whose ghosts grow by nature (new objects, caps, VSpaces), so no
+stable-ghost step exists for them); `local_vm_exit` (the lvm line, P2 only, not on this branch).
 
 * `lpRestrict`: a local path with its `Pre` narrowed to a `Pre'` that implies it and is closed under
   user-word writes (every obligation of `E2E.LocalPath` is stated under `Pre`, except `ko_aligned`).
@@ -22,7 +28,11 @@ of it is `locKeepSt_st` (no premise).
   ghosts) with: `R` at the exit; `R` closed under the accepted trap arm, the ReplyRecv fast path, the
   I/O port entry, the `TCB_SetTimer` entry and the timer interrupt (each under its U29 clause's inputs, a
   subset; the interrupt's are `IrqHw` [P] and `KFinEv13`); and `SlJAt (layoutJ Z H (L.ksb s0) nc)` at every
-  `R` state (clause 7). `StartAt` at an `R` state for each path: its `…_startAt` (`sl_pathsK_startAt_stab'`,
+  `R` state (clause 7); clause 8 (gen 8): `R` closed under the accepted frame-cap invocation (U29V's
+  inputs that the route reads, fl4-sync's plan; gen 8's temporary run restriction "label not `CNodeDelete`"
+  was removed in gen 9); clause 9 (gen 9): `R` closed under the accepted VM fault (U29Vm's VM-fault clause
+  inputs: `VmfHw` [P], `KFinEv13`); clause 10 (gen 9): `R` closed under the accepted VM ReplyRecv (U29Vm's
+  ReplyRecv clause inputs that the route reads: the trap flag, `KFinAtR13`, fl4-sync's `found`). `StartAt` at an `R` state for each path: its `…_startAt` (`sl_pathsK_startAt_stab'`,
   `io_pathsK_startAt`, `tm_pathsK_startAt`) with clause 7 for `SlJAt K σ` and the path's `Q K m σ` plus the
   glue's core / locks / memory link. No `LocKeepSt` / `LocRunMv` premise.
 * `IrqPreK`, **`irqPreK_of_chain`** (gen 7): the timer interrupt path's `Pre` (par/p2lt2's `IrqPreJ3`, body
@@ -40,6 +50,9 @@ AccessIoLP's `io_localPath` since hpzf; [W] `NoZero`, [W] declining `ReadOnce`) 
 -/
 import Fl4Proofs.P2.SlJStTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P2.SlJStPostInv
+import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P2.SlJStPostRRVm
 import Fl4Proofs.P2.AccessIoLP
 import Fl4Proofs.P2.FootTimerSetMv
 import Fl4Proofs.P2.FootTimerIrqJ3
@@ -314,7 +327,8 @@ variable (AR : A → Fl4Spec.Cr3 → Prop)
 /-- (stpost) **The accepted local runs proved stable** (module docstring). -/
 def LocAll (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop :=
   LocSys (st := st) arI s a σ s' a' σ' ∨ LocIo (st := st) arI s a σ s' a' σ' ∨ LocTm (st := st) arI s a σ s' a' σ' ∨
-    LocIrq (st := st) arI s a σ s' a' σ'
+    LocIrq (st := st) arI s a σ s' a' σ' ∨ LocInv (st := st) arI s a σ s' a' σ' ∨
+    LocVmf (st := st) arI s a σ s' a' σ' ∨ LocRrVm (st := st) arI s a σ s' a' σ'
 
 /-- (stpost) **The chain's step relation** (module docstring). -/
 abbrev LocAllSt (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Heap) (Cs : Set U64) :
@@ -416,7 +430,48 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
       -- 7. the layout bundle at every chain state
       (∀ (σ : S) (a3' : A3) (τ : Fl4Spec.State Unit),
         JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) σ a3' τ →
-        SlJAt (L := L) (layoutJ Z H (L.ksb s0) nc) σ) := by
+        SlJAt (L := L) (layoutJ Z H (L.ksb s0) nc) σ) ∧
+      -- 8. the frame-cap invocation (gen 8; every local label: Copy / Mint / Map, and Delete since gen 9)
+      (∀ (s : S) (a : A3) (σ : Fl4Spec.State Unit),
+        JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) s a σ →
+        ∀ (n : I64) (c : Fl4Spec.Syscall) (p : localinv.Plan), σ.curThread ≠ σ.idleThread → NativeSys n c →
+          (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+            ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
+          (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
+            (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A3),
+              KFrontF (L := L) arI n s a s' a' →
+              JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+              KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
+          localinv.plan st s n = ok (some p) →
+          ∀ s' a', syscall.handle_invocation_local st arI s a n p = ok (true, s', a') →
+            ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
+              JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
+                s' a' σ') ∧
+      -- 9. the VM fault (gen 9)
+      (∀ (s : S) (a : A3) (σ : Fl4Spec.State Unit),
+        JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) s a σ →
+        ∀ (ad c : U64) (ft : Fl4Spec.VMFaultType), σ.curThread ≠ σ.idleThread → VmfHw ad c ft σ →
+          KFinEv13 (L := L) arI AR (.vmFaultEvent ft) (KFrontF2 (st := st) arI (brV (st := st) arI ad c) s a) σ →
+          ∀ s' a', syscall.handle_vm_fault_local st arI s a ad c = ok (true, s', a') →
+            ∃ σ', EvOut false (.vmFaultEvent ft) σ σ' ∧
+              JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
+                s' a' σ') ∧
+      -- 10. the VM ReplyRecv (gen 9)
+      (∀ (s : S) (a : A3) (σ : Fl4Spec.State Unit),
+        JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0) s a σ →
+        ∀ (found : U64 × U64), σ.curThread ≠ σ.idleThread →
+          (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+            ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
+          (∀ x ∈ (specFront .sysReplyRecv σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
+            (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A3),
+              KFrontF (L := L) arI fl4_abi.syscall.SysReplyRecv s a s' a' →
+              JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+              KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
+          (∀ t, sched.cur_thread st s = ok t → fastpath.reply_caps st s t = ok (some found)) →
+          ∀ s' a', syscall.handle_reply_recv_vm_local st arI s a found = ok (true, s', a') →
+            ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true .sysReplyRecv σ).1 ∧
+              JReachSt (L := L) arI AR MR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx (L.ksb s0)
+                s' a' σ') := by
   obtain ⟨Z, H, Cx, Ac0, Lst0, D0, J, -, -, -, -, -, -, -, hvx⟩ := jreach_invU3 hnd h0.1
   obtain ⟨nc, hnc, hK, hU, hMaps⟩ := SerExit.ser_of_JAtZN J
   have hKS : LocKeepSt (L := L) arI AR (LocAllSt (L := L) arI AR Z.th Z.B H Cx) Z.th Z.B H Cx :=
@@ -431,9 +486,18 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inl h1)), h2⟩
   have hsubQ : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocIrq (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
       LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
-    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr h1)), h2⟩
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inl h1))), h2⟩
+  have hsubV : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocInv (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
+      LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h1)))), h2⟩
+  have hsubF : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocVmf (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
+      LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h1))))), h2⟩
+  have hsubR : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocRrVm (st := st) arI) Z.th Z.B H Cx s a σ s' a' σ' →
+      LocAllSt (L := L) arI AR Z.th Z.B H Cx s a σ s' a' σ' :=
+    fun _ _ _ _ _ _ ⟨h1, h2⟩ => ⟨Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h1))))), h2⟩
   have hNS : NativeSys fl4_abi.syscall.SysReplyRecv .sysReplyRecv := Or.inr (Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩)))
-  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨Z, H, Cx, nc, hnc, hK, hU, hMaps, .exit h0 ⟨Z, Ac0, Lst0, D0, rfl, rfl, rfl, J, hvx⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro s a σ hJ n' found' hct hUn hND hFin s' a' hrun
     exact jreachSt_sysUStK hARI hA3 hnd hM hKD hPA hT hmax htu hRef hSX hDR hKS hsubS hJ n' found' hct hUn hND
       hFin hrun
@@ -450,6 +514,13 @@ theorem loc_chain_all [Fl4Proofs.P1.PlainStore st] {A3 : Type} {arI : machine.Ar
     exact jreachSt_irqSt hARI hA3 hnd hM hKD hPA hIA hT hmax htu hRef hDR hKS hsubQ hJ w a1 p hI hFin hrun
   · intro σ a3' τ hR
     exact slJAt_layoutJ_of_jreachSt' hnd hnc hKS hR
+  · intro s a σ hJ n c p hct hn hflag hFin hp s' a' hrun
+    exact jreachSt_invSt hARI hA3 hnd hM hKD hPA hT hmax htu hRef hDR hKS hsubV hJ n c p hct hn hflag hFin hp hrun
+  · intro s a σ hJ ad c ft hct hV hFin s' a' hrun
+    exact jreachSt_vmfSt hARI hA3 hnd hM hKD hPA hT hmax htu hRef hSX hDR hKS hsubF hJ ad c ft hct hV hFin hrun
+  · intro s a σ hJ found hct hflag hFin hfd s' a' hrun
+    exact jreachSt_rrVmSt hARI hA3 hnd hM hKD hPA hT hmax htu hRef hSX hDR hKS hsubR hJ found hct hNS hflag hFin
+      hfd hrun
 
 end
 

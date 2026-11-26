@@ -1846,6 +1846,16 @@ import Fl4Proofs.P3.StPostIrqLeaf
 import Fl4Proofs.P3.StPostIrqEv
 import Fl4Proofs.P3.StPostIrqTop
 import Fl4Proofs.P2.SlJStPostIrq
+import Fl4Proofs.P3.StPostInvAcc
+import Fl4Proofs.P3.StPostInvLeaf
+import Fl4Proofs.P3.StPostDelLeaf
+import Fl4Proofs.P3.StPostInvInv
+import Fl4Proofs.P3.StPostInvTop
+import Fl4Proofs.P2.SlJStPostInv
+import Fl4Proofs.P3.StPostVmTop
+import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P3.StPostRRVm
+import Fl4Proofs.P2.SlJStPostRRVm
 import Fl4Proofs.P2.SlJStLocTop
 import Fl4Proofs.P2.E2EVUserIo
 import Fl4Proofs.P2.E2EVHeap
