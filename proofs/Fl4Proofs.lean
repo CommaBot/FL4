@@ -2274,3 +2274,5 @@ import Fl4Proofs.P3.VirtAwaken
 import Fl4Proofs.P3.VirtNvTcb
 import Fl4Proofs.P3.VirtR7e
 import Fl4Proofs.P3.VirtR7eK
+import Fl4Proofs.P3.VirtNvcW
+import Fl4Proofs.P3.VirtR7eK2
