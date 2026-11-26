@@ -1,6 +1,8 @@
 import Fl4Proofs.P3.VirtReplyKeep
 import Fl4Proofs.P3.VirtMsrE2E
 import Fl4Proofs.P3.VirtRetypeLoop
+import Fl4Proofs.P3.VirtVmcbDec
+import Fl4Proofs.P3.VirtVmcbTail
 #print axioms Fl4Proofs.P3.VirtReplyKeep.ReplyKeepsVN
 #print axioms Fl4Proofs.P3.VirtReplyKeep.wrmsrTail_genAg
 #print axioms Fl4Proofs.P3.VirtReplyKeep.wrmsrTail_vmxN
@@ -71,3 +73,13 @@ import Fl4Proofs.P3.VirtRetypeLoop
 #print axioms Fl4Proofs.P3.VirtRetypeLoop.object_size_vcpu
 #print axioms Fl4Proofs.P3.VirtRetypeLoop.create_new_objects_vcpu
 #print axioms Fl4Proofs.P3.VirtRetypeLoop.create_new_objects_vcpu_rel
+#print axioms Fl4Proofs.P3.VirtVmcbDec.wrvmcbTail
+#print axioms Fl4Proofs.P3.VirtVmcbDec.decode_wrvmcb_eq
+#print axioms Fl4Proofs.P3.VirtVmcbTail.oldF
+#print axioms Fl4Proofs.P3.VirtVmcbTail.old_eq
+#print axioms Fl4Proofs.P3.VirtVmcbTail.VmcbPost
+#print axioms Fl4Proofs.P3.VirtVmcbTail.writable_of_ok
+#print axioms Fl4Proofs.P3.VirtVmcbTail.RAX_eq
+#print axioms Fl4Proofs.P3.VirtVmcbTail.regs_bv
+#print axioms Fl4Proofs.P3.VirtVmcbTail.svmcpu_nat
+#print axioms Fl4Proofs.P3.VirtVmcbTail.wrvmcbTail_svm
