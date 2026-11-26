@@ -2174,3 +2174,9 @@ import Fl4Proofs.P3.JBootSpec
 import Fl4Proofs.P3.JBootSt
 import Fl4Proofs.P2.CoreView
 import Fl4Proofs.P2.E2EPU1P
+import Fl4Proofs.P2.E2EPVX8
+import Fl4Proofs.P2.E2EPVX9
+import Fl4Proofs.P2.E2EPVX9D
+import Fl4Proofs.P2.E2EPVX10A
+import Fl4Proofs.P2.E2EPVX10
+import Fl4Proofs.P2.E2EPVX11
