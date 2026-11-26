@@ -2185,3 +2185,5 @@ import Fl4Proofs.P2.MmuADEnt
 import Fl4Proofs.P2.MmuADDel
 import Fl4Proofs.P2.MmuADDelP
 import Fl4Proofs.P2.E2EPU3f
+import Fl4Proofs.P2.E2EPU6
+import Fl4Proofs.P2.E2EPU7
