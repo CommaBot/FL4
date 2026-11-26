@@ -1912,6 +1912,7 @@ import Fl4Proofs.P2.E2EVFl4Q
 import Fl4Proofs.P2.E2EVFl4
 import Fl4Proofs.P2.E2EVFl4W
 import Fl4Proofs.P2.E2EVFl4W2
+import Fl4Proofs.P2.E2EVFl4W3
 import Fl4Proofs.P2.ProgGenWire
 import Fl4Proofs.P2.OnceWalk
 import Fl4Proofs.P2.IoOnceA
