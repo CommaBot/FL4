@@ -111,7 +111,12 @@ theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.stLay (B : SlJAtZ (L := L) arI AR Zx 
     exact ⟨ha, B.ksNone _ ha (by rw [hkv o ho, ← hk]; omega) (by rw [hkv o ho, ← hk]; omega)⟩
   have d1 := ks' layout.ks.CUR_DOMAIN (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN])
   have d2 := ks' layout.ks.DOMAIN_TIME (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME])
-  refine ⟨fun o ho => ?_, fun t ht k h1 h2 => ?_, fun p hp b hb => ?_, d1.2, d2.2, d1.1, d2.1⟩
+  have hX := B.regionOKX
+  have kv : ∀ o : U64, o.val < 256 → core.num.U64.wrapping_add (L.ksb s) o ∉ K.user := fun o ho hu => by
+    have := hkv o ho
+    rcases B.ksU hu with e | e <;> omega
+  refine ⟨fun o ho => ?_, fun t ht k h1 h2 => ?_, fun p hp b hb => ?_, d1.2, d2.2, d1.1, d2.1,
+    fun b hb => ?_, kv _ (by simp [layout.ks.CUR_DOMAIN]), kv _ (by simp [layout.ks.DOMAIN_TIME])⟩
   · have hv := B.j.nodeAt_cur_val ho
     exact slj_region_node ⟨B.cpu, by rw [hv, ← hk]; omega, by rw [hv, ← hk]; omega⟩
   · have ht' : K.heap t = some .tcb := ht
@@ -123,6 +128,8 @@ theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.stLay (B : SlJAtZ (L := L) arI AR Zx 
     have e : Heap.scBits K.heap p = z := by simp only [Heap.scBits, hz]
     rw [e] at hb
     exact hP.region_sc hz hb
+  · by_contra hr
+    exact hX.kern b hr hb
 
 /-- **`IrqEntI` from the bundle** at P1's set convention (module docstring): `Ω = OmegaU`, `Ac` = `JAtZ`'s. -/
 theorem _root_.Fl4Proofs.P2.PathObl.SlJAtZ.irqEntI (B : SlJAtZ (L := L) arI AR Zx Cx Ax Lst D K s a' σ)
@@ -227,7 +234,7 @@ theorem irq_pathSide_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.User
     (hPL : PlanLk lk pl) :
     PathObl.PathSide st (fun mm s a => localtimer.handle_timer_irq_local mm ar s a irq pl) (OwnMap.cls K)
       (OwnMap.ko K m) (· ∈ K.user) lk (IrqPreJ3 K st m) (MaxR K st lk) (MaxW K st lk) (IrqDec st) := by
-  refine ⟨?_, fun s x _ hx => hx.2, Fl4Proofs.P2.ko_aligned hK hUO, ?_⟩
+  refine ⟨?_, fun s x _ hx => hx.2.1, Fl4Proofs.P2.ko_aligned hK hUO, ?_⟩
   · intro s s' a r hP hAlt h
     obtain ⟨Ω, Ac, hE⟩ := hP.entM (irq := irq)
     have O := irq_pathObl_J3 ar hA hK hUO hp hz hm hPL hP
@@ -238,7 +245,7 @@ theorem irq_pathSide_J3 (hA : P0.ArchTotal ar) (hK : RegionOK K) (hUO : E2E.User
       (fun s1 a1 _ h1 => O.acc s a (true, s1, a1) rfl h1 rfl) hAlt h with ⟨_, _, -, -, h2⟩ | ⟨_, _, -, -, h2⟩
     · show localtimer.handle_timer_irq_local _ ar s' a irq pl = ok r
       rw [eP] at h2 ⊢
-      exact interp_mono (fun _ hw => hw.2) (fun _ _ => trivial) p hz s' a r h2
+      exact interp_mono (fun _ hw => hw.2.1) (fun _ _ => trivial) p hz s' a r h2
     · show localtimer.handle_timer_irq_local _ ar s' a irq pl = ok r
       rw [eP] at h2 ⊢
       exact interp_mono (fun _ hw => hw) (fun _ _ => trivial) p hz s' a r h2

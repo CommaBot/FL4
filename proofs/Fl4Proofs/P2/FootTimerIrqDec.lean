@@ -109,17 +109,17 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
   set R : U64 → Prop := MaxR K st lk s with eR
   set W : U64 → Prop := IrqDec st s with eW
   have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) := fun o h1 h2 =>
-    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2⟩
+    ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2, hL.nu_node h1⟩
   have gateR : ∀ {x : U64} {k : U64}, x ∈ T → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → GateField k.val →
       R (core.num.U64.wrapping_add x k) := fun hx h1 h2 h8 hg =>
     ⟨Or.inr (by
       have e := hL.own_tcb hT (L.mem s) hx h1 h2
       unfold fld at e
-      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8⟩
+      unfold GateOnly; rw [e, tcbOwner, if_pos hg]), field_aligned (hT _ hx) h2 h8, hL.nu_tcb hx h1 h2⟩
   have homeR : ∀ k : U64, 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → (k.val < 3528 ∨ 3576 ≤ k.val) →
       k.val ≠ 3496 → k.val ≠ 3504 → L.mem s (affA (L.curW s)) = L.cpu s →
       R (core.num.U64.wrapping_add (L.curW s) k) := fun k h1 h2 h3 h4 h5 h6 ha => by
-    refine ⟨?_, field_aligned ht' h2 h3⟩
+    refine ⟨?_, field_aligned ht' h2 h3, hL.nu_tcb hcT h1 h2⟩
     have e := hL.own_tcb hT (L.mem s) hcT h1 h2
     unfold fld at e
     unfold RPerm GateOnly
@@ -140,14 +140,14 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
     have e : own K (L.mem s) (scCoreA q) = .gate := by
       simp only [own, hL.sc q hq _ hin]
       rw [if_pos (by unfold scCoreA; rw [hv, hcv])]
-    exact ⟨Or.inr e, by unfold Aligned scCoreA; rw [hv, hcv]; omega⟩
-  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := ⟨rperm_none hL.dom _, hL.domA⟩
-  have rD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME) := ⟨rperm_none hL.dtm _, hL.dtmA⟩
+    exact ⟨Or.inr e, by unfold Aligned scCoreA; rw [hv, hcv]; omega, hL.nu_sc hq hin⟩
+  have rD1 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) := ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩
+  have rD2 : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME) := ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩
   have rAff : R (affA (L.curW s)) := gateR hcT (by simp) (by simp) (by simp) (Or.inl (by simp))
   -- the earliest armed thread (no `current_ok` needed)
   have tR : ∀ w, L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 → Aligned w →
       TmWords st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) w → R w :=
-    fun w hne ha hw => ⟨tmw_own hK hI hL hY hne hw, ha⟩
+    fun w hne ha hw => ⟨tmw_own hK hI hL hY hne hw, ha, tmw_nu hI hL hY hne hw⟩
   have tmF : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64 →
       L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ∈ T ∧
       (∀ K : U64, (K.val = 3520 ∨ K.val = 3528 ∨ K.val = 3568 ∨ K.val = 3368) →
@@ -213,7 +213,7 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
     simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits,
       UScalar.size]
     try omega
-  rw [interrupt.irq_state.guard (gS := guard st R W) s irq hi ⟨rperm_none (hY.iq (by omega) i hi).2 _, (hY.iq (by omega) i hi).1⟩]
+  rw [interrupt.irq_state.guard (gS := guard st R W) s irq hi ⟨rperm_none (hY.iq (by omega) i hi).2 _, (hY.iq (by omega) i hi).1, hY.iqU (by omega) i hi⟩]
   refine tr_bind_same (fun i1 _ => ?_)
   refine tr_ite (fun _ h => h) (fun _ => ?_)
   rw [gtip]
@@ -244,7 +244,7 @@ theorem irq_dec_guard (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' 
   obtain ⟨hmr, hsct, hcore⟩ := current_ok_true eb1
   obtain ⟨-, haff, -, -⟩ := may_run_here_true hmr
   have hok : IrqOk st s := ⟨haff, hsct, hcore⟩
-  have gRd : ∀ w, Aligned w → IrqRd st Z s w → R w := fun w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩
+  have gRd : ∀ w, Aligned w → IrqRd st Z s w → R w := fun w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha, irq_rd_nu hI hL hY hw⟩
   have cR : ∀ K : U64, 256 ≤ K.val → K.val < 4096 → K.val % 8 = 0 → (K.val < 3528 ∨ 3576 ≤ K.val) →
       K.val ≠ 3496 → K.val ≠ 3504 → R (core.num.U64.wrapping_add (L.curW s) K) := fun K h1 h2 h3 h4 h5 h6 =>
     gRd _ (field_aligned ht' h2 h3) (Or.inr (Or.inl ⟨K, h1, h2, h3, h4, h5, h6, rfl⟩))

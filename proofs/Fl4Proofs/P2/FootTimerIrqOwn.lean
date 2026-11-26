@@ -46,6 +46,12 @@ structure IrqLay (K : KLayout) (st : machine.Store S) [L : LawfulStore st] (Nt :
   ntw : ∀ n ∈ Nt, ∀ k : U64, k.val < 64 → region K (core.num.U64.wrapping_add n k) = .ntfn n
   cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p, region K (core.num.U64.wrapping_add (L.curW s) k) = .slot p ∧
     TcbSlot K p ∧ (core.num.U64.wrapping_add (L.curW s) k).val - p.val < 16
+  /-- The IRQ state words, the kernel root word, the ASID table and pool words (region `.none`) are no user
+  words. -/
+  iqU : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i → core.num.U64.wrapping_add (L.ksb s) i ∉ K.user
+  krU : krA (L := L) s ∉ K.user
+  tabU : ∀ hi : U64, hi.val < 2048 → atAF (L.ksb s) hi ∉ K.user ∧
+    ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 → peAF (L.mem s (atAF (L.ksb s) hi)) lo ∉ K.user
 
 theorem rperm_none {lk : U64 → Prop} {m : U64 → U64} {x : U64} (h : region K x = .none) (c : U64) :
     RPerm (own K) c lk m x :=
@@ -184,6 +190,40 @@ theorem irq_rd_own (hK : RegionOK K) {irq : U64} {s : S} (hI : BXI st T Cs Ω H 
     simp only [own, hr, slotOwner]
     rw [if_neg (by omega), if_pos hts]
 
+/-- **No word of `TmWords` is a user word** (the case split of `tmw_own`). -/
+theorem tmw_nu {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s) {w : U64}
+    (hne : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) ≠ 0#u64)
+    (hw : TmWords st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN)) w) : w ∉ K.user := by
+  have h0 := hI.1.choose_spec.choose_spec
+  obtain ⟨q1, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne
+  rcases hw with ⟨k, hk, rfl⟩ | ⟨-, ⟨k, hk, rfl⟩ | ⟨hb, rfl | rfl⟩⟩
+  · exact hL.nu_tcb q1 (by omega) (by omega)
+  · exact hL.nu_tcb q1 (by omega) (by omega)
+  all_goals
+    have hNt := hI.2.2.1.2.2.bnd _ q1 hb
+  · exact hL.nu (by rw [hY.ntw _ hNt layout.ntfn.TAIL_STATE (by simp [layout.ntfn.TAIL_STATE])]; intro e; cases e)
+  · exact hL.nu (by rw [hY.ntw _ hNt layout.ntfn.BOUND_TCB (by simp [layout.ntfn.BOUND_TCB])]; intro e; cases e)
+
+/-- **No word of `IrqRd` is a user word** (the case split of `irq_rd_own`). -/
+theorem irq_rd_nu {irq : U64} {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hL : StLay K st T Scs Z s) (hY : IrqLay K st Nt irq s) {w : U64} (h : IrqRd st Z s w) : w ∉ K.user := by
+  have h0 := hI.1.choose_spec.choose_spec
+  have hcT : L.curW s ∈ T := h0.curT
+  have hcs : L.cscW s ∈ Scs := hI.2.2.1.2.2.cur
+  rcases h with ⟨o, ho, -, rfl⟩ | ⟨k, h1, h2, -, h4, h5, h6, rfl⟩ | h | ⟨hne, rfl | h⟩ | ⟨hne, hw⟩ |
+      ⟨k, hk, hk32, -, rfl⟩
+  · exact hL.nu_node ho
+  · exact hL.nu_tcb hcT h1 h2
+  · exact hL.nu_sc hcs h
+  · obtain ⟨r1, -, -, -, -⟩ := rel_facts hI hne
+    exact hL.nu_tcb r1 (by simp) (by simp)
+  · obtain ⟨r1, r2, r3, r4, -⟩ := rel_facts hI hne
+    exact hL.nu_sc r4 h
+  · exact tmw_nu hI hL hY hne hw
+  · obtain ⟨p, hr, -, -⟩ := hY.cs k hk hk32
+    exact hL.nu (by rw [hr]; intro e; cases e)
+
 /-- **Every word of `IrqWr` is this core's** at an accepted run's entry. -/
 theorem irq_wr_own {s : S} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hL : StLay K st T Scs Z s)
     (hok : IrqOk st s) {lk : U64 → Prop} {w : U64} (h : IrqWr st Z s w) :
@@ -240,16 +280,17 @@ theorem irq_acc_own (hA : P0.ArchTotal ar) (hK : RegionOK K) {s s' : S} {a a' : 
   have wS : IrqWr st Z s (stA (L.curW s)) := Or.inr (Or.inl ⟨3328#u64, by simp, by simp, by simp, stA_eq _⟩)
   exact irq_accG (gS := guard st (MaxR K st lk s) (MaxW K st lk s)) (R := MaxR K st lk s) (W := MaxW K st lk s)
     ar hA hI
-    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha⟩)
+    (fun hok w ha hw => ⟨irq_rd_own hK hI hL hY hAff hok hw, ha, irq_rd_nu hI hL hY hw⟩)
     (fun hok w ha hw _ => ⟨irq_wr_own hI hL hok hw, ha⟩)
-    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1⟩)
-    (fun _ => ⟨rperm_none hL.dom _, hL.domA⟩)
-    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA⟩)
+    (fun _ i hi => ⟨rperm_none (hY.iq hb i hi).2 _, (hY.iq hb i hi).1, hY.iqU hb i hi⟩)
+    (fun _ => ⟨rperm_none hL.dom _, hL.domA, hL.domU⟩)
+    (fun _ => ⟨rperm_none hL.dtm _, hL.dtmA, hL.dtmU⟩)
     (fun hok X _ _ => PathObl.GWr.write (g := guard st (MaxR K st lk s) (MaxW K st lk s))
       ⟨irq_wr_own hI hL hok wS, aS⟩ X _)
-    (fun _ => ⟨rperm_none hY.kr.2 _, hY.kr.1⟩)
-    (fun _ hi hhi => ⟨⟨rperm_none (hY.tab hi hhi).1.2 _, (hY.tab hi hhi).1.1⟩,
-      fun lo hlo hne => ⟨rperm_none ((hY.tab hi hhi).2 lo hlo hne).2 _, ((hY.tab hi hhi).2 lo hlo hne).1⟩⟩)
+    (fun _ => ⟨rperm_none hY.kr.2 _, hY.kr.1, hY.krU⟩)
+    (fun _ hi hhi => ⟨⟨rperm_none (hY.tab hi hhi).1.2 _, (hY.tab hi hhi).1.1, (hY.tabU hi hhi).1⟩,
+      fun lo hlo hne => ⟨rperm_none ((hY.tab hi hhi).2 lo hlo hne).2 _, ((hY.tab hi hhi).2 lo hlo hne).1,
+        (hY.tabU hi hhi).2 lo hlo hne⟩⟩)
     hE.asid hF h
 
 end
