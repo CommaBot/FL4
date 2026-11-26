@@ -103,6 +103,7 @@ import Fl4ProofsA64.P1.QueueEntryGaps
 import Fl4ProofsA64.P1.QueueReplyX
 import Fl4ProofsA64.P1.QueueDecDel
 import Fl4ProofsA64.P1.QueueScBindVm
+import Fl4ProofsA64.P1.QueueIpcFoot
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -121,8 +122,8 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.endpoint.send_ipc.ipcA
 #print axioms Fl4ProofsA64.P1.InvGaps2F.gaps
 #print axioms Fl4ProofsA64.P1.migrate_tail_f
-#print axioms Fl4ProofsA64.P1.faults.handle_fault.bxiA
-#print axioms Fl4ProofsA64.P1.syscall.dispatch_syscall.bxiA
+#print axioms Fl4ProofsA64.P1.tmoXG_holds
+#print axioms Fl4ProofsA64.P1.ipc.do_reply_transfer.foot
 #print axioms Fl4ProofsA64.P1.EntryHypsA.of
 #print axioms Fl4ProofsA64.P1.EntryHypsA.of_gaps
 #print axioms Fl4ProofsA64.P1.xferFootOK_ofA
