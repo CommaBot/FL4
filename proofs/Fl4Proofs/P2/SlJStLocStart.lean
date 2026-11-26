@@ -283,4 +283,143 @@ theorem tm_pathsKU_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (n : I64
 
 end tm
 
+
+/-! ## 3. A concrete `Q` for the I/O port and `TCB_SetTimer` paths (stpost gen 11) -/
+
+section q
+variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
+variable {Cs Ω Sg Ac : Set U64}
+variable {A : Type}
+
+/-- (stpost gen 11) **A heap TCB's word is kept by a user-word write** at a bundle state (`LayP.mem_wrT`
+with the TCB's address from the bundle's `TInv`). -/
+theorem SlJAt.tcbW_wr {K : KLayout} {s : S} (h : SlJAt (L := L) K s) {b : U64} (hb : b ∈ K.user)
+    (hba : Aligned b) (v : U64) {t : U64} (ht : K.heap t = some .tcb) {o : U64} (ho : o.val < 4096)
+    (ho8 : o.val % 8 = 0) : L.mem (L.wr s b v) (fld t o) = L.mem s (fld t o) := by
+  obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := h
+  have hA : TcbAddr t := TInv.tcbs B.j.blk _ ht
+  have hv := tcb_wadd_val hA ho
+  exact B.layP.mem_wrT hb hba v ht (field_aligned hA ho ho8) (by unfold fld; rw [hv]; omega)
+    (by unfold fld; rw [hv]; omega)
+
+variable (st) in
+/-- (stpost gen 11) **The canonical `Q` of the I/O port path** (slhuf's `SlQ` route): the path's entry facts
+`IoPre` at the layout's typed heap, and the affinity words of the memory parameter `m` (`hmA`'s content). -/
+def IoQ (Cs Ω Sg Ac : Set U64) (K : KLayout) (m : U64 → U64) (s : S) : Prop :=
+  IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s ∧
+    ∀ d, K.heap d = some .tcb → m (fld d oAFFINITY) = L.mem s (fld d oAFFINITY)
+
+/-- (stpost gen 11) **`hQ` for `IoQ`** from `hIw` [J] (`IoPre` survives a user-word write at a bundle state);
+the affinity part by `SlJAt.tcbW_wr`. -/
+theorem ioQ_wr
+    (hIw : ∀ K s b v, SlJAt (L := L) K s →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s →
+      b ∈ K.user → Aligned b →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac (L.wr s b v)) :
+    ∀ K m s b v, SlJAt (L := L) K s → IoQ st Cs Ω Sg Ac K m s → b ∈ K.user → Aligned b →
+      IoQ st Cs Ω Sg Ac K m (L.wr s b v) :=
+  fun K m s b v hJ q hb hba =>
+    ⟨hIw K s b v hJ q.1 hb hba, fun d hd => by
+      rw [hJ.tcbW_wr hb hba v hd (o := oAFFINITY) (by simp [oAFFINITY]) (by simp [oAFFINITY])]
+      exact q.2 d hd⟩
+
+/-- (stpost gen 11) **The I/O port local path at the canonical `Q`** (`io_pathsKU` at `Q := IoQ`): `hPE`, `hmA`
+are projections, `hQ` is `ioQ_wr hIw`. Premises: `hA`, `hm` [P], `hIw` [J], `hlk` [P], `hpz`. -/
+noncomputable def io_pathsKQ (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) {Locks : S → U64 → Prop}
+    (hm : Fl4Proofs.P2.E2E.MasksWr st)
+    (hIw : ∀ K s b v, SlJAt (L := L) K s →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s →
+      b ∈ K.user → Aligned b →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac (L.wr s b v))
+    (hlk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s)
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
+      ∀ s s' a r, (SlJAt (L := L) K s ∧ IoQ st Cs Ω Sg Ac K m s) →
+        (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
+        Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) s s' →
+        interp st ar p s' a = ok r →
+        Fl4Proofs.P2.E2E.Once st ar (IoRS (st := st) K Locks s) (· ∈ K.user) ∅ ∅ p s' a) :
+    Fl4Proofs.P2.E2E.Paths Unit :=
+  io_pathsKU (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number hm (IoQ st Cs Ω Sg Ac)
+    (fun _ _ _ _ q => q.1) (fun _ _ _ _ q => q.2) (ioQ_wr hIw) hlk hpz
+
+/-- (stpost gen 11) **`StartAt` for `io_pathsKQ`** at a layout `K` from `SlJAt K σ` (clause 7 at a chain state),
+`IoPre … σ` and the affinity words of `m`. -/
+theorem io_pathsKQ_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) {Locks : S → U64 → Prop}
+    (hm : Fl4Proofs.P2.E2E.MasksWr st)
+    (hIw : ∀ K s b v, SlJAt (L := L) K s →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s →
+      b ∈ K.user → Aligned b →
+      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac (L.wr s b v))
+    (hlk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s)
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (ioBodyP S number) p ∧ NoZero p ∧
+      ∀ s s' a r, (SlJAt (L := L) K s ∧ IoQ st Cs Ω Sg Ac K m s) →
+        (¬ ∃ s1 a1, syscall.handle_ioport_local st ar s a number = ok (true, s1, a1)) →
+        Alt st (IoRS (st := st) K Locks s) (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user) s s' →
+        interp st ar p s' a = ok r →
+        Fl4Proofs.P2.E2E.Once st ar (IoRS (st := st) K Locks s) (· ∈ K.user) ∅ ∅ p s' a)
+    (K : KLayout) (m : U64 → U64) (hK : RegionOK K) (hU : Fl4Proofs.P2.E2E.UserOK K)
+    {σ : S} (a : A) (hJ : SlJAt (L := L) K σ)
+    (hP : IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac σ)
+    (hmA : ∀ d, K.heap d = some .tcb → m (fld d oAFFINITY) = L.mem σ (fld d oAFFINITY))
+    {c : U64} {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : Locks σ = hs) {μ : U64 → U64}
+    (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
+    Fl4Proofs.P2.E2E.StartAt (io_pathsKQ ar hA number hm hIw hlk hpz () K m hK hU) c hs μ
+      ((io_pathsKQ ar hA number hm hIw hlk hpz () K m hK hU).body σ a) :=
+  ⟨σ, a, ⟨hJ, hP, hmA⟩, hc, hl, hμ, rfl⟩
+
+/-- (stpost gen 11) **`hQ` for `TCB_SetTimer` at `Q := StEntKK`** from the path's own `hEU` (the `StEnt` part);
+the memory part `StEntK.mem` reads non-user words only. No new premise. -/
+theorem tmQ_wr {target : U64}
+    (hEU : ∀ K s b v, Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target s → b ∈ K.user → Aligned b →
+      Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target (L.wr s b v)) :
+    ∀ K m s b v, SlJAt (L := L) K s → StEntKK K st Cs Ω Sg Ac target m s → b ∈ K.user → Aligned b →
+      StEntKK K st Cs Ω Sg Ac target m (L.wr s b v) :=
+  fun K _ s b v _ q hb hba =>
+    ⟨hEU K s b v q.ent hb hba, fun x hx hxu => by
+      rw [mem_wr_ne' hba hx (fun e => hxu (e ▸ hb))]; exact q.mem x hx hxu⟩
+
+/-- (stpost gen 11) **The `TCB_SetTimer` local path at the canonical `Q := StEntKK`** (`tm_pathsKU` with
+`hPE := id`, `hQ := tmQ_wr hEU`): no `Q` premise left. Premises: `hA`, `hm` [P], `hpz`, `hEU`, `hlk`, `hNU`
+(as `tm_pathsK`). -/
+noncomputable def tm_pathsKQ (ar : machine.Arch A) (hA : P0.ArchTotal ar) (n : I64) (target : U64)
+    {lk : S → U64 → Prop} (hm : Fl4Proofs.P2.E2E.MasksWr st)
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (Fl4Proofs.P2.stBody S n target) p ∧ NoZero p ∧
+      Fl4Proofs.P2.E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
+        (StEntKK K st Cs Ω Sg Ac target m) (Fl4Proofs.P2.MaxR K st lk))
+    (hEU : ∀ K s b v, Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target s → b ∈ K.user → Aligned b →
+      Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target (L.wr s b v))
+    (hlk : ∀ (K : KLayout) s b v, b ∈ K.user → lk (L.wr s b v) = lk s)
+    (hNU : ∀ K s, Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target s → ∀ o : U64, o.val < 4288 → L.nodeAt s (L.cpu s) o ∉ K.user) :
+    Fl4Proofs.P2.E2E.Paths Unit :=
+  tm_pathsKU (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (lk := lk) ar hA n target hm
+    (fun K m s => StEntKK K st Cs Ω Sg Ac target m s) (fun _ _ _ _ q => q) hpz hEU hlk hNU (tmQ_wr hEU)
+
+/-- (stpost gen 11) **`StartAt` for `tm_pathsKQ`** at a layout `K` from `SlJAt K σ ∧ StEntKK … m σ`. -/
+theorem tm_pathsKQ_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (n : I64) (target : U64)
+    {lk : S → U64 → Prop} (hm : Fl4Proofs.P2.E2E.MasksWr st)
+    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (Fl4Proofs.P2.stBody S n target) p ∧ NoZero p ∧
+      Fl4Proofs.P2.E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
+        (StEntKK K st Cs Ω Sg Ac target m) (Fl4Proofs.P2.MaxR K st lk))
+    (hEU : ∀ K s b v, Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target s → b ∈ K.user → Aligned b →
+      Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target (L.wr s b v))
+    (hlk : ∀ (K : KLayout) s b v, b ∈ K.user → lk (L.wr s b v) = lk s)
+    (hNU : ∀ K s, Fl4Proofs.P2.StEnt K st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns
+        K.heap.scBits Ac target s → ∀ o : U64, o.val < 4288 → L.nodeAt s (L.cpu s) o ∉ K.user)
+    (K : KLayout) (m : U64 → U64) (hK : RegionOK K) (hU : Fl4Proofs.P2.E2E.UserOK K)
+    {σ : S} (a : A) (hJ : SlJAt (L := L) K σ) (hq : StEntKK K st Cs Ω Sg Ac target m σ) {c : U64}
+    {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : lk σ = hs) {μ : U64 → U64}
+    (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
+    Fl4Proofs.P2.E2E.StartAt (tm_pathsKQ ar hA n target hm hpz hEU hlk hNU () K m hK hU) c hs μ
+      ((tm_pathsKQ ar hA n target hm hpz hEU hlk hNU () K m hK hU).body σ a) :=
+  ⟨σ, a, ⟨hJ, hq⟩, hc, hl, hμ, rfl⟩
+
+end q
+
 end Fl4Proofs.P2.PathObl
