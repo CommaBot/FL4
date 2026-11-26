@@ -50,7 +50,8 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (a0 : A)
 
 /-- **`PteSl K`** [J] (module docstring): no PTE word in the kernel-state block, and at every bundle state no PTE
-word is an ASID-table or ASID-pool word. -/
+word is an ASID-table or ASID-pool word. Source: P1 `HeapOK` (page-table pages, the kernel-state block, the
+ASID table and the ASID pools are distinct heap objects), so a later line can derive it from the placement. -/
 def PteSl (K : KLayoutP) : Prop :=
   KsNoE (· ∈ K.ptes) K.toKLayoutV ∧ ∀ s : S, SlJAt (L := L) K.toKLayout s → TabNoE (L := L) (· ∈ K.ptes) s
 
