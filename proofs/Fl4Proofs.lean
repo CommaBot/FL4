@@ -2115,3 +2115,5 @@ import Fl4Proofs.P2.MmuADProg
 import Fl4Proofs.P2.E2EPU3b
 import Fl4Proofs.P2.MmuADEpoch
 import Fl4Proofs.P2.SerialADR
+import Fl4Proofs.P2.SafeCertAD
+import Fl4Proofs.P2.E2EAD
