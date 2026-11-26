@@ -2260,3 +2260,5 @@ import Fl4Proofs.P3.VirtSetEptDec
 import Fl4Proofs.P3.VirtTopV
 import Fl4Proofs.P3.VirtR7
 import Fl4Proofs.P3.VirtUtGate
+import Fl4Proofs.P3.VirtFrame60
+import Fl4Proofs.P3.VirtR7d
