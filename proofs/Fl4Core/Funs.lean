@@ -32946,12 +32946,12 @@ def obj.Slot.next_of_word (w : Std.U64) : Result obj.Slot := do
   ok i
 
 /-- [fl4_core::localinv::map_attr_local]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 285:0-287:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 293:0-295:1 -/
 def localinv.map_attr_local (_attr : Std.U64) : Result Bool := do
   ok true
 
 /-- [fl4_core::localinv::page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 276:0-281:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 284:0-289:1 -/
 def localinv.page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) :
@@ -32962,7 +32962,7 @@ def localinv.page_entry
   else vspace.small_page_entry machineStoreInst s root vaddr
 
 /-- [fl4_core::localinv::small_page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 267:0-270:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 275:0-278:1 -/
 def localinv.small_page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64)
   (vaddr : Std.U64) :
@@ -32979,7 +32979,7 @@ def localinv.small_page_entry
       Std.U64 residual
 
 /-- [fl4_core::localinv::plan_with]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-262:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-270:1
     Visibility: public -/
 def localinv.plan_with
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -33364,32 +33364,39 @@ def localinv.plan_with
               | capability.Cap.PageTable _ _ _ _ => ok none
               | capability.Cap.PageDirectory _ _ _ _ => ok none
               | capability.Cap.Pdpt _ _ _ _ => ok none
-              | capability.Cap.Pml4 ptr b3 _ =>
+              | capability.Cap.Pml4 ptr b3 asid =>
                 if b3
                 then
-                  let i ← localinv.reg_arg machineStoreInst s t 2#u64
-                  let b4 ← localinv.map_attr_local i
-                  if b4
-                  then
-                    let i1 ← localinv.reg_arg machineStoreInst s t 0#u64
-                    let o ← localinv.page_entry machineStoreInst s ptr i1
-                    let cf ←
-                      core.option.Option.Insts.CoreOpsTry_traitTry.branch o
-                    match cf with
-                    | core.ops.control_flow.ControlFlow.Continue val =>
-                      let (b5, p2) ← localinv.Plan.add p1 slot
-                      let (p3, ok1) ←
-                        if b5
-                        then
-                          do
-                          let (ok2, p4) ← localinv.Plan.add_pte p2 val
-                          ok (p4, ok2)
-                        else ok (p2, false)
-                      localinv.some_if ok1 p3
-                    | core.ops.control_flow.ControlFlow.Break residual =>
-                      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
-                        localinv.Plan residual
-                  else ok none
+                  let r ← vspace.find_vspace_for_asid machineStoreInst s asid
+                  match r with
+                  | core.result.Result.Ok r1 =>
+                    if r1 = ptr
+                    then
+                      let i ← localinv.reg_arg machineStoreInst s t 2#u64
+                      let b4 ← localinv.map_attr_local i
+                      if b4
+                      then
+                        let i1 ← localinv.reg_arg machineStoreInst s t 0#u64
+                        let o ← localinv.page_entry machineStoreInst s ptr i1
+                        let cf ←
+                          core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+                        match cf with
+                        | core.ops.control_flow.ControlFlow.Continue val =>
+                          let (b5, p2) ← localinv.Plan.add p1 slot
+                          let (p3, ok1) ←
+                            if b5
+                            then
+                              do
+                              let (ok2, p4) ← localinv.Plan.add_pte p2 val
+                              ok (p4, ok2)
+                            else ok (p2, false)
+                          localinv.some_if ok1 p3
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+                            localinv.Plan residual
+                      else ok none
+                    else ok none
+                  | core.result.Result.Err _ => ok none
                 else ok none
               | capability.Cap.Vcpu _ => ok none
               | capability.Cap.Ept _ _ _ _ _ => ok none

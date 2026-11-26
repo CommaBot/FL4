@@ -87,6 +87,16 @@ theorem plan_with_mapF {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array ob
     · replace h := (if_neg (show ¬ (false = true) by simp)).symm.trans h
       simp at h
     replace h := (if_pos (rfl : true = true)).symm.trans h
+    obtain ⟨r, -, h⟩ := bind_eq_ok h
+    obtain ⟨r1, rfl⟩ : ∃ r1, r = .Ok r1 := by
+      cases r with
+      | Ok r1 => exact ⟨r1, rfl⟩
+      | Err _ => simp at h
+    simp only [] at h
+    by_cases hr : r1 = root
+    swap
+    · rw [if_neg hr] at h; simp at h
+    rw [if_pos hr] at h
     obtain ⟨i, -, h⟩ := bind_eq_ok h
     obtain ⟨b4, eb4, h⟩ := bind_eq_ok h
     unfold localinv.map_attr_local at eb4
