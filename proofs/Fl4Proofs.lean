@@ -2262,3 +2262,8 @@ import Fl4Proofs.P3.VirtR7
 import Fl4Proofs.P3.VirtUtGate
 import Fl4Proofs.P3.VirtFrame60
 import Fl4Proofs.P3.VirtR7d
+import Fl4Proofs.P3.VirtTyK1
+import Fl4Proofs.P3.VirtTyK2
+import Fl4Proofs.P3.VirtTyK3
+import Fl4Proofs.P3.VirtNvCaps
+import Fl4Proofs.P3.VirtR7b
