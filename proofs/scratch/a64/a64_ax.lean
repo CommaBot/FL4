@@ -1,0 +1,31 @@
+import Fl4ProofsA64.P1.QueuePrio
+import Fl4ProofsA64.P1.Refill
+#print axioms Fl4ProofsA64.P1.tcbqueue.append.rel
+#print axioms Fl4ProofsA64.P1.tcbqueue.remove.eq
+#print axioms Fl4ProofsA64.P1.tcbqueue.remove.rel
+#print axioms Fl4ProofsA64.P1.tcbqueue.prepend.rel
+#print axioms Fl4ProofsA64.P1.tcbqueue.insert_before.rel
+#print axioms Fl4ProofsA64.P1.tcbqueue.insert_after.rel
+#print axioms Fl4ProofsA64.P1.sporadic.refill_absolute_max.spec
+#print axioms Fl4ProofsA64.P1.sporadic.refill_new.wf
+#print axioms Fl4ProofsA64.P1.sporadic.refill_update.wf
+#print axioms Fl4ProofsA64.P1.sporadic.set_head.eq
+#print axioms Fl4ProofsA64.P1.sporadic.unblock_check.wf
+#print axioms Fl4ProofsA64.P1.sporadic.budget_check.wf
+#print axioms Fl4ProofsA64.P1.sporadic.maybe_add_empty_tail.periodic
+#print axioms Fl4ProofsA64.P1.sporadic.refill_new.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.add_tail.eq
+#print axioms Fl4ProofsA64.P1.sporadic.refill_update.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.pop_head.eq
+#print axioms Fl4ProofsA64.P1.sporadic.budget_check_loop1.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.unblock_check_loop.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.unblock_check.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.set_tail.eq
+#print axioms Fl4ProofsA64.P1.sporadic.schedule_used.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.budget_check_loop0.ordered
+#print axioms Fl4ProofsA64.P1.sporadic.budget_check_loop0.exit
+#print axioms Fl4ProofsA64.P1.sporadic.budget_check.ordered
+#print axioms Fl4ProofsA64.P1.tcbqueue.append_by_prio_loop.spec
+#print axioms Fl4ProofsA64.P1.tcbqueue.append_by_prio.rel
+#print axioms Fl4ProofsA64.P1.tcbqueue.append_by_prio.sorted
+#print axioms Fl4ProofsA64.P1.LawfulStore.total
