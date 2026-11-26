@@ -1,0 +1,505 @@
+/-
+P3 (line jboot, gen 2): **the spec invariants at the witness boot state `fInitASt`, through a characterisation of
+the boot heap** (`BootHeap`).
+
+`bootSt kh N` is `initASt` with heap `kh` and IRQ node `N` (every other field `initASt`'s); `fInitASt` is
+`bootSt fInitKheap fIrqNode` (`fInitASt_eq`) and `initASt` is `bootSt initKheap _` (`initASt_eq`).
+**`BootHeap kh`** says what the proofs read of a boot heap:
+* the idle TCB `idleTcbV` at `idleThreadPtr`, the idle SC `idleScV` (size 0) at `idleScPtr`, the global PML4 at
+  `initGlobalPml4`;
+* every object is at one of the two idle pointers, an empty radix-0 CNode, or one of the three global tables.
+So the heap holds only null caps (`BootHeap.capAt`, `BootHeap.capOpt`), one TCB and one SC
+(`BootHeap.tcb_of`, `BootHeap.sc_of`), no endpoint and no notification. Every invariant below is proved from
+`BootHeap` alone, for every `kh` and `N`; where an invariant is a per-object fact of a TCB or an SC, the proof
+reuses the `initASt` boot lemma at the same address.
+
+* **`bootHeap_fInit`**, **`bootHeap_init`**: both heaps meet it.
+* **`BootHeap.sinvX`** (`SInvX`, hence `BlockedScActive`: **`BootHeap.bsa`**), **`BootHeap.sinvIP`**,
+  **`BootHeap.utPgR`**, **`BootHeap.devRangeS`**, **`BootHeap.gpmOut`**, **`BootHeap.idleVtS`**, and at
+  `fInitASt`: **`fInit_sinvX`**, …, **`fInit_jReachSpec`** (the spec part of `JReachU17`'s start, jointly).
+
+No sorry; no premises. New module; no existing statement changed.
+-/
+import Fl4Proofs.P3.JBootSt
+import Fl4Proofs.P3.JBootSpec
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.JBoot
+open Fl4Spec Fl4Proofs.P3
+
+noncomputable section
+
+set_option maxHeartbeats 1000000
+
+/-! ## The boot objects -/
+
+/-- The idle TCB of `initKheap`. -/
+def idleTcbV : Tcb :=
+  { tcbCtable := .nullCap,
+    tcbVtable := .nullCap,
+    tcbIpcframe := .nullCap,
+    tcbFaultHandler := .nullCap,
+    tcbTimeoutHandler := .nullCap,
+    tcbEpt := .nullCap,
+    tcbState := .idleThreadState,
+    tcbIpcBuffer := 0,
+    tcbFault := none,
+    tcbBoundNotification := none,
+    tcbMcpriority := 0,
+    tcbSchedContext := some idleScPtr,
+    tcbYieldTo := none,
+    tcbPriority := 0,
+    tcbDomain := defaultDomain,
+    tcbFlags := ∅,
+    tcbArch := initArchTcb }
+
+/-- The idle SC of `initKheap`. -/
+def idleScV : SchedContext :=
+  { defaultSchedContext with
+    scTcb := some idleThreadPtr,
+    scRefills := [{ rTime := 0, rAmount := MAX_PERIOD }, { rTime := MAX_PERIOD, rAmount := 0 }],
+    scBudget := MAX_PERIOD,
+    scRefillMax := MIN_REFILLS }
+
+/-- An empty radix-0 CNode (the IRQ nodes' objects). -/
+abbrev cn0 : KernelObject := .cnode 0 (emptyCnode 0)
+
+theorem initKheap_idleT : initKheap idleThreadPtr = some (.tcb idleTcbV) := by
+  unfold initKheap
+  rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+    Function.update_of_ne (by decide), Function.update_self]
+  rfl
+
+theorem initKheap_idleS : initKheap idleScPtr = some (.schedContext idleScV 0) := SInvV.initKheap_idleSc
+
+theorem initKheap_pml4 : initKheap initGlobalPml4 = some (.archObj (.pageMapL4 globalPml4)) := by
+  unfold initKheap
+  rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_self]
+
+theorem initKheap_pdpt : initKheap initGlobalPdpt = some (.archObj (.pdPointerTable globalPdpt)) := by
+  unfold initKheap
+  rw [Function.update_of_ne (by decide), Function.update_self]
+
+theorem initKheap_pd : initKheap initGlobalPd = some (.archObj (.pageDirectory globalPd)) := by
+  unfold initKheap
+  rw [Function.update_self]
+
+/-- The same facts read at `initASt` (for the `initASt` boot lemmas' premises). -/
+theorem initA_idleT : (initASt (Z := Unit)).kheap idleThreadPtr = some (.tcb idleTcbV) := initKheap_idleT
+
+theorem initA_idleS : (initASt (Z := Unit)).kheap idleScPtr = some (.schedContext idleScV 0) := initKheap_idleS
+
+/-! ## The characterisation -/
+
+/-- **The boot heap's characterisation** (module docstring). -/
+structure BootHeap (kh : KHeap) : Prop where
+  tcb : kh idleThreadPtr = some (.tcb idleTcbV)
+  sc : kh idleScPtr = some (.schedContext idleScV 0)
+  pml4 : kh initGlobalPml4 = some (.archObj (.pageMapL4 globalPml4))
+  obj : ∀ p o, kh p = some o → p = idleThreadPtr ∨ p = idleScPtr ∨ o = cn0 ∨
+    o = .archObj (.pageMapL4 globalPml4) ∨ o = .archObj (.pdPointerTable globalPdpt) ∨
+    o = .archObj (.pageDirectory globalPd)
+
+/-- `initASt` with heap `kh` and IRQ node `N`. -/
+def bootSt (kh : KHeap) (N : Irq → ObjRef) : State Unit :=
+  { (initASt (Z := Unit)) with kheap := kh, interruptIrqNode := N }
+
+theorem fInitASt_eq : fInitASt = bootSt fInitKheap fIrqNode := rfl
+
+theorem initASt_eq :
+    (initASt (Z := Unit)) = bootSt initKheap (fun irq => initIrqNodePtr + (ucast 64 irq <<< cteLevelBits)) := rfl
+
+/-- **`fInitKheap` is a boot heap.** -/
+theorem bootHeap_fInit : BootHeap fInitKheap where
+  tcb := by
+    unfold fInitKheap
+    rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+      Function.update_of_ne (by decide), Function.update_self]
+    exact initKheap_idleT
+  sc := by
+    unfold fInitKheap
+    rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_of_ne (by decide),
+      Function.update_self]
+    exact initKheap_idleS
+  pml4 := by
+    unfold fInitKheap
+    rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide), Function.update_self]
+    exact initKheap_pml4
+  obj p o h := by
+    unfold fInitKheap at h
+    simp only [Function.update_apply] at h
+    split_ifs at h with h1 h2 h3 h4 h5 h6
+    · subst h1; rw [initKheap_pd] at h; cases h; tauto
+    · subst h2; rw [initKheap_pdpt] at h; cases h; tauto
+    · subst h3; rw [initKheap_pml4] at h; cases h; tauto
+    · exact Or.inr (Or.inl h4)
+    · exact Or.inl h5
+    · cases h; tauto
+
+/-- **`initKheap` is a boot heap** (the characterisation covers `initASt`). -/
+theorem bootHeap_init : BootHeap initKheap where
+  tcb := initKheap_idleT
+  sc := initKheap_idleS
+  pml4 := initKheap_pml4
+  obj p o h := by
+    by_cases e1 : p = idleThreadPtr
+    · exact Or.inl e1
+    by_cases e2 : p = idleScPtr
+    · exact Or.inr (Or.inl e2)
+    unfold initKheap at h
+    simp only [Function.update_apply, e1, e2, if_false] at h
+    split_ifs at h <;> (cases h; tauto)
+
+namespace BootHeap
+
+variable {kh : KHeap} (B : BootHeap kh) {N : Irq → ObjRef}
+include B
+
+theorem tcb_of {p : ObjRef} {x : Tcb} (h : kh p = some (.tcb x)) : p = idleThreadPtr ∧ x = idleTcbV := by
+  rcases B.obj _ _ h with rfl | rfl | e | e | e | e
+  · rw [B.tcb] at h; cases h; exact ⟨rfl, rfl⟩
+  · rw [B.sc] at h; cases h
+  all_goals cases e
+
+theorem sc_of {p : ObjRef} {y : SchedContext} {n : Nat} (h : kh p = some (.schedContext y n)) :
+    p = idleScPtr ∧ y = idleScV ∧ n = 0 := by
+  rcases B.obj _ _ h with rfl | rfl | e | e | e | e
+  · rw [B.tcb] at h; cases h
+  · rw [B.sc] at h; cases h; exact ⟨rfl, rfl, rfl⟩
+  all_goals cases e
+
+theorem no_ep {p : ObjRef} {x : Endpoint} (h : kh p = some (.endpoint x)) : False := by
+  rcases B.obj _ _ h with rfl | rfl | e | e | e | e
+  · rw [B.tcb] at h; cases h
+  · rw [B.sc] at h; cases h
+  all_goals cases e
+
+theorem no_ntfn {p : ObjRef} {x : Notification} (h : kh p = some (.notification x)) : False := by
+  rcases B.obj _ _ h with rfl | rfl | e | e | e | e
+  · rw [B.tcb] at h; cases h
+  · rw [B.sc] at h; cases h
+  all_goals cases e
+
+/-- Every object of a boot heap is an object of `initKheap`. -/
+theorem range {p : ObjRef} {o : KernelObject} (h : kh p = some o) : ∃ q, initKheap q = some o := by
+  rcases B.obj _ _ h with rfl | rfl | rfl | rfl | rfl | rfl
+  · rw [B.tcb] at h; cases h; exact ⟨_, initKheap_idleT⟩
+  · rw [B.sc] at h; cases h; exact ⟨_, initKheap_idleS⟩
+  · exact ⟨_, initKheap_irq128⟩
+  · exact ⟨_, initKheap_pml4⟩
+  · exact ⟨_, initKheap_pdpt⟩
+  · exact ⟨_, initKheap_pd⟩
+
+/-- **A boot state holds only null caps.** -/
+theorem capAt {sl : CslotPtr} {c : Cap} (h : SInvU.capAt (bootSt kh N) sl = some c) : c = .nullCap := by
+  obtain ⟨p, i⟩ := sl
+  unfold SInvU.capAt at h
+  split at h
+  · rename_i o ho
+    obtain ⟨q, hq⟩ := B.range ho
+    exact SInvU.init_cv hq h
+  · cases h
+
+theorem capOpt {p : ObjRef} {cref : CnodeIndex} {c : Cap}
+    (h : Fl4Proofs.P3.capOpt ((bootSt kh N).kheap p) cref = some c) : c = .nullCap :=
+  B.capAt ((SInvUZ.capAt_capOpt (bootSt kh N) (p, cref)).trans h)
+
+/-- A per-TCB fact of `initASt` holds at the boot state. -/
+theorem ti {Q : Tcb → Prop} (h : SInv.TI Q (initASt (Z := Unit))) : SInv.TI Q (bootSt kh N) := by
+  intro p x hp
+  obtain ⟨rfl, rfl⟩ := B.tcb_of hp
+  exact h _ _ initA_idleT
+
+/-! ## `SInvA`'s fields -/
+
+theorem vfh : SInv.VfhAll (bootSt kh N) := B.ti SInv.boot_vfhAll
+
+theorem cnDom : SInv.CnDom (bootSt kh N) := by
+  intro sl c hc p r g e
+  subst e
+  cases B.capOpt hc
+
+theorem fts : SInv.FaultTcbsS (bootSt kh N) := B.ti SInv.boot_faultTcbsS
+
+theorem nqb : SInv.NQB (bootSt kh N) := by
+  rintro t ⟨n, x, hn, -⟩
+  exact (B.no_ntfn hn).elim
+
+theorem ns : SInv.NativeScopeS (bootSt kh N) := B.ti SInv.boot_nativeScope
+
+theorem irqOut (M : Irq → ObjRef) : SInvU.IrqOutV M (SInvU.uV (bootSt kh N)) := by
+  intro irq s c hs
+  rw [B.capAt hs, SInvU.covR_null]; exact fun h => h
+
+theorem specGlob : SInvG.SpecGlobS (bootSt kh N) ∧ SInvG.IdleOutV (bootSt kh N) := by
+  refine ⟨⟨fun irq a ha => Or.inl (B.capAt ha), fun p cref a ha _ irq => ?_, fun p cref a ha _ => ?_⟩,
+    B.irqOut _⟩
+  · rw [B.capAt ha]; simp [objRefs]
+  · rw [B.capAt ha]; simp [objRefs]
+
+theorem dom : DomListOK (bootSt kh N) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simp [bootSt, initASt]
+  · intro e he _; simp only [bootSt, initASt, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl <;> rfl
+  · simp [bootSt, initASt]
+  · simp only [bootSt, initASt, domainEndMarker]; decide
+  · simp only [bootSt, initASt, domainEndMarker]; decide
+  · simp [bootSt, initASt]
+  · intro e he; simp only [bootSt, initASt, List.mem_cons, List.not_mem_nil, or_false] at he
+    rcases he with rfl | rfl <;> rfl
+
+theorem vim : SInvV.ValidIrqMasks (bootSt kh N) := fun _ _ => rfl
+
+theorem vih : SInvV.ValidIrqHandlers (bootSt kh N) := by
+  intro p cref irq hc
+  cases B.capOpt hc
+
+theorem vmt : SInvV.ValidMachineTime (bootSt kh N) :=
+  ⟨BitVec.le_refl _, by show (0 : Nat) ≤ _; exact Nat.zero_le _⟩
+
+theorem utInv : SInvU.UtInv (bootSt kh N) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro sl _ _ _ _ hc; cases B.capAt hc
+  · intro sl _ _ _ _ hc; cases B.capAt hc
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; cases B.capAt hc
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; cases B.capAt hc
+  · intro sl _ _ _ _ hc; cases B.capAt hc
+
+theorem utInv' : SInvU.UtInv' (bootSt kh N) := by
+  refine ⟨B.utInv, fun c p h => ?_, fun x hx => ?_⟩
+  · exact absurd h (by simp [SInvU.uV, bootSt, initASt, initCdt])
+  · obtain ⟨c, hc⟩ := SInvU.tg_first hx
+    exact absurd hc (by simp [SInvU.uV, bootSt, initASt, initCdt])
+
+theorem utNV : SInvU.UtNV (SInvU.uV (bootSt kh N)) := by
+  have h0 : ∀ sl c, (SInvU.uV (bootSt kh N)).2.1 sl = some c → c = .nullCap := fun _ _ h => B.capAt h
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro u dev b n fi hu; cases h0 _ _ hu
+  · intro p c hp hne; exact absurd (h0 _ _ hp) hne
+  · intro u dev b n fi hu; cases h0 _ _ hu
+  · intro s c s' c' r _ hs' _ hr'; rw [h0 _ _ hs'] at hr'; simp [SInvU.sRefs] at hr'
+  · intro s c r hs hr; rw [h0 _ _ hs] at hr; simp [SInvU.sRefs] at hr
+  · intro s r b n hs; cases h0 _ _ hs
+  · intro s c hs b hb; rw [h0 _ _ hs] at hb; simp [SInvU.shp] at hb
+
+theorem utInv3 : SInvU.UtInv3 (bootSt kh N) := ⟨⟨B.utInv', B.utNV⟩, B.irqOut _⟩
+
+theorem ntfnQB : SInv.NtfnQB (bootSt kh N) := fun _ _ _ hn _ => (B.no_ntfn hn).elim
+
+theorem epQB : SInv.EpQB (bootSt kh N) := fun _ _ _ hn _ => (B.no_ep hn).elim
+
+theorem ifLiveT : SInv.IfLiveT (bootSt kh N) := by
+  intro t y ht hl
+  obtain ⟨rfl, rfl⟩ := B.tcb_of ht
+  exact False.elim hl
+
+theorem validIdle : SInvI.ValidIdle (bootSt kh N) := by
+  unfold SInvI.ValidIdle SInvI.VI SInvI.VIT
+  refine ⟨rfl, rfl, fun e => absurd e Bool.false_ne_true, ⟨_, B.tcb⟩, ⟨_, 0, B.sc⟩, ?_⟩
+  intro p o hp
+  change SInvI.ObjOK idleThreadPtr idleScPtr idleThreadPtr p o
+  rcases B.obj _ _ hp with rfl | rfl | rfl | rfl | rfl | rfl
+  · have hp' := hp; change kh idleThreadPtr = some o at hp'; rw [B.tcb] at hp'; cases hp'
+    exact SInvAll.boot_validIdle.2.2.2.2.2 _ _ initA_idleT
+  · have hp' := hp; change kh idleScPtr = some o at hp'; rw [B.sc] at hp'; cases hp'
+    exact SInvAll.boot_validIdle.2.2.2.2.2 _ _ initA_idleS
+  all_goals trivial
+
+theorem ft : SInvF.FT (bootSt kh N) := fun t ht => by
+  simp [bootSt, initASt, initArchState] at ht
+
+theorem scLiveT : SInvL.ScLiveT (SInvL.idleP (bootSt kh N)) (bootSt kh N) := by
+  intro p o hp hl h1 h2
+  exfalso
+  rcases B.obj _ _ hp with rfl | rfl | rfl | rfl | rfl | rfl
+  · exact h1 rfl
+  · exact h2 rfl
+  all_goals exact hl
+
+theorem idleScOutV : SInvL.IdleScOutV (bootSt kh N) := by
+  intro _ s c h
+  rw [B.capAt h]
+  simp [SInvU.covR, SInvU.capRng, objRefs]
+
+theorem ntfnScB : SInvL.NtfnScB (bootSt kh N) := fun _ _ _ hn _ => (B.no_ntfn hn).elim
+
+theorem scInv : SInvB.ScInv (bootSt kh N) := by
+  rw [SInvB.scInv_iff]
+  refine ⟨⟨fun u c h => ?_, fun p u h => ?_⟩, fun p y n hp => ?_⟩
+  · obtain ⟨x, hx, hc⟩ := SInvB.bv_t.1 h
+    obtain ⟨rfl, rfl⟩ := B.tcb_of hx
+    have hc' : some idleScPtr = some c := hc
+    cases hc'
+    exact SInvB.bv_s.2 ⟨_, 0, B.sc, rfl⟩
+  · obtain ⟨y, n, hy, hu⟩ := SInvB.bv_s.1 h
+    obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hy
+    have hu' : some idleThreadPtr = some u := hu
+    cases hu'
+    exact SInvB.bv_t.2 ⟨_, B.tcb, rfl⟩
+  · obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hp
+    exact (SInvB.init_sc initKheap_idleS).2.2
+
+theorem scKindR : SInvL.ScKindR (bootSt kh N) := by
+  intro s r b s' c' h1 _ _
+  cases B.capAt h1
+
+theorem curScT : SInvQ.CurScT (bootSt kh N) := by
+  intro x hx
+  obtain ⟨-, rfl⟩ := B.tcb_of hx
+  rfl
+
+theorem sinvA : SInvAll.SInvA (bootSt kh N) where
+  vfh := B.vfh
+  cnDom := B.cnDom
+  fts := B.fts
+  nqb := B.nqb
+  ns := B.ns
+  sg := B.specGlob.1
+  idleOut := B.specGlob.2
+  dom := B.dom
+  vim := B.vim
+  vih := B.vih
+  vmt := B.vmt
+  ut := B.utInv3
+  nq := B.ntfnQB
+  epq := B.epQB
+  live := B.ifLiveT
+  vi := B.validIdle
+  ft := B.ft
+  sl := ⟨⟨B.scLiveT, B.idleScOutV, B.ntfnScB, B.scInv⟩, B.scKindR⟩
+  cs := B.curScT
+
+theorem ctExit : SInvAll.CtExit (bootSt kh N) := ⟨_, B.tcb, Or.inr rfl⟩
+
+theorem onlyIdle : SInvAll.OnlyIdle (bootSt kh N) := by
+  intro t x ht _
+  exact (B.tcb_of ht).1
+
+theorem sinvB : SInvAll.SInvB (bootSt kh N) := ⟨⟨B.sinvA, B.ctExit⟩, B.onlyIdle⟩
+
+/-! ## The queue, domain and readiness facts -/
+
+theorem ctNQR : SInvV.CtNQR (bootSt kh N) := fun _ _ _ h => List.not_mem_nil h
+
+theorem sa : SInvQ.SA (bootSt kh N) :=
+  ⟨fun _ h => by simp [bootSt, initASt] at h, fun _ h => by simp [bootSt, initASt] at h, B.ctNQR⟩
+
+theorem tq : SInvQ.TQ (bootSt kh N) := ⟨fun _ _ _ h => (List.not_mem_nil h).elim, trivial⟩
+
+theorem schedQ : SInvQ.SchedQ (bootSt kh N) := ⟨B.tq, B.sa⟩
+
+theorem curScT' : SInvQ.CurScT (bootSt kh N) := B.curScT
+
+theorem ex : SInvQ.EX (bootSt kh N) :=
+  ⟨B.schedQ, ⟨fun _ _ h => by simp [bootSt, initASt] at h, ⟨fun _ h => by simp [bootSt, initASt] at h, B.curScT'⟩⟩⟩
+
+theorem rb (k : Bool) : SInvQ.RBk k (bootSt kh N) := by
+  refine ⟨⟨⟨fun _ _ _ h => by simp [bootSt, initASt] at h, fun _ h => by simp [bootSt, initASt] at h⟩,
+    fun _ => ⟨fun _ _ h => by simp [bootSt, initASt] at h, ⟨fun h => by simp [bootSt, initASt] at h,
+      fun h => by simp [bootSt, initASt] at h⟩⟩, fun _ h => by simp [bootSt, initASt] at h⟩, fun _ => Or.inr ?_⟩
+  simp [bootSt, initASt]
+
+theorem t4 : SInvQ.T4 (bootSt kh N) :=
+  ⟨SInvQ.boot_t4.1, rfl, B.ti SInvQ.boot_t4.2.2⟩
+
+theorem sinvCQ : SInvAll.SInvCQ (bootSt kh N) := ⟨B.sinvB, B.ex, B.rb true, B.t4⟩
+
+theorem rs : SInvQ.RS (bootSt kh N) := rfl
+
+theorem sinvCR : SInvAll.SInvCR (bootSt kh N) := ⟨B.sinvCQ, B.rs⟩
+
+/-- **`BlockedScActive` at a boot state.** -/
+theorem bsa : Sched.BlockedScActive (bootSt kh N) := by
+  refine ⟨fun p y n t x hp hyt hx hq => ?_, fun p y n hp hr => ?_⟩
+  · obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hp
+    obtain ⟨rfl, rfl⟩ := B.tcb_of hx
+    exact SInvR.B8e.boot_bsa.tcb _ _ _ _ _ initA_idleS hyt initA_idleT hq
+  · obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hp
+    exact SInvR.B8e.boot_bsa.replies _ _ _ initA_idleS hr
+
+theorem sinvCRB : SInvR.B8l.SInvCRB (bootSt kh N) := ⟨B.sinvCR, B.bsa⟩
+
+theorem vb : SInvR.B8n.VB (bootSt kh N) := by
+  intro t hs _ _
+  obtain ⟨x, -, -, -, hx, -, hr, -, -, -⟩ := Sched.schedulable_inv hs
+  obtain ⟨rfl, rfl⟩ := B.tcb_of hx
+  simp [idleTcbV, runnable] at hr
+
+theorem sinvCRBV : SInvR.B8v.SInvCRBV (bootSt kh N) := ⟨B.sinvCRB, B.vb⟩
+
+theorem rdy : SInvR.Rdy (bootSt kh N) := by
+  refine ⟨fun d p t h => by simp [bootSt, initASt] at h, fun t h => by simp [bootSt, initASt] at h,
+    fun t x c hx hb _ => ?_, fun p y n hy ha => ?_, fun t h => by simp [bootSt, initASt] at h, fun y n hy => ?_⟩
+  · exfalso
+    obtain ⟨rfl, rfl⟩ := B.tcb_of hx
+    have e : idleTcbV.tcbState = .idleThreadState := rfl
+    rcases hb with ⟨_, h⟩ | ⟨_, _, h, _⟩ | ⟨_, _, _, h⟩ <;> rw [e] at h <;> cases h
+  · obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hy
+    exact SInvR.boot_rdy.2.2.2.1 _ _ _ initA_idleS ha
+  · have hy' : kh idleScPtr = some (.schedContext y n) := hy
+    obtain ⟨-, rfl, rfl⟩ := B.sc_of hy'
+    exact SInvR.boot_rdy.2.2.2.2.2 _ _ initA_idleS
+
+theorem offReady : Sched.OffReady (bootSt kh N) := by
+  intro y n hy
+  have hy' : kh idleScPtr = some (.schedContext y n) := hy
+  obtain ⟨-, rfl, rfl⟩ := B.sc_of hy'
+  exact SInvV.boot_offReady _ _ initA_idleS
+
+theorem cAx : SInvR.CAx (bootSt kh N) := fun h => absurd rfl h
+
+theorem sinvW : SInvR.B8w.SInvW (bootSt kh N) := ⟨B.sinvCRBV, B.rdy, B.offReady, B.cAx⟩
+
+theorem rpos : SInvE.RPos (bootSt kh N) := by
+  intro p y n hy
+  obtain ⟨rfl, rfl, rfl⟩ := B.sc_of hy
+  exact SInvE.boot_rpos idleScPtr idleScV 0 initA_idleS
+
+/-- **`SInvX` at a boot state.** -/
+theorem sinvX : SInvR.G4.SInvX (bootSt kh N) := ⟨B.sinvW, B.rpos⟩
+
+/-! ## The other spec facts of `JReachU17`'s start -/
+
+theorem sinvIP : SInvR.G5.SInvIP (bootSt kh N) where
+  ioP := fun _ _ _ hc => by cases B.capAt hc
+  ioN := fun _ _ _ _ _ _ hc _ _ => by cases B.capAt hc
+  utZ := fun _ _ _ _ hc => by cases B.capAt hc
+
+theorem utPgR : SInvUZ.UtPgR (bootSt kh N) :=
+  fun _ _ _ _ _ hc => by cases B.capOpt hc
+
+theorem devRangeS : SInvDV.DevRangeS (bootSt kh N) :=
+  fun _ _ _ _ _ hc => by cases B.capOpt hc
+
+theorem gpmOut : SInvGp.GpmOutV (bootSt kh N) := B.irqOut _
+
+theorem idleVtS : SInvIV.IdleVtS (bootSt kh N) := fun _ ha => B.capAt ha
+
+/-- **The spec part of `JReachU17`'s start, jointly, at a boot state.** -/
+theorem jReachSpec :
+    SInvR.G4.SInvX (bootSt kh N) ∧ SInvR.G5.SInvIP (bootSt kh N) ∧ SInvUZ.UtPgR (bootSt kh N) ∧
+      SInvGp.GpmOutV (bootSt kh N) ∧ SInvIV.IdleVtS (bootSt kh N) ∧ SInvDV.DevRangeS (bootSt kh N) :=
+  ⟨B.sinvX, B.sinvIP, B.utPgR, B.gpmOut, B.idleVtS, B.devRangeS⟩
+
+end BootHeap
+
+/-! ## At the witness -/
+
+theorem fInit_sinvX : SInvR.G4.SInvX fInitASt := bootHeap_fInit.sinvX
+theorem fInit_bsa : Sched.BlockedScActive fInitASt := bootHeap_fInit.bsa
+theorem fInit_sinvIP : SInvR.G5.SInvIP fInitASt := bootHeap_fInit.sinvIP
+theorem fInit_utPgR : SInvUZ.UtPgR fInitASt := bootHeap_fInit.utPgR
+theorem fInit_devRangeS : SInvDV.DevRangeS fInitASt := bootHeap_fInit.devRangeS
+theorem fInit_gpmOut : SInvGp.GpmOutV fInitASt := bootHeap_fInit.gpmOut
+theorem fInit_idleVtS : SInvIV.IdleVtS fInitASt := bootHeap_fInit.idleVtS
+
+/-- **The spec part of `JReachU17`'s start, jointly, at the witness `fInitASt`.** -/
+theorem fInit_jReachSpec :
+    SInvR.G4.SInvX fInitASt ∧ SInvR.G5.SInvIP fInitASt ∧ SInvUZ.UtPgR fInitASt ∧
+      SInvGp.GpmOutV fInitASt ∧ SInvIV.IdleVtS fInitASt ∧ SInvDV.DevRangeS fInitASt :=
+  bootHeap_fInit.jReachSpec
+
+end
+
+end Fl4Proofs.P3.JBoot
