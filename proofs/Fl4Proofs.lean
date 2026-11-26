@@ -2349,3 +2349,5 @@ import Fl4Proofs.P3.P3JStTrapQ
 import Fl4Proofs.P3.P3JStTrapK
 import Fl4Proofs.P3.P3JMcTrap
 import Fl4Proofs.P3.P3JMcBuf
+import Fl4Proofs.P3.P3JMcFootC
+import Fl4Proofs.P3.P3JMcKwN

@@ -1,0 +1,20 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P3.Mc.bufOK_empty_cki
+#print axioms Fl4Proofs.P3.Mc.userOK_empty
+#print axioms Fl4Proofs.P3.Mc.xferFoot_empty_projW
+#print axioms Fl4Proofs.P3.Mc.xferW_empty_projW
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_irqWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_userWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_vmfWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_sysUWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_trapWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_sysWC
+#print axioms Fl4Proofs.P3.Mc.IrqFootWC.of_W
+#print axioms Fl4Proofs.P3.Mc.SysStabC.of_W
+#print axioms Fl4Proofs.P3.Mc.obj_projW
+#print axioms Fl4Proofs.P3.Mc.node_projW
+#print axioms Fl4Proofs.P3.Mc.kwN_projW
+#print axioms Fl4Proofs.P3.Mc.dbgW_projW
+#print axioms Fl4Proofs.P3.Mc.capW_projW
+#print axioms Fl4Proofs.P3.Mc.cur0wN_projW
+#print axioms Fl4Proofs.P3.Mc.projW_of_cur0wN
