@@ -6,7 +6,7 @@
 * the target (`lookup_target_slot` from args 0/1, the registers `R10` / `R8`) and the source
   (`lookup_source_slot` from the first extra cap's cap, args 2/3, the registers `R9` / `R15`) are found;
 * **the source cap is a non-EPT Frame cap** (`matches!(src_cap, Cap::Frame { is_ept: false, .. })`) and the target's
-  first cap word decodes to `Null`;
+  first cap word is `0` (gen 14: fl4-core's raw-zero check; it decodes to `Null`, `CMPlanZ` / `plan_with_cmFZ`);
 * the locks on the target, the source and the source's CDT successor are taken (`p.add`, at most 4).
 
 So an Untyped source is rejected by the plan: `set_untyped_cap_as_full` never writes the source's cap words on this
@@ -21,6 +21,7 @@ No premises.
 import Fl4Proofs.P2.InvSeen
 import Fl4Proofs.P2.InvCMG
 import Fl4Proofs.P2.InvCM
+import Fl4Proofs.P3.CapRel
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -95,6 +96,25 @@ def CMPlan (st : machine.Store S) [L : LawfulStore st] (s : S) (t : obj.Tcb) (sl
     obj.Slot.cap st src s = ok (.Frame fp sz rt d mp false asid va) ∧
     capability.Cap.decode (L.mem s (core.num.U64.wrapping_add dest layout.cte.CAP0)) 0#u64 = ok c1 ∧
     capability.Cap.is_null c1 = ok true ∧
+    (dest ≠ 0#u64 → PHeld p dest) ∧ (src ≠ 0#u64 → PHeld p src) ∧
+    (∀ nx, obj.Slot.next st src s = ok nx → nx ≠ 0#u64 → PHeld p nx) ∧
+    SeenAddr (CMW dest src) p
+
+/-- (slhuf gen 14) `CMPlan` with the target's first word `0` (what `plan_with` checks since the raw-zero change). -/
+def CMPlanZ (st : machine.Store S) [L : LawfulStore st] (s : S) (t : obj.Tcb) (slot : obj.Slot)
+    (extra : Array obj.Slot 3#usize) (p : localinv.Plan) : Prop :=
+  ∃ (cp cr cg cgb dest s1 src fp rt asid va : U64) (sz : capability.FrameSize) (d mp : Bool)
+    (rc : capability.Cap) (c1 : capability.Cap),
+    obj.Slot.cap st slot s = ok (.CNode cp cr cg cgb) ∧
+    Aeneas.Std.Array.index_usize extra 0#usize = ok s1 ∧ s1 ≠ 0#u64 ∧
+    cspace.lookup_target_slot st s (.CNode cp cr cg cgb) (L.mem s (regA t layout.reg.R10))
+      (L.mem s (regA t layout.reg.R8)) = ok (.Ok dest) ∧
+    obj.Slot.cap st s1 s = ok rc ∧
+    cspace.lookup_source_slot st s rc (L.mem s (regA t layout.reg.R9)) (L.mem s (regA t layout.reg.R15)) =
+      ok (.Ok src) ∧
+    obj.Slot.cap st src s = ok (.Frame fp sz rt d mp false asid va) ∧
+    capability.Cap.decode (L.mem s (core.num.U64.wrapping_add dest layout.cte.CAP0)) 0#u64 = ok c1 ∧
+    capability.Cap.is_null c1 = ok true ∧ L.mem s (core.num.U64.wrapping_add dest layout.cte.CAP0) = 0#u64 ∧
     (dest ≠ 0#u64 → PHeld p dest) ∧ (src ≠ 0#u64 → PHeld p src) ∧
     (∀ nx, obj.Slot.next st src s = ok nx → nx ≠ 0#u64 → PHeld p nx) ∧
     SeenAddr (CMW dest src) p
@@ -202,11 +222,11 @@ local macro "cm_arm" : tactic => `(tactic| (
           | _ => simp at e4
         obtain ⟨fp, sz, rt, d, mp, asid, va, hsc0, hq4⟩ := hfr
         rw [hsc0] at e2
-        obtain ⟨dc, ec1, h⟩ := bind_eq_ok h
-        obtain ⟨b3, eb3, h⟩ := bind_eq_ok h
-        cases b3
-        · simp at h
-        simp only [↓reduceIte] at h
+        by_cases hw0 : (w0 != 0#u64) = true
+        · simp [hw0] at h
+        simp only [Bool.not_eq_true] at hw0
+        simp only [hw0, Bool.false_eq_true, ↓reduceIte] at h
+        have hw0z : w0 = 0#u64 := by simpa using hw0
         obtain ⟨⟨b4, q5⟩, e5, h⟩ := bind_eq_ok h
         try simp only [uncurry_apply_pair] at h
         try dsimp only at h
@@ -276,16 +296,16 @@ local macro "cm_arm" : tactic => `(tactic| (
           rw [enx] at e
           try simp only [bind_ok, bind_tc_ok] at e
           exact ok_inj_ff e
-        exact ⟨cp, cr, cg, cgb, dest, s1, src, fp, rt, asid, va, sz, d, mp, rc, dc, ecap, es1, hs10, er, erc, er1,
-          hsc', ec1, eb3, fun hd => a8h' _ (a7h' _ (a5d' hd)), fun hd => a8h' _ (a7d' hd),
+        exact ⟨cp, cr, cg, cgb, dest, s1, src, fp, rt, asid, va, sz, d, mp, rc, .Null, ecap, es1, hs10, er, erc, er1,
+          hsc', (by rw [hw0z]; exact Fl4Proofs.P3.decode_encode_null.2), rfl, hw0z, fun hd => a8h' _ (a7h' _ (a5d' hd)), fun hd => a8h' _ (a7d' hd),
           fun nx' e hne => by rw [← hnx nx' e] at hne ⊢; exact a8d' hne, hS⟩))
 
-set_option maxHeartbeats 16000000 in
-/-- (slhuf gen 12) **What `plan_with` decides at `CNodeCopy` / `CNodeMint`**, with its locks and seen words
-(module docstring): in particular the source cap is a non-EPT Frame cap (never an Untyped). -/
-theorem plan_with_cmF {s : S} {t : obj.Tcb} {lbl : U64} {slot : obj.Slot} {extra : Array obj.Slot 3#usize}
+set_option maxHeartbeats 4000000 in
+/-- (slhuf gen 14) **What `plan_with` decides at `CNodeCopy` / `CNodeMint`** (`CMPlanZ`: `CMPlan` and the target's
+first word `0`, the raw-zero check). -/
+theorem plan_with_cmFZ {s : S} {t : obj.Tcb} {lbl : U64} {slot : obj.Slot} {extra : Array obj.Slot 3#usize}
     {p : localinv.Plan} (hl : lbl = fl4_abi.label.CNodeCopy ∨ lbl = fl4_abi.label.CNodeMint)
-    (h : localinv.plan_with st s t lbl slot extra = ok (some p)) : CMPlan st s t slot extra p := by
+    (h : localinv.plan_with st s t lbl slot extra = ok (some p)) : CMPlanZ st s t slot extra p := by
   unfold localinv.plan_with at h
   obtain ⟨q, eq, h⟩ := bind_eq_ok h
   obtain ⟨cap, ecap, h⟩ := bind_eq_ok h
@@ -297,6 +317,17 @@ theorem plan_with_cmF {s : S} {t : obj.Tcb} {lbl : U64} {slot : obj.Slot} {extra
     cm_arm
   · rw [if_neg lbl_mint_ne_copy, if_pos rfl] at h
     cm_arm
+
+/-- (slhuf gen 12; proof gen 14 from `plan_with_cmFZ`) **What `plan_with` decides at `CNodeCopy` / `CNodeMint`**,
+with its locks and seen words (module docstring): in particular the source cap is a non-EPT Frame cap (never an
+Untyped). -/
+theorem plan_with_cmF {s : S} {t : obj.Tcb} {lbl : U64} {slot : obj.Slot} {extra : Array obj.Slot 3#usize}
+    {p : localinv.Plan} (hl : lbl = fl4_abi.label.CNodeCopy ∨ lbl = fl4_abi.label.CNodeMint)
+    (h : localinv.plan_with st s t lbl slot extra = ok (some p)) : CMPlan st s t slot extra p := by
+  obtain ⟨cp, cr, cg, cgb, dest, s1, src, fp, rt, asid, va, sz, d, mp, rc, c1, h1, h2, h3, h4, h5, h6, h7, h8, h9,
+    -, h10⟩ := plan_with_cmFZ hl h
+  exact ⟨cp, cr, cg, cgb, dest, s1, src, fp, rt, asid, va, sz, d, mp, rc, c1, h1, h2, h3, h4, h5, h6, h7, h8, h9,
+    h10⟩
 
 end plan
 
