@@ -2418,3 +2418,6 @@ import Fl4Spec.Ext.VirtReport
 import Fl4Spec.Ext.VirtKernelF
 import Fl4Proofs.P3.VirtReportEq
 import Fl4Proofs.P3.VirtSanSvm
+import Fl4Proofs.P3.VirtF13
+import Fl4Proofs.P3.VirtKEntryV3F
+import Fl4Proofs.P3.VirtWit13
