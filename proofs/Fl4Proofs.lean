@@ -2033,5 +2033,9 @@ import Fl4Proofs.P2.InvDelPteR
 import Fl4Proofs.P2.InvDelPteG
 import Fl4Proofs.P2.InvDelPteAccX
 import Fl4Proofs.P2.InvDelPteP
+import Fl4Proofs.P2.InvDelPteIoR
+import Fl4Proofs.P2.InvDelPteAccR
+import Fl4Proofs.P2.InvDelPteAccP
+import Fl4Proofs.P2.InvDelPteOblP
 import Fl4Proofs.P2.E2EPW11R
 import Fl4Proofs.P2.E2EPW11RI
