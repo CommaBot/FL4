@@ -5,8 +5,8 @@ Handoff §31c. The invocation's outer skeleton (`syscall.handle_invocation_local
 generic in the read set; what fixes it to `IoRSR` are the entry facts (`IoPre.entR`, `IoPre.midR`,
 `io_alt_midRR`) and the wrappers `inv_acc_genR` / `inv_dec_guardRSR`. Here they are restated for any read set `R`
 holding the `IoRSR s` words of a set of word classes `G` (`GCl`: the node words, the current thread's words at
-192–4095, its registers, the capability slots' base / second words, the current SC's words, the kernel-global
-words `ksb + o`, `o < 256`, the earliest timer's deadline, the release head's `SC` word and refill head):
+256–4095, its registers, the capability slots' base / second words, the current SC's words, the kernel-global
+domain words `CUR_DOMAIN` / `DOMAIN_TIME`, the earliest timer's deadline, the release head's `SC` word and refill head):
 
 * `GCl`, `rdh_and`; **`IoPre.iaccV`**, **`IoPre.entV`** (`IoEnt` over `R`), **`IoPre.midV`** (`IoMid` over `R`),
   **`io_alt_midRV`** (`IoMidR` over `R` at an alternative's post-prefix state; scripted from `io_alt_midRR`);
@@ -33,11 +33,12 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 /-- **The word classes the CNodeDelete run reads at its entry `s`** (module docstring), each in `G`. -/
 structure GCl (K : KLayout) (Z : U64 → Nat) (G : U64 → Prop) (s : S) : Prop where
   n : ∀ o : U64, o.val < 4288 → G (L.nodeAt s (L.cpu s) o)
-  t : ∀ k : U64, 192 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → G (fld (L.curW s) k)
+  t : ∀ k : U64, 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → G (fld (L.curW s) k)
   r : ∀ r : U64, r.val < 384 → G (regA (L.curW s) r)
   sl : ∀ q ∈ K.slots, G q ∧ G (core.num.U64.wrapping_add q 8#u64)
   sc : ∀ b, Aligned b → InSC (L.cscW s) (Z (L.cscW s)) b → G b
-  ks : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → G (core.num.U64.wrapping_add (L.ksb s) o)
+  ks : ∀ o : U64, (o = layout.ks.CUR_DOMAIN ∨ o = layout.ks.DOMAIN_TIME) →
+    G (core.num.U64.wrapping_add (L.ksb s) o)
   td : L.mem s (tmA (L := L) s) ≠ 0#u64 → G (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)
   rs : L.mem s (rhA (L := L) s) ≠ 0#u64 → G (scA (L.mem s (rhA (L := L) s))) ∧
     RdHead (L := L) G s (L.mem s (scA (L.mem s (rhA (L := L) s))))
@@ -65,7 +66,7 @@ theorem IoPre.iaccV {W : U64 → Prop} (hW : IoWr st W Z s) : IoAcc st R W s (L.
   sc := hR _ (P.gateR (Locks := Locks) (off := 3464#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
     (Gc.t _ (by simp) (by simp) (by simp))
   dt := hR _ (P.kswR (Locks := Locks) (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME]))
-    (Gc.ks _ (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME]))
+    (Gc.ks _ (Or.inr rfl))
   td := fun h0 => hR _ (P.tdR (Locks := Locks) h0) (Gc.td h0)
   rs := fun h0 => ⟨hR _ (P.rsR (Locks := Locks) h0).1 (Gc.rs h0).1,
     rdh_and (P.rsR (Locks := Locks) h0).2 (Gc.rs h0).2 hR⟩
@@ -121,7 +122,7 @@ theorem IoPre.midV {W : U64 → Prop} (hW : IoWr st W Z s) {C : U64 → U64 → 
     rs := ac.rs
     dt := ac.dt
     cd := hR _ (P.kswR (Locks := Locks) (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN]))
-      (Gc.ks _ (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN]))
+      (Gc.ks _ (Or.inl rfl))
     af := hR _ (P.gateR (Locks := Locks) (off := 3520#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
       (Gc.t _ (by simp) (by simp) (by simp))
     dom := hR _ (P.gateR (Locks := Locks) (off := 3432#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
@@ -305,11 +306,11 @@ theorem io_alt_midRV {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       dt := by
         rw [w.1, Al.ksb]
         exact hR _ (P.kswR (Locks := Locks) (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME]))
-          (Gc.ks _ (by simp [layout.ks.DOMAIN_TIME]) (by simp [layout.ks.DOMAIN_TIME]))
+          (Gc.ks _ (Or.inr rfl))
       cd := by
         rw [w.1, Al.ksb]
         exact hR _ (P.kswR (Locks := Locks) (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN]))
-          (Gc.ks _ (by simp [layout.ks.CUR_DOMAIN]) (by simp [layout.ks.CUR_DOMAIN]))
+          (Gc.ks _ (Or.inl rfl))
       af := hR _ (P.gateR (Locks := Locks) (off := 3520#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
         (Gc.t _ (by simp) (by simp) (by simp))
       dom := hR _ (P.gateR (Locks := Locks) (off := 3432#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
