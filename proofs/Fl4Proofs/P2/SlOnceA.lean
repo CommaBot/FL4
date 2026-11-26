@@ -115,6 +115,7 @@ theorem fault_away_once {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ ¬ U
   cases c
   all_goals try (simp only [Once]; done)
   rename_i ptr badge x' y g gr
+  dsimp only at h2 ⊢
   obtain ⟨rts, rhd⟩ := D.ep ptr badge x' y g gr ec
   cases g
   rw [if_neg Bool.false_ne_true] at h2 ⊢
