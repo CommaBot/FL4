@@ -341,4 +341,140 @@ theorem loop1_once_iter {Y : Type} (rcv : U64) (regs : Slice U64) (n : Usize) (b
 
 end loop
 
+/-! ## `handle_fault_reply` to an UnknownSyscall fault -/
+
+section hfr
+variable {S A : Type} {st : machine.Store S} [L : LawfulStore st] {ar : machine.Arch A} {Rd User : U64 → Prop}
+
+theorem us_ne_cap : fl4_abi.consts.fault.UnknownSyscall ≠ fl4_abi.consts.fault.CapFault := by
+  unfold fl4_abi.consts.fault.UnknownSyscall fl4_abi.consts.fault.CapFault; decide
+
+set_option maxHeartbeats 4000000 in
+/-- **`Once` through the reply to an UnknownSyscall fault** (`handle_fault_reply u t`, the receiver `u`
+faulted with `UnknownSyscall`): the sender's `MSG_INFO`, the receiver's `FAULT_TYPE`, the sender's message
+registers and buffer lookup are read on `guard st R0 _` (`R0` inside `Rd`, no user word); the buffer words
+by `loop1_once_iter`, from an empty touched set. The continuation: `Once` for every touched set at every
+state reached by writes of `u`'s registers, with the Arch state unchanged. -/
+theorem hfr_once {Y : Type} {R0 : U64 → Prop} (hR0 : ∀ q, R0 q → Rd q ∧ ¬ User q)
+    {u t : U64} (hu : TcbAddr u) (hrw : ∀ r : U64, r.val < 384 → ¬ User (regA u r))
+    (hmi : R0 (regA t layout.reg.MSG_INFO)) (hft : R0 (core.num.U64.wrapping_add u 3376#u64))
+    (hsr : Regs R0 t) (hb : RdBuf R0 t)
+    {X : S} {a : A} (hty : L.mem X (faultA u) = fl4_abi.consts.fault.UnknownSyscall)
+    (K : Bool → SProg Y) {r' : Y × S × A}
+    (h : interp st ar ((R.faults.handle_fault_reply u t).sbind K) X a = ok r')
+    (hK : ∀ s1 b, WritesIn st X s1 (XferRegW ({u} : Set U64) ∅) → interp st ar (K b) s1 a = ok r' →
+      ∀ Wd' T', Once st ar Rd User Wd' T' (K b) s1 a)
+    (Wd : Set U64) : Once st ar Rd User Wd ∅ ((R.faults.handle_fault_reply u t).sbind K) X a := by
+  have hW0 : ∀ q, (fun q => ¬ User q) q → ¬ User q := fun _ h => h
+  have hrw' : Regs (fun q => ¬ User q) u := fun r hr => hrw r hr
+  have hTu : TcbPlaced ({u} : Set U64) := fun y hy => by rw [Set.mem_singleton_iff] at hy; rw [hy]; exact hu
+  obtain ⟨sl, hsl, hb1, hb2, hb3⟩ := hb
+  unfold R.faults.handle_fault_reply at h ⊢
+  simp only [SProg.bind_eq_sbind, SProg.pure_eq_ret, SProg.sbind_assoc] at h ⊢
+  -- msg_info
+  refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.msg.msg_info_nz _) h (fun r h1 => ?_)
+    (fun r h1 hk Wd _ => ?_)
+  · rw [R.msg.msg_info_eq] at h1 ⊢
+    rw [msg.msg_info.guard (gS := PathObl.guard st R0 (fun q => ¬ User q)) X t hmi]
+    exact h1
+  replace h := hk
+  rw [R.msg.msg_info_eq] at h1
+  obtain ⟨tag, -, rfl⟩ := bind_shape h1
+  dsimp only at h ⊢
+  -- fault_type
+  refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.obj.Tcb.fault_type_nz _) h (fun r h1 => ?_)
+    (fun r h1 hk Wd _ => ?_)
+  · rw [R.obj.Tcb.fault_type_eq] at h1 ⊢
+    rw [obj.Tcb.fault_type.guard (gS := PathObl.guard st R0 (fun q => ¬ User q)) u X hft]
+    exact h1
+  replace h := hk
+  rw [R.obj.Tcb.fault_type_eq] at h1
+  obtain ⟨ty, ety, rfl⟩ := bind_shape h1
+  dsimp only at h ⊢
+  rw [fault_type_ok, hty] at ety
+  cases ok_inj_ff ety
+  rw [if_neg us_ne_cap, if_pos rfl] at h ⊢
+  simp only [SProg.sbind] at h ⊢
+  -- copy_mrs_fault_reply
+  unfold R.faults.copy_mrs_fault_reply at h ⊢
+  simp only [SProg.bind_eq_sbind, SProg.pure_eq_ret, SProg.sbind_assoc, SProg.sbind] at h ⊢
+  -- the count `n`
+  refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (by unfold SProg.blk; split <;> trivial) h
+    (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+  · unfold SProg.blk at h1 ⊢
+    split at h1 <;> (simp only [interp] at h1 ⊢; exact h1)
+  replace h := hk
+  obtain ⟨n, X1, a1⟩ := r
+  have hn : n.val ≤ (Slice.len (Array.to_slice faults.SYSCALL_MESSAGE)).val ∧ X1 = X ∧ a1 = a := by
+    unfold SProg.blk at h1
+    split at h1
+    · simp only [interp, ok.injEq, Prod.mk.injEq] at h1
+      obtain ⟨rfl, rfl, rfl⟩ := h1
+      refine ⟨?_, rfl, rfl⟩
+      rename_i hlt
+      have := hlt
+      simp only [UScalar.lt_equiv] at this
+      have e : (UScalar.cast .Usize tag.length).val = tag.length.val := by
+        have := syscall_message_len
+        simp only [UScalar.cast_val_eq, UScalarTy.numBits] at *
+        rcases System.Platform.numBits_eq with e | e <;> simp only [e] at * <;> scalar_tac
+      rw [e]
+      have e2 := usize_cast_val (Slice.len (Array.to_slice faults.SYSCALL_MESSAGE))
+      omega
+    · simp only [interp, ok.injEq, Prod.mk.injEq] at h1
+      obtain ⟨rfl, rfl, rfl⟩ := h1
+      exact ⟨le_refl _, rfl, rfl⟩
+  obtain ⟨hn, rfl, rfl⟩ := hn
+  dsimp only at h ⊢
+  -- loop 0 (registers)
+  refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.faults.copy_mrs_fault_reply_loop0_nz _ _ _ _ _) h
+    (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+  · rw [R.faults.copy_mrs_fault_reply_loop0_eq] at h1 ⊢
+    rw [faults.copy_mrs_fault_reply_loop0.guard (gS := PathObl.guard st R0 (fun q => ¬ User q)) X t u _ n _
+      syscall_message_lt hsr hrw']
+    exact h1
+  replace h := hk
+  rw [R.faults.copy_mrs_fault_reply_loop0_eq] at h1
+  obtain ⟨⟨X2, i2⟩, e0, rfl⟩ := bind_shape h1
+  dsimp only at h ⊢
+  have w02 : WritesIn st X X2 (XferRegW ({u} : Set U64) ∅) := by
+    have := faults.copy_mrs_fault_reply_loop0.rg (st := st) (L := L) (T := ({u} : Set U64)) (s0 := X) hTu
+      (Set.mem_singleton _) syscall_message_lt (WritesIn.refl _ _) (snd := t) (n := n) (i := 0#usize)
+    rw [e0, WP.spec_ok] at this; exact this
+  refine once_ite h (fun hlt h => ?_) (fun _ h => ?_)
+  swap
+  · simp only [SProg.sbind] at h ⊢
+    exact hK X2 _ w02 h _ _
+  -- the buffer
+  refine once_gstep (W0 := fun q => ¬ User q) hR0 hW0 (R.msg.lookup_ipc_buffer_nz _ _) h
+    (fun r h1 => ?_) (fun r h1 hk Wd _ => ?_)
+  · rw [R.msg.lookup_ipc_buffer_eq] at h1 ⊢
+    rw [msg.lookup_ipc_buffer.guard (gS := PathObl.guard st R0 (fun q => ¬ User q)) X2 false t hsl hb1 hb2 hb3]
+    exact h1
+  replace h := hk
+  rw [R.msg.lookup_ipc_buffer_eq] at h1
+  obtain ⟨buf, -, rfl⟩ := bind_shape h1
+  dsimp only at h ⊢
+  refine once_ite h (fun hne h => ?_) (fun _ h => ?_)
+  swap
+  · simp only [SProg.sbind] at h ⊢
+    exact hK X2 _ w02 h _ _
+  -- loop 1 (the buffer words)
+  unfold R.faults.copy_mrs_fault_reply_loop1 at h ⊢
+  refine loop1_once_iter u _ n buf syscall_message_lt hn syscall_message_len hrw
+    (fun s1 a1 => WritesIn st X s1 (XferRegW ({u} : Set U64) ∅) ∧ a1 = a) ?_ _ ?_ _ i2 X2 a Wd ∅
+    (fun _ hq => absurd hq (Set.notMem_empty _)) ⟨w02, rfl⟩ h
+  · rintro s1 a1 r v s' ⟨hW, rfl⟩ hr hw
+    rw [L.write_eq] at hw
+    cases ok_inj_ff hw
+    obtain ⟨Ko, hKo, e⟩ := regA_eq hu hr
+    refine ⟨hW.trans1 ((writesIn_wr (by rw [e]; exact field_aligned hu (by omega) (by omega))).mono
+      fun b hb' => ?_), rfl⟩
+    rw [hb', e]
+    exact Or.inl ⟨u, rfl, Ko, by omega, by omega, by omega, rfl⟩
+  · rintro s1 a1 ⟨hW, rfl⟩ h' Wd' T'
+    exact hK s1 _ hW h' Wd' T'
+
+end hfr
+
 end Fl4Proofs.P2.PathObl
