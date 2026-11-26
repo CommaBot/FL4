@@ -102,6 +102,7 @@ import Fl4ProofsA64.P1.QueueDecTdx
 import Fl4ProofsA64.P1.QueueEntryGaps
 import Fl4ProofsA64.P1.QueueReplyX
 import Fl4ProofsA64.P1.QueueDecDel
+import Fl4ProofsA64.P1.QueueScBindVm
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -116,10 +117,10 @@ open Lean Elab Command in
         if !(ok.contains a) then bad := bad.push (c, a)
   logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
 #print axioms Fl4ProofsA64.P1.xferOK_ofA
-#print axioms Fl4ProofsA64.P1.XferOK.toA
+#print axioms Fl4ProofsA64.P1.decGap_sc_f
 #print axioms Fl4ProofsA64.P1.endpoint.send_ipc.ipcA
-#print axioms Fl4ProofsA64.P1.endpoint.receive_ipc.ipcA
-#print axioms Fl4ProofsA64.P1.syscall.handle_recv.bxiA
+#print axioms Fl4ProofsA64.P1.InvGaps2F.gaps
+#print axioms Fl4ProofsA64.P1.migrate_tail_f
 #print axioms Fl4ProofsA64.P1.faults.handle_fault.bxiA
 #print axioms Fl4ProofsA64.P1.syscall.dispatch_syscall.bxiA
 #print axioms Fl4ProofsA64.P1.EntryHypsA.of
