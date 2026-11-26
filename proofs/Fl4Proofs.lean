@@ -2284,3 +2284,6 @@ import Fl4Proofs.P3.VirtNvK1
 import Fl4Proofs.P3.VirtTyK7
 import Fl4Proofs.P3.VirtNvK2
 import Fl4Proofs.P3.VirtExtTop
+import Fl4Proofs.P3.VirtAgree
+import Fl4Proofs.P3.VirtAgreeDec
+import Fl4Proofs.P3.VirtExtTopU36
