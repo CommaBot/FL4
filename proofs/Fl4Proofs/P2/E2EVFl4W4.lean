@@ -16,9 +16,9 @@ its sets as free fields, so the start fact asks that they are those:
 * `SlJAtS K Cs Ac s` = `SlJAt K s` with its core / active-SC ghosts named (`SlJAtS.slJAt`); **`slJAtS_of`**: every
   `SlJAt K s` (clause 7 at a chain state) is `SlJAtS K {c | c < ncores} Ac s` for some `Ac`.
 * **`BunIx K T Cs Ω H Sg Rp Scs Nt Z Ac s`** (index convention, the glue's choice of the index at the start state,
-  as the untagged `hKH` / `hTs` / `hΩ` / `hSg` conventions already were): `H = K.heap`, `T` / `Ω` / `Sg` / `Rp` /
-  `Scs` / `Nt` / `Z` the heap's sets, and `SlJAtS K Cs Ac s`. **`bunIx_of`**: at every bundle state some index sets
-  satisfy it (so it is a choice, not a fact about the state). Derived from it: `BunIx.bxi`, `.stLay`, `.entryInv`,
+  listed with the untagged index conventions `hKH` / `hTs` / `hΩ` / `hSg`): `H = K.heap`, `T` / `Ω` / `Sg` / `Rp` /
+  `Scs` / `Nt` / `Z` the heap's sets, and `SlJAtS K Cs Ac s`. It is **a choice of index, not a fact about the
+  state**: **`bunIx_of`** gives, at every bundle state, index sets satisfying it. Derived from it: `BunIx.bxi`, `.stLay`, `.entryInv`,
   `.aff`, `.ntw`, `.kb`, `.nc`, `.tcbT`, `.scsK`, `.scsT`, `.ntT`, `fld_aff_nu`.
 
 ## 2. The start entry facts (`StartP3W4` vs `StartP3W`)
@@ -59,6 +59,11 @@ word once) of that decline prefix: not vacuous; it is hpzg's `vtimer_hro` declin
 `cs` give by region, as `irq_rd_nu`). Same for vx (`vexit_localPathPG2` already discharges it there). No other
 VM-slot record field becomes trivially provable at `K.vcpus = ∅`: `VtPremP3.M` / `UB` / `SL` / `pSg` and the `eu`s
 quantify over every `VtPre` / `VxPre` state, not over accepting runs.
+
+## Index conventions (untagged; the glue's choice of index at a start, not facts about the state)
+
+`hKH` / `hTs` / `hΩ` / `hSg` (P1's sets convention, as before), **`BunIx`** (satisfiable at every bundle state:
+`bunIx_of`), io / st **`hQ`** (the index's `Q` is the canonical one; `IoArg` / `StArg` unchanged).
 
 ## Premise table diff vs `serializable_fl4_localP3W` (start entry facts and records only)
 
@@ -111,7 +116,10 @@ theorem slJAtS_of (h : SlJAt (L := L) Kl s) : ∃ Ac, SlJAtS (L := L) Kl {c : U6
   subst e
   exact ⟨Ax, A', arI, AR, Zx, Lst, D, a', σ, B⟩
 
-/-- **The index's sets are the bundle's** (module docstring, item 1; the glue's choice of the index). -/
+/-- **The index's sets are the bundle's** (module docstring, item 1). Index convention, untagged like `hKH` / `hTs` /
+`hΩ` / `hSg`: it is **a choice of index, not a fact about the state** — by `bunIx_of`, at every bundle state (clause 7
+of `loc_chain_all` at a chain state) some index sets satisfy it, so the glue (which picks the index at each start)
+can always meet it. -/
 structure BunIx (Kl : OwnMap.KLayout) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat)
     (Ac : Set U64) (s : S) : Prop where
   hKH : Kl.heap = H
@@ -458,7 +466,10 @@ theorem StEntJ4.q {i : StArg S} {K : KLayoutV} {m : U64 → U64} {s : S} (E : St
 structure VxEntJ4 (i : VxArg S) (K : KLayoutV) (s : S) : Prop where
   /-- Index convention. -/
   ix : BunIx (L := L) K.toKLayout i.T i.Cs i.Ω i.H i.Sg i.Rp i.Scs i.Nt i.Z i.Ac s
-  /-- [P] the glue's `v` is the current thread's bound VCPU. -/
+  /-- [P] the glue's `v` is the current thread's bound VCPU: fl4-sync's `local_vm_exit`
+  (`crates/fl4-sync/src/lib.rs` lines 849–850) takes `l = localvm::vm_locks(s, localvm::cur_vcpu(s))` and runs
+  `handle_vcpu_exit_local(s, a, l.vcpu, l.ntfn)`, `l.vcpu = cur_vcpu(s)` (`vm_locks`, `crates/fl4-core/src/localvm.rs`
+  line 109), the current thread's bound VCPU word (`vOf`). -/
   hv : i.v = vOf st s
   /-- [J] -/
   cs : ∀ k : U64, k.val < 192 → k.val % 32 < 16 → ∃ p,
