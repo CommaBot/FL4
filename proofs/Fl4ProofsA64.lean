@@ -89,3 +89,4 @@ import Fl4ProofsA64.P1.QueueVsFin
 import Fl4ProofsA64.P1.QueueBudgetG
 import Fl4ProofsA64.P1.IbKeepHolds
 import Fl4ProofsA64.P1.VcpuCheckInv
+import Fl4ProofsA64.P1.QueueEntry
