@@ -2125,3 +2125,4 @@ import Fl4Proofs.P2.ViewSafeIoAcc
 import Fl4Proofs.P2.ViewSafeIoDec
 import Fl4Proofs.P2.ViewSafeIoPin
 import Fl4Proofs.P2.ViewSafeIoU8
+import Fl4Proofs.P2.ViewSafeObstr
