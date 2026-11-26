@@ -1,0 +1,32 @@
+import Fl4Proofs.P2.SlOnceR3
+open Fl4Proofs.P2.PathObl
+#print axioms once_monoR
+#print axioms once_agree
+#print axioms l1W_ne
+#print axioms loop1_once_iter
+#print axioms hfr_once
+#print axioms interp_guard_meet
+#print axioms slOF_of
+#print axioms fltAcc_nuT
+#print axioms sl_trap_acc_guardN
+#print axioms rrDec_nu
+#print axioms sl_dec_guardN
+#print axioms sl_once_accN
+#print axioms sl_pre_once
+#print axioms fault_away_once
+#print axioms sl_once_trap_away
+#print axioms rr_away_once
+#print axioms sl_once_rr_away
+#print axioms sl_hro
+#print axioms sl_pathsKC6
+#print axioms sl_pathsKC6_startAt
+#print axioms RrAcc.toNB
+#print axioms RrAccNB.meet
+#print axioms scAccNN
+#print axioms rrAccNB_nu
+#print axioms endT_eq
+#print axioms rr_acc_once
+#print axioms sl_rr_once
+#print axioms sl_hro2
+#print axioms sl_pathsKC7
+#print axioms sl_pathsKC7_startAt
