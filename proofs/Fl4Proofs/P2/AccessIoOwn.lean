@@ -14,7 +14,9 @@
 
 Premises (fields of `IoLay`, `IoPre`):
 * `IoLay` [J]: regions of the layout (`RegionOK`'s kind: nodes, capability
-  slots, TCBs, SCs, the kernel-global area and user memory are disjoint);
+  slots, TCBs, SCs, the kernel-global area and user memory are disjoint; the kernel-global field `ks` covers the
+  aligned words of the first 256 bytes of the block since line iolay; P3 bundle states give all of it,
+  `SlJAt.ioLay` in P2/E2EVFl4W9.lean);
 * `IoPre.bxi`, `csc`, `hcsc`: P1's `EntryInv` / `DecPre` at the entry;
 * `IoPre.run` [P]: the current thread is `RUNNING` or `RESTART`
   (`AccessIoEnt`);
@@ -49,7 +51,12 @@ structure IoLay (K : KLayout) : Prop where
   slot8 : ∀ p ∈ K.slots, p.val % 8 = 0 ∧ p.val + 32 ≤ 2 ^ 64
   tslot : ∀ t, K.heap t = some .tcb → ∀ i sl, obj.Tcb.slot t i = ok sl → i.val < 6 → sl ∈ K.slots ∧ TcbSlot K sl
   scw : ∀ p z, K.heap p = some (.sc z) → ∀ b, InW p (2 ^ z) b → region K b = .sc p
-  ks : ∀ b : U64, K.ksb.val ≤ b.val → b.val < K.ksb.val + 13568 → region K b = .none
+  /-- The kernel globals in the first 256 bytes of the kernel-state block lie in no region (line iolay: formerly
+  every word of the whole block `[ksb, ksb + 13568)`, false for P3's layout `OwnMap.layoutJ`, whose slots include
+  the IRQ node's one-slot CNodes at `ksb + 1248 + 32 i`, `IntLayout.node`, famw's `SlJAt.not_ioLay`; narrowed as
+  line slj narrowed `RegionOKX.ks`. The I/O port and VM paths read only `CUR_DOMAIN` 8, `DOMAIN_TIME` 16 and
+  `KERNEL_ROOT` 48 there, through `IoPre.ksw` / `VmBase.ksw`). -/
+  ks : ∀ b : U64, Aligned b → K.ksb.val ≤ b.val → b.val < K.ksb.val + 256 → region K b = .none
   ksf : K.ksb.val % 8 = 0 ∧ K.ksb.val + 13568 ≤ 2 ^ 64
   user : ∀ b ∈ K.user, region K b = .none ∧ ¬ (K.ksb.val ≤ b.val ∧ b.val < K.ksb.val + 13568)
 
@@ -304,15 +311,17 @@ theorem IoPre.slot {sl : U64} (h : sl ∈ K.slots) (hg : TcbSlot K sl ∨ ¬ Nul
       Or.inr (own_slot_gate P.lay h hb hg)⟩
   exact ⟨k sl ⟨le_refl _, by omega⟩ h8, k _ ⟨by omega, by omega⟩ (by unfold Aligned; omega)⟩
 
-theorem IoPre.ksw {o : U64} (ho : o.val < 13568) (h8 : o.val % 8 = 0) :
+theorem IoPre.ksw {o : U64} (ho : o.val < 256) (h8 : o.val % 8 = 0) :
     IoRS (st := st) K Locks s (core.num.U64.wrapping_add (L.ksb s) o) := by
   obtain ⟨k8, kf⟩ := P.lay.ksf
   rw [P.kb] at k8 kf
   have hv : (core.num.U64.wrapping_add (L.ksb s) o).val = (L.ksb s).val + o.val := by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
   have h1 : K.ksb.val ≤ (core.num.U64.wrapping_add (L.ksb s) o).val := by rw [hv, P.kb]; omega
-  have h2 : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 13568 := by rw [hv, P.kb]; omega
-  exact ⟨by unfold Aligned; omega, P.region_kernel (Or.inr ⟨h1, h2⟩), Or.inr (own_none (P.lay.ks _ h1 h2))⟩
+  have h2' : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 256 := by rw [hv, P.kb]; omega
+  have h2 : (core.num.U64.wrapping_add (L.ksb s) o).val < K.ksb.val + 13568 := by omega
+  have ha : Aligned (core.num.U64.wrapping_add (L.ksb s) o) := by unfold Aligned; omega
+  exact ⟨ha, P.region_kernel (Or.inr ⟨h1, h2⟩), Or.inr (own_none (P.lay.ks _ ha h1 h2'))⟩
 
 theorem IoPre.td (h0 : L.mem s (tmA (L := L) s) ≠ 0#u64) :
     IoRS (st := st) K Locks s (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64) := by
