@@ -1968,4 +1968,7 @@ import Fl4Proofs.P2.InvLay
 import Fl4Proofs.P2.InvHuf
 import Fl4Proofs.P3.VsUserApart
 import Fl4Proofs.P2.InvPD
+import Fl4Proofs.P2.InvVsJ
+import Fl4Proofs.P2.InvTrunc8
+import Fl4Proofs.P2.InvJ
 import Fl4Proofs.P2.E2EVFl4Top
