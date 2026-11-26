@@ -2293,3 +2293,5 @@ import Fl4Proofs.P3.KCfgFL4
 import Fl4Proofs.P3.XTopJointKEntryU44
 import Fl4Proofs.P3.P3JVtxMR
 import Fl4Proofs.P3.XTopJointKEntryU45
+import Fl4Proofs.P3.P3JVtxR
+import Fl4Proofs.P3.XTopJointKEntryU46
