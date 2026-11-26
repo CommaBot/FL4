@@ -150,7 +150,8 @@ theorem spe_congrX {asid va : U64}
   rw [hr]
   simp only [bind_ok]
   cases r with
-  | Err e => rfl
+  | Err e =>
+    simp only [core.result.Result.ok, core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
   | Ok root =>
     simp only [core.result.Result.ok, core.option.Option.Insts.CoreOpsTry_traitTry.branch, bind_ok]
     unfold localinv.page_entry vspace.small_page_entry
@@ -287,7 +288,7 @@ theorem planDel_userWrX
     obtain ⟨c, p1⟩ := x
     have hc := read_cap_val hx (by simp)
     try simp only at hc
-    try dsimp only
+    simp only [Aeneas.Std.uncurry_apply_pair]
     by_cases hsr : localinv.small_ram_frame c = ok true
     · obtain ⟨fp, rt, mp, asid, va, rfl⟩ := srf_true hsr
       rw [hsr]
@@ -525,12 +526,10 @@ theorem invLXS_wrX (U : Fl4Proofs.P2.E2EP.UserLayX L K)
   · rw [hpr sl hsl, hnx sl hsl]; exact X.cdt sl hsl
   · intro bb hbb hb0 i hi
     rw [ecur, lookup_buf_agreeB true e1 e2 e3] at hbb
-    have h := X.buf8 bb hbb hb0 i hi
-    rwa [ecur]
+    exact X.buf8 bb hbb hb0 i hi
   · intro bb hbb hb0 i hi
     rw [ecur, lookup_buf_agreeB false e1 e2 e3] at hbb
-    have h := X.bufS8 bb hbb hb0 i hi
-    rwa [ecur]
+    exact X.bufS8 bb hbb hb0 i hi
   · rw [Fl4Proofs.P2.E2EP.cap_wrL U.lp hb hba v hsl] at hc
     obtain ⟨h1, h2, h3⟩ := X.vs sl fp rt asid va hsl hc ha
     obtain ⟨h3', e⟩ := vsRdG_wrX (V := VsW K) (fun a ha => read_wr_nu hb hba v ha.1 ha.2.2) (ksBase_wr b v) h3
