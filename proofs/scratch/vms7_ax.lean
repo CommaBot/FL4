@@ -38,5 +38,7 @@ import Fl4Proofs.P2.E2EPVX7
 #print axioms Fl4Proofs.P2.E2EP.slSlotPX
 #print axioms Fl4Proofs.P2.E2EP.SlPremX5.toX
 #print axioms Fl4Proofs.P2.E2EP.slStartX_at
+#print axioms Fl4Proofs.P2.E2EP.slPremX5_sat
+#print axioms Fl4Proofs.P2.E2EP.slStartX_of
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX7G
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localVX7

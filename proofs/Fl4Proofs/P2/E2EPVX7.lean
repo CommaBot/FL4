@@ -38,7 +38,9 @@ it to the prefix state by `lookup_buf_agreeB`). **`SlEntX.wr`**: `SlEntX` surviv
 [P], `kd` [P]); **`sl_hufVX`**; **`slSlotX`** (route C, `ReadOnce` by `sl_hroX`, `AvoidV` by `sl_avoidVX`);
 **`sl_avoidPX`**, **`sl_avoidPXf`**, **`slSlotPX`**; record **`SlPremX5`** (`cs`, `kd` [P]) and **`SlPremX5.toX`**;
 start entry **`SlEntV`** [S] (`ents` = VX6's `SlEntS`, `entx` = `SlEntX`, `tab` = `TabNoV`, `qps` = `QPs`; `q` = U1's
-`SlQ`); start fact **`SlStartX`**; **`slStartX_at`** (`SlLX` by VX6's `SlLX.ofVtx`). Tops **`StartVX7`**,
+`SlQ`); start fact **`SlStartX`**; **`slStartX_at`** (`SlLX` by VX6's `SlLX.ofVtx`); satisfiability **`slPremX5_sat`**
+(every layout, any core count: constant lock map, as VX6's `ioPremX5_sat`) and **`slStartX_of`** (the start fact from a
+start state with `SlEntV`, the armed program built from the epoch's bundle). Tops **`StartVX7`**,
 **`serializable_fl4_localVX7G`**, **`serializable_fl4_localVX7`** = VX5's family ⊕ `slSlotPX`, glue `ExecVX4`.
 
 Slots starting in VM epochs: vx, vt, io, st, irq, **sl**. Native epochs: all of U1's.
@@ -1339,6 +1341,26 @@ theorem slStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : U
     rw [body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv σ a, hb E, ← hc]
     rfl
   exact key _ _ (SlotC.lift_eq _ _ (hp.toX E))
+
+/-- **`SlPremX5` is satisfiable at every layout** (any core count): the index with a constant lock map (the held
+set `hs` of the start fact's `j.Locks σ = hs`) and any core set below 64 cores (`kernDetS_const`). -/
+theorem slPremX5_sat (K : KLayoutV) (n : I64) (found : U64 × U64) (Cs Ω Sg Ac : Set U64)
+    (hCs : ∀ c ∈ Cs, c.val < 64) (hs : U64 → Prop) :
+    ∃ i : SlArg S, i.Cs = Cs ∧ i.Locks = (fun _ => hs) ∧ SlPremX5 st i K :=
+  ⟨{ n := n, found := found, Cs := Cs, Ω := Ω, Sg := Sg, Ac := Ac, Locks := fun _ => hs }, rfl, rfl,
+    hCs, fun s _ => kernDetS_const (L := L) (fun _ _ => rfl) s⟩
+
+/-- **The start fact from its parts** (the armed program built from the epoch's bundle `E`; by proof irrelevance
+it is the same for every bundle). -/
+theorem slStartX_of {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
+    {hs : U64 → Prop} {j : SlArg S} (E : VtxBundle4 st L K) (hv : K.vcpus ≠ ∅) (h : SlPremX5 st j K.toKLayoutV)
+    {σ : S} (a : A) (he : SlEntV st ar K j μ σ) (hc : L.cpu σ = c) (hl : j.Locks σ = hs)
+    (hμ : ∀ x, Aligned x → ¬ x ∈ K.user → L.mem σ x = μ x) :
+    SlStartX st ar hA hm hSt a0 K μ hK hU c hs
+      (cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c
+        (((slSlotX st ar hA hm hSt a0).liftAt j K.toKLayoutV μ hK.base hU.base (h.toX E)).body σ a) ∅) j :=
+  ⟨hv, _, ⟨h, σ, a, he, hc, hl, hμ, fun _ => rfl⟩, rfl⟩
+
 
 end slS
 
