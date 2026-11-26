@@ -134,3 +134,7 @@ import Fl4ProofsA64.P1.QueueFinRvSt
 import Fl4ProofsA64.P1.QueueFinRvReply
 import Fl4ProofsA64.P1.QueueDecIrq
 import Fl4ProofsA64.P1.QueueDecUt
+import Fl4ProofsA64.P1.QueueHeapDrop
+import Fl4ProofsA64.P1.QueueRetype
+import Fl4ProofsA64.P1.QueueHeapFree
+import Fl4ProofsA64.P1.QueueReset
