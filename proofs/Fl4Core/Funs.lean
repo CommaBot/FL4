@@ -32946,12 +32946,12 @@ def obj.Slot.next_of_word (w : Std.U64) : Result obj.Slot := do
   ok i
 
 /-- [fl4_core::localinv::map_attr_local]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 280:0-282:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 285:0-287:1 -/
 def localinv.map_attr_local (_attr : Std.U64) : Result Bool := do
   ok true
 
 /-- [fl4_core::localinv::page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 271:0-276:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 276:0-281:1 -/
 def localinv.page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) :
@@ -32962,7 +32962,7 @@ def localinv.page_entry
   else vspace.small_page_entry machineStoreInst s root vaddr
 
 /-- [fl4_core::localinv::small_page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 262:0-265:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 267:0-270:1 -/
 def localinv.small_page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64)
   (vaddr : Std.U64) :
@@ -32979,7 +32979,7 @@ def localinv.small_page_entry
       Std.U64 residual
 
 /-- [fl4_core::localinv::plan_with]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-257:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-262:1
     Visibility: public -/
 def localinv.plan_with
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -33080,24 +33080,22 @@ def localinv.plan_with
               | capability.Cap.TdxControl => ok (p3, false)
             if b2
             then
-              let c1 ← capability.Cap.decode dest_w0 0#u64
-              let b3 ← capability.Cap.is_null c1
-              if b3
-              then
-                let (b4, p5) ← localinv.Plan.add p4 val
+              if dest_w0 != 0#u64
+              then ok none
+              else
+                let (b3, p5) ← localinv.Plan.add p4 val
                 let (p6, ok1) ←
-                  if b4
+                  if b3
                   then
                     do
-                    let (b5, p7) ← localinv.Plan.add p5 val1
-                    if b5
+                    let (b4, p7) ← localinv.Plan.add p5 val1
+                    if b4
                     then
                       let (ok2, p8) ← localinv.Plan.add p7 next
                       ok (p8, ok2)
                     else ok (p7, false)
                   else ok (p5, false)
                 localinv.some_if ok1 p6
-              else ok none
             else ok none
           | core.ops.control_flow.ControlFlow.Break residual =>
             core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
@@ -33199,24 +33197,22 @@ def localinv.plan_with
                 | capability.Cap.TdxControl => ok (p3, false)
               if b2
               then
-                let c1 ← capability.Cap.decode dest_w0 0#u64
-                let b3 ← capability.Cap.is_null c1
-                if b3
-                then
-                  let (b4, p5) ← localinv.Plan.add p4 val
+                if dest_w0 != 0#u64
+                then ok none
+                else
+                  let (b3, p5) ← localinv.Plan.add p4 val
                   let (p6, ok1) ←
-                    if b4
+                    if b3
                     then
                       do
-                      let (b5, p7) ← localinv.Plan.add p5 val1
-                      if b5
+                      let (b4, p7) ← localinv.Plan.add p5 val1
+                      if b4
                       then
                         let (ok2, p8) ← localinv.Plan.add p7 next
                         ok (p8, ok2)
                       else ok (p7, false)
                     else ok (p5, false)
                   localinv.some_if ok1 p6
-                else ok none
               else ok none
             | core.ops.control_flow.ControlFlow.Break residual =>
               core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
