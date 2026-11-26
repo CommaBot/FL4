@@ -8,6 +8,7 @@ ARCH = [
  ("virtualization", [], "V", "u", "U64"),
  ("vcpu_capability", ["U64"], "V", "u", "U64"),
  ("vcpu_barrier", [], "A", None, None),
+ ("vcpu_release", ["U64"], "A", None, None),
  ("invalidate_ept", ["U64", "U64"], "A", None, None),
  ("tdx_active", [], "V", "b", "Bool"),
  ("tdx_report", ["U64"] * 9, "VA", "u", "U64"),
