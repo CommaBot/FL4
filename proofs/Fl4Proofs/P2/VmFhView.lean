@@ -166,11 +166,11 @@ variable {A : Type} {ar : machine.Arch A} {U : Set U64} {Locks : S → U64 → P
 
 set_option maxHeartbeats 1000000 in
 /-- **The words the declining run reads up to the handler's `AFFINITY` are kept by the view** (module
-docstring), where the current thread has an SC. -/
-theorem vmFhR_vn (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64}
+docstring), where the current SC is homed on `c`. -/
+theorem vmFhR_vnH (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64}
     (P : VmFPre st ar (userP K) T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s) (hc : L.cpu s = c)
     (hm : ∀ x, Aligned x → x ∉ K.user → L.mem s x = view K.toKLayout c ρ x)
-    (hsc0 : L.mem s (scA (L.curW s)) ≠ 0#u64)
+    (hcH : ρ (fld (L.cscW s) 16#u64) = c)
     {a : A} {s1 : S} {a1 : A} (eu : sched.update_timestamp st ar s a = ok (s1, a1)) :
     VmFhR st (VN K c ρ) s s1 := by
   have B := P.base
@@ -178,7 +178,7 @@ theorem vmFhR_vn (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U
   have hN := B.np
   have hT := B.tp
   have HY := P.hyp a s1 a1 eu
-  obtain ⟨hcsc, hrh⟩ := vm_homes B hm
+  obtain ⟨-, hrh⟩ := vm_homes B hm
   obtain ⟨⟨n, a2⟩, hn, -⟩ := spec_ex_fd (hA.now a)
   rw [update_timestamp_ok ar hN hn] at eu
   have eS := (Prod.mk.inj (ok_inj_ff eu)).1
@@ -282,7 +282,16 @@ theorem vmFhR_vn (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U
     exact ⟨vn_of_nf hK (nf_tcb hr ha),
       rdHead_ut B.bxi n hscS (scV _ hscS hsa (bxi_scin B.bxi hscS hmx).1)⟩
   · rw [ut_csc hN n]
-    exact rdHead_ut B.bxi n B.cscS (scV _ B.cscS (hcsc hsc0) B.cscwf)
+    exact rdHead_ut B.bxi n B.cscS (scV _ B.cscS hcH B.cscwf)
+
+/-- **`vmFhR_vnH` where the current thread has an SC** (the current SC is then homed, `vm_homes`). -/
+theorem vmFhR_vn (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64}
+    (P : VmFPre st ar (userP K) T Cs Ω U H Sg Rp Scs Nt Z Ac Locks s) (hc : L.cpu s = c)
+    (hm : ∀ x, Aligned x → x ∉ K.user → L.mem s x = view K.toKLayout c ρ x)
+    (hsc0 : L.mem s (scA (L.curW s)) ≠ 0#u64)
+    {a : A} {s1 : S} {a1 : A} (eu : sched.update_timestamp st ar s a = ok (s1, a1)) :
+    VmFhR st (VN K c ρ) s s1 :=
+  vmFhR_vnH hA hK P hc hm ((vm_homes P.base hm).1 hsc0) eu
 
 end
 
