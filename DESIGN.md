@@ -196,6 +196,7 @@ Bugs in FL4's own code, not differences from seL4, kept here because each one sh
 | A remote stall serviced while `exit()` took the serial gate after a local path (the ASID this core ran had gone stale; on AArch64 also for a thread running a VM) made the running thread restart at `FAULT_IP`, still that of its last entry. A thread a local path had just woken from `ReplyRecv` ran the syscall again with the received badge as its capability, and took a cap fault in the receive phase | l4h guest stress, two 2-vCPU guests (losfair/l4h#227) | Before that wait, a running thread's `FAULT_IP` is its `NEXT_IP`, as an interrupt entry saves it |
 | A guest's HVC under `ARMVCPURun` (AArch64) whose exit a remote stall cancelled while it took the serial gate was lost: the CPU had already advanced the guest's `ELR` past the HVC, the caller stayed `TS_RUNNING_VM`, and its guest went on after an HVC its VMM never saw | Review of the remaining stall-cancellation points after losfair/l4h#227 | The guest's `ELR` is the HVC until the entry runs, as `FAULT_IP` already was for a bound VCPU's HVC; the entry's body moves it past the HVC again before completing the run |
 | A user `int3` (#BP) or #DB (x86_64) whose entry a remote stall cancelled while it took the serial gate was lost: the thread restarted after the instruction (a trap-type exception, as `int3`, single-step and data breakpoints are, is not raised again), and DR6 had already been read and cleared | Review of the remaining stall-cancellation points after losfair/l4h#227 | Every user #BP and #DB is kept alike: the entry leaves it pending in the thread (its DR6 debug slot, with the DR6 status bits and the resume address); `exit()` delivers it under the gate, and a stall while taking it keeps it pending until the thread next runs. It is dropped if the thread was moved (its resume address changed) or the breakpoint it names was removed before delivery |
+| TestAndClearAccessed (x86_64 and AArch64) cleared the accessed bit with a plain read and write of the live entry, so an access the MMU recorded in between (with no TLB flush following) was never reported, and on x86_64 a dirtying in between was lost | Proof review of the decoder against its interface ("Clearing is atomic") | `Store::fetch_and`, a locked RMW in the kernel's store |
 
 The VT-x and AMD-V patches (0038–0043) are implemented through a shared VCPU/EPT API with runtime CPU selection. See [README.md](README.md#x86-virtualization) for implementation and verification status.
 
@@ -270,6 +271,7 @@ The core is written as a serial kernel: one entry point per kind of kernel entry
         fn read(&self, addr: u64) -> u64;           // kernel memory, by kernel virtual address
         fn read_pair(&self, addr: u64) -> (u64, u64); // adjacent words, defaulting to two reads
         fn write(&mut self, addr: u64, v: u64);
+        fn fetch_and(&mut self, addr: u64, mask: u64) -> u64; // atomic, for words the MMU updates
         fn zero(&mut self, addr: u64, len: u64);
         fn ks_base(&self) -> u64;                   // the kernel's global state
         fn cur_cpu(&self) -> u64;

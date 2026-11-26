@@ -1083,6 +1083,7 @@ mod tests {
     const TCB_STRIDE: u64 = 0x10000;
 
     impl fl4_core::machine::Store for MapStore {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
         fn read(&self, addr: u64) -> u64 {
             self.reads.borrow_mut().push(addr);
             *self.m.get(&addr).unwrap_or(&0)

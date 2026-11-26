@@ -15,6 +15,7 @@ struct Memory {
     words: BTreeMap<u64, u64>,
 }
 impl Store for Memory {
+    fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
     fn read(&self, a: u64) -> u64 {
         *self.words.get(&a).unwrap_or(&0)
     }

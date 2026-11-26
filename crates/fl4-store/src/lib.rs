@@ -9,6 +9,7 @@
 
 pub mod lock;
 
+use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_core::machine::Store;
 
 /// Physical memory through the kernel window.
@@ -41,6 +42,14 @@ impl Store for PhysStore {
     fn write(&mut self, addr: u64, v: u64) {
         debug_assert!(addr & 7 == 0);
         unsafe { core::ptr::write_volatile(addr as *mut u64, v) }
+    }
+
+    /// A locked RMW (`lock and` on x86_64; LDCLR or an exclusive pair on
+    /// AArch64), so an MMU update of the word in between is not lost.
+    #[inline(always)]
+    fn fetch_and(&mut self, addr: u64, mask: u64) -> u64 {
+        debug_assert!(addr & 7 == 0);
+        unsafe { AtomicU64::from_ptr(addr as *mut u64).fetch_and(mask, Ordering::SeqCst) }
     }
 
     #[inline(always)]

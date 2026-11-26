@@ -795,6 +795,16 @@ impl Store for SimStore {
         self.pause();
         self.direct_set(addr, v)
     }
+    fn fetch_and(&mut self, addr: u64, mask: u64) -> u64 {
+        // A locked instruction: one step, after the store buffer drains,
+        // and its store is not buffered.
+        self.pause();
+        self.drain();
+        let old = self.mem.get(addr);
+        self.direct_set(addr, old & mask);
+        self.drain();
+        old
+    }
     fn zero(&mut self, addr: u64, len: u64) {
         assert!(len % 8 == 0);
         self.pause();
