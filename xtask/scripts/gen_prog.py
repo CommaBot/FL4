@@ -478,6 +478,11 @@ def infer_kinds(node, env):
             return [(e.get(c, 'V'), '?') for c in comps]
         if is_call(toks):
             return tr_call(toks, Ctx(None))[1]
+        # a pure `Result` tail (a constant such as `vspace.P_PAT_LARGE`): one value, unless no other tail decides
+        if toks[0].t != 'fail' and best is None and not any(t.t in e for t in toks):
+            best = [('V', '?')]
+    if best is not None:
+        return best
     raise AssertionError('cannot infer kinds')
 
 
