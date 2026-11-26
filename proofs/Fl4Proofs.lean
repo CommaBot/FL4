@@ -2120,3 +2120,6 @@ import Fl4Proofs.P2.CoreView
 import Fl4Proofs.P2.E2EPU6
 import Fl4Proofs.P2.E2EPU7
 import Fl4Proofs.P2.ViewSafeGen
+import Fl4Proofs.P2.ViewSafeOwn
+import Fl4Proofs.P2.ViewSafeIoAcc
+import Fl4Proofs.P2.ViewSafeIoDec

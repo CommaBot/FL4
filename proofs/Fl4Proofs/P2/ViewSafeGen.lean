@@ -280,9 +280,9 @@ theorem body_safeV (hL : MoveHeld own) (hO : OwnDep own User)
       ∀ y, ¬ DD y → own m y = own m' y)
     (hO2 : ∀ q, NW q → ∀ (m : U64 → U64) v y, DD y → own (Function.update m q v) y = own m y)
     {NR NWs : S → U64 → Prop} (hNR : ∀ s0 b, NR s0 b → N b ∧ (RS s0 b ∨ Kc b)) (hNWs : ∀ s0 b, NWs s0 b → NW b)
-    (hNarA : ∀ s0 r, Pre s0 → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r → Acc r.1 →
+    (hNarA : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r → Acc r.1 →
       F ar (guard st (NR s0) (NWs s0)) s0 a = ok r)
-    (hNarD : ∀ s0 r, Pre s0 → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r →
+    (hNarD : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r →
       ¬ Acc r.1 → ∀ s' r', Alt st (RS s0) cls ko User s0 s' → F ar st s' a = ok r' →
         F ar (guard st (NR s0) (NWs s0)) s' a = ok r') :
     Safe own cls kt (L.cpu σ) (Locks σ) μ
@@ -356,7 +356,7 @@ theorem body_safeV (hL : MoveHeld own) (hO : OwnDep own User)
     have hA := Sd.read_aligned σu σu a ru uP (Alt.refl σu) hru
     rw [hp _ (Narrow.guard _ _ _) σu gu a] at hA
     have hA := (interp_guard p σu a ru hA).2
-    have hNa := hNarA σu ru uP uMk hru hacc
+    have hNa := hNarA σu ru uP uc uMk hru hacc
     rw [hp _ (Narrow.guard _ _ _) σu gu a] at hNa
     have hNa := (interp_guard p σu a ru hNa).2
     have hM := O.move_steps hp uP gu hru
@@ -418,7 +418,7 @@ theorem body_safeV (hL : MoveHeld own) (hO : OwnDep own User)
     have hA := Sd.read_aligned σu σν a rν uP hAlt hrν
     rw [hp _ (Narrow.guard _ _ _) σν gν a] at hA
     have hA := (interp_guard p σν a rν hA).2
-    have hNd := hNarD σu ru uP uMk hru hacc σν rν hAlt hrν
+    have hNd := hNarD σu ru uP uc uMk hru hacc σν rν hAlt hrν
     rw [hp _ (Narrow.guard _ _ _) σν gν a] at hNd
     have hNd := (interp_guard p σν a rν hNd).2
     have hO1 := hN σu σν a rν uP hAlt (by rw [← hp _ (Narrow.self st) σν gν a]; exact hrν)
@@ -478,16 +478,16 @@ theorem LocalPath.safeV {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U
       ∀ y, ¬ DD y → own m y = own m' y)
     (hO2 : ∀ q, NW q → ∀ (m : U64 → U64) v y, DD y → own (Function.update m q v) y = own m y)
     {NR NWs : P.S → U64 → Prop} (hNR : ∀ s0 b, NR s0 b → N b ∧ (P.RS s0 b ∨ Kc b)) (hNWs : ∀ s0 b, NWs s0 b → NW b)
-    (hNarA : ∀ s0 a r, P.Pre s0 → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) → P.F P.ar P.st s0 a = ok r →
+    (hNarA : ∀ s0 a r, P.Pre s0 → P.L.cpu s0 = c → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) → P.F P.ar P.st s0 a = ok r →
       P.Acc r.1 → P.F P.ar (guard P.st (NR s0) (NWs s0)) s0 a = ok r)
-    (hNarD : ∀ s0 a r, P.Pre s0 → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) → P.F P.ar P.st s0 a = ok r →
+    (hNarD : ∀ s0 a r, P.Pre s0 → P.L.cpu s0 = c → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) → P.F P.ar P.st s0 a = ok r →
       ¬ P.Acc r.1 → ∀ s' r', @Alt _ P.st P.L (P.RS s0) cls ko User s0 s' → P.F P.ar P.st s' a = ok r' →
         P.F P.ar (guard P.st (NR s0) (NWs s0)) s' a = ok r') :
     Safe own cls kt c hs μ q := by
   obtain ⟨σ, a, hpre, rfl, rfl, hρ, rfl⟩ := h
   let _ := P.L
   exact body_safeV hL hO P.isProg P.obl P.side P.once P.total P.masks hpre hρ hV hN1 hN2 hKc hNW hO1 hO2 hNR hNWs
-    (fun s0 r h1 h2 h3 h4 => hNarA s0 a r h1 h2 h3 h4) (fun s0 r h1 h2 h3 h4 => hNarD s0 a r h1 h2 h3 h4)
+    (fun s0 r h1 h0 h2 h3 h4 => hNarA s0 a r h1 h0 h2 h3 h4) (fun s0 r h1 h0 h2 h3 h4 => hNarD s0 a r h1 h0 h2 h3 h4)
 
 end
 
