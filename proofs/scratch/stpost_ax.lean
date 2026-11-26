@@ -21,6 +21,8 @@ import Fl4Proofs.P3.StPostInvTop
 import Fl4Proofs.P3.StPostDelLeaf
 import Fl4Proofs.P3.StPostVmTop
 import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P3.StPostRRVm
+import Fl4Proofs.P2.SlJStPostRRVm
 import Fl4Proofs.P2.SlJStPostInv
 import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.JAtZ.faultHypJZGSt
@@ -127,3 +129,8 @@ import Fl4Proofs.P2.SlJStPostInv
 #print axioms Fl4Proofs.P3.jFltHyp_vmfSt
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_vmf_localSt17
 #print axioms Fl4Proofs.P2.PathObl.jreachSt_vmfSt
+#print axioms Fl4Proofs.P1.rr_vm_local_acc
+#print axioms Fl4Proofs.P3.rrMidVm_of
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rrVmSt
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_rrVm_localSt17
+#print axioms Fl4Proofs.P2.PathObl.jreachSt_rrVmSt

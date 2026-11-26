@@ -1700,4 +1700,6 @@ import Fl4Proofs.P3.StPostInvTop
 import Fl4Proofs.P2.SlJStPostInv
 import Fl4Proofs.P3.StPostVmTop
 import Fl4Proofs.P2.SlJStPostVm
+import Fl4Proofs.P3.StPostRRVm
+import Fl4Proofs.P2.SlJStPostRRVm
 import Fl4Proofs.P2.SlJStLocTop
