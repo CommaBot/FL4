@@ -4,6 +4,11 @@ import Fl4ProofsA64.P1.QueueBudget
 import Fl4ProofsA64.P1.QueueBudget2
 import Fl4ProofsA64.P1.FastDecline
 import Fl4ProofsA64.P2.ProgVmF
+import Fl4ProofsA64.P1.VcpuReport
+import Fl4ProofsA64.P1.QueueBlock
+import Fl4ProofsA64.P1.QueueTimerW
+import Fl4ProofsA64.P1.TimerRB
+import Fl4ProofsA64.P1.TimerRBZip
 import Fl4ProofsA64.P1.QueueCallers
 import Fl4ProofsA64.P1.QueueCancel
 import Fl4ProofsA64.P1.QueueChoose
@@ -49,3 +54,4 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P2.PathObl.vm_prog
 #print axioms Fl4ProofsA64.P1.syscall_decline
 #print axioms Fl4ProofsA64.P1.FastAgree.of_acc
+#print axioms Fl4ProofsA64.P1.vcpu.report.keep
