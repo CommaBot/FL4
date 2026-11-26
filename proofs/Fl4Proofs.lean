@@ -2044,5 +2044,7 @@ import Fl4Proofs.P2.InvDelPteDecP
 import Fl4Proofs.P2.InvDelPteRaR
 import Fl4Proofs.P2.OnceMeet
 import Fl4Proofs.P2.InvDelPteOnceP
+import Fl4Proofs.P2.InvDelPtePlanLt
+import Fl4Proofs.P2.E2EPW11RID
 import Fl4Proofs.P2.E2EPW11R
 import Fl4Proofs.P2.E2EPW11RI
