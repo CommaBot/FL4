@@ -82,6 +82,8 @@ import Fl4ProofsA64.P1.QueueFinCap
 import Fl4ProofsA64.P1.QueueFootS
 import Fl4ProofsA64.P1.QueueInvoke
 import Fl4ProofsA64.P1.QueueVsFin
+import Fl4ProofsA64.P1.QueueBudgetG
+import Fl4ProofsA64.P1.IbKeepHolds
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -120,3 +122,6 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.vspace.unmap_page.vs
 #print axioms Fl4ProofsA64.P1.vspace.delete_asid.vs
 #print axioms Fl4ProofsA64.P1.vspace.delete_asid_pool.vs
+#print axioms Fl4ProofsA64.P1.notification.send_signal.ibFr
+#print axioms Fl4ProofsA64.P1.sched.schedule.entry_ib
+#print axioms Fl4ProofsA64.P1.sched.schedule.kw_ib
