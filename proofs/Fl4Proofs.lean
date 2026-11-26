@@ -2055,3 +2055,8 @@ import Fl4Proofs.P2.InvPmBlkF
 import Fl4Proofs.P2.InvPmMvA
 import Fl4Proofs.P2.InvPmMvB
 import Fl4Proofs.P2.InvPmMvC
+import Fl4Proofs.P2.InvPmRoA
+import Fl4Proofs.P2.InvPmRoB
+import Fl4Proofs.P2.InvPmRoC
+import Fl4Proofs.P2.InvPmRoD
+import Fl4Proofs.P2.InvPmRoE
