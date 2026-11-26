@@ -2354,3 +2354,7 @@ import Fl4Proofs.P3.P3JMcKwN
 import Fl4Proofs.P3.P3JMcIrqH
 import Fl4Proofs.P3.P3JMcIrqF
 import Fl4Proofs.P3.P3JMcIrqFQ
+import Fl4Proofs.P3.P3JNsKit
+import Fl4Proofs.P3.P3JNsGen
+import Fl4Proofs.P3.P3JNsSys
+import Fl4Proofs.P3.P3JMcNs
