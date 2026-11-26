@@ -1,6 +1,6 @@
 #print axioms Fl4Proofs.P2.E2E.LocalPath.safeVQ
 #print axioms Fl4Proofs.P2.E2E.run_transfer
-#print axioms Fl4Proofs.P2.E2EP._root_.Fl4Proofs.P2.PathObl.IoPre.ptUX
+#print axioms Fl4Proofs.P2.PathObl.IoPre.ptUX
 #print axioms Fl4Proofs.P2.E2EP.accIns_delRV
 #print axioms Fl4Proofs.P2.E2EP.accIns_invRV
 #print axioms Fl4Proofs.P2.E2EP.act_of_view
@@ -385,7 +385,7 @@
 #print axioms Fl4Proofs.P3.Sched.ArchSwF.toN
 #print axioms Fl4Proofs.P3.Sched.ArchSwFT.toN
 #print axioms Fl4Proofs.P3.Sched.SchedRel.fpu
-#print axioms Fl4Proofs.P3.Sched._root_.Fl4Proofs.P3.Notif.NtfnStateRel.fpu
+#print axioms Fl4Proofs.P3.Notif.NtfnStateRel.fpu
 #print axioms Fl4Proofs.P3.Sched.akf_trans
 #print axioms Fl4Proofs.P3.Sched.apnd_eq
 #print axioms Fl4Proofs.P3.Sched.archKeeps_cr3

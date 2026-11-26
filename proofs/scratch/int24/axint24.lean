@@ -6840,7 +6840,7 @@ end
 
 -- from scratch/int24/extra.lean
 section
-#print axioms Fl4Proofs.P2.E2EP._root_.Fl4Proofs.P2.PathObl.IoPre.ptUX
+#print axioms Fl4Proofs.P2.PathObl.IoPre.ptUX
 #print axioms Fl4Proofs.P2.E2EP.alt_ptUX
 #print axioms Fl4Proofs.P2.E2EP.cls_uVptU
 #print axioms Fl4Proofs.P2.E2EP.execVX4d_of_U3b2
@@ -7134,7 +7134,7 @@ section
 #print axioms Fl4Proofs.P3.SInvTY.ty_updateSkObjRef
 #print axioms Fl4Proofs.P3.SInvTY.ty_updateTimeStamp
 #print axioms Fl4Proofs.P3.SInvTY.ty_withoutPreemption
-#print axioms Fl4Proofs.P3.Sched._root_.Fl4Proofs.P3.Notif.NtfnStateRel.fpu
+#print axioms Fl4Proofs.P3.Notif.NtfnStateRel.fpu
 #print axioms Fl4Proofs.P3.Sched.akf_trans
 #print axioms Fl4Proofs.P3.Sched.archKeeps_cr3
 #print axioms Fl4Proofs.P3.Sched.dis_eq
