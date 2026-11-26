@@ -2221,3 +2221,12 @@ import Fl4Proofs.P3.P3JLook
 import Fl4Proofs.P3.P3JXport
 import Fl4Proofs.P3.P3JGen
 import Fl4Proofs.P3.XTopJointKEntryU36
+import Fl4Proofs.P2.ViewSafeGen
+import Fl4Proofs.P2.ViewSafeOwn
+import Fl4Proofs.P2.ViewSafeIoAcc
+import Fl4Proofs.P2.ViewSafeIoDec
+import Fl4Proofs.P2.ViewSafeIoPin
+import Fl4Proofs.P2.ViewSafeIoU8
+import Fl4Proofs.P2.ViewSafeObstr
+import Fl4Proofs.P2.NarrowSP
+import Fl4Proofs.P2.E2EPU9
