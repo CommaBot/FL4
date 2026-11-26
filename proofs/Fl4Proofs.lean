@@ -1952,3 +1952,8 @@ import Fl4Proofs.P3.JCurRunR
 import Fl4Proofs.P2.E2EVFl4W8
 import Fl4Proofs.P2.E2EVFl4W9
 import Fl4Proofs.P3.JNativeScope
+import Fl4Proofs.P2.E2EPCut
+import Fl4Proofs.P2.E2EPFl4
+import Fl4Proofs.P2.E2EPSl
+import Fl4Proofs.P2.E2EPSlP
+import Fl4Proofs.P2.E2EPLvm
