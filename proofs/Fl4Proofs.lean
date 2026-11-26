@@ -2331,3 +2331,5 @@ import Fl4Proofs.P3.VirtTyK2
 import Fl4Proofs.P3.VirtTyK3
 import Fl4Proofs.P3.VirtNvCaps
 import Fl4Proofs.P3.VirtR7b
+import Fl4Proofs.P3.ArchSwThr
+import Fl4Proofs.P3.XTopJointKEntryU43
