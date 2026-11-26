@@ -980,8 +980,10 @@ fn decode_test_and_clear_accessed<S: Store, A: Arch>(s: &mut S, a: &mut A, f: Fr
         None => return invalid_cap(0),
     };
     let ct = sched::cur_thread(s);
-    let old = s.read(lu.slot);
-    s.write(lu.slot, old & !D_AF);
+    // With hardware access-flag updates (TCR_EL1.HA) the MMU sets AF
+    // atomically at any time: a plain read and write would lose an access
+    // in between.
+    let old = s.fetch_and(lu.slot, !D_AF);
     reply1(s, ct, call, if old & D_AF != 0 { 1 } else { 0 });
     Ok(())
 }
@@ -1288,6 +1290,7 @@ mod tests {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum Ev {
         Write(u64, u64),
+        FetchAnd(u64, u64),
         InvalidatePage(u64, u64),
         InvalidateAsid(u64),
         InvalidateVmid(u64),
@@ -1303,6 +1306,14 @@ mod tests {
         log: Log,
     }
     impl Store for Mem {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 {
+            if a == self.watch {
+                self.log.borrow_mut().push(Ev::FetchAnd(a, m));
+            }
+            let old = self.read(a);
+            self.words.insert(a, old & m);
+            old
+        }
         fn read(&self, a: u64) -> u64 {
             *self.words.get(&a).unwrap_or(&0)
         }
@@ -1583,6 +1594,28 @@ mod tests {
         }
     }
 
+    /// ARMPageTestAndClearAccessed clears AF with one atomic update of the
+    /// live descriptor, never a read and a separate write: the MMU sets AF
+    /// (TCR_EL1.HA) at any time, and an access between the two would be
+    /// lost. The other bits are kept and the old AF is the reply.
+    #[test]
+    fn test_and_clear_accessed_is_one_atomic_update() {
+        for size in [FrameSize::Small, FrameSize::Large] {
+            for af in [D_AF, 0] {
+                let mut w = world(size, arm_vm_attr::PAGE_CACHEABLE);
+                let e = make_user_page(FRAME, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, w.shift);
+                w.s.write(w.pte, (e & !D_AF) | af);
+                w.log.borrow_mut().clear();
+                let f = frame(size, false, true);
+                assert!(decode_test_and_clear_accessed(&mut w.s, &mut w.a, f, true).is_ok());
+                assert_eq!(*w.log.borrow(), vec![Ev::FetchAnd(w.pte, !D_AF)], "shift {} af {af:#x}", w.shift);
+                assert_eq!(w.s.read(w.pte), e & !D_AF);
+                let t = Tcb(layout::pptr(0x60_0000));
+                assert_eq!(t.reg(&w.s, msg::msg_register(0)), if af != 0 { 1 } else { 0 });
+            }
+        }
+    }
+
     /// Run `unmap_page_table(asid, VADDR, pt)`: the words it changed
     /// (address, new value) and the machine events.
     fn unmap_pt(w: &mut World, asid: u64, pt: u64) -> (Vec<(u64, u64)>, Vec<Ev>) {
@@ -1814,6 +1847,7 @@ mod high_window_tests {
         words: BTreeMap<u64, u64>,
     }
     impl Store for Mem {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
         fn read(&self, a: u64) -> u64 {
             *self.words.get(&a).unwrap_or(&0)
         }

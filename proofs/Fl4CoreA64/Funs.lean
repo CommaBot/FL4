@@ -17905,7 +17905,7 @@ def sched.suspend
   ok (s7, a2)
 
 /-- [fl4_core::machine::sharing_enabled]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 36:0-39:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 41:0-44:1
     Visibility: public -/
 def machine.sharing_enabled
   {S : Type _} (StoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -22709,7 +22709,7 @@ def capability.Rights.from_word (w : Std.U64) : Result capability.Rights := do
     }
 
 /-- [fl4_core::vspace::insert_subframes]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1071:4-1084:5 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1073:4-1086:5 -/
 @[rust_loop_body]
 def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
@@ -22731,7 +22731,7 @@ def vspace.insert_subframes_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::insert_subframes]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1071:4-1084:5 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1073:4-1086:5 -/
 @[rust_loop]
 def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -22745,7 +22745,7 @@ def vspace.insert_subframes_loop
     (s, i)
 
 /-- [fl4_core::vspace::insert_subframes]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1069:0-1085:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1071:0-1087:1 -/
 @[reducible]
 def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -22757,7 +22757,7 @@ def vspace.insert_subframes
     0#u64
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1062:4-1067:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1064:4-1069:1 -/
 @[rust_loop_body]
 def vspace.ensure_empty_run_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -22782,7 +22782,7 @@ def vspace.ensure_empty_run_loop.body
   else ok (done (core.result.Result.Ok ()))
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1062:4-1067:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1064:4-1069:1 -/
 @[rust_loop]
 def vspace.ensure_empty_run_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -22795,7 +22795,7 @@ def vspace.ensure_empty_run_loop
     i
 
 /-- [fl4_core::vspace::ensure_empty_run]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1060:0-1067:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1062:0-1069:1 -/
 @[reducible]
 def vspace.ensure_empty_run
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -22805,7 +22805,7 @@ def vspace.ensure_empty_run
   vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
 /-- [fl4_core::vspace::failed_lookup]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1005:0-1007:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1007:0-1009:1 -/
 def vspace.failed_lookup
   (T : Type _) (lf : error.LookupFault) :
   Result (core.result.Result T error.Exc)
@@ -22814,7 +22814,7 @@ def vspace.failed_lookup
     lf)))
 
 /-- [fl4_core::vspace::cnode_of]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 998:0-1003:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1000:0-1005:1 -/
 def vspace.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -22846,7 +22846,7 @@ def vspace.cnode_of
   | capability.Cap.HighVSpace _ _ _ => ok none
 
 /-- [fl4_core::vspace::subframe_dest]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1041:0-1058:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1043:0-1060:1 -/
 def vspace.subframe_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -22911,7 +22911,7 @@ def vspace.subframe_dest
         else ok (core.result.Result.Ok dest)
 
 /-- [fl4_core::vspace::large_ram_frame]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 990:0-995:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 992:0-997:1 -/
 def vspace.large_ram_frame
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -22950,7 +22950,7 @@ def vspace.large_ram_frame
   | capability.Cap.HighVSpace _ _ _ => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1010:0-1039:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1012:0-1041:1 -/
 def vspace.derive_subframe
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (length : Std.U64)
   (src : obj.Slot) (cap : capability.Cap) (buf : Std.U64)
@@ -23057,7 +23057,7 @@ def vspace.mapped_entry
     else ok none
 
 /-- [fl4_core::vspace::decode_test_and_clear_accessed]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 970:0-987:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 970:0-989:1 -/
 def vspace.decode_test_and_clear_accessed
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (f : vspace.FrameCap)
@@ -23097,13 +23097,11 @@ def vspace.decode_test_and_clear_accessed
                         ok (r2, s, a)
               | some x =>
                 let ct ← sched.cur_thread machineStoreInst s
-                let old ← machineStoreInst.read s x.slot
                 let i ← vspace.D_AF
                 let i1 ← lift (~~~ i)
-                let i2 ← lift (old &&& i1)
-                let s1 ← machineStoreInst.write s x.slot i2
-                let i3 ← lift (old &&& i)
-                if i3 != 0#u64
+                let (old, s1) ← machineStoreInst.fetch_and s x.slot i1
+                let i2 ← lift (old &&& i)
+                if i2 != 0#u64
                 then
                   let s2 ← vspace.reply1 machineStoreInst s1 ct call 1#u64
                   ok (core.result.Result.Ok (), s2, a)
@@ -23985,7 +23983,7 @@ def cdt.is_final_capability
   cdt.is_final_capability_with_cap machineStoreInst s slot cap
 
 /-- [fl4_core::vspace::map_high_page_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1147:0-1162:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1149:0-1164:1 -/
 def vspace.map_high_page_table
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
   (ptr : Std.U64) (vcap : capability.Cap) (vaddr : Std.U64) :
@@ -24045,7 +24043,7 @@ def vspace.map_high_page_table
     ok (r1, s)
 
 /-- [fl4_core::vspace::decode_page_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1089:0-1142:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1091:0-1144:1 -/
 def vspace.decode_page_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -24287,7 +24285,7 @@ def vspace.decode_page_table
     ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1205:12-1207:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1207:12-1209:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -24305,7 +24303,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1205:12-1207:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1207:12-1209:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -24317,7 +24315,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -24342,7 +24340,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -24355,7 +24353,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -24380,7 +24378,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -24393,7 +24391,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]: loop body 3:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop3.body
@@ -24418,7 +24416,7 @@ def vspace.decode_loop3.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 3:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1250:12-1252:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1252:12-1254:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop3
@@ -24431,7 +24429,7 @@ def vspace.decode_loop3
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1166:0-1271:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1168:0-1273:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -29856,7 +29854,7 @@ def fastpath.switch_to
   sched.activate_thread machineStoreInst machineArchInst s6 a4
 
 /-- [fl4_core::fastpath::fault]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 85:0-146:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 85:0-153:1
     Visibility: public -/
 def fastpath.fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -29888,90 +29886,13 @@ def fastpath.fault
             let b ← fastpath.schedulable_here machineStoreInst s i2
             if b
             then
-              let i4 ← sched.cur_domain machineStoreInst s
-              let i5 ← obj.Tcb.prio machineStoreInst i2 s
-              let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
-              if b1
-              then
-                let s2 ←
-                  faults.set_fault machineStoreInst s t
-                    (error.Fault.UnknownSyscall number)
-                let tail ← obj.Ep.tail machineStoreInst ptr s2
-                let s3 ←
-                  if tail = i2
-                  then
-                    obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
-                      obj.EP_IDLE
-                  else
-                    do
-                    let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
-                    let s4 ← obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
-                    obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
-                      obj.EP_RECV
-                let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
-                let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
-                let recv_buf ←
-                  msg.lookup_ipc_buffer machineStoreInst s5 true i2
-                let (sent, s6) ←
-                  faults.set_mrs_fault machineStoreInst machineArchInst s5 a t
-                    i2 recv_buf
-                let mi ←
-                  msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall
-                    0#u64 0#u64 sent
-                let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
-                let s8 ←
-                  obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE badge
-                let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
-                let s10 ←
-                  obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
-                let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
-                let s12 ←
-                  obj.Tcb.set_state machineStoreInst t s11
-                    sched.TS_BLOCKED_ON_REPLY
-                let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
-                let s14 ←
-                  obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
-                let i6 ← obj.Tcb.sc machineStoreInst i2 s14
-                let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
-                let s15 ←
-                  if b2
-                  then
-                    do
-                    let s16 ← sched.cur_sc machineStoreInst s14
-                    let b3 ←
-                      core.cmp.PartialEq.ne.trait_default
-                        obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
-                    if b3
-                    then sporadic.unblock_check machineStoreInst s14 i6
-                    else ok s14
-                  else ok s14
-                let s16 ←
-                  obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
-                let s17 ←
-                  obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
-                let (s18, a1) ←
-                  fastpath.switch_to machineStoreInst machineArchInst s17 a i2
-                ok (true, s18, a1)
-              else ok (false, s, a)
-            else ok (false, s, a)
-      else
-        if grant_reply
-        then
-          let i1 ← obj.Ep.state machineStoreInst ptr s
-          if i1 != obj.EP_RECV
-          then ok (false, s, a)
-          else
-            let i2 ← obj.Ep.head machineStoreInst ptr s
-            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
-            if i3 = 0#u64
-            then ok (false, s, a)
-            else
-              let b ← fastpath.schedulable_here machineStoreInst s i2
-              if b
-              then
-                let i4 ← sched.cur_domain machineStoreInst s
-                let i5 ← obj.Tcb.prio machineStoreInst i2 s
-                let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+              let i4 ← vcpu.bound machineStoreInst s i2
+              if i4 != 0#u64
+              then ok (false, s, a)
+              else
+                let i5 ← sched.cur_domain machineStoreInst s
+                let i6 ← obj.Tcb.prio machineStoreInst i2 s
+                let b1 ← sched.is_highest_prio machineStoreInst s i5 i6
                 if b1
                 then
                   let s2 ←
@@ -29985,10 +29906,10 @@ def fastpath.fault
                         obj.EP_IDLE
                     else
                       do
-                      let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                      let i7 ← obj.Tcb.ep_next machineStoreInst i2 s2
                       let s4 ←
-                        obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
-                      obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                        obj.Tcb.set_ep_prev machineStoreInst i7 s2 0#u64
+                      obj.Ep.set_queue machineStoreInst ptr s4 i7 tail
                         obj.EP_RECV
                   let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
                   let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
@@ -30014,8 +29935,8 @@ def fastpath.fault
                   let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
                   let s14 ←
                     obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
-                  let i6 ← obj.Tcb.sc machineStoreInst i2 s14
-                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                  let i7 ← obj.Tcb.sc machineStoreInst i2 s14
+                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i7
                   let s15 ←
                     if b2
                     then
@@ -30023,9 +29944,9 @@ def fastpath.fault
                       let s16 ← sched.cur_sc machineStoreInst s14
                       let b3 ←
                         core.cmp.PartialEq.ne.trait_default
-                          obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                          obj.Sc.Insts.CoreCmpPartialEqSc i7 s16
                       if b3
-                      then sporadic.unblock_check machineStoreInst s14 i6
+                      then sporadic.unblock_check machineStoreInst s14 i7
                       else ok s14
                     else ok s14
                   let s16 ←
@@ -30037,6 +29958,96 @@ def fastpath.fault
                       i2
                   ok (true, s18, a1)
                 else ok (false, s, a)
+            else ok (false, s, a)
+      else
+        if grant_reply
+        then
+          let i1 ← obj.Ep.state machineStoreInst ptr s
+          if i1 != obj.EP_RECV
+          then ok (false, s, a)
+          else
+            let i2 ← obj.Ep.head machineStoreInst ptr s
+            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+            if i3 = 0#u64
+            then ok (false, s, a)
+            else
+              let b ← fastpath.schedulable_here machineStoreInst s i2
+              if b
+              then
+                let i4 ← vcpu.bound machineStoreInst s i2
+                if i4 != 0#u64
+                then ok (false, s, a)
+                else
+                  let i5 ← sched.cur_domain machineStoreInst s
+                  let i6 ← obj.Tcb.prio machineStoreInst i2 s
+                  let b1 ← sched.is_highest_prio machineStoreInst s i5 i6
+                  if b1
+                  then
+                    let s2 ←
+                      faults.set_fault machineStoreInst s t
+                        (error.Fault.UnknownSyscall number)
+                    let tail ← obj.Ep.tail machineStoreInst ptr s2
+                    let s3 ←
+                      if tail = i2
+                      then
+                        obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                          obj.EP_IDLE
+                      else
+                        do
+                        let i7 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                        let s4 ←
+                          obj.Tcb.set_ep_prev machineStoreInst i7 s2 0#u64
+                        obj.Ep.set_queue machineStoreInst ptr s4 i7 tail
+                          obj.EP_RECV
+                    let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                    let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                    let recv_buf ←
+                      msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                    let (sent, s6) ←
+                      faults.set_mrs_fault machineStoreInst machineArchInst s5
+                        a t i2 recv_buf
+                    let mi ←
+                      msginfo.MessageInfo.new
+                        fl4_abi.consts.fault.UnknownSyscall 0#u64 0#u64 sent
+                    let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                    let s8 ←
+                      obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE
+                        badge
+                    let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                    let s10 ←
+                      obj.Tcb.set_state machineStoreInst i2 s9
+                        sched.TS_INACTIVE
+                    let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                    let s12 ←
+                      obj.Tcb.set_state machineStoreInst t s11
+                        sched.TS_BLOCKED_ON_REPLY
+                    let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                    let s14 ←
+                      obj.Tcb.set_state machineStoreInst i2 s13
+                        sched.TS_RUNNING
+                    let i7 ← obj.Tcb.sc machineStoreInst i2 s14
+                    let b2 ← sporadic.sc_sporadic machineStoreInst s14 i7
+                    let s15 ←
+                      if b2
+                      then
+                        do
+                        let s16 ← sched.cur_sc machineStoreInst s14
+                        let b3 ←
+                          core.cmp.PartialEq.ne.trait_default
+                            obj.Sc.Insts.CoreCmpPartialEqSc i7 s16
+                        if b3
+                        then sporadic.unblock_check machineStoreInst s14 i7
+                        else ok s14
+                      else ok s14
+                    let s16 ←
+                      obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                    let s17 ←
+                      obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                    let (s18, a1) ←
+                      fastpath.switch_to machineStoreInst machineArchInst s17 a
+                        i2
+                    ok (true, s18, a1)
+                  else ok (false, s, a)
               else ok (false, s, a)
         else ok (false, s, a)
     | capability.Cap.Notification _ _ _ _ => ok (false, s, a)
@@ -30231,7 +30242,7 @@ def faults.handle_fault_reply
           else ok (true, s, a)
 
 /-- [fl4_core::fastpath::reply_recv_found]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 187:0-255:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 194:0-269:1
     Visibility: public -/
 def fastpath.reply_recv_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30290,19 +30301,286 @@ def fastpath.reply_recv_found
                               machineArchInst s a i5 0#u64
                           if b6
                           then
-                            let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                            let i6 ← vcpu.bound machineStoreInst s i1
                             if i6 != 0#u64
-                            then
-                              let i7 ← obj.Ntfn.state machineStoreInst i6 s
-                              if i7 = obj.NTFN_ACTIVE
-                              then ok (false, s, a)
-                              else
-                                let i8 ← obj.Ntfn.sc machineStoreInst i6 s
-                                if i8 != 0#u64
-                                then
-                                  let i9 ← obj.Tcb.sc machineStoreInst t s
-                                  if i8 = i9
-                                  then ok (false, s, a)
+                            then ok (false, s, a)
+                            else
+                              let i7 ←
+                                obj.Tcb.bound_ntfn machineStoreInst t s
+                              if i7 != 0#u64
+                              then
+                                let i8 ← obj.Ntfn.state machineStoreInst i7 s
+                                if i8 = obj.NTFN_ACTIVE
+                                then ok (false, s, a)
+                                else
+                                  let i9 ← obj.Ntfn.sc machineStoreInst i7 s
+                                  if i9 != 0#u64
+                                  then
+                                    let i10 ← obj.Tcb.sc machineStoreInst t s
+                                    if i9 = i10
+                                    then ok (false, s, a)
+                                    else
+                                      let i11 ←
+                                        obj.Ep.state machineStoreInst ep_ptr s
+                                      if i11 != obj.EP_IDLE
+                                      then ok (false, s, a)
+                                      else
+                                        let t1 ←
+                                          sched.idle_thread machineStoreInst s
+                                        let b7 ←
+                                          obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
+                                            t t1
+                                        let fastfail ←
+                                          if b7
+                                          then ok true
+                                          else
+                                            do
+                                            let i12 ←
+                                              obj.Tcb.prio machineStoreInst i1
+                                                s
+                                            let i13 ←
+                                              obj.Tcb.prio machineStoreInst t s
+                                            if i12 < i13
+                                            then ok true
+                                            else ok false
+                                        if fastfail
+                                        then
+                                          let i12 ←
+                                            sched.cur_domain machineStoreInst s
+                                          let i13 ←
+                                            obj.Tcb.prio machineStoreInst i1 s
+                                          let b8 ←
+                                            sched.is_highest_prio
+                                              machineStoreInst s i12 i13
+                                          if b8
+                                          then
+                                            let s1 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s
+                                                sched.TS_RESTART
+                                            let (s2, a1) ←
+                                              ipc.reply_remove machineStoreInst
+                                                machineArchInst s1 a rptr i1
+                                            let b9 ←
+                                              sporadic.sc_sporadic
+                                                machineStoreInst s2 i5
+                                            let s3 ←
+                                              if b9
+                                              then
+                                                do
+                                                let i14 ←
+                                                  obj.Sc.cpu machineStoreInst
+                                                    i5 s2
+                                                let i15 ←
+                                                  obj.node_get machineStoreInst
+                                                    s2 i14 layout.node.CUR_SC
+                                                if i5 != i15
+                                                then
+                                                  sporadic.unblock_check
+                                                    machineStoreInst s2 i5
+                                                else ok s2
+                                              else ok s2
+                                            let (restart, s4, a2) ←
+                                              faults.handle_fault_reply
+                                                machineStoreInst
+                                                machineArchInst s3 a1 i1 t
+                                            let s5 ←
+                                              faults.clear_fault
+                                                machineStoreInst s4 i1
+                                            if restart
+                                            then
+                                              let s6 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst i1 s5
+                                                  sched.TS_RESTART
+                                              let s7 ←
+                                                sched.set_action
+                                                  machineStoreInst s6 i1
+                                              let s8 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s7
+                                                  sched.TS_RUNNING
+                                              let s9 ←
+                                                obj.Tcb.set_block_obj
+                                                  machineStoreInst t s8 ep_ptr
+                                              let s10 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s9
+                                                  sched.TS_BLOCKED_ON_RECV
+                                              let s11 ←
+                                                obj.Tcb.set_reply_obj
+                                                  machineStoreInst t s10 rptr
+                                              let s12 ←
+                                                obj.Reply.set_tcb
+                                                  machineStoreInst rptr s11 t
+                                              let s13 ←
+                                                obj.Tcb.set_ep_next
+                                                  machineStoreInst t s12 0#u64
+                                              let s14 ←
+                                                obj.Tcb.set_ep_prev
+                                                  machineStoreInst t s13 0#u64
+                                              let s15 ←
+                                                obj.Ep.set_queue
+                                                  machineStoreInst ep_ptr s14 t
+                                                  t obj.EP_RECV
+                                              let (s16, a3) ←
+                                                fastpath.switch_to
+                                                  machineStoreInst
+                                                  machineArchInst s15 a2 i1
+                                              ok (true, s16, a3)
+                                            else
+                                              let s6 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst i1 s5
+                                                  sched.TS_INACTIVE
+                                              let s7 ←
+                                                sched.set_action
+                                                  machineStoreInst s6 i1
+                                              let s8 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s7
+                                                  sched.TS_RUNNING
+                                              let s9 ←
+                                                obj.Tcb.set_block_obj
+                                                  machineStoreInst t s8 ep_ptr
+                                              let s10 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s9
+                                                  sched.TS_BLOCKED_ON_RECV
+                                              let s11 ←
+                                                obj.Tcb.set_reply_obj
+                                                  machineStoreInst t s10 rptr
+                                              let s12 ←
+                                                obj.Reply.set_tcb
+                                                  machineStoreInst rptr s11 t
+                                              let s13 ←
+                                                obj.Tcb.set_ep_next
+                                                  machineStoreInst t s12 0#u64
+                                              let s14 ←
+                                                obj.Tcb.set_ep_prev
+                                                  machineStoreInst t s13 0#u64
+                                              let s15 ←
+                                                obj.Ep.set_queue
+                                                  machineStoreInst ep_ptr s14 t
+                                                  t obj.EP_RECV
+                                              let (s16, a3) ←
+                                                fastpath.switch_to
+                                                  machineStoreInst
+                                                  machineArchInst s15 a2 i1
+                                              ok (true, s16, a3)
+                                          else ok (false, s, a)
+                                        else
+                                          let s1 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s sched.TS_RESTART
+                                          let (s2, a1) ←
+                                            ipc.reply_remove machineStoreInst
+                                              machineArchInst s1 a rptr i1
+                                          let b8 ←
+                                            sporadic.sc_sporadic
+                                              machineStoreInst s2 i5
+                                          let s3 ←
+                                            if b8
+                                            then
+                                              do
+                                              let i12 ←
+                                                obj.Sc.cpu machineStoreInst i5
+                                                  s2
+                                              let i13 ←
+                                                obj.node_get machineStoreInst
+                                                  s2 i12 layout.node.CUR_SC
+                                              if i5 != i13
+                                              then
+                                                sporadic.unblock_check
+                                                  machineStoreInst s2 i5
+                                              else ok s2
+                                            else ok s2
+                                          let (restart, s4, a2) ←
+                                            faults.handle_fault_reply
+                                              machineStoreInst machineArchInst
+                                              s3 a1 i1 t
+                                          let s5 ←
+                                            faults.clear_fault machineStoreInst
+                                              s4 i1
+                                          if restart
+                                          then
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_RESTART
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                          else
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_INACTIVE
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
                                   else
                                     let i10 ←
                                       obj.Ep.state machineStoreInst ep_ptr s
@@ -30552,50 +30830,437 @@ def fastpath.reply_recv_found
                                             fastpath.switch_to machineStoreInst
                                               machineArchInst s15 a2 i1
                                           ok (true, s16, a3)
+                              else
+                                let i8 ←
+                                  obj.Ep.state machineStoreInst ep_ptr s
+                                if i8 != obj.EP_IDLE
+                                then ok (false, s, a)
                                 else
-                                  let i9 ←
-                                    obj.Ep.state machineStoreInst ep_ptr s
-                                  if i9 != obj.EP_IDLE
-                                  then ok (false, s, a)
-                                  else
-                                    let t1 ←
-                                      sched.idle_thread machineStoreInst s
-                                    let b7 ←
-                                      obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                    let fastfail ←
-                                      if b7
-                                      then ok true
-                                      else
-                                        do
-                                        let i10 ←
-                                          obj.Tcb.prio machineStoreInst i1 s
-                                        let i11 ←
-                                          obj.Tcb.prio machineStoreInst t s
-                                        if i10 < i11
-                                        then ok true
-                                        else ok false
-                                    if fastfail
-                                    then
-                                      let i10 ←
-                                        sched.cur_domain machineStoreInst s
-                                      let i11 ←
+                                  let t1 ←
+                                    sched.idle_thread machineStoreInst s
+                                  let b7 ←
+                                    obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                  let fastfail ←
+                                    if b7
+                                    then ok true
+                                    else
+                                      do
+                                      let i9 ←
                                         obj.Tcb.prio machineStoreInst i1 s
-                                      let b8 ←
-                                        sched.is_highest_prio machineStoreInst
-                                          s i10 i11
+                                      let i10 ←
+                                        obj.Tcb.prio machineStoreInst t s
+                                      if i9 < i10
+                                      then ok true
+                                      else ok false
+                                  if fastfail
+                                  then
+                                    let i9 ←
+                                      sched.cur_domain machineStoreInst s
+                                    let i10 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let b8 ←
+                                      sched.is_highest_prio machineStoreInst s
+                                        i9 i10
+                                    if b8
+                                    then
+                                      let s1 ←
+                                        obj.Tcb.set_state machineStoreInst t s
+                                          sched.TS_RESTART
+                                      let (s2, a1) ←
+                                        ipc.reply_remove machineStoreInst
+                                          machineArchInst s1 a rptr i1
+                                      let b9 ←
+                                        sporadic.sc_sporadic machineStoreInst
+                                          s2 i5
+                                      let s3 ←
+                                        if b9
+                                        then
+                                          do
+                                          let i11 ←
+                                            obj.Sc.cpu machineStoreInst i5 s2
+                                          let i12 ←
+                                            obj.node_get machineStoreInst s2
+                                              i11 layout.node.CUR_SC
+                                          if i5 != i12
+                                          then
+                                            sporadic.unblock_check
+                                              machineStoreInst s2 i5
+                                          else ok s2
+                                        else ok s2
+                                      let (restart, s4, a2) ←
+                                        faults.handle_fault_reply
+                                          machineStoreInst machineArchInst s3
+                                          a1 i1 t
+                                      let s5 ←
+                                        faults.clear_fault machineStoreInst s4
+                                          i1
+                                      if restart
+                                      then
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_RESTART
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                      else
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_INACTIVE
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                    else ok (false, s, a)
+                                  else
+                                    let s1 ←
+                                      obj.Tcb.set_state machineStoreInst t s
+                                        sched.TS_RESTART
+                                    let (s2, a1) ←
+                                      ipc.reply_remove machineStoreInst
+                                        machineArchInst s1 a rptr i1
+                                    let b8 ←
+                                      sporadic.sc_sporadic machineStoreInst s2
+                                        i5
+                                    let s3 ←
                                       if b8
                                       then
+                                        do
+                                        let i9 ←
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i10 ←
+                                          obj.node_get machineStoreInst s2 i9
+                                            layout.node.CUR_SC
+                                        if i5 != i10
+                                        then
+                                          sporadic.unblock_check
+                                            machineStoreInst s2 i5
+                                        else ok s2
+                                      else ok s2
+                                    let (restart, s4, a2) ←
+                                      faults.handle_fault_reply
+                                        machineStoreInst machineArchInst s3 a1
+                                        i1 t
+                                    let s5 ←
+                                      faults.clear_fault machineStoreInst s4 i1
+                                    if restart
+                                    then
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_RESTART
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                                    else
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_INACTIVE
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                          else ok (false, s, a)
+                        else ok (false, s, a)
+                      else ok (false, s, a)
+                else
+                  let i5 ← obj.Tcb.sc machineStoreInst i1 s
+                  let b2 ← obj.Sc.is_null i5
+                  if b2
+                  then ok (false, s, a)
+                  else
+                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
+                    if b3
+                    then
+                      let b4 ← sporadic.ready machineStoreInst s i5
+                      if b4
+                      then
+                        let b5 ←
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s a i5 0#u64
+                        if b5
+                        then
+                          let i6 ← vcpu.bound machineStoreInst s i1
+                          if i6 != 0#u64
+                          then ok (false, s, a)
+                          else
+                            let i7 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                            if i7 != 0#u64
+                            then
+                              let i8 ← obj.Ntfn.state machineStoreInst i7 s
+                              if i8 = obj.NTFN_ACTIVE
+                              then ok (false, s, a)
+                              else
+                                let i9 ← obj.Ntfn.sc machineStoreInst i7 s
+                                if i9 != 0#u64
+                                then
+                                  let i10 ← obj.Tcb.sc machineStoreInst t s
+                                  if i9 = i10
+                                  then ok (false, s, a)
+                                  else
+                                    let i11 ←
+                                      obj.Ep.state machineStoreInst ep_ptr s
+                                    if i11 != obj.EP_IDLE
+                                    then ok (false, s, a)
+                                    else
+                                      let t1 ←
+                                        sched.idle_thread machineStoreInst s
+                                      let b6 ←
+                                        obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t
+                                          t1
+                                      let fastfail ←
+                                        if b6
+                                        then ok true
+                                        else
+                                          do
+                                          let i12 ←
+                                            obj.Tcb.prio machineStoreInst i1 s
+                                          let i13 ←
+                                            obj.Tcb.prio machineStoreInst t s
+                                          if i12 < i13
+                                          then ok true
+                                          else ok false
+                                      if fastfail
+                                      then
+                                        let i12 ←
+                                          sched.cur_domain machineStoreInst s
+                                        let i13 ←
+                                          obj.Tcb.prio machineStoreInst i1 s
+                                        let b7 ←
+                                          sched.is_highest_prio
+                                            machineStoreInst s i12 i13
+                                        if b7
+                                        then
+                                          let s1 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s sched.TS_RESTART
+                                          let (s2, a1) ←
+                                            ipc.reply_remove machineStoreInst
+                                              machineArchInst s1 a rptr i1
+                                          let b8 ←
+                                            sporadic.sc_sporadic
+                                              machineStoreInst s2 i5
+                                          let s3 ←
+                                            if b8
+                                            then
+                                              do
+                                              let i14 ←
+                                                obj.Sc.cpu machineStoreInst i5
+                                                  s2
+                                              let i15 ←
+                                                obj.node_get machineStoreInst
+                                                  s2 i14 layout.node.CUR_SC
+                                              if i5 != i15
+                                              then
+                                                sporadic.unblock_check
+                                                  machineStoreInst s2 i5
+                                              else ok s2
+                                            else ok s2
+                                          let (restart, s4, a2) ←
+                                            faults.handle_fault_reply
+                                              machineStoreInst machineArchInst
+                                              s3 a1 i1 t
+                                          let s5 ←
+                                            faults.clear_fault machineStoreInst
+                                              s4 i1
+                                          if restart
+                                          then
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_RESTART
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                          else
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_INACTIVE
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                        else ok (false, s, a)
+                                      else
                                         let s1 ←
                                           obj.Tcb.set_state machineStoreInst t
                                             s sched.TS_RESTART
                                         let (s2, a1) ←
                                           ipc.reply_remove machineStoreInst
                                             machineArchInst s1 a rptr i1
-                                        let b9 ←
+                                        let b7 ←
                                           sporadic.sc_sporadic machineStoreInst
                                             s2 i5
                                         let s3 ←
-                                          if b9
+                                          if b7
                                           then
                                             do
                                             let i12 ←
@@ -30687,371 +31352,6 @@ def fastpath.reply_recv_found
                                             fastpath.switch_to machineStoreInst
                                               machineArchInst s15 a2 i1
                                           ok (true, s16, a3)
-                                      else ok (false, s, a)
-                                    else
-                                      let s1 ←
-                                        obj.Tcb.set_state machineStoreInst t s
-                                          sched.TS_RESTART
-                                      let (s2, a1) ←
-                                        ipc.reply_remove machineStoreInst
-                                          machineArchInst s1 a rptr i1
-                                      let b8 ←
-                                        sporadic.sc_sporadic machineStoreInst
-                                          s2 i5
-                                      let s3 ←
-                                        if b8
-                                        then
-                                          do
-                                          let i10 ←
-                                            obj.Sc.cpu machineStoreInst i5 s2
-                                          let i11 ←
-                                            obj.node_get machineStoreInst s2
-                                              i10 layout.node.CUR_SC
-                                          if i5 != i11
-                                          then
-                                            sporadic.unblock_check
-                                              machineStoreInst s2 i5
-                                          else ok s2
-                                        else ok s2
-                                      let (restart, s4, a2) ←
-                                        faults.handle_fault_reply
-                                          machineStoreInst machineArchInst s3
-                                          a1 i1 t
-                                      let s5 ←
-                                        faults.clear_fault machineStoreInst s4
-                                          i1
-                                      if restart
-                                      then
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_RESTART
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                      else
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_INACTIVE
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                            else
-                              let i7 ← obj.Ep.state machineStoreInst ep_ptr s
-                              if i7 != obj.EP_IDLE
-                              then ok (false, s, a)
-                              else
-                                let t1 ← sched.idle_thread machineStoreInst s
-                                let b7 ←
-                                  obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                let fastfail ←
-                                  if b7
-                                  then ok true
-                                  else
-                                    do
-                                    let i8 ←
-                                      obj.Tcb.prio machineStoreInst i1 s
-                                    let i9 ←
-                                      obj.Tcb.prio machineStoreInst t s
-                                    if i8 < i9
-                                    then ok true
-                                    else ok false
-                                if fastfail
-                                then
-                                  let i8 ←
-                                    sched.cur_domain machineStoreInst s
-                                  let i9 ← obj.Tcb.prio machineStoreInst i1 s
-                                  let b8 ←
-                                    sched.is_highest_prio machineStoreInst s i8
-                                      i9
-                                  if b8
-                                  then
-                                    let s1 ←
-                                      obj.Tcb.set_state machineStoreInst t s
-                                        sched.TS_RESTART
-                                    let (s2, a1) ←
-                                      ipc.reply_remove machineStoreInst
-                                        machineArchInst s1 a rptr i1
-                                    let b9 ←
-                                      sporadic.sc_sporadic machineStoreInst s2
-                                        i5
-                                    let s3 ←
-                                      if b9
-                                      then
-                                        do
-                                        let i10 ←
-                                          obj.Sc.cpu machineStoreInst i5 s2
-                                        let i11 ←
-                                          obj.node_get machineStoreInst s2 i10
-                                            layout.node.CUR_SC
-                                        if i5 != i11
-                                        then
-                                          sporadic.unblock_check
-                                            machineStoreInst s2 i5
-                                        else ok s2
-                                      else ok s2
-                                    let (restart, s4, a2) ←
-                                      faults.handle_fault_reply
-                                        machineStoreInst machineArchInst s3 a1
-                                        i1 t
-                                    let s5 ←
-                                      faults.clear_fault machineStoreInst s4 i1
-                                    if restart
-                                    then
-                                      let s6 ←
-                                        obj.Tcb.set_state machineStoreInst i1
-                                          s5 sched.TS_RESTART
-                                      let s7 ←
-                                        sched.set_action machineStoreInst s6 i1
-                                      let s8 ←
-                                        obj.Tcb.set_state machineStoreInst t s7
-                                          sched.TS_RUNNING
-                                      let s9 ←
-                                        obj.Tcb.set_block_obj machineStoreInst
-                                          t s8 ep_ptr
-                                      let s10 ←
-                                        obj.Tcb.set_state machineStoreInst t s9
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s11 ←
-                                        obj.Tcb.set_reply_obj machineStoreInst
-                                          t s10 rptr
-                                      let s12 ←
-                                        obj.Reply.set_tcb machineStoreInst rptr
-                                          s11 t
-                                      let s13 ←
-                                        obj.Tcb.set_ep_next machineStoreInst t
-                                          s12 0#u64
-                                      let s14 ←
-                                        obj.Tcb.set_ep_prev machineStoreInst t
-                                          s13 0#u64
-                                      let s15 ←
-                                        obj.Ep.set_queue machineStoreInst
-                                          ep_ptr s14 t t obj.EP_RECV
-                                      let (s16, a3) ←
-                                        fastpath.switch_to machineStoreInst
-                                          machineArchInst s15 a2 i1
-                                      ok (true, s16, a3)
-                                    else
-                                      let s6 ←
-                                        obj.Tcb.set_state machineStoreInst i1
-                                          s5 sched.TS_INACTIVE
-                                      let s7 ←
-                                        sched.set_action machineStoreInst s6 i1
-                                      let s8 ←
-                                        obj.Tcb.set_state machineStoreInst t s7
-                                          sched.TS_RUNNING
-                                      let s9 ←
-                                        obj.Tcb.set_block_obj machineStoreInst
-                                          t s8 ep_ptr
-                                      let s10 ←
-                                        obj.Tcb.set_state machineStoreInst t s9
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s11 ←
-                                        obj.Tcb.set_reply_obj machineStoreInst
-                                          t s10 rptr
-                                      let s12 ←
-                                        obj.Reply.set_tcb machineStoreInst rptr
-                                          s11 t
-                                      let s13 ←
-                                        obj.Tcb.set_ep_next machineStoreInst t
-                                          s12 0#u64
-                                      let s14 ←
-                                        obj.Tcb.set_ep_prev machineStoreInst t
-                                          s13 0#u64
-                                      let s15 ←
-                                        obj.Ep.set_queue machineStoreInst
-                                          ep_ptr s14 t t obj.EP_RECV
-                                      let (s16, a3) ←
-                                        fastpath.switch_to machineStoreInst
-                                          machineArchInst s15 a2 i1
-                                      ok (true, s16, a3)
-                                  else ok (false, s, a)
-                                else
-                                  let s1 ←
-                                    obj.Tcb.set_state machineStoreInst t s
-                                      sched.TS_RESTART
-                                  let (s2, a1) ←
-                                    ipc.reply_remove machineStoreInst
-                                      machineArchInst s1 a rptr i1
-                                  let b8 ←
-                                    sporadic.sc_sporadic machineStoreInst s2 i5
-                                  let s3 ←
-                                    if b8
-                                    then
-                                      do
-                                      let i8 ←
-                                        obj.Sc.cpu machineStoreInst i5 s2
-                                      let i9 ←
-                                        obj.node_get machineStoreInst s2 i8
-                                          layout.node.CUR_SC
-                                      if i5 != i9
-                                      then
-                                        sporadic.unblock_check machineStoreInst
-                                          s2 i5
-                                      else ok s2
-                                    else ok s2
-                                  let (restart, s4, a2) ←
-                                    faults.handle_fault_reply machineStoreInst
-                                      machineArchInst s3 a1 i1 t
-                                  let s5 ←
-                                    faults.clear_fault machineStoreInst s4 i1
-                                  if restart
-                                  then
-                                    let s6 ←
-                                      obj.Tcb.set_state machineStoreInst i1 s5
-                                        sched.TS_RESTART
-                                    let s7 ←
-                                      sched.set_action machineStoreInst s6 i1
-                                    let s8 ←
-                                      obj.Tcb.set_state machineStoreInst t s7
-                                        sched.TS_RUNNING
-                                    let s9 ←
-                                      obj.Tcb.set_block_obj machineStoreInst t
-                                        s8 ep_ptr
-                                    let s10 ←
-                                      obj.Tcb.set_state machineStoreInst t s9
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s11 ←
-                                      obj.Tcb.set_reply_obj machineStoreInst t
-                                        s10 rptr
-                                    let s12 ←
-                                      obj.Reply.set_tcb machineStoreInst rptr
-                                        s11 t
-                                    let s13 ←
-                                      obj.Tcb.set_ep_next machineStoreInst t
-                                        s12 0#u64
-                                    let s14 ←
-                                      obj.Tcb.set_ep_prev machineStoreInst t
-                                        s13 0#u64
-                                    let s15 ←
-                                      obj.Ep.set_queue machineStoreInst ep_ptr
-                                        s14 t t obj.EP_RECV
-                                    let (s16, a3) ←
-                                      fastpath.switch_to machineStoreInst
-                                        machineArchInst s15 a2 i1
-                                    ok (true, s16, a3)
-                                  else
-                                    let s6 ←
-                                      obj.Tcb.set_state machineStoreInst i1 s5
-                                        sched.TS_INACTIVE
-                                    let s7 ←
-                                      sched.set_action machineStoreInst s6 i1
-                                    let s8 ←
-                                      obj.Tcb.set_state machineStoreInst t s7
-                                        sched.TS_RUNNING
-                                    let s9 ←
-                                      obj.Tcb.set_block_obj machineStoreInst t
-                                        s8 ep_ptr
-                                    let s10 ←
-                                      obj.Tcb.set_state machineStoreInst t s9
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s11 ←
-                                      obj.Tcb.set_reply_obj machineStoreInst t
-                                        s10 rptr
-                                    let s12 ←
-                                      obj.Reply.set_tcb machineStoreInst rptr
-                                        s11 t
-                                    let s13 ←
-                                      obj.Tcb.set_ep_next machineStoreInst t
-                                        s12 0#u64
-                                    let s14 ←
-                                      obj.Tcb.set_ep_prev machineStoreInst t
-                                        s13 0#u64
-                                    let s15 ←
-                                      obj.Ep.set_queue machineStoreInst ep_ptr
-                                        s14 t t obj.EP_RECV
-                                    let (s16, a3) ←
-                                      fastpath.switch_to machineStoreInst
-                                        machineArchInst s15 a2 i1
-                                    ok (true, s16, a3)
-                          else ok (false, s, a)
-                        else ok (false, s, a)
-                      else ok (false, s, a)
-                else
-                  let i5 ← obj.Tcb.sc machineStoreInst i1 s
-                  let b2 ← obj.Sc.is_null i5
-                  if b2
-                  then ok (false, s, a)
-                  else
-                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
-                    if b3
-                    then
-                      let b4 ← sporadic.ready machineStoreInst s i5
-                      if b4
-                      then
-                        let b5 ←
-                          sporadic.sufficient machineStoreInst machineArchInst
-                            s a i5 0#u64
-                        if b5
-                        then
-                          let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
-                          if i6 != 0#u64
-                          then
-                            let i7 ← obj.Ntfn.state machineStoreInst i6 s
-                            if i7 = obj.NTFN_ACTIVE
-                            then ok (false, s, a)
-                            else
-                              let i8 ← obj.Ntfn.sc machineStoreInst i6 s
-                              if i8 != 0#u64
-                              then
-                                let i9 ← obj.Tcb.sc machineStoreInst t s
-                                if i8 = i9
-                                then ok (false, s, a)
                                 else
                                   let i10 ←
                                     obj.Ep.state machineStoreInst ep_ptr s
@@ -31291,162 +31591,56 @@ def fastpath.reply_recv_found
                                           fastpath.switch_to machineStoreInst
                                             machineArchInst s15 a2 i1
                                         ok (true, s16, a3)
+                            else
+                              let i8 ← obj.Ep.state machineStoreInst ep_ptr s
+                              if i8 != obj.EP_IDLE
+                              then ok (false, s, a)
                               else
-                                let i9 ←
-                                  obj.Ep.state machineStoreInst ep_ptr s
-                                if i9 != obj.EP_IDLE
-                                then ok (false, s, a)
-                                else
-                                  let t1 ←
-                                    sched.idle_thread machineStoreInst s
-                                  let b6 ←
-                                    obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                  let fastfail ←
-                                    if b6
-                                    then ok true
-                                    else
-                                      do
-                                      let i10 ←
-                                        obj.Tcb.prio machineStoreInst i1 s
-                                      let i11 ←
-                                        obj.Tcb.prio machineStoreInst t s
-                                      if i10 < i11
-                                      then ok true
-                                      else ok false
-                                  if fastfail
-                                  then
-                                    let i10 ←
-                                      sched.cur_domain machineStoreInst s
-                                    let i11 ←
-                                      obj.Tcb.prio machineStoreInst i1 s
-                                    let b7 ←
-                                      sched.is_highest_prio machineStoreInst s
-                                        i10 i11
-                                    if b7
-                                    then
-                                      let s1 ←
-                                        obj.Tcb.set_state machineStoreInst t s
-                                          sched.TS_RESTART
-                                      let (s2, a1) ←
-                                        ipc.reply_remove machineStoreInst
-                                          machineArchInst s1 a rptr i1
-                                      let b8 ←
-                                        sporadic.sc_sporadic machineStoreInst
-                                          s2 i5
-                                      let s3 ←
-                                        if b8
-                                        then
-                                          do
-                                          let i12 ←
-                                            obj.Sc.cpu machineStoreInst i5 s2
-                                          let i13 ←
-                                            obj.node_get machineStoreInst s2
-                                              i12 layout.node.CUR_SC
-                                          if i5 != i13
-                                          then
-                                            sporadic.unblock_check
-                                              machineStoreInst s2 i5
-                                          else ok s2
-                                        else ok s2
-                                      let (restart, s4, a2) ←
-                                        faults.handle_fault_reply
-                                          machineStoreInst machineArchInst s3
-                                          a1 i1 t
-                                      let s5 ←
-                                        faults.clear_fault machineStoreInst s4
-                                          i1
-                                      if restart
-                                      then
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_RESTART
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                      else
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_INACTIVE
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                    else ok (false, s, a)
+                                let t1 ← sched.idle_thread machineStoreInst s
+                                let b6 ←
+                                  obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                let fastfail ←
+                                  if b6
+                                  then ok true
                                   else
+                                    do
+                                    let i9 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let i10 ←
+                                      obj.Tcb.prio machineStoreInst t s
+                                    if i9 < i10
+                                    then ok true
+                                    else ok false
+                                if fastfail
+                                then
+                                  let i9 ←
+                                    sched.cur_domain machineStoreInst s
+                                  let i10 ←
+                                    obj.Tcb.prio machineStoreInst i1 s
+                                  let b7 ←
+                                    sched.is_highest_prio machineStoreInst s i9
+                                      i10
+                                  if b7
+                                  then
                                     let s1 ←
                                       obj.Tcb.set_state machineStoreInst t s
                                         sched.TS_RESTART
                                     let (s2, a1) ←
                                       ipc.reply_remove machineStoreInst
                                         machineArchInst s1 a rptr i1
-                                    let b7 ←
+                                    let b8 ←
                                       sporadic.sc_sporadic machineStoreInst s2
                                         i5
                                     let s3 ←
-                                      if b7
+                                      if b8
                                       then
                                         do
-                                        let i10 ←
-                                          obj.Sc.cpu machineStoreInst i5 s2
                                         let i11 ←
-                                          obj.node_get machineStoreInst s2 i10
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i12 ←
+                                          obj.node_get machineStoreInst s2 i11
                                             layout.node.CUR_SC
-                                        if i5 != i11
+                                        if i5 != i12
                                         then
                                           sporadic.unblock_check
                                             machineStoreInst s2 i5
@@ -31527,51 +31721,26 @@ def fastpath.reply_recv_found
                                         fastpath.switch_to machineStoreInst
                                           machineArchInst s15 a2 i1
                                       ok (true, s16, a3)
-                          else
-                            let i7 ← obj.Ep.state machineStoreInst ep_ptr s
-                            if i7 != obj.EP_IDLE
-                            then ok (false, s, a)
-                            else
-                              let t1 ← sched.idle_thread machineStoreInst s
-                              let b6 ←
-                                obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                              let fastfail ←
-                                if b6
-                                then ok true
+                                  else ok (false, s, a)
                                 else
-                                  do
-                                  let i8 ← obj.Tcb.prio machineStoreInst i1 s
-                                  let i9 ← obj.Tcb.prio machineStoreInst t s
-                                  if i8 < i9
-                                  then ok true
-                                  else ok false
-                              if fastfail
-                              then
-                                let i8 ← sched.cur_domain machineStoreInst s
-                                let i9 ← obj.Tcb.prio machineStoreInst i1 s
-                                let b7 ←
-                                  sched.is_highest_prio machineStoreInst s i8
-                                    i9
-                                if b7
-                                then
                                   let s1 ←
                                     obj.Tcb.set_state machineStoreInst t s
                                       sched.TS_RESTART
                                   let (s2, a1) ←
                                     ipc.reply_remove machineStoreInst
                                       machineArchInst s1 a rptr i1
-                                  let b8 ←
+                                  let b7 ←
                                     sporadic.sc_sporadic machineStoreInst s2 i5
                                   let s3 ←
-                                    if b8
+                                    if b7
                                     then
                                       do
-                                      let i10 ←
+                                      let i9 ←
                                         obj.Sc.cpu machineStoreInst i5 s2
-                                      let i11 ←
-                                        obj.node_get machineStoreInst s2 i10
+                                      let i10 ←
+                                        obj.node_get machineStoreInst s2 i9
                                           layout.node.CUR_SC
-                                      if i5 != i11
+                                      if i5 != i10
                                       then
                                         sporadic.unblock_check machineStoreInst
                                           s2 i5
@@ -31651,112 +31820,13 @@ def fastpath.reply_recv_found
                                       fastpath.switch_to machineStoreInst
                                         machineArchInst s15 a2 i1
                                     ok (true, s16, a3)
-                                else ok (false, s, a)
-                              else
-                                let s1 ←
-                                  obj.Tcb.set_state machineStoreInst t s
-                                    sched.TS_RESTART
-                                let (s2, a1) ←
-                                  ipc.reply_remove machineStoreInst
-                                    machineArchInst s1 a rptr i1
-                                let b7 ←
-                                  sporadic.sc_sporadic machineStoreInst s2 i5
-                                let s3 ←
-                                  if b7
-                                  then
-                                    do
-                                    let i8 ←
-                                      obj.Sc.cpu machineStoreInst i5 s2
-                                    let i9 ←
-                                      obj.node_get machineStoreInst s2 i8
-                                        layout.node.CUR_SC
-                                    if i5 != i9
-                                    then
-                                      sporadic.unblock_check machineStoreInst
-                                        s2 i5
-                                    else ok s2
-                                  else ok s2
-                                let (restart, s4, a2) ←
-                                  faults.handle_fault_reply machineStoreInst
-                                    machineArchInst s3 a1 i1 t
-                                let s5 ←
-                                  faults.clear_fault machineStoreInst s4 i1
-                                if restart
-                                then
-                                  let s6 ←
-                                    obj.Tcb.set_state machineStoreInst i1 s5
-                                      sched.TS_RESTART
-                                  let s7 ←
-                                    sched.set_action machineStoreInst s6 i1
-                                  let s8 ←
-                                    obj.Tcb.set_state machineStoreInst t s7
-                                      sched.TS_RUNNING
-                                  let s9 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s8
-                                      ep_ptr
-                                  let s10 ←
-                                    obj.Tcb.set_state machineStoreInst t s9
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s11 ←
-                                    obj.Tcb.set_reply_obj machineStoreInst t
-                                      s10 rptr
-                                  let s12 ←
-                                    obj.Reply.set_tcb machineStoreInst rptr s11
-                                      t
-                                  let s13 ←
-                                    obj.Tcb.set_ep_next machineStoreInst t s12
-                                      0#u64
-                                  let s14 ←
-                                    obj.Tcb.set_ep_prev machineStoreInst t s13
-                                      0#u64
-                                  let s15 ←
-                                    obj.Ep.set_queue machineStoreInst ep_ptr
-                                      s14 t t obj.EP_RECV
-                                  let (s16, a3) ←
-                                    fastpath.switch_to machineStoreInst
-                                      machineArchInst s15 a2 i1
-                                  ok (true, s16, a3)
-                                else
-                                  let s6 ←
-                                    obj.Tcb.set_state machineStoreInst i1 s5
-                                      sched.TS_INACTIVE
-                                  let s7 ←
-                                    sched.set_action machineStoreInst s6 i1
-                                  let s8 ←
-                                    obj.Tcb.set_state machineStoreInst t s7
-                                      sched.TS_RUNNING
-                                  let s9 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s8
-                                      ep_ptr
-                                  let s10 ←
-                                    obj.Tcb.set_state machineStoreInst t s9
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s11 ←
-                                    obj.Tcb.set_reply_obj machineStoreInst t
-                                      s10 rptr
-                                  let s12 ←
-                                    obj.Reply.set_tcb machineStoreInst rptr s11
-                                      t
-                                  let s13 ←
-                                    obj.Tcb.set_ep_next machineStoreInst t s12
-                                      0#u64
-                                  let s14 ←
-                                    obj.Tcb.set_ep_prev machineStoreInst t s13
-                                      0#u64
-                                  let s15 ←
-                                    obj.Ep.set_queue machineStoreInst ep_ptr
-                                      s14 t t obj.EP_RECV
-                                  let (s16, a3) ←
-                                    fastpath.switch_to machineStoreInst
-                                      machineArchInst s15 a2 i1
-                                  ok (true, s16, a3)
                         else ok (false, s, a)
                       else ok (false, s, a)
                     else ok (false, s, a)
     else ok (false, s, a)
 
 /-- [fl4_core::fastpath::reply_caps]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 167:0-183:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 174:0-190:1
     Visibility: public -/
 def fastpath.reply_caps
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -31837,7 +31907,7 @@ def fastpath.reply_caps
   | core.result.Result.Err _ => ok none
 
 /-- [fl4_core::fastpath::reply_recv]:
-    Source: 'crates/fl4-core/src/fastpath.rs', lines 155:0-161:1
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 162:0-168:1
     Visibility: public -/
 def fastpath.reply_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31854,7 +31924,7 @@ def fastpath.reply_recv
       ep_ptr
 
 /-- [fl4_core::fastpath_vm::vm_fault]:
-    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 29:0-90:1
+    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 29:0-97:1
     Visibility: public -/
 def fastpath_vm.vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -31886,88 +31956,13 @@ def fastpath_vm.vm_fault
             let b ← fastpath.schedulable_here machineStoreInst s i2
             if b
             then
-              let i4 ← sched.cur_domain machineStoreInst s
-              let i5 ← obj.Tcb.prio machineStoreInst i2 s
-              let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
-              if b1
-              then
-                let s2 ← faults.set_fault machineStoreInst s t f
-                let tail ← obj.Ep.tail machineStoreInst ptr s2
-                let s3 ←
-                  if tail = i2
-                  then
-                    obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
-                      obj.EP_IDLE
-                  else
-                    do
-                    let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
-                    let s4 ← obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
-                    obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
-                      obj.EP_RECV
-                let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
-                let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
-                let recv_buf ←
-                  msg.lookup_ipc_buffer machineStoreInst s5 true i2
-                let (sent, s6) ←
-                  faults.set_mrs_fault machineStoreInst machineArchInst s5 a t
-                    i2 recv_buf
-                let mi ←
-                  msginfo.MessageInfo.new fl4_abi.consts.fault.VMFault 0#u64
-                    0#u64 sent
-                let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
-                let s8 ←
-                  obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE badge
-                let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
-                let s10 ←
-                  obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
-                let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
-                let s12 ←
-                  obj.Tcb.set_state machineStoreInst t s11
-                    sched.TS_BLOCKED_ON_REPLY
-                let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
-                let s14 ←
-                  obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
-                let i6 ← obj.Tcb.sc machineStoreInst i2 s14
-                let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
-                let s15 ←
-                  if b2
-                  then
-                    do
-                    let s16 ← sched.cur_sc machineStoreInst s14
-                    let b3 ←
-                      core.cmp.PartialEq.ne.trait_default
-                        obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
-                    if b3
-                    then sporadic.unblock_check machineStoreInst s14 i6
-                    else ok s14
-                  else ok s14
-                let s16 ←
-                  obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
-                let s17 ←
-                  obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
-                let (s18, a1) ←
-                  fastpath.switch_to machineStoreInst machineArchInst s17 a i2
-                ok (true, s18, a1)
-              else ok (false, s, a)
-            else ok (false, s, a)
-      else
-        if grant_reply
-        then
-          let i1 ← obj.Ep.state machineStoreInst ptr s
-          if i1 != obj.EP_RECV
-          then ok (false, s, a)
-          else
-            let i2 ← obj.Ep.head machineStoreInst ptr s
-            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
-            if i3 = 0#u64
-            then ok (false, s, a)
-            else
-              let b ← fastpath.schedulable_here machineStoreInst s i2
-              if b
-              then
-                let i4 ← sched.cur_domain machineStoreInst s
-                let i5 ← obj.Tcb.prio machineStoreInst i2 s
-                let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+              let i4 ← vcpu.bound machineStoreInst s i2
+              if i4 != 0#u64
+              then ok (false, s, a)
+              else
+                let i5 ← sched.cur_domain machineStoreInst s
+                let i6 ← obj.Tcb.prio machineStoreInst i2 s
+                let b1 ← sched.is_highest_prio machineStoreInst s i5 i6
                 if b1
                 then
                   let s2 ← faults.set_fault machineStoreInst s t f
@@ -31979,10 +31974,10 @@ def fastpath_vm.vm_fault
                         obj.EP_IDLE
                     else
                       do
-                      let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                      let i7 ← obj.Tcb.ep_next machineStoreInst i2 s2
                       let s4 ←
-                        obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
-                      obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                        obj.Tcb.set_ep_prev machineStoreInst i7 s2 0#u64
+                      obj.Ep.set_queue machineStoreInst ptr s4 i7 tail
                         obj.EP_RECV
                   let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
                   let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
@@ -32008,8 +32003,8 @@ def fastpath_vm.vm_fault
                   let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
                   let s14 ←
                     obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
-                  let i6 ← obj.Tcb.sc machineStoreInst i2 s14
-                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                  let i7 ← obj.Tcb.sc machineStoreInst i2 s14
+                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i7
                   let s15 ←
                     if b2
                     then
@@ -32017,9 +32012,9 @@ def fastpath_vm.vm_fault
                       let s16 ← sched.cur_sc machineStoreInst s14
                       let b3 ←
                         core.cmp.PartialEq.ne.trait_default
-                          obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                          obj.Sc.Insts.CoreCmpPartialEqSc i7 s16
                       if b3
-                      then sporadic.unblock_check machineStoreInst s14 i6
+                      then sporadic.unblock_check machineStoreInst s14 i7
                       else ok s14
                     else ok s14
                   let s16 ←
@@ -32031,6 +32026,94 @@ def fastpath_vm.vm_fault
                       i2
                   ok (true, s18, a1)
                 else ok (false, s, a)
+            else ok (false, s, a)
+      else
+        if grant_reply
+        then
+          let i1 ← obj.Ep.state machineStoreInst ptr s
+          if i1 != obj.EP_RECV
+          then ok (false, s, a)
+          else
+            let i2 ← obj.Ep.head machineStoreInst ptr s
+            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+            if i3 = 0#u64
+            then ok (false, s, a)
+            else
+              let b ← fastpath.schedulable_here machineStoreInst s i2
+              if b
+              then
+                let i4 ← vcpu.bound machineStoreInst s i2
+                if i4 != 0#u64
+                then ok (false, s, a)
+                else
+                  let i5 ← sched.cur_domain machineStoreInst s
+                  let i6 ← obj.Tcb.prio machineStoreInst i2 s
+                  let b1 ← sched.is_highest_prio machineStoreInst s i5 i6
+                  if b1
+                  then
+                    let s2 ← faults.set_fault machineStoreInst s t f
+                    let tail ← obj.Ep.tail machineStoreInst ptr s2
+                    let s3 ←
+                      if tail = i2
+                      then
+                        obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                          obj.EP_IDLE
+                      else
+                        do
+                        let i7 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                        let s4 ←
+                          obj.Tcb.set_ep_prev machineStoreInst i7 s2 0#u64
+                        obj.Ep.set_queue machineStoreInst ptr s4 i7 tail
+                          obj.EP_RECV
+                    let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                    let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                    let recv_buf ←
+                      msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                    let (sent, s6) ←
+                      faults.set_mrs_fault machineStoreInst machineArchInst s5
+                        a t i2 recv_buf
+                    let mi ←
+                      msginfo.MessageInfo.new fl4_abi.consts.fault.VMFault
+                        0#u64 0#u64 sent
+                    let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                    let s8 ←
+                      obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE
+                        badge
+                    let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                    let s10 ←
+                      obj.Tcb.set_state machineStoreInst i2 s9
+                        sched.TS_INACTIVE
+                    let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                    let s12 ←
+                      obj.Tcb.set_state machineStoreInst t s11
+                        sched.TS_BLOCKED_ON_REPLY
+                    let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                    let s14 ←
+                      obj.Tcb.set_state machineStoreInst i2 s13
+                        sched.TS_RUNNING
+                    let i7 ← obj.Tcb.sc machineStoreInst i2 s14
+                    let b2 ← sporadic.sc_sporadic machineStoreInst s14 i7
+                    let s15 ←
+                      if b2
+                      then
+                        do
+                        let s16 ← sched.cur_sc machineStoreInst s14
+                        let b3 ←
+                          core.cmp.PartialEq.ne.trait_default
+                            obj.Sc.Insts.CoreCmpPartialEqSc i7 s16
+                        if b3
+                        then sporadic.unblock_check machineStoreInst s14 i7
+                        else ok s14
+                      else ok s14
+                    let s16 ←
+                      obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                    let s17 ←
+                      obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                    let (s18, a1) ←
+                      fastpath.switch_to machineStoreInst machineArchInst s17 a
+                        i2
+                    ok (true, s18, a1)
+                  else ok (false, s, a)
               else ok (false, s, a)
         else ok (false, s, a)
     | capability.Cap.Notification _ _ _ _ => ok (false, s, a)
@@ -32058,7 +32141,7 @@ def fastpath_vm.vm_fault
     | capability.Cap.HighVSpace _ _ _ => ok (false, s, a)
 
 /-- [fl4_core::fastpath_vm::reply_recv_vm_found]:
-    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 95:0-163:1
+    Source: 'crates/fl4-core/src/fastpath_vm.rs', lines 102:0-177:1
     Visibility: public -/
 def fastpath_vm.reply_recv_vm_found
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -32117,19 +32200,286 @@ def fastpath_vm.reply_recv_vm_found
                               machineArchInst s a i5 0#u64
                           if b6
                           then
-                            let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                            let i6 ← vcpu.bound machineStoreInst s i1
                             if i6 != 0#u64
-                            then
-                              let i7 ← obj.Ntfn.state machineStoreInst i6 s
-                              if i7 = obj.NTFN_ACTIVE
-                              then ok (false, s, a)
-                              else
-                                let i8 ← obj.Ntfn.sc machineStoreInst i6 s
-                                if i8 != 0#u64
-                                then
-                                  let i9 ← obj.Tcb.sc machineStoreInst t s
-                                  if i8 = i9
-                                  then ok (false, s, a)
+                            then ok (false, s, a)
+                            else
+                              let i7 ←
+                                obj.Tcb.bound_ntfn machineStoreInst t s
+                              if i7 != 0#u64
+                              then
+                                let i8 ← obj.Ntfn.state machineStoreInst i7 s
+                                if i8 = obj.NTFN_ACTIVE
+                                then ok (false, s, a)
+                                else
+                                  let i9 ← obj.Ntfn.sc machineStoreInst i7 s
+                                  if i9 != 0#u64
+                                  then
+                                    let i10 ← obj.Tcb.sc machineStoreInst t s
+                                    if i9 = i10
+                                    then ok (false, s, a)
+                                    else
+                                      let i11 ←
+                                        obj.Ep.state machineStoreInst ep_ptr s
+                                      if i11 != obj.EP_IDLE
+                                      then ok (false, s, a)
+                                      else
+                                        let t1 ←
+                                          sched.idle_thread machineStoreInst s
+                                        let b7 ←
+                                          obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
+                                            t t1
+                                        let fastfail ←
+                                          if b7
+                                          then ok true
+                                          else
+                                            do
+                                            let i12 ←
+                                              obj.Tcb.prio machineStoreInst i1
+                                                s
+                                            let i13 ←
+                                              obj.Tcb.prio machineStoreInst t s
+                                            if i12 < i13
+                                            then ok true
+                                            else ok false
+                                        if fastfail
+                                        then
+                                          let i12 ←
+                                            sched.cur_domain machineStoreInst s
+                                          let i13 ←
+                                            obj.Tcb.prio machineStoreInst i1 s
+                                          let b8 ←
+                                            sched.is_highest_prio
+                                              machineStoreInst s i12 i13
+                                          if b8
+                                          then
+                                            let s1 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s
+                                                sched.TS_RESTART
+                                            let (s2, a1) ←
+                                              ipc.reply_remove machineStoreInst
+                                                machineArchInst s1 a rptr i1
+                                            let b9 ←
+                                              sporadic.sc_sporadic
+                                                machineStoreInst s2 i5
+                                            let s3 ←
+                                              if b9
+                                              then
+                                                do
+                                                let i14 ←
+                                                  obj.Sc.cpu machineStoreInst
+                                                    i5 s2
+                                                let i15 ←
+                                                  obj.node_get machineStoreInst
+                                                    s2 i14 layout.node.CUR_SC
+                                                if i5 != i15
+                                                then
+                                                  sporadic.unblock_check
+                                                    machineStoreInst s2 i5
+                                                else ok s2
+                                              else ok s2
+                                            let (restart, s4, a2) ←
+                                              faults.handle_fault_reply
+                                                machineStoreInst
+                                                machineArchInst s3 a1 i1 t
+                                            let s5 ←
+                                              faults.clear_fault
+                                                machineStoreInst s4 i1
+                                            if restart
+                                            then
+                                              let s6 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst i1 s5
+                                                  sched.TS_RESTART
+                                              let s7 ←
+                                                sched.set_action
+                                                  machineStoreInst s6 i1
+                                              let s8 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s7
+                                                  sched.TS_RUNNING
+                                              let s9 ←
+                                                obj.Tcb.set_block_obj
+                                                  machineStoreInst t s8 ep_ptr
+                                              let s10 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s9
+                                                  sched.TS_BLOCKED_ON_RECV
+                                              let s11 ←
+                                                obj.Tcb.set_reply_obj
+                                                  machineStoreInst t s10 rptr
+                                              let s12 ←
+                                                obj.Reply.set_tcb
+                                                  machineStoreInst rptr s11 t
+                                              let s13 ←
+                                                obj.Tcb.set_ep_next
+                                                  machineStoreInst t s12 0#u64
+                                              let s14 ←
+                                                obj.Tcb.set_ep_prev
+                                                  machineStoreInst t s13 0#u64
+                                              let s15 ←
+                                                obj.Ep.set_queue
+                                                  machineStoreInst ep_ptr s14 t
+                                                  t obj.EP_RECV
+                                              let (s16, a3) ←
+                                                fastpath.switch_to
+                                                  machineStoreInst
+                                                  machineArchInst s15 a2 i1
+                                              ok (true, s16, a3)
+                                            else
+                                              let s6 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst i1 s5
+                                                  sched.TS_INACTIVE
+                                              let s7 ←
+                                                sched.set_action
+                                                  machineStoreInst s6 i1
+                                              let s8 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s7
+                                                  sched.TS_RUNNING
+                                              let s9 ←
+                                                obj.Tcb.set_block_obj
+                                                  machineStoreInst t s8 ep_ptr
+                                              let s10 ←
+                                                obj.Tcb.set_state
+                                                  machineStoreInst t s9
+                                                  sched.TS_BLOCKED_ON_RECV
+                                              let s11 ←
+                                                obj.Tcb.set_reply_obj
+                                                  machineStoreInst t s10 rptr
+                                              let s12 ←
+                                                obj.Reply.set_tcb
+                                                  machineStoreInst rptr s11 t
+                                              let s13 ←
+                                                obj.Tcb.set_ep_next
+                                                  machineStoreInst t s12 0#u64
+                                              let s14 ←
+                                                obj.Tcb.set_ep_prev
+                                                  machineStoreInst t s13 0#u64
+                                              let s15 ←
+                                                obj.Ep.set_queue
+                                                  machineStoreInst ep_ptr s14 t
+                                                  t obj.EP_RECV
+                                              let (s16, a3) ←
+                                                fastpath.switch_to
+                                                  machineStoreInst
+                                                  machineArchInst s15 a2 i1
+                                              ok (true, s16, a3)
+                                          else ok (false, s, a)
+                                        else
+                                          let s1 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s sched.TS_RESTART
+                                          let (s2, a1) ←
+                                            ipc.reply_remove machineStoreInst
+                                              machineArchInst s1 a rptr i1
+                                          let b8 ←
+                                            sporadic.sc_sporadic
+                                              machineStoreInst s2 i5
+                                          let s3 ←
+                                            if b8
+                                            then
+                                              do
+                                              let i12 ←
+                                                obj.Sc.cpu machineStoreInst i5
+                                                  s2
+                                              let i13 ←
+                                                obj.node_get machineStoreInst
+                                                  s2 i12 layout.node.CUR_SC
+                                              if i5 != i13
+                                              then
+                                                sporadic.unblock_check
+                                                  machineStoreInst s2 i5
+                                              else ok s2
+                                            else ok s2
+                                          let (restart, s4, a2) ←
+                                            faults.handle_fault_reply
+                                              machineStoreInst machineArchInst
+                                              s3 a1 i1 t
+                                          let s5 ←
+                                            faults.clear_fault machineStoreInst
+                                              s4 i1
+                                          if restart
+                                          then
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_RESTART
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                          else
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_INACTIVE
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
                                   else
                                     let i10 ←
                                       obj.Ep.state machineStoreInst ep_ptr s
@@ -32379,50 +32729,437 @@ def fastpath_vm.reply_recv_vm_found
                                             fastpath.switch_to machineStoreInst
                                               machineArchInst s15 a2 i1
                                           ok (true, s16, a3)
+                              else
+                                let i8 ←
+                                  obj.Ep.state machineStoreInst ep_ptr s
+                                if i8 != obj.EP_IDLE
+                                then ok (false, s, a)
                                 else
-                                  let i9 ←
-                                    obj.Ep.state machineStoreInst ep_ptr s
-                                  if i9 != obj.EP_IDLE
-                                  then ok (false, s, a)
-                                  else
-                                    let t1 ←
-                                      sched.idle_thread machineStoreInst s
-                                    let b7 ←
-                                      obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                    let fastfail ←
-                                      if b7
-                                      then ok true
-                                      else
-                                        do
-                                        let i10 ←
-                                          obj.Tcb.prio machineStoreInst i1 s
-                                        let i11 ←
-                                          obj.Tcb.prio machineStoreInst t s
-                                        if i10 < i11
-                                        then ok true
-                                        else ok false
-                                    if fastfail
-                                    then
-                                      let i10 ←
-                                        sched.cur_domain machineStoreInst s
-                                      let i11 ←
+                                  let t1 ←
+                                    sched.idle_thread machineStoreInst s
+                                  let b7 ←
+                                    obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                  let fastfail ←
+                                    if b7
+                                    then ok true
+                                    else
+                                      do
+                                      let i9 ←
                                         obj.Tcb.prio machineStoreInst i1 s
-                                      let b8 ←
-                                        sched.is_highest_prio machineStoreInst
-                                          s i10 i11
+                                      let i10 ←
+                                        obj.Tcb.prio machineStoreInst t s
+                                      if i9 < i10
+                                      then ok true
+                                      else ok false
+                                  if fastfail
+                                  then
+                                    let i9 ←
+                                      sched.cur_domain machineStoreInst s
+                                    let i10 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let b8 ←
+                                      sched.is_highest_prio machineStoreInst s
+                                        i9 i10
+                                    if b8
+                                    then
+                                      let s1 ←
+                                        obj.Tcb.set_state machineStoreInst t s
+                                          sched.TS_RESTART
+                                      let (s2, a1) ←
+                                        ipc.reply_remove machineStoreInst
+                                          machineArchInst s1 a rptr i1
+                                      let b9 ←
+                                        sporadic.sc_sporadic machineStoreInst
+                                          s2 i5
+                                      let s3 ←
+                                        if b9
+                                        then
+                                          do
+                                          let i11 ←
+                                            obj.Sc.cpu machineStoreInst i5 s2
+                                          let i12 ←
+                                            obj.node_get machineStoreInst s2
+                                              i11 layout.node.CUR_SC
+                                          if i5 != i12
+                                          then
+                                            sporadic.unblock_check
+                                              machineStoreInst s2 i5
+                                          else ok s2
+                                        else ok s2
+                                      let (restart, s4, a2) ←
+                                        faults.handle_fault_reply
+                                          machineStoreInst machineArchInst s3
+                                          a1 i1 t
+                                      let s5 ←
+                                        faults.clear_fault machineStoreInst s4
+                                          i1
+                                      if restart
+                                      then
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_RESTART
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                      else
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_INACTIVE
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s8 ep_ptr
+                                        let s10 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s9 sched.TS_BLOCKED_ON_RECV
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                    else ok (false, s, a)
+                                  else
+                                    let s1 ←
+                                      obj.Tcb.set_state machineStoreInst t s
+                                        sched.TS_RESTART
+                                    let (s2, a1) ←
+                                      ipc.reply_remove machineStoreInst
+                                        machineArchInst s1 a rptr i1
+                                    let b8 ←
+                                      sporadic.sc_sporadic machineStoreInst s2
+                                        i5
+                                    let s3 ←
                                       if b8
                                       then
+                                        do
+                                        let i9 ←
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i10 ←
+                                          obj.node_get machineStoreInst s2 i9
+                                            layout.node.CUR_SC
+                                        if i5 != i10
+                                        then
+                                          sporadic.unblock_check
+                                            machineStoreInst s2 i5
+                                        else ok s2
+                                      else ok s2
+                                    let (restart, s4, a2) ←
+                                      faults.handle_fault_reply
+                                        machineStoreInst machineArchInst s3 a1
+                                        i1 t
+                                    let s5 ←
+                                      faults.clear_fault machineStoreInst s4 i1
+                                    if restart
+                                    then
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_RESTART
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                                    else
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_INACTIVE
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s8 ep_ptr
+                                      let s10 ←
+                                        obj.Tcb.set_state machineStoreInst t s9
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                          else ok (false, s, a)
+                        else ok (false, s, a)
+                      else ok (false, s, a)
+                else
+                  let i5 ← obj.Tcb.sc machineStoreInst i1 s
+                  let b2 ← obj.Sc.is_null i5
+                  if b2
+                  then ok (false, s, a)
+                  else
+                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
+                    if b3
+                    then
+                      let b4 ← sporadic.ready machineStoreInst s i5
+                      if b4
+                      then
+                        let b5 ←
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s a i5 0#u64
+                        if b5
+                        then
+                          let i6 ← vcpu.bound machineStoreInst s i1
+                          if i6 != 0#u64
+                          then ok (false, s, a)
+                          else
+                            let i7 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                            if i7 != 0#u64
+                            then
+                              let i8 ← obj.Ntfn.state machineStoreInst i7 s
+                              if i8 = obj.NTFN_ACTIVE
+                              then ok (false, s, a)
+                              else
+                                let i9 ← obj.Ntfn.sc machineStoreInst i7 s
+                                if i9 != 0#u64
+                                then
+                                  let i10 ← obj.Tcb.sc machineStoreInst t s
+                                  if i9 = i10
+                                  then ok (false, s, a)
+                                  else
+                                    let i11 ←
+                                      obj.Ep.state machineStoreInst ep_ptr s
+                                    if i11 != obj.EP_IDLE
+                                    then ok (false, s, a)
+                                    else
+                                      let t1 ←
+                                        sched.idle_thread machineStoreInst s
+                                      let b6 ←
+                                        obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t
+                                          t1
+                                      let fastfail ←
+                                        if b6
+                                        then ok true
+                                        else
+                                          do
+                                          let i12 ←
+                                            obj.Tcb.prio machineStoreInst i1 s
+                                          let i13 ←
+                                            obj.Tcb.prio machineStoreInst t s
+                                          if i12 < i13
+                                          then ok true
+                                          else ok false
+                                      if fastfail
+                                      then
+                                        let i12 ←
+                                          sched.cur_domain machineStoreInst s
+                                        let i13 ←
+                                          obj.Tcb.prio machineStoreInst i1 s
+                                        let b7 ←
+                                          sched.is_highest_prio
+                                            machineStoreInst s i12 i13
+                                        if b7
+                                        then
+                                          let s1 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s sched.TS_RESTART
+                                          let (s2, a1) ←
+                                            ipc.reply_remove machineStoreInst
+                                              machineArchInst s1 a rptr i1
+                                          let b8 ←
+                                            sporadic.sc_sporadic
+                                              machineStoreInst s2 i5
+                                          let s3 ←
+                                            if b8
+                                            then
+                                              do
+                                              let i14 ←
+                                                obj.Sc.cpu machineStoreInst i5
+                                                  s2
+                                              let i15 ←
+                                                obj.node_get machineStoreInst
+                                                  s2 i14 layout.node.CUR_SC
+                                              if i5 != i15
+                                              then
+                                                sporadic.unblock_check
+                                                  machineStoreInst s2 i5
+                                              else ok s2
+                                            else ok s2
+                                          let (restart, s4, a2) ←
+                                            faults.handle_fault_reply
+                                              machineStoreInst machineArchInst
+                                              s3 a1 i1 t
+                                          let s5 ←
+                                            faults.clear_fault machineStoreInst
+                                              s4 i1
+                                          if restart
+                                          then
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_RESTART
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                          else
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_INACTIVE
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s8 ep_ptr
+                                            let s10 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s9
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                        else ok (false, s, a)
+                                      else
                                         let s1 ←
                                           obj.Tcb.set_state machineStoreInst t
                                             s sched.TS_RESTART
                                         let (s2, a1) ←
                                           ipc.reply_remove machineStoreInst
                                             machineArchInst s1 a rptr i1
-                                        let b9 ←
+                                        let b7 ←
                                           sporadic.sc_sporadic machineStoreInst
                                             s2 i5
                                         let s3 ←
-                                          if b9
+                                          if b7
                                           then
                                             do
                                             let i12 ←
@@ -32514,371 +33251,6 @@ def fastpath_vm.reply_recv_vm_found
                                             fastpath.switch_to machineStoreInst
                                               machineArchInst s15 a2 i1
                                           ok (true, s16, a3)
-                                      else ok (false, s, a)
-                                    else
-                                      let s1 ←
-                                        obj.Tcb.set_state machineStoreInst t s
-                                          sched.TS_RESTART
-                                      let (s2, a1) ←
-                                        ipc.reply_remove machineStoreInst
-                                          machineArchInst s1 a rptr i1
-                                      let b8 ←
-                                        sporadic.sc_sporadic machineStoreInst
-                                          s2 i5
-                                      let s3 ←
-                                        if b8
-                                        then
-                                          do
-                                          let i10 ←
-                                            obj.Sc.cpu machineStoreInst i5 s2
-                                          let i11 ←
-                                            obj.node_get machineStoreInst s2
-                                              i10 layout.node.CUR_SC
-                                          if i5 != i11
-                                          then
-                                            sporadic.unblock_check
-                                              machineStoreInst s2 i5
-                                          else ok s2
-                                        else ok s2
-                                      let (restart, s4, a2) ←
-                                        faults.handle_fault_reply
-                                          machineStoreInst machineArchInst s3
-                                          a1 i1 t
-                                      let s5 ←
-                                        faults.clear_fault machineStoreInst s4
-                                          i1
-                                      if restart
-                                      then
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_RESTART
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                      else
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_INACTIVE
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                            else
-                              let i7 ← obj.Ep.state machineStoreInst ep_ptr s
-                              if i7 != obj.EP_IDLE
-                              then ok (false, s, a)
-                              else
-                                let t1 ← sched.idle_thread machineStoreInst s
-                                let b7 ←
-                                  obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                let fastfail ←
-                                  if b7
-                                  then ok true
-                                  else
-                                    do
-                                    let i8 ←
-                                      obj.Tcb.prio machineStoreInst i1 s
-                                    let i9 ←
-                                      obj.Tcb.prio machineStoreInst t s
-                                    if i8 < i9
-                                    then ok true
-                                    else ok false
-                                if fastfail
-                                then
-                                  let i8 ←
-                                    sched.cur_domain machineStoreInst s
-                                  let i9 ← obj.Tcb.prio machineStoreInst i1 s
-                                  let b8 ←
-                                    sched.is_highest_prio machineStoreInst s i8
-                                      i9
-                                  if b8
-                                  then
-                                    let s1 ←
-                                      obj.Tcb.set_state machineStoreInst t s
-                                        sched.TS_RESTART
-                                    let (s2, a1) ←
-                                      ipc.reply_remove machineStoreInst
-                                        machineArchInst s1 a rptr i1
-                                    let b9 ←
-                                      sporadic.sc_sporadic machineStoreInst s2
-                                        i5
-                                    let s3 ←
-                                      if b9
-                                      then
-                                        do
-                                        let i10 ←
-                                          obj.Sc.cpu machineStoreInst i5 s2
-                                        let i11 ←
-                                          obj.node_get machineStoreInst s2 i10
-                                            layout.node.CUR_SC
-                                        if i5 != i11
-                                        then
-                                          sporadic.unblock_check
-                                            machineStoreInst s2 i5
-                                        else ok s2
-                                      else ok s2
-                                    let (restart, s4, a2) ←
-                                      faults.handle_fault_reply
-                                        machineStoreInst machineArchInst s3 a1
-                                        i1 t
-                                    let s5 ←
-                                      faults.clear_fault machineStoreInst s4 i1
-                                    if restart
-                                    then
-                                      let s6 ←
-                                        obj.Tcb.set_state machineStoreInst i1
-                                          s5 sched.TS_RESTART
-                                      let s7 ←
-                                        sched.set_action machineStoreInst s6 i1
-                                      let s8 ←
-                                        obj.Tcb.set_state machineStoreInst t s7
-                                          sched.TS_RUNNING
-                                      let s9 ←
-                                        obj.Tcb.set_block_obj machineStoreInst
-                                          t s8 ep_ptr
-                                      let s10 ←
-                                        obj.Tcb.set_state machineStoreInst t s9
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s11 ←
-                                        obj.Tcb.set_reply_obj machineStoreInst
-                                          t s10 rptr
-                                      let s12 ←
-                                        obj.Reply.set_tcb machineStoreInst rptr
-                                          s11 t
-                                      let s13 ←
-                                        obj.Tcb.set_ep_next machineStoreInst t
-                                          s12 0#u64
-                                      let s14 ←
-                                        obj.Tcb.set_ep_prev machineStoreInst t
-                                          s13 0#u64
-                                      let s15 ←
-                                        obj.Ep.set_queue machineStoreInst
-                                          ep_ptr s14 t t obj.EP_RECV
-                                      let (s16, a3) ←
-                                        fastpath.switch_to machineStoreInst
-                                          machineArchInst s15 a2 i1
-                                      ok (true, s16, a3)
-                                    else
-                                      let s6 ←
-                                        obj.Tcb.set_state machineStoreInst i1
-                                          s5 sched.TS_INACTIVE
-                                      let s7 ←
-                                        sched.set_action machineStoreInst s6 i1
-                                      let s8 ←
-                                        obj.Tcb.set_state machineStoreInst t s7
-                                          sched.TS_RUNNING
-                                      let s9 ←
-                                        obj.Tcb.set_block_obj machineStoreInst
-                                          t s8 ep_ptr
-                                      let s10 ←
-                                        obj.Tcb.set_state machineStoreInst t s9
-                                          sched.TS_BLOCKED_ON_RECV
-                                      let s11 ←
-                                        obj.Tcb.set_reply_obj machineStoreInst
-                                          t s10 rptr
-                                      let s12 ←
-                                        obj.Reply.set_tcb machineStoreInst rptr
-                                          s11 t
-                                      let s13 ←
-                                        obj.Tcb.set_ep_next machineStoreInst t
-                                          s12 0#u64
-                                      let s14 ←
-                                        obj.Tcb.set_ep_prev machineStoreInst t
-                                          s13 0#u64
-                                      let s15 ←
-                                        obj.Ep.set_queue machineStoreInst
-                                          ep_ptr s14 t t obj.EP_RECV
-                                      let (s16, a3) ←
-                                        fastpath.switch_to machineStoreInst
-                                          machineArchInst s15 a2 i1
-                                      ok (true, s16, a3)
-                                  else ok (false, s, a)
-                                else
-                                  let s1 ←
-                                    obj.Tcb.set_state machineStoreInst t s
-                                      sched.TS_RESTART
-                                  let (s2, a1) ←
-                                    ipc.reply_remove machineStoreInst
-                                      machineArchInst s1 a rptr i1
-                                  let b8 ←
-                                    sporadic.sc_sporadic machineStoreInst s2 i5
-                                  let s3 ←
-                                    if b8
-                                    then
-                                      do
-                                      let i8 ←
-                                        obj.Sc.cpu machineStoreInst i5 s2
-                                      let i9 ←
-                                        obj.node_get machineStoreInst s2 i8
-                                          layout.node.CUR_SC
-                                      if i5 != i9
-                                      then
-                                        sporadic.unblock_check machineStoreInst
-                                          s2 i5
-                                      else ok s2
-                                    else ok s2
-                                  let (restart, s4, a2) ←
-                                    faults.handle_fault_reply machineStoreInst
-                                      machineArchInst s3 a1 i1 t
-                                  let s5 ←
-                                    faults.clear_fault machineStoreInst s4 i1
-                                  if restart
-                                  then
-                                    let s6 ←
-                                      obj.Tcb.set_state machineStoreInst i1 s5
-                                        sched.TS_RESTART
-                                    let s7 ←
-                                      sched.set_action machineStoreInst s6 i1
-                                    let s8 ←
-                                      obj.Tcb.set_state machineStoreInst t s7
-                                        sched.TS_RUNNING
-                                    let s9 ←
-                                      obj.Tcb.set_block_obj machineStoreInst t
-                                        s8 ep_ptr
-                                    let s10 ←
-                                      obj.Tcb.set_state machineStoreInst t s9
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s11 ←
-                                      obj.Tcb.set_reply_obj machineStoreInst t
-                                        s10 rptr
-                                    let s12 ←
-                                      obj.Reply.set_tcb machineStoreInst rptr
-                                        s11 t
-                                    let s13 ←
-                                      obj.Tcb.set_ep_next machineStoreInst t
-                                        s12 0#u64
-                                    let s14 ←
-                                      obj.Tcb.set_ep_prev machineStoreInst t
-                                        s13 0#u64
-                                    let s15 ←
-                                      obj.Ep.set_queue machineStoreInst ep_ptr
-                                        s14 t t obj.EP_RECV
-                                    let (s16, a3) ←
-                                      fastpath.switch_to machineStoreInst
-                                        machineArchInst s15 a2 i1
-                                    ok (true, s16, a3)
-                                  else
-                                    let s6 ←
-                                      obj.Tcb.set_state machineStoreInst i1 s5
-                                        sched.TS_INACTIVE
-                                    let s7 ←
-                                      sched.set_action machineStoreInst s6 i1
-                                    let s8 ←
-                                      obj.Tcb.set_state machineStoreInst t s7
-                                        sched.TS_RUNNING
-                                    let s9 ←
-                                      obj.Tcb.set_block_obj machineStoreInst t
-                                        s8 ep_ptr
-                                    let s10 ←
-                                      obj.Tcb.set_state machineStoreInst t s9
-                                        sched.TS_BLOCKED_ON_RECV
-                                    let s11 ←
-                                      obj.Tcb.set_reply_obj machineStoreInst t
-                                        s10 rptr
-                                    let s12 ←
-                                      obj.Reply.set_tcb machineStoreInst rptr
-                                        s11 t
-                                    let s13 ←
-                                      obj.Tcb.set_ep_next machineStoreInst t
-                                        s12 0#u64
-                                    let s14 ←
-                                      obj.Tcb.set_ep_prev machineStoreInst t
-                                        s13 0#u64
-                                    let s15 ←
-                                      obj.Ep.set_queue machineStoreInst ep_ptr
-                                        s14 t t obj.EP_RECV
-                                    let (s16, a3) ←
-                                      fastpath.switch_to machineStoreInst
-                                        machineArchInst s15 a2 i1
-                                    ok (true, s16, a3)
-                          else ok (false, s, a)
-                        else ok (false, s, a)
-                      else ok (false, s, a)
-                else
-                  let i5 ← obj.Tcb.sc machineStoreInst i1 s
-                  let b2 ← obj.Sc.is_null i5
-                  if b2
-                  then ok (false, s, a)
-                  else
-                    let b3 ← fastpath.schedulable_here machineStoreInst s i1
-                    if b3
-                    then
-                      let b4 ← sporadic.ready machineStoreInst s i5
-                      if b4
-                      then
-                        let b5 ←
-                          sporadic.sufficient machineStoreInst machineArchInst
-                            s a i5 0#u64
-                        if b5
-                        then
-                          let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
-                          if i6 != 0#u64
-                          then
-                            let i7 ← obj.Ntfn.state machineStoreInst i6 s
-                            if i7 = obj.NTFN_ACTIVE
-                            then ok (false, s, a)
-                            else
-                              let i8 ← obj.Ntfn.sc machineStoreInst i6 s
-                              if i8 != 0#u64
-                              then
-                                let i9 ← obj.Tcb.sc machineStoreInst t s
-                                if i8 = i9
-                                then ok (false, s, a)
                                 else
                                   let i10 ←
                                     obj.Ep.state machineStoreInst ep_ptr s
@@ -33118,162 +33490,56 @@ def fastpath_vm.reply_recv_vm_found
                                           fastpath.switch_to machineStoreInst
                                             machineArchInst s15 a2 i1
                                         ok (true, s16, a3)
+                            else
+                              let i8 ← obj.Ep.state machineStoreInst ep_ptr s
+                              if i8 != obj.EP_IDLE
+                              then ok (false, s, a)
                               else
-                                let i9 ←
-                                  obj.Ep.state machineStoreInst ep_ptr s
-                                if i9 != obj.EP_IDLE
-                                then ok (false, s, a)
-                                else
-                                  let t1 ←
-                                    sched.idle_thread machineStoreInst s
-                                  let b6 ←
-                                    obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                                  let fastfail ←
-                                    if b6
-                                    then ok true
-                                    else
-                                      do
-                                      let i10 ←
-                                        obj.Tcb.prio machineStoreInst i1 s
-                                      let i11 ←
-                                        obj.Tcb.prio machineStoreInst t s
-                                      if i10 < i11
-                                      then ok true
-                                      else ok false
-                                  if fastfail
-                                  then
-                                    let i10 ←
-                                      sched.cur_domain machineStoreInst s
-                                    let i11 ←
-                                      obj.Tcb.prio machineStoreInst i1 s
-                                    let b7 ←
-                                      sched.is_highest_prio machineStoreInst s
-                                        i10 i11
-                                    if b7
-                                    then
-                                      let s1 ←
-                                        obj.Tcb.set_state machineStoreInst t s
-                                          sched.TS_RESTART
-                                      let (s2, a1) ←
-                                        ipc.reply_remove machineStoreInst
-                                          machineArchInst s1 a rptr i1
-                                      let b8 ←
-                                        sporadic.sc_sporadic machineStoreInst
-                                          s2 i5
-                                      let s3 ←
-                                        if b8
-                                        then
-                                          do
-                                          let i12 ←
-                                            obj.Sc.cpu machineStoreInst i5 s2
-                                          let i13 ←
-                                            obj.node_get machineStoreInst s2
-                                              i12 layout.node.CUR_SC
-                                          if i5 != i13
-                                          then
-                                            sporadic.unblock_check
-                                              machineStoreInst s2 i5
-                                          else ok s2
-                                        else ok s2
-                                      let (restart, s4, a2) ←
-                                        faults.handle_fault_reply
-                                          machineStoreInst machineArchInst s3
-                                          a1 i1 t
-                                      let s5 ←
-                                        faults.clear_fault machineStoreInst s4
-                                          i1
-                                      if restart
-                                      then
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_RESTART
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                      else
-                                        let s6 ←
-                                          obj.Tcb.set_state machineStoreInst i1
-                                            s5 sched.TS_INACTIVE
-                                        let s7 ←
-                                          sched.set_action machineStoreInst s6
-                                            i1
-                                        let s8 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s7 sched.TS_RUNNING
-                                        let s9 ←
-                                          obj.Tcb.set_block_obj
-                                            machineStoreInst t s8 ep_ptr
-                                        let s10 ←
-                                          obj.Tcb.set_state machineStoreInst t
-                                            s9 sched.TS_BLOCKED_ON_RECV
-                                        let s11 ←
-                                          obj.Tcb.set_reply_obj
-                                            machineStoreInst t s10 rptr
-                                        let s12 ←
-                                          obj.Reply.set_tcb machineStoreInst
-                                            rptr s11 t
-                                        let s13 ←
-                                          obj.Tcb.set_ep_next machineStoreInst
-                                            t s12 0#u64
-                                        let s14 ←
-                                          obj.Tcb.set_ep_prev machineStoreInst
-                                            t s13 0#u64
-                                        let s15 ←
-                                          obj.Ep.set_queue machineStoreInst
-                                            ep_ptr s14 t t obj.EP_RECV
-                                        let (s16, a3) ←
-                                          fastpath.switch_to machineStoreInst
-                                            machineArchInst s15 a2 i1
-                                        ok (true, s16, a3)
-                                    else ok (false, s, a)
+                                let t1 ← sched.idle_thread machineStoreInst s
+                                let b6 ←
+                                  obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                let fastfail ←
+                                  if b6
+                                  then ok true
                                   else
+                                    do
+                                    let i9 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let i10 ←
+                                      obj.Tcb.prio machineStoreInst t s
+                                    if i9 < i10
+                                    then ok true
+                                    else ok false
+                                if fastfail
+                                then
+                                  let i9 ←
+                                    sched.cur_domain machineStoreInst s
+                                  let i10 ←
+                                    obj.Tcb.prio machineStoreInst i1 s
+                                  let b7 ←
+                                    sched.is_highest_prio machineStoreInst s i9
+                                      i10
+                                  if b7
+                                  then
                                     let s1 ←
                                       obj.Tcb.set_state machineStoreInst t s
                                         sched.TS_RESTART
                                     let (s2, a1) ←
                                       ipc.reply_remove machineStoreInst
                                         machineArchInst s1 a rptr i1
-                                    let b7 ←
+                                    let b8 ←
                                       sporadic.sc_sporadic machineStoreInst s2
                                         i5
                                     let s3 ←
-                                      if b7
+                                      if b8
                                       then
                                         do
-                                        let i10 ←
-                                          obj.Sc.cpu machineStoreInst i5 s2
                                         let i11 ←
-                                          obj.node_get machineStoreInst s2 i10
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i12 ←
+                                          obj.node_get machineStoreInst s2 i11
                                             layout.node.CUR_SC
-                                        if i5 != i11
+                                        if i5 != i12
                                         then
                                           sporadic.unblock_check
                                             machineStoreInst s2 i5
@@ -33354,51 +33620,26 @@ def fastpath_vm.reply_recv_vm_found
                                         fastpath.switch_to machineStoreInst
                                           machineArchInst s15 a2 i1
                                       ok (true, s16, a3)
-                          else
-                            let i7 ← obj.Ep.state machineStoreInst ep_ptr s
-                            if i7 != obj.EP_IDLE
-                            then ok (false, s, a)
-                            else
-                              let t1 ← sched.idle_thread machineStoreInst s
-                              let b6 ←
-                                obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
-                              let fastfail ←
-                                if b6
-                                then ok true
+                                  else ok (false, s, a)
                                 else
-                                  do
-                                  let i8 ← obj.Tcb.prio machineStoreInst i1 s
-                                  let i9 ← obj.Tcb.prio machineStoreInst t s
-                                  if i8 < i9
-                                  then ok true
-                                  else ok false
-                              if fastfail
-                              then
-                                let i8 ← sched.cur_domain machineStoreInst s
-                                let i9 ← obj.Tcb.prio machineStoreInst i1 s
-                                let b7 ←
-                                  sched.is_highest_prio machineStoreInst s i8
-                                    i9
-                                if b7
-                                then
                                   let s1 ←
                                     obj.Tcb.set_state machineStoreInst t s
                                       sched.TS_RESTART
                                   let (s2, a1) ←
                                     ipc.reply_remove machineStoreInst
                                       machineArchInst s1 a rptr i1
-                                  let b8 ←
+                                  let b7 ←
                                     sporadic.sc_sporadic machineStoreInst s2 i5
                                   let s3 ←
-                                    if b8
+                                    if b7
                                     then
                                       do
-                                      let i10 ←
+                                      let i9 ←
                                         obj.Sc.cpu machineStoreInst i5 s2
-                                      let i11 ←
-                                        obj.node_get machineStoreInst s2 i10
+                                      let i10 ←
+                                        obj.node_get machineStoreInst s2 i9
                                           layout.node.CUR_SC
-                                      if i5 != i11
+                                      if i5 != i10
                                       then
                                         sporadic.unblock_check machineStoreInst
                                           s2 i5
@@ -33478,105 +33719,6 @@ def fastpath_vm.reply_recv_vm_found
                                       fastpath.switch_to machineStoreInst
                                         machineArchInst s15 a2 i1
                                     ok (true, s16, a3)
-                                else ok (false, s, a)
-                              else
-                                let s1 ←
-                                  obj.Tcb.set_state machineStoreInst t s
-                                    sched.TS_RESTART
-                                let (s2, a1) ←
-                                  ipc.reply_remove machineStoreInst
-                                    machineArchInst s1 a rptr i1
-                                let b7 ←
-                                  sporadic.sc_sporadic machineStoreInst s2 i5
-                                let s3 ←
-                                  if b7
-                                  then
-                                    do
-                                    let i8 ←
-                                      obj.Sc.cpu machineStoreInst i5 s2
-                                    let i9 ←
-                                      obj.node_get machineStoreInst s2 i8
-                                        layout.node.CUR_SC
-                                    if i5 != i9
-                                    then
-                                      sporadic.unblock_check machineStoreInst
-                                        s2 i5
-                                    else ok s2
-                                  else ok s2
-                                let (restart, s4, a2) ←
-                                  faults.handle_fault_reply machineStoreInst
-                                    machineArchInst s3 a1 i1 t
-                                let s5 ←
-                                  faults.clear_fault machineStoreInst s4 i1
-                                if restart
-                                then
-                                  let s6 ←
-                                    obj.Tcb.set_state machineStoreInst i1 s5
-                                      sched.TS_RESTART
-                                  let s7 ←
-                                    sched.set_action machineStoreInst s6 i1
-                                  let s8 ←
-                                    obj.Tcb.set_state machineStoreInst t s7
-                                      sched.TS_RUNNING
-                                  let s9 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s8
-                                      ep_ptr
-                                  let s10 ←
-                                    obj.Tcb.set_state machineStoreInst t s9
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s11 ←
-                                    obj.Tcb.set_reply_obj machineStoreInst t
-                                      s10 rptr
-                                  let s12 ←
-                                    obj.Reply.set_tcb machineStoreInst rptr s11
-                                      t
-                                  let s13 ←
-                                    obj.Tcb.set_ep_next machineStoreInst t s12
-                                      0#u64
-                                  let s14 ←
-                                    obj.Tcb.set_ep_prev machineStoreInst t s13
-                                      0#u64
-                                  let s15 ←
-                                    obj.Ep.set_queue machineStoreInst ep_ptr
-                                      s14 t t obj.EP_RECV
-                                  let (s16, a3) ←
-                                    fastpath.switch_to machineStoreInst
-                                      machineArchInst s15 a2 i1
-                                  ok (true, s16, a3)
-                                else
-                                  let s6 ←
-                                    obj.Tcb.set_state machineStoreInst i1 s5
-                                      sched.TS_INACTIVE
-                                  let s7 ←
-                                    sched.set_action machineStoreInst s6 i1
-                                  let s8 ←
-                                    obj.Tcb.set_state machineStoreInst t s7
-                                      sched.TS_RUNNING
-                                  let s9 ←
-                                    obj.Tcb.set_block_obj machineStoreInst t s8
-                                      ep_ptr
-                                  let s10 ←
-                                    obj.Tcb.set_state machineStoreInst t s9
-                                      sched.TS_BLOCKED_ON_RECV
-                                  let s11 ←
-                                    obj.Tcb.set_reply_obj machineStoreInst t
-                                      s10 rptr
-                                  let s12 ←
-                                    obj.Reply.set_tcb machineStoreInst rptr s11
-                                      t
-                                  let s13 ←
-                                    obj.Tcb.set_ep_next machineStoreInst t s12
-                                      0#u64
-                                  let s14 ←
-                                    obj.Tcb.set_ep_prev machineStoreInst t s13
-                                      0#u64
-                                  let s15 ←
-                                    obj.Ep.set_queue machineStoreInst ep_ptr
-                                      s14 t t obj.EP_RECV
-                                  let (s16, a3) ←
-                                    fastpath.switch_to machineStoreInst
-                                      machineArchInst s15 a2 i1
-                                  ok (true, s16, a3)
                         else ok (false, s, a)
                       else ok (false, s, a)
                     else ok (false, s, a)
@@ -34675,13 +34817,13 @@ def obj.Slot.next_of_word (w : Std.U64) : Result obj.Slot := do
   ok i
 
 /-- [fl4_core::localinv::map_attr_local]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 302:0-304:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 310:0-312:1 -/
 def localinv.map_attr_local (attr : Std.U64) : Result Bool := do
   let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
   ok (i != 0#u64)
 
 /-- [fl4_core::localinv::small_page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 294:0-297:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 302:0-305:1 -/
 def localinv.small_page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64)
   (vaddr : Std.U64) :
@@ -34698,7 +34840,7 @@ def localinv.small_page_entry
       Std.U64 residual
 
 /-- [fl4_core::localinv::page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 276:0-281:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 284:0-289:1 -/
 def localinv.page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) :
@@ -34709,7 +34851,7 @@ def localinv.page_entry
   else vspace.small_page_entry machineStoreInst s root vaddr
 
 /-- [fl4_core::localinv::plan_with]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-262:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-270:1
     Visibility: public -/
 def localinv.plan_with
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -35101,32 +35243,39 @@ def localinv.plan_with
               | capability.Cap.PageTable _ _ _ _ => ok none
               | capability.Cap.PageDirectory _ _ _ _ => ok none
               | capability.Cap.Pdpt _ _ _ _ => ok none
-              | capability.Cap.Pml4 ptr b3 _ =>
+              | capability.Cap.Pml4 ptr b3 asid =>
                 if b3
                 then
-                  let i ← localinv.reg_arg machineStoreInst s t 2#u64
-                  let b4 ← localinv.map_attr_local i
-                  if b4
-                  then
-                    let i1 ← localinv.reg_arg machineStoreInst s t 0#u64
-                    let o ← localinv.page_entry machineStoreInst s ptr i1
-                    let cf ←
-                      core.option.Option.Insts.CoreOpsTry_traitTry.branch o
-                    match cf with
-                    | core.ops.control_flow.ControlFlow.Continue val =>
-                      let (b5, p2) ← localinv.Plan.add p1 slot
-                      let (p3, ok1) ←
-                        if b5
-                        then
-                          do
-                          let (ok2, p4) ← localinv.Plan.add_pte p2 val
-                          ok (p4, ok2)
-                        else ok (p2, false)
-                      localinv.some_if ok1 p3
-                    | core.ops.control_flow.ControlFlow.Break residual =>
-                      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
-                        localinv.Plan residual
-                  else ok none
+                  let r ← vspace.find_vspace_for_asid machineStoreInst s asid
+                  match r with
+                  | core.result.Result.Ok r1 =>
+                    if r1 = ptr
+                    then
+                      let i ← localinv.reg_arg machineStoreInst s t 2#u64
+                      let b4 ← localinv.map_attr_local i
+                      if b4
+                      then
+                        let i1 ← localinv.reg_arg machineStoreInst s t 0#u64
+                        let o ← localinv.page_entry machineStoreInst s ptr i1
+                        let cf ←
+                          core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+                        match cf with
+                        | core.ops.control_flow.ControlFlow.Continue val =>
+                          let (b5, p2) ← localinv.Plan.add p1 slot
+                          let (p3, ok1) ←
+                            if b5
+                            then
+                              do
+                              let (ok2, p4) ← localinv.Plan.add_pte p2 val
+                              ok (p4, ok2)
+                            else ok (p2, false)
+                          localinv.some_if ok1 p3
+                        | core.ops.control_flow.ControlFlow.Break residual =>
+                          core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+                            localinv.Plan residual
+                      else ok none
+                    else ok none
+                  | core.result.Result.Err _ => ok none
                 else ok none
               | capability.Cap.Vcpu _ => ok none
               | capability.Cap.Ept _ _ _ _ _ => ok none
@@ -37344,7 +37493,7 @@ def machine.Store.read_pair.default
   ok (i, i2)
 
 /-- [fl4_core::machine::Arch::private_device_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 46:4-46:65
+    Source: 'crates/fl4-core/src/machine.rs', lines 51:4-51:65
     Visibility: public -/
 @[trait_default]
 def machine.Arch.private_device_frame.default
@@ -37352,7 +37501,7 @@ def machine.Arch.private_device_frame.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_ram]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 48:4-48:63
+    Source: 'crates/fl4-core/src/machine.rs', lines 53:4-53:63
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_ram.default
@@ -37362,7 +37511,7 @@ def machine.Arch.dma_ram.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 50:4-50:69
+    Source: 'crates/fl4-core/src/machine.rs', lines 55:4-55:69
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_frame.default
@@ -37373,7 +37522,7 @@ def machine.Arch.dma_frame.default
   ok self
 
 /-- [fl4_core::machine::Arch::virtualization]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 52:4-52:41
+    Source: 'crates/fl4-core/src/machine.rs', lines 57:4-57:41
     Visibility: public -/
 @[trait_default]
 def machine.Arch.virtualization.default
@@ -37381,7 +37530,7 @@ def machine.Arch.virtualization.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_capability]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 54:4-54:55
+    Source: 'crates/fl4-core/src/machine.rs', lines 59:4-59:55
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_capability.default
@@ -37389,7 +37538,7 @@ def machine.Arch.vcpu_capability.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_barrier]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 56:4-56:33
+    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:33
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_barrier.default
@@ -37397,7 +37546,7 @@ def machine.Arch.vcpu_barrier.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_sync]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 61:4-61:52
+    Source: 'crates/fl4-core/src/machine.rs', lines 66:4-66:52
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_sync.default
@@ -37407,7 +37556,7 @@ def machine.Arch.vcpu_sync.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_release]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 64:4-64:42
+    Source: 'crates/fl4-core/src/machine.rs', lines 69:4-69:42
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_release.default
@@ -37415,7 +37564,7 @@ def machine.Arch.vcpu_release.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_ept]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 66:4-66:59
+    Source: 'crates/fl4-core/src/machine.rs', lines 71:4-71:59
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_ept.default
@@ -37425,7 +37574,7 @@ def machine.Arch.invalidate_ept.default
   ok self
 
 /-- [fl4_core::machine::Arch::tdx_active]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 69:4-69:42
+    Source: 'crates/fl4-core/src/machine.rs', lines 74:4-74:42
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_active.default
@@ -37433,7 +37582,7 @@ def machine.Arch.tdx_active.default
   ok false
 
 /-- [fl4_core::machine::Arch::tdx_report]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 73:4-73:145
+    Source: 'crates/fl4-core/src/machine.rs', lines 78:4-78:145
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_report.default
@@ -37445,7 +37594,7 @@ def machine.Arch.tdx_report.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_extend_rtmr]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 76:4-76:126
+    Source: 'crates/fl4-core/src/machine.rs', lines 81:4-81:126
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_extend_rtmr.default
@@ -37457,7 +37606,7 @@ def machine.Arch.tdx_extend_rtmr.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::tdx_get_quote]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 79:4-79:83
+    Source: 'crates/fl4-core/src/machine.rs', lines 84:4-84:83
     Visibility: public -/
 @[trait_default]
 def machine.Arch.tdx_get_quote.default
@@ -37467,7 +37616,7 @@ def machine.Arch.tdx_get_quote.default
   ok (core.num.U64.MAX, self)
 
 /-- [fl4_core::machine::Arch::irq_free]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 100:4-100:40
+    Source: 'crates/fl4-core/src/machine.rs', lines 105:4-105:40
     Visibility: public -/
 @[trait_default]
 def machine.Arch.irq_free.default
@@ -37475,7 +37624,7 @@ def machine.Arch.irq_free.default
   ok self
 
 /-- [fl4_core::machine::Arch::msi_map]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 37:8-37:102; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 37:8-37:102; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.msi_map.default
@@ -37486,7 +37635,7 @@ def machine.Arch.msi_map.default
   ok (machine.msi.NO_ITS, self)
 
 /-- [fl4_core::machine::Arch::s2_ipa_bits]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 39:8-39:43; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 39:8-39:43; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.s2_ipa_bits.default
@@ -37494,7 +37643,7 @@ def machine.Arch.s2_ipa_bits.default
   ok 40#u64
 
 /-- [fl4_core::machine::Arch::set_stage2_vspace]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 41:8-41:66; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 41:8-41:66; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.set_stage2_vspace.default
@@ -37504,7 +37653,7 @@ def machine.Arch.set_stage2_vspace.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_stage2_page]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 43:8-43:70; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 43:8-43:70; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_stage2_page.default
@@ -37514,7 +37663,7 @@ def machine.Arch.invalidate_stage2_page.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_stage2_vmid]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 45:8-45:59; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 45:8-45:59; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_stage2_vmid.default
@@ -37522,7 +37671,7 @@ def machine.Arch.invalidate_stage2_vmid.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_flush]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 47:8-47:47; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 47:8-47:47; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_flush.default
@@ -37530,7 +37679,7 @@ def machine.Arch.vcpu_flush.default
   ok self
 
 /-- [fl4_core::machine::Arch::vcpu_flush_state]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 49:8-51:9; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 49:8-51:9; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_flush_state.default
@@ -37541,7 +37690,7 @@ def machine.Arch.vcpu_flush_state.default
   ArchInst.vcpu_flush self vc
 
 /-- [fl4_core::machine::Arch::vcpu_vgic_vtr]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 53:8-53:44; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 53:8-53:44; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_vgic_vtr.default
@@ -37549,7 +37698,7 @@ def machine.Arch.vcpu_vgic_vtr.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_gic_version]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 55:8-55:47; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 55:8-55:47; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_gic_version.default
@@ -37557,7 +37706,7 @@ def machine.Arch.vcpu_gic_version.default
   ok 3#u64
 
 /-- [fl4_core::machine::Arch::vcpu_midr]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 57:8-57:40; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 57:8-57:40; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_midr.default
@@ -37565,7 +37714,7 @@ def machine.Arch.vcpu_midr.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::has_pauth]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 59:8-59:45; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 59:8-59:45; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.has_pauth.default
@@ -37573,7 +37722,7 @@ def machine.Arch.has_pauth.default
   ok false
 
 /-- [fl4_core::machine::Arch::next_pac_epoch]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 62:8-62:49; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 62:8-62:49; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.next_pac_epoch.default
@@ -37581,7 +37730,7 @@ def machine.Arch.next_pac_epoch.default
   ok (1#u64, self)
 
 /-- [fl4_core::machine::Arch::kernel_ttbr1_entry]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 67:8-67:75; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 67:8-67:75; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.kernel_ttbr1_entry.default
@@ -37591,7 +37740,7 @@ def machine.Arch.kernel_ttbr1_entry.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::set_high_vspace]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 71:8-71:70; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 71:8-71:70; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.set_high_vspace.default
@@ -37601,7 +37750,7 @@ def machine.Arch.set_high_vspace.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_high_page]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 74:8-74:58; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 74:8-74:58; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_high_page.default
@@ -37609,7 +37758,7 @@ def machine.Arch.invalidate_high_page.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_high_vspace]:
-    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 78:8-78:59; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 142:4-142:27
+    Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 78:8-78:59; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 147:4-147:27
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_high_vspace.default

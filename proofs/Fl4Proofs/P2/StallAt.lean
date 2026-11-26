@@ -109,6 +109,7 @@ def _root_.Fl4Proofs.P1.LawfulStore.atCpu {S : Type _} {st : machine.Store S} (L
   clear_free_eq := L.clear_free_eq
   ks_base_eq := L.ks_base_eq
   cur_cpu_eq := fun _ => rfl
+  fetch_and_eq := L.fetch_and_eq
   mem_wr := L.mem_wr
   mem_zr := L.mem_zr
   ksb_wr := L.ksb_wr

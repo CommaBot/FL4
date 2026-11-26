@@ -3,9 +3,8 @@ P3 (line jboot, gen 4): **the boot witnesses at the fixed machine relation `ipiM
 with the IPI lines 126 / 127 masked), so the reachable-state witnesses need no assumption on the opaque
 `irqOracle`.
 
-* **`warI_machPlatF`**, **`warI_ipiF`**: wit's concrete arch `warI` meets the fixed platform premises
-  (`MachPlatF`, `IpiF`) at `ipiMR`, as `modelArch` does (`modelArch_machPlatF`, `modelArch_ipiF`): no
-  `OpaqueW.ipi`.
+* (gen 5) `warI_machPlatF` / `warI_ipiF` (wit's `warI` meets `MachPlatF` / `IpiF` at `ipiMR`) were stated here in
+  gen 4; int/j21's JBootU34 states the same two theorems under the same names, so they live there now.
 * **`ipiMR_init`**: the boot machine state is `ipiMR`-related to itself (every line inactive, hence masked:
   `ValidIrqMasks`).
 * **`jReachU17_w0_ipi`**, **`jReachU17_w1_ipi`**: `JReachU17` at `ipiMR` for the gen-3 witness `w0` / `fInitASt`
@@ -22,14 +21,6 @@ namespace Fl4Proofs.P3.JBoot
 open fl4_core Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P2.Wit
 
 noncomputable section
-
-/-- **`warI` meets the fixed `MachPlatF` at `ipiMR`** (its clock and interrupt operations are `modelArch`'s). -/
-theorem warI_machPlatF : MachPlatF warI ipiMR :=
-  ⟨modelArch_machPlatF.now, modelArch_machPlatF.irqPending, modelArch_machPlatF.take, modelArch_machPlatF.mask1,
-    modelArch_machPlatF.mask0, modelArch_machPlatF.ack, modelArch_machPlatF.frame⟩
-
-/-- **`warI` meets `IpiF` at `ipiMR`**, with no assumption on `irqOracle`. -/
-theorem warI_ipiF : IpiF warI ipiMR := modelArch_ipiF
 
 /-- **The boot machine state is `ipiMR`-related to itself.** -/
 theorem ipiMR_init : ipiMR fInitASt.machineState fInitASt.machineState :=

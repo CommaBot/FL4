@@ -18,6 +18,8 @@ structure StoreTotal {S : Type _} (st : machine.Store S) : Prop where
   clear_free : ∀ s a n, st.clear_free s a n ⦃ _ => True ⦄
   ks_base : ∀ s, st.ks_base s ⦃ _ => True ⦄
   cur_cpu : ∀ s, st.cur_cpu s ⦃ _ => True ⦄
+  /-- #111: `Store::fetch_and` (one atomic read-and-mask of a word). -/
+  fetch_and : ∀ s a m, st.fetch_and s a m ⦃ _ => True ⦄
 
 structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   private_device_frame : ∀ a p, ar.private_device_frame a p ⦃ _ => True ⦄
@@ -80,6 +82,7 @@ variable {S : Type _} {st : machine.Store S}
 @[step] theorem StoreTotal.clear_free_spec (h : StoreTotal st) s a n : st.clear_free s a n ⦃ _ => True ⦄ := h.clear_free s a n
 @[step] theorem StoreTotal.ks_base_spec (h : StoreTotal st) s : st.ks_base s ⦃ _ => True ⦄ := h.ks_base s
 @[step] theorem StoreTotal.cur_cpu_spec (h : StoreTotal st) s : st.cur_cpu s ⦃ _ => True ⦄ := h.cur_cpu s
+@[step] theorem StoreTotal.fetch_and_spec (h : StoreTotal st) s a m : st.fetch_and s a m ⦃ _ => True ⦄ := h.fetch_and s a m
 end
 
 section

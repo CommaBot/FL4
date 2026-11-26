@@ -1,0 +1,25 @@
+import Fl4Proofs.P3.XTopJointKEntryU33
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU33
+#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU32_of33
+#print axioms Fl4ProofsQ.P3.SInvR.G5.kernel_entry_reachU32
+#print axioms Fl4Proofs.P3.u33_premises_of_u32
+#print axioms Fl4Proofs.P3.modelArch_u33Plat
+#print axioms Fl4Proofs.P3.modelArch_irqAckU
+#print axioms Fl4Proofs.P3.MachPlatF.toT
+#print axioms Fl4Proofs.P3.MachPlatT.toF
+#print axioms Fl4Proofs.P3.MachPlat.toT
+#print axioms Fl4Proofs.P3.IrqPlatA.toK
+#print axioms Fl4Proofs.P3.IrqAckU.of_machPlat
+#print axioms Fl4Proofs.P3.IrqAckU.of_bound
+#print axioms Fl4Proofs.P3.invoke_mrMQ
+#print axioms Fl4Proofs.P3.issue_tailMQ
+#print axioms Fl4Proofs.P3.irq_issue_refinesMQ
+#print axioms Fl4Proofs.P3.irq_msi_refinesMQ
+#print axioms Fl4Proofs.P3.irq_ioapic_refinesMNQ
+#print axioms Fl4Proofs.P3.irq_remap_refinesMNQ
+#print axioms Fl4Proofs.P3.afterInv_of_mcsIMNQ
+#print axioms Fl4Proofs.P3.afterInv_of_mcsIMNMQ
+#print axioms Fl4Proofs.P3.jDecMRL_ofQ
+#print axioms Fl4Proofs.P3.jDecMRL2_ofTQ
+#print axioms Fl4Proofs.P3.jDecMRLK_ofUQ
+#print axioms Fl4Proofs.P3.jVtxHypMU_ofQ

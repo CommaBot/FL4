@@ -255,10 +255,14 @@ theorem planMap_userWr (hJ : SlJAt (L := L) K s)
     unfold localinv.reg_arg; rw [sarg2_reg, sarg2_reg, reg_ok, reg_ok, e9]
   have ecx := P.cap_userWr hb hba v hxK
   have hpe := pageEntry_userWr (st := st) hJ hb hba v hf
+  have efind : vspace.find_vspace_for_asid st (L.wr s b v) rasid = vspace.find_vspace_for_asid st s rasid := by
+    obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := id hJ
+    obtain ⟨hSR, hVs, -, -, -⟩ := B.j.xtop.fin
+    exact Fl4Proofs.P3.Vs.find_vspace_for_asid_ag (vsAg_userWr B hb hba v) hVs hSR.2.vs rasid
   unfold localinv.plan_with
   rw [P.cap_userWr hb hba v hsl]
   simp only [bind_ok, if_neg lbl_map_ne_copy, if_neg lbl_map_ne_mint, if_neg lbl_map_ne_del, er0, er2,
-    planReadCap_userWr P hb hba v hsl, hx, ecx, hcx, hpe]
+    planReadCap_userWr P hb hba v hsl, hx, ecx, hcx, hpe, efind]
 
 end wr
 

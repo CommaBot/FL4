@@ -45,6 +45,7 @@ def cst (rd : U64 → Result U64) (rp : U64 → Result (U64 × U64)) (ks cp : Re
   clear_free := fun _ _ _ => fail .panic
   ks_base := fun _ => ks
   cur_cpu := fun _ => cp
+  fetch_and := fun _ _ _ => fail .panic
 
 open Classical in
 theorem ag_cst (h : Ag st R x y) :

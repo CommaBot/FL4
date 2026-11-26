@@ -903,8 +903,9 @@ fn decode_test_and_clear_accessed<S: Store>(s: &mut S, f: FrameCap, call: bool) 
         None => return invalid_cap(0),
     };
     let ct = sched::cur_thread(s);
-    let old = s.read(e_addr);
-    s.write(e_addr, old & !P_ACCESSED);
+    // The MMU sets A and D with locked updates at any time: a plain read
+    // and write would lose an access or a dirtying in between.
+    let old = s.fetch_and(e_addr, !P_ACCESSED);
     reply1(s, ct, call, if old & P_ACCESSED != 0 { 1 } else { 0 });
     Ok(())
 }

@@ -589,10 +589,14 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} {s : S} (Pd
     step with sched.cur_thread.spec as ⟨ct, ect⟩
     have e : ct = L.curW s := ect
     subst e
-    refine WP.spec_bind (LawfulStore.read_spec s x) fun old _ => ?_
     refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun i _ => ?_
     try simp only [lift, bind_ok]
-    refine WP.spec_bind (LawfulStore.write_spec s x _) fun s1 e1 => ?_
+    refine WP.spec_bind (LawfulStore.fetch_and_spec s x _) ?_
+    rintro ⟨old, s1⟩ e1
+    try simp only [uncurry_apply_pair]
+    try dsimp only
+    obtain ⟨hold, e1⟩ := Prod.mk.inj e1
+    rw [← hold] at e1
     subst e1
     obtain ⟨h1, -, -, ec, -, fld, -, -⟩ := blk_of_vs hb.blk Pd.vs (writesIn_wr_V (v := old &&& ~~~i) Pd.vs hx)
     have hU1 : UserOK st T Cs Ω H U (L.wr s x (old &&& ~~~i)) := D.user.ksb (L.ksb_wr _ _ _)

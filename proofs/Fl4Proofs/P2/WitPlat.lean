@@ -75,6 +75,7 @@ def wst : machine.Store WSt where
   read s a := ok (wmem s a)
   read_pair s a := ok (wmem s a, wmem s (core.num.U64.wrapping_add a 8#u64))
   write s a v := ok (wwr s a v)
+  fetch_and s a m := ok (wmem s a, wwr s a (wmem s a &&& m))
   zero s a n := ok (wzr s a n)
   clear_free s a n := ok (wzr s a n)
   ks_base s := ok s.kb
@@ -107,6 +108,7 @@ instance wL : LawfulStore wst where
   clear_free_eq _ _ _ := rfl
   ks_base_eq _ := rfl
   cur_cpu_eq _ := rfl
+  fetch_and_eq _ _ _ := rfl
   mem_wr s a v b ha hb := by
     show Function.update s.w (widx a) v (widx b) = if a = b then v else s.w (widx b)
     by_cases e : a = b

@@ -408,15 +408,14 @@ theorem tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {th : TypedHeap} {P L4 L
       dsimp only
       rw [hct]
       apply ok_bind_spec
-      rw [L.read_eq]
-      apply ok_bind_spec
       rw [P_ACCESSED_eq]
       apply ok_bind_spec
       unfold lift
       apply ok_bind_spec
+      rw [L.fetch_and_eq]
       apply ok_bind_spec
-      rw [L.write_eq]
-      apply ok_bind_spec
+      try simp only [uncurry_apply_pair]
+      try dsimp only
       apply ok_bind_spec
       obtain ⟨f, hk, hf2⟩ := hPt.l1 q hq
       have hqa := hPP q (Or.inr (Or.inr (Or.inr hq)))
@@ -502,15 +501,14 @@ theorem tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {th : TypedHeap} {P L4 L
       dsimp only
       rw [hct]
       apply ok_bind_spec
-      rw [L.read_eq]
-      apply ok_bind_spec
       rw [P_ACCESSED_eq]
       apply ok_bind_spec
       unfold lift
       apply ok_bind_spec
+      rw [L.fetch_and_eq]
       apply ok_bind_spec
-      rw [L.write_eq]
-      apply ok_bind_spec
+      try simp only [uncurry_apply_pair]
+      try dsimp only
       apply ok_bind_spec
       obtain ⟨f, hk, hf2⟩ := hPt.l2 q hq
       have hqa := hPP q (Or.inr (Or.inr (Or.inl hq)))
