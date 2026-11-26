@@ -246,10 +246,18 @@ pub fn plan_with<S: Store>(s: &S, t: Tcb, lbl: u64, slot: Slot, extra: ExtraCaps
         if !small_ram_frame(frame) || extra[0].is_null() {
             return None;
         }
-        let root = match extra[0].cap(s) {
-            Cap::Pml4 { ptr, mapped: true, .. } => ptr,
+        let (root, asid) = match extra[0].cap(s) {
+            Cap::Pml4 { ptr, mapped: true, asid } => (ptr, asid),
             _ => return None,
         };
+        // Only a VSpace its ASID still names, as `check_vspace` requires:
+        // the tables of one it no longer names (its pool deleted) may since
+        // have been reused, and the walk below would read them. Such a map
+        // fails in the decode; it is left to the gate.
+        match crate::vspace::find_vspace_for_asid(s, asid) {
+            Ok(r) if r == root => {}
+            _ => return None,
+        }
         if !map_attr_local(reg_arg(s, t, 2)) {
             return None;
         }
@@ -314,6 +322,7 @@ mod tests {
     #[derive(Default)]
     struct Mem(BTreeMap<u64, u64>);
     impl Store for Mem {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
         fn read(&self, a: u64) -> u64 {
             *self.0.get(&a).unwrap_or(&0)
         }
@@ -388,5 +397,48 @@ mod tests {
             let (w0, w1) = Cap::Thread { ptr: crate::layout::pptr(0x30_0000) }.encode();
             assert!(plan_for(lbl, w0, w1).is_none());
         }
+    }
+
+    /// A PageMap of a small frame (in `ROOT`) at `VA` through the mapped
+    /// PML4 cap in `PML4_SLOT`, with ASID `ASID`, whose tables reach a page
+    /// table; the ASID table names `named` for `ASID` (0: no pool).
+    #[cfg(not(feature = "aarch64"))]
+    fn map_plan(named: u64) -> Option<Plan> {
+        const ASID: u64 = 5;
+        const VA: u64 = 0x40_0000;
+        const PML4_SLOT: Slot = Slot(0x61_0000);
+        let t = |pa: u64| crate::layout::pptr(pa);
+        let (pml4, pdpt, pd, pt) = (0xa0_0000u64, 0xa1_0000u64, 0xa2_0000u64, 0xa3_0000u64);
+        let mut s = Mem::default();
+        ROOT.set_cap(
+            &mut s,
+            Cap::Frame { ptr: t(0x20_0000), size: FrameSize::Small, rights: VM_READ_WRITE, is_device: false, mapped: false, is_ept: false, asid: 0, vaddr: 0 },
+        );
+        PML4_SLOT.set_cap(&mut s, Cap::Pml4 { ptr: t(pml4), mapped: true, asid: ASID });
+        // Present entries PML4[0] -> PDPT, PDPT[0] -> PD, PD[2] -> PT.
+        s.write(t(pml4), pdpt | 1);
+        s.write(t(pdpt), pd | 1);
+        s.write(t(pd) + 2 * 8, pt | 1);
+        if named != 0 {
+            let pool = t(0xb0_0000);
+            crate::obj::ks_set(&mut s, crate::layout::ks::ASID_TABLE, pool);
+            s.write(pool + ASID * 8, named);
+        }
+        THREAD.set_reg(&mut s, msg::msg_register(0), VA);
+        plan_with(&s, THREAD, label::X86PageMap, ROOT, [PML4_SLOT, Slot(0), Slot(0)])
+    }
+
+    /// A PageMap is planned only through a PML4 its ASID still names, the
+    /// check `check_vspace` makes; otherwise it is left to the gate, which
+    /// fails it, without walking (or locking an entry of) the old tables.
+    #[cfg(not(feature = "aarch64"))]
+    #[test]
+    fn page_map_plan_requires_the_asid_root() {
+        let root = crate::layout::pptr(0xa0_0000);
+        let p = map_plan(root).expect("a local plan");
+        assert_eq!(&p.locks[..p.n], &[ROOT.0, crate::layout::pptr(0xa3_0000)]);
+        assert_eq!(p.pte, 1);
+        assert!(map_plan(0).is_none(), "no pool for the ASID");
+        assert!(map_plan(crate::layout::pptr(0xc0_0000)).is_none(), "the ASID names another PML4");
     }
 }

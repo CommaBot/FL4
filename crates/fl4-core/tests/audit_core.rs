@@ -20,14 +20,24 @@ struct Memory {
     words: BTreeMap<u64, u64>,
     cpu: u64,
     freed_range: Option<(u64, u64)>,
+    /// A word whose updates are logged: (atomic, address, value or mask).
+    watch: Option<u64>,
+    watched: Vec<(bool, u64, u64)>,
 }
 impl Store for Memory {
+    fn fetch_and(&mut self, a: u64, m: u64) -> u64 {
+        if self.watch == Some(a) { self.watched.push((true, a, m)); }
+        let old = self.read(a);
+        self.words.insert(a, old & m);
+        old
+    }
     fn read(&self, a: u64) -> u64 {
         if let Some((base, len)) = self.freed_range { assert!(a < base || a >= base + len, "read freed SC at {a:#x}"); }
         *self.words.get(&a).unwrap_or(&0)
     }
     fn write(&mut self, a: u64, v: u64) {
         if let Some((base, len)) = self.freed_range { assert!(a < base || a >= base + len, "write freed SC at {a:#x}"); }
+        if self.watch == Some(a) { self.watched.push((false, a, v)); }
         self.words.insert(a, v);
     }
     fn zero(&mut self, a: u64, len: u64) {
@@ -144,6 +154,7 @@ struct Shared {
     cpu: u64,
 }
 impl Store for Shared {
+    fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
     fn read(&self, a: u64) -> u64 { *self.words.borrow().get(&a).unwrap_or(&0) }
     fn write(&mut self, a: u64, v: u64) { self.words.borrow_mut().insert(a, v); }
     fn zero(&mut self, a: u64, len: u64) {
@@ -612,6 +623,43 @@ fn a_1gib_frame_maps_natively_only_on_cores_with_1gib_pages() {
     let e = s.read(pdpt + 8);
     assert_eq!((e & 0x000f_ffff_c000_0000, e & (1 << 7), e & 1), (0x4000_0000, 1 << 7, 1));
     assert!(matches!(frame.cap(&s), Cap::Frame { mapped: true, asid: 1, vaddr, .. } if vaddr == g));
+}
+
+/// X86PageTestAndClearAccessed clears A with one locked update of the live
+/// entry, never a read and a separate write: the MMU sets A and D at any
+/// time (SDM Vol. 3A 4.8), and an access or a dirtying between the two
+/// would be lost. D and the other bits are kept and the old A is the reply.
+#[test]
+fn test_and_clear_accessed_is_one_atomic_update() {
+    use fl4_abi::label;
+    use fl4_core::layout::{ks, pptr};
+    use fl4_core::msg::msg_register;
+    use fl4_core::obj::ks_set;
+    const A: u64 = 1 << 5;
+    const D: u64 = 1 << 6;
+    let (pool, root, pdpt, pd) = (pptr(0x2000), pptr(0x3000), pptr(0x4000), pptr(0x5000));
+    let t = Tcb(0x40_0000);
+    let vaddr = 2u64 << 30;
+    let cap = Cap::Frame { ptr: pptr(0x20_0000), size: FrameSize::Large, rights: 3, is_device: false, mapped: true, is_ept: false, asid: 1, vaddr };
+    for accessed in [A, 0] {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        node_set(&mut s, 0, node::CUR_THREAD, t.0);
+        ks_set(&mut s, ks::ASID_TABLE, pool);
+        s.write(pool + 8, root);
+        s.write(root, 0x4000 | 7);
+        s.write(pdpt + 2 * 8, 0x5000 | 7);
+        let e = 0x20_0000 | D | 1 << 7 | 7;
+        s.write(pd, e | accessed);
+        let frame = Slot(0x50040);
+        frame.set_cap(&mut s, cap);
+        s.watch = Some(pd);
+        let r = vspace::decode(&mut s, &mut a, label::X86PageTestAndClearAccessed, 0, frame, cap, true, 0, &[Slot(0); 3]);
+        assert!(r.is_ok());
+        assert_eq!(s.watched, vec![(true, pd, !A)], "accessed {accessed:#x}");
+        assert_eq!(s.read(pd), e);
+        assert_eq!(t.reg(&s, msg_register(0)), if accessed != 0 { 1 } else { 0 });
+    }
 }
 
 /// An IOAPIC route the backend cannot program (a compatibility-format

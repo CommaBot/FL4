@@ -21,6 +21,11 @@ pub trait Store {
     }
     /// Write the aligned word at `addr`.
     fn write(&mut self, addr: u64, v: u64);
+    /// Atomically replace the aligned word at `addr` with `old & mask` and
+    /// return `old`. For words the hardware updates on its own (page-table
+    /// accessed and dirty bits), no update between the read and the write
+    /// is lost.
+    fn fetch_and(&mut self, addr: u64, mask: u64) -> u64;
     /// Zero `len` bytes at `addr`; both are multiples of 8.
     fn zero(&mut self, addr: u64, len: u64);
     /// Zero `len` bytes at `addr` that no live object occupies: memory of

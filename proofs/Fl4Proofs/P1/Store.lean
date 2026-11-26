@@ -41,6 +41,9 @@ class LawfulStore {S : Type _} (st : machine.Store S) where
   clear_free_eq : ∀ s a n, st.clear_free s a n = ok (zr s a n)
   ks_base_eq : ∀ s, st.ks_base s = ok (ksb s)
   cur_cpu_eq : ∀ s, st.cur_cpu s = ok (cpu s)
+  /-- #111: `fetch_and` returns the old word and writes it masked (one atomic update in the
+  runtime; here the read and the write it stands for). -/
+  fetch_and_eq : ∀ s a m, st.fetch_and s a m = ok (mem s a, wr s a (mem s a &&& m))
   /-- Read after write, on aligned words. -/
   mem_wr : ∀ s a v b, Aligned a → Aligned b →
     mem (wr s a v) b = if a = b then v else mem s b
@@ -79,6 +82,7 @@ theorem LawfulStore.total : P0.StoreTotal st where
   clear_free s a n := by rw [L.clear_free_eq]; simp
   ks_base s := by rw [L.ks_base_eq]; simp
   cur_cpu s := by rw [L.cur_cpu_eq]; simp
+  fetch_and s a m := by rw [L.fetch_and_eq]; simp
 
 /-! WP specs for the primitive operations, for `step`. -/
 
@@ -97,6 +101,9 @@ theorem LawfulStore.total : P0.StoreTotal st where
   rw [L.ks_base_eq]; simp
 @[step] theorem LawfulStore.cur_cpu_spec s : st.cur_cpu s ⦃ v => v = L.cpu s ⦄ := by
   rw [L.cur_cpu_eq]; simp
+@[step] theorem LawfulStore.fetch_and_spec s a m :
+    st.fetch_and s a m ⦃ r => r = (L.mem s a, L.wr s a (L.mem s a &&& m)) ⦄ := by
+  rw [L.fetch_and_eq]; simp
 
 /-! Read after write, in the forms proofs use. -/
 
@@ -166,6 +173,7 @@ def modelStoreWithMasks (masks : U64 × U64) : machine.Store ModelState where
   clear_free s a n := ok (fun b => if a.val ≤ b.val ∧ b.val < a.val + n.val then 0#u64 else s.1 b, s.2)
   ks_base s := ok s.2.1
   cur_cpu s := ok s.2.2
+  fetch_and s a m := ok (s.1 a, (Function.update s.1 a (s.1 a &&& m), s.2))
 
 abbrev modelStore := modelStoreWithMasks (0#u64, 0#u64)
 
@@ -186,6 +194,7 @@ instance (masks : U64 × U64) : LawfulStore (modelStoreWithMasks masks) where
   clear_free_eq _ _ _ := rfl
   ks_base_eq _ := rfl
   cur_cpu_eq _ := rfl
+  fetch_and_eq _ _ _ := rfl
   mem_wr s a v b _ _ := by
     simp only [Function.update_apply]
     by_cases h : a = b

@@ -21,13 +21,14 @@ set_option maxRecDepth 2048
 namespace fl4_core_a64
 
 /-- Trait declaration: [fl4_core::machine::Store]
-    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-33:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-38:1
     Visibility: public -/
 structure machine.Store (Self : Type _) where
   frame_masks : Self → Result (Std.U64 × Std.U64)
   read : Self → Std.U64 → Result Std.U64
   read_pair : Self → Std.U64 → Result (Std.U64 × Std.U64)
   write : Self → Std.U64 → Std.U64 → Result Self
+  fetch_and : Self → Std.U64 → Std.U64 → Result (Std.U64 × Self)
   zero : Self → Std.U64 → Std.U64 → Result Self
   clear_free : Self → Std.U64 → Std.U64 → Result Self
   ks_base : Self → Result Std.U64
@@ -117,7 +118,7 @@ structure boot.Boot where
   ut_lost : Bool
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-149:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 48:0-154:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool

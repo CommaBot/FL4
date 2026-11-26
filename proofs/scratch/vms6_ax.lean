@@ -1,0 +1,25 @@
+import Fl4Proofs.P2.E2EPVX6
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_kd_of
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_kd
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_reads
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_of_const
+#print axioms Fl4Proofs.P2.E2EP.ioPremX5_sat
+#print axioms Fl4Proofs.P2.PathObl.SlLX.curW_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.cn_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.ft_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.syncC_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.entL_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.lp_wr
+#print axioms Fl4Proofs.P2.PathObl.slCom_nuX
+#print axioms Fl4Proofs.P2.PathObl.fltDec_nuX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.accR_wr
+#print axioms Fl4Proofs.P2.PathObl.rrDR_nuX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preRR_wr
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preB_wrN
+#print axioms Fl4Proofs.P2.PathObl.SlLX.preB_wrG
+#print axioms Fl4Proofs.P2.PathObl.slQ_wrX
+#print axioms Fl4Proofs.P2.PathObl.sl_hufX
+#print axioms Fl4Proofs.P2.PathObl.SlLX.ofSlJAt
+#print axioms Fl4Proofs.P2.E2EP.SlLX.ofVtx
+#print axioms Fl4Proofs.P2.E2EP.slEntS_of_slJAt

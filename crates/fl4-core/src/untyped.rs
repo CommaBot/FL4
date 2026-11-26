@@ -309,6 +309,7 @@ mod tests {
         clears: u64,
     }
     impl Store for TxMem {
+        fn fetch_and(&mut self, a: u64, m: u64) -> u64 { let old = self.read(a); self.write(a, old & m); old }
         fn read(&self, a: u64) -> u64 {
             if self.doomed { 0 } else { *self.words.get(&a).unwrap_or(&0) }
         }

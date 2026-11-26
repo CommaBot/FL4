@@ -4088,7 +4088,7 @@ theorem domain.MAX_DURATION.p0  :
 
 @[step] theorem fastpath.fault.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (number : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     fastpath.fault machineStoreInst machineArchInst s a t number ⦃ _ => True ⦄ := by
-  unfold fastpath.fault; p0_split
+  unfold fastpath.fault; set_option maxHeartbeats 4000000 in p0_structural
 
 @[step] theorem faults.copy_mrs_fault_reply_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb) (receiver : obj.Tcb) (regs_list : Slice Std.U64) (n : Std.Usize) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
     faults.copy_mrs_fault_reply_loop0 machineStoreInst s sender receiver regs_list n i ⦃ _ => True ⦄ := by
@@ -4130,7 +4130,7 @@ theorem domain.MAX_DURATION.p0  :
 
 @[step] theorem fastpath_vm.vm_fault.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     fastpath_vm.vm_fault machineStoreInst machineArchInst s a t f ⦃ _ => True ⦄ := by
-  unfold fastpath_vm.vm_fault; p0_split
+  unfold fastpath_vm.vm_fault; set_option maxHeartbeats 4000000 in p0_structural
 
 @[step] theorem fastpath_vm.reply_recv_vm_found.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (rptr : Std.U64) (ep_ptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     fastpath_vm.reply_recv_vm_found machineStoreInst machineArchInst s a t rptr ep_ptr ⦃ _ => True ⦄ := by

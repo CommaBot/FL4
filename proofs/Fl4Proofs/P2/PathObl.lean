@@ -121,6 +121,7 @@ def guard (st : machine.Store S) (R W : U64 → Prop) : machine.Store S where
   clear_free s a n := if ∀ b, InRange a n b → W b then st.clear_free s a n else fail .panic
   ks_base := st.ks_base
   cur_cpu := st.cur_cpu
+  fetch_and s a m := if R a ∧ W a then st.fetch_and s a m else fail .panic
 
 section guard
 variable {st : machine.Store S} {R W : U64 → Prop}
@@ -179,6 +180,7 @@ def mguard (st : machine.Store S) (Q : S → S → Prop) : machine.Store S where
   clear_free s a n := do let s' ← st.clear_free s a n; if Q s s' then ok s' else fail .panic
   ks_base := st.ks_base
   cur_cpu := st.cur_cpu
+  fetch_and s a m := do let r ← st.fetch_and s a m; if Q s r.2 then ok r else fail .panic
 
 theorem mguard_write {st : machine.Store S} {Q : S → S → Prop} {s s' : S} {a v : U64}
     (h : st.write s a v = ok s') (hq : Q s s') : (mguard st Q).write s a v = ok s' := by
