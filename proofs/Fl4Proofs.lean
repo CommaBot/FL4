@@ -1948,6 +1948,7 @@ import Fl4Proofs.P2.SlOnceR2
 import Fl4Proofs.P2.SlOnceR3
 import Fl4Proofs.P2.InvCM
 import Fl4Proofs.P2.InvCMOnce
+import Fl4Proofs.P2.InvCMG
 import Fl4Proofs.P2.InvProgSrc
 import Fl4Proofs.P2.ProgGenCd0
 import Fl4Proofs.P2.ProgGenCd1
