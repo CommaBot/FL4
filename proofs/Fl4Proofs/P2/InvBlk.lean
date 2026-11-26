@@ -27,7 +27,7 @@ is cut to `length ≥ 2` (`InvLen`, a register word, stable under user writes).
 
 * **`inv_pathsKF`** / `inv_pathsKF_startAt`: the frame-cap invocation path at `Q := InvQL` with `acc`, `dec_alt`,
   `read_aligned` discharged and `hSeen`, `hps` proved (`invSeen_of`, `invPs_of`); premises: `hA`, [P] `hm`, [J]
-  `hmap : InvMapJ`, [J] `hcdt : InvCdtJ`, [J] `hz` (`0 ∉ K.slots`), [W] `hmv` (`InvMoveW`), [J] `huf`, `hpz`
+  `hvs : InvVsJ` (gen 14; gen 13 had the false `InvMapJ`), [J] `hcdt : InvCdtJ`, [J] `hz` (`0 ∉ K.slots`), [W] `hmv` (`InvMoveW`), [J] `huf`, `hpz`
   ([P] IsProgOn ∧ [W] NoZero ∧ [W] InvRoW, unchanged shape; the hpzg line).
 
 No existing statement changes; no `kernel_entry_reach*` is touched.
@@ -116,20 +116,21 @@ section any
 variable {S : Type} {A : Type} (ar : machine.Arch A)
 
 /-- `finalise_cap` of an unmapped (or ASID 0) non-device non-EPT frame cap, on any store: no access. -/
-theorem finCap_frame_any (m : machine.Store S) {x : S} {a : A} {fp rt asid va : U64} {sz : capability.FrameSize}
-    {mp fin : Bool} (hm : mp = false ∨ asid = 0#u64) :
-    objects.finalise_cap m ar x a (.Frame fp sz rt false mp false asid va) fin false = ok ((.Null, .Null), x, a) := by
+theorem finCap_frame_any (m : machine.Store S) {x : S} {a : A} {fp rt asid va : U64}
+    {mp fin : Bool} (hm : FrNo m ar x mp asid va fp) :
+    objects.finalise_cap m ar x a (.Frame fp .Small rt false mp false asid va) fin false = ok ((.Null, .Null), x, a) := by
   unfold objects.finalise_cap objects.finalise_cap_object
   simp only [bind_ok]
-  rcases hm with rfl | rfl
+  rcases hm with rfl | rfl | hu
   · cases fin <;> simp
   · cases mp <;> cases fin <;> simp
+  · cases mp <;> by_cases hA : asid = 0#u64 <;> cases fin <;> simp [hA, hu]
 
 set_option maxHeartbeats 4000000 in
 /-- `finalise_slot_immediate` on a slot holding such a frame cap, on any store whose finality check returns. -/
 theorem finImm_frame_any (m : machine.Store S) {x : S} {a : A} {slot fp rt asid va : U64} {mp fin : Bool}
     (hc : obj.Slot.cap m slot x = ok (.Frame fp .Small rt false mp false asid va))
-    (hm : mp = false ∨ asid = 0#u64)
+    (hm : FrNo m ar x mp asid va fp)
     (hf : cdt.is_final_capability_with_cap m x slot (.Frame fp .Small rt false mp false asid va) = ok fin) :
     cdt.finalise_slot_immediate m ar x a slot = ok (.Ok { success := true, cleanup := .Null }, x, a) := by
   unfold cdt.finalise_slot_immediate cdt.finalise_slot_immediate_loop
@@ -154,7 +155,8 @@ variable {S : Type} {st : machine.Store S} {R W : U64 → Prop} {gS : machine.St
 
 /-- **`finalise_slot_immediate` of a frame slot on the guarded store**, run-relative. -/
 theorem cdt.finalise_slot_immediate.guard_frame {x : S} {a : A} {slot fp rt asid va : U64} {mp : Bool}
-    (hc : obj.Slot.cap st slot x = ok (.Frame fp .Small rt false mp false asid va)) (hm : mp = false ∨ asid = 0#u64)
+    (hc : obj.Slot.cap st slot x = ok (.Frame fp .Small rt false mp false asid va)) (hm : FrNo st ar x mp asid va fp)
+    (hmg : FrNo gS ar x mp asid va fp)
     (r0 : R slot) (r8 : R (core.num.U64.wrapping_add slot 8#u64))
     (hfg : cdt.is_final_capability_with_cap gS x slot (.Frame fp .Small rt false mp false asid va) =
       cdt.is_final_capability_with_cap st x slot (.Frame fp .Small rt false mp false asid va))
@@ -172,7 +174,7 @@ theorem cdt.finalise_slot_immediate.guard_frame {x : S} {a : A} {slot fp rt asid
   unfold cdt.finalise_slot_immediate_loop.body at hb
   simp only [hfu, ↓reduceIte, hv, bind_ok, hc, capability.Cap.is_null, Bool.false_eq_true] at hb
   obtain ⟨fin, efin, -⟩ := bind_eq_ok hb
-  exact finImm_frame_any ar gS (by rw [obj.Slot.cap.guard (gS := gS) slot x r0 r8]; exact hc) hm (by rw [hfg]; exact efin)
+  exact finImm_frame_any ar gS (by rw [obj.Slot.cap.guard (gS := gS) slot x r0 r8]; exact hc) hmg (by rw [hfg]; exact efin)
 
 /-- **`empty_slot` with a null cleanup on the guarded store**, run-relative: the slot's words read and written, the
 previous slot's `NEXT` word, the next slot's `PREV` and `NEXT` words. -/
@@ -235,7 +237,8 @@ theorem cdt.empty_slot.guard_null {x : S} {a : A} {slot : obj.Slot} {y : S × A}
 
 /-- **Deleting a frame slot on the guarded store**, run-relative (given `empty_slot` transfers). -/
 theorem cdt.delete.guard_frame {x : S} {a : A} {dest fp rt asid va : U64} {mp : Bool}
-    (hc : obj.Slot.cap st dest x = ok (.Frame fp .Small rt false mp false asid va)) (hm : mp = false ∨ asid = 0#u64)
+    (hc : obj.Slot.cap st dest x = ok (.Frame fp .Small rt false mp false asid va)) (hm : FrNo st ar x mp asid va fp)
+    (hmg : FrNo gS ar x mp asid va fp)
     (r0 : R dest) (r8 : R (core.num.U64.wrapping_add dest 8#u64))
     (hfg : cdt.is_final_capability_with_cap gS x dest (.Frame fp .Small rt false mp false asid va) =
       cdt.is_final_capability_with_cap st x dest (.Frame fp .Small rt false mp false asid va))
@@ -247,7 +250,7 @@ theorem cdt.delete.guard_frame {x : S} {a : A} {dest fp rt asid va : U64} {mp : 
   obtain ⟨y1, hf, -⟩ := bind_eq_ok h
   have ey := finImm_frame_keep ar hc hm hf
   subst ey
-  rw [cdt.finalise_slot_immediate.guard_frame ar hc hm r0 r8 hfg hf]
+  rw [cdt.finalise_slot_immediate.guard_frame ar hc hm hmg r0 r8 hfg hf]
   rw [hf] at h
   simp only [bind_ok, uncurry_apply_pair, core.result.Result.Insts.CoreOpsTry.branch] at h ⊢
   revert h
@@ -331,6 +334,10 @@ theorem delAcc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (P : IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s)
     (hW : IoWr st W K.heap.scBits s) (hWs : ∀ b, IoWS (st := st) K Locks s b → W b)
     (E : DelEnt st K Cs Locks p s) (hsl : p.slot ∈ K.slots) (hlen : ¬ length < 2#u64)
+    (hvs : ∀ sl fp rt asid va, sl ∈ K.slots →
+      obj.Slot.cap st sl s = ok (.Frame fp .Small rt false true false asid va) → asid ≠ 0#u64 →
+      va ≤ fl4_abi.consts.USER_TOP ∧ localinv.small_page_entry st s asid va ≠ ok (some 0#u64) ∧
+        VsRd st K s asid va)
     (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
     (hcap : obj.Slot.cap st p.slot s2 = ok cap)
     (hy : syscall.decode_invocation st ar s2 a1 fl4_abi.label.CNodeDelete length p.slot cap true true true false
@@ -483,6 +490,23 @@ theorem delAcc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     exact hcl p r m y p' r' gs' g' hp hm hc
   have hRd : IoRS (st := st) K Locks s dest ∧ IoRS (st := st) K Locks s (core.num.U64.wrapping_add dest 8#u64) :=
     ⟨r0, dR 8#u64 (by simp) (by simp)⟩
+  -- the frame finalisation makes no access (stale mapped caps: `unmap_nop`)
+  have hvs1 : mp = true → asid ≠ 0#u64 → va ≤ fl4_abi.consts.USER_TOP ∧ VsRd st K s asid va := fun hmp hA => by
+    subst hmp; obtain ⟨h1, -, h3⟩ := hvs dest fp rt asid va hd hdc hA; exact ⟨h1, h3⟩
+  have hr3 : ∀ x3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok x3 →
+      ∀ b, VsW K b → st.read x3 b = st.read s b := fun x3 hs3 b hb => by
+    have K3 : KeepA (L := L) s2 (L.curW s) x3 := (KeepA.refl ha2 hrun).sts hK (Or.inl rfl) hs3
+    rw [L.read_eq, L.read_eq, K3.mem hb.1 (P.vs_notIoTW hb), w0.2.2 b hb.1 (P.vs_notPreW hb)]
+  have hk3 : ∀ x3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok x3 →
+      st.ks_base x3 = st.ks_base s := fun x3 hs3 => by
+    have K3 : KeepA (L := L) s2 (L.curW s) x3 := (KeepA.refl ha2 hrun).sts hK (Or.inl rfl) hs3
+    rw [L.ks_base_eq, L.ks_base_eq, K3.1.1, w0.1]
+  have hfrS : ∀ x3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok x3 →
+      FrNo st ar x3 mp asid va fp := fun x3 hs3 => frNo_of ar hm hvs1 (hr3 x3 hs3) (hk3 x3 hs3)
+  have hfrG : ∀ x3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok x3 →
+      FrNo gS ar x3 mp asid va fp := fun x3 hs3 => frNo_of ar hm hvs1
+    (fun b hb => (gst_read (VsW.ioRS (Locks := Locks) (s := s) hb)).trans (hr3 x3 hs3 b hb))
+    (by rw [show gS.ks_base = st.ks_base from gst_ks_base]; exact hk3 x3 hs3)
   -- the deletion at the state after `set_thread_state RESTART`
   have hdel : ∀ s3, sched.set_thread_state st s2 (L.curW s) sched.TS_RESTART = ok s3 →
       ∀ y', cdt.delete st ar s3 a1 dest true = ok y' → cdt.delete gS ar s3 a1 dest true = ok y' := by
@@ -507,7 +531,7 @@ theorem delAcc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       · rw [next_agree hL hd ag3] at e
         obtain ⟨hq, hl⟩ := hnx nx e h0
         exact ⟨nR0 _ hq hl, nR _ hq hl 8#u64 (by simp) (by simp)⟩
-    refine cdt.delete.guard_frame ar hc3 hm r0 hRd.2 hfg (fun y'' he => ?_) hy'
+    refine cdt.delete.guard_frame ar hc3 (hfrS s3 hs3) (hfrG s3 hs3) r0 hRd.2 hfg (fun y'' he => ?_) hy'
     refine cdt.empty_slot.guard_null ar r0 hRd.2 r16 r24 w0' (dW 8#u64 (by simp) (by simp))
       (dW 16#u64 (by simp) (by simp)) (dW 24#u64 (by simp) (by simp)) (fun h0 => ?_) (fun nx e h0 => ?_) he
     · rw [ep3] at h0 ⊢
@@ -549,7 +573,7 @@ theorem delAcc {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     refine tr_bind_same (fun s3 hs3 => ?_)
     exact hdel s3 hs3 y
   · intro z hz'
-    obtain ⟨hy1, kx⟩ := cnDel_keep ar hK O ha2 hrun hL hlen hlk2 hd hdc2 hm hpv2 hnx2 hy
+    obtain ⟨hy1, kx⟩ := cnDel_keep ar hK O ha2 hrun hL hlen hlk2 hd hdc2 hfrS hpv2 hnx2 hy
     obtain ⟨r, x, a2⟩ := y
     simp only at hy1 kx hz' ⊢
     subst hy1
@@ -842,27 +866,29 @@ theorem len_ge2 {info : msginfo.MessageInfo} {buf length : U64} (h2 : 2 ≤ info
 
 /-- (stpost gen 13) **`InvBlkW2` for the CNodeDelete-no-PTE arm** at `Pre := SlJAt K ∧ InvQL`: `delAcc` (the decode
 and the reply on the guarded store) and `delFin` (reply `Ok ()`, `FinOK`), from the entry facts `DelEnt`
-(`delEnt_of`: [J] `hmap`, [J] `hcdt`, [J] `hz`). -/
+(`delEnt_of`: [J] `hvs`, [J] `hcdt`, [J] `hz`). -/
 theorem invBlkW2_of {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {Cs Ω Sg Ac : Set U64}
     {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayout} {μ : U64 → U64}
-    (hmap : InvMapJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s))
+    (hvs : InvVsJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s))
     (hcdt : InvCdtJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s))
     (hz : ∀ s, SlJAt (L := L) K s → (0#u64) ∉ K.slots) :
     InvBlkW2 st ar p K Locks (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s) := by
   intro s a info nx s1 s2 a1 buf length cap hE emi C hl hcap y hy
   have hqf := hE.2.1
   have PE := hqf.1.1.1
-  have E := delEnt_of (P := fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s) hE hqf hmap hcdt
+  have E := delEnt_of (P := fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K μ s) hE hqf hvs hcdt
     (hz s hE.1)
   obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hsK, -⟩ := del_core hqf
   have hlbl := (hqf.1.2.2.1 (L.curW s) info (cur_thread_ok s) emi).1
   have hlen := len_ge2 (hE.2.2 (L.curW s) info (cur_thread_ok s) emi) hl
   rw [hlbl] at hy ⊢
   obtain ⟨hdec, hrep⟩ := delAcc (gS := guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) hA PE
-    PE.ioWr (fun _ h => h) E hsK hlen C hcap hy
+    PE.ioWr (fun _ h => h) E hsK hlen
+    (fun sl fp rt asid va hsl hc hA => hvs s sl fp rt asid va hE hsl hc hA) C hcap hy
   refine ⟨hdec, fun z hz' => ?_⟩
   obtain ⟨h1, h2⟩ := delFin (gS := guard st (IoRS (st := st) K Locks s) (IoWS (st := st) K Locks s)) hA PE
-    PE.ioWr PE.stw.2 E hsK hlen C hcap hy hz'
+    PE.ioWr PE.stw.2 E hsK hlen
+    (fun sl fp rt asid va hsl hc hA => hvs s sl fp rt asid va hE hsl hc hA) C hcap hy hz'
   exact ⟨hrep z hz', h1, h2⟩
 
 end arm
@@ -874,12 +900,12 @@ variable {A : Type}
 
 /-- (stpost gen 13) **The CNodeDelete-no-PTE local path** (`Q := InvQL`): `inv_pathsKD` with `hacc` from
 `invAccW_of2` + `invBlkW2_of`, `hSeen` from `invSeen_of`, the invoked slot's words from `invPs_of`. Premises: `hA`,
-[P] `hm`, [J] `hmap : InvMapJ`, [J] `hcdt : InvCdtJ`, [J] `hz` (no capability slot at address 0), [W] `hmv`
+[P] `hm`, [J] `hvs : InvVsJ`, [J] `hcdt : InvCdtJ`, [J] `hz` (no capability slot at address 0), [W] `hmv`
 (`InvMoveW`; `InvBlkGdW` is false for this arm, module docstring), [J] `huf`, `hpz` ([P] IsProgOn ∧ [W] NoZero ∧
 [W] InvRoW, unchanged shape). -/
 noncomputable def inv_pathsKF (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
     (hm : E2E.MasksWr st)
-    (hmap : ∀ K m, InvMapJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
+    (hvs : ∀ K m, InvVsJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
     (hcdt : ∀ K m, InvCdtJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
     (hz : ∀ K s, SlJAt (L := L) K s → (0#u64) ∉ K.slots)
     (hmv : ∀ K m, InvMoveW st ar number p K Locks m
@@ -897,14 +923,14 @@ noncomputable def inv_pathsKF (ar : machine.Arch A) (hA : P0.ArchTotal ar) (numb
   inv_pathsKD ar hA number p hm (InvQL st Cs Ω Sg Ac Locks p) (fun _ _ _ _ hq => hq.1.1.1.1)
     (fun K m => invAccW_of2 hA (fun _ h => h.2.1.1.1.1)
       (fun s h => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s h.1 h.2.1)
-      (fun s h => invPs_of K m s h.1 h.2.1) (invBlkW2_of hA (hmap K m) (hcdt K m) (hz K)))
+      (fun s h => invPs_of K m s h.1 h.2.1) (invBlkW2_of hA (hvs K m) (hcdt K m) (hz K)))
     (fun K m s hJ hq => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s hJ hq.1) hmv huf hpz
 
 /-- (stpost gen 13) **`StartAt` of `inv_pathsKF` at a chain state** (as `inv_pathsKD_startAt`; `hq : InvQL …` at
 `σ`, its plan part from `loc_chain_all` clause 8's input `hp` via `invQ_intro` / `invLk_of_plan`). -/
 theorem inv_pathsKF_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
     (hm : E2E.MasksWr st)
-    (hmap : ∀ K m, InvMapJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
+    (hvs : ∀ K m, InvVsJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
     (hcdt : ∀ K m, InvCdtJ st K (fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s))
     (hz : ∀ K s, SlJAt (L := L) K s → (0#u64) ∉ K.slots)
     (hmv : ∀ K m, InvMoveW st ar number p K Locks m
@@ -924,8 +950,8 @@ theorem inv_pathsKF_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number
     {σ : S} {a3 : A3} {τ : Fl4Spec.State Unit} (hR : Rc σ a3 τ) (a : A) (hq : InvQL st Cs Ω Sg Ac Locks p K m σ)
     {c : U64} {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : Locks σ = hs) {μ : U64 → U64}
     (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
-    E2E.StartAt (inv_pathsKF ar hA number p hm hmap hcdt hz hmv huf hpz () K m hK hU) c hs μ
-      ((inv_pathsKF ar hA number p hm hmap hcdt hz hmv huf hpz () K m hK hU).body σ a) :=
+    E2E.StartAt (inv_pathsKF ar hA number p hm hvs hcdt hz hmv huf hpz () K m hK hU) c hs μ
+      ((inv_pathsKF ar hA number p hm hvs hcdt hz hmv huf hpz () K m hK hU).body σ a) :=
   ⟨σ, a, ⟨h7 σ a3 τ hR, hq⟩, hc, hl, hμ, rfl⟩
 
 end paths

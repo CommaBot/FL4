@@ -12,13 +12,13 @@ decode block (`DelEnt`) and discharges the two [J] premises `hSeen` and `hps` of
   non-zero ASID whose `small_page_entry` is a non-zero `e` ends with `pte < n`);
 * `lookup_slot_cn`, `lts_cn`: a lookup's slot is a radix-masked slot of a CNode of the walk's closure;
 * **`del_core`**: from `InvQF` at the entry, all of the above at the entry, with the walk;
-* **`delEnt_of`** / **`delEnt_at`**: `DelEnt` from `InvQF`, [J] `InvMapJ`, [J] `InvCdtJ`, [J] `hz` (`0 ∉ K.slots`);
+* **`delEnt_of`** / **`delEnt_at`**: `DelEnt` from `InvQF`, [J] `InvVsJ`, [J] `InvCdtJ`, [J] `hz` (`0 ∉ K.slots`);
 * **`invSeen_of`**: `InvSeenRS … (InvQF …)` from [J] `hz` alone (the seen words are `dest`'s, `dest` locked);
 * **`invPs_of`**: `inv_pathsKA`'s `hps` for `Q := InvQF` (no premise: the invoked slot is a capability slot
   holding a CNode cap, gate-owned).
 
 Named premises: [J] `hz : 0 ∉ K.slots` (the null slot address is no capability slot: `Plan.add` skips a zero
-address, so `dest`'s lock needs `dest ≠ 0`), [J] `InvMapJ`, [J] `InvCdtJ` (definitions in `InvDelEnt`).
+address, so `dest`'s lock needs `dest ≠ 0`), [J] `InvVsJ` (in `InvVs`), [J] `InvCdtJ` (in `InvDelEnt`).
 No existing statement changes; no `kernel_entry_reach*` is touched.
 -/
 import Fl4Proofs.P2.InvDelEnt
@@ -172,8 +172,8 @@ theorem plan_with_delF {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array ob
         PHeld p (L.mem s (core.num.U64.wrapping_add dest layout.cte.PREV))) ∧
       (∀ nx, obj.Slot.next st dest s = ok nx → nx ≠ 0#u64 → PHeld p nx) ∧
       SeenAddr (DelW dest) p ∧
-      (mp = true → asid ≠ 0#u64 → ∀ e, localinv.small_page_entry st s asid va = ok (some e) → e ≠ 0#u64 →
-        p.pte.val < p.n.val) := by
+      (mp = true → asid ≠ 0#u64 → ∃ o, localinv.small_page_entry st s asid va = ok o ∧
+        ∀ e, o = some e → e ≠ 0#u64 → p.pte.val < p.n.val) := by
   unfold localinv.plan_with at h
   obtain ⟨q, eq, h⟩ := bind_eq_ok h
   obtain ⟨cap, ecap, h⟩ := bind_eq_ok h
@@ -317,7 +317,7 @@ theorem plan_with_delF {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array ob
         | none =>
           simp only at h
           obtain ⟨-, rfl⟩ := some_if_eq h
-          exact ⟨hLd, hLp, hLn, hS6, fun _ _ e he => by rw [eo1] at he; simp at he⟩
+          exact ⟨hLd, hLp, hLn, hS6, fun _ _ => ⟨none, eo1, fun e he => by simp at he⟩⟩
         | some e =>
           simp only at h
           obtain ⟨⟨ok1, q7⟩, e7, h⟩ := bind_eq_ok h
@@ -329,14 +329,13 @@ theorem plan_with_delF {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array ob
           obtain ⟨a7h, a7d, a7s, a7nn, -, a7p, a7n⟩ := plan_add_eq e7 rfl
           simp only at a7h a7d a7s a7nn a7p a7n
           refine ⟨fun hd => a7h _ (hLd hd), fun hd => a7h _ (hLp hd), fun nx' en hne => a7h _ (hLn nx' en hne),
-            ?_, fun _ _ e' he' hne => ?_⟩
+            ?_, fun _ _ => ⟨some e, eo1, fun e' he' hne => ?_⟩⟩
           · intro j hj hjn
             have hj' : j < q6.seen.val.length := by rw [← a7s]; exact hj
             have := hS6 j hj' (by rw [← a7nn]; exact hjn)
             simp only [a7s]
             exact this
-          · rw [eo1] at he'
-            have ee : e = e' := by have := ok_inj_ff he'; simpa using this
+          · have ee : e = e' := Option.some.inj he'
             subst ee
             rw [a7p, a7n hne]
             omega
@@ -425,8 +424,8 @@ theorem del_core (hq : InvQF st Cs Ω Sg Ac Locks p K μ s) :
         Locks s (L.mem s (core.num.U64.wrapping_add dest layout.cte.PREV))) ∧
       (∀ nx, obj.Slot.next st dest s = ok nx → nx ≠ 0#u64 → Locks s nx) ∧
       (∀ x, SeenW p x → DelW dest x) ∧
-      (mp = true → asid ≠ 0#u64 → ∀ e, localinv.small_page_entry st s asid va = ok (some e) → e ≠ 0#u64 →
-        False) := by
+      (mp = true → asid ≠ 0#u64 → ∃ o, localinv.small_page_entry st s asid va = ok o ∧
+        ∀ e, o = some e → e ≠ 0#u64 → False) := by
   obtain ⟨⟨⟨PE, -⟩, ⟨t, info, ex, et, ei, hpw⟩, harm, hlk⟩, ⟨x, hx, hxs⟩⟩ := hq
   have ht : t = L.curW s := ok_inj_ff (et.symm.trans (cur_thread_ok s))
   subst ht
@@ -445,7 +444,7 @@ theorem del_core (hq : InvQF st Cs Ω Sg Ac Locks p K μ s) :
   have held : ∀ y, PHeld p y → Locks s y := fun y ⟨j, hj, hy⟩ => hlk j y hj hy
   refine ⟨cp, cr, cg, cgb, dest, fp, rt, asid, va, mp, C, hcap, ?_, htg, hdc, hCc, hcl, hC, hD.1, hD.2.1,
     fun hd => held _ (hHd hd), fun hd => held _ (hHp hd), fun nx e hne => held _ (hHn nx e hne), ?_,
-    fun hm hA e he hne => ?_⟩
+    fun hm hA => ?_⟩
   · rw [hs0]; exact (hC q0 r0 m0 y0 hq0 hm0).1
   · intro w ⟨i, q, hi, hiM, hidx, hq⟩
     have hM : localinv.MAX_LOCKS.val = 4 := maxLocks_val
@@ -456,39 +455,43 @@ theorem del_core (hq : InvQF st Cs Ω Sg Ac Locks p K μ s) :
     have e := ok_inj_ff hidx
     subst e hq
     exact hSn i.val (by omega) hi
-  · have := hpte hm hA e he hne
-    have := hnp
-    omega
+  · obtain ⟨o, eo, ho⟩ := hpte hm hA
+    exact ⟨o, eo, fun e he hne => by have := ho e he hne; have := hnp; omega⟩
 
-/-- (stpost gen 13) **`DelEnt` at the entry** from `InvQF` and the [J] facts at `s` (`InvMapJ`, `InvCdtJ` for some
+/-- (stpost gen 13) **`DelEnt` at the entry** from `InvQF` and the [J] facts at `s` (`InvVsJ`, `InvCdtJ` for some
 `P` with `P s`; `hz`: `0` is no capability slot). -/
 theorem delEnt_of {P : S → Prop} (hPs : P s) (hq : InvQF st Cs Ω Sg Ac Locks p K μ s)
-    (hmap : InvMapJ st K P) (hcdt : InvCdtJ st K P) (hz : (0#u64) ∉ K.slots) :
+    (hvs : InvVsJ st K P) (hcdt : InvCdtJ st K P) (hz : (0#u64) ∉ K.slots) :
     DelEnt st K Cs Locks p s := by
   obtain ⟨cp, cr, cg, cgb, dest, fp, rt, asid, va, mp, C, hcap, -, htg, hdc, hCc, hcl, hC, hdK, hdO, hLd, hLp,
     hLn, -, hpte⟩ := del_core hq
   have hd0 : dest ≠ 0#u64 := fun e => hz (e ▸ hdK)
-  have hunm : mp = false ∨ asid = 0#u64 := by
+  have hunm : mp = false ∨ asid = 0#u64 ∨ localinv.small_page_entry st s asid va = ok none := by
     cases mp with
     | false => exact Or.inl rfl
     | true =>
       by_cases hA : asid = 0#u64
-      · exact Or.inr hA
-      · obtain ⟨e, he, hne⟩ := hmap s dest fp rt asid va hPs hdK hdc hA
-        exact (hpte rfl hA e he hne).elim
+      · exact Or.inr (Or.inl hA)
+      · obtain ⟨o, eo, ho⟩ := hpte rfl hA
+        cases o with
+        | none => exact Or.inr (Or.inr eo)
+        | some e =>
+          by_cases he0 : e = 0#u64
+          · subst he0; exact ((hvs s dest fp rt asid va hPs hdK hdc hA).2.1 eo).elim
+          · exact (ho e rfl he0).elim
   obtain ⟨hcP, hcN⟩ := hcdt s dest hPs hdK
   exact ⟨cp, cr, cg, cgb, dest, fp, rt, asid, va, mp, C, hcap, htg, hdc, hunm, hCc, hcl, hC, hdK, hdO, hLd hd0,
     fun hp => ⟨hcP hp, hLp hp⟩, fun nx e hne => ⟨hcN nx e hne, hLn nx e hne⟩⟩
 
-/-- (stpost gen 13) **`DelEnt` at every `Pre` state of the path** (`Q := InvQF`), from [J] `InvMapJ`, [J]
+/-- (stpost gen 13) **`DelEnt` at every `Pre` state of the path** (`Q := InvQF`), from [J] `InvVsJ`, [J]
 `InvCdtJ` (at `Pre`) and [J] `hz`. -/
 theorem delEnt_at
-    (hmap : ∀ K μ, InvMapJ st K (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K μ s))
+    (hvs : ∀ K μ, InvVsJ st K (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K μ s))
     (hcdt : ∀ K μ, InvCdtJ st K (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K μ s))
     (hz : ∀ K μ s, SlJAt (L := L) K s → InvQF st Cs Ω Sg Ac Locks p K μ s → (0#u64) ∉ K.slots) :
     ∀ K μ s, SlJAt (L := L) K s → InvQF st Cs Ω Sg Ac Locks p K μ s → DelEnt st K Cs Locks p s :=
   fun K μ s hJ hq => delEnt_of (P := fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K μ s) ⟨hJ, hq⟩ hq
-    (hmap K μ) (hcdt K μ) (hz K μ s hJ hq)
+    (hvs K μ) (hcdt K μ) (hz K μ s hJ hq)
 
 /-- (stpost gen 13) **`hSeen` of `inv_pathsKA` for `Q := InvQF`**: the seen words are `dest`'s four words, `dest`
 a capability slot whose lock the glue holds ([J] `hz`: `dest ≠ 0`, so `Plan.add` took it). -/
