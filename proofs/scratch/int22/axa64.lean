@@ -1293,7 +1293,6 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P2.PathObl.mguard_write
 #print axioms Fl4ProofsA64.P2.PathObl.Alt.refl
 #print axioms Fl4ProofsA64.P2.PathObl.PathObl.dec
-#print axioms Fl4ProofsA64.P2.PathObl.of
 #print axioms Fl4ProofsA64.P2.PathObl.interp_ite
 #print axioms Fl4ProofsA64.P2.PathObl.bind_ite'
 #print axioms Fl4ProofsA64.P2.PathObl.bind_congr_r
