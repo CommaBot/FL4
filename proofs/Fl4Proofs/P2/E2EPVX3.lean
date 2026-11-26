@@ -663,7 +663,7 @@ theorem vtStartV2_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : 
     rintro Pf hAv rfl
     refine ⟨σ, a, he, hc, hl, hμ, ?_⟩
     refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx μ) _ hAv σ a).symm
-    change _ = cutP _ _ _ _ (((vtSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base (hp.toV E)).L.cpu σ)
+    change _ = cutP _ _ _ _ (L.cpu σ)
       (((vtSlotV st ar hA hm).path j K.toKLayoutV μ hK.base hU.base (hp.toV E)).body σ a) ∅
     rw [hc, ← hq E]
   exact key _ _ (SlotN.fam_pos _ _ (hp.toV E))
