@@ -1994,6 +1994,7 @@ import Fl4Proofs.P2.InvDelPteFin
 import Fl4Proofs.P2.InvDelPteKeep
 import Fl4Proofs.P2.InvDelPteDec
 import Fl4Proofs.P2.InvDelPteFinOK
+import Fl4Proofs.P2.InvDelPteAcc
 import Fl4Proofs.P2.E2EVFl4W4
 import Fl4Proofs.P2.E2EVFl4W5
 import Fl4Proofs.P2.OwnMapPte
