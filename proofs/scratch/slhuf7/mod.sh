@@ -15,11 +15,11 @@ here=$(pwd); mkdir -p afklogs; out=afklogs/rss-raw.txt; : > $out
     sleep 2
   done ) &
 mon=$!
-MODE=mod SEED=${SEED:-FL4-int14} MODS="$*" bash /data/fl4/afk-build.sh >/dev/null 2>&1; rc=$?
+MODE=mod SEED=${SEED:-FL4-int14} MODS="$*" bash /data/fl4/afk-build.sh > afklogs/out.txt 2>&1; rc=$?
 kill $mon 2>/dev/null
 grep WATCHDOG $out
 sort -k2,2 -k1,1n $out | awk '{m[$2]=$1} END{for(k in m) printf "%d %s\n", m[k]/1024, k}' | sort -rn | head -8
-grep "^BUILD\|^ERRORS\|^SORRY\|^JOBS\|^AX\|OLEANS" afklogs/b-mod.log | head -20
+grep "^BUILD\|^ERRORS\|^SORRY\|^JOBS\|^AX\|OLEANS\|Build completed" afklogs/out.txt afklogs/b-mod.log | head -20
 grep -A${NL:-20} "^error" afklogs/b-mod.log | grep -v "^warning\|deprecated" | head -${N:-250}
-[ -n "$AX" ] && grep -i "axiom" afklogs/b-mod.log | grep -v "propext, Classical.choice, Quot.sound\]" | head -20
+[ -n "$AX" ] && { echo "AXLINES $(grep -c "axioms" afklogs/out.txt)"; tr "\n" " " < afklogs/out.txt | grep -o "depends on axioms: \[[^]]*\]" | sort | uniq -c; grep -o "does not depend on any axioms" afklogs/out.txt | uniq -c; }
 exit $rc
