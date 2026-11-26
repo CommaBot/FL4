@@ -1984,7 +1984,6 @@ import Fl4Proofs.P2.InvPD
 import Fl4Proofs.P2.InvVsJ
 import Fl4Proofs.P2.InvTrunc8
 import Fl4Proofs.P2.InvJ
-import Fl4Proofs.P2.E2EVFl4Top
 import Fl4Proofs.P2.E2EVFl4W4
 import Fl4Proofs.P2.E2EVFl4W5
 import Fl4Proofs.P2.OwnMapPte
