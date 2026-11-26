@@ -70,7 +70,17 @@ section ku
 variable {K : KLayoutP} {E : U64 → U64}
 
 /-- **[S] The VM layout fact of an epoch** (module docstring): no paging word of the epoch lies in a VCPU, and the
-ASID-table words are the gate's. -/
+ASID-table words are the gate's.
+
+Justification (accepted by the line's coordinator, gen 14 review): page-table entries point only to page tables and
+frames, never to VCPU objects, so this is a true layout invariant. Rust: fl4-core `arch/x86_64/objects.rs`
+(`create_arch_object`: paging objects, ASID pools and `bits::VCPU` objects are retyped from distinct untyped ranges),
+`arch/x86_64/vspace.rs` (an upper entry's address field is written only by a map invocation whose argument is a
+paging-object cap; frames are mapped only as leaves), `layout.rs` (`ASID_TABLE` in the kernel-global block, where no
+object and, by `VcpuKsOff`, no VCPU lies). Natively both halves follow from P3's bundle: `RegionOKX`
+(`region_none_ptw`, `region_none_pool`, `RegionOKX.asidT`, P2/E2EPJEp2.lean, from the spec arch objects `PtRel` /
+`VsRel.pool` and `SpecCover.arch`) with `vcpus = ∅`. In VM epochs it has the status of vmscope's other [S] layout facts
+(`VtxBundle4`), pending the VT-x refinement. -/
 structure VmPwe (K : KLayoutP) (E : U64 → U64) : Prop where
   /-- [S] No paging word of the epoch is a VCPU word (paging and VCPU objects are distinct retyped objects). -/
   nov : ∀ b, PWE K E b → ¬ ∃ v, InVcpu K.toKLayoutV v b
