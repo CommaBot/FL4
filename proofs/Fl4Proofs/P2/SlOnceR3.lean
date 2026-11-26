@@ -78,7 +78,8 @@ noncomputable def sl_pathsKC7 (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar)
     (hCs : ∀ c ∈ Cs, c.val < 64)
     (hKD : ∀ (K : KLayout) (s : S), SlJAt (L := L) K s → KernDetAt (L := L) K Locks s) :
     Fl4Proofs.P2.E2E.Paths Unit :=
-  sl_pathsKC6 (Locks := Locks) (n := n) (found := found) ar hSt hA hm a0 hCs hKD (sl_rr_once ar hSt hA a0)
+  sl_pathsKC6 (Locks := Locks) (n := n) (found := found) (Ω := Ω) (Sg := Sg) (Ac := Ac) ar hSt hA hm a0 hCs hKD
+    (sl_rr_once (Locks := Locks) (n := n) (found := found) (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) ar hSt hA a0)
 
 /-- **`StartAt` for `sl_pathsKC7`**. -/
 theorem sl_pathsKC7_startAt (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar)
@@ -90,8 +91,8 @@ theorem sl_pathsKC7_startAt (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar)
     {c : U64} {hs : U64 → Prop} (hc : L.cpu σ = c) (hl : Locks σ = hs) {μ : U64 → U64}
     (hμ : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = μ x) :
     Fl4Proofs.P2.E2E.StartAt
-      (sl_pathsKC7 (Locks := Locks) (n := n) (found := found) ar hSt hA hm a0 hCs hKD () K m hK hU) c hs μ
-      ((sl_pathsKC7 (Locks := Locks) (n := n) (found := found) ar hSt hA hm a0 hCs hKD () K m hK hU).body σ a) :=
+      (sl_pathsKC7 (Locks := Locks) (n := n) (found := found) (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) ar hSt hA hm a0 hCs hKD () K m hK hU) c hs μ
+      ((sl_pathsKC7 (Locks := Locks) (n := n) (found := found) (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) ar hSt hA hm a0 hCs hKD () K m hK hU).body σ a) :=
   sl_pathsKC6_startAt ar hSt hA hm a0 hCs hKD _ K m hK hU a hJ hq hc hl hμ
 
 end
