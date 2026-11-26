@@ -111,3 +111,6 @@ import Fl4ProofsA64.P1.QueueIpcFoot
 import Fl4ProofsA64.P1.EntryXG
 import Fl4ProofsA64.P1.EntryXGTop
 import Fl4ProofsA64.P1.EntryFin
+import Fl4ProofsA64.P1.QueueEntryGaps3
+import Fl4ProofsA64.P1.QueueFinFr
+import Fl4ProofsA64.P1.QueueYield
