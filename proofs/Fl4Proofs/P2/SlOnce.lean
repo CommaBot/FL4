@@ -64,7 +64,7 @@ theorem sl_hro (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hm : E2E.MasksWr
     · have g1 := sl_home ar hA F.P F.I F.D h0 Bool.false_ne_true hh
       have g2 := sl_dec_guardN ar hA F h0 Bool.false_ne_true
       rw [hp] at g1 g2
-      exact sl_once_accN hm (W0 := fun q => SlDS (L := L) s q ∧ True)
+      exact sl_once_accN ar hm (W0 := fun q => SlDS (L := L) s q ∧ True)
         (fun w hw => (SlDS.ws F.P.preG hw.1).1) Al
         (interp_guard_meet _ (sl_noZero n found) s a _ g1 g2)
     · obtain ⟨rp, ep⟩ := found
@@ -76,7 +76,7 @@ theorem sl_hro (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar) (hm : E2E.MasksWr
     · have g1 := sl_acc ar hA F.P h0
       have g2 := sl_trap_acc_guardN ar hA F hS h0
       rw [hp] at g1 g2
-      exact sl_once_accN hm (W0 := fun q => SlWS (st := st) K Locks s q ∧ True)
+      exact sl_once_accN ar hm (W0 := fun q => SlWS (st := st) K Locks s q ∧ True)
         (fun w hw => hw.1.1) Al (interp_guard_meet _ (sl_noZero n found) s a _ g1 g2)
     · have g1 := sl_acc ar hA F.P h0
       rw [hp] at g1
