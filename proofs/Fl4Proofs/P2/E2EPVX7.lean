@@ -1343,12 +1343,12 @@ theorem slStartX_at {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : U
   exact key _ _ (SlotC.lift_eq _ _ (hp.toX E))
 
 /-- **`SlPremX5` is satisfiable at every layout** (any core count): the index with a constant lock map (the held
-set `hs` of the start fact's `j.Locks σ = hs`) and any core set below 64 cores (`kernDetS_const`). -/
+set `hs` of the start fact's `j.Locks σ = hs`) and any core set below 64 cores (`kernDetS_constV`). -/
 theorem slPremX5_sat (K : KLayoutV) (n : I64) (found : U64 × U64) (Cs Ω Sg Ac : Set U64)
     (hCs : ∀ c ∈ Cs, c.val < 64) (hs : U64 → Prop) :
     ∃ i : SlArg S, i.Cs = Cs ∧ i.Locks = (fun _ => hs) ∧ SlPremX5 st i K :=
   ⟨{ n := n, found := found, Cs := Cs, Ω := Ω, Sg := Sg, Ac := Ac, Locks := fun _ => hs }, rfl, rfl,
-    hCs, fun s _ => kernDetS_const (L := L) (fun _ _ => rfl) s⟩
+    hCs, fun s _ => kernDetS_constV (L := L) (fun _ _ => rfl) s⟩
 
 /-- **The start fact from its parts** (the armed program built from the epoch's bundle `E`; by proof irrelevance
 it is the same for every bundle). -/

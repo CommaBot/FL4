@@ -131,3 +131,4 @@ import Fl4Proofs
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU30
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU31
 #print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU32
+#print axioms Fl4Proofs.P2.E2EP.kernDetS_constV

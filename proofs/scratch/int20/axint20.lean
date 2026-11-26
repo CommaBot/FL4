@@ -4552,4 +4552,5 @@ section
 #print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmH
 #print axioms Fl4Proofs.P2.Serial.serializable_safeA
 #print axioms Fl4Proofs.P2.Serial.serializable_safeR
+#print axioms Fl4Proofs.P2.E2EP.kernDetS_constV
 end

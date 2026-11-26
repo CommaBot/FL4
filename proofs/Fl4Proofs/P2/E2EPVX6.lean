@@ -105,7 +105,7 @@ theorem ioPremX5_of_reads {i : IoArg S} {K : KLayoutV} {R : Set U64}
   ioPremX5_of_kd hQ hCs (kernelDetS_of_reads hR hRa (fun _ _ => hRU))
 
 /-- A constant lock map is determined by any words. -/
-theorem kernDetS_const {U : Set U64} {Locks : S → U64 → Prop} (hc : ∀ s s', Locks s = Locks s') :
+theorem kernDetS_constV {U : Set U64} {Locks : S → U64 → Prop} (hc : ∀ s s', Locks s = Locks s') :
     ∀ s, KernDetS (L := L) U Locks s :=
   fun s s' _ _ _ _ => hc s' s
 
@@ -115,7 +115,7 @@ theorem ioPremX5_of_const {i : IoArg S} {K : KLayoutV}
     (hQ : i.Q = fun K' m' s => IoQ st i.Cs i.Ω i.Sg i.Ac K'.toKLayout m' s)
     (hCs : i.Cs = {c : U64 | c.val < K.ncores}) (hc : ∀ s s', i.Locks s = i.Locks s') :
     ∀ m, IoPremX5 st i K m :=
-  ioPremX5_of_kd hQ hCs (fun s _ => kernDetS_const hc s)
+  ioPremX5_of_kd hQ hCs (fun s _ => kernDetS_constV hc s)
 
 /-- **`IoPremX5` is jointly satisfiable at every layout** (any core count, in particular `K.ncores ≥ 2`), for one
 index and **every** `m` at once: the index with the layout's cores, `IoQ` and the constant lock map `hs`. Contrast
