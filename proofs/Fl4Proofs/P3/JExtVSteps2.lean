@@ -13,12 +13,17 @@ change and a representative native step** (on top of P3/JExtVSteps).
 * **`sts_jv`**: `sched.set_thread_state t x` on a TCB keeps `JExtV`, and keeps `RunVmB` when `x ≠ TS_RUNNING_VM`
   or `t`'s VCPU word is nonzero — the native thread-state step and `vcpu::enter`'s last step (vcpu.rs l. 1119,
   `TS_RUNNING_VM` on a bound thread: gen 19's `RunVmB.enter` on the extracted function); **`vcpu_enter_unbound`**:
-  `vcpu.enter` of an unbound thread (vcpu.rs l. 1076) keeps both.
+  `vcpu.enter` of an unbound thread (vcpu.rs l. 1076) keeps both; **`vcpu_enter_nosig`**: `vcpu.enter` of a bound
+  thread with no signal pending on its bound notification (the VMCS / VMCB / `VALID` / `PENDING` writes to the VCPU
+  object, then `TS_RUNNING_VM`) keeps both. Open: the signalled branch (`complete_signal`, then `report` or
+  `MSG_INFO := 0`, l. 1108-1116) — its footprint (notification words, SC donation) is not proved here.
 
 Named premises, all [J] (placement, as in P3/JExtVSteps): `JWPl`, `DetPl`, `DetAt`, and `FinPl` (the VCPU's
 `NEXT` / `PREV` words and its list neighbours' link words / the list head are aligned, none of `JW` / `SW`, the
 VCPU's own link words none of the detach words `CW`; P1's `VtIoPlace` / `VListed` placement); `sts_jv`'s
-`hact` (the current core's `SCHED_ACTION` word aligned and none of `JW` / `SW`). No [P] / [W] / [S] premise.
+`hact` (the current core's `SCHED_ACTION` word aligned and none of `JW` / `SW`); `vcpu_enter_nosig`'s `hvi` (the
+bound VCPU's internal words `VW` aligned and none of `JW` / `SW`) and `hns` (the no-signal branch condition after
+those writes). No [P] / [W] / [S] premise.
 -/
 import Fl4Proofs.P3.JExtVSteps
 open Aeneas Aeneas.Std Result
@@ -156,6 +161,107 @@ theorem vcpu_enter_unbound (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S}
   have hd : ∀ b, b = core.num.U64.wrapping_add t K → ¬ JW V th b ∧ ¬ SW th b := fun b e =>
     e ▸ D.rep t ht _ hR
   exact (WP.spec_ok _).2 ⟨E.of_writes P hw fun b h => (hd b h).1, R.of_clean P hw hd⟩
+
+/-- The VCPU-internal words of `v` other than its `TCB` word (`vcpu::enter`'s VMCS / VMCB / `VALID` / `PENDING`
+writes). -/
+def VW (v : U64) (b : U64) : Prop :=
+  ∃ o : U64, o.val < 32768 ∧ o.val % 8 = 0 ∧ o.val ≠ 20480 ∧ b = core.num.U64.wrapping_add v o
+
+set_option maxHeartbeats 16000000 in
+/-- **`vcpu.enter` of a bound thread with no signal pending** (vcpu.rs l. 1073-1120, the branch ending in
+`TS_RUNNING_VM`): keeps `JExtV` and `RunVmB` (gen 19's `RunVmB.enter` on the extracted function). `hvi` [J]: the
+bound VCPU's internal words (offsets below 2^15 other than `TCB`) are aligned and none of `JW` / `SW` (the VCPU
+object, `.other 15`, apart from TCBs / CNodes; P1's `vcpu_obj_aligned`). `hns` [J]: after those writes the bound
+notification is 0 or not active — the branch condition; the signalled branch (`complete_signal`, l. 1108) is
+open. -/
+theorem vcpu_enter_nosig (hA : P0.ArchTotal ar) (D : DetPl V th Ub) {s : S} (Da : DetAt st V th Ub s)
+    (E : JExtV (L := L) V X th s) (R : RunVmB (L := L) th s) (a : A) {t : U64} (ht : th t = some .tcb)
+    (hv0 : L.mem s (tVcpuA t) ≠ 0#u64)
+    (hvi : ∀ b, VW (L.mem s (tVcpuA t)) b → P1.Aligned b ∧ ¬ JW V th b ∧ ¬ SW th b)
+    (hns : ∀ s', P1.WritesIn st s s' (VW (L.mem s (tVcpuA t))) → obj.Tcb.bound_ntfn st t s' ⦃ n =>
+      n ≠ 0#u64 → obj.Ntfn.state st n s' ⦃ x => x ≠ obj.NTFN_ACTIVE ⦄ ⦄) :
+    vcpu.enter st ar s a t ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ := by
+  have P := D.pl
+  have JWt : JW V th (tVcpuA t) := Or.inr (Or.inl ⟨t, ht, rfl⟩)
+  unfold vcpu.enter vcpu.bound
+  refine WP.spec_bind (hA.vcpu_barrier a) fun a1 _ => ?_
+  step as ⟨o, ho⟩
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (P1.LawfulStore.read_spec s _) fun v ev => ?_
+  subst ho
+  have ev' : v = L.mem s (tVcpuA t) := ev
+  rw [← ev'] at hv0 hvi hns
+  rw [if_neg hv0]
+  have VS : ∀ s1, P1.WritesIn st s s1 (VW v) → ∀ (o x : U64), o.val < 32768 → o.val % 8 = 0 →
+      o.val ≠ 20480 → vcpu.set st s1 v o x ⦃ s' => P1.WritesIn st s s' (VW v) ⦄ := by
+    intro s1 w1 o x h1 h2 h3
+    have hb : VW v (core.num.U64.wrapping_add v o) := ⟨o, h1, h2, h3, rfl⟩
+    unfold vcpu.set
+    simp only [lift, bind_ok]
+    exact WP.spec_mono (P1.LawfulStore.write_spec s1 _ _) fun s' e => by
+      subst e
+      exact (w1.trans (P1.writesIn_wr (hvi _ hb).1)).mono fun b h => h.elim id fun e => e ▸ hb
+  have VM : ∀ s1, P1.WritesIn st s s1 (VW v) → ∀ (f x : U64),
+      vcpu.write_vmcs st s1 v f x ⦃ s' => P1.WritesIn st s s' (VW v) ⦄ := by
+    intro s1 w1 f x
+    unfold vcpu.write_vmcs
+    refine WP.spec_bind (P1.vcpu.vmcs_addr.off v f) ?_
+    rintro _ ⟨o, h1, h2, rfl⟩
+    have hb : VW v (core.num.U64.wrapping_add v o) := ⟨o, by omega, h2, by omega, rfl⟩
+    exact WP.spec_mono (P1.LawfulStore.write_spec s1 _ _) fun s' e => by
+      subst e
+      exact (w1.trans (P1.writesIn_wr (hvi _ hb).1)).mono fun b h => h.elim id fun e => e ▸ hb
+  refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 _ _ _ _ L.total) fun b _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun ip _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun ctl _ => ?_
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 _ _ _ _ _ L.total) fun intr _ => ?_
+  refine WP.spec_bind (hA.virtualization a1) fun i _ => ?_
+  refine WP.spec_bind (Pₘ := fun s1 => P1.WritesIn st s s1 (VW v)) ?_ fun s1 w1 => ?_
+  · split
+    · have hRIP : vcpu.svm.RIP = ok 1400#u64 := by unfold vcpu.svm.RIP vcpu.svm.SAVE; rfl
+      simp only [hRIP, bind_ok, lift, vcpu.get, shl_eq _ 32#i32 (by decide) (by decide)]
+      refine WP.spec_bind (VS _ (P1.WritesIn.refl _ _) 1400#u64 _ (by simp) (by simp) (by simp)) fun s2 w2 => ?_
+      refine WP.spec_bind (P1.LawfulStore.read_spec s2 _) fun old _ => ?_
+      refine WP.spec_bind (VS _ w2 vcpu.svm.INTERCEPT_EXC _ (by simp [vcpu.svm.INTERCEPT_EXC])
+        (by simp [vcpu.svm.INTERCEPT_EXC]) (by simp [vcpu.svm.INTERCEPT_EXC])) fun s3 w3 => ?_
+      refine WP.spec_bind (P0.vcpu.full_reply.p0 _ _ _ L.total) fun b1 _ => ?_
+      refine WP.spec_bind (Pₘ := fun _ => True) ?_ fun intr1 _ => ?_
+      · cases b1
+        · simp only [Bool.false_eq_true, ↓reduceIte]
+          exact (WP.spec_ok _).2 trivial
+        · simp only [↓reduceIte]
+          exact WP.spec_bind (P1.LawfulStore.read_spec _ _) fun _ _ => (WP.spec_ok _).2 trivial
+      exact VS _ w3 vcpu.svm.EVENT_INJ _ (by simp [vcpu.svm.EVENT_INJ]) (by simp [vcpu.svm.EVENT_INJ])
+        (by simp [vcpu.svm.EVENT_INJ])
+    · try simp only [lift, bind_ok]
+      refine WP.spec_bind (VM _ (P1.WritesIn.refl _ _) _ _) fun s2 w2 => ?_
+      refine WP.spec_bind (P0.vcpu.sanitize_vmcs.p0 _ _ _ _ hA) fun r _ => ?_
+      refine WP.spec_bind P0.vcpu.PRIMARY_FORCED.p0 fun i1 _ => ?_
+      refine WP.spec_bind (VM _ w2 _ _) fun s3 w3 => ?_
+      exact VM _ w3 _ _
+  refine WP.spec_bind (VS _ w1 vcpu.VALID 0#u64 (by simp [vcpu.VALID]) (by simp [vcpu.VALID])
+    (by simp [vcpu.VALID])) fun s2 w2 => ?_
+  refine WP.spec_bind (VS _ w2 vcpu.PENDING 0#u64 (by simp [vcpu.PENDING]) (by simp [vcpu.PENDING])
+    (by simp [vcpu.PENDING])) fun s3 w3 => ?_
+  have E3 := E.of_writes P w3 fun b h => (hvi b h).2.1
+  have R3 := R.of_clean P w3 fun b h => (hvi b h).2
+  have m3 : L.mem s3 (tVcpuA t) ≠ 0#u64 := by
+    rw [w3.mem_eq (P.jw _ JWt) fun h => (hvi _ h).2.1 JWt, ← ev']; exact hv0
+  have hact : P1.Aligned (actA st s3) ∧ ¬ JW V th (actA st s3) ∧ ¬ SW th (actA st s3) := by
+    rw [actA_of w3]; exact ⟨Da.actA_al, (Da.nd _ (Or.inr rfl)).1, (Da.nd _ (Or.inr rfl)).2⟩
+  have FIN : (do
+      let s4 ← sched.set_thread_state st s3 t sched.TS_RUNNING_VM
+      ok (s4, a1)) ⦃ r => JExtV (L := L) V X th r.1 ∧ RunVmB (L := L) th r.1 ⦄ :=
+    WP.spec_bind (sts_jv P E3 R3 ht hact (Or.inr m3)) fun s4 h4 => (WP.spec_ok _).2 h4
+  refine WP.spec_bind (hns s3 w3) fun n hn => ?_
+  split
+  · rename_i hn0
+    refine WP.spec_bind (hn (by simpa using hn0)) fun x hx => ?_
+    split
+    · rename_i hxa; exact absurd hxa hx
+    · exact FIN
+  · exact FIN
+
 
 /-- **The VCPU list's placement at a finalise** [J] (module docstring). -/
 structure FinPl (st : machine.Store S) [L : P1.LawfulStore st] (V : Set U64) (th : TypedHeap)
