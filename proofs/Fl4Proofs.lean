@@ -2184,3 +2184,4 @@ import Fl4Proofs.P2.IrqTailS
 import Fl4Proofs.P2.IrqTailE
 import Fl4Proofs.P2.IrqTailR
 import Fl4Proofs.P2.IrqFhHead
+import Fl4Proofs.P2.SafeTrWr
