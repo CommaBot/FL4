@@ -3,6 +3,7 @@ import Fl4ProofsA64.P1.QueueAppend
 import Fl4ProofsA64.P1.QueueBudget
 import Fl4ProofsA64.P1.QueueBudget2
 import Fl4ProofsA64.P1.FastDecline
+import Fl4ProofsA64.P2.ProgVmF
 import Fl4ProofsA64.P1.QueueCallers
 import Fl4ProofsA64.P1.QueueCancel
 import Fl4ProofsA64.P1.QueueChoose
@@ -29,12 +30,12 @@ open Lean Elab Command in
   let mut n : Nat := 0
   let mut bad : Array (Name × Name) := #[]
   for (c, _) in env.constants.map₁.toList do
-    if (`Fl4ProofsA64.P1).isPrefixOf c then
+    if (`Fl4ProofsA64.P1).isPrefixOf c || (`Fl4ProofsA64.P2).isPrefixOf c then
       n := n + 1
       let axs ← Lean.collectAxioms c
       for a in axs do
         if !(ok.contains a) then bad := bad.push (c, a)
-  logInfo (s!"A64 P1 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
+  logInfo (s!"A64 P1+P2 constants checked: {n}; outside propext/Classical.choice/Quot.sound: {bad.size} {(bad.toList.take 20).map (fun p => (p.1, p.2))}" : String)
 #print axioms Fl4ProofsA64.P1.tcbqueue.append.rel
 #print axioms Fl4ProofsA64.P1.sporadic.budget_check.ordered
 #print axioms Fl4ProofsA64.P1.smp.add_pending.spec
@@ -43,3 +44,8 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.sched.suspend.inv
 #print axioms Fl4ProofsA64.P1.sched.suspend.all
 #print axioms Fl4ProofsA64.P1.vcpu.cancel_run.idle
+#print axioms Fl4ProofsA64.P2.PathObl.vm_isProg
+#print axioms Fl4ProofsA64.P2.PathObl.vm_noZero
+#print axioms Fl4ProofsA64.P2.PathObl.vm_prog
+#print axioms Fl4ProofsA64.P1.syscall_decline
+#print axioms Fl4ProofsA64.P1.FastAgree.of_acc
