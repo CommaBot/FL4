@@ -1933,3 +1933,12 @@ import Fl4Proofs.P2.OnceU
 import Fl4Proofs.P2.LvmOnce
 import Fl4Proofs.P2.RrOnce
 import Fl4Proofs.P2.E2EVFl4Top
+import Fl4Proofs.P2.SlOnceL
+import Fl4Proofs.P2.SlOnceN
+import Fl4Proofs.P2.SlOnceP
+import Fl4Proofs.P2.SlOnceA
+import Fl4Proofs.P2.SlOnceB
+import Fl4Proofs.P2.SlOnce
+import Fl4Proofs.P2.SlOnceR1
+import Fl4Proofs.P2.SlOnceR2
+import Fl4Proofs.P2.SlOnceR3
