@@ -11,7 +11,8 @@ CNodeDelete / delPte:
   (**`pmRS_of_ptUX`**, `rpermV_of_own_nd` off `VData`, `rpermP_of_V` off `K.ptes`), so an alternative over `PmRS K` is
   one over `IoRS K.uV.ptU` (**`alt_ptUX`**). `IoPre` carries over (**`IoPre.ptUX`**: the user clause of `IoLay` for
   VCPU data words by `RegionOKV.none` / `VcpuKsOff`, for PTE words by `RegionOKP.none` and `KsNoE`).
-* **`PmGX`** (replaces `GateEp`): the walk fact `WalkP` (E2EPVX10A), `KsNoE (· ∈ K.ptes)`, `InvVF`, `RegionOKP`,
+* **`PmGX`** (replaces `GateEp`): the walk fact `WalkP` (E2EPVX10A), `ne0` (no walk answers the null entry
+  address; natively `SlJAtZ.spe_ne0`), `KsNoE (· ∈ K.ptes)`, `InvVF`, `RegionOKP`,
   `UserOKP`. **`PmPreFX`** = `InvLX ∧ PmQF ∧ PmGX` (replaces `PmPreF = SlJAt ∧ PmQF ∧ GateEp`), **`PmPreGX`** =
   `PmPreFX ∧ PmEx ∧ PmRoot` (replaces `PmPreG`). The shapes match the native ones, so the native proofs carry over
   with the device lemmas in place of `IoPre.ptU` / `alt_ptU` / `pmRS_of_ptU` and `InvLX.hz` in place of
@@ -47,6 +48,8 @@ variable (st) in
 structure PmGX (K : KLayoutP) (s : S) : Prop where
   /-- the walk fact (E2EPVX10A's `WalkP`, [S] at the start). -/
   walk : WalkP st K s
+  /-- no walk answers the null entry address (natively `SlJAtZ.spe_ne0`; [S] at the start). -/
+  ne0 : ∀ asid va, localinv.small_page_entry st s asid va ≠ ok (some 0#u64)
   ks : KsNoE (· ∈ K.ptes) K.toKLayoutV
   vf : InvVF K
   rk : RegionOKP K
