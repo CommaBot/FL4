@@ -8,7 +8,7 @@ once (`Plan.read_cap`, the slot's two cap words recorded as seen), it must be a 
 `R10`; `None` above `USER_TOP` or on a missing level) gives the leaf entry `e`. The plan then locks the slot (32 bytes)
 and `e` (`add_pte`: `pte := n` before the add, 8 bytes in fl4-sync `local_invocation`).
 
-* `plan_add_at`: `Plan.add` of a non-zero address puts it at index `n` and increments `n`;
+* (`plan_add_at` is the shared copy in `P2/PteLockRS.lean`);
 * **`plan_with_mapF`**: what `plan_with` decides at `X86PageMap`: the frame cap at the slot, the PML4 cap at
   `extra[0]`, the walk's result `some e`, the slot locked (when non-zero), and for `e ≠ 0` the PTE index:
   `p.pte < p.n` and `p.locks[p.pte] = e`; the seen words are the slot's `CAP0` / `CAP1`.
@@ -17,7 +17,7 @@ This is the input `PtePlanLocked` (P2/E2EP.lean) needs from the plan: its lock h
 plan locks (`ptePlanLocked_of`); its [J] half (`e ∈ K.ptes`) is about the walk (`P2/PteLockRS.lean`).
 No named premise. New module; no existing statement changes; no `kernel_entry_reach*` touched.
 -/
-import Fl4Proofs.P2.InvSeen
+import Fl4Proofs.P2.PteLockRS
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -25,37 +25,6 @@ open fl4_core Fl4Proofs.P1
 
 section plan
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-
-/-- **`Plan.add` of a non-zero address** puts it at index `n` and increments `n`. -/
-theorem plan_add_at {q : localinv.Plan} {a : U64} {x : Bool × localinv.Plan}
-    (h : localinv.Plan.add q a = ok x) (ht : x.1 = true) (ha : a ≠ 0#u64) :
-    x.2.locks.val[q.n.val]? = some a ∧ x.2.n.val = q.n.val + 1 ∧ x.2.pte = q.pte := by
-  unfold localinv.Plan.add at h
-  rw [if_neg ha] at h
-  by_cases h1 : q.n >= localinv.MAX_LOCKS
-  · rw [if_pos h1] at h
-    cases ok_inj_ff h
-    simp at ht
-  rw [if_neg h1] at h
-  have hn : q.n.val < 4 := by
-    have h2 : ¬ localinv.MAX_LOCKS.val ≤ q.n.val := fun hc => h1 hc
-    rw [maxLocks_val] at h2; omega
-  have hlen : q.locks.val.length = 4 := by have hp := q.locks.property; simpa using hp
-  have hl : q.n.val < q.locks.length := by
-    simp only [Aeneas.Std.Array.length]; omega
-  obtain ⟨a1, ea1, h⟩ := bind_eq_ok h
-  obtain ⟨n1, en1, h⟩ := bind_eq_ok h
-  rw [eq_of_spec_fd (Aeneas.Std.Array.update_spec q.locks q.n a hl)] at ea1
-  have ha1 : q.locks.set q.n a = a1 := ok_inj_ff ea1
-  obtain ⟨z, ze, zv⟩ := spec_ex_fd (Usize.add_spec (x := q.n) (y := 1#usize) (by scalar_tac))
-  rw [ze] at en1
-  have hz : z = n1 := ok_inj_ff en1
-  subst hz ha1
-  cases ok_inj_ff h
-  have hzv : z.val = q.n.val + 1 := by simpa using zv
-  refine ⟨?_, hzv, rfl⟩
-  simp only [Aeneas.Std.Array.set_val_eq]
-  rw [List.getElem?_set_self (by omega)]
 
 /-- The slot's two cap words. -/
 def MapW (slot x : U64) : Prop :=
@@ -161,9 +130,9 @@ theorem plan_with_mapF {s : S} {t : obj.Tcb} {slot : obj.Slot} {extra : Array ob
       simp only at a3h a3s a3nn a3p
       refine ⟨fp, rt, asid, va, root, rasid, mp, x, e, hc, ex, hx0, ec, eo,
         fun hs => a3h _ (a2d hs), fun he => ?_, ?_⟩
-      · obtain ⟨l3, n3, p3⟩ := plan_add_at e4' hok2 he
-        simp only at l3 n3 p3
-        rw [p3]
+      · obtain ⟨l3, n3, -⟩ := (plan_add_at e4' hok2).2 he
+        simp only at l3 n3
+        rw [a3p]
         exact ⟨by omega, l3⟩
       · intro j hj hjn
         have es : q4.seen = q1.seen := a3s.trans a2s

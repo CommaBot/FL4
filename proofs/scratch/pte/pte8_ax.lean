@@ -8,5 +8,4 @@ open Fl4Proofs.P2.PathObl Fl4Proofs.P2.E2EP
 #print axioms gateW_up
 #print axioms upAg_of_gate
 #print axioms ptesE_leaf
-#print axioms plan_add_at
 #print axioms plan_with_mapF
