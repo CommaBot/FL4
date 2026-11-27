@@ -14757,7 +14757,6 @@ section
 #print axioms Fl4Proofs.P3.jEvRef_irqFt
 #print axioms Fl4Proofs.P3.jEvRef_irqIFt
 #print axioms Fl4Proofs.P3.Mc.projW_ksb
-#print axioms Fl4Proofs.P3.Mc._root_.Fl4Proofs.P1.WritesIn.projW_trans
 #print axioms Fl4Proofs.P3.jEvRef_irqFtR
 #print axioms Fl4Proofs.P3.jEvRef_irqIFtR
 #print axioms Fl4Proofs.P3.Mc.spec_and2

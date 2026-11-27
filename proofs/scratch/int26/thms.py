@@ -13,4 +13,5 @@ for f in [a for a in sys.argv[1:] if a!='--tops']:
     if m:
       n=m.group(1)
       if tops and not re.match(r'(serializable_|kernel_entry_reach)',n.split('.')[-1]): continue
-      print('#print axioms '+'.'.join(ns+[n]))
+      # int26: a `_root_.` declaration ignores the enclosing namespaces
+      print('#print axioms '+(n[7:] if n.startswith('_root_.') else '.'.join(ns+[n])))

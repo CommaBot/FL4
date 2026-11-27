@@ -3245,7 +3245,7 @@
 #print axioms Fl4Proofs.P3.Mc.irqFootWC_of_J
 #print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_irqJ
 #print axioms Fl4Proofs.P3.Mc.projW_ksb
-#print axioms Fl4Proofs.P3.Mc._root_.Fl4Proofs.P1.WritesIn.projW_trans
+#print axioms Fl4Proofs.P1.WritesIn.projW_trans
 #print axioms Fl4Proofs.P3.Mc.handle_interrupt_footN0
 #print axioms Fl4Proofs.P3.Mc.JAtZ.handleIrqProjW
 #print axioms Fl4Proofs.P3.Mc.budFoot_rr
