@@ -2241,3 +2241,4 @@ import Fl4Proofs.P2.BootBlkF
 import Fl4Proofs.P2.BootLiveF
 import Fl4Proofs.P2.BootJAtZ
 import Fl4Proofs.P2.BootCfg
+import Fl4Proofs.P2.OpaqueSat
