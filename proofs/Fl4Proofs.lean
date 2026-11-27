@@ -2224,3 +2224,4 @@ import Fl4Proofs.P2.E2EPV12
 import Fl4Proofs.P2.E2EPV13
 import Fl4Proofs.P2.YbwKeep
 import Fl4Proofs.P2.YbwAnch
+import Fl4Proofs.P2.LocPlatModel
