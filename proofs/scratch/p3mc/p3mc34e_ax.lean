@@ -1,0 +1,19 @@
+import Fl4Proofs.P2.BootMdbF
+#print axioms Fl4Proofs.P2.BootSt.G0
+#print axioms Fl4Proofs.P2.BootSt.placed_B
+#print axioms Fl4Proofs.P2.BootSt.delBound_B
+#print axioms Fl4Proofs.P2.BootSt.slot_range
+#print axioms Fl4Proofs.P2.BootSt.slot_word0
+#print axioms Fl4Proofs.P2.BootSt.slot_capAt
+#print axioms Fl4Proofs.P2.BootSt.mdbLinks_B
+#print axioms Fl4Proofs.P2.BootSt.links_nil
+#print axioms Fl4Proofs.P2.BootSt.cdtRel_B
+#print axioms Fl4Proofs.P2.BootSt.finM_B
+#print axioms Fl4Proofs.P2.BootSt.delInv_B
+#print axioms Fl4Proofs.P2.BootSt.utInv_B
+#print axioms Fl4Proofs.P2.BootSt.sfree_B
+#print axioms Fl4Proofs.P2.BootSt.utc_B
+#print axioms Fl4Proofs.P2.BootSt.zD_B
+#print axioms Fl4Proofs.P2.BootSt.sB_idleScW
+#print axioms Fl4Proofs.P2.BootSt.ksObj_B
+#print axioms Fl4Proofs.P2.BootSt.jcov_B
