@@ -166,6 +166,7 @@ import Fl4ProofsA64.P1.QueueEntryGaps9
 import Fl4ProofsA64.P1.QueueDelVsV
 import Fl4ProofsA64.P1.QueueDecTcbV
 import Fl4ProofsA64.P1.QueueEntryGaps10
+import Fl4ProofsA64.P1.QueueDelPlaceFalse
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -460,3 +461,39 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.InvGaps10
 #print axioms Fl4ProofsA64.P1.InvGaps10.gaps
 #print axioms Fl4ProofsA64.P1.kernel_entry.entry_of10A
+-- gen 28
+#print axioms Fl4ProofsA64.P1.DPF.spec_tot
+#print axioms Fl4ProofsA64.P1.DPF.shr_eq
+#print axioms Fl4ProofsA64.P1.DPF.irqW0
+#print axioms Fl4ProofsA64.P1.DPF.bigIrq
+#print axioms Fl4ProofsA64.P1.DPF.decode_irqH
+#print axioms Fl4ProofsA64.P1.DPF.slot_cap_dec
+#print axioms Fl4ProofsA64.P1.DPF.wadd0
+#print axioms Fl4ProofsA64.P1.DPF.irqH_state
+#print axioms Fl4ProofsA64.P1.DPF.bigIrq_ge
+#print axioms Fl4ProofsA64.P1.DPF.bigIrq_ge128
+#print axioms Fl4ProofsA64.P1.DPF.irq_read_false
+#print axioms Fl4ProofsA64.P1.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlaceAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelGapsAt.cap_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlaceAt.dec_false
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlace.entAt_false
+#print axioms Fl4ProofsA64.P1.InvGaps3.del_false
+#print axioms Fl4ProofsA64.P1.InvGaps4.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps5.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps6.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps7.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps7B.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps8.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps9.place_false
+#print axioms Fl4ProofsA64.P1.InvGaps10.place_false
+#print axioms Fl4ProofsA64.P1.VcpuObjA.false_at
