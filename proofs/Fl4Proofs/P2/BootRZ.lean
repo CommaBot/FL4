@@ -3,7 +3,7 @@
 
 The ghosts for `JAtZ … sR … σR` (P2/BootRSpec, P2/BootRMem):
 
-* **`GR`**: the MDB ghost: one chain `[tRw]` (the root slot, the only non-null cap), no parent;
+* **`GR`**: the MDB ghost: two chains `[tRw]`, `[tmoW]` (the two non-null caps, both original), no parent;
 * **`ZR`**: typed heap `thR`, MDB ghost `GR`, `T = {tiB, tRw}`, `C = {sciB, scRw}`, every other set empty, core 0,
   `vx = ∅`; **`AcR = {sciB, scRw}`** (the active SCs), `LstB` (no call stack), `DB`, `CsB` (gen 35 / 34, unchanged).
 
@@ -24,8 +24,8 @@ noncomputable section
 
 /-! ## The ghosts -/
 
-/-- The MDB ghost at the second boot start: the root slot alone. -/
-def GR : MdbGhost := ⟨[[tRw]], fun _ => none⟩
+/-- The MDB ghost at the second boot start: the root slot and the timeout-handler slot, two one-slot chains. -/
+def GR : MdbGhost := ⟨[[tRw], [tmoW]], fun _ => none⟩
 
 /-- **The ghost sets at the second boot start** (module docstring). -/
 def ZR : XSets :=
@@ -45,16 +45,18 @@ theorem memR_at {a : U64} {n : Nat} (hv : a.val = n) (h8 : n % 8 = 0) : bsL.mem 
 /-- `wordR` is 0 on the idle TCB's slots, the root TCB's slots but the root slot's two words, and the IRQ node. -/
 theorem wordR_zero {n : Nat}
     (h : (18446744071562072064 ≤ n ∧ n < 18446744071562072064 + 200) ∨
-      (18446744071562076160 + 8 ≤ n ∧ n < 18446744071562076160 + 200 ∧ n ≠ 18446744071562076160 + 24) ∨
+      (18446744071562076160 + 8 ≤ n ∧ n < 18446744071562076160 + 200 ∧ n ≠ 18446744071562076160 + 24 ∧
+        n ≠ 18446744071562076160 + 128 ∧ n ≠ 18446744071562076160 + 152) ∨
       (18446744071562100736 + 1248 ≤ n ∧ n < 18446744071562100736 + 5344)) : wordR n = 0#u64 :=
   wordR_zero_of (by omega)
 
 theorem eq_of_val'' {p q : U64} (h : p.val = q.val) : p = q := UScalar.eq_of_val_eq h
 
-/-- **The slots of `thR`**: the root slot `tRw` (cap `Thread tRw`, revocable, links 0), or four zero words (the
-null cap, links 0, not revocable, not first-badged). -/
+/-- **The slots of `thR`**: the root slot `tRw` (cap `Thread tRw`, revocable, links 0), the timeout-handler slot
+`tmoW` (cap `SchedContext scRw 7`, revocable, links 0), or four zero words (the null cap, links 0, not
+revocable, not first-badged). -/
 theorem slotR_cases {y : U64} (hy : IsSlot thR y) :
-    y = tRw ∨ (capV (bsL.mem sR) y = .Null ∧ prevOf (bsL.mem sR) y = 0#u64 ∧ nextOf (bsL.mem sR) y = 0#u64 ∧
+    y = tRw ∨ y = tmoW ∨ (capV (bsL.mem sR) y = .Null ∧ prevOf (bsL.mem sR) y = 0#u64 ∧ nextOf (bsL.mem sR) y = 0#u64 ∧
       revOf (bsL.mem sR) y = false ∧ fbOf (bsL.mem sR) y = false) := by
   obtain ⟨p, i, hi, rfl⟩ := hy
   have hv : (slotOf p i).val = p.val + 32 * i ∧ p.val % 8 = 0 ∧
@@ -77,7 +79,9 @@ theorem slotR_cases {y : U64} (hy : IsSlot thR y) :
   obtain ⟨hv, h8, hr⟩ := hv
   by_cases h0 : (slotOf p i).val = 18446744071562076160
   · left; exact eq_of_val'' (by rw [h0, tRw_val])
-  right
+  by_cases h4 : (slotOf p i).val = 18446744071562076288
+  · right; left; exact eq_of_val'' (by rw [h4, tmoW_val])
+  right; right
   have hw : ∀ k : U64, k.val < 32 → (wordOf (slotOf p i) k).val = p.val + 32 * i + k.val := fun k hk => by
     show (core.num.U64.wrapping_add (slotOf p i) k).val = _
     simp only [core.num.U64.wrapping_add_val_eq, hv]; simp [U64.size, U64.numBits]; omega
@@ -103,9 +107,16 @@ theorem slotR_cases {y : U64} (hy : IsSlot thR y) :
 theorem isSlot_R_root : IsSlot thR tRw :=
   ⟨tRw, 0, Or.inr ⟨thR_tR, by decide⟩, eq_of_val'' (by rw [slotOf_val (by rw [tRw_val]; omega), tRw_val])⟩
 
-/-- A slot of `thR` holding a non-null cap is the root slot. -/
-theorem slotR_nonnull {y : U64} (hy : IsSlot thR y) (hn : capV (bsL.mem sR) y ≠ .Null) : y = tRw :=
-  (slotR_cases hy).resolve_right fun h => hn h.1
+/-- The timeout-handler slot is a slot of `thR`. -/
+theorem isSlot_R_tmo : IsSlot thR tmoW :=
+  ⟨tRw, 4, Or.inr ⟨thR_tR, by decide⟩, eq_of_val'' (by rw [slotOf_val (by rw [tRw_val]; omega), tRw_val, tmoW_val])⟩
+
+/-- A slot of `thR` holding a non-null cap is the root slot or the timeout-handler slot. -/
+theorem slotR_nonnull {y : U64} (hy : IsSlot thR y) (hn : capV (bsL.mem sR) y ≠ .Null) : y = tRw ∨ y = tmoW := by
+  rcases slotR_cases hy with e | e | h
+  · exact Or.inl e
+  · exact Or.inr e
+  · exact absurd h.1 hn
 
 /-! ## The cheap fields -/
 
@@ -273,8 +284,9 @@ theorem ZR_intL : IntLayout ZR.th (bsL.ksb sR) where
 
 theorem ZR_ext : JExt (L := bsL) ZR.th sR where
   nat y hy := by
-    rcases slotR_cases hy with e | ⟨hn, -⟩
+    rcases slotR_cases hy with e | e | ⟨hn, -⟩
     · subst e; rw [capV_R_root]; trivial
+    · subst e; rw [capV_R_tmo]; trivial
     · rw [hn]; trivial
   vw t ht := by
     rcases ZR_thT t ht with e | e <;> subst e

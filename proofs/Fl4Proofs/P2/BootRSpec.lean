@@ -8,22 +8,29 @@ start (the only carriers of V13's `ybw` [J]) holds there. §43b's plan: **a seco
 `σR` is `σB` (P2/BootSpec, l4v `Init_A.X64_A.init_A_st` with the IRQ node relocated) with
 * the root TCB at `tRp = kernelBase + 0x2000` (free since `σB` moved the IRQ node to `kbB + 1248`):
   state `Running`, bound to `scRp`, priority / domain / MCP 0, no fault, no bound notification, no yield, IPC
-  buffer 0, `initArchTcb`; **its CSpace-root slot holds `threadCap tRp`**, every other slot the null cap;
+  buffer 0, `initArchTcb`; **its CSpace-root slot holds `threadCap tRp`, its timeout-handler slot
+  `schedContextCap scRp 0`**, every other slot the null cap;
 * the root SC at `scRp = kernelBase + 0x3000`: the idle SC's record (l4v `Init_A`'s idle SC, MCS) with
   `scTcb = some tRp` (refills `[(0, MAX_PERIOD), (MAX_PERIOD, 0)]`, budget `MAX_PERIOD`, `MIN_REFILLS`, round
   robin), size bits 0 as the idle SC's;
 * `curThread = tRp`, `curSc = scRp`; `isOriginalCap` the slots holding a non-null cap (`iocR`, as `iocB`);
   every other field `σB`'s (`idleThread` / `idleSc` the idle objects, empty queues, action `resumeCurThread`).
 
-**Why one cap** (not the "null caps allowed" of §43b): P3's spec invariant `SInvA.live` (`IfLiveT`, l4v
+**Why two caps** (not the "null caps allowed" of §43b): P3's spec invariant `SInvA.live` (`IfLiveT`, l4v
 `if_live_then_nonz_cap` at TCBs) asks a live thread (state `Running`) to be named by a thread cap in some slot. The
 thread cap sits in the thread's own CSpace-root slot: no spec invariant restricts that slot's cap kind (only
 `CnDom` for CNode caps, `VfhAll` for the fault handler), `SpecGlobS.irq` forbids it in an IRQ slot, and on FL4's
 side `LiveJ.slots` is then met by the cap itself (an in-use slot of `tRp` named by a `Thread tRp` cap of the MDB).
+The root SC is live too (`scTcb = some tRp`): P3's `SInvA.sl` (`ScLiveT`, l4v `if_live_then_nonz_cap` at SCs)
+asks an SC cap naming it, and `JAtZ.jcov` (`JCovD.h`) asks `HR`'s `sc 7` object at `scRp` to be covered by an MDB
+cap's range (gen 39 first try, one cap: both proved false, `uA_not_scLiveT_R` / `jcov_R_false` on branches
+`par/p3mc39-ua` / `-ub`). So **the timeout-handler slot holds `schedContextCap scRp 0`** (FL4 `SchedContext scRw 7`,
+`CapRel`'s relative size): no spec invariant restricts that slot's kind (`VfhAll` reads the fault handler only;
+the timeout path tests `isEpCap`).
 
 Proved here: the addresses (`tRp_eq`, `scRp_eq`, `tRp_val`-style numbers), `kheapR`'s lookups (`kheapR_tR`,
-`kheapR_scR`, `kheapR_of_ne`, **`kheapR_cases`**), **`capOpt_R`** (the one non-null cap of `σR`),
-`iocR_iff` (the original slot), `σR`'s fields.
+`kheapR_scR`, `kheapR_of_ne`, **`kheapR_cases`**), **`capOpt_R`** (the two non-null caps of `σR`),
+`iocR_iff` (the original slots), `σR`'s fields.
 
 No premise. No existing statement changed except the root import list.
 -/
@@ -52,7 +59,7 @@ def tcbR : Tcb :=
     tcbVtable := .nullCap,
     tcbIpcframe := .nullCap,
     tcbFaultHandler := .nullCap,
-    tcbTimeoutHandler := .nullCap,
+    tcbTimeoutHandler := .schedContextCap scRp 0,
     tcbEpt := .nullCap,
     tcbState := .running,
     tcbIpcBuffer := 0,
@@ -160,18 +167,26 @@ theorem σR_cur_ne : (σR (Z := Unit)).curThread ≠ (σR (Z := Unit)).idleThrea
 
 /-! ## The caps -/
 
-/-- The root TCB's slots: the CSpace-root slot holds `threadCap tRp`, every other cap is the null cap. -/
+/-- The root TCB's slots: the CSpace-root slot holds `threadCap tRp`, the timeout-handler slot `schedContextCap
+scRp 0`, every other cap is the null cap. -/
 theorem tcbR_map_some {c : CnodeIndex} {cap : Cap} (h : tcbCnodeMap tcbR c = some cap) :
-    cap = .nullCap ∨ (c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) := by
+    cap = .nullCap ∨ (c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) ∨
+      (c = tcbCnodeIndex 4 ∧ cap = .schedContextCap scRp 0) := by
   unfold tcbCnodeMap at h
   simp only [Function.update_apply] at h
   split_ifs at h <;> cases h
-  all_goals first | exact Or.inl rfl | exact Or.inr ⟨by assumption, rfl⟩
+  all_goals first | exact Or.inl rfl | exact Or.inr (Or.inl ⟨by assumption, rfl⟩) |
+    exact Or.inr (Or.inr ⟨by assumption, rfl⟩)
 
 theorem tcbR_root : tcbCnodeMap tcbR (tcbCnodeIndex 0) = some (.threadCap tRp) := by
   simp only [tcbCnodeMap, Function.update_apply]
   rw [if_neg (by decide), if_neg (by decide), if_neg (by decide), if_neg (by decide), if_neg (by decide),
     if_pos trivial]
+  rfl
+
+theorem tcbR_tmo : tcbCnodeMap tcbR (tcbCnodeIndex 4) = some (.schedContextCap scRp 0) := by
+  simp only [tcbCnodeMap, Function.update_apply]
+  rw [if_neg (by decide), if_pos trivial]
   rfl
 
 /-- `capOpt` at an object is its `capView`. -/
@@ -183,38 +198,43 @@ theorem capOpt_some (o : KernelObject) (c : CnodeIndex) :
     split_ifs <;> rfl
   | _ => rfl
 
-/-- **The one non-null cap of `σR`** (by object): every cap of `kheapR` is the null cap except `threadCap tRp` in
-the root thread's CSpace-root slot. -/
+/-- **The two non-null caps of `σR`** (by object): every cap of `kheapR` is the null cap except `threadCap tRp`
+in the root thread's CSpace-root slot and `schedContextCap scRp 0` in its timeout-handler slot. -/
 theorem capView_R {p : ObjRef} {o : KernelObject} (hp : kheapR p = some o) {c : CnodeIndex} {cap : Cap}
     (h : Fl4Proofs.P3.SInvU.capView o c = some cap) :
-    cap = .nullCap ∨ (p = tRp ∧ c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) := by
+    cap = .nullCap ∨ (p = tRp ∧ c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) ∨
+      (p = tRp ∧ c = tcbCnodeIndex 4 ∧ cap = .schedContextCap scRp 0) := by
   rcases kheapR_cases hp with ⟨e, he⟩ | ⟨e, he⟩ | ⟨e1, e2, he⟩
   · subst e he
     simp only [Fl4Proofs.P3.SInvU.capView] at h
-    rcases tcbR_map_some h with e | ⟨e1, e2⟩
+    rcases tcbR_map_some h with e | ⟨e1, e2⟩ | ⟨e1, e2⟩
     · exact Or.inl e
-    · exact Or.inr ⟨rfl, e1, e2⟩
+    · exact Or.inr (Or.inl ⟨rfl, e1, e2⟩)
+    · exact Or.inr (Or.inr ⟨rfl, e1, e2⟩)
   · subst e he
     simp [Fl4Proofs.P3.SInvU.capView] at h
   · exact Or.inl (Fl4Proofs.P3.SInvU.init_cv_B he h)
 
-/-- **The one non-null cap of `σR`** (`capOpt` form). -/
+/-- **The two non-null caps of `σR`** (`capOpt` form). -/
 theorem capOpt_R {p : ObjRef} {c : CnodeIndex} {cap : Cap} (h : Fl4Proofs.P3.capOpt (kheapR p) c = some cap) :
-    cap = .nullCap ∨ (p = tRp ∧ c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) := by
+    cap = .nullCap ∨ (p = tRp ∧ c = tcbCnodeIndex 0 ∧ cap = .threadCap tRp) ∨
+      (p = tRp ∧ c = tcbCnodeIndex 4 ∧ cap = .schedContextCap scRp 0) := by
   cases hp : kheapR p with
   | none => rw [hp] at h; cases h
   | some o => rw [hp, capOpt_some] at h; exact capView_R hp h
 
-/-- **The one non-null cap of `σR`** (`capAt` form). -/
+/-- **The two non-null caps of `σR`** (`capAt` form). -/
 theorem capAt_R {sl : CslotPtr} {cap : Cap} (h : Fl4Proofs.P3.SInvU.capAt (σR (Z := Unit)) sl = some cap) :
-    cap = .nullCap ∨ (sl = (tRp, tcbCnodeIndex 0) ∧ cap = .threadCap tRp) := by
+    cap = .nullCap ∨ (sl = (tRp, tcbCnodeIndex 0) ∧ cap = .threadCap tRp) ∨
+      (sl = (tRp, tcbCnodeIndex 4) ∧ cap = .schedContextCap scRp 0) := by
   obtain ⟨p, i⟩ := sl
   unfold Fl4Proofs.P3.SInvU.capAt at h
   split at h
   · rename_i o ho
-    rcases capView_R ho h with e | ⟨e1, e2, e3⟩
+    rcases capView_R ho h with e | ⟨e1, e2, e3⟩ | ⟨e1, e2, e3⟩
     · exact Or.inl e
-    · subst e1 e2; exact Or.inr ⟨rfl, e3⟩
+    · subst e1 e2; exact Or.inr (Or.inl ⟨rfl, e3⟩)
+    · subst e1 e2; exact Or.inr (Or.inr ⟨rfl, e3⟩)
   · cases h
 
 /-- The root thread's CSpace-root slot. -/
@@ -223,8 +243,16 @@ theorem capAt_R_root : Fl4Proofs.P3.SInvU.capAt (σR (Z := Unit)) (tRp, tcbCnode
   rw [kheapR_tR]
   exact tcbR_root
 
-/-- **The original slots of `σR`**: exactly the root thread's CSpace-root slot. -/
-theorem iocR_iff (sl : CslotPtr) : (σR (Z := Unit)).isOriginalCap sl = true ↔ sl = (tRp, tcbCnodeIndex 0) := by
+/-- The root thread's timeout-handler slot. -/
+theorem capAt_R_tmo :
+    Fl4Proofs.P3.SInvU.capAt (σR (Z := Unit)) (tRp, tcbCnodeIndex 4) = some (.schedContextCap scRp 0) := by
+  show (match kheapR tRp with | some o => Fl4Proofs.P3.SInvU.capView o _ | none => none) = _
+  rw [kheapR_tR]
+  exact tcbR_tmo
+
+/-- **The original slots of `σR`**: exactly the two slots of the root thread holding a cap. -/
+theorem iocR_iff (sl : CslotPtr) : (σR (Z := Unit)).isOriginalCap sl = true ↔
+    (sl = (tRp, tcbCnodeIndex 0) ∨ sl = (tRp, tcbCnodeIndex 4)) := by
   obtain ⟨a, b⟩ := sl
   show iocR (a, b) = true ↔ _
   unfold iocR
@@ -247,13 +275,13 @@ theorem iocR_iff (sl : CslotPtr) : (σR (Z := Unit)).isOriginalCap sl = true ↔
             exact hc
       | tcb t => exact hc
       | _ => simp [Fl4Spec.capOf] at hc
-    rcases capView_R ho hv with e | ⟨e1, e2, -⟩
+    rcases capView_R ho hv with e | ⟨e1, e2, -⟩ | ⟨e1, e2, -⟩
     · exact absurd e hn
-    · rw [e1, e2]
-  · rintro h
-    cases h
-    refine ⟨_, kheapR_tR, .threadCap tRp, ?_, by intro h; cases h⟩
-    exact tcbR_root
+    · rw [e1, e2]; exact Or.inl rfl
+    · rw [e1, e2]; exact Or.inr rfl
+  · rintro (h | h) <;> cases h
+    · exact ⟨_, kheapR_tR, .threadCap tRp, tcbR_root, by intro h; cases h⟩
+    · exact ⟨_, kheapR_tR, .schedContextCap scRp 0, tcbR_tmo, by intro h; cases h⟩
 
 end
 

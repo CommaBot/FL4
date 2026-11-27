@@ -9,7 +9,8 @@ thread `tRp` current, bound to the root SC `scRp`):
   objects);
   the root TCB `tRw`: slot 0 (`SLOT_CTABLE`) holds the thread cap of `tRw` (`CAP0 = 6 << 59 | (tRw & PTR_MASK)`,
   `CAP1 = 0`, `capability.rs` `encode`) with the MDB `NEXT` word `1 << 48` (revocable, no next, `obj.rs`
-  `set_next_flags`), `STATE = 1` (`TS_RUNNING`), `SC = scRw`; every other word 0 (priority, domain, MCP, affinity
+  `set_next_flags`); slot 4 (`SLOT_TIMEOUT_HANDLER`, `tmoW = tRw + 128`) the SC cap of `scRw`, size bits 7
+  (`CAP0 = 11 << 59 | 7 << 48 | (scRw & PTR_MASK)`), `NEXT = 1 << 48`; `STATE = 1` (`TS_RUNNING`), `SC = scRw`; every other word 0 (priority, domain, MCP, affinity
   (core 0), yield, debug links, queue flags);
   the root SC `scRw`: the idle SC's words with `TCB = tRw`: `REFILL_MAX = 2`, `REFILL_TAIL = 1`, refills
   `(0, MAX_PERIOD)`, `(MAX_PERIOD, 0)`, `CORE = 0`.
@@ -17,7 +18,8 @@ thread `tRp` current, bound to the root SC `scRp`):
   `DB` / `CsB` unchanged (`DR`, `CsR` are the same sets).
 
 Proved: `HR_cases`, **`heapR_ok`**, `thR_cases`, the store lookups (`memR_mem`, `sR_curW`, `sR_idleW`, `sR_cscW`,
-…), the cap of the root slot (**`capV_R_root`**: `capV (bsL.mem sR) tRw = .Thread tRw`, `revOf` true, links 0) and
+…), the caps of the root slot (**`capV_R_root`**: `capV (bsL.mem sR) tRw = .Thread tRw`, `revOf` true, links 0) and
+of the timeout-handler slot (**`capV_R_tmo`**: `.SchedContext scRw 7`) and
 **`jKern_R`**: P3's `JKern archT HR CsB DB thR sR σR`.
 
 No premise. No existing statement changed except the root import list.
@@ -40,11 +42,17 @@ def scRw : U64 := ⟨BitVec.ofNat 64 18446744071562080256⟩
 def capTRw : U64 := ⟨BitVec.ofNat 64 3459045986649776128⟩
 /-- The root slot's `NEXT` word: revocable (bit 48), no next. -/
 def revW : U64 := ⟨BitVec.ofNat 64 281474976710656⟩
+/-- The root TCB's timeout-handler slot (slot 4): `tRw + 128`. -/
+def tmoW : U64 := ⟨BitVec.ofNat 64 18446744071562076288⟩
+/-- The SC cap of `scRw` (size bits 7), first word: `11 << 59 | 7 << 48 | (scRw & 0xffff_ffff_ffff)`. -/
+def capSCw : U64 := ⟨BitVec.ofNat 64 6343320073003872256⟩
 
 theorem tRw_val : tRw.val = 18446744071562076160 := by
   show (BitVec.ofNat 64 18446744071562076160).toNat = _; decide
 theorem scRw_val : scRw.val = 18446744071562080256 := by
   show (BitVec.ofNat 64 18446744071562080256).toNat = _; decide
+theorem tmoW_val : tmoW.val = 18446744071562076288 := by
+  show (BitVec.ofNat 64 18446744071562076288).toNat = _; decide
 theorem tRw_bv : tRw.bv = tRp := rfl
 theorem scRw_bv : scRw.bv = scRp := rfl
 
@@ -54,6 +62,8 @@ def wordR (n : Nat) : U64 :=
   else if n = 18446744071562114328 then scRw
   else if n = 18446744071562076160 then capTRw
   else if n = 18446744071562076160 + 24 then revW
+  else if n = 18446744071562076160 + 128 then capSCw
+  else if n = 18446744071562076160 + 152 then revW
   else if n = 18446744071562076160 + 3328 then 1#u64
   else if n = 18446744071562076160 + 3464 then scRw
   else if n = 18446744071562080256 + 24 then tRw
@@ -73,10 +83,11 @@ theorem memR_mem {a : U64} (ha : Aligned a) : bsL.mem sR a = wordR a.val := BS.o
 theorem sR_ksb : bsL.ksb sR = kbB := rfl
 theorem sR_cpu : bsL.cpu sR = 0#u64 := rfl
 
-/-- `wordR` is `wordB` off its eleven new words. -/
+/-- `wordR` is `wordB` off its thirteen new words. -/
 theorem wordR_of {n : Nat}
     (hs : n ≠ 18446744071562114304 ∧ n ≠ 18446744071562114328 ∧ n ≠ 18446744071562076160 ∧
-      n ≠ 18446744071562076160 + 24 ∧ n ≠ 18446744071562076160 + 3328 ∧ n ≠ 18446744071562076160 + 3464 ∧
+      n ≠ 18446744071562076160 + 24 ∧ n ≠ 18446744071562076160 + 128 ∧ n ≠ 18446744071562076160 + 152 ∧
+      n ≠ 18446744071562076160 + 3328 ∧ n ≠ 18446744071562076160 + 3464 ∧
       n ≠ 18446744071562080256 + 24 ∧ n ≠ 18446744071562080256 + 72 ∧ n ≠ 18446744071562080256 + 88 ∧
       n ≠ 18446744071562080256 + 104 ∧ n ≠ 18446744071562080256 + 112) :
     wordR n = wordB n := by
@@ -85,6 +96,8 @@ theorem wordR_of {n : Nat}
     if_neg (show ¬ n = 18446744071562114328 by omega),
     if_neg (show ¬ n = 18446744071562076160 by omega),
     if_neg (show ¬ n = 18446744071562076160 + 24 by omega),
+    if_neg (show ¬ n = 18446744071562076160 + 128 by omega),
+    if_neg (show ¬ n = 18446744071562076160 + 152 by omega),
     if_neg (show ¬ n = 18446744071562076160 + 3328 by omega),
     if_neg (show ¬ n = 18446744071562076160 + 3464 by omega),
     if_neg (show ¬ n = 18446744071562080256 + 24 by omega),
@@ -92,7 +105,7 @@ theorem wordR_of {n : Nat}
     if_neg (show ¬ n = 18446744071562080256 + 88 by omega),
     if_neg (show ¬ (n = 18446744071562080256 + 104 ∨ n = 18446744071562080256 + 112) by omega)]
 
-/-- `wordR` is 0 off its 24 nonzero words. -/
+/-- `wordR` is 0 off its 26 nonzero words. -/
 theorem wordR_zero_of {n : Nat}
     (hs : n ≠ 18446744071562114304 ∧ n ≠ 18446744071562114312 ∧ n ≠ 18446744071562114328 ∧ n ≠ 18446744071562114336 ∧
     n ≠ 18446744071562100752 ∧ n ≠ 18446744071562100936 ∧ n ≠ 18446744071562100808 ∧ n ≠ 18446744071562100784 ∧
@@ -100,7 +113,8 @@ theorem wordR_zero_of {n : Nat}
     n ≠ 18446744071562096640 + 72 ∧ n ≠ 18446744071562096640 + 88 ∧ n ≠ 18446744071562096640 + 104 ∧
     n ≠ 18446744071562096640 + 112 ∧
     n ≠ 18446744071562076160 ∧
-      n ≠ 18446744071562076160 + 24 ∧ n ≠ 18446744071562076160 + 3328 ∧ n ≠ 18446744071562076160 + 3464 ∧
+      n ≠ 18446744071562076160 + 24 ∧ n ≠ 18446744071562076160 + 128 ∧ n ≠ 18446744071562076160 + 152 ∧
+      n ≠ 18446744071562076160 + 3328 ∧ n ≠ 18446744071562076160 + 3464 ∧
       n ≠ 18446744071562080256 + 24 ∧ n ≠ 18446744071562080256 + 72 ∧ n ≠ 18446744071562080256 + 88 ∧
       n ≠ 18446744071562080256 + 104 ∧ n ≠ 18446744071562080256 + 112) :
     wordR n = 0#u64 := by
@@ -211,6 +225,53 @@ theorem prevOf_R_root : prevOf (bsL.mem sR) tRw = 0#u64 := by
 theorem fbOf_R_root : fbOf (bsL.mem sR) tRw = false := by
   unfold fbOf; rw [memR_tRw24]; decide
 
+theorem tmoW_word8 : (wordOf tmoW 8#u64).val = 18446744071562076288 + 8 := by
+  show (core.num.U64.wrapping_add tmoW 8#u64).val = _
+  simp only [core.num.U64.wrapping_add_val_eq, tmoW_val]; simp [U64.size, U64.numBits]
+
+theorem tmoW_word16 : (wordOf tmoW 16#u64).val = 18446744071562076288 + 16 := by
+  show (core.num.U64.wrapping_add tmoW 16#u64).val = _
+  simp only [core.num.U64.wrapping_add_val_eq, tmoW_val]; simp [U64.size, U64.numBits]
+
+theorem tmoW_word24 : (wordOf tmoW 24#u64).val = 18446744071562076288 + 24 := by
+  show (core.num.U64.wrapping_add tmoW 24#u64).val = _
+  simp only [core.num.U64.wrapping_add_val_eq, tmoW_val]; simp [U64.size, U64.numBits]
+
+theorem memR_tmo0 : bsL.mem sR tmoW = capSCw := by
+  rw [memR_mem (by show _ % 8 = 0; rw [tmoW_val]), tmoW_val]
+  unfold wordR
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos (by omega)]
+
+theorem memR_tmo8 : bsL.mem sR (wordOf tmoW 8#u64) = 0#u64 := by
+  rw [memR_mem (by show _ % 8 = 0; rw [tmoW_word8]), tmoW_word8]; exact wordR_zero_of (by omega)
+
+theorem memR_tmo16 : bsL.mem sR (wordOf tmoW 16#u64) = 0#u64 := by
+  rw [memR_mem (by show _ % 8 = 0; rw [tmoW_word16]), tmoW_word16]; exact wordR_zero_of (by omega)
+
+theorem memR_tmo24 : bsL.mem sR (wordOf tmoW 24#u64) = revW := by
+  rw [memR_mem (by show _ % 8 = 0; rw [tmoW_word24]), tmoW_word24]
+  unfold wordR
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    if_pos (by omega)]
+
+/-- **The root TCB's timeout-handler slot holds the SC cap of the root SC** (size bits 7). -/
+theorem capV_R_tmo : capV (bsL.mem sR) tmoW = .SchedContext scRw 7#u64 := by
+  unfold capV
+  rw [memR_tmo0, memR_tmo8]
+  first | rfl | decide
+
+theorem revOf_R_tmo : revOf (bsL.mem sR) tmoW = true := by
+  unfold revOf; rw [memR_tmo24]; decide
+
+theorem nextOf_R_tmo : nextOf (bsL.mem sR) tmoW = 0#u64 := by
+  unfold nextOf; rw [memR_tmo24]; first | rfl | decide
+
+theorem prevOf_R_tmo : prevOf (bsL.mem sR) tmoW = 0#u64 := by
+  unfold prevOf; exact memR_tmo16
+
+theorem fbOf_R_tmo : fbOf (bsL.mem sR) tmoW = false := by
+  unfold fbOf; rw [memR_tmo24]; decide
+
 /-! ## The heaps -/
 
 /-- **P1's heap at the second boot start**: `HB` with the root TCB and the root SC. -/
@@ -309,11 +370,18 @@ theorem thR_in {p : U64} {k : ObjKind} (hp : thR p = some k) {b : Nat} (h1 : p.v
 theorem absSlot_R_root : AbsSlot thR (tRp, tcbCnodeIndex 0) :=
   ⟨tRw, rfl, Or.inr ⟨thR_tR, 0, by decide, rfl⟩⟩
 
+/-- The timeout-handler slot as an abstract slot of `thR`. -/
+theorem absSlot_R_tmo : AbsSlot thR (tRp, tcbCnodeIndex 4) :=
+  ⟨tRw, rfl, Or.inr ⟨thR_tR, 4, by decide, rfl⟩⟩
+
 /-! ## `JKern` at the second boot start -/
 
 /-- **P3's kernel-global placement at the second boot start** (`JKern`). -/
 theorem jKern_R : JKern (L := bsL) LocPlatM.archT HR CsB DB thR sR (σR (Z := Unit)) where
-  orig sl h := by rw [(iocR_iff sl).1 h]; exact absSlot_R_root
+  orig sl h := by
+    rcases (iocR_iff sl).1 h with e | e <;> rw [e]
+    · exact absSlot_R_root
+    · exact absSlot_R_tmo
   cur := by rw [sR_curW, tRw_bv]; rfl
   curT := by rw [sR_curW]; exact thR_tR
   act := by
