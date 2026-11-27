@@ -379,19 +379,6 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **FL4 end to end at P3 scope over W5's family, per-slot [J] residue shrunk** (module docstring):
-`serializable_fl4_localW5` with `StartP3W7` starts. -/
-theorem serializable_fl4_localW7 (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3W5 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3W7 st ar hA hm hSt a0) P s0 K0
-      Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_W (fun _ _ _ _ _ _ _ _ _ hCh hi =>
-    startAt_P3W5 st ar hA hm hSt a0 hCh (startP3W5_of_W7 st ar hA hm hSt a0 hi)) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3W5V st ar hA hm hSt a0 h0 hA0 hok.1 hok.2 hM0 hE hq
-
 end top
 
 end

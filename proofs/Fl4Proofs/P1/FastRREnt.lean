@@ -276,7 +276,6 @@ theorem RRReads.of_ent {T : Set U64} {X0 : S} {a : A} {t rptr ep u usc : U64}
     RRReads (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2 := by
   apply RRReads.of_entG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- `lookup_cap` of a cptr whose walk from the root found a slot. -/
 theorem lookup_cap_of_found {s : S} {t sl : U64} {root : capability.Cap} {i : U64} {found : cspace.Resolved}
     {c : capability.Cap}
@@ -347,7 +346,6 @@ theorem rrEnt_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat
     RREnt (L := L) T s t rptr ep u := by
   apply rrEnt_lkG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- `rrEnt_lk` with the cap typing from `EntryHyps0.recvOK` at an `XG` state. -/
 theorem rrEnt_ofG {ty : U64} [HfrRestart st ar ty] {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
@@ -365,7 +363,6 @@ theorem rrEnt_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → N
     (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
     RREnt (L := L) T s t rptr ep u := by
   apply rrEnt_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
-
 
 /-- **The ReplyRecv read bundle after the first batch** (m67): m66's `RRPre`
 with `RRReads2` (seven reads fewer) in place of `RRReads`. -/
@@ -401,7 +398,6 @@ def RRPre2G (ty : U64) (X0 : S) (a : A) : Prop :=
 abbrev RRPre2 (X0 : S) (a : A) : Prop :=
   RRPre2G (L := L) ar fl4_abi.consts.fault.UnknownSyscall X0 a
 
-
 /-- `RRPre` from `RRPre2` and `RREnt` at every accepted run's checks. -/
 theorem RRPre.of2G {ty : U64} [HfrRestart st ar ty] {T : Set U64} {X0 : S} {a : A}
     (hE : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
@@ -420,18 +416,12 @@ theorem RRPre.of2 {T : Set U64} {X0 : S} {a : A}
     (h : RRPre2 (L := L) ar X0 a) : RRPre (L := L) ar X0 a := by
   apply RRPre.of2G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- **`RRPreAt` with `RRPre2`**: the bundle at every dispatch state of the
 entry, seven reads fewer than m66's `RRPreAt`. -/
 def RRPreAt2G (ty : U64) (s : S) (a : A) : Prop :=
   ∀ t nx s1 s2 a2, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
     syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre2G (L := L) ar ty s2 a2
-
-/-- `RRPreAt2G` at an UnknownSyscall fault (pf1). -/
-abbrev RRPreAt2 (s : S) (a : A) : Prop :=
-  RRPreAt2G (L := L) ar fl4_abi.consts.fault.UnknownSyscall s a
-
 
 /-- **`RRPreAt` from `RRPreAt2`** at an entry state: the dispatch state is a
 `BXI` / `XG` state (`budget_ok.bxc` after `reg_entry`), so `rrEnt_of` gives
@@ -464,47 +454,12 @@ theorem RRPreAt.of2G {ty : U64} [HfrRestart st ar ty] {T Cs Ω U Sg Rp Scs Nt Ac
   exact RRPre.of2G ar (T := T) (fun t' rptr ep u usc et2 hrc hC => rrEnt_ofG ar E0 hx.1 (hx.2.2 rfl) et2 hrc hC)
     (hR t nx s1 s2 a2 et enx es1 hb)
 
-/-- `RRPreAt.of2G` at an UnknownSyscall fault (pf1). -/
-theorem RRPreAt.of2 {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
-    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hR : RRPreAt2 (L := L) ar s a) : RRPreAt (L := L) ar s a := by
-  apply RRPreAt.of2G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
-
-
 end
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
-
-/-- **Native kernel entries keep `EntryInv`, ReplyRecv half from seven reads
-fewer** (m67 (R-a') first batch): `entry_of7r` with `hRP : RRPreAt` replaced
-by `hRP : RRPreAt2` (`RRReads2`: `sch1`, `rt1`, `us1`, `run6`, `r0`, `ucn`,
-`ns15` derived from the P1 invariants at the dispatch state, `rrEnt_of`, and
-the run's writes, `RRReads.of_ent`).
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of7r2 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hAs : AsidOff (L := L) Ω Sg s)
-    (hNv : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FaultNvmPre (L := L) ar s a number)
-    (hRP : RRPreAt2 (L := L) ar s a) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
-  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
-      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
-    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  exact kernel_entry.entry_of7r hA GF hσ s a hP h hX hAs hNv (RRPreAt.of2 ar hA E0 hP h hRP)
 
 end
 

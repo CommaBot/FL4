@@ -750,7 +750,6 @@ variable {K : KLayout}
 variable {A : Type} (ar : machine.Arch A)
 variable {Locks : S → U64 → Prop} {m0 : U64 → U64} {n : I64} {found : U64 × U64} {Cs Ω Sg Ac : Set U64}
 
-
 set_option maxHeartbeats 4000000 in
 /-- **The accepted ReplyRecv arm's words (but the buffer's) are `NU`** (`rrAcc_wn` with `NU` facts). -/
 theorem rrAccNB_nuX (hA : P0.ArchTotal ar) {s : S} (F : SlOFX (st := st) ar K Locks m0 n found Cs Ω Sg Ac s)
@@ -1361,7 +1360,6 @@ theorem slStartX_of {K : KLayoutP} {μ : U64 → U64} {hK : RegionOKP K} {hU : U
         (((slSlotX st ar hA hm hSt a0).liftAt j K.toKLayoutV μ hK.base hU.base (h.toX E)).body σ a) ∅) j :=
   ⟨hv, _, ⟨h, σ, a, he, hc, hl, hμ, fun _ => rfl⟩, rfl⟩
 
-
 end slS
 
 /-! ## Part 5: the tops -/
@@ -1420,31 +1418,6 @@ theorem serializable_fl4_localVX7G (P : LocPlat st arI AR MR) {ιN : Type} (LN :
     exact irqStartX_at (hV hsf'.1) hsf'
   · have hsf' : SlStartX st ar hA hm hSt a0 K s.mem hK hU c hs q j := hsf
     exact slStartX_at (hV hsf'.1) hsf'
-
-/-- **FL4 end to end with every U1 slot in native epochs and the VM-exit, VM-timer, I/O-port, `TCB_SetTimer`,
-timer-interrupt and syscall slots in VM epochs** (module docstring): `serializable_fl4_localVX5` with `slSlotPX`
-added (record `SlPremX5`: U1's `cs` [P], `kd` [P] at `SlLX` states; start entry `SlEntV` [S] with U1's `SlQ`).
-No new [J], no [W]. -/
-theorem serializable_fl4_localVX7 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum
-        (fl4LocW11JA st ar hA hm hSt a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotU st ar hA hm)) (cmSlotU st ar hA hm)))
-        (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
-        (irqSlotPX st ar hA hm)) (slSlotPX st ar hA hm hSt a0))
-      (StartVX7 st ar hA hm hSt a0 (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU2 st ar hA hm)))
-      P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_fl4_localVX7G st ar hA hm hSt a0 P _ ?_ h0 hA0 hB hc0 hM0 h hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  rcases i with i | ((j | j) | j)
-  · exact startAt_U st ar hA hm hSt a0 P hIoa hC hE hsf
-  · exact delPteStart_at st ar hA hm hC hE hsf
-  · exact invStartU2_at st ar hA hm hC hE hsf
-  · exact cmStartU2_at st ar hA hm hC hE hsf
 
 end top
 

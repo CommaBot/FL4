@@ -216,38 +216,6 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 
-/-- **Native kernel entries keep `EntryInv`**, `entry_of6` with the fault
-half's premise `hFP : FastFaultPre` (facts at the states where
-`fastpath.fault` is entered) replaced by the ASID placement `AsidOff` [J] at
-the kernel entry state (m64 (d3'): `FastFaultPre.of_asid`; the handler cap
-typing and the receive buffer from Hyps4's `P3Place`), plus (m67) m62's
-`FaultNvm` [J] at the fast-path entry states (`hNv : FaultNvmPre`, which
-m64's version lost when it replaced `FastFaultOK`). `StoreExt` [P] and the
-ReplyRecv half `FastRRP` [P] unchanged; `entry_of6` kept.
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of7 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hAs : AsidOff (L := L) Ω Sg s)
-    (hNv : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FaultNvmPre (L := L) ar s a number)
-    (hRR : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
-      FastRRP (st := st) ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
-  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
-      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
-    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  exact kernel_entry.entry_of6 hA GF hσ s a hP h hX
-    (fun number hN => FastFaultPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs (hNv number hN)) hRR
-
 end
 
 end Fl4Proofs.P1

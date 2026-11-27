@@ -151,7 +151,6 @@ import Fl4Proofs.P1.QueueEntryGaps4
 import Fl4Proofs.P1.QueueDelVsX5
 import Fl4Proofs.P1.QueueDecTcbX5
 import Fl4Proofs.P1.QueueDecVsX5
-import Fl4Proofs.P1.QueueEntryGapsX5
 import Fl4Proofs.P1.QueueSuspendP1
 import Fl4Proofs.P1.QueueSorted
 import Fl4Proofs.P1.QueueXferFoot
@@ -1614,7 +1613,6 @@ import Fl4Proofs.P3.XTopJointKEntryVm
 import Fl4Proofs.P3.XTopJointKEntryU29S
 import Fl4Proofs.P3.XTopJointEntryInv29
 import Fl4Proofs.P3.XTopJointDomInv29
-import Fl4Proofs.P3.XTopJointKEntryU29I
 import Fl4Proofs.P1.LocalInv
 import Fl4Proofs.P3.XTopJointKEntryInvL
 import Fl4Proofs.P3.XTopJointRBuf

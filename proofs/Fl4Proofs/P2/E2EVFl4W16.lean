@@ -152,13 +152,6 @@ structure Fl4StepW16 (LP : PathsV ι)
   /-- Layout and chain change only at serial steps. -/
   keep : ¬ SerStep s c → K' = K ∧ Ch' = Ch
 
-/-- **A W16 step is an `Fl4StepW`**: `serV` by `vcpuLay_empty`. -/
-theorem Fl4StepW16.toW {LP : PathsV ι}
-    {SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s s' : Cfg U64 U64 U64 U64} {K K' : KLayoutV} {Ch Ch' : S → Prop} {c : U64}
-    (g : Fl4StepW16 LP SF P s K Ch c s' K' Ch') : Fl4StepW LP SF P s K Ch c s' K' Ch' :=
-  ⟨g.arm, g.start, g.serX, fun hs => vcpuLay_empty (g.serN hs), g.serG, g.keep⟩
-
 /-- **An execution of FL4, W16 form**: `ExecW` with `Fl4StepW16` steps. -/
 inductive ExecW16 (LP : PathsV ι)
     (SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop)
@@ -171,16 +164,6 @@ inductive ExecW16 (LP : PathsV ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutV} {Ch : S → Prop} {v a x : U64} :
       ExecW16 LP SF P s0 K0 Ch0 s K Ch → HwStepV K s v a x → ExecW16 LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- **An `ExecW16` is an `ExecW`.** -/
-theorem ExecW16.toW {LP : PathsV ι}
-    {SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV} {Ch0 Ch : S → Prop}
-    (h : ExecW16 LP SF P s0 K0 Ch0 s K Ch) : ExecW LP SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih => exact .step ih hS g.toW
-  | hw _ hH ih => exact .hw ih hH
-
 end exec
 
 /-! ## The top -/
@@ -190,17 +173,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end at P3 scope, W14 without `VcpuLay`** (module docstring): `serializable_fl4_localW14`'s
-statement over `ExecW16` (per serial step the layout convention `K'.vcpus = ∅` instead of the [J] `VcpuLay`). -/
-theorem serializable_fl4_localW16 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW16 ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3W14 st ar hA hm hSt a0 arI AR MR)
-      P s0 K0 Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localW14 st ar hA hm hSt a0 P hIoa h0 hA0 hB nv0 hM0 h.toW hq
 
 end top
 

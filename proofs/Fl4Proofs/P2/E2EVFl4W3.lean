@@ -455,77 +455,6 @@ variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (
 /-- The index type of `fl4LocW2`. -/
 abbrev Fl4IxW := Fl4Ix (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) (VxArg S ⊕ VtArg S)
 
-/-- **The start fact of `fl4LocW2`** (module docstring, table): per index, the slot's record and `GlueAt` [P] of
-the slot's path with the entry facts `Ent`. `Ch` is the current chain of P3 store states. -/
-def StartW2 (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : Fl4IxW (S := S) → Prop
-  | .vmF j => ∃ h : VmFPrem st ar j K m, GlueAt ((vmFSlot st ar hA hm).liftAt j K m hK hU h)
-      ((vmFSlot st ar hA hm).path j K m hK hU h).Pre c hs m q
-  | .vmR j => ∃ h : VmRPrem st ar j K m, GlueAt ((vmRSlot st ar hA hm).liftAt j K m hK hU h)
-      ((vmRSlot st ar hA hm).path j K m hK hU h).Pre c hs m q
-  | .io j => ∃ h : IoPremW2 st j K m, GlueAt ((ioSlotW2 st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => Ch σ ∧ j.Q K m σ) c hs m q
-  | .st j => ∃ h : StPremK2 st j K m, GlueAt ((stSlotW2 st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => Ch σ ∧ j.Q K m σ) c hs m q
-  | .irq j => ∃ h : IrqPremK2 st j K m, GlueAt ((irqSlotW2 st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => Ch σ) c hs m q
-  | .sl j => ∃ h : SlPremK st ar j K, GlueAt ((slSlotK st ar hA hSt hm a0).liftAt j K m hK hU h)
-      (fun σ : S => Ch σ ∧ Fl4Proofs.P2.PathObl.SlQ st ar j.Locks j.n j.found j.Cs j.Ω j.Sg j.Ac K.toKLayout m σ) c hs m q
-  | .vq (.inl j) => ∃ h : VxPrem st ar j K m, GlueAt ((vxSlot st ar hA hm).path j K m hK hU h)
-      (fun σ : S => Ch σ ∧ VxEntJ st j K m σ) c hs m q
-  | .vq (.inr j) => ∃ h : VtPremW st ar j K m, GlueAt ((vtSlotW st ar hA hm).path j K m hK hU h)
-      (fun σ : S => Ch σ ∧ VtEntJ st j K σ) c hs m q
-
-/-- **`StartAt` of `fl4LocW2`'s family from the start fact** (module docstring), given clause 7 on the chain. -/
-theorem startAt_W2 {Ch : S → Prop} {K : KLayoutV} (hCh : ∀ σ, Ch σ → SlJAt (L := L) K.toKLayout σ)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartW2 st ar hA hSt hm a0 Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocW2 st ar hA hSt hm a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q := by
-  cases i with
-  | vmF j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((vmFSlot st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotU.lift_eq _ _ h]
-    exact hG.startAt fun σ he _ => he
-  | vmR j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((vmRSlot st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotU.lift_eq _ _ h]
-    exact hG.startAt fun σ he _ => he
-  | io j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((ioSlotW2 st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotU.lift_eq _ _ h]
-    exact hG.startAt fun σ he _ => ⟨hCh σ he.1, he.2⟩
-  | st j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((stSlotW2 st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotU.lift_eq _ _ h]
-    exact hG.startAt fun σ he _ => ⟨hCh σ he.1, he.2⟩
-  | irq j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((irqSlotW2 st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotU.lift_eq _ _ h]
-    exact hG.startAt fun σ he hμ =>
-      ⟨hCh σ he, fun x hx hxu => hμ x hx fun hu => hxu (mem_userV.2 (Or.inl hu))⟩
-  | sl j =>
-    obtain ⟨h, hG⟩ := h
-    show StartAt ((slSlotK st ar hA hSt hm a0).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-    rw [SlotC.lift_eq _ _ h]
-    exact hG.startAt fun σ he _ => ⟨hCh σ he.1, he.2⟩
-  | vq j =>
-    cases j with
-    | inl j =>
-      obtain ⟨h, hG⟩ := h
-      show StartAt ((vxSlot st ar hA hm).fam (fl4Dflt st ar hm) j K m hK hU) c hs m q
-      rw [SlotN.fam_pos _ _ h]
-      exact hG.startAt fun σ he _ => he.2.pre st (hCh σ he.1)
-    | inr j =>
-      obtain ⟨h, hG⟩ := h
-      show StartAt ((vtSlotW st ar hA hm).fam (fl4Dflt st ar hm) j K m hK hU) c hs m q
-      rw [SlotN.fam_pos _ _ h]
-      exact hG.startAt fun σ he _ => he.2.pre st (hCh σ he.1)
-
 end start
 
 /-! ## 5. Executions with the glue premises -/
@@ -627,21 +556,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end over `fl4LocW2`, `Fl4StepV.ser` / `start` derived** (module docstring): every `ExecW` whose
-starts are `StartW2` facts and which reaches a state with no local path in progress is serializable. Premises: the
-boot ghost `SerExitW` [P] with `VcpuLay` [J] and `MapsV`, `Init` / `ArmInv`, `loc_chain_all`'s platform (`P`),
-per step `Fl4StepW` (`arm` [P], `StartW2` with `GlueAt` [P], `SerExitW` [P], `VcpuLay` [J], `ExitGhostV` [P]),
-`HwStepV` [P]. -/
-theorem serializable_fl4_localW3 (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (hV0 : VcpuLay L K0)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocW2 st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) (StartW2 st ar hA hSt hm a0) P s0 K0 Ch0
-      s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_W (fun _ _ _ _ _ _ _ _ _ hCh hi => startAt_W2 st ar hA hSt hm a0 hCh hi) hB h).1
-  have hok := serExitW_ok hB hV0
-  exact serializable_fl4_localW2 st ar hA hSt hm a0 h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

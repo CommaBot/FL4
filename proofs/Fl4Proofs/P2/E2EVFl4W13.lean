@@ -338,18 +338,6 @@ theorem slJAtYB_of {Kl : OwnMap.KLayout} {s : S} {A' : Type} {arI : machine.Arch
     (hY : Fl4Proofs.P3.SInv.YieldBlockS σ) : SlJAtYB st Kl s :=
   ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B, hY⟩
 
-/-- **The bundle at a YieldBlock state of the chain** (`SlJAtYB` at the chain's layout): `JReachSt.atSt'` gives
-`JAtZ` of its spec state at the chain's typed heap / slots / user words / cores, `SInvX`'s `cr` the resume action. -/
-theorem _root_.Fl4Proofs.P2.PathObl.ChainYB.bun {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} (hnd : Fl4Spec.numDomains = 1) {Kl : OwnMap.KLayout} {Ch : S → Prop}
-    {s : S} (h : ChainYB (L := L) arI AR MR Kl Ch s) : SlJAtYB st Kl s := by
-  obtain ⟨k, Z, H, Cx, nc, rfl, hn, -, a, τ, hR, hY, -⟩ := h
-  obtain ⟨Z', Ac, Lst, D, hth, hB, hk', J, -⟩ := hR.atSt' (locKeepSt_st _ _ _ _ _)
-  obtain ⟨-, -, -, -, -, -, -, hX, -⟩ := Fl4Proofs.P3.SInvR.G5.jreach_invU3 hnd hR.reach.1
-  have e : OwnMap.layoutJ Z' H (L.ksb s) nc = OwnMap.layoutJ Z H k nc := by
-    unfold OwnMap.layoutJ; rw [hth, hB, hk']
-  exact ⟨A3, arI, AR, Z', Cx, Ac, Lst, D, a, τ, ⟨J, e, hn, hX.cr.2⟩, hY⟩
-
 /-- **`SlQ` from `SlQY` at a state with a YieldBlock bundle** (`SlPreBY.toBY`). -/
 theorem SlQY.toQ (hA : P0.ArchTotal ar) {Locks : S → U64 → Prop} {n : I64} {found : U64 × U64}
     {Cs Ω Sg Ac : Set U64} {Kl : OwnMap.KLayout} {m : U64 → U64} {s : S} (hB : SlJAtYB st Kl s)
@@ -369,11 +357,6 @@ structure VmFEntJ13 {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3
     FaultChecks st s1 (L.curW s1) ptr badge dest r → i.Locks s ptr ∧ i.Locks s r
   /-- [P] -/
   gl : VmGlue st ar i.Locks s
-
-theorem VmFEntJ13.toJ12 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmFArg S} {K : KLayoutV} {s : S}
-    (E : VmFEntJ13 st ar arI AR MR i K s) (yb : SlJAtYB st K.toKLayout s) : VmFEntJ12 st ar arI AR MR i K s :=
-  ⟨E.nv, E.ix, E.hct, E.lk, SlJAtYB.toY st yb, E.gl⟩
 
 /-- **vmR's start entry facts**: `VmREntJ11` without `ry` [J] (now from the start state's `ChainYB`). -/
 structure VmREntJ13 {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop)
@@ -422,11 +405,6 @@ theorem SerExitWYB.base {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Pr
     ∃ σe, ChainYB (L := L) arI AR MR K.toKLayout Ch σe :=
   let ⟨σe, _, h2⟩ := h.chainOf; ⟨σe, h2⟩
 
-theorem serExitWYB_ok {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitWYB P K Ch)
-    (hV : VcpuLay L K) : RegionOKV K ∧ UserOKV K := by
-  obtain ⟨σe, ⟨Z, H, Cx, nc, -, -, -, hC, hσ⟩, -⟩ := h.chainOf
-  exact ⟨regionOKV_of_JAtZ hC.hK (hC.bun σe hσ) hV.1 hV.2, ⟨hC.hU⟩⟩
-
 variable {ι : Type}
 
 /-- **`Fl4StepW` with the serial exit at a YieldBlock exit** (`serX` gives `SerExitWYB`). -/
@@ -460,31 +438,6 @@ inductive ExecWYB (LP : PathsV ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutV} {Ch : S → Prop} {v a x : U64} :
       ExecWYB LP SF P s0 K0 Ch0 s K Ch → HwStepV K s v a x → ExecWYB LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- **An `ExecWYB` is an `ExecV`** (`execV_of_WC`'s proof; the start callback gets the current `ChainOf`). -/
-theorem execV_of_WYB {LP : PathsV ι}
-    {SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) → SF Ch K m hK hU c hs q i →
-        StartAt (LP i K m hK hU) c hs m q)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV} {Ch0 Ch : S → Prop}
-    (hB : SerExitWYB P K0 Ch0) (h : ExecWYB LP SF P s0 K0 Ch0 s K Ch) :
-    ExecV LP s0 K0 s K ∧ SerExitWYB P K Ch := by
-  induction h with
-  | refl => exact ⟨.refl, hB⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX⟩ := ih
-    refine ⟨.step hE hS ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩, ?_⟩
-    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-      obtain ⟨σe, hC, -⟩ := hX.chainOf
-      exact ⟨i, hSF _ _ _ _ _ _ _ _ i ⟨σe, hC⟩ hi⟩
-    · have hok := serExitWYB_ok (g.serX hs) (g.serV hs)
-      exact ⟨hok.1, hok.2, (g.serG hs).maps⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-  | hw _ hH ih => exact ⟨.hw ih.1 hH, ih.2⟩
-
 end exec
 
 section start
@@ -493,44 +446,7 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The start fact of `fl4LocP3W6`, vmF / vmR at `VmFEntJ13` / `VmREntJ13`** (module docstring, item 4). -/
-def StartP3W13 (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : Fl4IxW (S := S) → Prop
-  | .vmF j => ∃ h : VmFPrem st ar j K m, GlueAt ((vmFSlot st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => ChainYB (L := L) arI AR MR K.toKLayout Ch σ ∧ VmFEntJ13 st ar arI AR MR j K σ) c hs m q
-  | .vmR j => ∃ h : VmRPremP3 st ar j K m, GlueAt ((vmRSlotP3 st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => ChainYB (L := L) arI AR MR K.toKLayout Ch σ ∧ VmREntJ13 st arI AR MR j (userV K) σ) c hs m q
-  | .sl j => ∃ h : (slSlotP3W6 st ar hA hm hSt a0).Prem j K m,
-      GlueAt ((slSlotP3W6 st ar hA hm hSt a0).liftAt j K m hK hU h)
-      (fun σ : S => ChainYB (L := L) arI AR MR K.toKLayout Ch σ ∧
-        SlQY st ar j.Locks j.n j.found j.Cs j.Ω j.Sg j.Ac K.toKLayout m σ) c hs m q
-  | i => StartP3W12 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i
-
 variable {arI AR MR}
-
-/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W13`**, given the current chain. -/
-theorem startAt_P3W13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartP3W13 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q := by
-  cases i with
-  | vmF j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vmF j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1.ch, he.2.toJ12 st ar (he.1.bun st P.nd)⟩⟩
-  | vmR j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vmR j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1.ch, he.2.toJ11 st ar hA (he.1.bun st P.nd)⟩⟩
-  | io j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .io j) h
-  | st j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .st j) h
-  | irq j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .irq j) h
-  | sl j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .sl j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1.ch, SlQY.toQ st ar hA (he.1.bun st P.nd) he.2⟩⟩
-  | vq j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vq j) h
 
 end start
 
@@ -539,19 +455,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end at P3 scope over W6's family, both VM slots' `YIELD_TO` facts from YieldBlock** (module
-docstring): `serializable_fl4_localW12`'s statement with `StartP3W13` starts. -/
-theorem serializable_fl4_localW13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitWYB P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecWYB ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3W13 st ar hA hm hSt a0 arI AR MR)
-      P s0 K0 Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_WYB (fun _ _ _ _ _ _ _ _ _ hC hi => startAt_P3W13 st ar hA hm hSt a0 P hIoa hC hi) hB h).1
-  have hok := serExitWYB_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3W6V st ar hA hm hSt a0 h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

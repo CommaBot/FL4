@@ -148,32 +148,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **FL4 end to end with every slot, the start facts at the serial-prefix memory** (module docstring):
-`serializable_fl4_localU2` on executions `ExecWPRH`, whose start facts (`StartV2`, unchanged) are asked at the
-serial-prefix memory `H` instead of the physical memory. Covers executions where bodies overlap arbitrarily
-(a core may start while another core's body has left the physical memory outside P3's invariant). -/
-theorem serializable_fl4_localU4 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {H : U64 → U64} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRH (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K H Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  refine serializable_e2ePH _ h0 hA0 hK0 hU0 hM0 (execPH_of_WPRHG ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  have nv : K.vcpus = ∅ := by
-    obtain ⟨_, ⟨nv, _⟩, _⟩ := hE
-    exact nv
-  rcases i with i | ((j | j) | j)
-  · exact startAt_U st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE (startU_of_U2 st ar hA a0 hC nv hsf)
-  · exact delPteStart_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact invStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact cmStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-
 end top
 
 end

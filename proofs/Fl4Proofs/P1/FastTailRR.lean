@@ -263,7 +263,6 @@ theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
     (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5 (L := L) ar X0 a := by
   apply rrPre5_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- **`RRPreAt5` (m67's `nvm`) at an entry state** with `EntryInv`, under
 m68's ring-sum bound `RRSumAt` [J] (the dispatch states' invariants from
 `budget_ok.bxc`, the placement from `rrPl_of`, as `RRPreAt2.of5`). -/
@@ -297,50 +296,12 @@ theorem RRPreAt5.of_invG {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : 
     (hC : RRChecksG st ar ty s2 a2 t' rptr ep u usc) => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
   exact rrPre5_ofG ar hx.1 hPl (hSum t nx s1 s2 a2 et enx es1 hb) hA
 
-/-- `RRPreAt5.of_invG` at an UnknownSyscall fault (pf1). -/
-theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
-    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5 (L := L) ar s a := by
-  apply RRPreAt5.of_invG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
-
-
 end
 
 section top
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
-
-/-- **Native kernel entries keep `EntryInv`, the fast paths' end-state reads
-derived** (m70): `entry_of9` without m67's `hNv : FaultNvmPre` [J] and
-`hRP : RRPreAt5` [J] (`FaultNvmPre.of_asid`, `RRPreAt5.of_inv`). Left:
-`StoreExt` [P], `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J].
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of10 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hAs : AsidOff (L := L) Ω Sg s)
-    (hSum : RRSumAt (L := L) ar Scs s a)
-    (hCn : CnOffAt (L := L) ar T Cs Sg s a) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
-  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
-      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
-    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  have hNt : ∀ n ∈ Nt, H n = some .ntfn := (GF _ hσ).2.2.2.2.2
-  exact kernel_entry.entry_of9 hA GF hσ s a hP h hX hAs
-    (fun _ _ => FaultNvmPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs) hSum hCn
-    (RRPreAt5.of_inv ar hA E0 hNt hP h hSum)
 
 end top
 

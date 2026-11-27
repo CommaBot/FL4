@@ -153,7 +153,6 @@ theorem rr_remove_foot {Rp : Set U64} {s s' : S} {a a' : A} {r u : U64}
     obtain ⟨rfl, -⟩ := Prod.mk.inj (ok_inj_ff h).symm
     exact key _ _ s1 s2 s3 s4 _ rfl (fun h' => absurd h' hc) rfl e1 e2 e3 e4 e5
 
-
 /-- **The run's footprint up to `X8`** (module docstring). -/
 def RRW (T Rp : Set U64) (X0 : S) (t u rptr usc : U64) (sb : Nat) (b : U64) : Prop :=
   b = stA t ∨ b = stA u ∨ b = faultA u ∨ XferRegW T ∅ b ∨ RpLW Rp b ∨ b = rTcbA rptr ∨ InRing usc sb b ∨
@@ -252,7 +251,6 @@ theorem finKeep_rrw {T Cs Ω Rp : Set U64} {X0 Y : S} {t u rptr usc : U64} {sb :
     · rw [e, vA] at oN; omega
 
 end
-
 
 /-! ## The ring of an SC read through an agreement on its words -/
 
@@ -558,9 +556,7 @@ theorem rr_x3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
     (L.refill X0 usc (L.rhead X0 usc)).amount.val ≤ (L.refill X3 usc (L.rhead X3 usc)).amount.val := by
   apply rr_x3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 end x3
-
 
 /-! ## Reads of TCB registers / fault words; endpoint words against the footprint -/
 
@@ -638,7 +634,6 @@ theorem RRPl.ks {X0 : S} {t rptr ep u usc : U64}
   refine ⟨⟨hm, fun h => nS _ (P.rpS _ h) rfl⟩, fun e => nS _ P.rtS e.symm, fun hin => ?_⟩
   exact nS _ (P.scSg _ (P.hΩ _ hm).1 hin.inSC) rfl
 
-
 set_option maxHeartbeats 1600000 in
 /-- **`RRR3` at `X3`** (`u`'s fault type and `t`'s label, read before the
 restart flag is known): the words are TCB words below the state word, not
@@ -708,7 +703,6 @@ theorem rr_r3 {X0 X1 X2 X3 : S} {a a1 : A} {t rptr ep u usc : U64} {b9 : Bool}
       if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
     else ok X2) = ok X3) : RRR3 (st := st) X3 t u := by
   apply rr_r3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
-
 
 set_option maxHeartbeats 3200000 in
 /-- **The run from `X0` to `X8`**: the reads `RRR3` at `X3`, the Arch value
@@ -1082,9 +1076,7 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
     obj.Ep.state st ep X8 = ok obj.EP_IDLE := by
   apply rr_x8G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 end x8
-
 
 /-! ## From `X8` to `X15`: the receive's explicit writes -/
 
@@ -1361,9 +1353,7 @@ theorem rr_x15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {a : A} {t rptr ep u usc :
     sched.dequeue st X15 u = ok X15 := by
   apply rr_x15G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 end x15
-
 
 /-! ## `RRPl` from the P1 invariants at the dispatch state -/
 
@@ -1502,7 +1492,6 @@ theorem rrPl_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
     RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
   apply rrPl_lkG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- `rrPl_lk` with the cap typing from `EntryHyps0.recvOK` at an `XG` state. -/
 theorem rrPl_ofG {ty : U64} [HfrRestart st ar ty] {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
@@ -1521,9 +1510,7 @@ theorem rrPl_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Na
     RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
   apply rrPl_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 end plof
-
 
 /-! ## The assembly: `RRReads2` from `RRPl`, the ring-sum bound and two reads -/
 
@@ -1604,7 +1591,6 @@ theorem RRReads2.of_pl {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : 
     RRReads2 (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2 := by
   apply RRReads2.of_plG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- **The ReplyRecv read bundle after m68** at a dispatch state: only
 `RRReads4` (`lk8`, `nvm`) along every accepted run. -/
 def RRPre3G (ty : U64) (X0 : S) (a : A) : Prop :=
@@ -1638,7 +1624,6 @@ def RRPre3G (ty : U64) (X0 : S) (a : A) : Prop :=
 abbrev RRPre3 (X0 : S) (a : A) : Prop :=
   RRPre3G (L := L) ar fl4_abi.consts.fault.UnknownSyscall X0 a
 
-
 /-- m67's `RRPre2` from `RRPre3`, `RRPl` at every accepted run's checks and
 the ring-sum bound `RRSum` at the dispatch state. -/
 theorem RRPre2.of3G {ty : U64} [HfrRestart st ar ty] {X0 : S} {a : A}
@@ -1661,17 +1646,11 @@ theorem RRPre2.of3 {X0 : S} {a : A}
     (hS : RRSum (L := L) Scs X0) (h : RRPre3 (L := L) ar X0 a) : RRPre2 (L := L) ar X0 a := by
   apply RRPre2.of3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
 
-
 /-- `RRPre3` at every dispatch state of the entry. -/
 def RRPreAt3G (ty : U64) (s : S) (a : A) : Prop :=
   ∀ t nx s1 s2 a2, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
     syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRPre3G (L := L) ar ty s2 a2
-
-/-- `RRPreAt3G` at an UnknownSyscall fault (pf1). -/
-abbrev RRPreAt3 (s : S) (a : A) : Prop :=
-  RRPreAt3G (L := L) ar fl4_abi.consts.fault.UnknownSyscall s a
-
 
 /-- **`RRSumAt` [J]** (l4v `valid_refills` / `refills_sum`; P3 `SInvR.RV`):
 m65's `RRSum` at every dispatch state of the entry (after the `FAULT_IP`
@@ -1687,80 +1666,12 @@ def RRSumAt (Scs : Set U64) (s : S) (a : A) : Prop :=
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
     syscall.budget_ok st ar s1 a = ok (true, s2, a2) → RRSum (L := L) Scs s2
 
-/-- **`RRPreAt2` from `RRPreAt3` and `RRSumAt`** at an entry state (the
-dispatch state is a `BXI` / `XG` state, so `rrPl_of` gives `RRPl` there). -/
-theorem RRPreAt2.of3G {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
-    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) (hR : RRPreAt3G (L := L) ar ty s a) : RRPreAt2G (L := L) ar ty s a := by
-  intro t nx s1 s2 a2 et enx es1 hb
-  have h0 := h.1.choose_spec.choose_spec
-  have et' : t = L.curW s := by
-    rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
-  have htT : t ∈ T := by rw [et']; exact h0.curT
-  have h1 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s1 := by
-    have := reg_entry (r := layout.reg.FAULT_IP) (v := core.num.U64.wrapping_sub nx 2#u64) h htT
-      (by simp [layout.reg.FAULT_IP])
-    rw [es1, WP.spec_ok] at this; exact this
-  have hW := obj.Tcb.set_reg.wrK (L := L) s t layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64)
-    (h0.tcbs t htT) (by simp [layout.reg.FAULT_IP])
-  rw [es1, WP.spec_ok] at hW
-  obtain ⟨K, hK, e1⟩ := hW
-  have hal : Aligned (core.num.U64.wrapping_add (L.curW s) K) := by
-    rw [← et']; exact field_aligned (h0.tcbs t htT)
-      (by rw [hK]; simp [layout.reg.FAULT_IP]) (by rw [hK]; simp [layout.reg.FAULT_IP])
-  have e1' : s1 = L.wr s (core.num.U64.wrapping_add (L.curW s) K) (core.num.U64.wrapping_sub nx 2#u64) := by
-    rw [e1, et']
-  have he1 : EntAt st P3Ok s1 := ⟨s, hP, Ent.prefix hK hal e1' (WritesIn.refl _ _)⟩
-  have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
-  rw [hb, WP.spec_ok] at hx
-  exact RRPre2.of3G ar (fun t' rptr ep u usc et2 hrc hC => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC)
-    (hSum t nx s1 s2 a2 et enx es1 hb) (hR t nx s1 s2 a2 et enx es1 hb)
-
-/-- `RRPreAt2.of3G` at an UnknownSyscall fault (pf1). -/
-theorem RRPreAt2.of3 {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
-    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) (hR : RRPreAt3 (L := L) ar s a) : RRPreAt2 (L := L) ar s a := by
-  apply RRPreAt2.of3G (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
-
-
 end asm
 
 section top
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
-
-/-- **Native kernel entries keep `EntryInv`, ReplyRecv half from two reads**
-(m68): `entry_of7r2` with `hRP : RRPreAt2` (m67, 22 reads) replaced by
-`hRP : RRPreAt3` (the two cap lookups `lk8` and m67's `nvm`) and the ring-sum
-bound `hSum : RRSumAt` [J] at the dispatch states.
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of8 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hAs : AsidOff (L := L) Ω Sg s)
-    (hNv : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FaultNvmPre (L := L) ar s a number)
-    (hSum : RRSumAt (L := L) ar Scs s a)
-    (hRP : RRPreAt3 (L := L) ar s a) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
-  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
-      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
-    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  have hNt : ∀ n ∈ Nt, H n = some .ntfn := (GF _ hσ).2.2.2.2.2
-  exact kernel_entry.entry_of7r2 hA GF hσ s a hP h hX hAs hNv (RRPreAt2.of3 ar hA E0 hNt hP h hSum hRP)
 
 end top
 

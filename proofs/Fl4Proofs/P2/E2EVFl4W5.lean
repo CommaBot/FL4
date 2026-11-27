@@ -84,7 +84,6 @@ theorem slot_rdVU (hK : RegionOKV K) {s : S} (hT : TcbPlaced T) (hSL : SlotLayV 
   obtain ⟨p2, q2, -⟩ := hSL y hy 40#u64 (Or.inr (by simp))
   exact ⟨⟨r1, hL.nu (by rw [e1, q1]; intro e; cases e)⟩, ⟨r2, hL.nu (by rw [e2, q2]; intro e; cases e)⟩⟩
 
-
 /-- **`vtimer_dec_own` on the user-free read set `VexitRSU`** (module docstring): `hDU` of `vtimer_hro`. -/
 theorem vtimer_dec_ownU (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hVU : VcpuNU K) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s s' : S} {a a' : A} {irq n : U64} {p : localtimer.TimerIrqPlan}
@@ -115,8 +114,6 @@ theorem vtimer_dec_ownU (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hVU : VcpuNU 
       obtain ⟨q1, q2⟩ := ntfn_tail_rd (lk := lk s) hK hI hL E.ntw E.curAff hn
       exact ⟨⟨q1, Or.inr q2⟩, ntfn_tail_nu hI hL E.ntw hn⟩)
     (Or.inl rfl) (Or.inr rfl) h
-
-
 
 variable {A : Type} (ar : machine.Arch A) {lk : S → U64 → Prop}
 
@@ -162,7 +159,6 @@ theorem vtimer_acc_fnw_ownU (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hVU : Vcp
     (E.vfar hv0) (fun hn => E.nfar n hbn hn)
     (fun hne hb0 => pending_not_sad hK hE hv0 hne hb0)
     hq hNW h
-
 
 set_option maxHeartbeats 16000000 in
 /-- **`vtimer_acc_fwk_own` on `VexitRSU`** (module docstring): the waking half of `hFU`. -/
@@ -258,7 +254,6 @@ theorem vtimer_acc_fwk_ownU (hA : P0.ArchTotal ar) (hK : RegionOKV K) (hVU : Vcp
       fun lo hlo hne => ⟨⟨((hE.tab hi hhi).2 lo hlo hne).1, Or.inr (rpermV_of_own ((hE.tab hi hhi).2 lo hlo hne).2.2
         (rperm_none ((hE.tab hi hhi).2 lo hlo hne).2.1 _))⟩, (hTU.tabU hi hhi).2 lo hlo hne⟩⟩)
     hq hWk h
-
 
 end ownU
 end Fl4Proofs.P2
@@ -395,18 +390,6 @@ theorem serializable_fl4_localP3W5V {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayout
     (h : ExecV ((fl4LocP3W5 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
     RunAll s.log s0.mem s.mem :=
   serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
-
-/-- **FL4 end to end, P3 scope, glue premises named, start entry facts shrunk, vt's `ro` discharged** (module
-docstring): `serializable_fl4_localW4` over `fl4LocP3W5` with `StartP3W5` starts. -/
-theorem serializable_fl4_localW5 (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3W5 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3W5 st ar hA hm hSt a0) P s0 K0
-      Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_W (fun _ _ _ _ _ _ _ _ _ hCh hi => startAt_P3W5 st ar hA hm hSt a0 hCh hi) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3W5V st ar hA hm hSt a0 h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

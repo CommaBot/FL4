@@ -350,23 +350,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **FL4 end to end with the page walker's A/D writes to every paging word of the epoch, over U2's family**
-(module docstring): `serializable_fl4_localU3b_ofDI` with delPte's and the no-PTE CNodeDelete's `hIns` discharged
-(`insA_delR`, `insA_invR`). Premises: U2's — `P` (the platform), [P] `hIoa`, `h0`, `hA0`, `hB`, `hc0`, `hM0`, the
-execution `h`, `hq` — and [P] `MmuAD` (the walker's locked A/D `|=` on present paging entries, in `ExecU3b`'s
-`mmu` step). -/
-theorem serializable_fl4_localU3b (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecU3b (famU2 st ar hA a0) (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU3b_ofDI st ar hA a0 P hIoa
-    (fun _ _ _ _ _ _ _ _ j hb J hM hP => insA_delR st ar hA (masksWr_plain st) j hb J hM hP)
-    (fun _ _ _ _ _ _ _ _ j hb J hM hP => insA_invR st ar hA (masksWr_plain st) j hb J hM hP)
-    h0 hA0 hB hc0 hM0 h hq
-
 end top
 
 end

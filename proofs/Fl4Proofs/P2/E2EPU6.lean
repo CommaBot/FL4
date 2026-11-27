@@ -241,10 +241,6 @@ identity (`vPte_of_eq`). -/
 def VPte (K : KLayoutP) (c : U64) (ρ : U64 → U64) : Prop :=
   EpochPte K ρ → EpochPte K (CoreView.view K.toKLayout c ρ)
 
-theorem vPte_of_eq {K : KLayoutP} {c : U64} {ρ : U64 → U64} (h : CoreView.view K.toKLayout c ρ = ρ) :
-    VPte K c ρ := by
-  intro hE; rw [h]; exact hE
-
 /-- **[J] The read premise at one start** (module docstring): where core `c`'s view of `ρ` is not `ρ`, the body
 that a start of path `i` at the view gives is `Safe` at the physical memory. Justification: DESIGN §7. A local path
 declines on a thread's `AFFINITY` before touching another core's thread, and at the physical memory the program
@@ -274,12 +270,6 @@ theorem vSafe_of_viewSafe {ι : Type} {LP : PathsP ι} (hF : ViewSafe LP) {s : C
   intro hv hP
   rw [hM.own, hM.cls, hM.ko] at hV ⊢
   exact hF i K hK hU c _ ρ s.mem k hv hV hP
-
-/-- Where the view is the identity, the read premise holds trivially. -/
-theorem vSafe_of_eq {ι : Type} {LP : PathsP ι} {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {c : U64} {k : SP}
-    {hK : RegionOKP K} {hU : UserOKP K} {ρ : U64 → U64} {i : ι} (h : CoreView.view K.toKLayout c ρ = ρ) :
-    VSafe LP s K c k hK hU ρ i :=
-  fun hv => absurd h hv
 
 /-! ## Steps and executions with the start at the core's view -/
 
@@ -468,26 +458,6 @@ theorem ExecWPRRHo.toWPRR {LP : PathsP ι}
   | step _ hS g _ ih => exact .step ih hS g
   | hw _ hH ih => exact .hw ih hH
 
-/-- **Every homed U5 execution is a U6 execution**, with the one chain for every core (module docstring). The view
-of a homed witness is the witness (`CoreView.view_eq_self`), so U5's `SF` is U6's, `VPte` is trivial and `VSafe` is
-vacuous. -/
-theorem execWPRV_of_WPRRHo {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPRRHo LP SF P s0 K0 Ch0 s K Ch) :
-    ExecWPRV LP SF P s0 K0 (fun _ => Ch0) s K (fun _ => Ch) := by
-  induction h with
-  | refl => exact .refl
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g hH ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs _ => g.serX hs, g.serC, g.serG, fun hn => ?_⟩
-    · obtain ⟨ρ, hV, hho, i, hi⟩ := hH p0 k W hph hK hU
-      have e := CoreView.view_eq_self hK.base.base hho
-      refine ⟨ρ, hV, i, ?_, vPte_of_eq e, vSafe_of_eq e⟩
-      rw [e]; exact hi
-    · obtain ⟨e1, e2⟩ := g.keep hn
-      exact ⟨e1, by rw [e2]⟩
-  | hw _ hH ih => exact .hw ih hH
-
 end exec
 
 /-! ## The top -/
@@ -523,20 +493,6 @@ theorem serializable_fl4_localU6 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3
   · exact delPteStart_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
   · exact invStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
   · exact cmStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-
-/-- **U6 is not weaker than U5 on homed executions** (module docstring): U5's conclusion for every homed U5 execution,
-derived from `serializable_fl4_localU6` under U5's premises only (no `VSafe`, `ViewSafe` or `VPte` assumed). -/
-theorem serializable_fl4_localU5Ho (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRRHo (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU6 st ar hA a0 P hIoa h0 hA0 (fun _ => hB) hc0 hM0 (execWPRV_of_WPRRHo h) hq
 
 end top
 

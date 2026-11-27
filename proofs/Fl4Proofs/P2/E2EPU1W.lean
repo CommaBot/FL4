@@ -47,44 +47,6 @@ section slot
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
 
-/-- **[W] PTE avoidance of the CNodeDelete (no PTE lock) path** at `QPs` states (module docstring). -/
-def AvInvW : Prop :=
-  ∀ (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
-    (h : InvPremW st j K.toKLayoutV m),
-    AvoidP K (((invSlotW st ar hA hm).liftAt j K.toKLayoutV m hK.base hU.base h).rJ K (fun b hb => Or.inl hb))
-
-/-- **[W] PTE avoidance of the Copy / Mint path** at `QPs` states (module docstring). -/
-def AvCMW : Prop :=
-  ∀ (j : InvArg S) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
-    (h : InvPremW st j K.toKLayoutV m),
-    AvoidP K (((cmSlotW2 st ar hA hm).liftAt j K.toKLayoutV m hK.base hU.base h).rJ K (fun b hb => Or.inl hb))
-
-/-- **The CNodeDelete (no PTE lock) slot under `ownP`**: the `ownV` slot at `QPs` states, PTE-cut and lifted. -/
-noncomputable def invSlotP (hAv : AvInvW st ar hA hm) : PathsP (InvArg S) :=
-  fun j K m hK hU => if h : InvPremW st j K.toKLayoutV m then
-      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (hAv j K m hK hU h)
-    else E2EV.LocalPath.void (fl4Dflt st ar hm)
-      (fun x hx => Fl4Proofs.P2.ko_aligned hK.base.base hU.base.base x hx)
-
-/-- **The Copy / Mint slot under `ownP`**. -/
-noncomputable def cmSlotP (hAv : AvCMW st ar hA hm) : PathsP (InvArg S) :=
-  fun j K m hK hU => if h : InvPremW st j K.toKLayoutV m then
-      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (hAv j K m hK hU h)
-    else E2EV.LocalPath.void (fl4Dflt st ar hm)
-      (fun x hx => Fl4Proofs.P2.ko_aligned hK.base.base hU.base.base x hx)
-
-theorem invSlotP_pos {hAv : AvInvW st ar hA hm} {j : InvArg S} {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K}
-    {hU : UserOKP K} (h : InvPremW st j K.toKLayoutV m) :
-    invSlotP st ar hA hm hAv j K m hK hU =
-      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (hAv j K m hK hU h) :=
-  dif_pos h
-
-theorem cmSlotP_pos {hAv : AvCMW st ar hA hm} {j : InvArg S} {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K}
-    {hU : UserOKP K} (h : InvPremW st j K.toKLayoutV m) :
-    cmSlotP st ar hA hm hAv j K m hK hU =
-      LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (hAv j K m hK hU h) :=
-  dif_pos h
-
 /-- **The CNodeDelete slot's start fact** [P]: the record and `GlueAt` with `InvQF` (as `StartP3WI`), the armed
 program the cut of the `ownV` program. -/
 def InvStartU (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
@@ -104,56 +66,6 @@ def CMStartU (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP 
 
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **`StartAt` of the CNodeDelete slot under `ownP`** from its start fact, the chain and the epoch data. -/
-theorem invStartU_at [Fl4Proofs.P1.PlainStore st] (hAv : AvInvW st ar hA hm)
-    {Ch : S → Prop} {K : KLayoutP} {s : Cfg U64 U64 U64 U64}
-    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : InvArg S}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (hE : ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x)
-    (h : InvStartU st ar hA hm Ch K s.mem hK hU c hs q j) :
-    StartAt (invSlotP st ar hA hm hAv j K s.mem hK hU) c hs s.mem q := by
-  obtain ⟨σe, hC'⟩ := hC
-  have hσe : Ch σe := by
-    obtain ⟨_, _, _, _, _, _, _, _, h'⟩ := hC'
-    exact h'
-  obtain ⟨s1, ⟨nv, hcv⟩, hk1⟩ := hE
-  obtain ⟨q0, ⟨h, σ, a, he, hc, hl, hμ, e⟩, rfl⟩ := h
-  have hJ := ChainOf.bun hC' σ he.1
-  have hq : QPs K st σ :=
-    qPs_of_convR hcv nv ⟨σe, ChainOf.bun hC' σe hσe⟩ hk1 (slJAt_ksb (L := L) hJ) (fun x hx hu => hμ x hx hu)
-  rw [invSlotP_pos st ar hA hm h]
-  refine ⟨σ, a, ⟨⟨hJ, he.2⟩, hq⟩, hc, hl, hμ, ?_⟩
-  refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx s.mem) _ (hAv j K s.mem hK hU h) σ a).symm
-  change _ = cutP _ _ _ _
-    (((invSlotW st ar hA hm).liftAt j K.toKLayoutV s.mem hK.base hU.base h).L.cpu σ)
-    (((invSlotW st ar hA hm).liftAt j K.toKLayoutV s.mem hK.base hU.base h).body σ a) ∅
-  rw [hc, ← e]
-
-/-- **`StartAt` of the Copy / Mint slot under `ownP`** from its start fact, the chain and the epoch data. -/
-theorem cmStartU_at [Fl4Proofs.P1.PlainStore st] (hAv : AvCMW st ar hA hm)
-    {Ch : S → Prop} {K : KLayoutP} {s : Cfg U64 U64 U64 U64}
-    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : InvArg S}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (hE : ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x)
-    (h : CMStartU st ar hA hm Ch K s.mem hK hU c hs q j) :
-    StartAt (cmSlotP st ar hA hm hAv j K s.mem hK hU) c hs s.mem q := by
-  obtain ⟨σe, hC'⟩ := hC
-  have hσe : Ch σe := by
-    obtain ⟨_, _, _, _, _, _, _, _, h'⟩ := hC'
-    exact h'
-  obtain ⟨s1, ⟨nv, hcv⟩, hk1⟩ := hE
-  obtain ⟨q0, ⟨h, σ, a, he, hc, hl, hμ, e⟩, rfl⟩ := h
-  have hJ := ChainOf.bun hC' σ he.1
-  have hq : QPs K st σ :=
-    qPs_of_convR hcv nv ⟨σe, ChainOf.bun hC' σe hσe⟩ hk1 (slJAt_ksb (L := L) hJ) (fun x hx hu => hμ x hx hu)
-  rw [cmSlotP_pos st ar hA hm h]
-  refine ⟨σ, a, ⟨⟨hJ, he.2⟩, hq⟩, hc, hl, hμ, ?_⟩
-  refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx s.mem) _ (hAv j K s.mem hK hU h) σ a).symm
-  change _ = cutP _ _ _ _
-    (((cmSlotW2 st ar hA hm).liftAt j K.toKLayoutV s.mem hK.base hU.base h).L.cpu σ)
-    (((cmSlotW2 st ar hA hm).liftAt j K.toKLayoutV s.mem hK.base hU.base h).body σ a) ∅
-  rw [hc, ← e]
-
 end slot
 
 section top
@@ -161,33 +73,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **The three invocation summands' start facts** (`(delPte ⊕ CNodeDelete) ⊕ Copy/Mint`; a later PageMap slot is a
-further `⊕`). -/
-def StartInvU (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : (InvArg S ⊕ InvArg S) ⊕ InvArg S → Prop
-  | .inl (.inl j) => DelPteStart st ar hA hm Ch K m hK hU c hs q j
-  | .inl (.inr j) => InvStartU st ar hA hm Ch K m hK hU c hs q j
-  | .inr j => CMStartU st ar hA hm Ch K m hK hU c hs q j
-
-/-- **FL4 end to end with every slot** (module docstring): the eight W11 slots (PJ12 with `yb`), the mapped-frame
-Delete slot, the CNodeDelete slot and the Copy / Mint slot, given the two [W] PTE-avoidance facts `hAvI` / `hAvC`. -/
-theorem serializable_fl4_localU1W (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (hAvI : AvInvW st ar hA hm) (hAvC : AvCMW st ar hA hm)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotP st ar hA hm hAvI)) (cmSlotP st ar hA hm hAvC)))
-      (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU st ar hA hm)) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_fl4_localU1G st ar hA hm hSt a0 P hIoa _ ?_ h0 hA0 hB hc0 hM0 h hq
-  intro Ch K s hK hU c hs q j hC hE hsf
-  rcases j with (j | j) | j
-  · exact delPteStart_at st ar hA hm hC hE hsf
-  · exact invStartU_at st ar hA hm hAvI hC hE hsf
-  · exact cmStartU_at st ar hA hm hAvC hC hE hsf
 
 end top
 
