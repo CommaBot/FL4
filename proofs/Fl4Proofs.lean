@@ -2405,3 +2405,6 @@ import Fl4Proofs.P3.P3JSendStC
 import Fl4Proofs.P3.P3JSendSt
 import Fl4Proofs.P3.P3JSendFt
 import Fl4Proofs.P3.P3JMidEp
+import Fl4Proofs.P3.P3JInvFt
+import Fl4Proofs.P3.P3JInvCls
+import Fl4Proofs.P3.P3JInvLeaf
