@@ -1,0 +1,41 @@
+import Fl4Proofs.P3.VirtMsrE2E
+import Fl4Proofs.P3.VirtVmcbStore
+import Fl4Proofs.P3.VirtVmcbDec
+#print axioms Fl4Proofs.P3.VirtInitIo.init_loop0_io
+#print axioms Fl4Proofs.P3.VirtInitIo.init_loop0_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.shr_1
+#print axioms Fl4Proofs.P3.VirtInitWalk.shr_10
+#print axioms Fl4Proofs.P3.VirtInitWalk.shl_7
+#print axioms Fl4Proofs.P3.VirtInitWalk.mul8
+#print axioms Fl4Proofs.P3.VirtInitWalk.SHADOW_bv
+#print axioms Fl4Proofs.P3.VirtInitWalk.vmcs_addr_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.WF_len
+#print axioms Fl4Proofs.P3.VirtInitWalk.wf_slice_len
+#print axioms Fl4Proofs.P3.VirtInitWalk.wf_writable
+#print axioms Fl4Proofs.P3.VirtInitWalk.vpl_off
+#print axioms Fl4Proofs.P3.VirtInitWalk.vpl_fact
+#print axioms Fl4Proofs.P3.VirtInitWalk.vpl_inj
+#print axioms Fl4Proofs.P3.VirtInitWalk.us_lt
+#print axioms Fl4Proofs.P3.VirtInitWalk.z_bv
+#print axioms Fl4Proofs.P3.VirtInitWalk.take_succ_mem
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_loop1_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.vo_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.off_toNat
+#print axioms Fl4Proofs.P3.VirtInitWalk.vplx_inj
+#print axioms Fl4Proofs.P3.VirtInitWalk.mem_WF
+#print axioms Fl4Proofs.P3.VirtInitWalk.CEC_bv
+#print axioms Fl4Proofs.P3.VirtInitWalk.RFL_bv
+#print axioms Fl4Proofs.P3.VirtInitWalk.PAT_bv
+#print axioms Fl4Proofs.P3.VirtInitWalk.CEC_w
+#print axioms Fl4Proofs.P3.VirtInitWalk.RFL_w
+#print axioms Fl4Proofs.P3.VirtInitWalk.PAT_w
+#print axioms Fl4Proofs.P3.VirtInitWalk.NEXT_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.XCR0_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.vsan_zero
+#print axioms Fl4Proofs.P3.VirtInitWalk.vmx_init_vmcs
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_vmx_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.END_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.EFER_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.SCR0_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.DR6_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.DR7_eq

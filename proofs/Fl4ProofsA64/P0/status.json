@@ -1,6 +1,6 @@
 {
- "functions": 1207,
- "proved": 1207,
+ "functions": 1208,
+ "proved": 1208,
  "manual": [
   "boot.create_untypeds",
   "boot.init_irq_states_loop",
@@ -19,6 +19,7 @@
   "localvm.handle_arm_vcpu_run_local",
   "notification.send_signal",
   "smp.handle_ipi",
+  "syscall.handle_nbwait_local",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.reset_untyped_loop",

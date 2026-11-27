@@ -12406,7 +12406,7 @@ def smp.remote_tcb_stall
   else ok (s1, a1)
 
 /-- [fl4_core::notification::kick_guest]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 148:0-158:1 -/
+    Source: 'crates/fl4-core/src/notification.rs', lines 154:0-164:1 -/
 def notification.kick_guest
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -13136,7 +13136,7 @@ def obj.Tcb.reply_obj
   machineStoreInst.read s i1
 
 /-- [fl4_core::notification::cancel_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 207:0-210:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 213:0-216:1
     Visibility: public -/
 def notification.cancel_signal
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -13561,7 +13561,7 @@ def vcpu.signal_completes
   ok false
 
 /-- [fl4_core::notification::send_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 80:0-137:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 80:0-143:1
     Visibility: public -/
 def notification.send_signal
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13622,8 +13622,13 @@ def notification.send_signal
                         obj.Sc.Insts.CoreCmpPartialEqSc i2 s4
                     if b6
                     then
-                      let s5 ← sporadic.unblock_check machineStoreInst s3 i2
-                      ok (s5, a1)
+                      let b7 ← sched.in_release_queue machineStoreInst s3 i
+                      if b7
+                      then ok (s3, a1)
+                      else
+                        let s5 ←
+                          sporadic.unblock_check machineStoreInst s3 i2
+                        ok (s5, a1)
                     else ok (s3, a1)
                   else ok (s3, a1)
                 else ok (s3, a1)
@@ -13714,9 +13719,13 @@ def notification.send_signal
                           obj.Sc.Insts.CoreCmpPartialEqSc i2 s4
                       if b6
                       then
-                        let s5 ←
-                          sporadic.unblock_check machineStoreInst s3 i2
-                        ok (s5, a1)
+                        let b7 ← sched.in_release_queue machineStoreInst s3 i
+                        if b7
+                        then ok (s3, a1)
+                        else
+                          let s5 ←
+                            sporadic.unblock_check machineStoreInst s3 i2
+                          ok (s5, a1)
                       else ok (s3, a1)
                     else ok (s3, a1)
                   else ok (s3, a1)
@@ -18000,7 +18009,7 @@ def obj.Tcb.set_bound_ntfn
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::notification::unbind_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 236:0-242:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 242:0-248:1
     Visibility: public -/
 def notification.unbind_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -18014,7 +18023,7 @@ def notification.unbind_notification
   else ok s
 
 /-- [fl4_core::notification::unbind_maybe_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 227:0-234:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 233:0-240:1
     Visibility: public -/
 def notification.unbind_maybe_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) :
@@ -18040,7 +18049,7 @@ def tcbqueue.next_of
   ok i
 
 /-- [fl4_core::notification::cancel_all_signals]: loop body 0:
-    Source: 'crates/fl4-core/src/notification.rs', lines 194:4-202:5
+    Source: 'crates/fl4-core/src/notification.rs', lines 200:4-208:5
     Visibility: public -/
 @[rust_loop_body]
 def notification.cancel_all_signals_loop.body
@@ -18064,7 +18073,7 @@ def notification.cancel_all_signals_loop.body
     else ok (done s)
 
 /-- [fl4_core::notification::cancel_all_signals]: loop 0:
-    Source: 'crates/fl4-core/src/notification.rs', lines 194:4-202:5
+    Source: 'crates/fl4-core/src/notification.rs', lines 200:4-208:5
     Visibility: public -/
 @[rust_loop]
 def notification.cancel_all_signals_loop
@@ -18078,7 +18087,7 @@ def notification.cancel_all_signals_loop
     (s, t, fuel)
 
 /-- [fl4_core::notification::cancel_all_signals]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 187:0-204:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 193:0-210:1
     Visibility: public -/
 def notification.cancel_all_signals
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) :
@@ -28778,7 +28787,7 @@ def endpoint.reorder_ep
 @[global_simps, irreducible] def obj.EP_RECV : Std.U64 := 2#u64
 
 /-- [fl4_core::notification::complete_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 213:0-225:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 219:0-231:1
     Visibility: public -/
 def notification.complete_signal
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -37147,7 +37156,7 @@ def syscall.reply_error
   msg.set_msg_info machineStoreInst s3 t mi
 
 /-- [fl4_core::localvm::handle_arm_vcpu_run_local]:
-    Source: 'crates/fl4-core/src/localvm.rs', lines 546:0-617:1
+    Source: 'crates/fl4-core/src/localvm.rs', lines 559:0-630:1
     Visibility: public -/
 def localvm.handle_arm_vcpu_run_local
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -37342,7 +37351,7 @@ def localvm.handle_arm_vcpu_run_local
                   else ok (false, s, a)
 
 /-- [fl4_core::localvm::arm_vm_entry_ready]:
-    Source: 'crates/fl4-core/src/localvm.rs', lines 627:0-630:1
+    Source: 'crates/fl4-core/src/localvm.rs', lines 640:0-643:1
     Visibility: public -/
 def localvm.arm_vm_entry_ready
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : Std.U64) :
@@ -37363,7 +37372,7 @@ def localvm.arm_vm_entry_ready
   else ok false
 
 /-- [fl4_core::localvm::handle_arm_vcpu_run_exit_local]:
-    Source: 'crates/fl4-core/src/localvm.rs', lines 644:0-686:1
+    Source: 'crates/fl4-core/src/localvm.rs', lines 657:0-699:1
     Visibility: public -/
 def localvm.handle_arm_vcpu_run_exit_local
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -37881,7 +37890,7 @@ def notification.reorder_ntfn
   notification.set_queue machineStoreInst s2 n_ptr q2 st
 
 /-- [fl4_core::notification::receive_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 161:0-184:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 167:0-190:1
     Visibility: public -/
 def notification.receive_signal
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -37944,7 +37953,7 @@ def notification.receive_signal
       else ok (s3, a1)
 
 /-- [fl4_core::notification::bind_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 244:0-247:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 250:0-253:1
     Visibility: public -/
 def notification.bind_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -47588,7 +47597,7 @@ def syscall.after_invocation
     ok (false, s2, a3)
 
 /-- [fl4_core::syscall::cap_type_code]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 681:0-712:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 728:0-759:1 -/
 def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   match c with
   | capability.Cap.Null => ok 0#u64
@@ -47627,7 +47636,7 @@ def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   | capability.Cap.HighVSpace _ _ _ => ok 35#u64
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 740:4-742:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 787:4-789:5 -/
 @[rust_loop_body]
 def syscall.nonzero_bytes_loop.body
   (v : Std.U64) (k : Std.U64) : Result (ControlFlow Std.U64 Std.U64) := do
@@ -47643,7 +47652,7 @@ def syscall.nonzero_bytes_loop.body
   else ok (done k)
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 740:4-742:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 787:4-789:5 -/
 @[rust_loop]
 def syscall.nonzero_bytes_loop
   (v : Std.U64) (k : Std.U64) : Result Std.U64 := do
@@ -47652,13 +47661,13 @@ def syscall.nonzero_bytes_loop
     k
 
 /-- [fl4_core::syscall::nonzero_bytes]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 738:0-744:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 785:0-791:1 -/
 @[reducible]
 def syscall.nonzero_bytes (v : Std.U64) : Result Std.U64 := do
   syscall.nonzero_bytes_loop v 0#u64
 
 /-- [fl4_core::syscall::name_thread]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 718:4-733:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 765:4-780:5 -/
 @[rust_loop_body]
 def syscall.name_thread_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
@@ -47707,7 +47716,7 @@ def syscall.name_thread_loop.body
   else ok (done s)
 
 /-- [fl4_core::syscall::name_thread]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 718:4-733:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 765:4-780:5 -/
 @[rust_loop]
 def syscall.name_thread_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -47720,7 +47729,7 @@ def syscall.name_thread_loop
     (s, w, done1)
 
 /-- [fl4_core::syscall::name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 715:0-734:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 762:0-781:1 -/
 @[reducible]
 def syscall.name_thread
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -47730,7 +47739,7 @@ def syscall.name_thread
   syscall.name_thread_loop machineStoreInst s t src 0#u64 false
 
 /-- [fl4_core::syscall::thread_of]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 656:0-661:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 703:0-708:1 -/
 def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   match c with
   | capability.Cap.Null => ok none
@@ -47761,7 +47770,7 @@ def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   | capability.Cap.HighVSpace _ _ _ => ok none
 
 /-- [fl4_core::syscall::invoked_cap]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 648:0-654:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 695:0-701:1 -/
 def syscall.invoked_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result capability.Cap
@@ -47774,7 +47783,7 @@ def syscall.invoked_cap
   | core.result.Result.Err _ => ok capability.Cap.Null
 
 /-- [fl4_core::syscall::debug_name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 664:0-678:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 711:0-725:1 -/
 def syscall.debug_name_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -47796,7 +47805,7 @@ def syscall.debug_name_thread
       ok (s1, a)
 
 /-- [fl4_core::syscall::debug_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 623:0-645:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 670:0-692:1 -/
 def syscall.debug_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -47853,7 +47862,7 @@ def syscall.debug_syscall
             else ok (false, s, a)
 
 /-- [fl4_core::syscall::set_tls_base_self]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 586:0-593:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 633:0-640:1 -/
 def syscall.set_tls_base_self
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -47872,7 +47881,7 @@ def syscall.set_tls_base_self
   syscall.finish machineStoreInst machineArchInst s2 a1
 
 /-- [fl4_core::syscall::unknown_syscall_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 572:0-582:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 619:0-629:1 -/
 def syscall.unknown_syscall_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64)
@@ -47906,7 +47915,7 @@ def syscall.unknown_syscall_fault
     ok (false, s2, a2)
 
 /-- [fl4_core::syscall::handle_unknown_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 597:0-620:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 644:0-667:1 -/
 def syscall.handle_unknown_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
@@ -48521,7 +48530,7 @@ def syscall.handle_unknown_syscall
               i fast
 
 /-- [fl4_core::syscall::dispatch_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 525:0-565:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 572:0-612:1 -/
 def syscall.dispatch_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
@@ -48626,7 +48635,7 @@ def syscall.dispatch_syscall
                       else ok (s, a)
 
 /-- [fl4_core::syscall::syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 501:0-521:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 548:0-568:1 -/
 def syscall.syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
@@ -48973,8 +48982,114 @@ def syscall.handle_ioport_local
                 else ok (false, s2, a1)
         else ok (false, s, a)
 
+/-- [fl4_core::syscall::handle_nbwait_local]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 452:0-483:1
+    Visibility: public -/
+def syscall.handle_nbwait_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (n : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    if number != fl4_abi.syscall.SysNBWait
+    then ok (false, s, a)
+    else
+      let i ← obj.Tcb.flags machineStoreInst t s
+      let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+      if i1 != 0#u64
+      then ok (false, s, a)
+      else
+        let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+        let i2 ← lift (core.num.U64.wrapping_sub next 4#u64)
+        let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP i2
+        let (s2, a1) ←
+          sched.update_timestamp machineStoreInst machineArchInst s1 a
+        let csc ← sched.cur_sc machineStoreInst s2
+        let bound ← obj.Ntfn.bound_tcb machineStoreInst n s2
+        let i3 ← obj.Tcb.reg machineStoreInst t s2 layout.reg.CAP
+        let r ← cspace.lookup_cap machineStoreInst s2 t i3
+        let (t1, may_receive) ←
+          match r with
+          | core.result.Result.Ok c =>
+            match c with
+            | capability.Cap.Null => ok (t, false)
+            | capability.Cap.Untyped _ _ _ _ => ok (t, false)
+            | capability.Cap.Endpoint _ _ _ _ _ _ => ok (t, false)
+            | capability.Cap.Notification ptr _ _ recv =>
+              if ptr = n
+              then
+                if recv
+                then if bound = 0#u64
+                     then ok (t, true)
+                     else ok (t, bound = t)
+                else ok (t, false)
+              else ok (t, false)
+            | capability.Cap.Reply _ _ => ok (t, false)
+            | capability.Cap.CNode _ _ _ _ => ok (t, false)
+            | capability.Cap.Thread _ => ok (t, false)
+            | capability.Cap.IrqControl => ok (t, false)
+            | capability.Cap.IrqHandler _ => ok (t, false)
+            | capability.Cap.Zombie _ _ _ => ok (t, false)
+            | capability.Cap.Domain => ok (t, false)
+            | capability.Cap.SchedContext _ _ => ok (t, false)
+            | capability.Cap.SchedControl _ => ok (t, false)
+            | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok (t, false)
+            | capability.Cap.PageTable _ _ _ _ => ok (t, false)
+            | capability.Cap.PageDirectory _ _ _ _ => ok (t, false)
+            | capability.Cap.Pdpt _ _ _ _ => ok (t, false)
+            | capability.Cap.Pml4 _ _ _ => ok (t, false)
+            | capability.Cap.Vcpu _ => ok (t, false)
+            | capability.Cap.Ept _ _ _ _ _ => ok (t, false)
+            | capability.Cap.AsidControl => ok (t, false)
+            | capability.Cap.AsidPool _ _ => ok (t, false)
+            | capability.Cap.IoPortControl => ok (t, false)
+            | capability.Cap.IoPort _ _ _ => ok (t, false)
+            | capability.Cap.TdxControl => ok (t, false)
+            | capability.Cap.HighVSpace _ _ _ => ok (t, false)
+          | core.result.Result.Err _ => ok (t, false)
+        if may_receive
+        then
+          let i4 ← obj.Ntfn.sc machineStoreInst n s2
+          if i4 != 0#u64
+          then ok (false, s2, a1)
+          else
+            let i5 ← obj.Tcb.sc machineStoreInst t1 s2
+            if i5 != csc
+            then ok (false, s2, a1)
+            else
+              let i6 ← sched.action machineStoreInst s2
+              if i6 != sched.ACTION_RESUME_CURRENT
+              then ok (false, s2, a1)
+              else
+                let i7 ← obj.Tcb.yield_to machineStoreInst t1 s2
+                if i7 != 0#u64
+                then ok (false, s2, a1)
+                else
+                  let i8 ← sched.consumed machineStoreInst s2
+                  let b ←
+                    sporadic.sufficient machineStoreInst machineArchInst s2 a1
+                      csc i8
+                  if b
+                  then
+                    let b1 ← fastpath.schedulable_here machineStoreInst s2 t1
+                    if b1
+                    then
+                      let (s3, a2) ←
+                        syscall.handle_recv machineStoreInst machineArchInst s2
+                          a1 false false
+                      let (s4, a3) ←
+                        syscall.finish machineStoreInst machineArchInst s3 a2
+                      ok (true, s4, a3)
+                    else ok (false, s2, a1)
+                  else ok (false, s2, a1)
+        else ok (false, s2, a1)
+
 /-- [fl4_core::syscall::handle_invocation_local]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 448:0-497:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 495:0-544:1
     Visibility: public -/
 def syscall.handle_invocation_local
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -49081,7 +49196,7 @@ def syscall.handle_invocation_local
         else ok (false, s, a)
 
 /-- [fl4_core::syscall::handle_interrupt_entry]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 747:0-752:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 794:0-799:1
     Visibility: public -/
 def syscall.handle_interrupt_entry
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -49095,7 +49210,7 @@ def syscall.handle_interrupt_entry
   syscall.finish machineStoreInst machineArchInst s3 a3
 
 /-- [fl4_core::syscall::handle_user_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 756:0-762:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 803:0-809:1
     Visibility: public -/
 def syscall.handle_user_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -49115,7 +49230,7 @@ def syscall.handle_user_exception
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_vm_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 765:0-772:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 812:0-819:1
     Visibility: public -/
 def syscall.handle_vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -49137,7 +49252,7 @@ def syscall.handle_vm_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_debug_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 776:0-784:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 823:0-831:1
     Visibility: public -/
 def syscall.handle_debug_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -49156,7 +49271,7 @@ def syscall.handle_debug_exception
   syscall.finish machineStoreInst machineArchInst s4 a3
 
 /-- [fl4_core::syscall::handle_vcpu_exit]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 790:0-799:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 837:0-846:1
     Visibility: public -/
 def syscall.handle_vcpu_exit
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)

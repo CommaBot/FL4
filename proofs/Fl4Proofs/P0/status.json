@@ -1,6 +1,6 @@
 {
- "functions": 1184,
- "proved": 1184,
+ "functions": 1185,
+ "proved": 1185,
  "manual": [
   "boot.create_untypeds",
   "boot.create_untypeds_for_region_loop",
@@ -13,6 +13,7 @@
   "localvm.__1",
   "localvm.handle_vcpu_invocation_local",
   "notification.send_signal",
+  "syscall.handle_nbwait_local",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.decode",

@@ -1,0 +1,32 @@
+import Fl4Proofs.P3.JAtZBRecap
+open Fl4Proofs.P3
+#print axioms Fl4Proofs.P3.JAtZB.scOut
+#print axioms Fl4Proofs.P3.JAtZB.utFrom
+#print axioms Fl4Proofs.P3.JAtZB.jcov_cover
+#print axioms Fl4Proofs.P3.JAtZB.sfree_keep
+#print axioms Fl4Proofs.P3.JAtZB.jcs_slot
+#print axioms Fl4Proofs.P3.JAtZB.mdbL
+#print axioms Fl4Proofs.P3.JAtZB.slotCapW
+#print axioms Fl4Proofs.P3.JAtZB.thOfTcb
+#print axioms Fl4Proofs.P3.JAtZB.tabNodeW
+#print axioms Fl4Proofs.P3.JAtZB.vsFr_node
+#print axioms Fl4Proofs.P3.JAtZB.vsNodeW
+#print axioms Fl4Proofs.P3.JAtZB.vsNodeWX
+#print axioms Fl4Proofs.P3.JAtZB.tabObjW
+#print axioms Fl4Proofs.P3.JAtZB.vobj_apart
+#print axioms Fl4Proofs.P3.JAtZB.vsFr_sc
+#print axioms Fl4Proofs.P3.JAtZB.vsObjW
+#print axioms Fl4Proofs.P3.JAtZB.vsObjWX
+#print axioms Fl4Proofs.P3.JAtZB.vsW_al
+#print axioms Fl4Proofs.P3.JAtZB.vsW_alX
+#print axioms Fl4Proofs.P3.JAtZB.cslot_other
+#print axioms Fl4Proofs.P3.JAtZB.cslotW_val
+#print axioms Fl4Proofs.P3.JAtZB.cslotW_node
+#print axioms Fl4Proofs.P3.JAtZB.vsxNodeW
+#print axioms Fl4Proofs.P3.JAtZB.vsxNodeWX
+#print axioms Fl4Proofs.P3.JAtZB.cslotW_obj
+#print axioms Fl4Proofs.P3.JAtZB.vsxObjW
+#print axioms Fl4Proofs.P3.JAtZB.vsxObjWX
+#print axioms Fl4Proofs.P3.JAtZB.vsx_utcX
+#print axioms Fl4Proofs.P3.JAtZB.vsStepJXB
+#print axioms Fl4Proofs.P3.LiveDN.simXB

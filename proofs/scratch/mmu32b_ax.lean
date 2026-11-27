@@ -1,0 +1,31 @@
+import Fl4Proofs.P3.JAtZBFire
+import Fl4Proofs.P3.JAtZBSchedR
+#print axioms Fl4Proofs.P3.JAtZB.otherTmOK
+#print axioms Fl4Proofs.P3.JAtZB.tw_word
+#print axioms Fl4Proofs.P3.JAtZB.tmw_word
+#print axioms Fl4Proofs.P3.JAtZB.tmw_obj
+#print axioms Fl4Proofs.P3.JAtZB.tmw_ne_tcb
+#print axioms Fl4Proofs.P3.JAtZB.tmw_ne_obj
+#print axioms Fl4Proofs.P3.JAtZB.tmw_ne_node
+#print axioms Fl4Proofs.P3.JAtZB.tmw_slots
+#print axioms Fl4Proofs.P3.JAtZB.deadP_hstep
+#print axioms Fl4Proofs.P3.JAtZB.notDbg_tw
+#print axioms Fl4Proofs.P3.JAtZB.jcov_keepX
+#print axioms Fl4Proofs.P3.JAtZB.tmw_utc
+#print axioms Fl4Proofs.P3.JAtZB.tmw_step
+#print axioms Fl4Proofs.P3.JAtZB.reprogramJ
+#print axioms Fl4Proofs.P3.fire_loopJB
+#print axioms Fl4Proofs.P3.JAtZB.fireJ
+#print axioms Fl4Proofs.P3.JAtZB.usrWJ
+#print axioms Fl4Proofs.P3.JAtZB.bufAtJ
+#print axioms Fl4Proofs.P3.JAtZB.schedPreW
+#print axioms Fl4Proofs.P3.JAtZB.deadP_sch_step
+#print axioms Fl4Proofs.P3.JAtZB.sch_frame
+#print axioms Fl4Proofs.P3.JAtZB.sch_buf
+#print axioms Fl4Proofs.P3.JAtZB.sch_apart
+#print axioms Fl4Proofs.P3.JAtZB.sch_jpl
+#print axioms Fl4Proofs.P3.JAtZB.sch_kern
+#print axioms Fl4Proofs.P3.JAtZB.sch_csc
+#print axioms Fl4Proofs.P3.JAtZB.sch_utc
+#print axioms Fl4Proofs.P3.JAtZB.sch_tail
+#print axioms Fl4Proofs.P3.JAtZB.jat_scheduleFR

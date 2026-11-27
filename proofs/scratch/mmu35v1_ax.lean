@@ -1,0 +1,41 @@
+import Fl4Proofs.P3.VirtMsrE2E
+import Fl4Proofs.P3.VirtVmcbStore
+import Fl4Proofs.P3.VirtVmcbDec
+#print axioms Fl4Proofs.P3.VirtInitWalk.SRFL_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.SRIP_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.GPAT_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.SVMCPU_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.INTCTL_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.NESTED_val
+#print axioms Fl4Proofs.P3.VirtInitWalk.svm_tab
+#print axioms Fl4Proofs.P3.VirtInitWalk.voN
+#print axioms Fl4Proofs.P3.VirtInitWalk.attr_eq
+#print axioms Fl4Proofs.P3.VirtInitWalk.mem_wr_off
+#print axioms Fl4Proofs.P3.VirtInitWalk.wlit
+#print axioms Fl4Proofs.P3.VirtInitWalk.reset_loop_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.reset_svm_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.initCommon_of
+#print axioms Fl4Proofs.P3.VirtInitWalk.readable_nat
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_svm_img
+#print axioms Fl4Proofs.P3.VirtInitWalk.initVcpu_ne_svm
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_rel_vmx
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_rel_svm
+#print axioms Fl4Proofs.P3.VirtInitWalk.init_rel
+#print axioms Fl4Proofs.P3.VirtRetypeInit.spec_ex
+#print axioms Fl4Proofs.P3.VirtRetypeInit.spec_and2
+#print axioms Fl4Proofs.P3.VirtRetypeInit.vzero_of_win
+#print axioms Fl4Proofs.P3.VirtRetypeInit.initListOut_of
+#print axioms Fl4Proofs.P3.VirtRetypeInit.create_vcpu_rel
+#print axioms Fl4Proofs.P3.VirtRetypeInit.create_object_vcpu
+#print axioms Fl4Proofs.P3.VirtRetypeInit.create_object_vcpu_rel
+#print axioms Fl4Proofs.P3.VirtRetypeInit.create_vcpu_growLR
+#print axioms Fl4Proofs.P3.VirtRetypeInit.setVcpu_out
+#print axioms Fl4Proofs.P3.VirtRetypeInit.mapMx_setVcpu
+#print axioms Fl4Proofs.P3.VirtRetypeInit.retypeHook_vcpuAt
+#print axioms Fl4Proofs.P3.VirtRetypeInit.retype_vcpu_rel
+#print axioms Fl4Proofs.P3.VirtRetypeInit.vmcsOff_lt_tcb
+#print axioms Fl4Proofs.P3.VirtRetypeInit.ne_links_of_lt
+#print axioms Fl4Proofs.P3.VirtRetypeInit.ne_links_of_ge
+#print axioms Fl4Proofs.P3.VirtRetypeInit.gprOff_ge
+#print axioms Fl4Proofs.P3.VirtRetypeInit.exitOff_ge
+#print axioms Fl4Proofs.P3.VirtRetypeInit.msrOff_ge

@@ -1,0 +1,41 @@
+import Fl4Proofs.P3.VirtMsrE2E
+import Fl4Proofs.P3.VirtVmcbStore
+import Fl4Proofs.P3.VirtVmcbDec
+#print axioms Fl4Proofs.P3.VirtRetypeInit.ioOff_ge
+#print axioms Fl4Proofs.P3.VirtRetypeInit.svmOff_lt5
+#print axioms Fl4Proofs.P3.VirtRetypeInit.agL
+#print axioms Fl4Proofs.P3.VirtRetypeInit.VcpuRelCommon.congrL
+#print axioms Fl4Proofs.P3.VirtRetypeInit.VcpuRelVmx.congrL
+#print axioms Fl4Proofs.P3.VirtRetypeInit.VcpuRelSvm.congrL
+#print axioms Fl4Proofs.P3.VirtRetypeInit.VRelInit.congrL
+#print axioms Fl4Proofs.P3.VirtMsrEq.STAR_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.LSTAR_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.CSTAR_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.SFMASK_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.KGS_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.SCR2_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.svm_msr_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.msr_slot_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.wadd_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.wmul_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.lift_ok
+#print axioms Fl4Proofs.P3.VirtMsrEq.omap0
+#print axioms Fl4Proofs.P3.VirtMsrEq.omap1
+#print axioms Fl4Proofs.P3.VirtMsrEq.XCR0_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.IBPB_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.MSRIB_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.CR2_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.MSRS_bv
+#print axioms Fl4Proofs.P3.VirtMsrEq.msr_addr_eq
+#print axioms Fl4Proofs.P3.VirtMsrEq.msrOff_isSome
+#print axioms Fl4Proofs.P3.VirtMsrEq.msrOff_rel_vmx
+#print axioms Fl4Proofs.P3.VirtMsrEq.msrOff_rel_svm
+#print axioms Fl4Proofs.P3.VirtMsrEq.gt1_iff
+#print axioms Fl4Proofs.P3.VirtMsrEq.fl4WriteMsr_rel
+#print axioms Fl4Proofs.P3.VirtMsrDec.ite3
+#print axioms Fl4Proofs.P3.VirtMsrDec.bind_ext
+#print axioms Fl4Proofs.P3.VirtMsrDec.decode_wrmsr_eq
+#print axioms Fl4Proofs.P3.VirtMsrStore.WrAt.keep
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_cases
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_inj
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrSlot_mem

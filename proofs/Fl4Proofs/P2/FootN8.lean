@@ -514,8 +514,11 @@ theorem signal_vm.ff {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (
               let s4 ← sched.cur_sc st s3
               let b6 ← core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc i4 s4
               if b6 = true then do
-                let s5 ← sporadic.unblock_check st s3 i4
-                ok (s5, a1)
+                let b7 ← sched.in_release_queue st s3 i
+                if b7 = true then ok (s3, a1)
+                else do
+                  let s5 ← sporadic.unblock_check st s3 i4
+                  ok (s5, a1)
               else ok (s3, a1)
             else ok (s3, a1)
           else ok (s3, a1)
@@ -566,6 +569,8 @@ theorem signal_vm.ff {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (
   step with sched.cur_sc.spec as ⟨c4, _⟩
   step with sc_ne.spec as ⟨b6⟩
   refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => ok3)
+  refine WP.spec_bind (sched.in_release_queue.spec s3 i) fun b7 _ => ?_
+  refine sig_if _ _ _ _ (fun _ => ok3) (fun _ => ?_)
   have hi4S : i4 ∈ Scs := (hX3.2.2.bound i hiT (by rw [← ei4]; exact (eb5 hb5).1)).1 |> fun h => by
     rw [← ei4] at h; exact h
   have hiA : i4 ∈ Ac := hS3.spor i4 hi4S (eb5 hb5).2
