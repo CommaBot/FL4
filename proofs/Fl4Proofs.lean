@@ -2411,3 +2411,6 @@ import Fl4Proofs.P3.P3JInvLeaf
 import Fl4Proofs.P3.P3JStepFt
 import Fl4Proofs.P3.P3JCapDom
 import Fl4Proofs.P3.P3JCapDomW
+import Fl4Proofs.P3.P3JNtfnFt
+import Fl4Proofs.P3.P3JCapIrq
+import Fl4Proofs.P3.P3JCapIrqTop
