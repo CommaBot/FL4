@@ -2467,3 +2467,4 @@ import Fl4Proofs.P3.VirtUtDecV
 import Fl4Proofs.P3.VirtUtGateV
 import Fl4Proofs.P3.VirtUtInvV
 import Fl4Proofs.P3.VirtVCappedSwap
+import Fl4Proofs.P3.VirtVChunk
