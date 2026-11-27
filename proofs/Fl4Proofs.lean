@@ -2249,3 +2249,13 @@ import Fl4Proofs.P2.BootRMem
 import Fl4Proofs.P2.BootRNonIdle
 import Fl4Proofs.P2.BootRSpecS
 import Fl4Proofs.P2.BootRZ
+import Fl4Proofs.P2.BootRSInv
+import Fl4Proofs.P2.BootRMdbF
+import Fl4Proofs.P2.BootRJpl
+import Fl4Proofs.P2.BootRSpecF
+import Fl4Proofs.P2.BootRWordF
+import Fl4Proofs.P2.BootRRelF
+import Fl4Proofs.P2.BootRFinF
+import Fl4Proofs.P2.BootRBlkF
+import Fl4Proofs.P2.BootRLiveF
+import Fl4Proofs.P2.BootRJAtZ
