@@ -186,3 +186,4 @@ import Fl4ProofsA64.P1.QueueFoot8T
 import Fl4ProofsA64.P1.QueueSlotTyDec3
 import Fl4ProofsA64.P1.QueueVcTy
 import Fl4ProofsA64.P1.QueueVcTyThr
+import Fl4ProofsA64.P1.QueueVcTyEnt
