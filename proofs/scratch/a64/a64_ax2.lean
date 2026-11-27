@@ -160,6 +160,12 @@ import Fl4ProofsA64.P1.QueueDecVcpuB
 import Fl4ProofsA64.P1.QueueEntryGaps7B
 import Fl4ProofsA64.P1.QueueDecVcpuRunB
 import Fl4ProofsA64.P1.QueueEntryGaps8
+import Fl4ProofsA64.P1.QueueScBindV
+import Fl4ProofsA64.P1.QueueDecTcbC
+import Fl4ProofsA64.P1.QueueEntryGaps9
+import Fl4ProofsA64.P1.QueueDelVsV
+import Fl4ProofsA64.P1.QueueDecTcbV
+import Fl4ProofsA64.P1.QueueEntryGaps10
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -348,3 +354,109 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.decGap_vcpuD
 #print axioms Fl4ProofsA64.P1.InvGaps8.gaps
 #print axioms Fl4ProofsA64.P1.kernel_entry.entry_of8A
+-- gen 27
+#print axioms Fl4ProofsA64.P1.OmS
+#print axioms Fl4ProofsA64.P1.ownA_vc
+#print axioms Fl4ProofsA64.P1.blkW_wrO
+#print axioms Fl4ProofsA64.P1.FootDU.kodO
+#print axioms Fl4ProofsA64.P1.ScBindOwnV
+#print axioms Fl4ProofsA64.P1.ScBindOwnV.of_rcv
+#print axioms Fl4ProofsA64.P1.migrate_tail_fV
+#print axioms Fl4ProofsA64.P1.smp.migrate_tcb.frame_fV
+#print axioms Fl4ProofsA64.P1.smp.migrate_tcb.kw_fV
+#print axioms Fl4ProofsA64.P1.schedcontext.bind_tcb.blkF_fV
+#print axioms Fl4ProofsA64.P1.sc_bind_tcb.blkF_fV
+#print axioms Fl4ProofsA64.P1.sc_bind_stall.blk_fV
+#print axioms Fl4ProofsA64.P1.schedcontext.decode.dec_fV
+#print axioms Fl4ProofsA64.P1.decGap_sc_fV
+#print axioms Fl4ProofsA64.P1.cfDV
+#print axioms Fl4ProofsA64.P1.schedcontext.configure_flags.blkV
+#print axioms Fl4ProofsA64.P1.schedcontext.decode_sched_control.decV
+#print axioms Fl4ProofsA64.P1.decGap_schedControlV
+#print axioms Fl4ProofsA64.P1.tcs_tail2V
+#print axioms Fl4ProofsA64.P1.tcb.thread_control_sched.decV
+#print axioms Fl4ProofsA64.P1.TcbPlace9
+#print axioms Fl4ProofsA64.P1.TcbPlace9.of8
+#print axioms Fl4ProofsA64.P1.TcbPlace9.scBindOwnV
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_read_registers.dec8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.copy_registers.blk8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_copy_registers.dec8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.Cur0R.resched
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.install_tcb_cap.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.install_buffer.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.inst_bind
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_set_timeout_endpoint.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_set_space.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_configure.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_set_sched_params.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_set_ipc_buffer.dec7
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode_set_high_vspace.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.tcb.decode.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.decGap_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.C.decGap_thread4
+#print axioms Fl4ProofsA64.P1.InvGaps9
+#print axioms Fl4ProofsA64.P1.InvGaps9.of8
+#print axioms Fl4ProofsA64.P1.InvGaps9.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of9A
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.VcCap
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FrVc
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinRvRestKind5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinRvRest5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinGapsAt5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinGaps5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinGapsAt5.of4
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinGaps5.of4
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.vcpu.finalise.ub
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelGapsAt
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelGaps
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.finalise_slot_immediate.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.delete.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.revoke.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cnode_del
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cnode_rev
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cnode.decode.dec2
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.decGap_cnode2
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlaceAt
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlace
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlace.toB
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.DelPlaceAt.frmV
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.fin_vs
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.empty_slot.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.swap.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.cap_swap_for_delete.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.finalise_slot_deferred.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.delete_deferred.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.cdt.empty_slot.c0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finGapB_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finRv_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finGap_irq0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finRv_irq
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finRvAt_of
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finRvRest_of3
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.fin_vcpuV
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.FinRvKindV
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.finRvAtV_of
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.ofC0V
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.fin_all
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.delGaps_of
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.delGaps_of_gaps5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.decGap_cnode_rv5
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_read_registers.dec8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.copy_registers.blk8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_copy_registers.dec8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.Cur0R.resched
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.install_tcb_cap.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.install_buffer.cur0
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.inst_bind
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_set_timeout_endpoint.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_set_space.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_configure.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_set_sched_params.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_set_ipc_buffer.dec7
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode_set_high_vspace.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.tcb.decode.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.decGap_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.V.C.decGap_thread4
+#print axioms Fl4ProofsA64.P1.InvGaps10
+#print axioms Fl4ProofsA64.P1.InvGaps10.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of10A
