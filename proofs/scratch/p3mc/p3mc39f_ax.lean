@@ -84,3 +84,5 @@ import Fl4Proofs.P2.BootRLiveF
 #print axioms Fl4Proofs.P2.BootSt.uF_archFit
 #print axioms Fl4Proofs.P2.BootSt.uF_vsNamed
 #print axioms Fl4Proofs.P2.BootSt.carry_R
+#print axioms Fl4Proofs.P2.BootSt.uF_cslot_tmo
+#print axioms Fl4Proofs.P2.BootSt.uF_GR_cap

@@ -1,16 +1,16 @@
 /-
 # P2 (line p3mc, gen 39, unit F): the placement, liveness and carried `JAtZ` fields at the second boot start
 
-At `(sR, σR)` with the ghosts `ZR` (MDB ghost `GR` = one chain `[tRw]`), `HR`, `CsB` (gen 35's `P2/BootLiveF` at
+At `(sR, σR)` with the ghosts `ZR` (MDB ghost `GR` = two one-slot chains `[tRw]`, `[tmoW]`), `HR`, `CsB` (gen 35's `P2/BootLiveF` at
 `(sB, σB)`):
 
 * `rp_R` (`RPlaced`: no reply), `apart_R` (`SlotsApart`: the two TCBs' slots `[t, t + 192)` below their words from
   256 on, the IRQ node far from both SCs and core 0's node);
-* `live_R` (`LiveDN`: the root slot `tRw` holds `Thread tRw`, a cap of `GR`'s chain, so `LiveJ.slots` at
-  `q = tRw` is met by the cap itself (`RefsObj`); every other slot is null and not original (`slotR_cases`,
-  `iocR_iff`), so not in use; the debug lists empty (`DEBUG_TCBS` 0, both TCBs' debug links 0); no zombie);
-* `carry_R` (`JCarry`: no buffer word, `HR`'s paging structures as `σB`'s (`archFit_B`), no untyped cap, no
-  table cap, no VSpace path (the ASID table empty, `uF_vsPath`)).
+* `live_R` (`LiveDN`: the root slot `tRw` holds `Thread tRw`, a cap of `GR`, so `LiveJ.slots` at `q = tRw`
+  (every root-TCB slot, the timeout-handler slot `tmoW` with `SchedContext scRw 7` included) is met by that cap
+  (`RefsObj`); every slot off the root TCB is null and not original (`slotR_cases`, `iocR_iff`), so not in use; the debug lists empty (`DEBUG_TCBS` 0, both TCBs' debug links 0); no zombie);
+* `carry_R` (`JCarry`: no buffer word, `HR`'s paging structures as `σB`'s (`archFit_B`), no untyped cap (the MDB's caps
+  are `Thread tRw` and `SchedContext scRw 7`, `uF_GR_cap`), no table cap, no VSpace path (the ASID table empty, `uF_vsPath`)).
 
 No premise. No existing statement changed.
 -/
@@ -48,23 +48,24 @@ theorem uF_slot_range {y : U64} (hy : IsSlot thR y) : y.val % 32 = 0 ∧
       exact ⟨by omega, Or.inl ⟨by omega, by omega⟩⟩
     · cases e
 
-/-- A slot of an object of `thR` at the root slot's address is a slot of the root TCB. -/
-theorem uF_slotAt {q : U64} {i : Nat} (h : IsSlotAt thR q i) : q = tRw ∨ slotOf q i ≠ tRw := by
+/-- A slot of an object of `thR` at the root TCB's cap addresses (`tRw`, `tmoW`) is a slot of the root TCB. -/
+theorem uF_slotAt {q : U64} {i : Nat} (h : IsSlotAt thR q i) :
+    q = tRw ∨ (slotOf q i ≠ tRw ∧ slotOf q i ≠ tmoW) := by
   rcases h with ⟨r, hp, hir⟩ | ⟨hp, hit⟩
   · rcases thR_cases hp with ⟨-, e⟩ | ⟨-, e⟩ | ⟨e, g1, g2, g3⟩
     · cases e
     · cases e
     · cases e
       simp only [Nat.pow_zero] at hir
-      right; intro e
-      have := congrArg UScalar.val e
-      rw [slotOf_val (by omega), tRw_val] at this; omega
+      right; constructor <;> intro e <;> have := congrArg UScalar.val e
+      · rw [slotOf_val (by omega), tRw_val] at this; omega
+      · rw [slotOf_val (by omega), tmoW_val] at this; omega
   · rcases thR_cases hp with ⟨e, -⟩ | ⟨e, -⟩ | ⟨e, -⟩
     · exact Or.inl (eq_of_val'' (by rw [e, tRw_val]))
     · simp only [tcbSlots] at hit
-      right; intro e'
-      have := congrArg UScalar.val e'
-      rw [slotOf_val (by omega), tRw_val] at this; omega
+      right; constructor <;> intro e' <;> have := congrArg UScalar.val e'
+      · rw [slotOf_val (by omega), tRw_val] at this; omega
+      · rw [slotOf_val (by omega), tmoW_val] at this; omega
     · cases e
 
 /-- The root slot's address. -/
@@ -75,6 +76,14 @@ theorem uF_cslot_root : cslotAddr (tRp, Fl4Spec.tcbCnodeIndex 0) = tRw := by
   show (slotOf tRw 0).val = tRw.val
   rw [slotOf_val (by rw [tRw_val]; omega)]
   rfl
+
+/-- The timeout-handler slot's address. -/
+theorem uF_cslot_tmo : cslotAddr (tRp, Fl4Spec.tcbCnodeIndex 4) = tmoW := by
+  show slotAddr tRw.bv (Fl4Spec.ofBl _) = _
+  rw [slotAddr_ofBl, tcbCnodeIndex_blVal 4 (by decide)]
+  apply eq_of_val''
+  show (slotOf tRw 4).val = tmoW.val
+  rw [slotOf_val (by rw [tRw_val]; omega), tRw_val, tmoW_val]
 
 /-! ## `RPlaced`, `SlotsApart` -/
 
@@ -112,14 +121,22 @@ theorem apart_R : SlotsApart (st := bst) ZR.th ZR.T ZR.N ZR.C ZR.R ZR.c sR (σR 
 
 theorem uF_root_mem : tRw ∈ GR.chains.flatten := by simp [GR]
 
-theorem uF_GR_mem {x : U64} (hx : x ∈ GR.chains.flatten) : x = tRw := by simpa [GR] using hx
+theorem uF_GR_mem {x : U64} (hx : x ∈ GR.chains.flatten) : x = tRw ∨ x = tmoW := by simpa [GR] using hx
+
+/-- The MDB's caps: `Thread tRw` and `SchedContext scRw 7`. -/
+theorem uF_GR_cap {x : U64} (hx : x ∈ GR.chains.flatten) :
+    capV (bsL.mem sR) x = .Thread tRw ∨ capV (bsL.mem sR) x = .SchedContext scRw 7#u64 := by
+  rcases uF_GR_mem hx with rfl | rfl
+  · exact Or.inl capV_R_root
+  · exact Or.inr capV_R_tmo
 
 theorem uF_nullOrig : NullOrig thR (bsL.mem sR) (σR (Z := Unit)) := fun sl _ hn => by
   cases h : (σR (Z := Unit)).isOriginalCap sl with
   | false => rfl
   | true =>
-    rw [(iocR_iff sl).1 h, uF_cslot_root, capV_R_root] at hn
-    cases hn
+    rcases (iocR_iff sl).1 h with e | e <;> subst e
+    · rw [uF_cslot_root, capV_R_root] at hn; cases hn
+    · rw [uF_cslot_tmo, capV_R_tmo] at hn; cases hn
 
 theorem uF_liveJ : LiveJ (L := bsL) thR HR GR sR (σR (Z := Unit)) where
   slots q i hqi hu := by
@@ -129,22 +146,26 @@ theorem uF_liveJ : LiveJ (L := bsL) thR HR GR sR (σR (Z := Unit)) where
       rw [capV_R_root]
       exact rfl
     · exfalso
-      rcases slotR_cases ⟨q, i, hqi, rfl⟩ with e | ⟨hn, -⟩
-      · exact hne e
+      rcases slotR_cases ⟨q, i, hqi, rfl⟩ with e | e | ⟨hn, -⟩
+      · exact hne.1 e
+      · exact hne.2 e
       · rcases hu with h | ⟨x, hx, ho⟩
         · exact h hn
-        · rw [(iocR_iff x).1 ho, uF_cslot_root] at hx
-          exact hne hx.symm
+        · rcases (iocR_iff x).1 ho with e | e <;> subst e
+          · rw [uF_cslot_root] at hx; exact hne.1 hx.symm
+          · rw [uF_cslot_tmo] at hx; exact hne.2 hx.symm
   dbg n h := by
     have h0 : dbgHead (L := bsL) sR = 0#u64 := sR_dbg_word
     rw [h0, dbgNth_zero] at h; exact absurd rfl h
   zslots y hy p zt n h := by
-    rcases slotR_cases hy with rfl | ⟨hn, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨hn, -⟩
     · rw [capV_R_root] at h; cases h
+    · rw [capV_R_tmo] at h; cases h
     · rw [hn] at h; cases h
   zdead y hy p zt n h := by
-    rcases slotR_cases hy with rfl | ⟨hn, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨hn, -⟩
     · rw [capV_R_root] at h; cases h
+    · rw [capV_R_tmo] at h; cases h
     · rw [hn] at h; cases h
 
 theorem uF_dbgWF : DbgWF (Heap.tcbs HR) CsB (bsL.mem sR) (dbgHd (L := bsL) sR) :=
@@ -189,41 +210,40 @@ theorem uF_archFit : ArchFitHyp HR (σR (Z := Unit)) := by
 theorem uF_vsNamed : Vs.VsNamed ZR.th (bsL.mem sR) (bsL.ksb sR) where
   named k q a v h := by rw [sR_ksb] at h; exact (uF_vsPath h).elim
   uref y _ hy _ _ hn := by
-    rcases slotR_cases hy with rfl | ⟨h0, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨h0, -⟩
     · rw [capV_R_root] at hn; exact absurd rfl hn
+    · rw [capV_R_tmo] at hn; exact absurd rfl hn
     · rw [h0] at hn; exact absurd rfl hn
   uun y _ hy _ _ hu := by
-    rcases slotR_cases hy with rfl | ⟨h0, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨h0, -⟩
     · rw [capV_R_root] at hu; exact (show False from hu).elim
+    · rw [capV_R_tmo] at hu; exact (show False from hu).elim
     · rw [h0] at hu; exact (show False from hu).elim
   empty y hy hu := by
-    rcases slotR_cases hy with rfl | ⟨h0, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨h0, -⟩
     · rw [capV_R_root] at hu; exact (show False from hu).elim
+    · rw [capV_R_tmo] at hu; exact (show False from hu).elim
     · rw [h0] at hu; exact (show False from hu).elim
   poolT y hy q b h := by
-    rcases slotR_cases hy with rfl | ⟨h0, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨h0, -⟩
     · rw [capV_R_root] at h; cases h
+    · rw [capV_R_tmo] at h; cases h
     · rw [h0] at h; cases h
 
 theorem carry_R : JCarry (L := bsL) ZR HR CsB sR (σR (Z := Unit)) where
   bufPg _ h := h.elim
   archFit := uF_archFit
   devApart x hx p sb fi hc := by
-    have e := uF_GR_mem hx
-    subst e
-    rw [capV_R_root] at hc; cases hc
+    rcases uF_GR_cap hx with e | e <;> rw [e] at hc <;> cases hc
   devSep x hx y hy p sb fi p' sb' fi' hc hd := by
-    have e := uF_GR_mem hx
-    subst e
-    rw [capV_R_root] at hc; cases hc
+    rcases uF_GR_cap hx with e | e <;> rw [e] at hc <;> cases hc
   vsTyp y hy := by
-    rcases slotR_cases hy with rfl | ⟨hn, -⟩
+    rcases slotR_cases hy with rfl | rfl | ⟨hn, -⟩
     · rw [capV_R_root]; trivial
+    · rw [capV_R_tmo]; trivial
     · rw [hn]; trivial
   devTab x hx p sb fi hc := by
-    have e := uF_GR_mem hx
-    subst e
-    rw [capV_R_root] at hc; cases hc
+    rcases uF_GR_cap hx with e | e <;> rw [e] at hc <;> cases hc
   vsNamed _ := uF_vsNamed
 
 end

@@ -38,9 +38,9 @@ theorem uF_scR_off {k : U64} {n : Nat} (hk : k.val = n) (hn : n < 4096) :
     (core.num.U64.wrapping_add scRw k).val = 18446744071562080256 + n :=
   wa_val (by rw [scRw_val, hk]) (by omega)
 
-/-- A word of either TCB at offset `≥ 32` other than `STATE` / `SC`: 0. -/
+/-- A word of either TCB at offset `≥ 200` (past the slots) other than `STATE` / `SC`: 0. -/
 theorem uF_tw0 {t : U64} (ht : t = tiB ∨ t = tRw) {K : U64} {k : Nat} (hK : K.val = k) (hk : k < 4096)
-    (h8 : k % 8 = 0) (h0 : 32 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
+    (h8 : k % 8 = 0) (h0 : 200 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
     bsL.mem sR (core.num.U64.wrapping_add t K) = 0#u64 := by
   rcases ht with rfl | rfl
   · rw [memR_at (tiB_off hK hk) (by omega)]; exact wordR_zero_of (by omega)
@@ -232,7 +232,7 @@ theorem uF_ksOmega : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 →
 /-! ## The threads' words -/
 
 theorem uF_t0 {t : U64} (ht : t ∈ HR.tcbs) {K : U64} {k : Nat} (hK : K.val = k) (hk : k < 4096)
-    (h8 : k % 8 = 0) (h0 : 32 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
+    (h8 : k % 8 = 0) (h0 : 200 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
     bsL.mem sR (core.num.U64.wrapping_add t K) = 0#u64 := uF_tw0 (uF_tcbs ht) hK hk h8 h0 h1 h2
 
 theorem uF_inq {t : U64} (ht : t ∈ HR.tcbs) : bsL.mem sR (inqA t) = 0#u64 :=
