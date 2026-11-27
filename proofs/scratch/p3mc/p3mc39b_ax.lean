@@ -1,0 +1,27 @@
+import Fl4Proofs.P2.BootRJpl
+#print axioms Fl4Proofs.P2.BootSt.uB_nodeA_slot
+#print axioms Fl4Proofs.P2.BootSt.uB_typed_R
+#print axioms Fl4Proofs.P2.BootSt.uB_slot_ne
+#print axioms Fl4Proofs.P2.BootSt.jpl_R
+#print axioms Fl4Proofs.P2.BootSt.placed_R
+#print axioms Fl4Proofs.P2.BootSt.delBound_R
+#print axioms Fl4Proofs.P2.BootSt.uB_GR_chains
+#print axioms Fl4Proofs.P2.BootSt.uB_memGR
+#print axioms Fl4Proofs.P2.BootSt.uB_noDesc
+#print axioms Fl4Proofs.P2.BootSt.uB_root_nn
+#print axioms Fl4Proofs.P2.BootSt.uB_null
+#print axioms Fl4Proofs.P2.BootSt.mdbLinks_R
+#print axioms Fl4Proofs.P2.BootSt.uB_links_R
+#print axioms Fl4Proofs.P2.BootSt.uB_cslot0
+#print axioms Fl4Proofs.P2.BootSt.uB_cslot_root
+#print axioms Fl4Proofs.P2.BootSt.cdtRel_R
+#print axioms Fl4Proofs.P2.BootSt.finM_R
+#print axioms Fl4Proofs.P2.BootSt.delInv_R
+#print axioms Fl4Proofs.P2.BootSt.uB_sizeF_thread
+#print axioms Fl4Proofs.P2.BootSt.uB_topF_R
+#print axioms Fl4Proofs.P2.BootSt.utInv_R
+#print axioms Fl4Proofs.P2.BootSt.sfree_R
+#print axioms Fl4Proofs.P2.BootSt.utc_R
+#print axioms Fl4Proofs.P2.BootSt.zD_R
+#print axioms Fl4Proofs.P2.BootSt.uB_idleScW
+#print axioms Fl4Proofs.P2.BootSt.jcov_R_false
