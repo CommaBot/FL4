@@ -158,3 +158,4 @@ import Fl4ProofsA64.P1.QueueDecVcpuStA
 import Fl4ProofsA64.P1.QueueEntryGaps7
 import Fl4ProofsA64.P1.QueueIrqWideA5
 import Fl4ProofsA64.P1.QueueUnbindB
+import Fl4ProofsA64.P1.QueueDelVsB
