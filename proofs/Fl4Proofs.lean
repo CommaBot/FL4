@@ -2447,3 +2447,5 @@ import Fl4Proofs.P3.VirtNewKindV
 import Fl4Proofs.P3.VirtLoopC
 import Fl4Proofs.P3.VirtWrVmcbVmx
 import Fl4Proofs.P3.VirtWit19
+import Fl4Proofs.P3.VirtInsCpu
+import Fl4Proofs.P3.VirtLoopFrame
