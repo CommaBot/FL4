@@ -21,6 +21,8 @@ membership of the relation's object sets:
   `[ksb + 288000, ksb + 304384)`), given the page-table pages apart from `V` (`hPg`).
 * **`offV_xfer`** (P1's `XferFoot`: message transfers, `vcpu.report`'s `RepW` is the same shape: `offV_repW`), TCBs
   of `T` objects of `H`.
+* **`offV_vsFootW`** (VsFootW: every VSpace invocation's footprint — slot words, page-table / ASID-pool words, the
+  ASID table, TCB state words, `SCHED_ACTION`), **`VRelAll.of_vsFootW`**.
 * **`VRelAll.of_native`**: a `WritesIn` footprint inside `OObj ∪ VObj ∪ XferFoot` + the spec side keeping every
   `vcpuAt` on `V` ⇒ `VRelAll` kept; `VRelAll.of_wframe` (the same through `WFrame`).
 
@@ -310,6 +312,64 @@ theorem VRelAll.of_epStep (Ly : JVLay V th U) (Hk : P1.HeapOK H) (J : JVm (L := 
     (hW : ∀ b, W b → Vs.OObj st N T C E R B c s σ b ∨ Vs.VObj th P L4 L3 L2 L1 (L.ksb s) b ∨ P1.XferFoot T U b)
     (hst : Endp.EpStep σ σ') : VRelAll V (memW st s') σ' :=
   VRelAll.of_native Ly Hk J hc hT hE hR hN hB hPg h hw hW (vcpuAt_epStep J.spec hst)
+
+end
+
+
+/-! ## The VSpace footprint (VsFootW) -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+variable {V : Set U64} {H : P1.Heap} {s : S} {σ : State Unit} {th : TypedHeap} {U : Set U64}
+
+/-- A word inside one of the 4096-byte pages `q` (`q + 4096 ≤ 2^64`, apart from `V`): word `8 i`, `i < 512`. -/
+theorem offV_peA {q : U64} (hq : q.val + 4096 ≤ 2 ^ 64 ∧ ∀ v ∈ V, q.val + 4096 ≤ v.val ∨ v.val + 32768 ≤ q.val)
+    {i : U64} (hi : i.val < 512) : OffV V (Vs.peA q i) := fun v hv => by
+  have e := Vs.peA_val hq.1 hi
+  rcases hq.2 v hv with c | c
+  · left; rw [e]; omega
+  · right; rw [e]; omega
+
+/-- **VsFootW's words are off `V`'s VCPUs** (every VSpace invocation's footprint, VsFootW: slot words, page-table
+and ASID-pool words, the ASID table, TCB state words, the core's `SCHED_ACTION`), given the pages (`P`, `L4` ..
+`L1`) apart from `V` and fitting, the ASID table fitting, the node placed. -/
+theorem offV_vsFootW (Ly : JVLay V th U) (J : JVm (L := L) V H s σ) {P L4 L3 L2 L1 : Set U64}
+    (hPg : ∀ q, (q ∈ P ∨ q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1) → q.val + 4096 ≤ 2 ^ 64 ∧ ∀ v ∈ V,
+      q.val + 4096 ≤ v.val ∨ v.val + 32768 ≤ q.val)
+    (hks : (L.ksb s).val + 288000 + 16384 ≤ 2 ^ 64) {T0 : Set U64} (hN : P1.NodePlaced st T0 s (L.cpu s))
+    (hc : (L.cpu s).val < 64) {b : U64} (h : Vs.VsFootW st th P L4 L3 L2 L1 s b) : OffV V b := by
+  rcases h with ⟨x, hx, rfl | rfl⟩ | ⟨x, k, hx, hk, rfl⟩ | ⟨q, hq, i, hi, rfl⟩ | (⟨hi, hhi, rfl⟩ | ⟨q, hq, lo, hlo, rfl⟩) |
+      ⟨t, ht, rfl⟩ | rfl
+  · exact offV_slot Ly hx (le_refl _) (by omega)
+  · obtain ⟨p, k, hk, hp1, hp2, -, e8⟩ := lay_slot_in Ly.pl hx
+    exact offV_slot Ly hx (by rw [show core.num.U64.wrapping_add x 8#u64 = wordOf x 8#u64 from rfl, e8]; omega)
+      (by rw [show core.num.U64.wrapping_add x 8#u64 = wordOf x 8#u64 from rfl, e8]; omega)
+  · obtain ⟨p, k', hk', hp1, hp2, -, -⟩ := lay_slot_in Ly.pl hx
+    have hf := Ly.pl.fits p k' hk'
+    have hkk := hk.lt
+    have e := wordOf_val (a := x) (k := k) (by omega)
+    exact offV_slot Ly hx (by rw [e]; omega) (by rw [e]; omega)
+  · exact offV_peA (hPg q (Or.inr hq)) hi
+  · have e := Vs.atA_val hks hhi
+    exact offV_ks J (by rw [e]; omega) (by rw [e]; omega)
+  · exact offV_peA (hPg q (Or.inl hq)) hlo
+  · have e := Fl4Proofs.P3.stA_val Ly.pl ht
+    exact offV_obj Ly ht (by rw [e]; omega) (by rw [e]; simp only [objSize]; omega)
+  · have e := P1.nodeAt_val hN (off := layout.node.SCHED_ACTION) (by simp [layout.node.SCHED_ACTION])
+    have h16 : layout.node.SCHED_ACTION.val = 16 := by simp [layout.node.SCHED_ACTION]
+    have : (L.cpu s).val * 4288 ≤ 63 * 4288 := Nat.mul_le_mul_right _ (by omega)
+    unfold P1.LawfulStore.nodeBase at e
+    exact offV_ks J (by rw [e]; omega) (by rw [e]; omega)
+
+/-- **A VSpace step keeps `VRelAll`** (footprint `VsFootW`; spec side keeping every `vcpuAt` on `V`). -/
+theorem VRelAll.of_vsFootW {Z : Type} (Ly : JVLay V th U) (J : JVm (L := L) V H s σ) {P L4 L3 L2 L1 : Set U64}
+    (hPg : ∀ q, (q ∈ P ∨ q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1) → q.val + 4096 ≤ 2 ^ 64 ∧ ∀ v ∈ V,
+      q.val + 4096 ≤ v.val ∨ v.val + 32768 ≤ q.val)
+    (hks : (L.ksb s).val + 288000 + 16384 ≤ 2 ^ 64) {T0 : Set U64} (hN : P1.NodePlaced st T0 s (L.cpu s))
+    (hc : (L.cpu s).val < 64) {s' : S} {σ0 σ' : State Z} (h : VRelAll V (memW st s) σ0) {W : U64 → Prop}
+    (hw : P1.WritesIn st s s' W) (hW : ∀ b, W b → Vs.VsFootW st th P L4 L3 L2 L1 s b)
+    (hs : ∀ v ∈ V, vcpuAt σ' v.bv = vcpuAt σ0 v.bv) : VRelAll V (memW st s') σ' :=
+  VRelAll.of_writes Ly.vfit h hw (fun b hb _ => offV_vsFootW Ly J hPg hks hN hc (hW b hb)) hs
 
 end
 
