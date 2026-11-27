@@ -1,0 +1,20 @@
+import Fl4Proofs.P3.P3JThBp
+#print axioms Fl4Proofs.P3.JAtZ.tcbWordProjW
+#print axioms Fl4Proofs.P3.tcb_unset_bpJSt
+#print axioms Fl4Proofs.P3.tcb_set_bpJSt
+#print axioms Fl4Proofs.P3.ThBp
+#print axioms Fl4Proofs.P3.ThHard4
+#print axioms Fl4Proofs.P3.IsRestCap12
+#print axioms Fl4Proofs.P3.restCap11_of12
+#print axioms Fl4Proofs.P3.restCap12_of
+#print axioms Fl4Proofs.P3.setBp_nonIns
+#print axioms Fl4Proofs.P3.unsetBp_nonIns
+#print axioms Fl4Proofs.P3.decThBpSt
+#print axioms Fl4Proofs.P3.midDecRest11_of_bp
+#print axioms Fl4Proofs.P3.invDecRest11_of_bp
+#print axioms Fl4Proofs.P3.midDecStWL_of_11
+#print axioms Fl4Proofs.P3.invDecStWL_of_11
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLze
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLzd_of_Lze
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLze_of_Lzd
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLze
