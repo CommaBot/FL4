@@ -2471,3 +2471,4 @@ import Fl4Proofs.P3.VirtVChunk
 import Fl4Proofs.P3.VirtRetSpecV
 import Fl4Proofs.P3.VirtRetFrameV
 import Fl4Proofs.P3.VirtUtInvVR
+import Fl4Proofs.P3.VirtVFinal
