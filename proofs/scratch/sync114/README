@@ -1,0 +1,7 @@
+sync114 (main #112/#113/#114 into par/sync114 from par/mmuAD 771c06f65). Copy to s114/ and run from the repo root.
+ex.sh       extraction x86_64 + aarch64 on tokyo (fl4-deps Aeneas nightly 0d21a9e)
+p0.sh       gen_const_specs + gen_p0 for both arches (afkprover / afkprover2 /data/fl4 layout)
+f1.sh       p0.sh, then MODE=mod on every module that unfolds send_signal (+ ProgGenL39/L40/Io3)
+f2.sh       full root build with the axiom sweep s114_ax.lean (axint22 + the repaired names), then MODE=a64
+fix_tail.py adds #114's in_release_queue guard to the verbatim send_signal RunningVM tail in helper lemmas
+defdiff.py, axcount.py  sync19's
