@@ -27,7 +27,7 @@ holding a cap of a trivial kind (`TrivK`) keeps `J := Cur0R ∧ SlotTy OS`. Here
   `P3Ok` states only, over the ghost TCB set `T`, not over a word class (gen 28's trick needs a premise stated
   at every `Fr0 ∧ BXI` state; this one is not). Source: `OS` read as the live CNode / TCB / IRQ-node slots
   (QueueSlotTy's docstring); a TCB's seven slots are live while the TCB is (objects.rs `create_new_objects`
-  zeroes them, so `Null` with null links, tcb.rs `SLOT_CTABLE` = 0).
+  zeroes them, so `Null` with null links; `layout::tcb::SLOT_CTABLE` = 0, arch/aarch64/layout.rs:12).
 * **Non-vacuity on a kernel-reached state** (`J.witness_ent`): from any `EntAt` state `s` with `DecPre`,
   under `SlotTyEntT`, the kernel's own restart (`set_thread_state … TS_RESTART`) and then its own `empty_slot`
   of the caller's CSpace-root slot (the clearing half of `cdt.delete`) reach a state where `J` holds, the slot
