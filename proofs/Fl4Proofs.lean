@@ -2215,3 +2215,4 @@ import Fl4Proofs.P2.InvCMV
 import Fl4Proofs.P2.InvCMGd
 import Fl4Proofs.P2.InvCMAnnA
 import Fl4Proofs.P2.E2EPU27
+import Fl4Proofs.P2.InvDelPteV
