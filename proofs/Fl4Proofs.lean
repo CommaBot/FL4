@@ -2463,4 +2463,7 @@ import Fl4Proofs.P3.VirtResetSpecV
 import Fl4Proofs.P3.VirtVCapped
 import Fl4Proofs.P3.VirtVCappedDel
 import Fl4Proofs.P3.VirtHns
+import Fl4Proofs.P3.VirtUtDecV
+import Fl4Proofs.P3.VirtUtGateV
+import Fl4Proofs.P3.VirtUtInvV
 import Fl4Proofs.P3.VirtVCappedSwap
