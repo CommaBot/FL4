@@ -2443,3 +2443,5 @@ import Fl4Proofs.P3.VirtWrSys
 import Fl4Proofs.P3.VirtNoRunDel
 import Fl4Proofs.P3.VirtNoRunStep
 import Fl4Proofs.P3.VirtV3FNoRun
+import Fl4Proofs.P3.VirtNewKindV
+import Fl4Proofs.P3.VirtLoopC
