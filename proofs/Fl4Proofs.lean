@@ -2452,3 +2452,4 @@ import Fl4Proofs.P3.VirtLoopFrame
 import Fl4Proofs.P3.VirtDispVcpu
 import Fl4Proofs.P3.VirtLoopInv0
 import Fl4Proofs.P3.VirtVKeep
+import Fl4Proofs.P3.VirtHinvV
