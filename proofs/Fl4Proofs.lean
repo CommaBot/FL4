@@ -2367,3 +2367,7 @@ import Fl4Proofs.P3.VirtVmcbDec
 import Fl4Proofs.P3.JAtZV3SwitchC
 import Fl4Proofs.P3.SigVmTailFalse
 import Fl4Proofs.P3.JAtZV3Msr
+import Fl4Proofs.P3.VirtVmcbTail
+import Fl4Proofs.P3.VirtVmcbE2E
+import Fl4Proofs.P3.VirtArgsSpec
+import Fl4Proofs.P3.VirtWrSys
