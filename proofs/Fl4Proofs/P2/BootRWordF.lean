@@ -8,7 +8,8 @@ At `(sR, σR)` (P2/BootRSpec, P2/BootRMem) with the ghosts `ZR` (P2/BootRZ: `T =
 * `yld` (**`ZR_yld`**: both TCBs' `YIELD_TO` words 0 = `tcb_yield_to = None`, neither SC yielded from), `mcp`
   (`MCP` / `FLAGS` words 0 = MCP 0, no flag), `buf` (`IPC_BUFFER` words 0 = 0);
 * `bok` (**`σR_bok`**: both TCBs' IPC frame caps null), `fcov` (`σR` has no data page), `fcap` and `vsc`: every slot
-  of `thR` holds the null cap but the root slot, whose `Thread tRw` cap is no frame and no VSpace cap.
+  of `thR` holds the null cap but the root slot (`Thread tRw`) and the timeout-handler slot (`SchedContext scRw 7`),
+  neither a frame nor a VSpace cap.
 
 No premise. No existing statement changed.
 -/
@@ -141,13 +142,15 @@ theorem ZR_fcov : FrameCover ZR.B (σR (Z := Unit)) := fun _ _ h => by
   · exact (kheapB_noPage hb).elim
 
 theorem ZR_fcap : Vs.FrSlots ZR.th (UFr (σR (Z := Unit))) (bsL.mem sR) := fun y hy => by
-  rcases slotR_cases hy with rfl | ⟨hn, -⟩
+  rcases slotR_cases hy with rfl | rfl | ⟨hn, -⟩
   · rw [capV_R_root]; trivial
+  · rw [capV_R_tmo]; trivial
   · rw [hn]; exact Vs.FrIn.null _
 
 theorem ZR_vsc : Vs.VsSlotsW ZR.th ZR.P ZR.L4 ZR.L3 ZR.L2 ZR.L1 (bsL.mem sR) := fun y hy => by
-  rcases slotR_cases hy with rfl | ⟨hn, -⟩
+  rcases slotR_cases hy with rfl | rfl | ⟨hn, -⟩
   · rw [capV_R_root]; trivial
+  · rw [capV_R_tmo]; trivial
   · rw [hn]; trivial
 
 end
