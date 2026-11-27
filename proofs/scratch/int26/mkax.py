@@ -1,5 +1,5 @@
-# Build scratch/int26/axint26.lean from int25's axint25 + every x86 AX file new in int/j26 (scratch/int26/axfiles.txt:
-# mmuAD gens 23-40, sync114, virt gens 6-27, p3mc gens 18-43, a64's x5_ax) + scratch/int26/extra.lean (thms.py over
+# Build scratch/int26/axint26.lean from int25's axint25 + every x86 AX file new in int/j26, stages 1 and 2 (scratch/int26/axfiles.txt:
+#   mmuAD gens 23-42a, sync114, virt gens 6-28, p3mc gens 18-43, p3J gens 16-40, a64's x5_ax) + scratch/int26/extra.lean (thms.py over
 # every Fl4Proofs / Fl4Spec module new in int/j26). a64/a64_ax2.lean (A64 names) is run on its own.
 # Dedup #print units; #check / #eval lines are dropped. Run in proofs/.
 import sys
