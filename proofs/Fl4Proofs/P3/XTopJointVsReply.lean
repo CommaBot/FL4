@@ -265,7 +265,7 @@ theorem JAtZ.runRJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
         subst hp; rw [hk] at hk'; cases hk'; rcases hrs with hrs | hrs | hrs <;> rw [hrs] at h0 <;> simp [tsCode] at h0)
       hlk hfk hAI.1 hY' (hYK6.dk q.bv) (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2) hKd subset_rfl) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
@@ -275,7 +275,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`reply1` of a runnable thread at `J`** (XTopJointReply's
 `JAtZ.reply1J` with `JAtZ.runRJ`): `JAt` at the spec's state with the reply
 registers (when called) and `Running`. -/
-theorem JAtZ.reply1RJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : ct ∈ Z.T)
+theorem JAtZ.reply1RJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : ct ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart ∨ x.tcbState = .running ∨ x.tcbState = .runningVM) (call : Bool) (v : U64) :
     vspace.reply1 st s ct call v ⦃ s2 => JAt (L := L) arI AR s2 a (stsAct (updK σ ct.bv
       (.tcb { (if call then Endp.replyTcb x v.bv else x) with tcbState := .running })) ct.bv) ⦄ := by
@@ -284,7 +284,7 @@ theorem JAtZ.reply1RJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U6
   · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
     refine WP.spec_mono (J.runRJ hct hk hrs) ?_
     rintro s2 ⟨Lst', D', J2⟩
-    exact ⟨_, _, _, _, _, _, J2⟩
+    exact ⟨_, _, _, _, _, _, J2, inferInstance⟩
   · simp only [↓reduceIte]
     have hin : (do
         let buf ← msg.lookup_ipc_buffer st s true ct
@@ -344,7 +344,7 @@ theorem JAtZ.reply1RJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U6
     refine WP.spec_mono (J3.runRJ hct hkC hrs) ?_
     rintro s4 ⟨Lst', D', J4⟩
     rw [updK_updK] at J4
-    exact ⟨_, _, _, _, _, _, J4⟩
+    exact ⟨_, _, _, _, _, _, J4, inferInstance⟩
 
 
 /-- **The spec's restart, reply and `Running` after an omitted restart**
@@ -443,6 +443,7 @@ theorem JAtZ.clrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   refine J.vsStepJ (jVsApartHyp arI Z H Cs Ac Lst D s a σ rfl J) hpc hidx (J.xtop.clr5 hb hba)
     (VsSFr.of_eq rfl) hW (fun y hy _ => hSS.capV hy) (by rw [hSS.capV hA]) (by rw [hSS.capV hA]) hnu (by rw [hSS.capV hA])
     (fun y hy => ⟨(hSS y hy).2.2.1, (hSS y hy).2.2.2⟩) (J.vsc.of_eq fun y hy => hSS.capV hy)
+    (J.vsSS (G' := Z.G) (J.xtop.clr5 hb hba) hW.1 hSS (Vs.ArchShr.refl _))
 
 end
 
@@ -456,7 +457,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 8000000 in
 /-- **Frame `GetAddress` at `JAt`** (module docstring). -/
 theorem decode_invocation_frame_gaJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl) (hl : lbl = fl4_abi.label.X86PageGetAddress)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
@@ -501,13 +502,13 @@ theorem decode_invocation_frame_gaJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   have hD := decode_invocation_frame_getaddrX (L := L) arI (X := fun s' a' σ' => FinXT (L := L) Z.th Z.P Z.L4 Z.L3
       Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR (L.ksb s) σ s' a' σ' ∧ JAt (L := L) arI AR s' a' σ')
     s ar σ lbl slbl hlbl hl length buf ct hct hcur hk (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d)
-    (m := m) slot blk call don fp hga ⟨hX0, Z, H, Cs, Ac, Lst, D, J⟩ extra args ci sl excaps buffer
+    (m := m) slot blk call don fp hga ⟨hX0, Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ extra args ci sl excaps buffer
   exact Or.inr (DecOKRMX.toXR arI hD hDR (fun _ _ _ hx _ => hx.2))
 
 set_option maxHeartbeats 8000000 in
 /-- **Frame `TestAndClearAccessed` at `JAt`** (module docstring). -/
 theorem decode_invocation_frame_tacJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hl : lbl = fl4_abi.label.X86PageTestAndClearAccessed)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -549,8 +550,8 @@ theorem decode_invocation_frame_tacJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
     (hfu := by
       have h := J.vsc.at (show AbsSlot Z.th (pc.bv, idx) from ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩).isSlot hcap
       simp only [Vs.VCapW, Vs.VCapOK] at h; exact h.2.2) (cslotAddr (pc.bv, idx)) blk call don fp
-    htac ⟨hX0, Z, H, Cs, Ac, Lst, D, J⟩
-    (fun b hb hal => ⟨finXT_clr5 hX0 hb hal, Z, H, Cs, Ac, Lst, D, J.clrJ hpc hidx hnu hb hal⟩)
+    htac ⟨hX0, Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
+    (fun b hb hal => ⟨finXT_clr5 hX0 hb hal, Z, H, Cs, Ac, Lst, D, J.clrJ hpc hidx hnu hb hal, inferInstance⟩)
     extra args ci sl excaps buffer
   exact Or.inr (DecOKRMX.toXR arI hD hDR (fun _ _ _ hx _ => hx.2))
 
@@ -559,7 +560,7 @@ set_option maxHeartbeats 4000000 in
 `DeriveSubframe` (XTopJointVsMap's `decode_invocation_frameJV` for Map and
 Unmap, `decode_invocation_frame_gaJ`, `decode_invocation_frame_tacJ`). -/
 theorem decode_invocation_frameJR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress →

@@ -1,0 +1,11 @@
+# heap writers (retype_region / delete_objects) and their callers: do not keep ktV
+kq_retypeRegion
+kq_deleteObjects
+kq_retypeRegionWith'
+kq_resetUntypedCap'
+kqe_invokeUntypedWith'
+kqe_fl4InvokeUntyped'
+kq_performAsidControlInvocation
+kqe_archPerformInvocation
+kqe_fl4Perform
+kqe_fl4ArchPerformInvocation

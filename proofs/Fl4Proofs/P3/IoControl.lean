@@ -479,7 +479,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   have hk3 : L.ksb s3 = L.ksb s := hM3.1.trans hkb
   have hstp : CurRun σ → Steps (L := L) arI th s ar σ s4 ar σ' := fun hC =>
     ((hstp1 hC).trans arI (Steps.mask arI hL2 hlv hfl hM3)).trans arI
-      (Steps.insert arI hP hps hpd rfl hci hF4' ⟨hR', hV', hM', hC', hI'⟩ hFI'
+      (Steps.insert arI (hnk := by rw [hcap4 _ hAd.isSlot, if_pos rfl]; rfl) hP hps hpd rfl hci hF4' ⟨hR', hV', hM', hC', hI'⟩ hFI'
         (by rw [hk3]; exact (MdbStep.same_left hM hS23 hSt4).okv hFR)
         (fun y hy hne => by rw [hcap4 y hy, if_neg hne]) hdst3
         (fun p sb fi d h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h)
@@ -488,6 +488,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
         (fun _ _ _ _ _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
+        (fun _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
           (by rw [hcap4 _ hAd.isSlot, if_pos rfl]; exact fun h => by cases h)
           (fun _ _ _ h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h))
   have hkeep := capInsert_keeps (absCap (.IoPort first last 0#u64)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')

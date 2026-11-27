@@ -1,0 +1,458 @@
+/-
+P3 (line jboot, gen 4): **P1's `BlkOK` at the richer witness** (`JAtZ.blk`): the store `w1` (JBoot1Mem), P1's
+heap `Hw1` (JBoot1Z), the cores `Csw = {0}` and the active SCs `C1 = {idle SC, root SC}`.
+
+`Hw1`'s TCBs are `T1`, its SCs `C1` (both size exponent 7), no reply and no notification; its `Ω` words lie in
+`[kernelBase + 0x3000, kernelBase + 0x7080)`, the root SC, the root CNode or the kernel-state block, its frame
+words are the two SCs'. The root TCB is current (`CUR_THREAD`, action resume), running (state 1), bound to the
+root SC (`SC` word, the SC's `TCB` word back, core 0); the idle TCB bound to the idle SC.
+
+* **`w1_sqi`**, **`w1_bound`**, **`w1_objs`**, **`w1_reply`**, **`w1_scx`**, **`w1_scsok`**, **`w1_sgok`**,
+  **`w1_blk`** (`BlkOK`).
+
+No sorry; no premises. New module; no existing statement changed.
+-/
+import Fl4Proofs.P3.JBoot1Lay
+import Fl4Proofs.P3.JBootBlk
+import Fl4Proofs.P3.JBoot1Inv
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3.JBoot
+open fl4_core Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P2.Wit Classical
+
+noncomputable section
+
+set_option maxHeartbeats 1000000
+
+/-! ## `Hw1`'s sets -/
+
+theorem tcbs_Hw1 : Heap.tcbs Hw1 = T1 := by
+  ext p
+  simp only [Heap.tcbs, Set.mem_setOf_eq]
+  constructor
+  · intro h
+    rcases Hw1_some h with ⟨rfl, -⟩ | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, -, -, h'⟩
+    · exact rT_mem
+    · cases e
+    · cases e
+    · have : p ∈ Heap.tcbs Hw := h'
+      rw [tcbs_Hw] at this; rw [memT0 this]; exact idT_mem
+  · intro h; rcases memT1 h with rfl | rfl
+    · exact Hw1_idT
+    · exact Hw1_rT
+
+theorem scs_Hw1 : Heap.scs Hw1 = C1 := by
+  ext p
+  simp only [Heap.scs, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨z, h⟩
+    rcases Hw1_some h with ⟨-, e⟩ | ⟨rfl, -⟩ | ⟨-, e⟩ | ⟨-, -, -, h'⟩
+    · cases e
+    · exact rS_mem
+    · cases e
+    · have : p ∈ Heap.scs Hw := ⟨z, h'⟩
+      rw [scs_Hw] at this; rw [memC0 this]; exact idS_mem
+  · intro h; rcases memC1 h with rfl | rfl
+    · exact ⟨7, Hw1_idS⟩
+    · exact ⟨7, Hw1_rS⟩
+
+theorem Hw1_kind {p : U64} {k : HKind} (h : Hw1 p = some k) : k = .tcb ∨ k = .sc 7 ∨ ∃ z, k = .other z := by
+  rcases Hw1_some h with ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, rfl⟩ | ⟨-, -, -, h'⟩
+  · exact Or.inl rfl
+  · exact Or.inr (Or.inl rfl)
+  · exact Or.inr (Or.inr ⟨6, rfl⟩)
+  · exact Hw_kind h'
+
+theorem replies_Hw1 : Heap.replies Hw1 = ∅ := by
+  ext p
+  simp only [Heap.replies, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+  intro h
+  rcases Hw1_kind h with e | e | ⟨z, e⟩ <;> cases e
+
+theorem ntfns_Hw1 : Heap.ntfns Hw1 = ∅ := by
+  ext p
+  simp only [Heap.ntfns, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+  intro h
+  rcases Hw1_kind h with e | e | ⟨z, e⟩ <;> cases e
+
+theorem scBits1 (c : U64) (hc : c ∈ C1) : Heap.scBits Hw1 c = 7 := by
+  unfold Heap.scBits
+  rcases memC1 hc with rfl | rfl
+  · rw [Hw1_idS]
+  · rw [Hw1_rS]
+
+/-- `Ω`'s words by position. -/
+theorem omega1_pos {b : U64} (h : b ∈ Heap.omega Hw1) : b.val % 8 = 0 ∧
+    ((18446744071562080256 ≤ b.val ∧ b.val < 18446744071562096768) ∨
+     (18446744071562104832 ≤ b.val ∧ b.val < 18446744071562104832 + 128) ∨
+     (18446744071562108928 ≤ b.val ∧ b.val < 18446744071562108928 + 64) ∨
+     (18446744071562133504 ≤ b.val ∧ b.val < 18446744071562147072)) := by
+  obtain ⟨hal, p, k, hp, hk, hin⟩ := h
+  refine ⟨hal, ?_⟩
+  unfold InObj at hin
+  rcases Hw1_pos hp with ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨rfl, e⟩ | ⟨rfl, e⟩ | ⟨rfl, e⟩ |
+    ⟨rfl, e⟩
+  · rcases hk with e' | ⟨z, e'⟩ | ⟨z, e'⟩ | ⟨e', -⟩ <;> cases e'
+  · simp only [HKind.bits, Nat.reducePow] at hin; omega
+  · simp only [HKind.bits, Nat.reducePow] at hin; omega
+  · rcases hk with e' | ⟨z, e'⟩ | ⟨z, e'⟩ | ⟨e', -⟩ <;> cases e'
+  all_goals simp only [HKind.bits, Nat.reducePow] at hin; omega
+
+/-- The frame words are the two SCs'. -/
+theorem frame1_pos {b : U64} (h : b ∈ Heap.frame Hw1) :
+    b.val % 8 = 0 ∧ ((18446744071562096640 ≤ b.val ∧ b.val < 18446744071562096768) ∨
+      (18446744071562104832 ≤ b.val ∧ b.val < 18446744071562104832 + 128)) := by
+  obtain ⟨hal, p, k, hp, hk, hin⟩ := h
+  refine ⟨hal, ?_⟩
+  unfold InObj at hin
+  rcases Hw1_pos hp with ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨e, rfl⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩ | ⟨rfl, -⟩ |
+    ⟨rfl, -⟩
+  all_goals try (rcases hk with e' | ⟨z, e'⟩ | ⟨e', -⟩ <;> cases e'; done)
+  all_goals simp only [HKind.bits, Nat.reducePow] at hin; omega
+
+theorem frame1_of {c b : U64} (hc : c ∈ C1) (hb : b.val % 8 = 0) (h1 : c.val ≤ b.val) (h2 : b.val < c.val + 128) :
+    b ∈ Heap.frame Hw1 := by
+  rcases memC1 hc with rfl | rfl
+  · exact ⟨hb, idS, .sc 7, Hw1_idS, Or.inr (Or.inl ⟨7, rfl⟩), h1, by simp only [HKind.bits, Nat.reducePow]; omega⟩
+  · exact ⟨hb, rS, .sc 7, Hw1_rS, Or.inr (Or.inl ⟨7, rfl⟩), h1, by simp only [HKind.bits, Nat.reducePow]; omega⟩
+
+theorem scw1_frame {c : U64} (hc : c ∈ C1) (K : U64) (hK : K.val < 128) (h8 : K.val % 8 = 0) :
+    core.num.U64.wrapping_add c K ∈ Heap.frame Hw1 := by
+  have hcv : c.val % 128 = 0 ∧ c.val + 128 < 2 ^ 64 := by
+    rcases memC1 hc with rfl | rfl <;> decide
+  have hv := wa_val (a := c) (b := K) (by omega)
+  exact frame1_of hc (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)
+
+theorem Hw_ne {p : U64} {k : HKind} (h : Hw p = some k) : p ≠ rT ∧ p ≠ rS ∧ p ≠ rC := by
+  refine ⟨ne_rT_of ?_, ne_rS_of ?_, ne_rC_of ?_⟩ <;>
+  rcases Hw_pos h with ⟨e, -⟩ | ⟨e, -⟩ | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩ | ⟨-, e⟩ <;> omega
+
+theorem ks1_omega : ∀ o : U64, o.val < 13568 → o.val % 8 = 0 →
+    core.num.U64.wrapping_add (wL.ksb w1) o ∈ Heap.omega Hw1 := by
+  intro o ho h8
+  obtain ⟨hal, p, k, hp, hk, hin⟩ := ks_omega o ho h8
+  obtain ⟨n1, n2, n3⟩ := Hw_ne hp
+  exact ⟨hal, p, k, by rw [Hw1_old n1 n2 n3]; exact hp, hk, hin⟩
+
+/-! ## Words of the image -/
+
+theorem st_w1 (t : U64) (ht : t ∈ T1) :
+    (t = idT ∧ wL.mem w1 (P1.stA t) = 7#u64) ∨ (t = rT ∧ wL.mem w1 (P1.stA t) = 1#u64) := by
+  rcases memT1 ht with rfl | rfl
+  · exact Or.inl ⟨rfl, by rw [P1.stA_eq, tcbW1_v _ (by decide) (by decide)]; decide⟩
+  · exact Or.inr ⟨rfl, by rw [P1.stA_eq, rtW_v _ (by decide) (by decide)]; decide⟩
+
+theorem n1_4 : (1#u64) ≠ sched.TS_BLOCKED_ON_SEND := by unfold sched.TS_BLOCKED_ON_SEND; decide
+theorem n1_3 : (1#u64) ≠ sched.TS_BLOCKED_ON_RECV := by unfold sched.TS_BLOCKED_ON_RECV; decide
+theorem n1_6 : (1#u64) ≠ sched.TS_BLOCKED_ON_NTFN := by unfold sched.TS_BLOCKED_ON_NTFN; decide
+theorem n1_5 : (1#u64) ≠ sched.TS_BLOCKED_ON_REPLY := by unfold sched.TS_BLOCKED_ON_REPLY; decide
+
+theorem nbl1 : ¬ Blocked (1#u64) := by
+  rintro (h | h | h)
+  · exact n1_4 h
+  · exact n1_3 h
+  · exact n1_6 h
+
+theorem nbr1 : ¬ BlockedR (1#u64) := by
+  rintro (h | h)
+  · exact nbl1 h
+  · exact n1_5 h
+
+theorem nblk_w1 (t : U64) (ht : t ∈ T1) : ¬ BlockedR (wL.mem w1 (P1.stA t)) := by
+  rcases st_w1 t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e]
+  · exact nbr7
+  · exact nbr1
+
+theorem bound_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (boundA t) = 0#u64 := by
+  unfold boundA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem td_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (tdA t) = 0#u64 := by
+  unfold tdA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem tl_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (tlA t) = 0#u64 := by
+  unfold tlA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem tr_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (trA t) = 0#u64 := by
+  unfold trA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem tp_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (tpA t) = 0#u64 := by
+  unfold tpA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem dn_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (dnA t) = 0#u64 := by
+  unfold dnA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem dp_w1 (t : U64) (ht : t ∈ T1) : wL.mem w1 (dpA t) = 0#u64 := by
+  unfold dpA; exact tZ1 t ht _ (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- A zero word of either SC (not `TCB`, `REFILL_MAX`, the tail or the two refill words). -/
+theorem scZ1 {c : U64} (hc : c ∈ C1) (K : U64) (hK : K.val < 128) (h8 : K.val % 8 = 0) (h1 : K.val ≠ 24)
+    (h2 : K.val ≠ 72) (h3 : K.val ≠ 88) (h4 : K.val ≠ 104) (h5 : K.val ≠ 112) :
+    wL.mem w1 (core.num.U64.wrapping_add c K) = 0#u64 := by
+  rcases memC1 hc with rfl | rfl
+  · rw [scW1_v K hK h8]; img1z
+  · rw [rsW_v K hK h8]; img1z
+
+theorem scTcb_w1 {c : U64} (hc : c ∈ C1) :
+    (c = idS ∧ wL.mem w1 (scTcbA c) = idT) ∨ (c = rS ∧ wL.mem w1 (scTcbA c) = rT) := by
+  rcases memC1 hc with rfl | rfl
+  · exact Or.inl ⟨rfl, by unfold scTcbA layout.sc.TCB; rw [scW1_v _ (by decide) (by decide)]; decide⟩
+  · exact Or.inr ⟨rfl, by unfold scTcbA layout.sc.TCB; rw [rsW_v _ (by decide) (by decide)]; decide⟩
+
+theorem scCore_w1 {c : U64} (hc : c ∈ C1) : wL.mem w1 (scCoreA c) = 0#u64 := by
+  unfold scCoreA layout.sc.CORE
+  exact scZ1 hc _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem scReply1 {c : U64} (hc : c ∈ C1) : wL.mem w1 (scReplyA c) = 0#u64 := by
+  unfold scReplyA layout.sc.REPLY
+  exact scZ1 hc _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem scNtfn1 {c : U64} (hc : c ∈ C1) : wL.mem w1 (scNtfnA c) = 0#u64 := by
+  unfold scNtfnA layout.sc.NTFN
+  exact scZ1 hc _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem scYf1 {c : U64} (hc : c ∈ C1) : wL.mem w1 (scYieldFromA c) = 0#u64 := by
+  unfold scYieldFromA layout.sc.YIELD_FROM
+  exact scZ1 hc _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+theorem rmax1 {c : U64} (hc : c ∈ C1) : wL.rmax w1 c = 2#u64 := by
+  rcases memC1 hc with rfl | rfl
+  · exact rmax_idS1
+  · exact rmax_rS
+
+theorem sc1_mem (t : U64) (ht : t ∈ T1) :
+    (t = idT ∧ wL.mem w1 (scA t) = idS) ∨ (t = rT ∧ wL.mem w1 (scA t) = rS) := by
+  rcases memT1 ht with rfl | rfl
+  · exact Or.inl ⟨rfl, sc_idT1⟩
+  · exact Or.inr ⟨rfl, sc_rT1⟩
+
+theorem sc1_in (t : U64) (ht : t ∈ T1) : wL.mem w1 (scA t) ∈ C1 := by
+  rcases sc1_mem t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e]
+  · exact idS_mem
+  · exact rS_mem
+
+theorem sc1_ne (t : U64) (ht : t ∈ T1) : wL.mem w1 (scA t) ≠ 0#u64 := by
+  rcases sc1_mem t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e] <;> decide
+
+theorem nodeZ1 (o : U64) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h0 : o.val ≠ 0) (h1 : o.val ≠ 8)
+    (h2 : o.val ≠ 24) (h3 : o.val ≠ 32) : wL.mem w1 (wL.nodeAt w1 0#u64 o) = 0#u64 := by
+  rw [show wL.mem w1 (wL.nodeAt w1 0#u64 o) = nodeW wst w1 0#u64 o from rfl, nodeW1_v o ho h8]; img1z
+
+theorem troot_w1 : wL.mem w1 (wL.nodeAt w1 0#u64 layout.node.TIMER_ROOT) = 0#u64 := by
+  unfold layout.node.TIMER_ROOT
+  exact nodeZ1 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem tmin_w1 : wL.mem w1 (wL.nodeAt w1 0#u64 layout.node.TIMER_MIN) = 0#u64 := by
+  unfold layout.node.TIMER_MIN
+  exact nodeZ1 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+theorem dbg_w1 : wL.mem w1 (wL.nodeAt w1 0#u64 layout.node.DEBUG_TCBS) = 0#u64 := by
+  unfold layout.node.DEBUG_TCBS
+  exact nodeZ1 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+theorem actW1 : wL.actionW w1 = 0#u64 := act_w1
+
+/-! ## The scheduler queues -/
+
+/-- **`SchedQueuesInv` at `w1`** (every queue empty). -/
+theorem w1_sqi : SchedQueuesInv wst T1 Csw (Heap.omega Hw1) Hw1 w1 (fun _ _ => []) (fun _ => []) where
+  tcbs := tcbPlaced_T1
+  nodes c hc := by rw [memCs hc]; exact nodePlaced_w1
+  cur := rfl
+  aff t ht := by rw [aff_w1 t ht]; rfl
+  prio := w1_schedCore.prio
+  ready c hc := by rw [memCs hc]; exact w1_schedCore.ready
+  release c hc := by rw [memCs hc]; exact w1_schedCore.release
+  inQ _ _ _ _ _ h := (List.not_mem_nil h).elim
+  inR _ _ _ h := (List.not_mem_nil h).elim
+  queued := w1_schedCore.queued
+  released := w1_schedCore.released
+  excl := w1_schedCore.excl
+  action := Or.inl actW1
+  runQ _ _ _ _ _ h := (List.not_mem_nil h).elim
+  runR _ _ _ h := (List.not_mem_nil h).elim
+  actOK h := by rw [actW1] at h; rcases memT1 h with e | e <;> exact absurd e (by decide)
+  eps := ⟨∅, fun _ => [], fun _ he => he.elim, fun _ he => he.elim, fun _ he => he.elim, fun _ he => he.elim,
+    fun t ht _ hb => absurd (Or.inl hb) (nblk_w1 t ht),
+    fun t ht _ hs => by
+      rcases st_w1 t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e] at hs
+      · rcases hs with h | h; exact absurd h n4; exact absurd h n3
+      · rcases hs with h | h; exact absurd h n1_4; exact absurd h n1_3,
+    fun t ht _ hs => by
+      rcases st_w1 t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e] at hs
+      · exact absurd hs n6
+      · exact absurd hs n1_6,
+    fun e => ⟨fun he => he.elim, fun h => by
+      rcases h with h | h <;> rcases Hw1_kind h with e | e | ⟨z, e⟩ <;> cases e⟩,
+    fun _ he => he.elim, fun _ he => he.elim, fun _ he => he.elim⟩
+  curT := w1_schedCore.curT
+  idleT := w1_schedCore.idleT
+  ksOut := w1_schedCore.ksOut
+  omega a ha := by
+    obtain ⟨hal, hr⟩ := omega1_pos ha
+    refine ⟨hal, fun t ht => ?_, fun c hc => ?_⟩
+    · rcases memT1 ht with rfl | rfl
+      · rw [idT_val]; omega
+      · rw [rT_val]; omega
+    · rw [memCs hc, nodeBase_w1]; omega
+
+/-- **`BoundInv` at `w1`.** -/
+theorem w1_bound : BoundInv wst T1 C1 w1 where
+  q t ht _ := sc1_ne t ht
+  r t ht _ := sc1_ne t ht
+  act h := by rw [actW1] at h; rcases memT1 h with e | e <;> exact absurd e (by decide)
+  idle := by rw [idleW_w1]; exact sc1_ne idT idT_mem
+  resume _ := by rw [curW_w1]; exact sc1_ne rT rT_mem
+  idleNB := by rw [idleW_w1]; exact nblk_w1 idT idT_mem
+  sact t ht _ _ := sc1_in t ht
+
+/-! ## The objects -/
+
+/-- **`ObjsOK` at `w1`** (two SCs, no reply, no notification). -/
+theorem w1_objs : ObjsOK wst (Heap.omega Hw1) (Heap.frame Hw1) ∅ C1 ∅ (Heap.scBits Hw1) w1 where
+  rp _ h := h.elim
+  sc c hc := by
+    rw [scBits1 c hc]
+    rcases memC1 hc with rfl | rfl
+    · exact ⟨⟨by decide, by decide, by decide⟩, le_refl _⟩
+    · exact ⟨⟨by decide, by decide, by decide⟩, le_refl _⟩
+  rpW _ h := h.elim
+  scW c hc b hb hin := by
+    rw [scBits1 c hc] at hin
+    exact Heap.frame_omega (frame1_of hc hb hin.1 (by have := hin.2; simp only [Nat.reducePow] at this; omega))
+  fixW c hc := ⟨by unfold scTcbA layout.sc.TCB; exact scw1_frame hc _ (by decide) (by decide),
+    by unfold scCoreA layout.sc.CORE; exact scw1_frame hc _ (by decide) (by decide)⟩
+  scDisj c hc c' hc' hne := by
+    rw [scBits1 c hc, scBits1 c' hc']
+    rcases memC1 hc with rfl | rfl <;> rcases memC1 hc' with rfl | rfl
+    · exact absurd rfl hne
+    · rw [idS_val, rS_val]; decide
+    · rw [idS_val, rS_val]; decide
+    · exact absurd rfl hne
+  rpSc _ h := h.elim
+  repW c hc := by unfold scReplyA layout.sc.REPLY; exact scw1_frame hc _ (by decide) (by decide)
+  ntW _ h := h.elim
+  ntRp _ h := h.elim
+  ntSc _ h := h.elim
+  ntAl _ h := h.elim
+  ntP _ h := h.elim
+  ntB _ h := h.elim
+  ntORp _ h := h.elim
+  ntOSc _ h := h.elim
+  snW c hc := by unfold scNtfnA layout.sc.NTFN; exact scw1_frame hc _ (by decide) (by decide)
+  syW c hc := by unfold scYieldFromA layout.sc.YIELD_FROM; exact scw1_frame hc _ (by decide) (by decide)
+  mxW c hc := by unfold maxA layout.sc.REFILL_MAX; exact scw1_frame hc _ (by decide) (by decide)
+  nt0 _ h := h.elim
+  rp0 _ h := h.elim
+  sc0 c hc := by rcases memC1 hc with rfl | rfl <;> decide
+
+/-- **`ReplyInv` at `w1`.** -/
+theorem w1_reply : ReplyInv wst T1 ∅ C1 w1 where
+  reply t ht h := by
+    rcases st_w1 t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e] at h
+    · exact absurd h n5
+    · exact absurd h n1_5
+  recv t ht h := by
+    rcases st_w1 t ht with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e] at h
+    · exact absurd h n3
+    · exact absurd h n1_3
+  next _ h := h.elim
+  prev _ h := h.elim
+  back _ h := h.elim
+  screp c hc h := by rw [scReply1 hc] at h; exact absurd rfl h
+  idle c hc _ := by rw [scReply1 hc]
+  head _ h := h.elim
+
+/-- **P1's `ScExtra` at `w1`.** -/
+theorem w1_scx : P1.ScExtra wst T1 Csw C1 ∅ w1 where
+  bound t ht _ := by
+    refine ⟨sc1_in t ht, ?_, by rw [scCore_w1 (sc1_in t ht)]; rfl⟩
+    rcases sc1_mem t ht with ⟨rfl, e⟩ | ⟨rfl, e⟩ <;> rw [e]
+    · rcases scTcb_w1 idS_mem with ⟨-, e'⟩ | ⟨e'', -⟩
+      · exact e'
+      · exact absurd e'' (by decide)
+    · rcases scTcb_w1 rS_mem with ⟨e'', -⟩ | ⟨-, e'⟩
+      · exact absurd e'' (by decide)
+      · exact e'
+  cur := by rw [cscW_w1]; exact rS_mem
+  core c hc := by rw [scCore_w1 hc]; rfl
+  bnd t ht h := by rw [bound_w1 t ht] at h; exact absurd rfl h
+  nsc _ h := h.elim
+  tm := {
+    npl := fun c hc => by rw [memCs hc]; exact nodePlaced_w1
+    lt := fun y hy => by rw [tl_w1 y hy]; exact Or.inl rfl
+    rt := fun y hy => by rw [tr_w1 y hy]; exact Or.inl rfl
+    pt := fun y hy => by rw [tp_w1 y hy]; exact Or.inl rfl
+    root := fun c hc => by rw [memCs hc, troot_w1]; exact Or.inl rfl
+    min := fun c hc => by rw [memCs hc, tmin_w1]; exact Or.inl rfl
+    core := fun y hy h => by rw [td_w1 y hy] at h; exact absurd rfl h
+    dn := fun y hy => by rw [dn_w1 y hy]; exact Or.inl rfl
+    dp := fun y hy => by rw [dp_w1 y hy]; exact Or.inl rfl
+    dh := fun c hc => by rw [memCs hc, dbg_w1]; exact Or.inl rfl }
+  ntb _ h := h.elim
+  rb := {
+    tree := fun c hc => by
+      rw [memCs hc]
+      exact ⟨.leaf, {
+        rep := TRB.Rep.leaf _ _ troot_w1
+        nodup := List.nodup_nil
+        inT := fun _ h => (List.not_mem_nil h).elim
+        armed := fun _ h => (List.not_mem_nil h).elim
+        core := fun _ h => (List.not_mem_nil h).elim
+        sorted := List.Pairwise.nil
+        bal := ⟨0, TRB.Bal.leaf⟩
+        black := rfl
+        min := tmin_w1 }⟩
+    armed := fun y hy h => by rw [td_w1 y hy] at h; exact absurd rfl h
+    idle := fun y hy _ => by rw [tl_w1 y hy, tr_w1 y hy, tp_w1 y hy]; exact ⟨rfl, rfl, rfl⟩ }
+  scn c hc h := by rw [scNtfn1 hc] at h; exact absurd rfl h
+  yt := ⟨fun c hc _ => by
+      rcases scTcb_w1 hc with ⟨-, e⟩ | ⟨-, e⟩ <;> rw [e]
+      · exact idT_mem
+      · exact rT_mem,
+    fun t ht h => by rw [yield_w1 t ht] at h; exact absurd rfl h,
+    fun c hc h => by rw [scYf1 hc] at h; exact absurd rfl h⟩
+  bs := {
+    tb := fun t ht h => by rw [bound_w1 t ht] at h; exact absurd rfl h
+    nt := fun _ h => h.elim
+    sn := fun c hc _ h => by rw [scNtfn1 hc] at h; exact absurd rfl h }
+  tsc c hc _ _ := by
+    rcases scTcb_w1 hc with ⟨rfl, e⟩ | ⟨rfl, e⟩ <;> rw [e]
+    · exact sc_idT1
+    · exact sc_rT1
+  aff t ht _ := by rw [scCore_w1 (sc1_in t ht), aff_w1 t ht]
+
+/-- **`SCsOK` at `w1`.** -/
+theorem w1_scsok : SCsOK wst T1 (Heap.omega Hw1) (Heap.frame Hw1) C1 (Heap.scBits Hw1) C1 w1 where
+  sub _ hb := Heap.frame_omega hb
+  ks b hb := by have := frame1_pos hb; left; rw [ksb_w1, fkb_val]; omega
+  ksΩ := ks1_omega
+  disj t ht _ h2 b hb := by
+    rw [cscW_w1] at h2 ⊢
+    rcases sc1_mem t ht with ⟨rfl, e⟩ | ⟨rfl, e⟩ <;> rw [e] at h2 hb
+    · rw [scBits1 _ idS_mem] at hb
+      rw [scBits1 _ rS_mem]
+      unfold InSC at hb; unfold Outside
+      rw [idS_val] at hb; rw [rS_val]; simp only [Nat.reducePow] at hb ⊢; omega
+    · exact absurd rfl h2
+  all c hc := by
+    rw [scBits1 c hc]
+    refine ⟨fun _ => ?_, by unfold maxA layout.sc.REFILL_MAX; exact scw1_frame hc _ (by decide) (by decide),
+      fun b hb hin => frame1_of hc hb hin.1 (by have := hin.2; simp only [Nat.reducePow] at this; omega)⟩
+    rcases memC1 hc with rfl | rfl
+    · exact wf_idS1
+    · exact wf_rS
+  act c hc := ⟨fun _ => by rw [rmax1 hc]; decide, fun _ => hc⟩
+  spor c hc _ := hc
+  spSg c hc := by unfold sporA layout.sc.SPORADIC; exact scw1_frame hc _ (by decide) (by decide)
+  rep c hc _ := hc
+  repSg c hc := by unfold scReplyA layout.sc.REPLY; exact scw1_frame hc _ (by decide) (by decide)
+  scKs c hc := by
+    rw [scBits1 c hc]; left; rw [ksb_w1, fkb_val]
+    rcases memC1 hc with rfl | rfl
+    · rw [idS_val]; decide
+    · rw [rS_val]; decide
+
+/-- **`SgOK` at `w1`.** -/
+theorem w1_sgok : SgOK wst (Heap.omega Hw1) (Heap.frame Hw1) w1 where
+  sub _ hb := Heap.frame_omega hb
+  ks b hb := by have := frame1_pos hb; left; rw [ksb_w1, fkb_val]; omega
+  ksΩ := ks1_omega
+
+/-- **`JAtZ.blk` at `w1`: P1's `BlkOK`.** -/
+theorem w1_blk : P1.BlkOK wst (P1.Heap.tcbs Hw1) Csw (P1.Heap.omega Hw1) Hw1 (P1.Heap.frame Hw1)
+    (P1.Heap.replies Hw1) (P1.Heap.scs Hw1) (P1.Heap.ntfns Hw1) (P1.Heap.scBits Hw1) C1 w1 := by
+  rw [tcbs_Hw1, replies_Hw1, scs_Hw1, ntfns_Hw1]
+  exact ⟨⟨_, _, w1_sqi⟩, w1_bound, ⟨w1_objs, w1_reply, w1_scx⟩, w1_scsok, w1_sgok⟩
+
+end
+
+end Fl4Proofs.P3.JBoot

@@ -33,22 +33,24 @@ structure SchStep (P : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   dsi : σ'.domainStartIndex = σ.domainStartIndex
   io : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
+  /-- The platform record (#65 1 GiB pages, #68 TDX), written by no step. -/
+  huge : σ'.archState.x64Plat = σ.archState.x64Plat
   asid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   ist : σ'.interruptStates = σ.interruptStates
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   isc : σ'.idleSc = σ.idleSc
 
 theorem SchStep.refl (P : ObjRef → Prop) (σ : State Unit) : SchStep P σ σ :=
-  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => OTK.refl _ _, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem SchStep.trans {P : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : SchStep P σ1 σ2) (h2 : SchStep P σ2 σ3) :
     SchStep P σ1 σ3 :=
   ⟨fun p => (h1.kh p).trans (h2.kh p), h2.um.trans h1.um, h2.cdt.trans h1.cdt, h2.orig.trans h1.orig,
-    h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, h2.asid.trans h1.asid,
+    h2.dl.trans h1.dl, h2.dsi.trans h1.dsi, h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, h2.huge.trans h1.huge, h2.asid.trans h1.asid,
     h2.ist.trans h1.ist, h2.inode.trans h1.inode, h2.isc.trans h1.isc⟩
 
 theorem ScTKw.toSch {P : ObjRef → Prop} {σ σ' : State Unit} (h : ScTKw P σ σ') : SchStep P σ σ' :=
-  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], by rw [h.arch], by rw [h.arch], h.ist, h.inode, h.isc⟩
+  ⟨h.kh, h.um, h.cdt, h.orig, h.dl, h.dsi, by rw [h.arch], by rw [h.arch], by rw [h.arch], by rw [h.arch], h.ist, h.inode, h.isc⟩
 
 /-- The state `σ'` with `σ`'s current thread and arch state. -/
 def schBack (σ σ' : State Unit) : State Unit := { σ' with curThread := σ.curThread, archState := σ.archState }
@@ -113,13 +115,18 @@ theorem xtop_sched_step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
       hK.io]
     exact hIo p hp
   have hKr' : Vs.KRootRel (L.mem s') (L.ksb s') σ' := by
-    unfold Vs.KRootRel Vs.globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hks, hkw _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega),
-      hK.gpml4]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold Vs.KRootW Vs.globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hks, hkw _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega),
+        hK.gpml4]
+      exact hKr
+    · rw [hks]
+      have hfv := Vs.feat_val hkf
+      exact Vs.HugeRel.frame hKr.2 (hkw _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) hK.huge
   have hz : SzKeep σ σ' := hT.szKeep
   have hTP' : Vs.TopPlaced st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' := by
     have hnb : L.nodeBase s' Z.c = L.nodeBase s Z.c := by simp [LawfulStore.nodeBase, hks]

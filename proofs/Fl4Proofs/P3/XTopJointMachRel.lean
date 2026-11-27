@@ -340,7 +340,13 @@ def modelArch : machine.Arch MachineState where
   virtualization _ := ok 0#u64
   vcpu_capability _ _ := ok 0#u64
   vcpu_barrier a := ok a
+  vcpu_sync a _ _ := ok a
+  vcpu_release a _ := ok a
   invalidate_ept a _ _ := ok a
+  tdx_active _ := ok false
+  tdx_report a _ _ _ _ _ _ _ _ _ := ok (core.num.U64.MAX, a)
+  tdx_extend_rtmr a _ _ _ _ _ _ _ := ok (core.num.U64.MAX, a)
+  tdx_get_quote a _ _ := ok (core.num.U64.MAX, a)
   now ms := ok (⟨gctVal ms⟩, gctState ms)
   set_deadline a _ := ok a
   us_to_ticks _ x := ok x

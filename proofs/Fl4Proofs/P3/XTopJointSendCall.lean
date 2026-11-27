@@ -446,7 +446,8 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 (F.ykeep.trans (ciSt_ykeep hkc)),
       J.mcp.frame k1 (F.mcpKeep.trans (ciSt_mcpKeep hkc)), J.buf.frame kb hbuf, hRP',
-      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0), hkern,
+      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       ciSt_nsc (F.nsc J.nsc), I3, hcur3, ciSt_own hkc (F.own htT J.own), ciSt_off (F.off J.off),
       hAI3, B3, ciSt_isorted hkc (F.isorted J.isorted), hrun3, hblk⟩
@@ -466,7 +467,7 @@ reply unlink, then the caller `Inactive` on `IRel` (its queue bits clear by
 release queue, `CurInv.notRel`), the receiver `Running`, `JAtZ` by
 `JAtZ.wake_postCI` (the spec's two state changes swapped, `ciSt_swap`), the
 tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_callInactive_eq`. -/
-theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     (hres : σ.schedulerAction = .resumeCurThread) (hti : σ.curThread ≠ σ.idleThread)
@@ -919,7 +920,7 @@ theorem JAtZ.sendCallIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 end
 

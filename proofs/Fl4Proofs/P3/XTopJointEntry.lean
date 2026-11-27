@@ -61,6 +61,7 @@ import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointSendPushD
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
+import Fl4Proofs.P3.XTopJointVsFb
 import Fl4Proofs.P3.XTopJointVsOff
 import Fl4Proofs.P3.XTopJointVsReply
 import Fl4Proofs.P3.XTopJointVsSub
@@ -83,6 +84,7 @@ import Fl4Proofs.P3.UtDevReset
 import Fl4Proofs.P3.XTopJointFaultTmo
 import Fl4Proofs.P3.MpDirtyJ
 import Fl4Proofs.P3.BufJ
+import Fl4Proofs.P3.XTopJointTdx
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -572,8 +574,10 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (C
   (`Vs.NeedR`: unmapped PT/PD/PDPT caps' tables, PML4 and pool caps' frames;
   `JAtZ.drop`'s `hXc`, so `JAtZ.vsc` survives the drop): UtResetTopJ's
   `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype with a reset
-  (`JAtZ.utResetJ`). -/
-  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+  (`JAtZ.utResetJ`). Asked only when the invoked cap has no descendants (the
+  reset branch's `hnd'`; unguarded it is false for a cap whose region holds a
+  table named by a slot's cap: FINDING g7b-2, KENTRY-PLAN). -/
+  vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
@@ -639,8 +643,9 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   devGpm : DevGpm (L.mem s) Z.G σ
   /-- [J] the reset's `VsReachMiss` at the restart's state, as
   `JUtPath.vsReach`, for the device cap's region (UtDevDrop's `JAtZ.dropAD`
-  in UtDevReset's `JAtZ.reset_untypedDJ`). -/
-  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+  in UtDevReset's `JAtZ.reset_untypedDJ`). Asked only when the cap has no
+  descendants (FINDING g7b-2: unguarded it is false). -/
+  vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
@@ -668,6 +673,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Se
         argsU ci sl excaps buffer ct)
   | .IrqControl => True
   | .IoPortControl => True
+  | .TdxControl => True
   | .IrqHandler _ => True
   | .Domain => True
   | .SchedContext p sb =>
@@ -732,7 +738,7 @@ on the cap:
 | Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevReset's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0, `resetChunkBits` [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT`/`DevGpm`, `VsReachMiss` [J]; proved: every retype a device cap's decode admits (untypeds, frames), with or without a reset); VT-x types `JVtxScope` [scope] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -747,7 +753,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     (hN : JPath (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨σ1, hst⟩ := XTop.restart (L := L) (show XTop (L := L) AR s ar σ from ⟨Z, J.xtop⟩)
   have hAs : AbsSlot Z.th sl := by
     obtain ⟨p, hp, hth⟩ := hsl; exact ⟨p, hp, Or.inl hth⟩
@@ -840,7 +846,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     by_cases h0 : z = 0#u64
     · subst h0 hLb
       exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl lbl.bv (port_label lbl) length buf ct
-        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toPN
+        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn.at ar σ) blk don fp extra ci excaps buffer).toPN
         arI (specDec_noPreK (by trivial))
     · exact hOpen h0
   case IrqControl =>
@@ -854,6 +860,11 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
+  case TdxControl =>
+    subst hLb
+    exact (decode_invocation_tdxJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl length buf ct hct argsU hlen
+      hargs extra excaps (ExtraOK.rel1 hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toPN arI
+      (specDec_noPreK (by trivial))
   case IoPortControl =>
     subst hLb
     have hex := ExtraOK.rel1 hPl hXO
@@ -1003,11 +1014,14 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
       hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case Pml4 p mp asid =>
-    have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).atOK J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp) (by simp)
+    -- (f1) the weak `VCapW` suffices: only the mapped cap's ASID facts are read
+    have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).at J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp)
     subst hLb
-    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp
-      (fun h => (hok.2.2 h).1) length
-      (cslotAddr sl) buf blk call don fp extra _ ci sl excaps buffer).toPN arI (specDec_noPreK (by trivial))
+    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl)
+      (pml4fb_label lbl) ct hct p asid mp (fun h => (hok.2.2 h).1) length buf blk call don fp argsU hlen hargs hbuf hl
+      (fun h => (hok.2.2 h).2) hE.live hE.sg (J.ppr0_start arI hE.ni hE.rd0 hE.ctnq)
+      hG.delParts hG.nd hG.ari sl hAs hc
+      extra excaps hXO hXN ci buffer).toPN arI (specDec_noPreK (by trivial))
   case AsidPool ptr base =>
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci
       sl excaps buffer ct := hN
@@ -1097,7 +1111,7 @@ set_option maxHeartbeats 4000000 in
 after (`JAtPre` after a preempted invocation), from `JEntryHyps`. The front
 end's reads are the equations of `handle_invocation_refinesMX`. -/
 theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
     (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
@@ -1120,7 +1134,7 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   have htcb := (J.xtop.curTcb hcur).1
   have hX := J.xtop
   refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
-    hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
+    hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
     ((J.extraJ J.xferH.1 J.xferH.2.1 hct hinfo hmi hbuf
       hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun _ =>
@@ -1128,8 +1142,8 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (argsU.map UScalar.bv) hmrs
     (fun _ lf lf' hl => J.faultHypJZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh
       (capFaultCorr_lookup cptr hl))
-    (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
-    (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
+    (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J', _⟩ hc => J'.flTailJ hc is_call)
+    (fun a1 e e' ⟨_, _, _, _, _, _, J'', _⟩ he =>
       (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hcur
         is_call e e' he)
     (fun inv σ1 y hst hy => by

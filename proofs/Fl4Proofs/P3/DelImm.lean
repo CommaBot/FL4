@@ -187,7 +187,7 @@ def ImmInv (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (K : Nat) 
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem x.1) y) ∧
     MdbStep (L.mem s0) G0 (L.mem x.1) G ∧ W x.1 x.2.1 σ G
 
-def ImmPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+def ImmPost (W Wx Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (res : core.result.Result cdt.Finalised error.Exc × S × A) : Prop :=
   ∃ σ' G', DState (L := L) th res.2.1 σ' G' ∧ (nnS G').card ≤ (nnS G0).card ∧
@@ -197,9 +197,10 @@ def ImmPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     ((∃ f, res.1 = .Ok f ∧ CleanCap f.cleanup ∧ CapWf f.cleanup ∧
         RD (.finaliseSlotCall sl true) σ0 (.ok (true, absCap f.cleanup), σ') ∧
         (∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem res.2.1) y) ∧
-        (capV (L.mem res.2.1) (cslotAddr sl) ≠ .Null → Rd res.2.1 res.2.2 σ' G' (cslotAddr sl))) ∨
+        (capV (L.mem res.2.1) (cslotAddr sl) ≠ .Null → Rd res.2.1 res.2.2 σ' G' (cslotAddr sl)) ∧
+        (capV (L.mem res.2.1) (cslotAddr sl) = .Null → W res.2.1 res.2.2 σ' G')) ∨
       (res.1 = .Err .Preempted ∧ RD (.finaliseSlotCall sl true) σ0 (.error (), σ'))) ∧
-    WPost W Wp res.1 res.2.1 res.2.2 σ' G'
+    WPost Wx Wp res.1 res.2.1 res.2.2 σ' G'
 
 theorem nuX_zombie {K : Nat} {mem : U64 → U64} {x p zt n : U64} (h : capV mem x = .Zombie p zt n) :
     nuX K mem x = n.val := by unfold nuX; rw [h]
@@ -268,16 +269,16 @@ theorem muI_chg {K : Nat} {mem mem' : U64 → U64} {x p zt n : U64} {c : capabil
   · rw [muI_zombie (hc.trans (hzr hzc)), if_neg hpx]; omega
 
 /-- **FL4's immediate finalisation loop refines `finalise_slot slot True`.** -/
-theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wx Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wp Rd Rz th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wx Wp Rd Rz th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (hps0 : psiD (L.mem s0) G0 < 2 ^ 64 - 1)
     (s : S) (a : A) (fuel : U64) (hinv : ImmInv (L := L) (A := A) W K th sl s0 σ0 G0 (s, a, fuel))
     (hfuel : fuel.val ≤ 2 ^ 64 - 1) :
     cdt.finalise_slot_immediate_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      ImmPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ := by
+      ImmPost (L := L) W Wx Wp Rd th sl s0 σ0 G0 res ⦄ := by
   unfold cdt.finalise_slot_immediate_loop
   refine loop.spec_decr_nat (fun x => x.2.2.val)
     (fun x => ImmInv (L := L) W K th sl s0 σ0 G0 x ∧ x.2.2.val ≤ 2 ^ 64 - 1) _ _ _ ?_ ⟨hinv, hfuel⟩
@@ -298,14 +299,14 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
     have ha : ac = .nullCap := hca.abs
     subst ha
     exact ⟨σ, G, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcd, hps, hnul, hmS, Or.inl ⟨_, rfl, trivial, trivial,
-      htr _ (rd_fin_null hg), hcz, fun h => absurd (capV_of_capAt hc) h⟩, hW⟩
+      htr _ (rd_fin_null hg), hcz, fun h => absurd (capV_of_capAt hc) h, fun _ => hW⟩, hH.wx _ _ _ _ hW⟩
   rw [cap_is_null_ne hcn]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
-  have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  have hcan : absCap c ≠ .nullCap := fun h => hcn ((absCap_eq_null hca.1).1 h)
   have hcvx : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
-  apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
+  apply WP.spec_bind (fin_stepZ arI W Wx Rd Rz th hH.fin hH.wx hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
     hfs1, hW1, hRd1, hRz1, hZF1⟩
@@ -319,15 +320,21 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
   · simp only [cdt.cap_removable, bind_ok, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1, fun _ => hRd1 (Or.inl rfl)⟩, hW1⟩
+      htr _ (rd_fin_removable hg hcan hmem trivial), hcz1, fun _ => hRd1 (Or.inl rfl),
+      fun h => absurd (hx1.symm.trans h) hcn⟩, hW1.2 (Or.inl rfl)⟩
   obtain ⟨hrm, hrmS⟩ := removable_zombie hP hz.zok hA
   rw [hrm]; simp only [bind_ok]
   by_cases hrmv : n.val = 0 ∨ (n.val = 1 ∧ p = cslotAddr sl)
   · simp only [hrmv, decide_true, ↓reduceIte, WP.spec_ok]
     refine ⟨σ1, G1, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, le_trans hcd1 hcd, le_trans hps1 hps,
       fun h => absurd (h.symm.trans (by rw [hx1])) (Ne.symm hcn), hmS1, Or.inl ⟨_, rfl, hcl, hclw,
-      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1, fun _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩)⟩, hW1⟩
+      htr _ (rd_fin_removable hg hcan hmem (hrmS.2 hrmv)), hcz1, fun _ => hRd1 (Or.inr ⟨p, zt, n, rfl, hrmv⟩),
+      fun h => absurd (hx1.symm.trans h) hcn⟩, hW1.2 (Or.inr ⟨p, zt, n, rfl, hrmv⟩)⟩
   simp only [hrmv, decide_false, Bool.false_eq_true, ↓reduceIte]
+  replace hW1 := hW1.1 (fun h => by
+    rcases h with e | ⟨p', zt', n', e, h⟩
+    · cases e
+    · cases e; exact hrmv h)
   have hn1 : 1 ≤ n.val := by omega
   have hnrm : ¬ Fl4Spec.capRemoveable (absCap (.Zombie p zt n)) sl := fun h => hrmv (hrmS.1 h)
   have hxn1 : capV (L.mem s1) (cslotAddr sl) ≠ .Null := by rw [hx1]; exact hcn
@@ -368,7 +375,7 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
   simp only [lift, bind_ok, hidx]
   have hfuel2 : psiD (L.mem s2) G1 < 2 ^ 64 - 1 :=
     lt_of_le_of_lt (le_trans hps2 (le_trans hps1 hps)) hps0
-  apply WP.spec_bind (delete_deferred_refinesZ arI W Wp Rd Rz th hP hF hH _ hEa s2 a1 σ2 G1
+  apply WP.spec_bind (delete_deferred_refinesZ arI W Wx Wp Rd Rz th hP hF hH _ hEa s2 a1 σ2 G1
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hW2 hfuel2)
   rintro ⟨r3, s3, a3⟩ ⟨σ3, G3, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hcd3, hps3, hch3, hsc3, hmS3, hres3, hW3⟩
   simp only [uncurry_apply_pair] at hcd3 hps3 hch3 hsc3 hmS3 hres3 hW3 ⊢
@@ -606,8 +613,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
     (s : S) (a : A) (fuel : U64) (hinv : ImmInv (L := L) (A := A) W K th sl s0 σ0 G0 (s, a, fuel))
     (hfuel : fuel.val ≤ 2 ^ 64 - 1) :
     cdt.finalise_slot_immediate_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
-      ImmPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ :=
-  immediate_loopZ arI W Wp Rd RzT th hP hF (hH.toZ arI) K hK hK6 sl hA s0 σ0 G0 hps0 s a fuel hinv hfuel
+      ImmPost (L := L) W W Wp Rd th sl s0 σ0 G0 res ⦄ :=
+  immediate_loopZ arI W W Wp Rd RzT th hP hF (hH.toZ arI) K hK hK6 sl hA s0 σ0 G0 hps0 s a fuel hinv hfuel
 
 end
 

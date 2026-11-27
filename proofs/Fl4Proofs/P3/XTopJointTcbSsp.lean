@@ -160,7 +160,7 @@ theorem schedcontext.bind_tcb.blkK {A : Type _} {ar : machine.Arch A} (hA : P0.A
       rw [scA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
     exact f1.trans (foot_wr hal (kw_sg (hO.fixW sc hsc).1))
   obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
-    donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+    donate_pair h0 hB hX.x0 hX.2.2.tsc.x hX.2.2.aff ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
       (fun e => hB.idle (by rw [e]; exact ht0))
   have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
     (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
@@ -189,8 +189,8 @@ theorem schedcontext.bind_tcb.blkK {A : Type _} {ar : machine.Arch A} (hA : P0.A
   have haff2 : L.mem s2 (affA t) = cpu := by
     rw [ecpu, core2, ← haff, affA_eq]; exact fl2 t ht _ (by simp) (by simp) (fun _ => by simp)
   refine WP.spec_bind (WP.spec_and (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
-    (by rw [iq2]; exact htr) hc' hsc) (smp.migrate_tcb.frame
-      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.2.2.tm.dn, hX2.2.2.tm.dp, hX2.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
+    (by rw [iq2]; exact htr) hc' hsc (fun _ => by rw [sc2, ecpu])) (smp.migrate_tcb.frame
+      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.1.2.2.tm.dn, hX2.1.2.2.tm.dp, hX2.1.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
   rintro ⟨s3, a1⟩ ⟨⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩, -, -, hid⟩
   try simp only [WP.uncurry'_pair]
   rw [sc2] at sc3
@@ -401,8 +401,8 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
     · rw [bv_inj e]; exact covS
     · rw [bv_inj e]; exact covT
   have hIK := J.idleW_keep hS' hF.2.1 hF.2.2
-  have hjc := J.sc_jcov hW hDead hCov hIK
   have hsub : {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)} ⊆ D := fun q h => h.1
+  have hjc := J.sc_jcov hW hDead hCov hIK hKd hsub
   have hkern := J.sc_kern hW hK hF hX' hDbg hsub
   exact ⟨σ', he, Ac, Lst', {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)}, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK hIK.2) hjc hkern (J.sc_utc hW hK hDbg) hN' hI' hC'
@@ -480,7 +480,7 @@ deletion loop's invariant `WJR` at the base sets `Z`, `WJR` after an Ok
 install, `WJP` after a preempted one. -/
 theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
-    (hH : DelHypsWRZ (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
+    (hH : DelHypsWRZx (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
     (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
@@ -494,6 +494,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
     (hkey : okey nc = okey srcC0)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
     (htu : Vs.TabUn nc → Vs.TabUn srcC0) (hnat : Vs.NativeCap srcC0 → Vs.NativeCap nc)
+    (hkr0 : Vs.VKey nc ≠ none → nc = srcC0 ∧ ¬ Vs.TabUn nc)
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4)
     (hnoe : P1.NullOrEp H (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
@@ -556,6 +557,11 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
       (fun U h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
       (fun h => by rw [hdst]; exact hnat (by rw [← hsrc1]; exact h _ hAsrc.isSlot))
+      (fun R h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
+      (fun hk => by
+        rw [hdst] at hk ⊢
+        obtain ⟨e, hnt⟩ := hkr0 hk
+        exact ⟨⟨_, hAsrc.isSlot, hsrcT n hn, by rw [e, hsrc1]⟩, hnt⟩)
     have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) (absCap nc) (ps.bv, idxs)
         (t.bv, Fl4Spec.tcbCnodeIndex n) σ1).1 := by rw [hins]; rfl
     have hcn := capInsert_nkn _ _ _ σ1 _ hmem
@@ -583,7 +589,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
       fun _ y hy hne => hcap y hy hne⟩
   · have hcapNE : obj.Slot.cap st (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) s ⦃ c => P1.NullOrEp H c ⦄ := by
       rw [slot_cap_eq, capAt_capV]; exact (WP.spec_ok _).2 hnoe
-    apply WP.spec_bind (WP.spec_and (delete_fullWRZ arI _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 _ hAt s a σ G
+    apply WP.spec_bind (WP.spec_and (delete_fullWRZx arI _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 _ hAt s a σ G
       hDS hW (by rw [capV_of_capAt hc0]; exact hc0n) (hDE.2.1 G hDS.1.2.2.1))
       (P1.cdt.delete.ep (ar := arI) s a _ J0.blk hcapNE
         (P := fun s2 => ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
@@ -609,7 +615,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
 /-- `install_fhJ` with the new cap's conditions as `NewCapOK` (as `install_okJ`). -/
 theorem install_fhOkJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
-    (hH : DelHypsWRZ (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
+    (hH : DelHypsWRZx (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
     (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
@@ -623,11 +629,11 @@ theorem install_fhOkJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → F
         (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ∧
       (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
         capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ := by
-  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat⟩ := hok
+  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat, hkr0⟩ := hok
   obtain ⟨sa, idxs⟩ := sl
   simp only at h1s hls; subst h1s
   exact install_fhJ arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
-    hsh hbd hkey hvk htu hnat hep hnoe
+    hsh hbd hkey hvk htu hnat hkr0 hep hnoe
 
 end
 
@@ -759,7 +765,7 @@ other slots' caps kept), then `set_mcp` (`JAtZ.mcpWrJ`), `set_priority`
 release check by `install_sched`). -/
 theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsW (L := L) arI AR Z H Cs W Rd Rz) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (p : U64) (hp : Z.th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -837,7 +843,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
   have hc1 : capV (L.mem s1') x2 = capV (L.mem s) x2 := hS1.capV hxs
   have hnf := vfh_not_frame hv
   have hok : NewCapOK Z.th (L.mem s1') (capV (L.mem s) x2) e2.2 := by
-    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
+    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hv)
   have hI := install_fhOkJ arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots]) (by decide)
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs
     (capV (L.mem s) x2) e2.2 hok (fun _ => vfh_ep hv) hnoe
@@ -860,7 +866,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
       exact mem_bindE_err hx
     · show if _ = _ then _ else _
       rw [if_pos rfl]
-      exact ⟨s0', a0', σ0', ⟨⟨_, H, Cs, Ac0, Lst0, D0, J0⟩, hns0, hp00⟩, hpp, hspp⟩
+      exact ⟨s0', a0', σ0', ⟨⟨_, H, Cs, Ac0, Lst0, D0, J0, inferInstance⟩, hns0, hp00⟩, hpp, hspp⟩
   simp only at hr; subst hr
   rw [← he2] at hx
   obtain ⟨V2, Ac2, Lst2, D2, J2, -, hns2, -, -⟩ := (hHp.ins _).wjr _ _ _ _ hW2
@@ -919,15 +925,15 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
   -- the outcome
   have fin : ∀ (s5 : S) (a5 : A) (σc : Fl4Spec.State Unit), ((), σc) ∈ (scStep p.bv sco σb).1 →
       (∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s5 a5 σc) →
+        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s5 a5 σc ∧ VxE Z') →
       (ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a5) :
         Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
         TopPostDMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) σ blk call don m s res ⦄ := by
-    rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J'⟩
+    rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J', _⟩
     rw [WP.spec_ok]
     refine TopPostDMX.toPne (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩,
       J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-      ⟨Z', H, Cs, Ac', Lst', D', J'⟩⟩) (by simp)
+      ⟨Z', H, Cs, Ac', Lst', D', J', inferInstance⟩⟩) (by simp)
     show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
       (some (Fl4Spec.ucast 8 y0.bv, q)) (some (Fl4Spec.ucast 8 y1.bv, q)) sco)).run σ1').1
     simp only [Fl4Spec.invokeTcb]
@@ -938,7 +944,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
     have hsco : sco = none := h1.2 rfl
     subst hsco
     simp only [Bool.false_eq_true, ↓reduceIte]
-    exact fin s4 a1 σb (Set.mem_singleton _) ⟨_, _, _, _, J4⟩
+    exact fin s4 a1 σb (Set.mem_singleton _) ⟨_, _, _, _, J4, inferInstance⟩
   simp only [↓reduceIte]
   step with Sched.obj.Sc.is_null.spec' as ⟨bz, hbz⟩
   by_cases hs0 : scv = 0#u64
@@ -968,7 +974,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
     simp only [Bool.false_eq_true, ↓reduceIte]
     refine WP.spec_bind (J4.unbindTcbJ hpT hi4C hkb (by rw [hxbsc, hi4c]) (fun u e => absurd e (hnsb u)) hidb) ?_
     rintro s5 ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
-    refine fin s5 a1 σc ?_ ⟨_, Ac5, Lst5, D5, J5⟩
+    refine fin s5 a1 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
     show _ ∈ ((Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext p.bv >>= fun o =>
       Fl4Spec.NonDet.assertOpt o >>= fun c => Fl4Spec.schedContextUnbindTcb c) σb).1
     rw [nd_bind_one (Endp.getTcbObjRef_eq _ hkb), hxbsc]
@@ -1022,7 +1028,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
       hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)) ?_
     rintro ⟨s5, a5⟩ ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
     try simp only [uncurry_apply_pair]
-    refine fin s5 a5 σc ?_ ⟨_, Ac5, Lst5, D5, J5⟩
+    refine fin s5 a5 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
     show _ ∈ (Fl4Spec.schedContextBindTcb (Z := Unit) scv.bv p.bv σb).1
     rw [hsc]; exact Set.mem_singleton _
 
@@ -1033,7 +1039,7 @@ XTopTcbSched's `tcb_set_sched_paramsX`): the decode (the authority's MCP by
 relations), then `ssp_tailJ`. -/
 theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsW (L := L) arI AR Z H Cs W Rd Rz) (hRs : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
@@ -1061,7 +1067,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
   have hM := J.mcp
   have hC0 := J.c0
   have hcur : σ.curThread = ct.bv := (J.curEq hct).1
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetSchedParams (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by

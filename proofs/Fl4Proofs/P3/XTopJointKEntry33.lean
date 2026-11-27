@@ -283,11 +283,11 @@ structure JEntryAtR3 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
 structure KDispHypsKV33 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM32 arI AR Z.th ∧ JEntryAtR3 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM32 arI AR MR Z.th ∧ JEntryAtR3 (L := L) arI AR Z s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM32 arI AR Z.th ∧ JEntryAtR3 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM32 arI AR MR Z.th ∧ JEntryAtR3 (L := L) arI AR Z s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
 
@@ -420,7 +420,7 @@ state and its carried ghosts (`hLv` [J]). It speaks of
 itself. -/
 theorem kernel_entryJ33G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (n : I64) (c : Fl4Spec.Syscall)
@@ -460,7 +460,7 @@ m57 narrowed it from m56's `P1.FastAgree` with the decline lemmas of
 P1.FastDecline). -/
 theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (n : I64) (c : Fl4Spec.Syscall)
@@ -498,7 +498,7 @@ theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
 liveness bundle at the entry is the entry `JAtZ`'s own field (`JAtZ.live`). -/
 theorem kernel_entryJ34 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (n : I64) (c : Fl4Spec.Syscall)

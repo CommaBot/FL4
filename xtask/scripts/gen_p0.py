@@ -67,6 +67,14 @@ if mpath.exists():
         if not block.startswith("@[step]"):
             block = "@[step] " + block
         manual[m.group(1)] = block
+# P0 with a precondition (an exception to "never fails"): a hand-written
+# theorem whose block has a `-- P0 precondition: ...` line, which says what
+# it assumes and which caller discharges it. Listed in status.json.
+preconditions = {}
+for n, block in manual.items():
+    pm = re.search(r"^\s*-- P0 precondition: (.*(?:\n\s*-- (?!P0 ).*)*)", block, re.M)
+    if pm:
+        preconditions[n] = " ".join(l.strip().lstrip("-").strip() for l in pm.group(1).split("\n"))
 
 ctext = (P0 / "Consts.lean").read_text()
 consts = set(re.findall(r"theorem ([A-Za-z0-9_.']+)\.spec :", ctext))
@@ -378,6 +386,7 @@ status = dict(
     functions=len(counted),
     proved=len(counted) - len(sorry),
     manual=sorted(manual),
+    preconditions=preconditions,
     loops_automatic=loops_ok,
     sorry={n: (by_name[n]["kind"], reasons.get(n, "")) for n in sorry},
 )

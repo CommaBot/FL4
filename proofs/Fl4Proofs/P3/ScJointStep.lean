@@ -275,7 +275,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 hY' ((hSOK.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   exact ⟨σ', Ac', Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2) hKd subset_rfl) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk'
     hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD,
     Or.inr ⟨hr1, rfl, _, σ1, hdec, he1, he2⟩⟩
@@ -293,7 +293,7 @@ second disjunct, as Consumed always). Named per-op premise `hRest` (module
 docstring). -/
 theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hres : σ.schedulerAction = .resumeCurThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -661,7 +661,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run hrun
       exact hqW.elim
   exact ⟨σ2, Ac', Lst', _, J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
-    (J.sc_jpl hW hKt (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
+    (J.sc_jpl hW hKt (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2) hKd (fun q hq => hq.1)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
     (J.sc_utc hW hKt hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk'
     hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 (fun p hp => ⟨J.zD p hp, hzW p hp⟩),
     Or.inr ⟨hr1, rfl, inv, σ0, hrun, he0, he1⟩⟩
@@ -714,7 +714,7 @@ none, `invokeSc_data_nil`), whose outcome is `ScReplyJ`'s (`hRep`,
 ScJointConsumed's `sc_consumedReplyJ`). Premises as `sched_contextJ_step`'s. -/
 theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hres : σ.schedulerAction = .resumeCurThread)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -758,13 +758,13 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     ⟨h1, hne, rfl, inv, σ0, data, σ1, h2, h3, h4, hdn, σ2, h5⟩
   · left
     refine tr _ (Or.inl ⟨e, h1, h2, ⟨e', h4, h5⟩, ?_⟩)
-    exact ⟨_, _, _, _, _, _, J'⟩
+    exact ⟨_, _, _, _, _, _, J', inferInstance⟩
   · left
     obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J'.xtop.rel
     refine tr _ (Or.inr ⟨.invokeSchedContext inv, DecOut.of_eq (run_liftME_ok h2), σ0, by rw [hcur]; exact h3, (.ok [], σ'),
       mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := ([], σ'))
         (by rw [h4]; exact Set.mem_singleton _),
-      ⟨Z.th, Z.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩)
+      ⟨Z.th, Z.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J', inferInstance⟩⟩)
   · right
     by_cases l44 : lbl = fl4_abi.label.SchedContextConsumed
     swap
@@ -784,12 +784,12 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     unfold ScReplyJ at hR
     rw [hr, WP.spec_ok] at hR
     have hX := hR h1 hne inv σ0 data σ1 σ2 h2 h3 h4 h5
-    obtain ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩ := hX
+    obtain ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2, _⟩ := hX
     obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J2.xtop.rel
     exact tr _ (Or.inr ⟨h1, hne, .invokeSchedContext inv, DecOut.of_eq (run_liftME_ok h2), σ0, by rw [hcur]; exact h3, data, σ1,
       mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := (data, σ1))
         (by rw [h4]; exact Set.mem_singleton _),
-      ((), σ2), h5, ⟨Z2.th, Z2.G, hPl, hCR, hFI, hD, hMO⟩, ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩⟩)
+      ((), σ2), h5, ⟨Z2.th, Z2.G, hPl, hCR, hFI, hD, hMO⟩, ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2, inferInstance⟩⟩)
 
 set_option maxHeartbeats 2000000 in
 /-- **The SchedControl cap, `XCap` at `JAt`**: `decode_invocation_sched_controlJAt`'s
@@ -798,7 +798,7 @@ restart and Configure single-valued, so the step's state is the outcome's).
 Premises as `sched_controlJ_step`'s. -/
 theorem decode_invocation_sched_controlJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
@@ -840,7 +840,7 @@ theorem decode_invocation_sched_controlJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
   rcases hq with ⟨e, h1, h2, h3, -⟩ | ⟨inv', h1, σ1', h2, y, hy, h3, -⟩
   · refine Or.inl ⟨e, h1, h2, h3, ?_⟩
     rcases hc with ⟨rfl, -, -, -⟩ | ⟨hr1, -⟩
-    · exact ⟨_, _, _, _, _, _, J'⟩
+    · exact ⟨_, _, _, _, _, _, J', inferInstance⟩
     · rw [h1] at hr1; cases hr1
   · refine Or.inr ⟨inv', h1, σ1', h2, y, hy, h3, ?_⟩
     rcases hc with ⟨-, -, -, e', he'⟩ | ⟨-, rfl, inv, σ1, hdec, he1, he2⟩
@@ -861,7 +861,7 @@ theorem decode_invocation_sched_controlJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
       (m := Fl4Spec.invokeSchedControlConfigureFlags (Z := Unit) inv) (b := ([] : List Fl4Spec.Data)) hy
     rw [he2] at hz
     rw [hyz, Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J'⟩
+    exact ⟨_, _, _, _, _, _, J', inferInstance⟩
 
 end
 

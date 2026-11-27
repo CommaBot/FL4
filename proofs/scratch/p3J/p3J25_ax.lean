@@ -1,0 +1,25 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P3.SInvRr.rq_setCap
+#print axioms Fl4Proofs.P3.SInvRr.rq_setSimpleKo'
+#print axioms Fl4Proofs.P3.SInvRr.rq_updateSchedContext'
+#print axioms Fl4Proofs.P3.SInvRr.rq_setObject_nsc
+#print axioms Fl4Proofs.P3.SInvRr.rqe_fl4Perform_ck
+#print axioms Fl4Proofs.P3.SInvRr.rp_handleInvocationR
+#print axioms Fl4Proofs.P3.SInvRr.kentry_rr
+#print axioms Fl4Proofs.P3.SInvRr.kcall_rr
+#print axioms Fl4Proofs.P3.SInvRr.rr_fInit
+#print axioms Fl4Proofs.P3.Mc.budFoot_rr
+#print axioms Fl4Proofs.P3.Mc.pre_projW_rr
+#print axioms Fl4Proofs.P3.jEvRef_irqAFtR
+#print axioms Fl4ProofsQ.P3.jEvRef_irqAFtR
+#print axioms Fl4Proofs.P3.Mc.rr_evOut
+#print axioms Fl4Proofs.P3.Mc.runMcWKR_of
+#print axioms Fl4Proofs.P3.Mc.irqFootWC_of_JR
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_irqJ
+#print axioms Fl4Proofs.P3.JBootQ.M2.runMcWKR_w2
+#print axioms Fl4Proofs.P3.Mc.runMcWKR_sys
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_userWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_vmfWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysUWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_trapWC
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysWC

@@ -87,7 +87,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- The relation a receive at a mid state ends in: `RelTopM` and `JAtZR`. -/
 abbrev RJR (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   RelTopM (L := L) s σ ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 end
 
@@ -100,7 +100,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The blocking notification receive at `J` under a pending switch**
 (module docstring): `JAtZ.recvSigBlockJ` from `MidE` with a non-resume
 action, ending in `JAtZR`. -/
-theorem JAtZ.recvSigBlockJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigBlockJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -225,7 +225,7 @@ theorem JAtZ.recvSigBlockJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
     exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg (J.rbw_dbgKeep hRB) (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, by rw [← hcur]; exact hC.notRel⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik
@@ -256,14 +256,14 @@ theorem JAtZ.recvSigBlockJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
     (J.rbw_dbgKeep hRB) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) (J.zD_diffN hn)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
 
 
 set_option maxHeartbeats 4000000 in
 /-- **The blocking notification receive at a switch mid state** (module
 docstring): every case but the SC return (`hret`: a non-active notification
 whose SC is the current SC). -/
-theorem jRecvSigHypM_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem jRecvSigHypM_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
@@ -281,7 +281,7 @@ theorem jRecvSigHypM_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
   cases hact : x.ntfnObj with
   | activeNtfn b0 =>
     exact WP.spec_mono (J.recvSigActiveJM hAT ht hcur hni hnq hn hk hact true b.bv (rightsOf w rd false false))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   | _ =>
     have hna : ∀ b', x.ntfnObj ≠ .activeNtfn b' := fun b' h => by rw [hact] at h; cases h
     have hHn : H p = some .ntfn := J.zH.2.2.2 p hn

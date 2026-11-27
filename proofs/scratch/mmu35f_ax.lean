@@ -1,0 +1,31 @@
+import Fl4Proofs.P3.JAtZV3SetTcb
+import Fl4Proofs.P3.JAtZV3SigVm
+#print axioms Fl4Proofs.P3.v3OnCore
+#print axioms Fl4Proofs.P3.v3RemCur
+#print axioms Fl4Proofs.P3.v3_sigComp_none
+#print axioms Fl4Proofs.P3.v3_sigComp_some
+#print axioms Fl4Proofs.P3.v3_ssVF_nc
+#print axioms Fl4Proofs.P3.sigVmTailS
+#print axioms Fl4Proofs.P3.v3_ssVF_comp
+#print axioms Fl4Proofs.P3.v3_stsAct_kheap
+#print axioms Fl4Proofs.P3.v3_repTail_kh
+#print axioms Fl4Proofs.P3.v3_repTail_kt
+#print axioms Fl4Proofs.P3.v3_jMrSt_kh
+#print axioms Fl4Proofs.P3.JAtZV3.repKh
+#print axioms Fl4Proofs.P3.sigVmTailF
+#print axioms Fl4Proofs.P3.v3_kick
+#print axioms Fl4Proofs.P3.JAtZV3.sigCompR
+#print axioms Fl4Proofs.P3.v3_repTail_dt
+#print axioms Fl4Proofs.P3.v3_jMrSt_dt
+#print axioms Fl4Proofs.P3.zv_label_stcb
+#print axioms Fl4Proofs.P3.zv_stcb_bv
+#print axioms Fl4Proofs.P3.zv_decode_stcb_nil
+#print axioms Fl4Proofs.P3.zv_decode_stcb_thr
+#print axioms Fl4Proofs.P3.zv_decode_stcb_ill
+#print axioms Fl4Proofs.P3.zv_perform_stcbF
+#print axioms Fl4Proofs.P3.StcbCaps
+#print axioms Fl4Proofs.P3.JAtZV3.setTcbJ
+#print axioms Fl4Proofs.P3.JAtZV3.setTcbCoreK
+#print axioms Fl4Proofs.P3.SigVmTailJ3
+#print axioms Fl4Proofs.P3.JAtZV3.signalVmW
+#print axioms Fl4Proofs.P3.JAtZV3.signalVmJ

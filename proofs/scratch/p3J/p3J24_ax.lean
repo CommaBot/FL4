@@ -1,0 +1,21 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P3.Mc.handle_interrupt_footN0
+#print axioms Fl4Proofs.P3.Mc.JAtZ.handleIrqProjW
+#print axioms Fl4Proofs.P1.WritesIn.projW_trans
+#print axioms Fl4Proofs.P3.Mc.pre_projW
+#print axioms Fl4Proofs.P3.Mc.irq_projW
+#print axioms Fl4Proofs.P3.jEvRef_irqAFt
+#print axioms Fl4ProofsQ.P3.jEvRef_irqAFt
+#print axioms Fl4Proofs.P3.Mc.irqFootWC_of_J
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWK_irqJ
+#print axioms Fl4Proofs.P3.SInvNs.wln_noSig
+#print axioms Fl4Proofs.P3.SInvNs.gkn_fl4PerformInvocation
+#print axioms Fl4Proofs.P3.SInvNs.np_handleInvocationR
+#print axioms Fl4Proofs.P3.SInvNs.kentry_noSig
+#print axioms Fl4Proofs.P3.SInvNs.kcall_noSig
+#print axioms Fl4Proofs.P3.Mc.noSig_evOut
+#print axioms Fl4Proofs.P3.Mc.noSig_fInit
+#print axioms Fl4Proofs.P3.Mc.runMcWKN_of
+#print axioms Fl4Proofs.P3.Mc.irqFootWC_of_JN
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKN_irqJ
+#print axioms Fl4Proofs.P3.JBootQ.M2.runMcWKN_w2

@@ -99,6 +99,84 @@ theorem dbgNth_keep {T : Set U64} {m m' : U64 → U64} (hdn : ∀ y ∈ T, m' (P
       rw [hdn h hT]
       exact ih _ (hcl h hT)
 
+/-- A list's `headD 0` is 0 or a member. -/
+theorem headD_zero_or_mem : ∀ l : List U64, l.headD 0#u64 = 0#u64 ∨ l.headD 0#u64 ∈ l
+  | [] => Or.inl rfl
+  | _ :: _ => Or.inr (List.mem_cons.2 (Or.inl rfl))
+
+/-- `nextIn` is 0 or a member. -/
+theorem nextIn_zero_or_mem : ∀ (l : List U64) (x : U64), nextIn l x = 0#u64 ∨ nextIn l x ∈ l
+  | [], _ => Or.inl rfl
+  | a :: r, x => by
+    simp only [nextIn]
+    by_cases h : a = x
+    · rw [if_pos h]
+      exact (headD_zero_or_mem r).imp_right fun h' => List.mem_cons.2 (Or.inr h')
+    · rw [if_neg h]
+      exact (nextIn_zero_or_mem r x).imp_right fun h' => List.mem_cons.2 (Or.inr h')
+
+/-- `prevA p` is 0, `p` or a member. -/
+theorem prevA_zero_or_mem : ∀ (l : List U64) (p x : U64),
+    Fl4Proofs.P3.prevA p l x = 0#u64 ∨ Fl4Proofs.P3.prevA p l x = p ∨ Fl4Proofs.P3.prevA p l x ∈ l
+  | [], _, _ => Or.inl rfl
+  | a :: r, p, x => by
+    simp only [Fl4Proofs.P3.prevA]
+    by_cases h : a = x
+    · rw [if_pos h]; exact Or.inr (Or.inl rfl)
+    · rw [if_neg h]
+      rcases prevA_zero_or_mem r a x with h' | h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (Or.inr (List.mem_cons.2 (Or.inl h')))
+      · exact Or.inr (Or.inr (List.mem_cons.2 (Or.inr h')))
+
+/-- A member's predecessor from a nonzero start is nonzero (0 in no list). -/
+theorem prevA_ne_zero : ∀ (l : List U64) (p x : U64), p ≠ 0#u64 → 0#u64 ∉ l → x ∈ l →
+    Fl4Proofs.P3.prevA p l x ≠ 0#u64
+  | [], _, _, _, _, hx => by simp at hx
+  | a :: r, p, x, hp, h0, hx => by
+    simp only [Fl4Proofs.P3.prevA]
+    by_cases h : a = x
+    · rw [if_pos h]; exact hp
+    · rw [if_neg h]
+      exact prevA_ne_zero r a x (fun e => h0 (List.mem_cons.2 (Or.inl e.symm)))
+        (fun h' => h0 (List.mem_cons.2 (Or.inr h'))) ((List.mem_cons.1 hx).resolve_left fun e => h e.symm)
+
+/-- **On no debug list** (KENTRY-PLAN jc6e, `DeadX`'s debug words): a TCB whose
+`DEBUG_PREV` word is 0 and which no core's head names is on no core's list (a list
+member is the head, or has a nonzero predecessor: `zero`, `prev`). -/
+theorem DbgWFL.notMem_of_off {T Cs : Set U64} {m hd : U64 → U64} {lst : U64 → List U64}
+    (h : DbgWFL T Cs m hd lst) {q : U64} (hdp : m (P1.dpA q) = 0#u64) (hhd : ∀ c ∈ Cs, m (hd c) ≠ q) :
+    ∀ c ∈ Cs, q ∉ lst c := by
+  intro c hc hq
+  have hp := h.prev c hc q hq
+  have hh := h.head c hc
+  have h0 := h.zero c hc
+  rw [hdp] at hp
+  cases hl : lst c with
+  | nil => rw [hl] at hq; simp at hq
+  | cons a r =>
+    rw [hl] at hp hq hh h0
+    by_cases hax : a = q
+    · exact hhd c hc (hh.trans hax)
+    · simp only [Fl4Proofs.P3.prevA] at hp
+      rw [if_neg hax] at hp
+      exact prevA_ne_zero r a q (fun e => h0 (List.mem_cons.2 (Or.inl e.symm)))
+        (fun h' => h0 (List.mem_cons.2 (Or.inr h'))) ((List.mem_cons.1 hq).resolve_left fun e => hax e.symm) hp.symm
+
+/-- **Off every list, the debug words `DeadX` reads** (the converse of
+`notMem_of_off`): `DEBUG_PREV` is 0 (`off`) and no head names it. -/
+theorem DbgWFL.off_of_notMem {T Cs : Set U64} {m hd : U64 → U64} {lst : U64 → List U64}
+    (h : DbgWFL T Cs m hd lst) {q : U64} (hqT : q ∈ T) (hq0 : q ≠ 0#u64) (hn : ∀ c ∈ Cs, q ∉ lst c) :
+    m (P1.dpA q) = 0#u64 ∧ ∀ c ∈ Cs, m (hd c) ≠ q := by
+  refine ⟨(h.off q hqT hn).2, fun c hc e => ?_⟩
+  have hh := h.head c hc
+  rw [e] at hh
+  cases hl : lst c with
+  | nil => rw [hl] at hh; exact hq0 hh
+  | cons a r =>
+    rw [hl] at hh
+    exact hn c hc (by rw [hl]; exact List.mem_cons.2 (Or.inl hh))
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -244,6 +322,33 @@ theorem DbgWFL.of_keep {T Cs : Set U64} {s s' : S} {lst : U64 → List U64}
 abbrev LiveDN (th : TypedHeap) (H : P1.Heap) (Cs : Set U64) (G : MdbGhost) (s : S) (σ : Fl4Spec.State Unit) :
     Prop :=
   LiveJ (L := L) th H G s σ ∧ DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s) ∧ NullOrig th (L.mem s) σ
+
+/-- **`DXKeep` from the debug words and the deadline words kept** (KENTRY-PLAN jc6e). -/
+theorem DXKeep.of_dbg {H : P1.Heap} {Cs : Set U64} {s s' : S} (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (hTd : TdKeep (L := L) H s s') : DXKeep (L := L) H Cs s s' :=
+  ⟨hKd.1, fun q hq => hKd.2 _ (Or.inl ⟨q, hq, Or.inr rfl⟩), fun c hc => hKd.2 _ (Or.inr ⟨c, hc, rfl⟩), hTd⟩
+
+/-- **`DXKeep` from a write set missing the dead set's words** (every TCB's `DEBUG_PREV`
+and deadline words, every core's head word). -/
+theorem DXKeep.of_writes {H : P1.Heap} {Cs : Set U64} {s s' : S} (hT : P1.TcbPlaced (P1.Heap.tcbs H))
+    (hN : ∀ c ∈ Cs, P1.NodePlaced st (P1.Heap.tcbs H) s c) {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWt : ∀ b, W b → ∀ t, H t = some .tcb → b ≠ P1.dpA t ∧ b ≠ P1.tdA t)
+    (hWh : ∀ b, W b → ∀ c ∈ Cs, b ≠ L.nodeAt s c layout.node.DEBUG_TCBS) : DXKeep (L := L) H Cs s s' :=
+  ⟨hw.1, fun q hq => hw.mem_eq (P1.field_aligned (hT q hq) (K := 3584#u64) (by simp) (by simp))
+      fun hb => (hWt _ hb q hq).1 rfl,
+    fun c hc => hw.mem_eq (P1.nodeAt_aligned (hN c hc) (by simp [P1.debug_val]) (by simp [P1.debug_val]))
+      fun hb => hWh _ hb c hc rfl,
+    fun q hq => hw.mem_eq (P1.field_aligned (hT q hq) (K := 3528#u64) (by simp) (by simp))
+      fun hb => (hWt _ hb q hq).2 rfl⟩
+
+/-- **`DeadX` from the debug lists after** (a TCB on no list, unarmed). -/
+theorem deadX_of_lists {H : P1.Heap} {Cs : Set U64} {s : S} {lst : U64 → List U64}
+    (hW : DbgWFL (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s) lst) (h0 : H 0#u64 = none) {q : U64}
+    (hn : ∀ c ∈ Cs, q ∉ lst c) (htd : H q = some .tcb → L.mem s (P1.tdA q) = 0#u64) :
+    DeadX (L := L) H Cs s q := fun hq =>
+  have hq0 : q ≠ 0#u64 := fun e => by rw [e, h0] at hq; cases hq
+  let ⟨d1, d2⟩ := hW.off_of_notMem hq hq0 hn
+  ⟨d1, d2, htd hq⟩
 
 end
 

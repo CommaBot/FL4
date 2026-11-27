@@ -195,7 +195,7 @@ thread, covered by the cap (`hcovR`); `hred`, `hsp`: FL4's and the spec's
 `receive_ipc` reduce to the wait (no bound notification: `receive_ipc_block_red`,
 `receiveIpc_noSend`; a bound idle or waiting one: XTopJointRecvIpcBound), stated
 for any FL4 program `m` reducing to the wait. -/
-theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -362,7 +362,7 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · rw [hD', if_neg h0]; exact (J.jcov.undead hcov.1 hcov.2).undead (hcovR h0).1 (hcovR h0).2
     exact hcv.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg hKd (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, hnrl⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik
@@ -398,11 +398,11 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · exact h1
       · exact ⟨h1, fun e' => by rw [Set.mem_singleton_iff.1 e', J.zH.2.2.1 rv (hrv h0).1] at hT; cases hT⟩)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
 
 /-- **The blocking receive at `J` under a pending switch**, no bound
 notification: `JAtZ.recvIpcBlockJGM`. -/
-theorem JAtZ.recvIpcBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -429,7 +429,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The blocking receive with a bound idle or waiting notification at `J`**
 (module docstring): the notification's SC is not the thread's (`hnr`); at a
 mid state with a pending switch (`MidE`, as `JAtZ.recvIpcBlockJGM`). -/
-theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)

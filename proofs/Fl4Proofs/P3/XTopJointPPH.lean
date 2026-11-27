@@ -232,12 +232,12 @@ theorem JAtZ.ppJH {s : S} {a : A} {σ : Fl4Spec.State Unit}
 theorem jAtPre_hole (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s0 : S) (a0 : A)
-      (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ := by
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, -, -⟩, hpp, hσ⟩ := h
+      (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ ∧ VxE Z := by
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, -⟩, hpp, hσ⟩ := h
   have h := J.ppJH hAK hA hnd hP
   rw [hpp, WP.spec_ok] at h
   obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
-  exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh⟩
+  exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, inferInstance⟩
 
 end
 

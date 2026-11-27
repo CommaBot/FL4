@@ -1,0 +1,43 @@
+import Fl4Proofs.P3.VirtDispVcpu
+import Fl4Proofs.P3.VirtLoopInv0
+import Fl4Proofs.P3.VirtVKeep
+#print axioms Fl4Proofs.P3.VirtDispVcpu.decode_invocation_vcpu_eq
+#print axioms Fl4Proofs.P3.VirtDispVcpu.fl4DecodeInvocationV_vcpu
+#print axioms Fl4Proofs.P3.VirtDispVcpu.fl4PerformInvocationV_vcpu
+#print axioms Fl4Proofs.P3.VirtDispVcpu.mem_performV_vcpu
+#print axioms Fl4Proofs.P3.VirtDispVcpu.decV_ok
+#print axioms Fl4Proofs.P3.VirtDispVcpu.decV_err
+#print axioms Fl4Proofs.P3.VirtDispVcpu.VRelAt.congrA
+#print axioms Fl4Proofs.P3.VirtDispVcpu.vrel_stall
+#print axioms Fl4Proofs.P3.VirtDispVcpu.wrmsr_disp
+#print axioms Fl4Proofs.P3.VirtDispVcpu.wrvmcb_disp
+#print axioms Fl4Proofs.P3.VirtDispVcpu.hinvTail
+#print axioms Fl4Proofs.P3.VirtDispVcpu.hinvTail_total
+#print axioms Fl4Proofs.P3.VirtDispVcpu.handle_invocation_vcpu_eq
+#print axioms Fl4Proofs.P3.VirtDispVcpu.wrmsr_hinv
+#print axioms Fl4Proofs.P3.VirtDispVcpu.wrvmcb_hinv
+#print axioms Fl4Proofs.P3.VirtLoopInv0.LoopInv.cj_zero
+#print axioms Fl4Proofs.P3.VirtLoopInv0.LoopInv.zero
+#print axioms Fl4Proofs.P3.VirtLoopInv0.create_new_objects_vcpu_setup
+#print axioms Fl4Proofs.P3.VirtLoopInv0.VtxCap.mono
+#print axioms Fl4Proofs.P3.VirtLoopInv0.sub_vsI
+#print axioms Fl4Proofs.P3.VirtLoopInv0.loop_vtxCap
+#print axioms Fl4Proofs.P3.VirtLoopInv0.tcb_bv
+#print axioms Fl4Proofs.P3.VirtLoopInv0.new_tcb0
+#print axioms Fl4Proofs.P3.VirtLoopInv0.vI_ne0
+#print axioms Fl4Proofs.P3.VirtVKeep.OffV
+#print axioms Fl4Proofs.P3.VirtVKeep.VRelAll
+#print axioms Fl4Proofs.P3.VirtVKeep.OffV.mono
+#print axioms Fl4Proofs.P3.VirtVKeep.agreeA_of_off
+#print axioms Fl4Proofs.P3.VirtVKeep.vrelAt_frame
+#print axioms Fl4Proofs.P3.VirtVKeep.VRelAll.of_writes
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_obj
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_slot
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_tcb
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_U
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_ks
+#print axioms Fl4Proofs.P3.VirtVKeep.offV_or
+#print axioms Fl4Proofs.P3.VirtVKeep.vcpuAt_updK
+#print axioms Fl4Proofs.P3.VirtVKeep.vcpuAt_ofKheap
+#print axioms Fl4Proofs.P3.VirtVKeep.VRelAll.updK
+#print axioms Fl4Proofs.P3.VirtVKeep.VRelAll.ofKheap

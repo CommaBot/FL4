@@ -26,6 +26,7 @@ import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueBudgetG
 import Fl4Proofs.P1.VcpuHooks
+import Fl4Proofs.P1.VcpuCheckInv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -120,6 +121,21 @@ theorem CurStep.ofDel {Ac : Set U64} {s s' : S} {p : U64} (hcs : L.cscW s' = L.c
 
 theorem EntryInv.bxi {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1.sg, h.2.2.2.1⟩
+
+/-- **The current SC is active at an entry state** (`EntryInv`, established by
+`sched.schedule.entry` at every kernel exit and, for reachable states, by P3's
+`kernel_entry_entryInvU29`), for the same `Ac` as the entry's `BXI`. `BXI` alone
+does not give it: inside an entry the current SC may be inactive. -/
+theorem EntryInv.csc {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.cscW s ∈ Ac := h.2.2.2.2.2.1
+
+/-- The current SC is an SC (`ScExtra.cur`), at an entry state. -/
+theorem EntryInv.cscS {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.cscW s ∈ Scs := h.2.2.1.2.2.cur
+
+/-- The current thread's SC, when bound, is the current SC, at an entry state. -/
+theorem EntryInv.hcsc {Ac : Set U64} {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)) := h.2.2.2.2.2.2.2
 
 /-- A write to a current-node word other than the scheduler's. -/
 theorem nodew_bxc {Ac : Set U64} {s : S} {o v : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -233,11 +249,11 @@ handler cap (`send_signal`), a timer IRQ marks the current core for
 reprogramming, a reschedule IPI requests a reschedule.  The notification
 caps of the IRQ slots naming heap notifications is the cap-validity
 hypothesis `hirq` (P3's `CapValid`). -/
-theorem interrupt.handle_interrupt.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+theorem interrupt.handle_interrupt.bxi {U : Set U64} (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {Ac : Set U64} (s : S) (a : A) (irq : U64)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hirq : ∀ i : U64, i.val < 128 → obj.Slot.cap st (irqSlotA (L.ksb s) i) s ⦃ c => ∀ ptr b0 b1 b2,
-      c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄) :
+      c = .Notification ptr b0 b1 b2 → ptr ∈ Nt ⦄) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     interrupt.handle_interrupt st ar s a irq ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   have hST : P0.StoreTotal st := L.total
   unfold interrupt.handle_interrupt
@@ -262,7 +278,7 @@ theorem interrupt.handle_interrupt.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ N
         rename_i ptr badge b x
         split
         · have hn := hc ptr badge b x rfl
-          exact WP.spec_mono (notification.send_signal.tinv hA s a ptr badge h.blk hn (hNt ptr hn))
+          exact WP.spec_mono (notification.send_signal.tinv hA s a ptr badge h.blk hn (hNt ptr hn) hBA.1 hBA.2)
             fun r hr => by obtain ⟨s', a'⟩ := r; exact BlkOK.bxi (by simpa using hr)
         · exact (WP.spec_ok _).2 h
       · rintro ⟨s3, a2⟩ h3
@@ -391,7 +407,9 @@ structure PSets where
 operation not proved in P1, stated with P1's invariants.  An invocation may
 shrink the active set (`Ac'`, an SC deletion); `handle_invocation` reports
 its `CurStep` (for `HCur.step`) and, when it was preempted, what the
-preemption point needs (that is `EntryHyps`' `inv`). -/
+preemption point needs (that is `EntryHyps`' `inv`).
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`); not a
+specification of the kernel. -/
 structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   /-- The message transfer keeps the invariants within `XferFr` (`do_ipc_transfer`;
@@ -437,14 +455,43 @@ structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.A
   /-- `activate_thread`, after `schedule`. -/
   act : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     sched.activate_thread st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
-  /-- (#57) `finish`'s `vcpu.check` of a `TS_RUNNING_VM` current thread (the
-  completion of its VMEnter; off `TS_RUNNING_VM` it does nothing,
-  `check_of_ne`). `P3Place.vmchk` [P]. -/
-  vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  /-- **[P] (vmchk) The placement `finish`'s `vcpu.check` needs** of a
+  `TS_RUNNING_VM` current thread at an `EntryInv` state (the completion of its
+  VMEnter, `vcpu.check.entry`; off `TS_RUNNING_VM` it does nothing,
+  `check_of_ne`): its IPC buffer lies in the user words `U` (`hbuf`, as
+  `bufAt`'s, here after `schedule`), and its bound VCPU's `PENDING` word is a
+  user-class word (`hpw`, `UsrW`; P2's `VcpuUsr`). Replaces the former
+  behavioural field `vmchk` (now the theorem `EntryHyps0.vmchk`).
+  `P3Place.vmpl` [P]. -/
+  vmpl : ∀ (Ac : Set U64) (s : S), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
-    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
+    msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄ ∧
+    (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
+      UsrW st T Cs H Sg Scs Z s
+        (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING))
+  /-- (int6; from `P3Place.xfer.buf` and `P3Place.blkU`, `EntryHyps.of_gaps`)
+  At an `XG` state the TCBs' IPC buffers lie in the user words (`BufAt`):
+  what `send_signal`'s VMEnter completion (#80 / #85) needs, in
+  `handle_interrupt` and `schedule`. -/
+  bufAt : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    BufAt st T Cs H Sg Scs Z U s
 
-/-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`. -/
+/-- **(vmchk) `finish`'s `vcpu.check` of a `TS_RUNNING_VM` current thread keeps
+`EntryInv`** (the former field `EntryHyps0.vmchk`), from `vcpu.check.entry`
+with the user words `UsrW` (from `blkU`'s `UserOK`) and `vmpl`. -/
+theorem EntryHyps0.vmchk (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hA : P0.ArchTotal ar)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn) (Ac : Set U64) (s : S) (a : A)
+    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hv : L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM) :
+    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
+  have hb := EntryInv.bxi h
+  have hUs := (E.blkU Ac s hb).2.usrW hb.blk
+  obtain ⟨hbuf, hpw⟩ := E.vmpl Ac s h hv
+  exact vcpu.check.entry (U := {b | UsrW st T Cs H Sg Scs Z s b}) hA hNt s a h (fun b hb => hb)
+    (WP.spec_mono hbuf fun b hb h0 i hi => hUs _ (hb h0 i hi)) hpw
+
+/-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`.
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`); not a
+specification of the kernel. -/
 structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Adm : PSets → Prop)
     (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop
     extends EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok where
@@ -697,15 +744,16 @@ theorem CurK.entry {s s' : S} (k : CurK st s s') (hc : L.cscW s' = L.cscW s) (hn
   · exact absurd e h0
 
 /-- `finish`: `schedule` establishes `EntryInv`, `activate_thread` keeps it. -/
-theorem syscall.finish.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+theorem syscall.finish.entry (hA : P0.ArchTotal ar) (IK : IbKeep st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A)
-    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
     syscall.finish st ar s a ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
   rw [finish_eq_old]
   refine WP.spec_bind (Pₘ := fun r : S × A => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
   · unfold syscall.finish_old
+    have hBA := E.bufAt Ac s hG h
     obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
-    refine WP.spec_bind (sched.schedule.entry hA hNt s a Q R h0 hB hS hX hSg) ?_
+    refine WP.spec_bind (sched.schedule.entry hA IK hNt s a Q R h0 hB hS hX hSg hBA) ?_
     rintro ⟨s1, a1⟩ h1
     try simp only [WP.uncurry'_pair]
     exact WP.spec_mono (E.act Ac s1 a1 h1) fun r hr => by obtain ⟨s', a'⟩ := r; exact hr
@@ -713,7 +761,7 @@ theorem syscall.finish.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = s
     show (do let t ← sched.cur_thread st s2; vcpu.check st ar s2 a2 t) ⦃ _ ⦄
     rw [cur_thread_ok]; simp only [bind_ok]
     by_cases hv : L.mem s2 (stA (L.curW s2)) = sched.TS_RUNNING_VM
-    · exact WP.spec_mono (E.vmchk Ac s2 a2 h2 hv) fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, hr⟩
+    · exact WP.spec_mono (E.vmchk hA hNt Ac s2 a2 h2 hv) fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, hr⟩
     · rw [check_of_ne ar s2 a2 _ hv]; exact (WP.spec_ok _).2 ⟨Ac, h2⟩
 
 /-- `after_invocation`: the preemption point of a preempted invocation, with
@@ -743,14 +791,14 @@ theorem syscall.after_invocation.bxi (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt,
     unfold syscall.check_interrupt
     refine WP.spec_bind (Pₘ := fun r : S × A => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' r.1) ?_ ?_
     · split
-      · exact WP.spec_mono (interrupt.handle_interrupt.bxi hA hNt s1 a2 irq h1 (E.irqcap Ac s1 g1 h1)) fun r hr => by
+      · exact WP.spec_mono (interrupt.handle_interrupt.bxi hA hNt s1 a2 irq h1 (E.irqcap Ac s1 g1 h1) (E.bufAt Ac s1 g1 h1)) fun r hr => by
           obtain ⟨s', a'⟩ := r; exact ⟨Ac, by simpa using hr⟩
       · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
     · rintro ⟨s2, a3⟩ h2
       exact (WP.spec_ok _).2 h2
 
 /-- `dispatch_syscall`, after a successful budget check. -/
-theorem syscall.dispatch_syscall.bxi (hA : P0.ArchTotal ar) (TX : TmoXG st ar) {Adm : PSets → Prop}
+theorem syscall.dispatch_syscall.bxi (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (IK : IbKeep st ar) {Adm : PSets → Prop}
     (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
     {Ac : Set U64} (s : S) (a : A) (number : I64) (he : EntAt st P3Ok s) (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hcA : L.cscW s ∈ Ac) (hna : L.actionW s ≠ L.curW s)
@@ -854,183 +902,15 @@ theorem reg_entry {Ac : Set U64} {s : S} {t r v : U64} (h : EntryInv st T Cs Ω 
     regW_all (Ac := Ac) (Sg := Sg) (Z := Z) ⟨⟨Q, R, h0⟩, hB, hX, hS, hS.sg⟩ ht (K := K) (v := v)
       (by omega) (by omega) (by omega)
   have f := fr_field (Sg := Sg) h0 hS.sg ht (K := K) (v := v) (by omega) (by omega)
-    ⟨by omega, by omega, by omega, by omega, by omega, Or.inl (by omega)⟩
+    ⟨by omega, by omega, by omega, by omega, by omega, Or.inl (by omega), by omega⟩
   refine ⟨⟨Q', R', h'⟩, hB', hX', hS', hX'.2.2.tm, by rw [f.csc]; exact hcA, by rw [n.1, n.2.2]; exact hna, ?_⟩
   rw [n.2.2, f.sc (L.curW s) h0.curT, f.csc]; exact hcsc
 
-/-- seL4 `handleUnknownSyscall`'s fault path (`unknown_syscall_fault`). -/
-theorem syscall.unknown_syscall_fault_old.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A) (n : U64)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
-    syscall.unknown_syscall_fault_old st ar s a n ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  unfold syscall.unknown_syscall_fault_old
-  refine WP.spec_bind (syscall.budget_ok.bxc hA E s a h hG) ?_
-  rintro ⟨b, s1, a1⟩ ⟨h1, -, g1⟩
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (Pₘ := fun r : S × A => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' r.1) ?_ ?_
-  · split
-    · step with sched.cur_thread.spec as ⟨t, et⟩
-      have et' : t = L.curW s1 := et
-      subst et'
-      exact WP.spec_mono (E.fault hA Ac s1 a1 _ h1 (g1 (by assumption))) fun r hr => by
-        obtain ⟨s', a'⟩ := r; simpa using hr
-    · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
-  · rintro ⟨s2, a2⟩ ⟨Ac2, h2⟩
-    exact syscall.finish.entry hA hNt E s2 a2 h2
-
-/-- seL4 `handleUnknownSyscall`'s SetTLSBase path (`set_tls_base_self`). -/
-theorem syscall.set_tls_base_self.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) :
-    syscall.set_tls_base_self st ar s a ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  unfold syscall.set_tls_base_self
-  refine WP.spec_bind (syscall.budget_ok.bxc hA E s a h hG) ?_
-  rintro ⟨b, s1, a1⟩ ⟨h1, -⟩
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (Pₘ := fun s2 : S => ∃ Ac', BXI st T Cs Ω H Sg Rp Scs Nt Z Ac' s2) ?_ ?_
-  · split
-    · step with sched.cur_thread.spec as ⟨t, et⟩
-      have htT : t ∈ T := by rw [et]; exact h1.1.choose_spec.choose_spec.curT
-      step with obj.Tcb.reg.spec as ⟨base⟩
-      step with P0.regs.sanitise.p0 as ⟨i1⟩
-      refine WP.spec_mono (regW_spec h1.blk htT (r := layout.reg.TLS_BASE)
-        (by simp [layout.reg.TLS_BASE, layout.reg.FS_BASE])) ?_
-      rintro s3 ⟨h3, -, -⟩
-      exact ⟨Ac, h3.bxi⟩
-    · exact (WP.spec_ok _).2 ⟨Ac, h1⟩
-  · rintro s2 ⟨Ac2, h2⟩
-    exact syscall.finish.entry hA hNt E s2 a1 h2
-
-/-- Native `handleUnknownSyscall`, excluding the new VMEnter transition. -/
-theorem syscall.handle_unknown_syscall_old.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A) (number : I64)
-    (hNative : number ≠ fl4_abi.syscall.SysVMEnter) (he : EntAt st P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    syscall.handle_unknown_syscall_old st ar s a number ⦃ s' _ =>
-      ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  unfold syscall.handle_unknown_syscall_old
-  step with sched.cur_thread.spec as ⟨t, et⟩
-  simp only [fl4_abi.config.PRINTING, fl4_abi.config.DEBUG_BUILD, ↓reduceIte]
-  split
-  · step with obj.Tcb.reg.spec as ⟨c⟩
-    step as ⟨i, _⟩
-    refine WP.spec_bind (hA.putc a i) fun a1 _ => ?_
-    exact (WP.spec_ok _).2 ⟨Ac, h⟩
-  split
-  · exact (WP.spec_ok _).2 ⟨Ac, h⟩
-  have et' : t = L.curW s := et
-  subst et'
-  refine WP.spec_bind (WP.spec_and (E.debug Ac s a number he h) (syscall.debug_syscall.same hA s a _ number)) ?_
-  rintro ⟨b, s1, a1⟩ ⟨⟨Ac1, h1⟩, e1⟩
-  try simp only [WP.uncurry'_pair]
-  try simp only [uncurry_apply_pair]
-  split
-  · exact (WP.spec_ok _).2 ⟨Ac1, h1⟩
-  · rename_i hb
-    simp only [WP.uncurry'_pair] at e1
-    have hG1 : XG st T Cs Ω H Sg Scs Z P3Ok s1 := by rw [e1 (by simpa using hb)]; exact he.xg
-    simp only [fl4_abi.config.SET_TLS_BASE_SELF, ↓reduceIte]
-    split
-    · exact syscall.set_tls_base_self.entry hA hNt E s1 a1 h1 hG1
-    · step as ⟨i, _⟩
-      exact syscall.unknown_syscall_fault_old.entry hA hNt E s1 a1 i h1 hG1
-
-/-- **Native `handle_syscall` keeps `EntryInv`**: the budget check at the entry, the
-dispatch (with `HCur` across the invocation, `HCur.step`), then `schedule`. -/
-theorem syscall.handle_syscall_old.entry (hA : P0.ArchTotal ar) (TX : TmoXG st ar) {Adm : PSets → Prop}
-    (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
-    {Ac : Set U64} (s : S) (a : A) (number : I64)
-    (hNative : number ≠ fl4_abi.syscall.SysVMEnter) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    syscall.handle_syscall_old st ar s a number ⦃ s' _ => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄ := by
-  obtain ⟨E', hNt⟩ := EH _ hσ
-  have E := E'.toEntryHyps0
-  have W : ∀ {s : S} {a : A} {m : Result (S × A)},
-      m ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ →
-      m ⦃ s' _ => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄ := fun hm =>
-    WP.spec_mono hm fun r hr => by obtain ⟨s', a'⟩ := r; obtain ⟨Ac', h'⟩ := hr; exact ⟨_, hσ, Ac', h'⟩
-  have hcT : L.curW s ∈ T := h.1.choose_spec.choose_spec.curT
-  unfold syscall.handle_syscall_old
-  step with sched.cur_thread.spec as ⟨t, et⟩
-  have htT : t ∈ T := by rw [et]; exact hcT
-  step with obj.Tcb.reg.spec as ⟨nx⟩
-  step as ⟨i, _⟩
-  refine WP.spec_bind (WP.spec_and (reg_entry h htT (r := layout.reg.FAULT_IP) (v := i) (by simp [layout.reg.FAULT_IP]))
-    (obj.Tcb.set_reg.wrK s t layout.reg.FAULT_IP i (h.1.choose_spec.choose_spec.tcbs t htT)
-      (by simp [layout.reg.FAULT_IP]))) ?_
-  rintro s1 ⟨h1, K, hK, e1⟩
-  have et' : t = L.curW s := et
-  have hal : Aligned (core.num.U64.wrapping_add (L.curW s) K) := by
-    rw [← et']; exact field_aligned (h.1.choose_spec.choose_spec.tcbs t htT)
-      (by rw [hK]; simp [layout.reg.FAULT_IP]) (by rw [hK]; simp [layout.reg.FAULT_IP])
-  have he1 : EntAt st P3Ok s1 := ⟨s, hP, Ent.prefix hK hal (by rw [e1, et']) (WritesIn.refl _ _)⟩
-  step with P0.obj.Tcb.flags.p0 st t s1 L.total as ⟨fl⟩
-  step as ⟨i2, _⟩
-  split
-  · step as ⟨i3, _⟩
-    exact W (s := s) (a := a) (syscall.unknown_syscall_fault_old.entry hA hNt E s1 a i3 h1 he1.xg)
-  split
-  · exact W (s := s) (a := a) (syscall.handle_unknown_syscall_old.entry hA hNt E s1 a number hNative he1 h1)
-  split
-  · exact W (s := s) (a := a) (syscall.handle_unknown_syscall_old.entry hA hNt E s1 a number hNative he1 h1)
-  have hcA1 : L.cscW s1 ∈ Ac := h1.2.2.2.2.2.1
-  have hN1 : NodePlaced st T s1 (L.cpu s1) :=
-    (h1.1.choose_spec.choose_spec).nodes _ h1.1.choose_spec.choose_spec.cur
-  refine WP.spec_bind (WP.spec_and (syscall.budget_ok.bxc hA E s1 a h1 he1.xg) (syscall.budget_ok.fr hA s1 a hN1)) ?_
-  rintro ⟨b, s2, a1⟩ ⟨⟨h2, k2, -⟩, f2⟩
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (Pₘ := fun r : S × A => ∃ σ', Adm σ' ∧ ∃ Ac', BXIs st Cs σ' Ac' r.1) ?_ ?_
-  · split
-    · rename_i hb
-      obtain ⟨hcA2, hna2, hcsc2⟩ := k2 hb
-      have he : EntAt st P3Ok s2 := ⟨s, hP, Ent.prefix hK hal (by rw [e1, et']) (f2 hb)⟩
-      exact WP.spec_mono (syscall.dispatch_syscall.bxi hA TX EH hσ s2 a1 number he h2 hcA2 hna2 hcsc2)
-        fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr
-    · exact (WP.spec_ok _).2 ⟨_, hσ, Ac, h2⟩
-  · rintro ⟨s3, a2⟩ ⟨σ3, hσ3, Ac3, h3⟩
-    obtain ⟨E3, hNt3⟩ := EH σ3 hσ3
-    exact WP.spec_mono (syscall.finish.entry hA hNt3 E3.toEntryHyps0 s3 a2 h3)
-      fun r hr => by obtain ⟨s', a'⟩ := r; obtain ⟨Ac', h'⟩ := hr; exact ⟨σ3, hσ3, Ac', h'⟩
-
-/-- **`handle_interrupt_entry` keeps `EntryInv`.** -/
-theorem syscall.handle_interrupt_entry.entry (hA : P0.ArchTotal ar) (TX : TmoXG st ar) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
-    (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A) (irq : U64)
-    (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  have h0 := h.1.choose_spec.choose_spec
-  have hG : XG st T Cs Ω H Sg Scs Z P3Ok s := EntAt.xg ⟨s, hP, WritesIn.refl _ _⟩
-  unfold syscall.handle_interrupt_entry
-  refine WP.spec_bind (WP.spec_and (sched.update_timestamp.entry hA s a h)
-    (sched.update_timestamp.fr hA s a (h0.nodes _ h0.cur))) ?_
-  rintro ⟨s1, a1⟩ ⟨⟨⟨⟨Q1, R1, h1⟩, hB1, hX1, hSg1, hS1⟩, -, hcA, hna, hcsc, -⟩, w1⟩
-  try simp only [WP.uncurry'_pair] at w1 ⊢
-  refine WP.spec_bind (sched.check_budget.allG hA s1 a1 Q1 R1 h1 hB1 hX1 hSg1 hS1 hcsc hna hcA
-    (fun _ _ g f => XG.foot g f) (hG.node h0.cur w1) (E.tmoG hA TX Ac)) ?_
-  rintro ⟨r, s2, a2⟩ ⟨⟨h2, g2⟩, -⟩
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (interrupt.handle_interrupt.bxi hA hNt s2 a2 irq h2 (E.irqcap Ac s2 g2 h2)) ?_
-  rintro ⟨s3, a3⟩ h3
-  try simp only [WP.uncurry'_pair]
-  exact syscall.finish.entry hA hNt E s3 a3 h3
-
-/-- **Native kernel entries keep `EntryInv`** (`handle_syscall` excluding
-VMEnter, `handle_interrupt_entry` for any IRQ), with the active set possibly
-shrinking (SC deletion) and the heap possibly growing (retype): the entry
-ends over some admissible set tuple.  The hypotheses not proved in P1 are
-collected in `EntryHyps`, for every admissible tuple (`EH`); `hA` is P0's
-arch totality. -/
-theorem kernel_entry.entry (hA : P0.ArchTotal ar) (TX : TmoXG st ar) {Adm : PSets → Prop}
-    (EH : ∀ σ, Adm σ → EHs st ar Adm Cs U P3Ok σ) (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩)
-    {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall_old st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  ⟨fun number hNative => syscall.handle_syscall_old.entry hA TX EH hσ s a number hNative hP h,
-   fun irq => WP.spec_mono (syscall.handle_interrupt_entry.entry hA TX (EH _ hσ).2 (EH _ hσ).1.toEntryHyps0 s a irq hP h)
-     fun r hr => by obtain ⟨s', a'⟩ := r; obtain ⟨Ac', h'⟩ := hr; exact ⟨_, hσ, Ac', h'⟩⟩
+/- (int6) The entry composites that end in `finish` (`unknown_syscall_fault_old.entry`,
+`set_tls_base_self.entry`, `handle_unknown_syscall_old.entry`, `handle_syscall_old.entry`,
+`handle_interrupt_entry.entry`, `kernel_entry.entry`) moved to `P1/EntryFin`: since #80 / #85
+`finish` (its `schedule`'s timers) needs `XG` at its state (`finish.entry`), which par/a6x's
+composites (`EntryXGTop`) carry there. -/
 
 end
 

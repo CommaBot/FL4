@@ -72,7 +72,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 /-- **The IRQ control cap at `JAt`**
 (`decode_invocation_irq_controlJ_step`, `jStepHyps`). -/
 theorem decode_invocation_irq_controlJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
@@ -96,7 +96,7 @@ theorem decode_invocation_irq_controlJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
 
 /-- **The IO port control cap at `JAt`**. -/
 theorem decode_invocation_ioport_controlJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (hPA : IoPortsAlloc (L.mem s) (L.ksb s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
@@ -118,7 +118,7 @@ theorem decode_invocation_ioport_controlJ [Fl4Proofs.P1.PlainStore st] (s : S) (
 /-- **The domain cap at `JAt`**. -/
 theorem decode_invocation_domainJ [Fl4Proofs.P1.PlainStore st] (hcfg : DomConfig) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hksO : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → OutsideObjects Z.th (ksW (L.ksb s) o))

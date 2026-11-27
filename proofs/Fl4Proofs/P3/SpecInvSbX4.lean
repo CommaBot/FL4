@@ -18,6 +18,7 @@ SpecInvUtP6 for the decode facts `GapOKN`).
 -/
 import Fl4Proofs.P3.SpecInvSbX3
 import Fl4Proofs.P3.SpecInvUtP6
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvB
@@ -280,6 +281,13 @@ theorem sc_makePool (frame : ObjRef) (slot parent : CslotPtr) (base : Asid) (σ 
     exact hn3) hb3 y4 h4
   refine (?_ : SIK _) y4.2 hb4 y hy
   si_auto
+
+/-- fb3e: the frame batch, from the leaves of its writes (`SInv.ik_performFrameBatchW`). -/
+theorem sb_performFrameBatch {h0 : KHeap} (b : Fl4FrameBatchInvocation) : SBK h0 (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => sb_capInsert _ _ _) (fun _ => sb_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => sb_archFinaliseCap _ _) (fun _ => sb_emptySlot _ _) (fun _ _ _ _ => by unfold unmapPageUnflushed; sb_auto)
+    (fun _ _ _ => sb_setCap _ _) (sb_flushAll _ _)
+macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact sb_performFrameBatch _)
 
 /-- Every arch perform but MakePool is a binding frame. -/
 theorem si_archNonMP (ai : Fl4ArchInvocation) (h : ∀ a, ai ≠ .spec (.invokeASIDControl a)) :

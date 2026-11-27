@@ -52,7 +52,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`budget_ok` at an entry state under `KBudgetB`** (module docstring):
 `kernel_entryJ8`'s `hBud` for every timeout-handler case. -/
 theorem JAtZ.budgetOkB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
-    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) (hni0 : Entered σ0) (hBu : KBudgetB arI a σ0)
+    (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ0) [VxE Z] (hni0 : Entered σ0) (hBu : KBudgetB arI a σ0)
     (hNS0 : NativeScope σ0) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -67,7 +67,7 @@ theorem JAtZ.budgetOkB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
           JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget σ0).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
   have hF : ∀ hnt : NoTmoSend σ0, syscall.budget_ok st arI s a ⦃ r =>
       (r.1 = true → ∃ σ', (Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudgetRestart) σ0 =
           ({(true, σ')}, False) ∧
@@ -77,11 +77,11 @@ theorem JAtZ.budgetOkB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
           JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget σ0).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := fun hnt =>
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := fun hnt =>
     WP.spec_mono (WP.spec_and (J0.budgetOkJ hAK hA hnd hBu.now hBu.cur hBu.off hmb)
         (J0.budgetOkF hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnt)) fun r ⟨h1, h2⟩ => ⟨h1, fun hf => by
           obtain ⟨σ', he, Ac', Lst', D', J'⟩ := h2 hf
-          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J'⟩
+          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J', inferInstance⟩
           unfold specBudget
           rw [he]; exact Set.mem_singleton _⟩
   rcases hBu.tmo with hnt | hnq
@@ -105,7 +105,7 @@ theorem JAtZ.budgetOkB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
         (J0.budgetOkTR hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hmax htu hnq hkt hrr hth hper hkl))
       fun r ⟨h1, h2⟩ => ⟨h1, fun hf => by
             obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := h2 hf
-            exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩⟩
+            exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩⟩
   · have hcb : ∀ xe, σ0.kheap p = some (.endpoint xe) → Endp.CanBlock false xe := fun xe h => by
       cases xe with
       | idleEP => trivial
@@ -115,7 +115,7 @@ theorem JAtZ.budgetOkB {s : S} {a : A} {σ0 : Fl4Spec.State Unit}
         (J0.budgetOkT hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnq hkt hrr hth hper hcb))
       fun r ⟨h1, h2⟩ => ⟨h1, fun hf => by
             obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := h2 hf
-            exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩⟩
+            exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **The kernel entry for a native system call at `J`**, `kernel_entryJ8`
@@ -124,13 +124,13 @@ timeout-fault send; every timeout-handler endpoint state covered; module
 docstring). -/
 theorem kernel_entryJ8B [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps8 (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -188,7 +188,7 @@ theorem kernel_entryJ8B [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
   rintro ⟨b, s2, a1⟩ ⟨hTr, hFa⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -215,7 +215,7 @@ theorem kernel_entryJ8B [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     refine WP.spec_bind (dispatch_all8 s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=

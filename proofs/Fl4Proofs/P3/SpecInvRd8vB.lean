@@ -16,6 +16,7 @@ and the perform layer** (KENTRY-PLAN rd8s handoff 2-3; spec side only, outside t
   rd8s's `ht_invokeSchedControlConfigureFlags`, every other arm `VEKE E`).
 -/
 import Fl4Proofs.P3.SpecInvRd8vA
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.B8v
@@ -154,7 +155,14 @@ theorem ve_archPerformInvocation (i : ArchInvocation) : VEKE E (archPerformInvoc
 macro_rules | `(tactic| ve_leaf) => `(tactic| with_reducible exact ve_archPerformInvocation _)
 
 theorem ve_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : VEKE E (fl4ArchPerformInvocation (Z := Unit) i) := by
-  unfold fl4ArchPerformInvocation; ve_auto
+  cases i
+  case frameBatch b =>
+    simp only [fl4ArchPerformInvocation]
+    exact ike_liftE (ik_performFrameBatchW b (fun _ _ _ _ => by ve_auto) (fun _ => by ve_auto)
+        (fun _ _ _ _ _ _ _ => by ve_auto) (fun _ => by first | (ve_auto; done) | (unfold emptySlot; ve_auto))
+        (fun _ _ _ _ => by unfold unmapPageUnflushed; ve_auto) (fun _ _ _ => by ve_auto)
+        (by unfold flushAll; ve_auto))
+  all_goals (unfold fl4ArchPerformInvocation; ve_auto)
 
 macro_rules | `(tactic| ve_leaf) => `(tactic| with_reducible exact ve_fl4ArchPerformInvocation _)
 

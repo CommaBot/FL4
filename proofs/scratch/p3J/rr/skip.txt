@@ -1,0 +1,19 @@
+# heap writers (as kt/skip.txt) — excluded on CKI runs by InvK
+rq_retypeRegion
+rq_deleteObjects
+rq_retypeRegionWith'
+rq_resetUntypedCap'
+rqe_invokeUntypedWith'
+rqe_fl4InvokeUntyped'
+rq_performAsidControlInvocation
+rqe_archPerformInvocation
+rqe_fl4Perform
+rqe_fl4ArchPerformInvocation
+# replaced by hand proofs in P3JRrF
+rq_setCap
+rq_setSimpleKo'
+rq_updateSchedContext'
+# period writers (SchedControl_Configure only) — excluded on CKI runs by InvK
+rq_refillNew'
+rq_refillUpdate'
+rq_invokeSchedControlConfigureFlags'

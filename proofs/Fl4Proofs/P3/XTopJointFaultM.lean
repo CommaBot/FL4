@@ -146,7 +146,7 @@ theorem JAtZ.sc_frameR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hbuf : BufWordRel Z.T (L.mem s') σ')
     (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
     (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
-    (hkern : JKern (L := L) H Cs D' Z.th s' σ')
+    (hkern : JKern (L := L) arI H Cs D' Z.th s' σ')
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : CurInvR σ')
@@ -175,7 +175,12 @@ theorem JAtZ.sc_frameR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
     J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw),
-    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
+    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
+      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))
+      (J.carry.vsSame hSS hks (ArchFwd.of_ipcFr (IpcFrKeep.of_otk hK.kh)))
+      (J.carry.tabKeep J.xtop.rel.2.1.2.2.1 hSS hX.rel.2.1.2.2.1 hK.ksz)
+      (J.vsW hw fun b h => Sched.tfoot_oobj J.xtop.fin.1.1.1 h)⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
@@ -199,7 +204,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- `JAt` with `JAtZR`. -/
 abbrev JAtR (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 end
 
@@ -353,7 +358,7 @@ theorem JAtZ.stsCurJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
     J.deadP_sc_stepQ hX' hW hK (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hlk hfk hAI.1 hY' (hYK6.dk q.bv) (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frameR hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2) hKd subset_rfl) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
@@ -362,7 +367,7 @@ theorem JAtZ.stsCurJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J` under a pending
 switch** (module docstring). -/
-theorem JAtZ.noFaultJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidE σ)
+theorem JAtZ.noFaultJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hnull : capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok .Null)
@@ -411,7 +416,7 @@ theorem JAtZ.noFaultJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : 
   rintro s6 ⟨Lst', J6⟩
   refine (WP.spec_ok _).2 ⟨_, by rw [hspec]; exact Set.mem_singleton _,
     ⟨Z.th, Z.G, J6.xtop.rel.1, J6.xtop.rel.2.1, J6.xtop.rel.2.2.1, J6.xtop.rel.2.2.2.1, J6.xtop.rel.2.2.2.2.1⟩,
-    ⟨Z, H, Cs, Ac, Lst', D, J6⟩⟩
+    ⟨Z, H, Cs, Ac, Lst', D, J6, inferInstance⟩⟩
 
 end
 
@@ -433,7 +438,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 64000000 in
 /-- **`handle_fault` with an endpoint handler and no waiting receiver at
 `J` under a pending switch** (module docstring). -/
-theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidE σ)
+theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {ptr bdg : U64} {sd rv g gr : Bool}
@@ -548,7 +553,7 @@ theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
       (writesIn_wr (v := if rp then 1#u64 else 0#u64) (a_fw1 hta).1)).trans
       (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
     refine w.mono fun w0 hw0 => ?_
-    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = ct.val + K := by
+    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ ((K ≠ 3512 ∧ K ≠ 3528) ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = ct.val + K := by
       rcases hw0 with ((((((h | h) | h) | h) | h) | h) | h) <;> subst h
       · exact ⟨3408, by omega, by omega, by omega, by omega, by omega, val_lf hta⟩
       · exact ⟨3416, by omega, by omega, by omega, by omega, by omega, val_lf0 hta⟩
@@ -696,6 +701,7 @@ theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
       (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (fun q _ h => h.keep (DXKeep.of_dbg hKd (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the blocked sender's `RelIfBound` from the runnable thread's)
   have hts6 : Fl4Spec.threadSet (Z := Unit) (fun tcb => { tcb with tcbFault := some f' }) ct.bv σ =
       ({((), σf)}, False) := Notif.threadSet_eq _ hk
@@ -735,7 +741,7 @@ theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
   have J' := J.toR.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 (J.zD_diffE hpE)
   exact ⟨⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-    ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J'⟩⟩
+    ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J', inferInstance⟩⟩
 
 /-- The fault cases `JAtZ.faultHypJZM` leaves open (module docstring). -/
 def FltOpen (σ : Fl4Spec.State Unit) : Prop :=
@@ -745,7 +751,7 @@ def FltOpen (σ : Fl4Spec.State Unit) : Prop :=
 set_option maxHeartbeats 4000000 in
 /-- **`handle_fault` at a switch mid state outside `FltOpen`** (module
 docstring; `JAtZ.faultHypJZ`'s case split). -/
-theorem JAtZ.faultHypJZM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : MidE σ)
+theorem JAtZ.faultHypJZM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)

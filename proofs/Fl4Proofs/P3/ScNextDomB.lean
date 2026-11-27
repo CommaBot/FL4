@@ -11,7 +11,8 @@ P3 (DESIGN.md §9), scheduler: **the domain switch's pieces at
   written with its value 0); `SFootN`: `SFoot` with them.
 * `TK0`: `TK` without the domain time.
 * `NdOK`: what `next_domain_eq`/`nextDomain_eq` need at a state: `DomRel`,
-  `DomListOK` [J] and `DOM_SCHED_IDX = domain_index` [J] (ScNextDom).
+  `DomListOK` and `DOM_SCHED_IDX = domain_index` (ScNextDom; both discharged
+  at every `JAtZR` state with `SInvX`'s `DomListOK`: XTopJointKEntryU6 `JAtZR.hdOK`).
 * `ArchNd` [P]: the spec's `arch_prepare_next_domain` (l4v
   `Arch_A.X64_A.arch_prepare_next_domain = switch_local_fpu_owner None`;
   FL4 does nothing there) at every related state, in `ArchSw`'s form (one
@@ -213,10 +214,11 @@ theorem WritesIn.sfootN_trans {T : Set U64} {c : U64} {s s1 s2 : S} (h1 : P1.Wri
     · rw [h1.1] at hb; exact Or.inr hb
 
 /-- What `next_domain` reads at a state (ScNextDom): the domain relation,
-`DomListOK` [J] and `DOM_SCHED_IDX = domain_index` [J] (l4v has no
+`DomListOK` (carried in `SInvX`) and `DOM_SCHED_IDX = domain_index` (l4v has no
 counterpart of FL4's index word; true at every reachable state with the
 two-entry table: boot 0/0, ScheduleSetStart 0 / `length - 2`, `next_domain`
-the start index on both sides). -/
+the start index on both sides; from `DomRel`'s index word 0 and
+`DomListOK.idx0`, XTopJointKEntryU6 `JAtZR.hdOK`). -/
 def NdOK (s : S) (σ : Fl4Spec.State Unit) : Prop :=
   DomRel (L.mem s) (L.ksb s) σ ∧ DomListOK σ ∧ (L.mem s (ksW (L.ksb s) 24#u64)).val = σ.domainIndex
 
@@ -419,7 +421,7 @@ theorem NdOK.keep {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : NdOK (L := L) s 
   · rw [hk]
     refine hD.of_same (domSame_iff fun o ho => hm o ?_ ?_) hdl hds <;>
       (simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-       rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide)
+       rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide)
   · rw [hk, hm 24#u64 (by decide) (by decide), hdi]; exact hi
 
 theorem NdOK.sfoot {N T C : Set U64} {c : U64} {s s' : S} {σ σ0 σ' : Fl4Spec.State Unit} (h : NdOK (L := L) s σ)

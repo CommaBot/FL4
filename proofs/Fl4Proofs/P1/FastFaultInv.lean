@@ -190,6 +190,77 @@ theorem xfer_foot_S8 {S5 S6 S7 S8 : S} {a : A} {t dest rb sent badge : U64} {mi 
   have := set_reg_rgU (r := layout.reg.BADGE) (v := badge) hT hd (by simp [layout.reg.BADGE, layout.reg.RDI]) w7
   rw [hS8, WP.spec_ok] at this; exact this
 
+theorem vm_ne_cap : ¬ fl4_abi.consts.fault.VMFault = fl4_abi.consts.fault.CapFault := by
+  unfold fl4_abi.consts.fault.VMFault fl4_abi.consts.fault.CapFault; decide
+theorem vm_ne_us : ¬ fl4_abi.consts.fault.VMFault = fl4_abi.consts.fault.UnknownSyscall := by
+  unfold fl4_abi.consts.fault.VMFault fl4_abi.consts.fault.UnknownSyscall; decide
+theorem vm_ne_ue : ¬ fl4_abi.consts.fault.VMFault = fl4_abi.consts.fault.UserException := by
+  unfold fl4_abi.consts.fault.VMFault fl4_abi.consts.fault.UserException; decide
+theorem vm_ne_to : ¬ fl4_abi.consts.fault.VMFault = fl4_abi.consts.fault.Timeout := by
+  unfold fl4_abi.consts.fault.VMFault fl4_abi.consts.fault.Timeout; decide
+theorem vm_ne_dbg : ¬ fl4_abi.consts.fault.VMFault = fl4_abi.consts.fault.DebugException := by
+  unfold fl4_abi.consts.fault.VMFault fl4_abi.consts.fault.DebugException; decide
+
+
+/-- **The fault message of a VM fault writes only the receiver's registers
+and IPC-buffer words** (four `set_mr`: the restart PC, the address, the
+instruction flag, the status). -/
+theorem set_mrs_fault_rgV {s : S} {a : A} {snd rcv buf : U64} (hT : TcbPlaced T) (hr : rcv ∈ T)
+    (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U buf)
+    (hty : L.mem s (faultA snd) = fl4_abi.consts.fault.VMFault) :
+    faults.set_mrs_fault st ar s a snd rcv buf ⦃ r => WritesIn st s r.2 (XferRegW T U) ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold faults.set_mrs_fault
+  rw [fault_type_ok, hty]; simp only [bind_ok]
+  refine WP.spec_bind (P0.obj.Tcb.fault_w0.p0 st snd s hS) fun w0 _ => ?_
+  refine WP.spec_bind (P0.obj.Tcb.fault_w1.p0 st snd s hS) fun w1 _ => ?_
+  refine WP.spec_bind (P0.obj.Tcb.fault_w2.p0 st snd s hS) fun w2 _ => ?_
+  refine WP.spec_bind (P0.obj.Tcb.reg.p0 st snd s _ hS) fun pc _ => ?_
+  simp only [vm_ne_cap, vm_ne_us, vm_ne_ue, vm_ne_to, vm_ne_dbg, if_false, if_true, eq_self_iff_true, ↓reduceIte]
+  refine WP.spec_bind (set_mr_rgU (v := pc) hT hr hUa hb (by simp) (WritesIn.refl s (XferRegW T U))) ?_
+  rintro ⟨x1, s1⟩ ⟨h1, -⟩
+  try simp only [WP.uncurry'_pair, uncurry_apply_pair]
+  try dsimp only
+  refine WP.spec_bind (set_mr_rgU (v := w0) hT hr hUa hb (by simp) h1) ?_
+  rintro ⟨x2, s2⟩ ⟨h2, -⟩
+  try simp only [WP.uncurry'_pair, uncurry_apply_pair]
+  try dsimp only
+  refine WP.spec_bind (set_mr_rgU (v := w2) hT hr hUa hb (by simp) h2) ?_
+  rintro ⟨x3, s3⟩ ⟨h3, -⟩
+  try simp only [WP.uncurry'_pair, uncurry_apply_pair]
+  try dsimp only
+  exact WP.spec_mono (set_mr_rgU (v := w1) hT hr hUa hb (by simp) h3) fun r hr' => hr'.1
+
+/-- **The fault message of an UnknownSyscall or a VM fault writes only the
+receiver's registers and IPC-buffer words** (pf1). -/
+theorem set_mrs_fault_rgG {s : S} {a : A} {snd rcv buf ty : U64} (hT : TcbPlaced T) (hr : rcv ∈ T)
+    (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U buf)
+    (hty' : ty = fl4_abi.consts.fault.UnknownSyscall ∨ ty = fl4_abi.consts.fault.VMFault)
+    (hty : L.mem s (faultA snd) = ty) :
+    faults.set_mrs_fault st ar s a snd rcv buf ⦃ r => WritesIn st s r.2 (XferRegW T U) ⦄ := by
+  rcases hty' with rfl | rfl
+  · exact set_mrs_fault_rgU ar hT hr hUa hb hty
+  · exact set_mrs_fault_rgV ar hT hr hUa hb hty
+
+/-- m61's `xfer_foot_S8` for an UnknownSyscall or a VM fault (pf1). -/
+theorem xfer_foot_S8G {ty : U64} {S5 S6 S7 S8 : S} {a : A} {t dest rb sent badge : U64} {mi : msginfo.MessageInfo}
+    (hT : TcbPlaced T) (hd : dest ∈ T) (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U rb)
+    (hty' : ty = fl4_abi.consts.fault.UnknownSyscall ∨ ty = fl4_abi.consts.fault.VMFault)
+    (hty : L.mem S5 (faultA t) = ty)
+    (hmrs : faults.set_mrs_fault st ar S5 a t dest rb = ok (sent, S6))
+    (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
+    (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
+    WritesIn st S5 S6 (XferRegW T U) ∧ WritesIn st S5 S8 (XferRegW T U) := by
+  have w6 : WritesIn st S5 S6 (XferRegW T U) := by
+    have := set_mrs_fault_rgG (T := T) ar (a := a) (snd := t) hT hd hUa hb hty' hty
+    rw [hmrs, WP.spec_ok] at this; exact this
+  have w7 : WritesIn st S5 S7 (XferRegW T U) := by
+    have := set_msg_info_rgU (mi := mi) hT hd w6
+    rw [hS7, WP.spec_ok] at this; exact this
+  refine ⟨w6, ?_⟩
+  have := set_reg_rgU (r := layout.reg.BADGE) (v := badge) hT hd (by simp [layout.reg.BADGE, layout.reg.RDI]) w7
+  rw [hS8, WP.spec_ok] at this; exact this
+
 end
 
 /-! ## Addresses and frames of the run's explicit writes -/
@@ -251,6 +322,21 @@ theorem sfW_mem {s : S} {t n b : U64} (hb : Aligned b)
   unfold sfW
   rw [mem_wr_ne' h3.1 hb h3.2, mem_wr_ne' h2.1 hb h2.2, mem_wr_ne' h1.1 hb h1.2, mem_wr_ne' h0.1 hb h0.2]
 
+theorem ksb_sfG (s : S) (t ty w0 w1 w2 : U64) : L.ksb (sfG (L := L) s t ty w0 w1 w2) = L.ksb s := by
+  unfold sfG; simp
+theorem cpu_sfG (s : S) (t ty w0 w1 w2 : U64) : L.cpu (sfG (L := L) s t ty w0 w1 w2) = L.cpu s := by
+  unfold sfG; simp
+
+/-- A word `set_fault` does not write (`sfW_mem` over the values). -/
+theorem sfG_mem {s : S} {t ty w0 w1 w2 b : U64} (hb : Aligned b)
+    (h0 : Aligned (faultA t) ∧ faultA t ≠ b)
+    (h1 : Aligned (core.num.U64.wrapping_add t 3384#u64) ∧ core.num.U64.wrapping_add t 3384#u64 ≠ b)
+    (h2 : Aligned (core.num.U64.wrapping_add t 3392#u64) ∧ core.num.U64.wrapping_add t 3392#u64 ≠ b)
+    (h3 : Aligned (core.num.U64.wrapping_add t 3400#u64) ∧ core.num.U64.wrapping_add t 3400#u64 ≠ b) :
+    L.mem (sfG (L := L) s t ty w0 w1 w2) b = L.mem s b := by
+  unfold sfG
+  rw [mem_wr_ne' h3.1 hb h3.2, mem_wr_ne' h2.1 hb h2.2, mem_wr_ne' h1.1 hb h1.2, mem_wr_ne' h0.1 hb h0.2]
+
 /-- A word the fast dequeue does not write. -/
 theorem epFast_mem {s : S} {ptr dest b : U64} (hb : Aligned b)
     (hh : Aligned (epHeadA ptr) ∧ epHeadA ptr ≠ b) (htl : Aligned (epTSA ptr) ∧ epTSA ptr ≠ b)
@@ -272,40 +358,8 @@ theorem actA_of {X Y : S} (hk : L.ksb X = L.ksb Y) (hc : L.cpu X = L.cpu Y) : ac
 
 end
 
-/-! ## The receive buffer's lookup -/
-
-section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
-
-/-- The IPC-buffer word of a TCB. -/
-def ibA (t : U64) : U64 := core.num.U64.wrapping_add t 3512#u64
-/-- The IPC-buffer cap slot of a TCB. -/
-def sbA (t : U64) : U64 := core.num.U64.wrapping_add t (core.num.U64.wrapping_mul layout.tcb.SLOT_BUFFER layout.cte.SIZE)
-
-theorem ipc_buffer_ok (s : S) (t : obj.Tcb) : obj.Tcb.ipc_buffer st t s = ok (L.mem s (ibA t)) := by
-  apply eq_of_spec_fd; unfold obj.Tcb.ipc_buffer; step*; simp_all [ibA]
-
-theorem sbA_val {t : U64} (h : TcbAddr t) : (sbA t).val = t.val + 64 := by
-  have := h.fits
-  unfold sbA layout.tcb.SLOT_BUFFER layout.cte.SIZE
-  simp [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]
-  all_goals omega
-
-/-- **`lookup_ipc_buffer` reads three words**: the IPC-buffer word and the
-buffer cap slot's two words. -/
-theorem lookup_buf_agree {s s' : S} {t : U64} (h1 : L.mem s' (ibA t) = L.mem s (ibA t))
-    (h2 : L.mem s' (sbA t) = L.mem s (sbA t))
-    (h3 : L.mem s' (core.num.U64.wrapping_add (sbA t) 8#u64) = L.mem s (core.num.U64.wrapping_add (sbA t) 8#u64)) :
-    msg.lookup_ipc_buffer st s' true t = msg.lookup_ipc_buffer st s true t := by
-  unfold msg.lookup_ipc_buffer
-  rw [ipc_buffer_ok, ipc_buffer_ok, h1]
-  have hs : obj.Tcb.slot t layout.tcb.SLOT_BUFFER = ok (sbA t) := by simp [obj.Tcb.slot, lift, sbA]
-  rw [hs]; simp only [bind_ok]
-  have hc : obj.Slot.cap st (sbA t) s' = obj.Slot.cap st (sbA t) s := by
-    unfold obj.Slot.cap; rw [L.read_pair_eq, L.read_pair_eq, h2, h3]
-  rw [hc]
-
-end
+/- The receive buffer's lookup (`ibA`, `sbA`, `lookup_buf_agreeB`, `lookup_buf_agree`) moved to `QueueFoot`
+(KENTRY-PLAN a6f). -/
 
 /-! ## `FaultReads` from the entry state -/
 
@@ -398,16 +452,17 @@ local macro "al" : tactic => `(tactic| (
   all_goals omega))
 
 set_option maxHeartbeats 1600000 in
-/-- **m58's `FaultReads` from the entry state**, with the run's footprint up
+/-- **m61's `faultReads_of` over the fault** (`set_fault` writes `sfG … ty w0 w1 w2`, `ty` an UnknownSyscall or a VM fault; pf1), with the run's footprint up
 to the meeting state `fS14` (for the later reads: `UsOff`, `FinReads`). -/
-theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr dest r : U64} {rest : List U64}
+theorem faultReads_ofG {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {ty fw0 fw1 fw2 ptr dest r : U64} {rest : List U64}
+    (hty' : ty = fl4_abi.consts.fault.UnknownSyscall ∨ ty = fl4_abi.consts.fault.VMFault)
     (E : FaultEnt (L := L) T Cs Ω U s t ptr dest r rest) {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
     {badge : U64}
-    (hbuf : msg.lookup_ipc_buffer st (epFast (L := L) (sfW (L := L) s t n) ptr dest) true dest = ok rb)
-    (hmrs : faults.set_mrs_fault st ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t dest rb = ok (sent, S6))
+    (hbuf : msg.lookup_ipc_buffer st (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) true dest = ok rb)
+    (hmrs : faults.set_mrs_fault st ar (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) a t dest rb = ok (sent, S6))
     (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
     (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
-    FaultReads (L := L) T s t n ptr dest r rest S6 S8 ∧
+    FaultReadsG (L := L) T (sfG (L := L) s t ty fw0 fw1 fw2) t ty ptr dest r rest S6 S8 ∧
       WritesIn st s (fS14 (L := L) S8 t dest r) (FaultW T U t ptr dest r) ∧
       FaultKeep (L := L) T Ω s (fS14 (L := L) S8 t dest r) r := by
   have hT := E.hT
@@ -465,19 +520,19 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
   have nal := E.hN.align
   have rA' : (rTcbA r).val % 8 = 0 := rA
   -- the states
-  have k1 : L.ksb (sfW (L := L) s t n) = L.ksb s := ksb_sfW s t n
-  have c1 : L.cpu (sfW (L := L) s t n) = L.cpu s := cpu_sfW s t n
+  have k1 : L.ksb (sfG (L := L) s t ty fw0 fw1 fw2) = L.ksb s := ksb_sfG s t _ fw0 fw1 fw2
+  have c1 : L.cpu (sfG (L := L) s t ty fw0 fw1 fw2) = L.cpu s := cpu_sfG s t _ fw0 fw1 fw2
   -- a word `set_fault` leaves
   have m1 : ∀ b, Aligned b → faultA t ≠ b → core.num.U64.wrapping_add t 3384#u64 ≠ b →
       core.num.U64.wrapping_add t 3392#u64 ≠ b → core.num.U64.wrapping_add t 3400#u64 ≠ b →
-      L.mem (sfW (L := L) s t n) b = L.mem s b := fun b hb h0 h1 h2 h3 =>
-    sfW_mem hb ⟨by al, h0⟩ ⟨by al, h1⟩ ⟨by al, h2⟩ ⟨by al, h3⟩
+      L.mem (sfG (L := L) s t ty fw0 fw1 fw2) b = L.mem s b := fun b hb h0 h1 h2 h3 =>
+    sfG_mem hb ⟨by al, h0⟩ ⟨by al, h1⟩ ⟨by al, h2⟩ ⟨by al, h3⟩
   -- F2 at set_fault's state
-  have eQ : L.epQ (sfW (L := L) s t n) ptr = L.epQ s ptr := by
+  have eQ : L.epQ (sfG (L := L) s t ty fw0 fw1 fw2) ptr = L.epQ s ptr := by
     unfold LawfulStore.epQ
     rw [m1 (epHeadA ptr) (by al) (by ane) (by ane) (by ane) (by ane),
       m1 (epTSA ptr) (by al) (by ane) (by ane) (by ane) (by ane)]
-  have hq1 : QueueRel (L.mem (sfW (L := L) s t n)) T .Ep (L.epQ (sfW (L := L) s t n) ptr) (dest :: rest) := by
+  have hq1 : QueueRel (L.mem (sfG (L := L) s t ty fw0 fw1 fw2)) T .Ep (L.epQ (sfG (L := L) s t ty fw0 fw1 fw2) ptr) (dest :: rest) := by
     rw [eQ]
     refine ⟨E.hq.nodup, E.hq.mem, E.hq.head, E.hq.last, E.hq.seg.congr fun y hy => ?_⟩
     have hy' := hT y (E.hq.mem y hy)
@@ -489,21 +544,21 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
         (intro e; have e' := congrArg UScalar.val e; rw [vyp] at e'; simp only [vF, v84, v92, v00] at e'; omega)
     · refine m1 (nextA .Ep y) (by show _ % 8 = 0; rw [vyn]; omega) ?_ ?_ ?_ ?_ <;>
         (intro e; have e' := congrArg UScalar.val e; rw [vyn] at e'; simp only [vF, v84, v92, v00] at e'; omega)
-  have hst1 : L.epState (sfW (L := L) s t n) ptr = obj.EP_RECV := by
+  have hst1 : L.epState (sfG (L := L) s t ty fw0 fw1 fw2) ptr = obj.EP_RECV := by
     unfold LawfulStore.epState; rw [m1 (epTSA ptr) (by al) (by ane) (by ane) (by ane) (by ane)]; exact E.hst
   -- the successor in the queue
-  have haf : (L.epQ (sfW (L := L) s t n) ptr).end ≠ dest → L.mem (sfW (L := L) s t n) (nextA .Ep dest) ∈ T := by
+  have haf : (L.epQ (sfG (L := L) s t ty fw0 fw1 fw2) ptr).end ≠ dest → L.mem (sfG (L := L) s t ty fw0 fw1 fw2) (nextA .Ep dest) ∈ T := by
     intro hne
     obtain ⟨-, hn, -⟩ := (Seg_cons _ _ _ _ _ _).1 hq1.seg
     cases rest with
     | nil => exact absurd (by simpa using hq1.last) hne
     | cons y ys =>
-      have : L.mem (sfW (L := L) s t n) (nextA .Ep dest) = y := by simpa using hn
+      have : L.mem (sfG (L := L) s t ty fw0 fw1 fw2) (nextA .Ep dest) = y := by simpa using hn
       rw [this]; exact hq1.mem y (by simp)
   -- a word the dequeue leaves
   have m2 : ∀ b, Aligned b → epHeadA ptr ≠ b → epTSA ptr ≠ b → nextA .Ep dest ≠ b → prevA .Ep dest ≠ b →
       (∀ y ∈ T, (prevA .Ep y).val ≠ b.val) →
-      L.mem (epFast (L := L) (sfW (L := L) s t n) ptr dest) b = L.mem (sfW (L := L) s t n) b :=
+      L.mem (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) b = L.mem (sfG (L := L) s t ty fw0 fw1 fw2) b :=
     fun b hb h0 h1 h2 h3 h4 => epFast_mem hb ⟨by al, h0⟩ ⟨by al, h1⟩ ⟨by al, h2⟩ ⟨by al, h3⟩ fun hne => by
       have hy := haf hne
       have hy' := hT _ hy
@@ -518,7 +573,7 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
   -- the transfer's footprint
   have hb0 : BufOK U rb := by
     have hl := E.hbuf
-    have e0 : msg.lookup_ipc_buffer st (epFast (L := L) (sfW (L := L) s t n) ptr dest) true dest =
+    have e0 : msg.lookup_ipc_buffer st (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) true dest =
         msg.lookup_ipc_buffer st s true dest := by
       refine lookup_buf_agree ?_ ?_ ?_
       · rw [m2 (ibA dest) (by al) (by ane) (by ane) (by ane) (by ane) (pv _ 3512 vib (by decide) (by decide)),
@@ -529,16 +584,16 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
           (pv _ 72 vsb8 (by decide) (by decide)),
           m1 (core.num.U64.wrapping_add (sbA dest) 8#u64) (by al) (by ane) (by ane) (by ane) (by ane)]
     rw [e0] at hbuf; rw [hbuf, WP.spec_ok] at hl; exact hl
-  have hR5 : L.mem (epFast (L := L) (sfW (L := L) s t n) ptr dest) (faultA t) = fl4_abi.consts.fault.UnknownSyscall := by
+  have hR5 : L.mem (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) (faultA t) = ty := by
     rw [m2 (faultA t) (by al) (by ane) (by ane) (by ane) (by ane) (pvt _ 3376 vF (by decide) (by decide))]
-    unfold sfW
+    unfold sfG
     rw [mem_wr_ne' (a := core.num.U64.wrapping_add t 3400#u64) (b := faultA t) (by al) (by al) (by ane),
       mem_wr_ne' (a := core.num.U64.wrapping_add t 3392#u64) (b := faultA t) (by al) (by al) (by ane),
       mem_wr_ne' (a := core.num.U64.wrapping_add t 3384#u64) (b := faultA t) (by al) (by al) (by ane),
       LawfulStore.mem_wr_same (a := faultA t) (by al)]
-  obtain ⟨w6, w8⟩ := xfer_foot_S8 ar hT hdT hUa hb0 hR5 hmrs hS7 hS8
-  have k2 : L.ksb (epFast (L := L) (sfW (L := L) s t n) ptr dest) = L.ksb s := by rw [ksb_epFast, k1]
-  have c2 : L.cpu (epFast (L := L) (sfW (L := L) s t n) ptr dest) = L.cpu s := by rw [cpu_epFast, c1]
+  obtain ⟨w6, w8⟩ := xfer_foot_S8G ar hT hdT hUa hb0 hty' hR5 hmrs hS7 hS8
+  have k2 : L.ksb (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) = L.ksb s := by rw [ksb_epFast, k1]
+  have c2 : L.cpu (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest) = L.cpu s := by rw [cpu_epFast, c1]
   have k8 : L.ksb S8 = L.ksb s := by rw [w8.1, k2]
   have c8 : L.cpu S8 = L.cpu s := by rw [w8.2.1, c2]
   have hC8 : curA (L := L) S8 = curA (L := L) s := curA_of k8 c8
@@ -565,9 +620,9 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
       (fun e => by have := congrArg UScalar.val e; rw [v84] at this; omh)
       (fun e => by have := congrArg UScalar.val e; rw [v92] at this; omh)
       (fun e => by have := congrArg UScalar.val e; rw [v00] at this; omh)
-  have hR6 : L.mem S6 (faultA t) = fl4_abi.consts.fault.UnknownSyscall := by
+  have hR6 : L.mem S6 (faultA t) = ty := by
     rw [w6.2.2 (faultA t) (by al) (tcbw_notRegW hT E.ht (K := 3376#u64) (by simp) (by simp) hUo)]; exact hR5
-  have hF8 : L.mem S8 (faultA t) = fl4_abi.consts.fault.UnknownSyscall := by
+  have hF8 : L.mem S8 (faultA t) = ty := by
     rw [w8.2.2 (faultA t) (by al) (tcbw_notRegW hT E.ht (K := 3376#u64) (by simp) (by simp) hUo)]; exact hR5
   have hR8 : L.mem S8 (replyA dest) = r := by
     rw [w8.2.2 (replyA dest) (by al) (tcbw_notRegW hT hdT (K := 3360#u64) (by simp) (by simp) hUo)]
@@ -597,11 +652,11 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
   have haA : Aligned (actA (L := L) s) := by al
   have hcA : Aligned (curA (L := L) s) := by al
   -- the footprint
-  have w1 : WritesIn st s (sfW (L := L) s t n) (fun b => b = faultA t ∨ b = core.num.U64.wrapping_add t 3384#u64 ∨
+  have w1 : WritesIn st s (sfG (L := L) s t ty fw0 fw1 fw2) (fun b => b = faultA t ∨ b = core.num.U64.wrapping_add t 3384#u64 ∨
       b = core.num.U64.wrapping_add t 3392#u64 ∨ b = core.num.U64.wrapping_add t 3400#u64) :=
     ⟨k1, c1, fun b hb hn => m1 b hb (fun e => hn (Or.inl e.symm)) (fun e => hn (Or.inr (Or.inl e.symm)))
       (fun e => hn (Or.inr (Or.inr (Or.inl e.symm)))) (fun e => hn (Or.inr (Or.inr (Or.inr e.symm))))⟩
-  have w2 : WritesIn st (sfW (L := L) s t n) (epFast (L := L) (sfW (L := L) s t n) ptr dest)
+  have w2 : WritesIn st (sfG (L := L) s t ty fw0 fw1 fw2) (epFast (L := L) (sfG (L := L) s t ty fw0 fw1 fw2) ptr dest)
       (fun b => b = epHeadA ptr ∨ b = epTSA ptr ∨ ∃ y ∈ T, b = nextA .Ep y ∨ b = prevA .Ep y) :=
     ⟨by rw [ksb_epFast], by rw [cpu_epFast], fun b hb hn => m2 b hb (fun e => hn (Or.inl e.symm))
       (fun e => hn (Or.inr (Or.inl e.symm))) (fun e => hn (Or.inr (Or.inr ⟨dest, hdT, Or.inl e.symm⟩)))
@@ -718,6 +773,22 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
   · rw [hA8, hC8, mem_wr_ne' (a := stA dest) (b := curA (L := L) s) hsA hcA (by ane),
       mem_wr_ne' (a := actA (L := L) s) (b := curA (L := L) s) haA hcA (by ane)]
     rw [← hC8]; exact eC
+
+
+/-- **m58's `FaultReads` from the entry state**, with the run's footprint up
+to the meeting state `fS14` (for the later reads: `UsOff`, `FinReads`). -/
+theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr dest r : U64} {rest : List U64}
+    (E : FaultEnt (L := L) T Cs Ω U s t ptr dest r rest) {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
+    {badge : U64}
+    (hbuf : msg.lookup_ipc_buffer st (epFast (L := L) (sfW (L := L) s t n) ptr dest) true dest = ok rb)
+    (hmrs : faults.set_mrs_fault st ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t dest rb = ok (sent, S6))
+    (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
+    (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
+    FaultReads (L := L) T s t n ptr dest r rest S6 S8 ∧
+      WritesIn st s (fS14 (L := L) S8 t dest r) (FaultW T U t ptr dest r) ∧
+      FaultKeep (L := L) T Ω s (fS14 (L := L) S8 t dest r) r :=
+  faultReads_ofG ar (ty := fl4_abi.consts.fault.UnknownSyscall) (fw0 := n) (fw1 := 0#u64) (fw2 := 0#u64) (Or.inl rfl) E
+    hbuf hmrs hS7 hS8
 
 end
 

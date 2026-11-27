@@ -219,7 +219,7 @@ theorem SCsOK.drop (P : DropOK st H D Cs s) {Ac : Set U64}
     (hb : ∀ t ∈ (H.drop D).tcbs, L.mem s (scA t) ≠ 0#u64 → ¬ D (L.mem s (scA t))) :
     SCsOK st (H.drop D).tcbs (H.drop D).omega (H.drop D).frame (H.drop D).scs (H.drop D).scBits Ac s := by
   refine ⟨fun b hb => Heap.frame_omega hb, fun b hb => h.ks b (Heap.frame_drop_sub hb),
-    fun o ho h8 => Heap.omega_drop (h.ksΩ o ho h8) (P.ks o ho h8), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    fun o ho h8 => Heap.omega_drop (h.ksΩ o ho h8) (P.ks o ho h8), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro t ht h0 hne b hin
     rw [Heap.scBits_drop (hb t ht h0)] at hin
     rw [Heap.scBits_drop P.csc]
@@ -239,6 +239,9 @@ theorem SCsOK.drop (P : DropOK st H D Cs s) {Ac : Set U64}
   · intro c hc
     obtain ⟨hc', hcD⟩ := Heap.mem_scs_drop.1 hc
     exact P.scFrame hc' hcD (h.repSg c hc') (P.scIn hc' (by simp [layout.sc.REPLY]))
+  · intro c hc
+    obtain ⟨hc', hcD⟩ := Heap.mem_scs_drop.1 hc
+    rw [Heap.scBits_drop hcD]; exact h.scKs c hc'
 
 end
 
@@ -272,7 +275,7 @@ theorem ObjsOK.drop (P : DropOK st H D Cs s)
     fun n hn r hr => h.ntRp n (N hn).1 r (R hr).1, fun n hn c hc => ?_, fun n hn => h.ntAl n (N hn).1,
     fun n hn => h.ntP n (N hn).1, fun n hn => ?_, fun n hn r hr => h.ntORp n (N hn).1 r (R hr).1,
     fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun n hn => h.nt0 n (N hn).1,
-    fun r hr => h.rp0 r (R hr).1⟩
+    fun r hr => h.rp0 r (R hr).1, fun c hc => h.sc0 c (C hc).1⟩
   · rw [Heap.scBits_drop (C hc).2]; exact h.sc c (C hc).1
   · exact P.rpFrame (R hr).1 (R hr).2 (h.rpW r (R hr).1 b ha h1 h2) h1 h2
   · rw [Heap.scBits_drop (C hc).2] at hin
@@ -350,6 +353,42 @@ theorem TimerOK.drop (P : DropOK st H D Cs s) (h : TimerOK st H.tcbs Cs s) : Tim
     fun y hy => (P.tl y (T hy).1 (T hy).2).2.2.2.2.tz (h.dp y (T hy).1),
     fun c hc => (P.node c hc).2.2.tz (h.dh c hc)⟩
 
+/-- Every key of a tree reached from a link satisfying `Q`, whose nodes pass `Q` on to their non-null
+children, satisfies `Q`. -/
+theorem TRB.Rep.all {k : TRB.Links} {Q : U64 → Prop} {par x : U64} {t : TRB.RBT} (h : TRB.Rep k par x t) :
+    (x ≠ 0#u64 → Q x) → (∀ y, Q y → (k.l y ≠ 0#u64 → Q (k.l y)) ∧ (k.r y ≠ 0#u64 → Q (k.r y))) →
+    ∀ y ∈ t.keys, Q y := by
+  induction h with
+  | leaf => intro _ _ y hy; simp [TRB.RBT.keys] at hy
+  | @node par x c l r hx hp hc hl hr ihl ihr =>
+    intro hq hs y hy
+    have qx := hq hx
+    simp only [TRB.RBT.keys, List.mem_append, List.mem_cons] at hy
+    rcases hy with hy | hy | hy
+    · exact ihl (hs x qx).1 hs y hy
+    · subst hy; exact qx
+    · exact ihr (hs x qx).2 hs y hy
+
+/-- **`TimerRB` over the dropped heap**: by `DropOK`'s `tl`/`node`, every tree node is kept. -/
+theorem TimerRB.drop (P : DropOK st H D Cs s) (hm : TimerOK st H.tcbs Cs s) (h : TimerRB st H.tcbs Cs s) :
+    TimerRB st (H.drop D).tcbs Cs s := by
+  have T : ∀ {y}, y ∈ (H.drop D).tcbs → y ∈ H.tcbs ∧ ¬ D y := Heap.mem_tcbs_drop.1
+  have kt : ∀ {x : U64}, KeptRef H D x → Tz H.tcbs x → x ≠ 0#u64 → x ∈ H.tcbs ∧ ¬ D x := by
+    intro x k hz h0
+    have hx := hz.ne0 h0
+    exact ⟨hx, k (by rw [show H x = some .tcb from hx]; simp)⟩
+  have ct : ∀ {c : U64} {t : TRB.RBT}, c ∈ Cs → CoreTree st H.tcbs s c t →
+      CoreTree st (H.drop D).tcbs s c t := by
+    intro c t hc c1
+    have all := TRB.Rep.all (Q := fun y => y ∈ H.tcbs ∧ ¬ D y) c1.rep (kt (P.node c hc).1 (hm.root c hc))
+      (fun y hy => ⟨kt (P.tl y hy.1 hy.2).1 (hm.lt y hy.1), kt (P.tl y hy.1 hy.2).2.1 (hm.rt y hy.1)⟩)
+    exact { c1 with inT := fun y hy => Heap.mem_tcbs_drop.2 (all y hy) }
+  refine ⟨fun c hc => ?_, fun y hy hd => ?_, fun y hy hd => h.idle y (T hy).1 hd⟩
+  · obtain ⟨t, c1⟩ := h.tree c hc
+    exact ⟨t, ct hc c1⟩
+  · obtain ⟨c, hc, t, c1, hyt⟩ := h.armed y (T hy).1 hd
+    exact ⟨c, hc, t, ct hc c1, hyt⟩
+
 /-- **`ReplyInv` over the dropped heap.** -/
 theorem ReplyInv.drop (P : DropOK st H D Cs s) (hT : TcbPlaced H.tcbs)
     (h : ReplyInv st H.tcbs H.replies H.scs s) : ReplyInv st (H.drop D).tcbs (H.drop D).replies (H.drop D).scs s := by
@@ -393,10 +432,12 @@ theorem ScExtra.drop (P : DropOK st H D Cs s)
   refine ⟨⟨fun t ht h0 => ?_, Heap.mem_scs_drop.2 ⟨h.cur, P.csc⟩, fun c hc => h.core c (C hc).1,
     fun t ht h0 => (P.bnd t (T ht).1 (T ht).2).mem_ntfns (h.bnd t (T ht).1 h0), fun n hn h0 => ?_,
     h.tm.drop P, fun n hn => (P.ntb n (N hn).1 (N hn).2).tz (h.ntb n (N hn).1),
+    h.rb.drop P h.tm,
     fun c hc h0 => (P.scn c (C hc).1 (C hc).2).mem_ntfns (h.scn c (C hc).1 h0), ⟨fun c hc h0 => ?_,
     fun t ht h0 => (P.yto t (T ht).1 (T ht).2).mem_scs (h.yt.2.1 t (T ht).1 h0),
-    fun c hc h0 => (P.yfrom c (C hc).1 (C hc).2).mem_tcbs (h.yt.2.2 c (C hc).1 h0)⟩⟩,
-    fun c hc => h.tsc c (C hc).1⟩
+    fun c hc h0 => (P.yfrom c (C hc).1 (C hc).2).mem_tcbs (h.yt.2.2 c (C hc).1 h0)⟩,
+    ⟨fun t ht => h.bs.tb t (T ht).1, fun n hn => h.bs.nt n (N hn).1, fun c hc => h.bs.sn c (C hc).1⟩⟩,
+    fun c hc => h.tsc c (C hc).1, fun t ht h0 => h.aff t (T ht).1 h0⟩
   · obtain ⟨h1, h2, h3⟩ := h.bound t (T ht).1 h0
     exact ⟨Heap.mem_scs_drop.2 ⟨h1, P.keepSc h1 (Or.inl (by rw [h2]; exact P.ne0 (hne (Or.inl (T ht).1))))⟩,
       h2, h3⟩

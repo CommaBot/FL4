@@ -146,7 +146,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): the notification's SC is not the thread's (`hnr`); at a
 resumed entry or with a reschedule pending when the thread has no SC (`hsa`,
 as `JAtZ.recvIpcBlockJG`). -/
-theorem JAtZ.recvIpcBlockNJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockNJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hti : σ.curThread ≠ σ.idleThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hnrl : t.bv ∉ σ.releaseQueue)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hr : Fl4Spec.runnable xt.tcbState = true)
@@ -202,7 +202,7 @@ theorem JAtZ.recvIpcBlockNJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 
 /-- **The blocking receive with a bound idle or waiting notification at `J`**
 (module docstring): the notification's SC is not the thread's (`hnr`). -/
-theorem JAtZ.recvIpcBlockNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvIpcBlockNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))

@@ -1,0 +1,19 @@
+import Fl4Proofs.P3.VirtR7eK2
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_capMove
+#print axioms Fl4Proofs.P3.VirtNvcW.okn_lookupCap
+#print axioms Fl4Proofs.P3.VirtNvcW.okn_lookupExtraCaps
+#print axioms Fl4Proofs.P3.VirtNvcW.okn_deriveCap
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_transferCapsLoop
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_transferCaps
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_doNormalTransfer
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_doIpcTransfer
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_sendIpc
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_sendFaultIpc
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_handleTimeout
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_endTimeslice
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_chargeBudget
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_checkBudget
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_checkBudgetRestart
+#print axioms Fl4Proofs.P3.VirtNvcW.nvc_updateTimeStamp
+#print axioms Fl4Proofs.P3.VirtR7eK2.nvc_entryPt
+#print axioms Fl4Proofs.P3.VirtR7eK2.fl4CallKernelV_eqNR'

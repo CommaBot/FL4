@@ -48,7 +48,7 @@ sides) and `ArchNd` [P], `next_domain` then `choose_thread` at FL4's
 and widens the footprint by `NdW` (`SFootN`). -/
 theorem scnt_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ)
+    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ) (hvr : VsRootOK T σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (hdt : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ) :
     sched.schedule_choose_new_thread st ar s a ⦃ r => ∃ σ', Fl4Spec.scheduleChooseNewThread (Z := Unit) σ =
@@ -58,7 +58,7 @@ theorem scnt_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
       σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ HeapEqUpToFpu σ σ' ∧ TK0 σ σ' ∧
       P1.WritesIn st s r.1 (SFootN st T c s) ⦄ := by
   by_cases hd0 : σ.domainTime ≠ 0
-  · refine WP.spec_mono (schedule_choose_new_thread_refinesF s a σ hS hR hN hI (hA.1 s a σ hS hR hfo) (hA.2 s a σ hS hR)
+  · refine WP.spec_mono (schedule_choose_new_thread_refinesF s a σ hS hR hN hI (hA.1 s a σ hS hR hfo hvr) (hA.2 s a σ hS hR hvr)
       hd0) ?_
     rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
     exact ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, TK.tk0 h10, WritesIn.sfootN_of h11⟩
@@ -95,8 +95,9 @@ theorem scnt_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec
   have hfoN : FpuOwnOK σn := fun o e => by
     have e' : σa.archState.x64CurrentFpuOwner = some o := e
     rw [hown] at e'; cases e'
-  refine WP.spec_mono (choose_thread_refinesF (ndS (L := L) s t) a σn hSn hRn hNn hIn (hA.1 _ a σn hSn hRn hfoN)
-    (hA.2 _ a σn hSn hRn) (hSn.lists.choose_spec.choose_spec.2.idleTh).symm) ?_
+  have hvrN : VsRootOK T σn := hvr.ofF haK.1 (show σa.archState.x64AsidTable = σ.archState.x64AsidTable from asid_of_crk Vs.crk_archPrepareNextDomain ha1)
+  refine WP.spec_mono (choose_thread_refinesF (ndS (L := L) s t) a σn hSn hRn hNn hIn (hA.1 _ a σn hSn hRn hfoN hvrN)
+    (hA.2 _ a σn hSn hRn hvrN) (hSn.lists.choose_spec.choose_spec.2.idleTh).symm) ?_
   rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, -, h11, h12⟩
   refine ⟨σ', ?_, h2, h3, h4, h5, ?_, h7.trans haK.2.2.2.2.1, h8.trans haK.2.2.1, HeapEqUpToFpu.trans (σ2 := σn) haK.1 h9, ?_, ?_⟩
   · unfold Fl4Spec.scheduleChooseNewThread

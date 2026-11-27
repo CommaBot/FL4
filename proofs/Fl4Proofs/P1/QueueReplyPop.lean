@@ -57,7 +57,8 @@ theorem link_allR {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} 
       (fun c hcs => ⟨(hc c hcs).1, (hc c hcs).2.1, (hc c hcs).2.2.1⟩)
       hn hp (fun c hc e h0 => ⟨(hs c hc e h0).1, (hs c hc e h0).2.2⟩) (fun n hn e => absurd e (hnt n hn))
       (fun c hc e => absurd e (hsn c hc)) (fun n hn e => absurd e (hnb n hn)) (fun c hc e => absurd e (hsn c hc))
-      (fun c hc e => absurd e (hsy c hc)),
+      (fun c hc e => absurd e (hsy c hc))
+      (BndS.wr_omega hX.2.2.toScExtra0 h hX.1 hSg.sub haΩ (fun n hn => ⟨hnb n hn, hnt n hn⟩) hsn),
     SCsOK.wr' h hS hX.1 ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h.cur hN (by simp [layout.node.CUR_SC])).symm (fun c hcs => (hc c hcs).2.2) hsp
       (fun c hcs e h0 => (hs c hcs e h0).2.1),

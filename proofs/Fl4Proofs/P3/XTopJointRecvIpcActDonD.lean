@@ -446,7 +446,7 @@ donating or not** (module docstring). -/
 theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -609,7 +609,7 @@ theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
       unfold specCompleteTail; rw [nd_bind_one hd]; rfl
     rw [e1, specCompleteCheck_eqU (donShape_of I2 hkt2 hkn2 hnqT hsc1 hd) hkd]
   rw [receiveIpc_active b rights blk (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hke hk hact, hspecC, hsT, hu]
-  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J'⟩
+  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` with a null or free reply at a `MidN` state outside the
@@ -619,7 +619,7 @@ theorem jRecvIpcUDN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidN σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -641,7 +641,7 @@ theorem jRecvIpcUDN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core
     obtain ⟨xe, hke⟩ := hpE
     exact WP.spec_mono (J.recvIpcActDJN hAT hmb ht hcur hni hnq hkt hn hkn hbn hact true hke b sd true g gr hra
         b.bv (rightsOf sd true g gr))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · exact jRecvIpcUN hAT hmax htu J ht hcur hni hnq p b sd g gr rc rc' hpE hrc hHd hHr hun hAD hPD
 
 
@@ -653,7 +653,7 @@ theorem jRecvIpcLinkDN (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p b : U64) (sd g gr : Bool) (q : U64) (g' : Bool) (rc' : Fl4Spec.Cap)
     (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x)) (hcr : CapRel (.Reply q g') rc')

@@ -4,7 +4,8 @@ through the deletion's finalisation keeps `MR`** (`MRKeepD`, `MKD.*`).
 MachKeep's `MRKeep` / `MK.*` walk, widened to the arch operations that FL4's
 `finalise_cap` reaches (scripted call-graph check, scratch/mr6/cg.py +
 topo.py): the TLB and EPT invalidations, `set_vspace`, `dma_frame`,
-`irq_free`, besides MRKeep's FPU / remote-stall / VCPU-barrier operations.
+`irq_free`, besides MRKeep's FPU / remote-stall / VCPU-barrier operations,
+and (#106) `vcpu_release`.
 
 * `MRKeepD arI AR` [P]: those state-returning arch operations keep `AR` at
   every second argument (with `AR := MR`: none of them changes an IRQ mask,
@@ -13,7 +14,9 @@ topo.py): the TLB and EPT invalidations, `set_vspace`, `dma_frame`,
   the FPU operations are `machine_op_lift`s outside `irq_masks`,
   `irq_state`, `time_state`, `last_machine_time`; `irq_free` / `dma_frame`
   are FL4's IOAPIC-routing / IOMMU bookkeeping, no machine field of the
-  spec). Arch-only (∀ a, no spec state); the model platform satisfies it
+  spec; #106's `vcpu_release`, which `vcpu::finalise` calls after the stall,
+  only drops the deleted VCPU's hardware VMCS on the cores where it is active:
+  no IRQ mask, pending line, clock or store-visible word). Arch-only (∀ a, no spec state); the model platform satisfies it
   (XTopJointMRDel's `modelArch_mrKeepD`; not here: P1-level imports change `step`). `MRKeepD.toK`: MRKeep is a field subset.
 * `mask_irq` is not a field (it moves `MR`: `MachPlat.mask`). It is reached
   from `finalise_cap` only through `cdt.empty_slot`'s `post_cap_deletion`
@@ -46,6 +49,8 @@ structure MRKeepD (AR : A → C → Prop) : Prop where
   fpu_sanitise : ∀ a t c, AR a c → arI.fpu_sanitise a t ⦃ a' => AR a' c ⦄
   fpu_reload : ∀ a t c, AR a c → arI.fpu_reload a t ⦃ a' => AR a' c ⦄
   vcpu_barrier : ∀ a c, AR a c → arI.vcpu_barrier a ⦃ a' => AR a' c ⦄
+  /-- #106: `vcpu::finalise` releases the VCPU's hardware state. -/
+  vcpu_release : ∀ a v c, AR a c → arI.vcpu_release a v ⦃ a' => AR a' c ⦄
   invalidate_ept : ∀ a x y c, AR a c → arI.invalidate_ept a x y ⦃ a' => AR a' c ⦄
   invalidate_page : ∀ a x y c, AR a c → arI.invalidate_page a x y ⦃ a' => AR a' c ⦄
   invalidate_asid : ∀ a x c, AR a c → arI.invalidate_asid a x ⦃ a' => AR a' c ⦄
@@ -53,6 +58,11 @@ structure MRKeepD (AR : A → C → Prop) : Prop where
   set_vspace : ∀ a x y c, AR a c → arI.set_vspace a x y ⦃ a' => AR a' c ⦄
   dma_frame : ∀ a x y b c, AR a c → arI.dma_frame a x y b ⦃ a' => AR a' c ⦄
   irq_free : ∀ a x c, AR a c → arI.irq_free a x ⦃ a' => AR a' c ⦄
+  /-- #68: the TDCALLs of the TDX control cap's decode (the TD module's
+  attestation services: no IRQ mask, pending line or clock). -/
+  tdx_report : ∀ a p d0 d1 d2 d3 d4 d5 d6 d7 c, AR a c → arI.tdx_report a p d0 d1 d2 d3 d4 d5 d6 d7 ⦃ r => AR r.2 c ⦄
+  tdx_extend_rtmr : ∀ a i d0 d1 d2 d3 d4 d5 c, AR a c → arI.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ r => AR r.2 c ⦄
+  tdx_get_quote : ∀ a p n c, AR a c → arI.tdx_get_quote a p n ⦃ r => AR r.2 c ⦄
 
 theorem MRKeepD.toK {AR : A → C → Prop} (h : MRKeepD arI AR) : MRKeep arI AR :=
   ⟨h.set_deadline, h.send_reschedule, h.remote_stall, h.fpu_flush, h.fpu_release, h.fpu_sanitise,

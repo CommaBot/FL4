@@ -36,7 +36,7 @@ theorem JRecvLeavesRN17.of_ok (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksT
     {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : sched.cur_thread st s = ok ct)
     (hni1 : σ.curThread ≠ σ.idleThread) (hrun : CurRun σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hok : MidRun.CtOK σ) : JRecvLeavesRN17 (L := L) arI AR Z.th ct s a σ where
   ipc := fun p b sd g gr rc rc' hpE hrc hHd hHr ho hC _ => by
@@ -60,7 +60,7 @@ theorem jMidLeavesHyp17_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs
     {cptr : Fl4Spec.CapRef} {σ : Fl4Spec.State Unit}
     (hF : ∀ y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) true false false true true cptr).run σ).1,
       MidRun.CtOK y.2) : JMidLeavesHyp17 (L := L) arI AR cptr σ := by
-  intro y hy _ _ hnq _ _ s1 a1 _ hrun hni1 Z H Cs Ac Lst D J ct hct
+  intro y hy _ _ hnq _ _ s1 a1 _ hrun hni1 Z H Cs Ac Lst D J _ ct hct
   exact JRecvLeavesRN17.of_ok hAT hmax hmb (htu a1) J hct hni1 hrun hnq (hF y hy)
 
 end
@@ -112,13 +112,13 @@ with `KDispHyps27M` (mid: entry facts, `JMidPerfHypQ` [W], `JMidPerfHypB`
 docstring). -/
 theorem kernel_entryJ27M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps27M (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

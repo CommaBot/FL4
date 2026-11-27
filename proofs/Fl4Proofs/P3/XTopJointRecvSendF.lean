@@ -48,7 +48,7 @@ set_option maxHeartbeats 64000000 in
 without an SC), no reply pushed
 (module docstring), for any FL4 program `m` reducing to the endpoint-state
 switch. -/
-theorem JAtZ.recvSendFJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendFJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -416,12 +416,12 @@ theorem JAtZ.recvSendFJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     rw [← hbb, ← hg]; exact e2
   have hspec := receiveIpc_sendCall_eq b rights blk hsr hkt hbN hk hks hse hstd hnoS e2' hA hks3
     (Or.inr (by rw [hft]; simp))
-  refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
   rw [hspec]; exact Set.mem_singleton _
 
 /-- **`receive_ipc` from the head sender at `J`**, the cases of `SendOK`, for
 any FL4 program `m` reducing to the endpoint-state switch. -/
-theorem JAtZ.recvSendJX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -453,7 +453,7 @@ theorem JAtZ.recvSendJX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 /-- **`receive_ipc` from the head sender at `J`**, the cases of `SendOK`, the
 receiver without a bound notification or with one not active, polling or not
 lending its SC (XTopJointRecvSend's `JAtZ.recvPreN`). -/
-theorem JAtZ.recvSendJ0X (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJ0X (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧

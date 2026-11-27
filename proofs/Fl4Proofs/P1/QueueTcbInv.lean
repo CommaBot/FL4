@@ -32,7 +32,7 @@ theorem plainW_all {s : S} {t K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (core.num.U64.wrapping_add t K) v) ∧
       ANI st s (L.wr s (core.num.U64.wrapping_add t K) v) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
-  obtain ⟨b1, b2⟩ := bx_field (K := K) (v := v) h0 hB hX hSg.sub ht hK' hK8 hKn hKt
+  obtain ⟨b1, b2⟩ := bx_field (K := K) (v := v) h0 hB hX hSg.sub ht hK' hK8 (by omega) hKt
   exact ⟨⟨⟨Q, R, inv_wr_field h0 ht hK' hK8 ⟨hKq.1, hKq.2.1, hKq.2.2.1, hKq.2.2.2.1, hKn.2.2.2.1, hKq.2.2.2.2.1,
       hKq.2.2.2.2.2.1, hKn.2.2.1, hKq.2.2.2.2.2.2⟩⟩, b1, b2,
     SCsOK.field h0 hS hX ht hK' hK8 hKn.1,

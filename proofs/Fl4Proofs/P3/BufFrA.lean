@@ -19,7 +19,7 @@ open Fl4Spec
 variable {σ σ' : State Unit}
 
 theorem ArFr.ipcFr (h : ArFr σ σ') : IpcFrKeep σ σ' := by
-  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms hp => ?_, fun p vms hp => ?_⟩
+  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms hp => ?_, fun p vms hp => ?_, fun p ao hp => ?_⟩
   · rcases h.kh t with e | ⟨a, a', -, h2, -⟩
     · exact ⟨x', by rw [← e]; exact hx', rfl, rfl⟩
     · rw [hx'] at h2; cases h2
@@ -31,6 +31,10 @@ theorem ArFr.ipcFr (h : ArFr σ σ') : IpcFrKeep σ σ' := by
     · rw [← e]; exact hp
     · rw [hp] at h2; cases h2
       rw [h1, (aaType_userData.1 ht.symm)]
+  · rcases h.kh p with e | ⟨a, a', h1, h2, ht⟩
+    · exact ⟨ao, by rw [e]; exact hp, rfl⟩
+    · rw [hp] at h1; cases h1
+      exact ⟨a', h2, ht⟩
 
 end Spec
 

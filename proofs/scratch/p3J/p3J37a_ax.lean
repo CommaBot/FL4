@@ -1,0 +1,26 @@
+import Fl4Proofs.P3.P3JCapIrqTop
+#print axioms Fl4Proofs.P1.schedcontext.unbind_ntfn.kwN0
+#print axioms Fl4Proofs.P1.schedcontext.maybe_unbind_ntfn.kwN0
+#print axioms Fl4Proofs.P1.notification.unbind_maybe_notification.kwN0
+#print axioms Fl4Proofs.P1.cas_roundN0
+#print axioms Fl4Proofs.P1.notification.cancel_all_signals_loop.kwN0
+#print axioms Fl4Proofs.P1.notification.cancel_all_signals.kwN0
+#print axioms Fl4Proofs.P1.fin_ntfn.kwN0
+#print axioms Fl4Proofs.P1.fin_cap_ntfn.kwN0
+#print axioms Fl4Proofs.P3.SpecIrqB
+#print axioms Fl4Proofs.P3.irqB_disp
+#print axioms Fl4Proofs.P3.irq125_of
+#print axioms Fl4Proofs.P3.ppr0_disp
+#print axioms Fl4Proofs.P3.delete_one_ntfnProjW
+#print axioms Fl4Proofs.P3.IrqSteps.jatZW
+#print axioms Fl4Proofs.P3.decIrqSt
+#print axioms Fl4Proofs.P3.IsRestCap3
+#print axioms Fl4Proofs.P3.restCap3_of
+#print axioms Fl4Proofs.P3.restCap_of3
+#print axioms Fl4Proofs.P3.midDecIrq_of
+#print axioms Fl4Proofs.P3.invDecIrq_of
+#print axioms Fl4Proofs.P3.midDecRest_of_irq
+#print axioms Fl4Proofs.P3.invDecRest_of_irq
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLq
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLo_of_Lq
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLq

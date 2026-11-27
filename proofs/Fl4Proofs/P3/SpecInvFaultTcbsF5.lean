@@ -221,9 +221,13 @@ theorem ft_performTestAndClearAccessed (_slot : ObjRef) : FTK L (performTestAndC
   unfold performTestAndClearAccessed; ft_auto
 macro_rules | `(tactic| ft_leaf) => `(tactic| with_reducible exact ft_performTestAndClearAccessed _)
 
-theorem ft_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : FTKE L (fl4ArchPerformInvocation (Z := Unit) a0) := by
-  unfold fl4ArchPerformInvocation; ft_auto
-macro_rules | `(tactic| ft_leaf) => `(tactic| with_reducible exact ft_fl4ArchPerformInvocation _)
+/-- fb3: every arch invocation but the frame batch (the batch's `capDelete`s are no leaf of
+this generated family: the batch is proved in the bundle `B`, SpecInvFaultTcbsH7 `b_performFrameBatch`). -/
+theorem ft_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) (hb : ∀ b, a0 ≠ .frameBatch b) :
+    FTKE L (fl4ArchPerformInvocation (Z := Unit) a0) := by
+  cases a0
+  case frameBatch b => exact absurd rfl (hb b)
+  all_goals (unfold fl4ArchPerformInvocation; ft_auto)
 
 /-- On a thread cap (`fl4DecodeInvocation`'s thread branch). -/
 theorem ft_fl4DecodeTcbInvocation (label : Data) (args : List Data) (p : ObjRef) (slot : CslotPtr)

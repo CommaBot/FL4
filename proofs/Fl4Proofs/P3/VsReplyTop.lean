@@ -336,12 +336,17 @@ theorem regw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
   have hN' := Endp.ntfn_wr_reg hSch.placed hP.ep hNt hT hk r v
   have hS' := Sched.SchedRel.wr_reg hSch hT ha.1 (a := w) (by rw [hrv]; omega) (by rw [hrv]; omega) v hk r v.bv
   have hKr' : KRootRel (L.mem (L.wr s w v)) (L.ksb (L.wr s w v)) σ1 := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
+      exact hKr
+    · rw [hksb]
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hmK _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) rfl
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', hAr⟩, ?_⟩, hksb, hmV⟩
   · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl rfl
   · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl
@@ -458,12 +463,17 @@ theorem sts_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (σ
       subst hb'
       exact hP.nodeE _ (by rw [hW2v]; omega) (by rw [hW2v]; omega) hf
   have hKr' : KRootRel (L.mem s') (L.ksb s') σ1 := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
+      exact hKr
+    · rw [hksb]
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hmK _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) (by rw [harch])
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb, hmV⟩
   · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) hist hinode
   · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) (by rw [harch])
@@ -487,7 +497,7 @@ theorem domSame_low {m m' : U64 → U64} {kb : U64} (hkf : kb.val + 13568 ≤ 2 
   have hw : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → m' (ksW kb o) = m (ksW kb o) := fun o ho h8 => by
     have hv := ksW_val (kb := kb) (o := o) (by omega)
     exact h _ (ksW_al hkf hka ho h8) (by omega) (by omega)
-  refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩⟩ <;>
+  refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩, hw _ (by decide) (by decide)⟩ <;>
     first | (rw [entOff_val hi]; omega) | (rw [durOff_val hi]; omega)
 
 /-- The relations the reply keeps: the CSpace relation, `FinInv`, `MdbOKV`,

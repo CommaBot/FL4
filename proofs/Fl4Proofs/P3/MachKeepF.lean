@@ -30,6 +30,10 @@ theorem MKD.notification_maybe_donate_sched_context {s : S} {a : A} {t : obj.Tcb
     notification.maybe_donate_sched_context st arI s a t n ⦃ r => AR r.2 c₀ ⦄ := by
   unfold notification.maybe_donate_sched_context; mkd_walk
 
+theorem MKD.notification_kick_guest {s : S} {a : A} {t : obj.Tcb} (h : AR a c₀) :
+    notification.kick_guest st arI s a t ⦃ r => AR r.2 c₀ ⦄ := by
+  unfold notification.kick_guest; mkd_walk
+
 theorem MKD.notification_send_signal {s : S} {a : A} {n_ptr : Std.U64} {badge : Std.U64} (h : AR a c₀) :
     notification.send_signal st arI s a n_ptr badge ⦃ r => AR r.2 c₀ ⦄ := by
   unfold notification.send_signal; mkd_walk
@@ -73,6 +77,7 @@ theorem MKD.sched_schedule_choose_new_thread {s : S} {a : A}  (h : AR a c₀) :
     sched.schedule_choose_new_thread st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold sched.schedule_choose_new_thread; mkd_walk
 
+set_option maxHeartbeats 4000000 in
 theorem MKD.sched_set_next_interrupt {s : S} {a : A}  (h : AR a c₀) :
     sched.set_next_interrupt st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold sched.set_next_interrupt; mkd_walk

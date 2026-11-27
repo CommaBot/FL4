@@ -374,7 +374,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
             have := hO.rpSc r0 (hr0 h0).1 c hc
             have := (sc_facts hO hc).1
-            omega)) (fun c hc => (fix c hc).2.2.1), hE.tm.tmfr htm, hE.ntb.tmfr htm,
+            omega)) (fun c hc => (fix c hc).2.2.1), hE.tm.tmfr htm, hE.ntb.tmfr htm, hE.rb.tmfr htm,
         fun c hc => by
           rw [om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
             have := congrArg UScalar.val e
@@ -392,7 +392,23 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
               (sc_facts hO hc).2.2.2.2.2.2.2] at this
             have := hO.rpSc r0 (hr0 h0).1 c hc
             have := (sc_facts hO hc).1
-            omega))⟩, hE.tsc.keep hE.yt.1 (fun c hc => (fix c hc).1) scf⟩⟩,
+            omega)),
+        hE.bs.keep hE.bnd hE.ntb hE.scn
+          (fun u hu => (fld u hu _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp) :
+            L.mem s' (boundA u) = L.mem s (boundA u))) htm.2.2.2.1
+          (fun n hn => om _ (hS.sub _ (hO.ntW n hn)) (fun h0 e => by
+            have := congrArg UScalar.val e
+            rw [rTcbA_val (r0p h0)] at this
+            have := hO.ntRp n hn r0 (hr0 h0).1; omega))
+          (fun c hc => om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
+            have := congrArg UScalar.val e
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
+            have := hO.rpSc r0 (hr0 h0).1 c hc
+            have := (sc_facts hO hc).1
+            omega))⟩, hE.tsc.keep hE.yt.1 (fun c hc => (fix c hc).1) scf,
+        hE.aff.keep (fun u hu h0 => (hE.bound u hu h0).1) scf (fun c hc => (fix c hc).2.1)
+          (fun u hu => fld u hu _ (by simp) (by simp) (by simp) (by simp) (fun _ => by simp))⟩⟩,
     SCsOK.keep hS ⟨hO, hR, hE⟩ hk scf ecs (fun c hc => (fix c hc).2.2) (fun c hc =>
       om _ (spor_omega hO hc) (fun h0 e => by
         have := congrArg UScalar.val e
@@ -1010,7 +1026,7 @@ theorem SCsOK.keep' {s s' : S} (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st 
     fun y hy hb hne => ?_, fun c hc => (hS.all c hc).of_wf (hfix c hc).1 (wf c hc),
     fun c hc => by rw [show L.rmax s' c = L.rmax s c from (hfix c hc).1]; exact hS.act c hc,
     fun c hc h0 => hS.spor c hc (by rw [← hsp c hc]; exact h0), hS.spSg,
-    fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0), hS.repSg⟩
+    fun c hc h0 => hS.rep c hc (by rwa [hrp c hc] at h0), hS.repSg, fun c hc => by rw [hk]; exact hS.scKs c hc⟩
   · rcases hsc y hy with e | e
     · rw [e] at hb hne ⊢; rw [hcs] at hne ⊢; exact hS.disj y hy hb hne
     · exact absurd e hb
@@ -1249,7 +1265,7 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
             by_cases hci : c = i
             · subst hci; omega
             · have := hO.scDisj c hc i hiS hci; omega))
-          (fun c hc => scw c hc _ (hcΩ _ hc).2.2.1 (Or.inr (Or.inl (sc_facts hO hc).2.2.2.1))), hE.tm.tmfr tmU, hE.ntb.tmfr tmU,
+          (fun c hc => scw c hc _ (hcΩ _ hc).2.2.1 (Or.inr (Or.inl (sc_facts hO hc).2.2.2.1))), hE.tm.tmfr tmU, hE.ntb.tmfr tmU, hE.rb.tmfr tmU,
         fun c hc => by
           rw [F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
             obtain ⟨hPc, hzc⟩ := hO.sc c hc
@@ -1280,7 +1296,20 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
             by_cases hci : c = i
             · subst hci; omega
             · have := hO.scDisj c hc i hiS hci; omega)]
-          exact hE.yt.2.2 c hc⟩⟩, fun c hc hc0 h0 => by
+          exact hE.yt.2.2 c hc⟩,
+        hE.bs.keep hE.bnd hE.ntb hE.scn
+          (fun u hu => (F1 u hu _ (by simp) (by simp) (fun _ => by simp) :
+            L.mem s2 (boundA u) = L.mem s (boundA u))) tmU.2.2.2.1
+          (fun n hn => F2 _ (hSg.sub _ (hO.ntW n hn)) (fun e => by
+            rw [hiv.2.1] at e
+            have := hO.ntSc n hn i hiS; have := hiv.1; omega))
+          (fun c hc => F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
+            obtain ⟨hPc, hzc⟩ := hO.sc c hc
+            rw [scNtfnA_val hPc hzc, hiv.2.1] at e
+            have := (sc_facts hO hc).1; have := hiv.1
+            by_cases hci : c = i
+            · subst hci; omega
+            · have := hO.scDisj c hc i hiS hci; omega))⟩, fun c hc hc0 h0 => by
         by_cases hci : c = i
         · subst hci
           rw [hs2, L.mem_wr_same hmo.1] at h0; exact absurd rfl h0
@@ -1293,7 +1322,10 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
           have hb := hE.tsc c hc hc0 h0
           by_cases hyt : L.mem s (scTcbA c) = t
           · rw [hyt, hsc] at hb; exact absurd hb.symm hci
-          · rw [scA_eq, F1 _ hyT _ (by simp) (by simp) (fun e => absurd e hyt), ← scA_eq]; exact hb⟩⟩,
+          · rw [scA_eq, F1 _ hyT _ (by simp) (by simp) (fun e => absurd e hyt), ← scA_eq]; exact hb,
+      (ScAffX.keep (d := t) (hE.aff.x t) (fun y hy _ h0 => (hE.bound y hy h0).1) scy
+        (fun c hc => scw c hc _ (hcΩ _ hc).2.1 (Or.inl (sc_facts hO hc).2.2.1))
+        (fun u hu _ => F1 u hu _ (by simp) (by simp) (fun _ => by simp))).full (fun _ h0 => absurd sct h0)⟩⟩,
     SCsOK.keep' hS ⟨hO, hR, hE⟩ (by simp [hs2]) (fun y hy => ?_) ecs (fun c hc => ?_) (fun c hc =>
       F2 _ (spor_omega hO hc) (fun e => by
         obtain ⟨hPc, hzc⟩ := hO.sc c hc
@@ -1715,6 +1747,24 @@ def BlkOK (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : H
     (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
   (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T Ac s ∧ XInv st T Cs Ω Sg Rp Scs Nt Z s ∧
     SCsOK st T Ω Sg Scs Z Ac s ∧ SgOK st Ω Sg s
+
+/-- `BlkOK` without the bound-link symmetry (`XInvM`): the states between the
+two writes of a notification bind or unbind. -/
+def BlkOKM (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
+    (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
+  (∃ Q R, SchedQueuesInv st T Cs Ω H s Q R) ∧ BoundInv st T Ac s ∧ XInvM st T Cs Ω Sg Rp Scs Nt Z s ∧
+    SCsOK st T Ω Sg Scs Z Ac s ∧ SgOK st Ω Sg s
+
+/-- `SCsOK.scKsOut` at a `BlkOK` state: no SC overlaps the kernel-global area. -/
+theorem BlkOK.scKsOut {s : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
+    ∀ c ∈ Scs, c.val + 2 ^ Z c ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ c.val := h.2.2.2.1.scKs
+
+theorem BlkOK.m {s : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s :=
+  ⟨h.1, h.2.1, h.2.2.1.m, h.2.2.2⟩
+
+theorem BlkOKM.x {s : S} (h : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hb : BndS st T Scs Nt s) :
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s :=
+  ⟨h.1, h.2.1, h.2.2.1.x hb, h.2.2.2⟩
 
 theorem obj.Tcb.bound_ntfn.any (s : S) (t : obj.Tcb) : obj.Tcb.bound_ntfn st t s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.bound_ntfn; step*

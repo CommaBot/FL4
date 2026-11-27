@@ -154,7 +154,7 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
       rw [scA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
     exact f1.trans (foot_wr hal (kw_sg (hO.fixW sc hsc).1))
   obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
-    donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+    donate_pair h0 hB hX.x0 hX.2.2.tsc.x hX.2.2.aff ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
       (fun e => hB.idle (by rw [e]; exact ht0))
   have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
     (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
@@ -180,8 +180,8 @@ theorem schedcontext.bind_tcb.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.A
   step with obj.Sc.cpu.spec as ⟨cpu, ecpu⟩
   have hc' : cpu ∈ Cs := by rw [ecpu, core2]; exact hcore
   refine WP.spec_bind (WP.spec_and (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
-    (by rw [iq2]; exact htr) hc' hsc) (smp.migrate_tcb.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (Cs := Cs)
-      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.2.2.tm.dn, hX2.2.2.tm.dp, hX2.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
+    (by rw [iq2]; exact htr) hc' hsc (fun _ => by rw [sc2, ecpu])) (smp.migrate_tcb.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (Cs := Cs)
+      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.1.2.2.tm.dn, hX2.1.2.2.tm.dp, hX2.1.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
   rintro ⟨s3, a1⟩ ⟨⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩, fw3⟩
   try simp only [WP.uncurry'_pair]
   rw [sc2] at sc3
@@ -419,22 +419,25 @@ theorem ep_send.blk {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U
   exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2⟩
 
 /-- **Notification signal** (`Send` on a notification cap): restart,
-`send_signal`, with its footprint. -/
-theorem ntfn_signal.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (ct n badge : U64)
+`send_signal`, with its footprint (int6: with the TCBs' IPC buffers in the
+user words `U`, `BufAt`; the footprint has those words, `FootDU`). -/
+theorem ntfn_signal.blkF {U : Set U64} {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (ct n badge : U64)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hct : ct ∈ T) (hr : Runnable (L.mem s (stA ct)))
-    (hn : n ∈ Nt) (hH : H n = some .ntfn) :
+    (hn : n ∈ Nt) (hH : H n = some .ntfn) (hBA : BufAt st T Cs H Sg Scs Z U s) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let (s2, a1) ← notification.send_signal st ar s1 a n badge
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)) ⦃ r s' _ =>
-      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootD st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      r = .Ok () ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootDU st T Cs Sg Scs Z (EH H) U s s' ⦄ := by
   refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := EH H) s ct h hct (runnable_ok hr).1
     (runnable_ok hr).2) ?_
-  rintro s1 ⟨h1, f1, -, -⟩
-  refine WP.spec_bind (notification.send_signal.tinvF hA s1 a n badge h1 hn hH) ?_
-  rintro ⟨s2, a1⟩ ⟨h2, f2, -⟩
+  rintro s1 ⟨h1, f1, -, k1⟩
+  have hB1 := hBA.of_fr (IbFr.of_keepT k1.toKeepT0)
+  refine WP.spec_bind (notification.send_signal.tinvF hA s1 a n badge h1 hn hH hB1.1 hB1.2) ?_
+  rintro ⟨s2, a1⟩ ⟨h2, f2, -, -⟩
   try simp only [WP.uncurry'_pair]
-  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2, (Foot.d f1).trans f2⟩
+  exact (WP.spec_ok _).2 ⟨by first | trivial | rfl, h2, (FootD.u (Foot.d f1)).trans f2⟩
 
 /-! ## TCB `SetPriority` (restart, then `set_priority`) -/
 

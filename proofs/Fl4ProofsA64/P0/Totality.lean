@@ -25,6 +25,8 @@ structure StoreTotal {S : Type _} (st : machine.Store S) : Prop where
   clear_free : ∀ s a n, st.clear_free s a n ⦃ _ => True ⦄
   ks_base : ∀ s, st.ks_base s ⦃ _ => True ⦄
   cur_cpu : ∀ s, st.cur_cpu s ⦃ _ => True ⦄
+  /-- #111: `Store::fetch_and` (one atomic read-and-mask of a word). -/
+  fetch_and : ∀ s a m, st.fetch_and s a m ⦃ _ => True ⦄
 
 structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   private_device_frame : ∀ a p, ar.private_device_frame a p ⦃ _ => True ⦄
@@ -33,7 +35,17 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   virtualization : ∀ a, ar.virtualization a ⦃ _ => True ⦄
   vcpu_capability : ∀ a f, ar.vcpu_capability a f ⦃ _ => True ⦄
   vcpu_barrier : ∀ a, ar.vcpu_barrier a ⦃ _ => True ⦄
+  /-- #106: `vcpu_sync`'s effect on the kernel's memory (the VCPU's VMCS
+  image word of `field`, refreshed from its hardware VMCS) is outside this
+  model, where Arch methods return only the arch state (x86 P1:
+  `Cur0.vcpu_sync`). -/
+  vcpu_sync : ∀ a v f, ar.vcpu_sync a v f ⦃ _ => True ⦄
+  vcpu_release : ∀ a v, ar.vcpu_release a v ⦃ _ => True ⦄
   invalidate_ept : ∀ a r m, ar.invalidate_ept a r m ⦃ _ => True ⦄
+  tdx_active : ∀ a, ar.tdx_active a ⦃ _ => True ⦄
+  tdx_report : ∀ a f d0 d1 d2 d3 d4 d5 d6 d7, ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄
+  tdx_extend_rtmr : ∀ a i d0 d1 d2 d3 d4 d5, ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄
+  tdx_get_quote : ∀ a f n, ar.tdx_get_quote a f n ⦃ _ => True ⦄
   now : ∀ a, ar.now a ⦃ _ => True ⦄
   set_deadline : ∀ a t, ar.set_deadline a t ⦃ _ => True ⦄
   us_to_ticks : ∀ a x, ar.us_to_ticks a x ⦃ _ => True ⦄
@@ -74,6 +86,13 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   vcpu_vgic_vtr : ∀ a, ar.vcpu_vgic_vtr a ⦃ _ => True ⦄
   vcpu_gic_version : ∀ a, ar.vcpu_gic_version a ⦃ _ => True ⦄
   vcpu_midr : ∀ a, ar.vcpu_midr a ⦃ _ => True ⦄
+  msi_map : ∀ a x0 x1 x2 x3, ar.msi_map a x0 x1 x2 x3 ⦃ _ => True ⦄
+  has_pauth : ∀ a, ar.has_pauth a ⦃ _ => True ⦄
+  next_pac_epoch : ∀ a, ar.next_pac_epoch a ⦃ _ => True ⦄
+  kernel_ttbr1_entry : ∀ a x0 x1, ar.kernel_ttbr1_entry a x0 x1 ⦃ _ => True ⦄
+  set_high_vspace : ∀ a x0 x1, ar.set_high_vspace a x0 x1 ⦃ _ => True ⦄
+  invalidate_high_page : ∀ a x0, ar.invalidate_high_page a x0 ⦃ _ => True ⦄
+  invalidate_high_vspace : ∀ a x0, ar.invalidate_high_vspace a x0 ⦃ _ => True ⦄
   putc : ∀ a c, ar.putc a c ⦃ _ => True ⦄
   get_char : ∀ a, ar.get_char a ⦃ _ => True ⦄
   halt : ∀ a, ar.halt a ⦃ _ => True ⦄
@@ -90,6 +109,7 @@ variable {S : Type _} {st : machine.Store S}
 @[step] theorem StoreTotal.clear_free_spec (h : StoreTotal st) s a n : st.clear_free s a n ⦃ _ => True ⦄ := h.clear_free s a n
 @[step] theorem StoreTotal.ks_base_spec (h : StoreTotal st) s : st.ks_base s ⦃ _ => True ⦄ := h.ks_base s
 @[step] theorem StoreTotal.cur_cpu_spec (h : StoreTotal st) s : st.cur_cpu s ⦃ _ => True ⦄ := h.cur_cpu s
+@[step] theorem StoreTotal.fetch_and_spec (h : StoreTotal st) s a m : st.fetch_and s a m ⦃ _ => True ⦄ := h.fetch_and s a m
 end
 
 section
@@ -100,7 +120,13 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.virtualization_spec (h : ArchTotal ar) a : ar.virtualization a ⦃ _ => True ⦄ := h.virtualization a
 @[step] theorem ArchTotal.vcpu_capability_spec (h : ArchTotal ar) a f : ar.vcpu_capability a f ⦃ _ => True ⦄ := h.vcpu_capability a f
 @[step] theorem ArchTotal.vcpu_barrier_spec (h : ArchTotal ar) a : ar.vcpu_barrier a ⦃ _ => True ⦄ := h.vcpu_barrier a
+@[step] theorem ArchTotal.vcpu_sync_spec (h : ArchTotal ar) a v f : ar.vcpu_sync a v f ⦃ _ => True ⦄ := h.vcpu_sync a v f
+@[step] theorem ArchTotal.vcpu_release_spec (h : ArchTotal ar) a v : ar.vcpu_release a v ⦃ _ => True ⦄ := h.vcpu_release a v
 @[step] theorem ArchTotal.invalidate_ept_spec (h : ArchTotal ar) a r m : ar.invalidate_ept a r m ⦃ _ => True ⦄ := h.invalidate_ept a r m
+@[step] theorem ArchTotal.tdx_active_spec (h : ArchTotal ar) a : ar.tdx_active a ⦃ _ => True ⦄ := h.tdx_active a
+@[step] theorem ArchTotal.tdx_report_spec (h : ArchTotal ar) a f d0 d1 d2 d3 d4 d5 d6 d7 : ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄ := h.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7
+@[step] theorem ArchTotal.tdx_extend_rtmr_spec (h : ArchTotal ar) a i d0 d1 d2 d3 d4 d5 : ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄ := h.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5
+@[step] theorem ArchTotal.tdx_get_quote_spec (h : ArchTotal ar) a f n : ar.tdx_get_quote a f n ⦃ _ => True ⦄ := h.tdx_get_quote a f n
 @[step] theorem ArchTotal.now_spec (h : ArchTotal ar) a : ar.now a ⦃ _ => True ⦄ := h.now a
 @[step] theorem ArchTotal.set_deadline_spec (h : ArchTotal ar) a t : ar.set_deadline a t ⦃ _ => True ⦄ := h.set_deadline a t
 @[step] theorem ArchTotal.us_to_ticks_spec (h : ArchTotal ar) a x : ar.us_to_ticks a x ⦃ _ => True ⦄ := h.us_to_ticks a x
@@ -141,6 +167,13 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.vcpu_vgic_vtr_spec (h : ArchTotal ar) a : ar.vcpu_vgic_vtr a ⦃ _ => True ⦄ := h.vcpu_vgic_vtr a
 @[step] theorem ArchTotal.vcpu_gic_version_spec (h : ArchTotal ar) a : ar.vcpu_gic_version a ⦃ _ => True ⦄ := h.vcpu_gic_version a
 @[step] theorem ArchTotal.vcpu_midr_spec (h : ArchTotal ar) a : ar.vcpu_midr a ⦃ _ => True ⦄ := h.vcpu_midr a
+@[step] theorem ArchTotal.msi_map_spec (h : ArchTotal ar) a x0 x1 x2 x3 : ar.msi_map a x0 x1 x2 x3 ⦃ _ => True ⦄ := h.msi_map a x0 x1 x2 x3
+@[step] theorem ArchTotal.has_pauth_spec (h : ArchTotal ar) a : ar.has_pauth a ⦃ _ => True ⦄ := h.has_pauth a
+@[step] theorem ArchTotal.next_pac_epoch_spec (h : ArchTotal ar) a : ar.next_pac_epoch a ⦃ _ => True ⦄ := h.next_pac_epoch a
+@[step] theorem ArchTotal.kernel_ttbr1_entry_spec (h : ArchTotal ar) a x0 x1 : ar.kernel_ttbr1_entry a x0 x1 ⦃ _ => True ⦄ := h.kernel_ttbr1_entry a x0 x1
+@[step] theorem ArchTotal.set_high_vspace_spec (h : ArchTotal ar) a x0 x1 : ar.set_high_vspace a x0 x1 ⦃ _ => True ⦄ := h.set_high_vspace a x0 x1
+@[step] theorem ArchTotal.invalidate_high_page_spec (h : ArchTotal ar) a x0 : ar.invalidate_high_page a x0 ⦃ _ => True ⦄ := h.invalidate_high_page a x0
+@[step] theorem ArchTotal.invalidate_high_vspace_spec (h : ArchTotal ar) a x0 : ar.invalidate_high_vspace a x0 ⦃ _ => True ⦄ := h.invalidate_high_vspace a x0
 @[step] theorem ArchTotal.putc_spec (h : ArchTotal ar) a c : ar.putc a c ⦃ _ => True ⦄ := h.putc a c
 @[step] theorem ArchTotal.get_char_spec (h : ArchTotal ar) a : ar.get_char a ⦃ _ => True ⦄ := h.get_char a
 @[step] theorem ArchTotal.halt_spec (h : ArchTotal ar) a : ar.halt a ⦃ _ => True ⦄ := h.halt a
@@ -228,6 +261,76 @@ elab "p0_ite_head" : tactic => withMainContext do
       evalTactic (← `(tactic| apply p0_if_bind <;> intro))
     else throwError "bind head is not an if"
   else throwError "head is not an if"
+open Lean Elab Tactic Meta in
+/-- One step of reduction of `e`: beta / a matcher on a constructor
+(`whnfCore`), else the matcher unfolded (default transparency) and then
+`whnfCore`: Fl4Core's matchers do not reduce by `whnfCore` alone. -/
+def p0RedStep (e : Expr) : MetaM (Option Expr) := do
+  let e1 ← whnfCore e
+  if e1 != e then return some e1
+  let fn := e.getAppFn
+  if let .const n _ := fn then
+    -- Aeneas's `let (x, y) := p` is `uncurry (fun x y => ..) p`: unfold it,
+    -- and the projections of a pair reduce.
+    if n.isStr && n.getString! == "uncurry" then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let e3 ← whnfCore e2
+        if e3 != e then return some e3
+    if (← isMatcher n) || (n.isStr && n.getString!.startsWith "match_") then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let mut e3 ← whnfCore e2
+        -- `Prod.casesOn` and the like: unfold to the recursor, which
+        -- `whnfCore` reduces on a constructor.
+        for _ in [0:3] do
+          if let .const n' _ := e3.getAppFn then
+            if n'.isStr && n'.getString! == "casesOn" then
+              if let some e4 ← withTransparency .default (unfoldDefinition? e3) then
+                e3 ← whnfCore e4
+        -- Only when it reduced to an alternative, not to a stuck recursor.
+        let stuck := match e3.getAppFn with
+          | .const n' _ => n'.isStr && (n'.getString! == "rec" || n'.getString! == "casesOn")
+          | _ => false
+        if e3 != e && !stuck then return some e3
+  return none
+
+open Lean Elab Tactic Meta in
+/-- Reduce (beta, matcher on a constructor) the program of a spec goal, or
+the first action of its leading bind: the `let (x, y) := (a, b)` that
+casing a pair leaves (#71's `?` chains). Fails if nothing changes. -/
+elab "p0_whnf_head" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let i := args.size - 2
+  let program := args[i]!
+  let program' ← match ← p0RedStep program with
+    | some p1 => pure p1
+    | none =>
+      if program.isAppOf ``Aeneas.Std.bind then do
+        let pargs := program.getAppArgs
+        let j := pargs.size - 2
+        let some m' ← p0RedStep pargs[j]! | throwError "p0_whnf_head: no change"
+        pure (mkAppN program.getAppFn (pargs.set! j m'))
+      else throwError "p0_whnf_head: no change"
+  let newT := mkAppN target.getAppFn (args.set! i program')
+  liftMetaTactic fun g => do return [← g.replaceTargetDefEq newT]
+open Lean Elab Tactic Meta in
+/-- `simp only [m]` for the matcher `m` heading the program of a spec goal
+or the first action of its leading bind (a `let (x, y) := (a, b)` left by
+casing a pair: its equation lemma reduces it). -/
+elab "p0_unfold_match" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let program := args[args.size - 2]!
+  let cands := [program] ++
+    (if program.isAppOf ``Aeneas.Std.bind then [program.getAppArgs[program.getAppNumArgs - 2]!] else [])
+  for e in cands do
+    if let .const n _ := e.getAppFn then
+      if (← isMatcher n) then
+        evalTactic (← `(tactic| simp only [$(mkIdent n):ident]))
+        return
+  throwError "p0_unfold_match: no matcher at the head"
 macro "p0_structural" : tactic => `(tactic| (
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;> p0_close))
 

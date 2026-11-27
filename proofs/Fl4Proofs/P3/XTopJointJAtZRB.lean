@@ -7,6 +7,7 @@ copied names suffixed `ZR`); the proofs are the originals' except where
 `cur` (now `CurInvR`, XTopJointJAtZR) is framed. Each section is headed by
 its origin module.
 -/
+import Fl4Proofs.P3.SchedIdx
 import Fl4Proofs.P3.XTopJointJAtZRA
 import Fl4Proofs.P3.XTopJointJAtZRS
 import Fl4Proofs.P3.ScNextDomCFR
@@ -20,6 +21,8 @@ import Fl4Proofs.P3.ScSignalJ
 import Fl4Proofs.P3.XTopJointSchedRF
 import Fl4Proofs.P3.XTopJointSchedRF2
 import Fl4Proofs.P3.XTopJointSchedRF3
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 -- ===== from ScFireJ
@@ -151,6 +154,34 @@ theorem JAtZR.cnW_nv {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := 
     have hne : r ≠ t := fun h' => by rw [h', hHt] at hHr; cases hHr
     have := hH.disj r _ t _ hHr hHt hne
     simp only [P1.HKind.bits] at this; omega
+
+/-- **A `CnW` word is no TCB's deadline word** (`JAtZ.cnW_ntd` at `JAtZR`;
+KENTRY-PLAN jc6e). -/
+theorem JAtZR.cnW_ntd {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  have hS := J.xtop.fin.1.1.1
+  have hH := J.kern.heap
+  intro t ht
+  have hv : (P1.tdA t).val = t.val + 3528 := Notif.tfield_val (J.ip.e.tcb t ht) (K := 3528#u64) (by simp)
+  have hHt : H t = some .tcb := J.zH.1 t ht
+  rcases hb with hb | ⟨e, he, h⟩ | ⟨r, hr, h⟩
+  · exact FinW.ntd hS hb t ht
+  · rintro rfl
+    have hHe : H e = some .ep := J.zH.2.1 e he
+    have hne : e ≠ t := fun h' => by rw [h', hHt] at hHe; cases hHe
+    have := hH.disj e _ t _ hHe hHt hne
+    unfold EW at h; simp only [P1.HKind.bits] at this; omega
+  · rintro rfl
+    have hHr : H r = some .reply := J.zH.2.2.1 r hr
+    have hne : r ≠ t := fun h' => by rw [h', hHt] at hHr; cases hHr
+    have := hH.disj r _ t _ hHr hHt hne
+    simp only [P1.HKind.bits] at this; omega
+
+/-- **A `CnW` step keeps every deadline word** (`JAtZ.cnW_td` at `JAtZR`). -/
+theorem JAtZR.cnW_td {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
+    Sched.TdKeep (L := L) H s s' :=
+  Sched.TdKeep.of_writes J.ip.e.tcb (fun _ ht => by rw [J.tcbs_eq.1]; exact ht) hw fun _ hb => J.cnW_ntd hb
 
 /-- **A timer word, by value**: a TCB's timer fields (offsets 3528..3576), or
 a timer-tree or `REPROGRAM` word of a core's node. -/
@@ -331,7 +362,8 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
     (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
       L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s') :
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s' (P1.tdA q) = 0#u64) :
     ∃ r : Bool, JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a { σ with reprogramTimer := σ.reprogramTimer || r } := by
   obtain ⟨r, hX'⟩ := J.xtop.tmStep J.otherTmOK hw hR
   refine ⟨r, ?_⟩
@@ -406,18 +438,28 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
-  have R : JRestR (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' F.sk.idle F.sk.isc), hkern,
-      J.tmw_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, J.inv.rt _,
-      fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
-      hAI, F.bsa J.bsa, F.isorted J.isorted,
-      J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun b hb =>
     J.notDbg_tw (fun y hy w K hwv h1 h2 => J.tmw_ne_tcb hb hy hwv (Or.inr ⟨h1, h2⟩))
       (fun c hc => J.tmw_ne_node hb hc (by simp [P1.debug_val]) (by simp [P1.debug_val]) (by simp [P1.debug_val])
         (by simp [P1.debug_val]))
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+  -- `JAtZR.jcov_keep` with the dead set's `DeadX` carried (deadline words written, a dead one kept 0)
+  have hjcov : JCovD (L := L) Z.th H Z.G D Cs s' := by
+    obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+    have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+    have hidl := J.idleW_keep hS' F.sk.idle F.sk.isc
+    exact J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
+      (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩)
+      (fun q hq h => h.keepT hKd (hTd q hq))
+  have R : JRestR (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+      J.apart.sc_frame hks F.szKeep, hjpl, hjcov, hkern,
+      J.tmw_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, J.inv.rt _,
+      fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
+      hAI, F.bsa J.bsa, F.isorted J.isorted,
+      J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
+  exact J.cs_frame (G' := Z.G) (hvn := J.vsSS (G' := Z.G) hX' hks hSS (Vs.ArchShr.of_ao F.sk.arch fun q ao h =>
+    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (devFrom_same J.xtop.rel.2.1.2.2.1 hX'.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
     (J.liveX hX' rfl rfl rfl hSS hKd F.sk.orig (J.idleW_keep hS' F.sk.idle F.sk.isc).1
       fun p hp => R.jcov.dead p (J.zD p hp)) (J.zDX hSS J.zD)
 
@@ -479,7 +521,14 @@ theorem JAtZR.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (P1.writesIn_wr hal).mono fun b hb => Or.inr hb
   have hblk := P1.reprogram.tinv (v := 1#u64) (P1.BlkOK.tinv J.blk)
   rw [hc.cur] at hblk
-  obtain ⟨r, J'⟩ := J.tmw_step hw (Or.inr (P1.LawfulStore.mem_wr_same hal)) hblk
+  have hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 →
+      L.mem (L.wr s (L.nodeAt s Z.c layout.node.REPROGRAM) 1#u64) (P1.tdA q) = 0#u64 := fun q _ hH h0 => by
+    have hqT : q ∈ Z.T := by rw [J.tcbs_eq.1]; exact hH
+    have hT := hc.tcbs
+    exact ((P1.writesIn_wr hal).mem_eq (P1.field_aligned (hT q hqT) (K := 3528#u64) (by simp) (by simp))
+      fun hb => P1.node_ne_field hN (o := layout.node.REPROGRAM) (by simp [layout.node.REPROGRAM]) hqT (hT q hqT)
+        (K := 3528#u64) (by simp) hb.symm).trans h0
+  obtain ⟨r, J'⟩ := J.tmw_step hw (Or.inr (P1.LawfulStore.mem_wr_same hal)) hblk hTd
   have hrp := J'.xtop.fin.1.1.1.repr
   have e : (σ.reprogramTimer || r) = true := by
     have e1 : (σ.reprogramTimer || r) = decide (Sched.nodeW st (L.wr s (L.nodeAt s Z.c layout.node.REPROGRAM) 1#u64)
@@ -527,8 +576,13 @@ theorem fire_loopJZR (P : Fl4Spec.State Unit → Prop) {σ : Fl4Spec.State Unit}
       split
       · exact (WP.spec_ok _).2 h1
       step with P1.obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
-      refine WP.spec_bind (P1.timer.remove.tf (s0 := s1) s1 t (P1.TF.start (P1.BlkOK.tinv J1.blk)) htT) ?_
-      rintro s2 ⟨h2, -, -, -, hw2⟩
+      have hI1 := P1.BlkOK.tinv J1.blk
+      refine WP.spec_bind (WP.spec_and (P1.timer.remove.tf (s0 := s1) s1 t (P1.TF.start hI1) htT)
+        (P1.timer.remove.rb s1 t hI1.tcbs htT hI1.rb hI1.nodes)) ?_
+      rintro s2 ⟨⟨h2, -, -, -, hw2⟩, -, -, -, hrb2⟩
+      -- a dead (unarmed) TCB stays unarmed
+      have hTd2 : ∀ q ∈ D1, H q = some .tcb → L.mem s1 (P1.tdA q) = 0#u64 → L.mem s2 (P1.tdA q) = 0#u64 :=
+        fun q _ hH h0 => remove_td hI1.tcbs hI1.nodes hrb2 (show q ∈ P1.Heap.tcbs H from hH) h0
       -- `timer::remove` keeps `JAtZR` and the spec state
       have hw2' : P1.WritesIn st s1 s2 (TmW (L := L) Z.T Cs Z.c s1) :=
         hw2.mono fun b hb => Or.inl (by rw [hTe]; exact hb)
@@ -554,7 +608,7 @@ theorem fire_loopJZR (P : Fl4Spec.State Unit → Prop) {σ : Fl4Spec.State Unit}
               omega
             · have : Z.c.val * 4288 + 4288 ≤ c'.val * 4288 := by nlinarith
               omega
-      obtain ⟨r2, J2⟩ := J1.tmw_step hw2' (Or.inl hR2) h2
+      obtain ⟨r2, J2⟩ := J1.tmw_step hw2' (Or.inl hR2) h2 hTd2
       have e2 : (σ1.reprogramTimer || r2) = σ1.reprogramTimer := by
         have g1 : (σ1.reprogramTimer || r2) = decide (Sched.nodeW st s2 Z.c layout.node.REPROGRAM ≠ 0#u64) :=
           J2.xtop.fin.1.1.1.repr
@@ -1008,7 +1062,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRestR (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc) (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.sameZR J hF.1 F.ksz
@@ -1060,12 +1114,13 @@ theorem JAtZR.signal_boundJ (hAT : P0.ArchTotal arI) (J : JAtZR (L := L) arI AR 
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨(wake_inv3B hI1 hk1 hin hrib badge.bv).actReady, NoDon.cfr F1 hND⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irel J.ip s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩, hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1
@@ -1138,7 +1193,7 @@ theorem JAtZR.schedJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s ar σ) {s' : S
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
   obtain ⟨Ac', Lst', R⟩ := jowes_schedZR arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D, J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)
+  exact ⟨Ac', Lst', D, J.cs_frame (hvn := J.vsW hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb) hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap hS.1.kh) ((KSz.of_kheap hS.1.kh))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)
     (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hW fun _ hb => J.schW_notDbg hb)
       (orig_eq_of_slots J.xtop.rel.2.1.2.2.2.1 hX1.rel.2.1.2.2.2.1 J.kern.orig R.kern.orig hSS)
       (XTopAt.idleW_eqS hX hX1 hS.1.idle) fun p hp => R.jcov.dead p (J.zD p hp))
@@ -1201,7 +1256,7 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have h40 : o.val ≠ 40 := by
       simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-      rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+      rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
     exact hne _ (by unfold P1.Aligned; rw [e]; omega) (by rw [e]; omega)⟩
   have hD := hX.rel.2.2.2.1
   have hAR := hX.fin.1.1.2.2.2.2.2.2
@@ -1210,7 +1265,7 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksDZR arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)
+  exact ⟨Ac', Lst', J.cs_frame (hvn := J.vsKs hw) hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)
     (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl
       (XTopAt.idleW_eqS hX hX1 rfl) fun p hp => R.jcov.dead p (J.zD p hp))
     (J.zDX hSS J.zD)⟩
@@ -1494,7 +1549,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRestR (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc) (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own htT J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.sameZR J hF.1 F.ksz
@@ -1535,12 +1590,13 @@ theorem JAtZR.signal_waitDJ (hAT : P0.ArchTotal arI)
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
   have hbl := (J.sv.ntfnQ n.bv x hk).2
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_ntfn hI hn hk (by rw [ho]; intro e; cases e)
   refine WP.spec_mono (WP.spec_and (send_signal_wait_irelD J.ip hmb s a σ hI J.inv J.nsc hn hk ho hbl badge)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, d, xd, σd, σ', hmq, hkd, hxs, hdon, hsend, hmw, hIR, hF, hFS⟩, hb⟩
   try simp only [WP.uncurry'_pair] at hb
-  obtain ⟨hb, -, hfoot⟩ := hb
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hb, -, -, hfoot⟩ := hb
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   have hdn : d.bv ≠ n.bv := by intro e; rw [e, hk] at hkd; cases hkd
   set σ1 := updK σ n.bv (.notification (afterDequeue x d)) with hσ1
@@ -1629,13 +1685,14 @@ theorem JAtZR.signal_boundDJ (hAT : P0.ArchTotal arI) (hmb : ∀ a : A, sporadic
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨wake_inv3B hI1 hk1 hin hrib badge.bv, F1.nsc J.nsc, (hI1.notQueued hk1 (by rw [hin]; rfl)).1⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irelD J.ip hmb s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σd, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩,
     hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1
@@ -1760,9 +1817,14 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    dbgKeep_of_writes J.blk hW fun b hb => nwrite_notDbgB J.blk J.ip.e.tcb J.tcbs_eq.1 J.kern.heap J.zH.1 J.zH.2.2.2
+      J.kern.hnd hb
+  have hTd : Sched.TdKeep (L := L) H s s' := Sched.TdKeep.of_writes J.ip.e.tcb
+    (fun _ ht => by rw [J.tcbs_eq.1]; exact ht) hw fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb
   have R : JRestR (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ3 :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc) (DXKeep.of_dbg hKd hTd), hkern,
       J.finW_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, hI3,
       fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted,
@@ -1770,8 +1832,7 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hC0 := JCs.sameZR J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
-    (dbgKeep_of_writes J.blk hW fun b hb => nwrite_notDbgB J.blk J.ip.e.tcb J.tcbs_eq.1 J.kern.heap J.zH.1 J.zH.2.2.2
-      J.kern.hnd hb) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
+    hKd F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
 
 
 variable (arI) in
@@ -1817,7 +1878,7 @@ theorem signalJHyp_ofZR (hAT : P0.ArchTotal arI) (P : Fl4Spec.State Unit → Pro
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
-  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH)
+  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2
   -- the badge-only branches
   have post : ∀ (y : Fl4Spec.Notification), (∀ l, x.ntfnObj ≠ .waitingNtfn l) → (∀ l, y.ntfnObj ≠ .waitingNtfn l) →
       y.ntfnBoundTcb = x.ntfnBoundTcb → y.ntfnSc = x.ntfnSc →
@@ -1911,7 +1972,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop}
 theorem JAtZR.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hNd : NdOK (L := L) s σ) {s1 : S}
-    (hf : P1.FootD st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s1)
+    {U : Set U64} (hf : P1.FootDU st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) U s s1)
+    (hU : ∀ b ∈ U, ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b)
     (hF : Fires σ σ1) : NdOK (L := L) s1 σ1 := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
@@ -1920,6 +1982,9 @@ theorem JAtZR.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 �
   have hKW := J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)
   obtain ⟨hdl, hdi, hds⟩ := fires_dom hF
   refine hNd.keep hf.1 (fun o ho h8 => hf.mem_eq (ksW_al hkf hka ho h8) fun hb => ?_) hdl hdi hds
+  rcases hb with hb | hu
+  swap
+  · exact hU _ hu o (by omega) h8 rfl
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   rcases hb with hb | hb
   · rcases hKW _ (ksW_al hkf hka ho h8) hb with e | e <;> rw [hv] at e <;> omega
@@ -1991,13 +2056,13 @@ theorem jat_scheduleWP0FZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
           JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
           timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s ∧ FpuOwnOK σ1)) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ P hP hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ P hP hSig) (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, ⟨J1.inv, J1.cur, J1.off, J1.act, J1.own⟩,
-      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk h1), J1.nk,
+      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8) h1), J1.nk,
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_firesZR J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
-  exact schedule_refinesWP0FR s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) hA hAN hsni hsend hT
+  exact schedule_refinesWP0FR s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hAN hsni hsend hT
 
 
 end
@@ -2014,12 +2079,12 @@ variable {AR : A → Fl4Spec.Cr3 → Prop}
 /-- **`JAtZR` at the fake state** (module docstring). -/
 theorem JAtZR.ndFJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (v16 v24 v40 : U64) (di : Nat) :
+    (v16 v24 v40 : U64) (di : Nat) (h24 : v24 = 0#u64) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZR (L := L) arI AR Z H Cs Ac' Lst' D' (ndF (L := L) s (L.ksb s) v16 v24 v40) a (ndFSt σ v16.bv di) := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
-  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka)
+  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka h24)
   obtain ⟨Ac2, Lst2, J2⟩ := J1.workUnitsJD (arI := arI) v40
   have e : core.num.U64.wrapping_add (L.ksb (ndF2 (L := L) s (L.ksb s) v16 v24)) layout.ks.WORK_UNITS =
       ksW (L.ksb s) 40#u64 := by
@@ -2053,7 +2118,7 @@ theorem JAtZR.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
-      (J.idleW_keep hS' hik.1 hik.2))
+      (J.idleW_keep hS' hik.1 hik.2) hT.dbgK subset_rfl)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
@@ -2063,7 +2128,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): `jat_scheduleFRF` without `σ.domainTime ≠ 0`. -/
 theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -2072,6 +2137,11 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -2086,16 +2156,23 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
-  refine WP.spec_mono (WP.spec_and (WP.spec_and
+  -- g7a: the `DOM_SCHED_IDX` word stays 0 (SchedIdx)
+  have hIdx := P1.sched.schedule.idx hAT (P1.ibKeep_holds hAT) hNt s a hB J.kern.ksbFit J.kern.ksbAl
+    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) J.bufAtJ
+    (fun s1 hf1 => fire_ks_of J.kern.ksbFit J.kern.ksbAl J.kern.hks J.kern.heap
+      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1
+      (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8))
+    (idxI_of J.xtop.rel.2.2.2.1 J.xtop.fin.1.1.1 hd)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
     (jat_scheduleWP0FZR s a σ J hd hnd hAT P hP hSig hA hAN hFO hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
-      hTail)) ?_
-  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
-    hkw⟩, ⟨htinv, hRest⟩⟩
-  simp only [WP.uncurry'_pair] at hkw htinv
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
+      hTail)) hIdx) ?_
+  rintro ⟨s', a'⟩ ⟨⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
+    hkw⟩, ⟨htinv, hRest⟩⟩, h24'⟩
+  simp only [WP.uncurry'_pair] at hkw htinv h24'
   obtain ⟨rf', hrf', -, hkw⟩ := hkw
   obtain rfl : rf = rf' := by simpa using (hrf'.symm.trans hfr).symm
-  have hTl := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
+  have hTl := hRest rf σ1 σ' D1 hF hfr (Or.inl ⟨V1, Ac1, Lst1, D1, J1⟩) hsc hw hS' hI' hC' hA'
   obtain ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', -, -, -, -⟩ := htinv
   -- the fake pre-state
   have hkf1 := J1.kern.ksbFit
@@ -2105,7 +2182,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     with hs0
   set σ0 := ndFSt σ1 (L.mem s' (ksW kb 16#u64)).bv σ'.domainIndex with hσ0
   obtain ⟨Ac0, Lst0, D0, J0⟩ := J1.ndFJ (L.mem s' (ksW kb 16#u64)) (L.mem s' (ksW kb 24#u64))
-    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex
+    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex (by rw [← hkf] at h24'; exact h24')
   have hw0 : P1.WritesIn st s0 s' (KFoot st Z.T Z.N Z.C Z.c s0 σ0) := ndF_writes σ'.domainIndex hkf1 hka1 hw
   have hk0 : L.ksb s0 = L.ksb rf.1 := ndF_ksb _ _ _ _ _
   have hks' : L.ksb s' = L.ksb s := hkw.1.trans hkf
@@ -2211,7 +2288,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
-  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC')⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
+  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC'), inferInstance⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
     RunW.scAndTimer (hr3 J1.curRun) he3⟩
 
 
@@ -2219,7 +2296,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 (`signalJHyp_ofZR`, as `jat_scheduleSRF`), at the states satisfying `P` (g3b). -/
 theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -2229,6 +2306,11 @@ theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -2243,7 +2325,7 @@ theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 (`jat_scheduleSR2ZRP` at `P := True`, the pre-g3b statement). -/
 theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -2252,6 +2334,11 @@ theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →

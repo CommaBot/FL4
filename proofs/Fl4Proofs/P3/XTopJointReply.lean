@@ -299,7 +299,7 @@ theorem JAtZ.runJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
         subst hp; rw [hk] at hk'; cases hk'; rw [hrs] at h0; simp [tsCode] at h0)
       hlk hfk hAI.1 hY' (hYK6.dk q.bv) (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2) hKd subset_rfl) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
@@ -318,7 +318,7 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
 set_option maxHeartbeats 16000000 in
 /-- **`reply1` at `J`** (module docstring): every outcome of the spec's
 success tail has `JAt`. -/
-theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : ct ∈ Z.T)
+theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (hct : ct ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart) (call : Bool) (v : U64) :
     vspace.reply1 st s ct call v ⦃ s2 => ∀ z ∈ (specTail call ct.bv [v.bv] σ).1, JAt (L := L) arI AR s2 a z.2 ⦄ := by
   unfold vspace.reply1
@@ -330,7 +330,7 @@ theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
     simp only [Bool.false_eq_true, ↓reduceIte] at hz
     rw [Notif.setThreadState_eq .running hk] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J2⟩
+    exact ⟨_, _, _, _, _, _, J2, inferInstance⟩
   · simp only [↓reduceIte]
     have hin : (do
         let buf ← msg.lookup_ipc_buffer st s true ct
@@ -393,7 +393,7 @@ theorem JAtZ.reply1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64
     simp only [↓reduceIte] at hz
     rw [Notif.setThreadState_eq .running hkC] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J4⟩
+    exact ⟨_, _, _, _, _, _, J4, inferInstance⟩
 
 end
 
@@ -402,7 +402,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **`JReplyHyp` proved** (`JAtZ.reply1J`). -/
 theorem jReplyHyp {AR : A → Fl4Spec.Cr3 → Prop} (th : TypedHeap) : JReplyHyp (L := L) arI AR th := by
-  intro Z H Cs Ac Lst D s a σ hth J ct x call v hcur hk hrs s2 z h hz _
+  intro Z H Cs Ac Lst D s a σ hth J _ ct x call v hcur hk hrs s2 z h hz _
   have hct : ct ∈ Z.T := J.thT ct (J.xtop.curTcb hcur).1
   have hp := J.reply1J hct hk hrs call v
   rw [h, WP.spec_ok] at hp
@@ -416,7 +416,7 @@ set_option maxHeartbeats 4000000 in
 (XTopJointPortIn's `decode_invocation_ioportJ_steps` with `jReplyHyp`, the
 primitive steps' closure `jStepHyps`). -/
 theorem decode_invocation_ioportJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s))
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -424,7 +424,7 @@ theorem decode_invocation_ioportJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (first last : U64)
     (hsc : capV (L.mem s) (cslotAddr sl) = .IoPort first last 0#u64) (call : Bool)
-    (hval : call = true → PortInVal arI)
+    (hval : call = true → PortInValAt arI ar σ)
     (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IoPort first last 0#u64) blk call don fp

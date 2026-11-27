@@ -60,7 +60,10 @@ def initArchState : ArchState :=
     x64NumIoapics := 1,
     x64IoapicNirqs := fun _ => ucast 8 ioapicIRQLines,
     x64IrqState := fun _ => .irqFree,
-    x64CurrentFpuOwner := none }
+    x64CurrentFpuOwner := none,
+    -- FL4 (#65): l4v's configuration (CONFIG_HUGE_PAGE); FL4 (#68): not a
+    -- TDX guest.
+    x64Plat := { hugePages := true, tdxActive := false, tdxDmaRam := fun _ _ => false } }
 
 /-- l4v: Init_A.X64_A.global_pml4. -/
 def globalPml4 : BitVec 9 → PML4E :=

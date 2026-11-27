@@ -26,6 +26,8 @@ one `Fire`: the signal (`Signal`), then `reprogram_timer` set.
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.BufAtJ
+import Fl4Proofs.P1.IbKeepHolds
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -214,15 +216,113 @@ theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
+/-- **A TCB off `X` keeps its deadline word** across an `XFoot` write set
+(P1's footprints of `timer::remove` / `timer::insert`). -/
+theorem xfoot_td {T : Set U64} {s0 s : S} {X : U64 → Prop} {C : U64} (hT : P1.TcbPlaced T)
+    (hN : P1.NodePlaced st T s0 C) (w : P1.WritesIn st s0 s (P1.XFoot st T s0 X C)) {y : U64} (hy : y ∈ T)
+    (hX : ¬ X y) : L.mem s (P1.tdA y) = L.mem s0 (P1.tdA y) := by
+  have ha := P1.tz_aligned hT (P1.Tz.of_mem hy) (K := 3528#u64) (by simp) (by simp)
+  refine w.mem_eq ha fun hf => ?_
+  rcases hf with ⟨z, hz, K, hK, e⟩ | ⟨o, ho, e⟩
+  · have ev := congrArg UScalar.val e
+    have hzT : P1.Tz T z := hz.imp_right And.left
+    have hy3 := P1.tz_val hT (P1.Tz.of_mem hy) (K := 3528#u64) (by simp)
+    have hz3 := P1.tz_val hT hzT hK
+    have hyv : (P1.tdA y).val = y.val + 3528 := hy3.trans (by simp)
+    rw [hyv, hz3] at ev
+    have hy4 := P1.tz_big hT hy
+    rcases hz with rfl | ⟨hzT', hXz⟩
+    · have z0 : (0#u64 : U64).val = 0 := by simp
+      omega
+    · have a1 := (hT z hzT').align
+      have a2 := (hT y hy).align
+      have hzy : z = y := UScalar.eq_of_val_eq (by omega)
+      subst hzy
+      exact hX hXz
+  · exact P1.node_ne_tz hT hN ho (P1.Tz.of_mem hy) (K := 3528#u64) (by simp) (congrArg UScalar.val e).symm
+
+/-- **`timer::remove` leaves an unarmed TCB unarmed** (from `timer.remove.rb`'s
+footprint: an unarmed TCB is no key of a core's tree, `CoreTree.armed`). -/
+theorem remove_td {T Cs : Set U64} {s s' : S} {t : U64} (hT : P1.TcbPlaced T)
+    (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c)
+    (h : (L.mem s (P1.tdA t) = 0#u64 ∧ s' = s) ∨ ∃ c ∈ Cs, ∃ W : P1.TRB.RBT, P1.CoreTree st T s c W ∧
+      t ∈ W.keys ∧ P1.WritesIn st s s' (P1.XFoot st T s (· ∈ W.keys) c))
+    {q : U64} (hq : q ∈ T) (hq0 : L.mem s (P1.tdA q) = 0#u64) : L.mem s' (P1.tdA q) = 0#u64 := by
+  rcases h with ⟨-, rfl⟩ | ⟨c, hc, W, hW, -, w⟩
+  · exact hq0
+  · rw [xfoot_td hT (hN c hc) w hq fun hm => hW.armed q hm hq0]; exact hq0
+
+/-- **`timer::insert` at `t` leaves every other unarmed TCB unarmed**
+(`timer.remove.rb`, then `timer.insert.coreW`'s footprint: the TCBs written
+are `t` and the old keys of the current core's tree, all armed). -/
+theorem insert_td {T Cs : Set U64} (s : S) (t d bd : U64) (hT : P1.TcbPlaced T) (ht : t ∈ T)
+    (hR : P1.TimerRB st T Cs s) (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c) (hcpu : L.cpu s ∈ Cs) :
+    timer.insert st s t d bd ⦃ s' => ∀ q ∈ T, q ≠ t → L.mem s (P1.tdA q) = 0#u64 →
+      L.mem s' (P1.tdA q) = 0#u64 ⦄ := by
+  have hc1 : ∀ s1 : S, ((L.mem s (P1.tdA t) = 0#u64 ∧ s1 = s) ∨ ∃ c ∈ Cs, ∃ W : P1.TRB.RBT,
+      P1.CoreTree st T s c W ∧ t ∈ W.keys ∧ P1.WritesIn st s s1 (P1.XFoot st T s (· ∈ W.keys) c)) →
+      L.cpu s1 ∈ Cs := by
+    rintro s1 (⟨-, rfl⟩ | ⟨c, -, W, -, -, w⟩)
+    · exact hcpu
+    · rw [w.2.1]; exact hcpu
+  have hrem : timer.remove st s t ⦃ s1 => (P1.TimerRB st T Cs s1 ∧ L.mem s1 (P1.tdA t) = 0#u64 ∧
+      (∀ c ∈ Cs, P1.NodePlaced st T s1 c) ∧ ((L.mem s (P1.tdA t) = 0#u64 ∧ s1 = s) ∨
+        ∃ c ∈ Cs, ∃ W : P1.TRB.RBT, P1.CoreTree st T s c W ∧ t ∈ W.keys ∧
+          P1.WritesIn st s s1 (P1.XFoot st T s (· ∈ W.keys) c))) ∧
+      ∀ q ∈ T, L.mem s (P1.tdA q) = 0#u64 → L.mem s1 (P1.tdA q) = 0#u64 ⦄ :=
+    WP.spec_mono (P1.timer.remove.rb s t hT ht hR hN) fun s1 h1 =>
+      ⟨h1, fun q hq hq0 => remove_td hT hN h1.2.2.2 hq hq0⟩
+  refine WP.spec_mono (P1.timer.insert.coreW s t d bd hT ht hrem fun s1 h1 => ?_) fun s' hs => ?_
+  · have hcs := hc1 s1 h1.1.2.2.2
+    obtain ⟨t0, ct⟩ := h1.1.1.tree _ hcs
+    exact ⟨h1.1.2.2.1 _ hcs, t0, ct, fun hm => ct.armed t hm h1.1.2.1⟩
+  · rcases hs with ⟨-, -, hq⟩ | ⟨-, s1, ctx, W, h1, cto, -, -, wi⟩
+    · exact fun q hq' _ h0 => hq q hq' h0
+    · intro q hq hqt h0
+      have hcs := hc1 s1 h1.1.2.2.2
+      have h01 := h1.2 q hq h0
+      rw [xfoot_td hT (h1.1.2.2.1 _ hcs) wi hq fun hX => Or.elim hX hqt fun hm => cto.armed q hm h01]
+      exact h01
+
+/-- **`JCovD` across a step keeping every slot**, the dead set's `DeadX`
+carried by the caller (`JAtZ.jcov_keep` with `hdx` in place of a
+`DXKeep`: the timer steps write deadline words). -/
+theorem JAtZ.jcov_keepX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hdead : ∀ q ∈ D, DeadP (L := L) H s' q)
+    (hidl : Sched.IdleKeep (L := L) s s')
+    (hdx : ∀ q ∈ D, Sched.DeadX (L := L) H Cs s q → Sched.DeadX (L := L) H Cs s' q) :
+    JCovD (L := L) Z.th H Z.G D Cs s' := by
+  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  exact J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
+    (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
+    (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hdx
+
+/-- **`DeadX` across a step keeping the debug words**, a dead TCB's deadline
+word staying 0. -/
+theorem Sched.DeadX.keepT {H : P1.Heap} {Cs : Set U64} {s s' : S} {q : U64}
+    (h : Sched.DeadX (L := L) H Cs s q) (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (htd : H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s' (P1.tdA q) = 0#u64) :
+    Sched.DeadX (L := L) H Cs s' q := fun hH => by
+  obtain ⟨d1, d2, d3⟩ := h hH
+  have e1 : L.mem s' (P1.dpA q) = L.mem s (P1.dpA q) := hKd.2 _ (Or.inl ⟨q, hH, Or.inr rfl⟩)
+  have e2 : ∀ c ∈ Cs, L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) =
+      L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) := fun c hc => hKd.2 _ (Or.inr ⟨c, hc, rfl⟩)
+  refine ⟨by rw [e1]; exact d1, fun c hc => ?_, htd hH d3⟩
+  rw [P1.nodeAt_of_ksb hKd.1, e2 c hc]; exact d2 c hc
+
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across timer-word writes** (module docstring): the timer words
-written, `REPROGRAM` kept or set to 1, P1's `BlkOK` after given. -/
+written, `REPROGRAM` kept or set to 1, P1's `BlkOK` after given; a dead TCB's
+deadline word stays 0 (`hTd`). -/
 theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
     (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
       L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s') :
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s' (P1.tdA q) = 0#u64) :
     ∃ r : Bool, JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a { σ with reprogramTimer := σ.reprogramTimer || r } := by
   obtain ⟨r, hX'⟩ := J.xtop.tmStep J.otherTmOK hw hR
   refine ⟨r, ?_⟩
@@ -297,18 +397,20 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' F.sk.idle F.sk.isc), hkern,
-      J.tmw_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, J.inv.rt _,
-      J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
-      hAI, F.bsa J.bsa, F.isorted J.isorted,
-      J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun b hb =>
     J.notDbg_tw (fun y hy w K hwv h1 h2 => J.tmw_ne_tcb hb hy hwv (Or.inr ⟨h1, h2⟩))
       (fun c hc => J.tmw_ne_node hb hc (by simp [P1.debug_val]) (by simp [P1.debug_val]) (by simp [P1.debug_val])
         (by simp [P1.debug_val]))
-  exact J.cs_frameK hks hX' F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keepX hks hSS hdead (J.idleW_keep hS' F.sk.idle F.sk.isc)
+        (fun q hq h => h.keepT hKd (hTd q hq)), hkern,
+      J.tmw_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, J.inv.rt _,
+      J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
+      hAI, F.bsa J.bsa, F.isorted J.isorted,
+      J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX' hks hSS (Vs.ArchShr.of_ao F.sk.arch fun q ao h =>
+    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
     hSS hKd F.sk.idle
 
 
@@ -353,7 +455,14 @@ theorem JAtZ.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (P1.writesIn_wr hal).mono fun b hb => Or.inr hb
   have hblk := P1.reprogram.tinv (v := 1#u64) (P1.BlkOK.tinv J.blk)
   rw [hc.cur] at hblk
-  obtain ⟨r, J'⟩ := J.tmw_step hw (Or.inr (P1.LawfulStore.mem_wr_same hal)) hblk
+  have hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 →
+      L.mem (L.wr s (L.nodeAt s Z.c layout.node.REPROGRAM) 1#u64) (P1.tdA q) = 0#u64 := fun q _ hH h0 => by
+    have hqT : q ∈ Z.T := by rw [J.tcbs_eq.1]; exact hH
+    have hT := hc.tcbs
+    exact ((P1.writesIn_wr hal).mem_eq (P1.field_aligned (hT q hqT) (K := 3528#u64) (by simp) (by simp))
+      fun hb => P1.node_ne_field hN (o := layout.node.REPROGRAM) (by simp [layout.node.REPROGRAM]) hqT (hT q hqT)
+        (K := 3528#u64) (by simp) hb.symm).trans h0
+  obtain ⟨r, J'⟩ := J.tmw_step hw (Or.inr (P1.LawfulStore.mem_wr_same hal)) hblk hTd
   have hrp := J'.xtop.fin.1.1.1.repr
   have e : (σ.reprogramTimer || r) = true := by
     have e1 : (σ.reprogramTimer || r) = decide (Sched.nodeW st (L.wr s (L.nodeAt s Z.c layout.node.REPROGRAM) 1#u64)
@@ -399,8 +508,13 @@ theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State 
       split
       · exact (WP.spec_ok _).2 h1
       step with P1.obj.Tcb.timer_badge.val as ⟨bd, ebd⟩
-      refine WP.spec_bind (P1.timer.remove.tf (s0 := s1) s1 t (P1.TF.start (P1.BlkOK.tinv J1.blk)) htT) ?_
-      rintro s2 ⟨h2, -, -, -, hw2⟩
+      have hI1 := P1.BlkOK.tinv J1.blk
+      refine WP.spec_bind (WP.spec_and (P1.timer.remove.tf (s0 := s1) s1 t (P1.TF.start hI1) htT)
+        (P1.timer.remove.rb s1 t hI1.tcbs htT hI1.rb hI1.nodes)) ?_
+      rintro s2 ⟨⟨h2, -, -, -, hw2⟩, -, -, -, hrb2⟩
+      -- a dead (unarmed) TCB stays unarmed
+      have hTd2 : ∀ q ∈ D1, H q = some .tcb → L.mem s1 (P1.tdA q) = 0#u64 → L.mem s2 (P1.tdA q) = 0#u64 :=
+        fun q _ hH h0 => remove_td hI1.tcbs hI1.nodes hrb2 (show q ∈ P1.Heap.tcbs H from hH) h0
       -- `timer::remove` keeps `JAtZ` and the spec state
       have hw2' : P1.WritesIn st s1 s2 (TmW (L := L) Z.T Cs Z.c s1) :=
         hw2.mono fun b hb => Or.inl (by rw [hTe]; exact hb)
@@ -426,7 +540,7 @@ theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State 
               omega
             · have : Z.c.val * 4288 + 4288 ≤ c'.val * 4288 := by nlinarith
               omega
-      obtain ⟨r2, J2⟩ := J1.tmw_step hw2' (Or.inl hR2) h2
+      obtain ⟨r2, J2⟩ := J1.tmw_step hw2' (Or.inl hR2) h2 hTd2
       have e2 : (σ1.reprogramTimer || r2) = σ1.reprogramTimer := by
         have g1 : (σ1.reprogramTimer || r2) = decide (Sched.nodeW st s2 Z.c layout.node.REPROGRAM ≠ 0#u64) :=
           J2.xtop.fin.1.1.1.repr
@@ -511,14 +625,14 @@ theorem jat_scheduleF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
         timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     have hd1' : σ1.domainTime ≠ 0 := by rw [hd1]; exact hd
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, J1.schedPreW hd1',
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWP s a σ hS hR J.nsc hnd hfire2 hA hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
       hTail)) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf⟩, hw, hrun⟩,
     hkw⟩, ⟨htinv, hRest⟩⟩

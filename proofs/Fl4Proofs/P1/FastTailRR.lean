@@ -25,8 +25,8 @@ variable {T Cs Ω Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 `t`'s TCB, the endpoint and the reply's `TCB` word. -/
 theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
     (P : RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
-    (e9 : obj.Tcb.set_state st t X8 sched.TS_BLOCKED_ON_RECV = ok X9)
-    (e10 : obj.Tcb.set_block_obj st t X9 ep = ok X10)
+    (e9 : obj.Tcb.set_block_obj st t X8 ep = ok X9)
+    (e10 : obj.Tcb.set_state st t X9 sched.TS_BLOCKED_ON_RECV = ok X10)
     (e11 : obj.Tcb.set_reply_obj st t X10 rptr = ok X11)
     (e12 : obj.Reply.set_tcb st rptr X11 t = ok X12)
     (e13 : obj.Tcb.set_ep_next st t X12 0#u64 = ok X13)
@@ -40,10 +40,10 @@ theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
   have aSt := P.aS P.ht
   have hrΩ := P.hSg.sub _ P.rtS
   have aR : Aligned (rTcbA rptr) := (P.hΩ _ hrΩ).1
-  have w9 : X9 = L.wr X8 (stA t) sched.TS_BLOCKED_ON_RECV := by
-    have := obj.Tcb.set_state.spec (L := L) X8 t sched.TS_BLOCKED_ON_RECV; rw [e9, WP.spec_ok] at this; exact this
-  have w10 : X10 = L.wr X9 (blockA t) ep := by
-    have := obj.Tcb.set_block_obj.wr (L := L) X9 t ep; rw [e10, WP.spec_ok] at this; exact this
+  have w9 : X9 = L.wr X8 (blockA t) ep := by
+    have := obj.Tcb.set_block_obj.wr (L := L) X8 t ep; rw [e9, WP.spec_ok] at this; exact this
+  have w10 : X10 = L.wr X9 (stA t) sched.TS_BLOCKED_ON_RECV := by
+    have := obj.Tcb.set_state.spec (L := L) X9 t sched.TS_BLOCKED_ON_RECV; rw [e10, WP.spec_ok] at this; exact this
   have w11 : X11 = L.wr X10 (replyA t) rptr := by
     have := obj.Tcb.set_reply_obj.wr (L := L) X10 t rptr; rw [e11, WP.spec_ok] at this; exact this
   have w12 : X12 = L.wr X11 (rTcbA rptr) t := by
@@ -77,7 +77,7 @@ theorem rr_m15 {X0 X8 X9 X10 X11 X12 X13 X14 X15 : S} {t rptr ep u usc : U64}
   rw [L.mem_wr_ne aTS hb (by rw [vTS]; omega), L.mem_wr_ne aH hb (by rw [vH]; omega),
     w14, L.mem_wr_ne aP hb (by rw [vP]; omega), w13, L.mem_wr_ne aN hb (by rw [vN]; omega),
     w12, L.mem_wr_ne aR hb (Ne.symm h3), w11, L.mem_wr_ne aRp hb (by rw [vRp]; omega),
-    w10, L.mem_wr_ne aB hb (by rw [vB]; omega), w9, L.mem_wr_ne aSt hb (by rw [vS]; omega)]
+    w10, L.mem_wr_ne aSt hb (by rw [vS]; omega), w9, L.mem_wr_ne aB hb (by rw [vB]; omega)]
 
 /-- The writes `X3 → X8` (the reply transfer's end) miss `Ω`, and `u` is
 `Restart` at `X8`. -/
@@ -141,16 +141,16 @@ theorem rr_om38 {X0 X3 X4 X5 X6 X7 X8 : S} {a a2 : A} {t rptr ep u usc : U64}
 
 set_option maxHeartbeats 1600000 in
 /-- **m67's `nvm` from the dispatch state's invariants** (module docstring). -/
-theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
+theorem rrPre5_ofG {ty : U64} [HfrRestart st ar ty] {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X0)
     (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
-      RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
-    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5 (L := L) ar X0 a := by
+      RRChecksG st ar ty X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5G (L := L) ar ty X0 a := by
   intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
     e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
   have P := hP t rptr ep u usc hct hrc hC
-  obtain ⟨-, -, K8, -⟩ := rr_x8 ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
-  obtain ⟨-, -, -, -, -, hW3, -⟩ := rr_x3 ar P hC (hS usc P.hcS) e1 e2 e3s e3
+  obtain ⟨-, -, K8, -⟩ := rr_x8G ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
+  obtain ⟨-, -, -, -, -, hW3, -⟩ := rr_x3G ar P hC (hS usc P.hcS) e1 e2 e3s e3
   obtain ⟨om38, su8⟩ := rr_om38 ar P K8.ksb K8.cpu e4 e5 e6 e7 e8
   obtain ⟨k15, c15, m15⟩ := rr_m15 P e9 e10 e11 e12 e13 e14 e15
   obtain ⟨-, -, hX, -, hS0⟩ := hI
@@ -255,14 +255,23 @@ theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
   rw [h1, h2]
   simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
 
+/-- `rrPre5_ofG` at an UnknownSyscall fault (pf1). -/
+theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X0)
+    (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
+      RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5 (L := L) ar X0 a := by
+  apply rrPre5_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 /-- **`RRPreAt5` (m67's `nvm`) at an entry state** with `EntryInv`, under
 m68's ring-sum bound `RRSumAt` [J] (the dispatch states' invariants from
 `budget_ok.bxc`, the placement from `rrPl_of`, as `RRPreAt2.of5`). -/
-theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+theorem RRPreAt5.of_invG {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
     (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5 (L := L) ar s a := by
+    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5G (L := L) ar ty s a := by
   intro t nx s1 s2 a2 et enx es1 hb
   have h0 := h.1.choose_spec.choose_spec
   have et' : t = L.curW s := by
@@ -285,8 +294,17 @@ theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
   have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
   rw [hb, WP.spec_ok] at hx
   have hPl := fun t' rptr ep u usc (et2 : sched.cur_thread st s2 = ok t') hrc
-    (hC : RRChecks st ar s2 a2 t' rptr ep u usc) => rrPl_of ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
-  exact rrPre5_of ar hx.1 hPl (hSum t nx s1 s2 a2 et enx es1 hb) hA
+    (hC : RRChecksG st ar ty s2 a2 t' rptr ep u usc) => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
+  exact rrPre5_ofG ar hx.1 hPl (hSum t nx s1 s2 a2 et enx es1 hb) hA
+
+/-- `RRPreAt5.of_invG` at an UnknownSyscall fault (pf1). -/
+theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5 (L := L) ar s a := by
+  apply RRPreAt5.of_invG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 end
 
@@ -298,7 +316,10 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 /-- **Native kernel entries keep `EntryInv`, the fast paths' end-state reads
 derived** (m70): `entry_of9` without m67's `hNv : FaultNvmPre` [J] and
 `hRP : RRPreAt5` [J] (`FaultNvmPre.of_asid`, `RRPreAt5.of_inv`). Left:
-`StoreExt` [P], `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J]. -/
+`StoreExt` [P], `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J].
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of10 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

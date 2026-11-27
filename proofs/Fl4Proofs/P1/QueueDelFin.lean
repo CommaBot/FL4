@@ -43,10 +43,10 @@ theorem FinGap.at {A : Type _} {ar : machine.Arch A} {P : capability.Cap → Pro
 theorem fin_noop {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} {c : capability.Cap} {fin : Bool}
     (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hc : c = .Null ∨ (∃ x y z w, c = .Untyped x y z w) ∨ c = .IrqControl ∨ c = .Domain ∨
-      (∃ x, c = .SchedControl x) ∨ c = .AsidControl ∨ c = .IoPortControl) :
+      (∃ x, c = .SchedControl x) ∨ c = .AsidControl ∨ c = .IoPortControl ∨ c = .TdxControl) :
     objects.finalise_cap st ar s a c fin false ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ∧
       DelCapOK T Ω Sg H Rp Nt r.1.1 ∧ DelCapOK T Ω Sg H Rp Nt r.1.2 ⦄ := by
-  rcases hc with rfl | ⟨_, _, _, _, rfl⟩ | rfl | rfl | ⟨_, rfl⟩ | rfl | rfl <;>
+  rcases hc with rfl | ⟨_, _, _, _, rfl⟩ | rfl | rfl | ⟨_, rfl⟩ | rfl | rfl | rfl <;>
     simp [objects.finalise_cap, objects.finalise_cap_object, h, DelCapOK.null]
 
 theorem fin_cnode {A : Type _} {ar : machine.Arch A} {s0 s : S} {a : A} {p r g b : U64} {fin : Bool}
@@ -254,7 +254,8 @@ theorem fin_all {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U
   | Domain => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inl rfl))))
   | SchedControl => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, rfl⟩)))))
   | AsidControl => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))))
-  | IoPortControl => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))))
+  | IoPortControl => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))))
+  | TdxControl => exact fin_noop h (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl)))))))
   | CNode => exact fin_cnode h hc
   | Zombie => exact fin_zombie h hc
   | PageTable => exact fin_vs hA P h (Or.inl ⟨_, _, _, _, rfl⟩)

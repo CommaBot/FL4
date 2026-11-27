@@ -338,6 +338,31 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       · rw [A.zTd hn] at hd; exact absurd rfl hd
   have ntb : NtbOK st (H.add N .tcb).tcbs H.ntfns s' := fun n hn => by
     rw [sig _ (hX.1.ntB n hn).2]; exact (hX.2.2.ntb n hn).up TU
+  have rb : TimerRB st (H.add N .tcb).tcbs Cs s' := by
+    have r1 : TimerRB st H.tcbs Cs s' := hX.2.2.rb.congr
+      ⟨fun y hy => fld y hy 3528#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3544#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3552#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3560#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3568#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun c hc => by
+          rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_root_val]; omega) (by rw [timer_root_val])
+            (by rw [timer_root_val]; omega)],
+        fun c hc => by
+          rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_min_val]; omega) (by rw [timer_min_val])
+            (by rw [timer_min_val]; omega)]⟩
+    have ct : ∀ {c : U64} {t : TRB.RBT}, CoreTree st H.tcbs s' c t → CoreTree st (H.add N .tcb).tcbs s' c t :=
+      fun c1 => { c1 with inT := fun y hy => TU y (c1.inT y hy) }
+    refine ⟨fun c hc => ?_, fun y hy hd => ?_, fun y hy hd => ?_⟩
+    · obtain ⟨t, c1⟩ := r1.tree c hc
+      exact ⟨t, ct c1⟩
+    · rcases A.tcbs_add.1 hy with hy | hn
+      · obtain ⟨c, hc, t, c1, hyt⟩ := r1.armed y hy hd
+        exact ⟨c, hc, t, ct c1, hyt⟩
+      · rw [A.zTd hn] at hd; exact absurd rfl hd
+    · rcases A.tcbs_add.1 hy with hy | hn
+      · exact r1.idle y hy hd
+      · exact ⟨A.zTl hn, A.zTr hn, A.zTp hn⟩
   -- the object invariants
   obtain ⟨hO, hR, hE⟩ := hX
   have hrw : ∀ r ∈ H.replies, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
@@ -349,6 +374,8 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
     unfold replyA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hbd : ∀ y ∈ H.tcbs, L.mem s' (boundA y) = L.mem s (boundA y) := fun y hy => by
     unfold boundA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
+  have haf : ∀ y ∈ H.tcbs, L.mem s' (affA y) = L.mem s (affA y) := fun y hy => by
+    unfold affA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hyl : ∀ y ∈ H.tcbs, L.mem s' (yieldA y) = L.mem s (yieldA y) := fun y hy => by
     unfold yieldA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)
   have hsr : ∀ c ∈ H.scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c) := fun c hc => sig _ (hO.repW c hc)
@@ -380,9 +407,18 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       rw [hrep _ b1, hst _ b1]; exact ⟨b0, TU _ b1, b2, b3⟩
   have ext : ScExtra st (H.add N .tcb).tcbs Cs H.scs H.ntfns s' := by
     refine ⟨⟨fun t ht hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
-      fun t ht hb => ?_, ScExtra.nsc_keepN hE.nsc hns hsn (fun c hc _ => hmx c hc), tmo, ntb,
-      fun c hc => by rw [hsn c hc]; exact hE.scn c hc, ⟨fun c hc h0' => ?_, fun t ht h0' => ?_, fun c hc h0' => ?_⟩⟩,
-      hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc⟩
+      fun t ht hb => ?_, ScExtra.nsc_keepN hE.nsc hns hsn (fun c hc _ => hmx c hc), tmo, ntb, rb,
+      fun c hc => by rw [hsn c hc]; exact hE.scn c hc, ⟨fun c hc h0' => ?_, fun t ht h0' => ?_, fun c hc h0' => ?_⟩,
+      ⟨fun t ht h0' => by
+        rcases A.tcbs_add.1 ht with ht | hnw
+        · rw [hbd t ht] at h0' ⊢; rw [sig _ (hO.ntB _ (hE.bnd t ht h0')).2]; exact hE.bs.tb t ht h0'
+        · rw [A.zBnd hnw] at h0'; exact absurd rfl h0',
+       fun n hn h0' => by
+        rw [sig _ (hO.ntB n hn).2] at h0' ⊢
+        rw [hbd _ ((hE.ntb n hn).ne0 h0')]; exact hE.bs.nt n hn h0',
+       fun c hc hc0 h0' => by
+        rw [hsn c hc] at h0' ⊢; rw [hns _ (hE.scn c hc h0')]; exact hE.bs.sn c hc hc0 h0'⟩⟩,
+      hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc, fun t ht hb => ?_⟩
     · rcases A.tcbs_add.1 ht with ht | hnw
       · rw [hsc t ht] at hb ⊢
         obtain ⟨h1, h2, h3⟩ := hE.bound t ht hb
@@ -396,12 +432,16 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       · rw [hyl t ht] at h0' ⊢; exact hE.yt.2.1 t ht h0'
       · rw [A.zYl hnw] at h0'; exact absurd rfl h0'
     · rw [hyf c hc] at h0' ⊢; exact TU _ (hE.yt.2.2 c hc h0')
+    · rcases A.tcbs_add.1 ht with ht | hnw
+      · rw [hsc t ht] at hb ⊢
+        rw [(hfx _ (hE.bound t ht hb).1).2, haf t ht]; exact hE.aff t ht hb
+      · rw [A.zSc hnw] at hb; exact absurd rfl hb
   have hS' : SCsOK st (H.add N .tcb).tcbs H.omega H.frame H.scs H.scBits Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [G.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [G.ksb]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,
       fun c hc => by rw [show L.rmax s' c = L.rmax s c from sig _ (hS.all c hc).2.1]; exact hS.act c hc,
       fun c hc h1 => hS.spor c hc (by rw [← sig _ (hS.spSg c hc)]; exact h1), hS.spSg,
-      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg⟩
+      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg, fun c hc => by rw [G.ksb]; exact hS.scKs c hc⟩
     rcases A.tcbs_add.1 ht with ht | hnw
     · rw [hsc t ht] at hb hne ⊢; rw [ecs] at hne ⊢; exact hS.disj t ht hb hne
     · rw [A.zSc hnw] at hb; exact absurd rfl hb

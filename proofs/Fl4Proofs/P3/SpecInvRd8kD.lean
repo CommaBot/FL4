@@ -159,6 +159,12 @@ theorem ba_archPerf (i : Fl4ArchInvocation) (σ : State Unit) (hb : BSA σ) :
     cases j <;>
     · simp only [fl4ArchPerformInvocation, archPerformInvocation] at hy
       exact (show IKE BSA _ from ike_liftE (by ba_auto)) σ hb y hy
+  | frameBatch b =>
+    simp only [fl4ArchPerformInvocation] at hy
+    exact (show IKE BSA _ from ike_liftE (ik_performFrameBatchW b (fun _ _ _ _ => by ba_auto) (fun _ => by ba_auto)
+        (fun _ _ _ _ _ _ _ => by ba_auto) (fun _ => by first | (ba_auto; done) | (unfold emptySlot; ba_auto))
+        (fun _ _ _ _ => by unfold unmapPageUnflushed; ba_auto) (fun _ _ _ => by ba_auto)
+        (by unfold flushAll; ba_auto))) σ hb y hy
   | _ =>
     simp only [fl4ArchPerformInvocation] at hy
     exact (show IKE BSA _ from ike_liftE (by ba_auto)) σ hb y hy

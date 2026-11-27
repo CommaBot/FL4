@@ -832,13 +832,16 @@ theorem scke_archPerform_nA (i : ArchInvocation) (h : ∀ x, i ≠ .invokeASIDCo
   cases i
   all_goals first | exact absurd rfl (h _) | sck_auto
 
-theorem scke_fl4ArchPerform_nA (i : Fl4ArchInvocation) (h : ∀ x, i ≠ .spec (.invokeASIDControl x)) :
+theorem scke_fl4ArchPerform_nA (i : Fl4ArchInvocation) (h : ∀ x, i ≠ .spec (.invokeASIDControl x))
+    (hb : ∀ b, i ≠ .frameBatch b) :
     SVE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i with
+  | frameBatch b => exact absurd rfl (hb b)
   | spec i => exact scke_archPerform_nA i (fun x e => h x (by rw [e]))
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto; exact sck_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; sck_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> sck_auto
 
 theorem scke_invokeIRQControl (i : Fl4IrqControlInvocation) :
     SVE (invokeFl4IrqControl (Z := Unit) i) := scke_invokeFl4IrqControl' i

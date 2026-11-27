@@ -169,7 +169,9 @@ theorem handle_syscall_unk_eq (hA : P0.ArchTotal arI) (hX : P1.StoreExt st) {s :
 `kernel_entry.entry_of7`): at a state where P1's `EntryInv` holds (with the
 `Hyps4` admissibility of its sets), `AsidOff` [J] and `FaultNvmPre` [J]
 give the general path's reads `FastFaultOK`. This is where the premise of
-`jEvRef_sysU` is checked to hold in P1-reachable states. -/
+`jEvRef_sysU` is checked to hold in P1-reachable states.
+**Vacuous** (p1g): `GF`'s `Hyps4` is contradictory (P1/EntryVacuous); not used by the
+`kernel_entry_reach*` tops. -/
 theorem fastFaultOK_of_p1 {T Ω Cs Sg Rp Scs Nt U : Set U64} {H : P1.Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     {Adm : P1.PSets → Prop} (hA : P0.ArchTotal arI)
     (GF : ∀ σ : P1.PSets, Adm σ → P1.Hyps4 st arI Adm Cs U P3Ok σ)
@@ -217,7 +219,7 @@ set_option maxHeartbeats 16000000 in
 /-- **The unknown-syscall entry at `J`** (module docstring): no `JEvRef`. -/
 theorem jEvRef_sysU (hnd : Fl4Spec.numDomains = 1) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} (n : I64)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hX : SInvX σ) (hct0 : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hX : SInvX σ) (hct0 : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState)
     (hU : UnkSys (L := L) n s) (hD : NoDbgSys (L := L) arI n s a)
     (hSX : P1.StoreExt st) (hFF : P1.FastFaultOK (L := L) arI s a n)

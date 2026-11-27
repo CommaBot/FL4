@@ -25,13 +25,14 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- The five words of the domain schedule (their offsets). -/
-def domOffs : List U64 := [32#u64, 192#u64, 200#u64, 208#u64, 216#u64]
+/-- The six words of the domain schedule (their offsets; g7a: with the
+`DOM_SCHED_IDX` word 24). -/
+def domOffs : List U64 := [24#u64, 32#u64, 192#u64, 200#u64, 208#u64, 216#u64]
 
 theorem domSame_iff {m m' : U64 → U64} {kb : U64} :
     (∀ o ∈ domOffs, m' (ksW kb o) = m (ksW kb o)) → DomSame m m' kb := by
   intro h
-  refine ⟨h _ (by simp [domOffs]), fun i hi => ?_⟩
+  refine ⟨h _ (by simp [domOffs]), fun i hi => ?_, ?_⟩
   rcases (show i.val = 0 ∨ i.val = 1 by omega) with h0 | h1
   · have : i = 0#u64 := UScalar.eq_of_val_eq (by rw [h0]; rfl)
     subst this
@@ -41,6 +42,7 @@ theorem domSame_iff {m m' : U64 → U64} {kb : U64} :
     subst this
     exact ⟨by rw [show entOff 1#u64 = 208#u64 from rfl]; exact h _ (by simp [domOffs]),
       by rw [show durOff 1#u64 = 216#u64 from rfl]; exact h _ (by simp [domOffs])⟩
+  · exact h _ (by simp [domOffs])
 
 /-- **A write to an aligned word other than the five keeps them.** -/
 theorem DomSame.wr (s : S) {kb a : U64} (v : U64) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0)
@@ -50,7 +52,7 @@ theorem DomSame.wr (s : S) {kb a : U64} (v : U64) (hkf : kb.val + 13568 ≤ 2 ^ 
   intro o ho
   have h8 : o.val < 256 ∧ o.val % 8 = 0 := by
     simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-    rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+    rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
   exact L.mem_wr_ne ha (ksW_al hkf hka h8.1 h8.2) (Ne.symm (hne o ho))
 
 /-- **The frame lemma**: FL4 keeping the five words (and the kernel-global

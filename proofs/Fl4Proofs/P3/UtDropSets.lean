@@ -268,7 +268,11 @@ variable {K : U64 → Prop} {KB : U64 × Fl4Spec.Word → Prop}
 heap, the ghost tree and the VSpace sets unchanged). -/
 abbrev XSets.keep (Z : XSets) (K : U64 → Prop) (KB : U64 × Fl4Spec.Word → Prop) : XSets :=
   ⟨Z.th, Z.G, Z.P, Z.L4, Z.L3, Z.L2, Z.L1, KeepS K Z.N, KeepS K Z.T, KeepS K Z.C, KeepS K Z.E, KeepS K Z.R,
-    KeepB KB Z.B, Z.c⟩
+    KeepB KB Z.B, Z.c, Z.vx⟩
+
+/-- (f6) `Z.keep` keeps `vx`. -/
+instance VxE.keep {Z : XSets} [h : VxE Z] {K : U64 → Prop} {KB : U64 × Fl4Spec.Word → Prop} :
+    VxE (Z.keep K KB) := ⟨h.eq⟩
 
 /-- Stage A's premises at `Z`, `s`, `σ`. -/
 structure XKeep (st : machine.Store S) [L : LawfulStore st] (K : U64 → Prop) (Z : XSets) (s : S)

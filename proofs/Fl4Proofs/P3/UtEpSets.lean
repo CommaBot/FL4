@@ -60,12 +60,64 @@ theorem hout_back (h : HOut H H' lo hi A k w K) {q : U64} {kd : HKind} (hq : H' 
 
 end
 
-/-- **[J] The `other` object of `H` at a spec arch object is no larger than
-it** (l4v: the arch objects' `obj_range` is the object's own; P1's heap
-holds a VSpace table as `other 12`, the spec's table of `2 ^ 12` bytes).
-With `SpecFree` it keeps those `H` objects off an untyped cap's free part. -/
-def ArchFitHyp (H : Heap) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ o ao n, σ.kheap o = some (.archObj ao) → H ⟨o⟩ = some (.other n) → n ≤ Fl4Spec.objBits (.archObj ao)
+-- `ArchFitHyp` moved to JCarryDefs (jc1, unchanged statement).
+
+/-- **`ArchFitHyp` across a retype** (jc1b; `JCarry.archFit` at the retype
+sites): `H` grown by `HOut`, the spec's objects after old ones, CNodes, new
+endpoints / notifications / replies, or new arch objects at the new `other`
+objects, each at least as large as its P1 size (`hKa`). The old objects lie
+off the region (`hspec`), so an old arch object is no new `other` object. -/
+theorem ArchFitHyp.add {H H' : Heap} {σ σ' : Fl4Spec.State Unit} {lo hi A k w : Nat} {K : Option HKind}
+    {En Nn Rn : Set U64} (h : ArchFitHyp H σ)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) (hout : HOut H H' A (A + w * k) A k w K)
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs', ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    (hKa : ∀ q m, NewAt A k w q → K = some (.other m) → ∀ ao, σ'.kheap q.bv = some (.archObj ao) →
+      m ≤ Fl4Spec.objBits (.archObj ao)) : ArchFitHyp H' σ' := by
+  intro o ao n ho hH
+  rcases hback o _ ho with e | ⟨r, cs', e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨q, hq, rfl, -, m, -, hK⟩
+  · rcases hout_back hout hH with ⟨hn, -⟩ | hH0
+    · have h1 := newAt_bd hk1 hn
+      have h2 := hspec _ _ e
+      have h3 := Nat.one_le_two_pow (n := Fl4Spec.objBits (.archObj ao))
+      have h4 : (⟨o⟩ : U64).val = o.toNat := rfl
+      omega
+    · exact h o ao n e hH0
+  · cases e
+  · cases e
+  · cases e
+  · cases e
+  · have e := hout_new hout hq hK
+    rw [show (⟨q.bv⟩ : U64) = q from rfl, e] at hH; cases hH
+    exact hKa q n hq hK ao ho
+
+/-- Every spec arch object is at least a 4 KiB page (`archKobjSize`). -/
+theorem twelve_le_archObj (ao : Fl4Spec.ArchKernelObj) : 12 ≤ Fl4Spec.objBits (.archObj ao) := by
+  cases ao with
+  | dataPage _ sz =>
+    cases sz <;> simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.pageBitsForSize, Fl4Spec.pageBits,
+      Fl4Spec.ptTranslationBits]
+  | _ => simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.tableSize, Fl4Spec.ptTranslationBits,
+      Fl4Spec.wordSizeBits, Fl4Spec.pageBits]
+
+/-- **A retype's new arch object is at least as large as its P1 `other` size**
+(the `hKa` of `ArchFitHyp.add`: `newKind`'s sizes are the spec's
+`archKobjSize` of the default arch objects). -/
+theorem newKind_default_le {nt us m : Nat} {t : Fl4Spec.ApiObjectType} {dev : Bool} {cd : Fl4Spec.Domain}
+    {ao : Fl4Spec.ArchKernelObj} (hty : objTypeOf nt = some t) (hK : newKind nt us = some (.other m))
+    (he : Fl4Spec.defaultObject t dev us cd = .archObj ao) : m ≤ Fl4Spec.objBits (.archObj ao) := by
+  have hn : nt < 19 := by
+    by_contra h; rw [(objTypeOf_none nt).2 (by omega)] at hty; cases hty
+  interval_cases nt <;> simp only [objTypeOf, Fl4Spec.archDataToObjType, newKind] at hty hK <;>
+    simp at hty hK <;> subst hty <;> subst hK <;>
+    simp [Fl4Spec.defaultObject, Fl4Spec.defaultArchObject] at he <;> subst he <;>
+    first | decide | simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.tableSize, Fl4Spec.pageBitsForSize,
+      Fl4Spec.pageBits, Fl4Spec.ptTranslationBits, Fl4Spec.wordSizeBits]
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} {arI : machine.Arch A'}
@@ -362,6 +414,78 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
   J.addSetsG hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn
     (fun o ko h => (hback o ko h).imp_right (Or.imp_left fun ⟨r, _, cs', _, e⟩ => ⟨r, cs', e⟩)) hT hR hC hBB hE hN
+
+/-- `JAtZ.addSetsG` with `ArchFitHyp` after (jc1b; `ArchFitHyp.add`). -/
+theorem JAtZ.addSetsGA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn Rn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs', ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn)
+    (hKa : ∀ q m, NewAt A k w q → K = some (.other m) → ∀ ao, σ'.kheap q.bv = some (.archObj ao) →
+      m ≤ Fl4Spec.objBits (.archObj ao)) :
+    ArchFitHyp H' σ' ∧
+        KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  ⟨ArchFitHyp.add harch hspec hlo hhi hk1 hout hback hKa,
+    J.addSetsG hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN⟩
+
+/-- `JAtZ.addSets` with `ArchFitHyp` after (jc1b; `ArchFitHyp.add`). -/
+theorem JAtZ.addSetsA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn Rn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn)
+    (hKa : ∀ q m, NewAt A k w q → K = some (.other m) → ∀ ao, σ'.kheap q.bv = some (.archObj ao) →
+      m ≤ Fl4Spec.objBits (.archObj ao)) :
+    ArchFitHyp H' σ' ∧
+        KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  ⟨ArchFitHyp.add harch hspec hlo hhi hk1 hout (fun o ko h => (hback o ko h).imp_right (Or.imp_left fun ⟨r, _, cs', _, e⟩ => ⟨r, cs', e⟩)) hKa,
+    J.addSets hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN⟩
 
 set_option maxHeartbeats 2000000 in
 /-- **`RPlaced` and `SlotsApart` at the notifications and replies grown by

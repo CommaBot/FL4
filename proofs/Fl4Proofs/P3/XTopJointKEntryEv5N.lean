@@ -14,7 +14,9 @@ open fl4_core
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
-/-- **`FastFaultOK` from the P1 invariants and `AsidOff`** (no `FaultNvmPre`). -/
+/-- **`FastFaultOK` from the P1 invariants and `AsidOff`** (no `FaultNvmPre`).
+**Vacuous** (p1g): `GF`'s `Hyps4` is contradictory (P1/EntryVacuous); not used by the
+`kernel_entry_reach*` tops. -/
 theorem fastFaultOK_of_p1N {T Ω Cs Sg Rp Scs Nt U : Set U64} {H : P1.Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
     {Adm : P1.PSets → Prop} (hA : P0.ArchTotal arI)
     (GF : ∀ σ : P1.PSets, Adm σ → P1.Hyps4 st arI Adm Cs U P3Ok σ)

@@ -130,12 +130,13 @@ variable (arI) in
 at the same sets and heap. -/
 def JAtD (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ DevApart (L := L) Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ ∧
+      VxE Z
 
 theorem JAtD.jAt {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JAtD (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -⟩ := h
-  exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -, _⟩ := h
+  exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 variable (arI) in
 /-- **`UtBodyPost` with `JAtD` after.** -/
@@ -163,7 +164,7 @@ docstring; UtEpRet's `JAtZ.utEpBodyJ` for a device source and frame types
 at the same sets). The source's facts from `DevApart` / `DevFreeT` instead
 of `JAtZ.utc` / `SpecFree` / `JCovD.ks`; its range in one canonical half
 with a nonzero base (`DevApart`'s `CanonR`). -/
-theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -384,6 +385,9 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   have hgp' : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcnk.1
     exact e.trans (congrArg (fun a => a.x64GlobalPml4) hA.arch)
+  have hgpP : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat) := by
+    have e := congrArg (fun z => (z.archState.x64GlobalPml4, z.archState.x64Plat)) hcnk.1
+    exact e.trans (congrArg (fun a => (a.x64GlobalPml4, a.x64Plat)) hA.arch)
   have hao : ∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao) := fun q ao h => by
     have hB := hA.kold h
     rcases hkc q with e | ⟨r0, cs, cs', e1, -⟩
@@ -474,7 +478,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hwI.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have K1 := J.kern_keep (D' := {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q}) hwI.1 hwI.2.1
-    hX'.fin.1.1.1 (hC2.ct.trans hctB) (hC2.csc.trans hcscB) horig hgp' hao hDbg
+    hX'.fin.1.1.1 (hC2.ct.trans hctB) (hC2.csc.trans hcscB) horig hgpP hao hDbg
   have hRD := (retype_window_deadS J.jcov J.ut hI hE (hDA.srcOK hE (capV_of_capAt hcap) hcjR)).1
   have hoffD : ∀ q kd, H q = some kd → q ∉ D → H' q = some kd := fun q kd hq hqD =>
     hout_old hout rfl rfl hE.k1 hq (by
@@ -721,15 +725,16 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · cases hn
       · cases hn
       · cases hn
-  have harch1 : ArchFitHyp H σ := hAF
-  obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J.addSets (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hpfit hfree
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
+  obtain ⟨hAF', hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
+    J.addSetsA (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hpfit hfree
       (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => by
         obtain ⟨o, ko, hk, h1, h2⟩ := hBO wp hwp
         rcases hDF _ hxG p sb fiv true (capV_of_capAt hcap) ⟨rfl, trivial⟩ o ko hk with (h | h) | ⟨h3, h4⟩ <;>
           omega) harch1 hA1 hA3 hE.k1 hout hEw0 hNw0 hRw0 hKn
       hback rfl rfl rfl rfl rfl rfl
+      (fun q m hq hK ao hao => newKind_default_le hty hK (Option.some.inj ((hspec q hq).symm.trans hao)))
   -- the CSpace fields (`JCs`)
   have hcjZ : ∀ j, j < win.val → ∀ p1 zt n1, cj j ≠ .Zombie p1 zt n1 := by
     intro j _ p1 zt n1; rw [hcj]; rcases hnt with h | h | h <;> simp [cjOf, newCapOf, h]
@@ -842,17 +847,6 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
-  have JZ := J.add_frame
-    (Z' := { Z with
-      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
-      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
-      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
-      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} })
-    rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
-    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
-      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl
@@ -874,11 +868,44 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · rw [if_neg hN] at e
         split_ifs at e
         exact Or.inl e.symm
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have hTB : TabBack σ σ' := fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨q, hq, rfl, -, -⟩
+    · exact ⟨ao', h, hv⟩
+    · cases e
+    · cases e
+    · cases e
+    · cases e
+    · have hdo : ∃ sz, Fl4Spec.defaultObject t true us.val σ.curDomain = .archObj (.dataPage true sz) := by
+        rcases ht with rfl | rfl | rfl <;> exact ⟨_, rfl⟩
+      obtain ⟨sz, e⟩ := hdo
+      rw [hspec q hq, e] at ho; cases ho
+      simp [VsTy, Fl4Spec.aaType] at hv
+  -- (F1 stage 5, item 4) `vsNamed` after: frames only, no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hXZ.fin.2.1 hXZ.fin.2.2.1 hks hE hM
+    hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; rcases hnt with h | h | h <;> simp [cjOf, newCapOf, h, Vs.VKey])
+    hA hcnk hkc
+  have JZ := J.add_frame
+    (Z' := { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
+      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
+      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} })
+    rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
+    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
+      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
+    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP ⟨hDA', devSep_retypeD J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩
+      (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
+      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB)
+      hvnR)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF'⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF', inferInstance⟩
 
 
 end

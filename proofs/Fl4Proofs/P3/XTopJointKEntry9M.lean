@@ -52,7 +52,7 @@ def JMidRecvHypS (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (cr :
     ∀ (s1 : S) (a1 : A), JMid (L := L) arI AR s1 a1 y.2 →
       syscall.handle_recv st arI s1 a1 true cr ⦃ r => ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) true cr y.2).1,
         RelTopM (L := L) r.1 z.2 ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-          JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 z.2 ⦄
+          JAtZR (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 z.2 ∧ VxE Z ⦄
 
 end
 
@@ -81,7 +81,7 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
   have hnq : ∀ d p, y.2.curThread ∉ y.2.readyQueues d p := by rw [hct0]; exact hnq0
   have hvf := hV y hy hok
   by_cases ha : y.2.schedulerAction = .resumeCurThread
-  · obtain ⟨-, ⟨Z, H, Cs, Ac, Lst, D, J⟩, -, hni1⟩ := hM
+  · obtain ⟨-, ⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, hni1⟩ := hM
     have hni : Entered y.2 := ⟨hni1, ha⟩
     have hct := cur_thread_eq (L := L) s1
     obtain ⟨hcur, -⟩ := J.curEq hct
@@ -89,8 +89,8 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
     refine WP.spec_mono (handle_recvJ arI hAT s1 a1 y.2 J hni hct hnq hvf true cr
       (jRecvIpcHypL_of hAT hmax (htu a1) J hctT hcur hni hnq true)
       (jRecvSigHyp_of hAT J hctT hcur hni hnq true)) ?_
-    rintro r ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'⟩
-    exact ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+    rintro r ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J', _⟩
+    exact ⟨z, hz, hrl, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   · exact hS y hy hok ha hnq (by rw [hct0]; exact hsw) hvf s1 a1 hM
 
 /-- `CQ ∧ NQ` at a resumed dispatch state (`MidEntry` from `JEntryAt.cnf`,
@@ -128,7 +128,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- **Every native dispatch at `J` ending in `DispPostR` with `PPQJI`** (module docstring). -/
 theorem dispatch_all9M [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c) (hK : KDispHyps9M (L := L) arI AR Z H Cs D s a σ n c)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -162,13 +162,13 @@ with `KDispHyps9M` (mid: entry facts, `JMidPerfHypQ` [W], `JMidVfhHyp` [J],
 `JMidRecvHypS` [W]) for `KDispHyps8` (module docstring). -/
 theorem kernel_entryJ9M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
     (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHyps9M (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
@@ -232,24 +232,24 @@ theorem kernel_entryJ9M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
           JAtZ (L := L) arI AR (Z.mv Z.G V0) H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧
       (r.1 = false → ∃ z ∈ (specBudget (faultIPSt σ σ.curThread x)).1, z.1 = false ∧
         ∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2) ⦄ := by
+          JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' r.2.1 r.2.2 z.2 ∧ VxE Z') ⦄ := by
     rcases hBu.tmo with hnt | ⟨hnq, xt, hkt, hrr, p, bd, rr, hth, hper, hcb⟩
     · exact WP.spec_mono (WP.spec_and (J0.budgetOkJ hAK hA hnd hBu.now hBu.cur hBu.off hmb)
         (J0.budgetOkF hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnt)) fun r ⟨h1, h2⟩ => ⟨h1, fun hf => by
           obtain ⟨σ', he, Ac', Lst', D', J'⟩ := h2 hf
-          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J'⟩
+          refine ⟨(false, σ'), ?_, rfl, _, Ac', Lst', D', J', inferInstance⟩
           unfold specBudget faultIPSt
           rw [he]; exact Set.mem_singleton _⟩
     · exact WP.spec_mono (WP.spec_and (J0.budgetOkJ hAK hA hnd hBu.now hBu.cur hBu.off hmb)
         (J0.budgetOkT hAK hA hnd hBu.now hni0 hBu.cur hmrt hmb hnq hkt hrr hth hper hcb)) fun r ⟨h1, h2⟩ =>
           ⟨h1, fun hf => by
             obtain ⟨z, hz, hz1, V, Ac', Lst', D', J'⟩ := h2 hf
-            exact ⟨z, hz, hz1, _, Ac', Lst', D', J'⟩⟩
+            exact ⟨z, hz, hz1, _, Ac', Lst', D', J', inferInstance⟩⟩
   refine WP.spec_bind hBud ?_
   rintro ⟨b, s2, a1⟩ ⟨hTr, hFa⟩
   cases b
   · -- the budget check stops the system call
-    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J'⟩ := hFa rfl
+    obtain ⟨z, hz, hz1, Z', Ac', Lst', D', J', _⟩ := hFa rfl
     obtain ⟨b', σb⟩ := z
     simp only at hz1; subst hz1
     show (do
@@ -276,7 +276,7 @@ theorem kernel_entryJ9M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     refine WP.spec_bind (dispatch_all9M s2 a1 σb J' hnib n c hn
       (hK σb hBA _ _ _ _ _ _ s2 a1 J') hARI hA hnd hPP hmrt hmb hIP hNS hmax htu) ?_
     rintro ⟨s3, a2⟩ ⟨y, hy, ⟨hy1, hR, hJ⟩ | ⟨hy1, hQ⟩⟩
-    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR⟩ := hJ
+    · obtain ⟨Zm, Hm, Csm, Acm, Lstm, Dm, JmR, _⟩ := hJ
       obtain ⟨u, σm⟩ := y
       simp only at hy1; subst hy1
       have hx : ((.ok (), σm) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=

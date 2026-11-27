@@ -41,6 +41,8 @@ import Fl4Proofs.P3.IpcSignalWake
 import Fl4Proofs.P3.ScSignalDonJ
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -129,17 +131,18 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    dbgKeep_of_writes J.blk hW fun b hb => J.nwrite_notDbg hb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ3 :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hw fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hw hSS F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, hI3,
       J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hC0 := JCs.same J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
-    dbgKeep_of_writes J.blk hW fun b hb => J.nwrite_notDbg hb
   exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
     hKd F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
 
@@ -181,7 +184,8 @@ theorem JAtZ.wake_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hw fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
@@ -215,7 +219,7 @@ theorem signalJHyp_of (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
-  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH)
+  have hP1 := P1.notification.send_signal.tinv hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2
   -- the badge-only branches
   have post : ∀ (y : Fl4Spec.Notification), (∀ l, x.ntfnObj ≠ .waitingNtfn l) → (∀ l, y.ntfnObj ≠ .waitingNtfn l) →
       y.ntfnBoundTcb = x.ntfnBoundTcb → y.ntfnSc = x.ntfnSc →

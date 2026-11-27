@@ -1,0 +1,33 @@
+import Fl4Spec.Ext.IrqNode
+import Fl4Proofs.P2.BootIrqNode
+#print axioms Fl4Spec.fl4IrqCount
+#print axioms Fl4Spec.capTableAt
+#print axioms Fl4Spec.validIrqNode
+#print axioms Fl4Spec.validIrqNodeFl4
+#print axioms Fl4Spec.irqNodeDomFl4
+#print axioms Fl4Spec.IrqNodeFl4
+#print axioms Fl4Spec.validIrqNode.toFl4
+#print axioms Fl4Spec.not_validIrqNode_of_dom
+#print axioms Fl4Spec.IrqNodeFl4.not_l4v
+#print axioms Fl4Spec.initKheapAt
+#print axioms Fl4Spec.initIocAt
+#print axioms Fl4Spec.initAStAt
+#print axioms Fl4Spec.initAStFl4
+#print axioms Fl4Spec.initKheapAt_l4v
+#print axioms Fl4Spec.initAStAt_l4v
+#print axioms Fl4Proofs.P2.BootSt.σB_eq_initFl4
+#print axioms Fl4Proofs.P2.BootSt.node_ne_low
+#print axioms Fl4Proofs.P2.BootSt.kheapB_irq_some
+#print axioms Fl4Proofs.P2.BootSt.wf_emptyCnode0
+#print axioms Fl4Proofs.P2.BootSt.σB_node_inj
+#print axioms Fl4Proofs.P2.BootSt.σB_irqNodeFl4
+#print axioms Fl4Proofs.P2.BootSt.σB_not_l4v
+#print axioms Fl4Proofs.P2.BootSt.node_ne_tRp
+#print axioms Fl4Proofs.P2.BootSt.node_ne_scRp
+#print axioms Fl4Proofs.P2.BootSt.σR_irqNodeFl4
+#print axioms Fl4Proofs.P2.BootSt.σR_not_l4v
+#print axioms Fl4Proofs.P2.BootSt.jAtZ_irqNodeDom
+#print axioms Fl4Proofs.P2.BootSt.jAtZ_not_validIrqNode
+#print axioms Fl4Proofs.P2.BootSt.irqRel_capTable
+#print axioms Fl4Proofs.P2.BootSt.σB_irqCons
+#print axioms Fl4Proofs.P2.BootSt.σR_irqCons

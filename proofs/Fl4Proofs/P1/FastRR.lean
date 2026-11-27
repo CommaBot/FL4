@@ -49,8 +49,8 @@ def rrTail (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr i1 i5 : Std.U64) : Result 
     let s6 ← obj.Tcb.set_state st i1 s5 sched.TS_RESTART
     let s7 ← sched.set_action st s6 i1
     let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-    let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-    let s10 ← obj.Tcb.set_block_obj st t s9 ep_ptr
+    let s9 ← obj.Tcb.set_block_obj st t s8 ep_ptr
+    let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
     let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
     let s12 ← obj.Reply.set_tcb st rptr s11 t
     let s13 ← obj.Tcb.set_ep_next st t s12 0#u64
@@ -62,8 +62,8 @@ def rrTail (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr i1 i5 : Std.U64) : Result 
     let s6 ← obj.Tcb.set_state st i1 s5 sched.TS_INACTIVE
     let s7 ← sched.set_action st s6 i1
     let s8 ← obj.Tcb.set_state st t s7 sched.TS_RUNNING
-    let s9 ← obj.Tcb.set_state st t s8 sched.TS_BLOCKED_ON_RECV
-    let s10 ← obj.Tcb.set_block_obj st t s9 ep_ptr
+    let s9 ← obj.Tcb.set_block_obj st t s8 ep_ptr
+    let s10 ← obj.Tcb.set_state st t s9 sched.TS_BLOCKED_ON_RECV
     let s11 ← obj.Tcb.set_reply_obj st t s10 rptr
     let s12 ← obj.Reply.set_tcb st rptr s11 t
     let s13 ← obj.Tcb.set_ep_next st t s12 0#u64
@@ -72,10 +72,11 @@ def rrTail (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr i1 i5 : Std.U64) : Result 
     let (s16, a3) ← fastpath.switch_to st ar s15 a2 i1
     ok (true, s16, a3)
 
-/-- The checks of an accepted `fastpath.reply_recv_found` at its entry state,
-in the form the extraction reads them (`u` = the reply's TCB, `usc` = its
-SC). -/
-structure RRChecks (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr u usc : Std.U64) : Prop where
+/-- The checks of an accepted ReplyRecv fast path at its entry state, in the
+form the extraction reads them (`u` = the reply's TCB, `usc` = its SC), for a
+receiver whose fault type is `ty` (`fastpath.reply_recv_found`: `UnknownSyscall`,
+`RRChecks`; FL4 #71's `fastpath_vm.reply_recv_vm_found`: `VMFault`; pf1). -/
+structure RRChecksG (ty : Std.U64) (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr u usc : Std.U64) : Prop where
   act : ∃ i, sched.action st s = ok i ∧ ¬ (i != sched.ACTION_RESUME_CURRENT) = true
   sch : ∃ b, sched.is_schedulable st s t = ok b ∧ b = true
   info : ∃ info, msg.msg_info st s t = ok info ∧ ¬ (info.extra_caps != 0#u64) = true ∧
@@ -83,7 +84,7 @@ structure RRChecks (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr u usc : Std.U64) :
   tcb : obj.Reply.tcb st rptr s = ok u
   u0 : ∃ b, obj.Tcb.is_null u = ok b ∧ ¬ b = true
   ust : ∃ i, obj.Tcb.state st u s = ok i ∧ ¬ (i != sched.TS_BLOCKED_ON_REPLY) = true
-  uft : ∃ i, obj.Tcb.fault_type st u s = ok i ∧ ¬ (i != fl4_abi.consts.fault.UnknownSyscall) = true
+  uft : ∃ i, obj.Tcb.fault_type st u s = ok i ∧ ¬ (i != ty) = true
   nxt : (∃ i, obj.Reply.next st rptr s = ok i ∧ ¬ (i != 0#u64) = true) ∨
     (∃ i, obj.Reply.next st rptr s = ok i ∧ (i != 0#u64) = true ∧
       ∃ b, obj.Reply.next_is_head st rptr s = ok b ∧ ¬ b = true)
@@ -105,6 +106,11 @@ structure RRChecks (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr u usc : Std.U64) :
       if i11 < i12 then ok true else ok false) = ok ff ∧
     (¬ ff = true ∨ (ff = true ∧ ∃ i11 i12 b8, sched.cur_domain st s = ok i11 ∧ obj.Tcb.prio st u s = ok i12 ∧
       sched.is_highest_prio st s i11 i12 = ok b8 ∧ b8 = true))
+
+/-- The checks of an accepted `fastpath.reply_recv_found` (m64; `RRChecksG`
+at `UnknownSyscall`). -/
+abbrev RRChecks (s : S) (a : A) (t : obj.Tcb) (rptr ep_ptr u usc : Std.U64) : Prop :=
+  RRChecksG st ar fl4_abi.consts.fault.UnknownSyscall s a t rptr ep_ptr u usc
 
 /-- Goal-directed elimination of an equation on a bind. -/
 theorem eq_bind_imp {α β : Type _} {m : Result α} {f : α → Result β} {y : β} {G : Prop}
@@ -185,6 +191,18 @@ theorem hfr_us {s : S} {a : A} {rcv snd : obj.Tcb} {restart : Bool} {s4 : S} {a4
   simp only [Prod.mk.injEq] at e
   obtain ⟨e1, -, e3⟩ := e
   exact ⟨by rw [← e1]; simp [hl], e3.symm⟩
+
+/-- **The restart flag of a reply to a fault of type `ty`** (R3 / R7): the
+reply with label 0 restarts the receiver and returns the Arch value. A class
+so that the ReplyRecv derivation, stated over `ty` (pf1), finds it at
+`UnknownSyscall` (`hfr_us`) and `VMFault` (FastVm's `hfr_vm`). -/
+class HfrRestart (ty : U64) : Prop where
+  restart : ∀ {s : S} {a : A} {rcv snd : obj.Tcb} {restart : Bool} {s4 : S} {a4 : A},
+    obj.Tcb.fault_type st rcv s = ok ty → (∃ tag, msg.msg_info st s snd = ok tag ∧ tag.label = 0#u64) →
+    faults.handle_fault_reply st ar s a rcv snd = ok (restart, s4, a4) → restart = true ∧ a4 = a
+
+instance hfrRestart_us : HfrRestart st ar fl4_abi.consts.fault.UnknownSyscall :=
+  ⟨fun hty htag h => hfr_us st ar hty htag h⟩
 
 /-- **R7 for `reply_remove`**: off the head of a call stack (the fast path's
 check) it is the unlink branch, which returns the Arch value unchanged. -/

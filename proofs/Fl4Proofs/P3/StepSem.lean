@@ -27,6 +27,7 @@ import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.SlotCover
 import Fl4Proofs.P1.QueueBlock
 import Fl4Proofs.P3.VsCapWBase
+import Fl4Proofs.P3.VsKeyDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -35,9 +36,11 @@ open fl4_core Classical
 noncomputable section
 
 /-- The kernel-global words a kernel-state step may write: past the current
-domain and domain time words, not the kernel root, not the IRQ node's CTEs
+domain and domain time words, not the kernel root nor (#65) the `FEATURES`
+word (both written at boot only), not the IRQ node's CTEs
 (`ksb + 1248 .. ksb + 5344`, written by slot steps only). -/
-def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ K.val ≠ 48 ∧ b.val = kb.val + K.val ∧
+def KsW (kb b : U64) : Prop := ∃ K : U64, 24 ≤ K.val ∧ K.val < 13568 ∧ (K.val ≠ 48 ∧ K.val ≠ 72) ∧
+  b.val = kb.val + K.val ∧
   (K.val < 1248 ∨ 5344 ≤ K.val)
 
 /-- The spec's kernel-state steps: only the interrupt states, the IRQ masks,
@@ -63,9 +66,11 @@ structure KsStep (σ σ' : Fl4Spec.State Unit) : Prop where
   asidT : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
   cr3 : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
+  /-- The platform record (#65 1 GiB pages, #68 TDX), written by no step. -/
+  huge : σ'.archState.x64Plat = σ.archState.x64Plat
 
 theorem KsStep.refl (σ : Fl4Spec.State Unit) : KsStep σ σ :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- A word of a slot of the typed heap. -/
 def InSlot (th : TypedHeap) (b : U64) : Prop := ∃ a, IsSlot th a ∧ a.val ≤ b.val ∧ b.val < a.val + 32
@@ -119,7 +124,8 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
       (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)) 8#u64)) = 0#u64 →
       m (core.num.U64.wrapping_add kb
         (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
-  σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
+  σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val ∧
+  m (core.num.U64.wrapping_add kb 24#u64) = 0#u64
 
 /-- Every object of `σ'` was an object of the same type in `σ` (SpecKSz). -/
 def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
@@ -128,21 +134,30 @@ def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- The arch operations of the interrupt and IO port decodes: none, an
-IRQ's mask, an IOAPIC pin's (remapped) programming, a port access. -/
+/-- The TDCALLs of the TDX control cap's decode (#68): `tdx_report`,
+`tdx_extend_rtmr`, `tdx_get_quote`. -/
+def TdxArchStep (a a' : A) : Prop :=
+  (∃ p d0 d1 d2 d3 d4 d5 d6 d7 v, arI.tdx_report a p d0 d1 d2 d3 d4 d5 d6 d7 = ok (v, a')) ∨
+    (∃ i d0 d1 d2 d3 d4 d5 v, arI.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 = ok (v, a')) ∨
+    (∃ p n v, arI.tdx_get_quote a p n = ok (v, a'))
+
+/-- The arch operations of the interrupt, IO port and TDX decodes: none, an
+IRQ's mask, an IOAPIC pin's (remapped) programming, a port access, a TDCALL
+(`TdxArchStep`). -/
 def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
     (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a')) ∨
     (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a') ∨
-    (∃ irq, arI.irq_free a irq = ok a')
+    (∃ irq, arI.irq_free a irq = ok a') ∨ TdxArchStep arI a a'
 
 /-- The kernel-global words of the domain schedule a scheduler step may
 write: the domain time and index, the start and the table. -/
 def DomKW (kb b : U64) : Prop := ∃ K ∈ ([16, 24, 32, 192, 200, 208, 216] : List Nat), b.val = kb.val + K
 
 theorem domKW_val {kb b : U64} (h : DomKW kb b) :
-    kb.val + 16 ≤ b.val ∧ b.val ≤ kb.val + 216 ∧ b.val ≠ kb.val + 8 ∧ b.val ≠ kb.val + 48 := by
+    kb.val + 16 ≤ b.val ∧ b.val ≤ kb.val + 216 ∧ b.val ≠ kb.val + 8 ∧ b.val ≠ kb.val + 48 ∧
+      b.val ≠ kb.val + 72 := by
   obtain ⟨K, hK, e⟩ := h
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
   omega
@@ -262,7 +277,8 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     DestLive th (L.mem s) (L.ksb s) pd →
     (DelInv th (L.mem s) → DelInv th (L.mem s')) → Vs.VsSlotsT th (L.mem s) (L.mem s') →
     capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Null →
-    (∀ p zt n, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Zombie p zt n) → Q s a σ s' a σ'
+    (∀ p zt n, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Zombie p zt n) →
+    Vs.VsKeep th th (L.mem s) (L.mem s') → Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
     (∀ p, σ'.kheap p = σ.kheap p ∨
@@ -280,7 +296,8 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
     UtSrc th (L.mem s) (L.mem s') σ σ' → Vs.VsSlotsT th (L.mem s) (L.mem s') →
     CnLive (L.mem s) (L.mem s') W →
-    (∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false) → Q s a σ s' a σ'
+    (∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false) →
+    Vs.VsKeep th th (L.mem s) (L.mem s') → Q s a σ s' a σ'
 
 /-- **A run made of primitive steps** (module docstring). -/
 def Steps (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) :
@@ -389,13 +406,17 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
       Vs.VCapW P L4 L3 L2 L1 (capV (L.mem s') (cslotAddr (pd.bv, idxd))))
     (hft : ∀ U : Nat → Prop, Vs.FrSlots th U (L.mem s) → Vs.FrIn U (capV (L.mem s') (cslotAddr (pd.bv, idxd))))
     (hnt : Vs.VsNat th (L.mem s) → Vs.NativeCap (capV (L.mem s') (cslotAddr (pd.bv, idxd))))
+    (htt : ∀ R, Vs.TabSlots th R (L.mem s) → Vs.TabR R (capV (L.mem s') (cslotAddr (pd.bv, idxd))))
     (hnn : capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Null)
-    (hnz : ∀ p zt n, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Zombie p zt n) :
+    (hnz : ∀ p zt n, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Zombie p zt n)
+    (hnk : Vs.VKey (capV (L.mem s') (cslotAddr (pd.bv, idxd))) = none) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
   refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hTK (fun t ht => ?_) hDL hDl
-    (Vs.VsSlotsT.of_some (· = cslotAddr (pd.bv, idxd)) (fun y hy hn => hcap y hy hn) (fun y _ e => by subst e; exact hvt) (fun y _ e => by subst e; exact hft) fun y _ e => by subst e; exact hnt) hnn hnz
+    (Vs.VsSlotsT.of_some (· = cslotAddr (pd.bv, idxd)) (fun y hy hn => hcap y hy hn) (fun y _ e => by subst e; exact hvt) (fun y _ e => by subst e; exact hft) (fun y _ e => by subst e; exact hnt) fun y _ e => by subst e; exact htt) hnn hnz
+    (Vs.VsKeep.of_nokey (W := (· = cslotAddr (pd.bv, idxd))) (fun y hy hn => hcap y hy hn)
+      (fun y _ e => by subst e; rw [capV_of_capAt hnull]; rfl) fun y _ e => by subst e; exact hnk)
   · have hf := hx.fit hP
     have := hk.lt
     have hv := wordOf_val (a := x) (k := k) (by omega)

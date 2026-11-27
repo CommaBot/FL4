@@ -1,0 +1,27 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P2.Stall.IdlK.trans'
+#print axioms Fl4Proofs.P2.Stall.idlK_footN
+#print axioms Fl4Proofs.P2.Stall.FFoot.idl
+#print axioms Fl4Proofs.P2.Stall.vcpu.report.idlF
+#print axioms Fl4Proofs.P2.Stall.notification.send_signal.idlF
+#print axioms Fl4Proofs.P2.Stall.timer.fire_loop.idlF
+#print axioms Fl4Proofs.P2.Stall.timer.fire.idlF
+#print axioms Fl4Proofs.P2.Stall.TWS.trans
+#print axioms Fl4Proofs.P2.Stall.tws_sc
+#print axioms Fl4Proofs.P2.Stall.tws_reg
+#print axioms Fl4Proofs.P2.Stall.schedcontext.update_consumed.tws
+#print axioms Fl4Proofs.P2.Stall.schedcontext.set_consumed.tws
+#print axioms Fl4Proofs.P2.Stall.schedcontext.cancel_yield_to.tws
+#print axioms Fl4Proofs.P2.Stall.schedcontext.complete_yield_to.tws
+#print axioms Fl4Proofs.P2.Stall.sched.activate_thread.tws
+#print axioms Fl4Proofs.P3.Mc.kw_projW
+#print axioms Fl4Proofs.P3.Mc.projW_of_footDU_idl
+#print axioms Fl4Proofs.P3.Mc.projW_of_sfootN
+#print axioms Fl4Proofs.P3.Mc.tws_projW
+#print axioms Fl4Proofs.P3.Mc.vckN_projW
+#print axioms Fl4Proofs.P3.Mc.bufAt_empty_cki
+#print axioms Fl4Proofs.P3.Mc.vcpuZ_of_J
+#print axioms Fl4Proofs.P3.Mc.sched_projW
+#print axioms Fl4Proofs.P3.Mc.finOld_projW
+#print axioms Fl4Proofs.P3.Mc.finFootJ_holds
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_irq

@@ -116,7 +116,7 @@ set_option maxHeartbeats 16000000 in
 /-- **Receiving from an active notification at a `MidN` state without a
 donation** (module docstring). -/
 theorem JAtZ.recvSigActiveJN (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
@@ -194,13 +194,13 @@ theorem JAtZ.recvSigActiveJN (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4S
     simp only [hact]
     rw [nd_bind_one (asUser_setRegister_eq _ _ hkt), nd_bind_one (setNotification_eq _ hk1)]
   rw [hspec, specRecvTail_noSc hkt2' hsc0 hsd, heq, WP.spec_ok]
-  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2⟩
+  exact ⟨_, Set.mem_singleton _, J2.xtop.relTop, _, _, _, _, _, _, J2, inferInstance⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **The blocking notification receive at `J` under a pending reschedule (ct SC-less)**
 (module docstring): `JAtZ.recvSigBlockJ` from `MidE` with a non-resume
 action, ending in `JAtZR`. -/
-theorem JAtZ.recvSigBlockJN (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigBlockJN (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidN σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -321,7 +321,7 @@ theorem JAtZ.recvSigBlockJN (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
     exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg (J.rbw_dbgKeep hRB) (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, J.inv.notRel_of_noSc hkt hsc0⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik
@@ -350,12 +350,12 @@ theorem JAtZ.recvSigBlockJN (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
     (J.rbw_dbgKeep hRB) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) (J.zD_diffN hn)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The notification receive at a `MidN` state outside `SigDon`** (module
 docstring). -/
-theorem jRecvSigHypN_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem jRecvSigHypN_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidN σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
@@ -379,7 +379,7 @@ theorem jRecvSigHypN_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
         obtain ⟨y0, m0, hky, -⟩ := J.ntfn_link hn x q hk hq
         exact Or.inr ⟨q, y0, m0, rfl, hky, fun h0 => hdon ⟨x, hk, ⟨b0, hact⟩, q, y0, m0, hq, hky, h0⟩⟩
     exact WP.spec_mono (J.recvSigActiveJN hAT ht hcur hni hnq hn hk hact hnd true b.bv (rightsOf w rd false false))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR⟩
+      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
   | _ =>
     have hna : ∀ b', x.ntfnObj ≠ .activeNtfn b' := fun b' h => by rw [hact] at h; cases h
     have hHn : H p = some .ntfn := J.zH.2.2.2 p hn

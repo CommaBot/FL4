@@ -270,12 +270,13 @@ theorem blk_of_capw {s s' : S} {B : U64 → Prop} (h : BlkOK st T Cs Ω H Sg Rp 
       (fun c hc => sig _ (hX.1.snW c hc)) (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))
       (fun c hc => sig _ (hX.1.mxW c hc)) ei
+      (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
   have hS' : SCsOK st T Ω Sg Scs Z Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [hw.1]; exact hS.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,
       fun c hc => by rw [show L.rmax s' c = L.rmax s c from sig _ (hS.all c hc).2.1]; exact hS.act c hc,
       fun c hc h1 => hS.spor c hc (by rw [← sig _ (hS.spSg c hc)]; exact h1), hS.spSg,
-      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg⟩
+      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg, fun c hc => by rw [hw.1]; exact hS.scKs c hc⟩
     rw [hsc t ht] at hb hne ⊢; rw [ecs] at hne ⊢; exact hS.disj t ht hb hne
   exact ⟨⟨⟨Q, R, inv_of_capw h0 hw hBw⟩, BoundInv.capw h0 hBd hw hBw, hX', hS',
       ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩⟩,

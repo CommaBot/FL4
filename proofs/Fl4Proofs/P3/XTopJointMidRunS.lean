@@ -25,6 +25,7 @@ import Fl4Proofs.P3.XTopJointMidRunP
 import Fl4Proofs.P3.XTopJointMidRun
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ScCharge7
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.MidRun
@@ -515,6 +516,20 @@ theorem perf_first (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw : 
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact kfe_post (by kf_auto) hs
+    | tdx i =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> unfold performTdxInvocation tdxStatus <;> exact kfe_post (by kf_auto) hs
+    | frameBatch bi =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      refine kfe_post (Fl4Proofs.P3.Vs.dke_liftE ?_) hs
+      intro σ x hx
+      have k : ∀ {α : Type} {m : NonDet (State Unit) α}, KF ct m → Fl4Proofs.P3.SInv.IK (fun s => ctV ct s = ctV ct σ) m :=
+        fun h s hs y hy => (h s y hy).trans hs
+      refine Fl4Proofs.P3.SInv.ik_performFrameBatchW (P := fun s => ctV ct s = ctV ct σ) bi
+        (fun _ _ _ _ => k (kf_capInsert _ _ _)) (fun _ => k (kf_performPageInvocation _))
+        (fun _ _ _ _ _ _ _ => k (kf_archFinaliseCap' _ _)) (fun _ => k (kf_emptySlot' _ _))
+        (fun _ _ _ _ => k ?_) (fun _ _ _ => k (kf_setCap _ _)) (k (kf_flushAll _ _)) σ rfl x hx
+      unfold unmapPageUnflushed; kf_auto
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact kfe_post (by kf_auto) hs
@@ -663,7 +678,7 @@ theorem JAtZ.midEntry {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
 current thread's no-fault fact [J], `JEntryAt.cnf`'s). -/
 theorem handle_invocation_midJP [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (can_donate : Bool) (cptr : U64)
     (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
     (mi : Fl4Spec.MessageInfo) (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))

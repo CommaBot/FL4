@@ -1,0 +1,23 @@
+import Fl4Proofs.P2.InvLPG
+open Fl4Proofs.P2.PathObl
+#print axioms Fl4Proofs.P2.PathObl.decInv_eq_CN
+#print axioms Fl4Proofs.P2.PathObl.usub_lt
+#print axioms Fl4Proofs.P2.PathObl.nd_ept_CORES
+#print axioms Fl4Proofs.P2.PathObl.invTail_eq_G
+#print axioms Fl4Proofs.P2.PathObl.hil_eq_G
+#print axioms Fl4Proofs.P2.PathObl.slot_cap_nar
+#print axioms Fl4Proofs.P2.PathObl.inv_prune
+#print axioms Fl4Proofs.P2.PathObl.inv_isProgOn
+#print axioms Fl4Proofs.P2.PathObl.invTail.guardR
+#print axioms Fl4Proofs.P2.PathObl.inv_dec_guardRS
+#print axioms Fl4Proofs.P2.PathObl.invRoW_of
+#print axioms Fl4Proofs.P2.PathObl.inv_isProg
+#print axioms Fl4Proofs.P2.PathObl.inv_noZero
+#print axioms Fl4Proofs.P2.PathObl.inv_hpz
+#print axioms Fl4Proofs.P2.PathObl.inv_localPathG2
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKDG2
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsKDG2_startAt
+#print axioms Fl4Proofs.P2.PathObl.R.invBodyG_eq
+#print axioms Fl4Proofs.P2.PathObl.R.cdt.delete_eq
+#print axioms Fl4Proofs.P2.PathObl.R.ept.lookup_loop_eq
+#print axioms Fl4Proofs.P2.PathObl.AR.vcpu_release_eq

@@ -41,7 +41,7 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
   have hzok : ZOK Z.th p zt n := J.del.zwf _ hA.isSlot p zt n hz
   -- the dead set: the TCB zombies' TCBs
   set E : Set U64 := ZTcb (L := L) Z.th s with hE
-  have J0 := J.addDeadSet (E := E) hL.ztcb
+  have J0 := J.addDeadSet (E := E) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G _
     ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, hkb⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hfk2, hC, Ac', Lst', R⟩ := J0.swapJCoreD hA hz hpx hsw hD2 hcap hX2
@@ -65,7 +65,7 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
     have h := (home_abs hzok).isSlot
     rwa [home_addr] at h
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') := by
-    refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_, fun h y hy => ?_⟩ <;>
+    refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_, fun h y hy => ?_, fun R h y hy => ?_⟩ <;>
     · rw [hcap y hy]
       split_ifs
       · exact h p hpS
@@ -169,8 +169,13 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
   have hZf : ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D ∪ E := fun p ⟨y, hy, zt', n', hz', hzt⟩ => by
     have hw : capV (L.mem s) (e y) = .Zombie p zt' n' := by rw [← hcap' y hy]; exact hz'
     exact Or.inr ⟨e y, heS y hy, zt', n', hw, hzt⟩
-  have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
-    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf
+  have J' := J0.cs_frameB (hvn := J0.vsShr (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hks
+      (Vs.vsKeep_swap hxs hpS hpx.symm (fun y hy h1 h2 => by rw [hcap y hy, if_neg h1, if_neg h2])
+        (by rw [hcap p hpS, if_neg hpx, if_pos rfl]) (by rw [hcap x hxs, if_pos rfl]) (fun _ => rfl) (fun _ => rfl))
+      (Vs.ArchShr.of_objCn hnk.2 (by have e := congrArg Fl4Spec.AbstractState.archState hnk.1; exact e))) hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
+    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
+    (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J0.ut fun y hy p0 sb0 fi0 d0 h => ⟨e y, heS y hy, fi0, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩)
+    (J0.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hks (ArchFwd.of_objCn hnk.2)) (ArchFwd.of_objCn hnk.2)
   exact ⟨⟨V, Ac', Lst', D ∪ E, J', hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns,
     hsg2, hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
 

@@ -101,7 +101,7 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       L.mem s' x = L.mem s x := fun x hx h1 h2 => hw.mem_eq hx fun hb => by
     have := hfar x hb; have := (hu x hb).al; unfold P1.Aligned at *; omega
   refine hX.frameStepV hw (fun x hx => (hu x hx).vobj) (fun x hx hf => ?_) (fun x hx hf => ?_)
-    (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
+    (fun hx => ?_) (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · have hu' := hu x hx
     have hbal : x.val % 8 = 0 := hu'.al
@@ -120,6 +120,11 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       have := hf2 t ht; have := (hT t ht).align; omega
   · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := hfar _ hx
+    rw [hkv] at this; omega
+  · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := hfar _ hx
     rw [hkv] at this; omega
@@ -162,7 +167,7 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
     (hnd : ∀ c ∈ Cs, q.val + n.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.zr s q n) a σ := by
   set s1 := L.zr s q n with hs1
-  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
   have hq8 : q.val % 8 = 0 := hal
   let W : U64 → Prop := fun b => P1.Aligned b ∧ q.val ≤ b.val ∧ b.val < q.val + n.val
@@ -310,18 +315,26 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s1 σ :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc).2⟩
   have hkern := J.kern_keepA hkb hcpu hX1.fin.1.1.1 F hDbg
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
-      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
-      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
-      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb => by
     obtain ⟨-, h1, h2⟩ := hb
     refine J.notDbg' (fun p hp => ?_) (fun c hc => ?_)
     · rcases hAp p .tcb hp (fun z h => by cases h) with e | e <;> simp only [P1.HKind.bits] at e ⊢ <;> omega
     · rcases hnd c hc with e | e <;> omega
-  exact J.cs_frameK hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
+  have hTd : Sched.TdKeep (L := L) H s s1 := J.tdkeep_of hW fun b hb u hu' e => by
+    obtain ⟨-, h1, h2⟩ := hb
+    have hv := J.tdA_val' hu'
+    have := hAp u .tcb (J.zH.1 u hu') (fun z h => by cases h)
+    rw [e] at h1 h2
+    simp only [P1.HKind.bits] at this
+    omega
+  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
+      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc)
+        (DXKeep.of_dbg hKd hTd), hkern,
+      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
+      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.refl _)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
     obtain ⟨-, h1, h2⟩ := hb
     have hv := Sched.tVcpuA_val J.ip.e.tcb hu'
     have := hAp u .tcb (J.zH.1 u hu') (fun z h => by cases h)
@@ -370,11 +383,11 @@ theorem JAtZ.restart_keeps_resume (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a 
 
 /-- **The preempted outcome of a preemption point at `JAtZ`** is `JAtPre`
 (XTopJointCnDel; `PPR0` gives the base its no-switch and non-idle facts). -/
-theorem JAtZ.jAtPre_pp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A}
+theorem JAtZ.jAtPre_pp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (hpp : sched.preemption_point st arI s a = ok (.Err .Preempted, s', a'))
     (hsp : (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) (hR0 : PPR0 σ) :
     JAtPre (L := L) arI AR s' a' σ' :=
-  ⟨s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hR0.1.2.1, hR0⟩, hpp, hsp⟩
+  ⟨s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hR0.1.2.1, hR0⟩, hpp, hsp⟩
 
 end
 

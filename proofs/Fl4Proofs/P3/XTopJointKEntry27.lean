@@ -184,11 +184,11 @@ variable (arI)
 structure KDispHypsKV27 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     (MidRun.JPerfRegHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
       MidRun.JPerfIrqSlotHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ) ∧
@@ -207,6 +207,11 @@ structure KFinAtR27 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) 
   sni : SniHyp st arI Z.N Z.T Z.C Z.c
   send : SendHyp st arI Z.N Z.T Z.C Z.c
   tail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -256,7 +261,7 @@ docstring). Removed: `hVI` (SInvB), `hB`'s `now` / `cur` / `tmo`, `JEntryAt`'s
 `hFin`. Added: `hS : SInvB σ` (carried) and `hQ` [J] (l4v `ct_not_in_q` at σ). -/
 theorem kernel_entryJ27 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -264,7 +269,7 @@ theorem kernel_entryJ27 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
       ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
     (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
         KDispHypsKV27 (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
     (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
       (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →

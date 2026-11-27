@@ -159,23 +159,36 @@ theorem BlkOK.agreeD {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (G 
         fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)] at hcv
       exact tm.core y hy hd c hcv
   have ntb : NtbOK st T Nt s' := fun n hn => by rw [sig _ (hX.1.ntB n hn).2]; exact hX.2.2.ntb n hn
+  have rb : TimerRB st T Cs s' := hX.2.2.rb.congr
+    ⟨fun y hy => fld y hy 3528#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+      fun y hy => fld y hy 3544#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+      fun y hy => fld y hy 3552#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+      fun y hy => fld y hy 3560#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+      fun y hy => fld y hy 3568#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+      fun c hc => by
+        rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_root_val]; omega) (by rw [timer_root_val])
+          (by rw [timer_root_val]; omega)],
+      fun c hc => by
+        rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_min_val]; omega) (by rw [timer_min_val])
+          (by rw [timer_min_val]; omega)]⟩
   have hX' : XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
     hX.keep (fun r hr => ⟨sig _ (hX.1.tcbW hr), sig _ (hX.1.prevW hr), sig _ (hX.1.nextW hr)⟩)
       (fun c hc => ⟨sig _ (hX.1.fixW c hc).1, sig _ (hX.1.fixW c hc).2⟩) hsc
       (fun y hy => by unfold replyA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)) hst
       (by rw [ecs]; exact hX.2.2.cur) (fun c hc => sig _ (hX.1.repW c hc))
       (fun y hy => by unfold boundA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
-      (fun n hn => sig _ (hX.1.ntW n hn)) ⟨tmo, ntb⟩
+      (fun n hn => sig _ (hX.1.ntW n hn)) ⟨tmo, ntb, rb, fun n hn => sig _ (hX.1.ntB n hn).2⟩
       (fun c hc => sig _ (hX.1.snW c hc))
       (fun y hy => by unfold yieldA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))
       (fun c hc => sig _ (hX.1.mxW c hc)) ei
+      (fun y hy => by unfold affA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
   have hS' : SCsOK st T Ω Sg Scs Z Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [G.ksb]; exact hS.ks b hb, fun o h1 h2 => by rw [G.ksb]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,
       fun c hc => by rw [show L.rmax s' c = L.rmax s c from sig _ (hS.all c hc).2.1]; exact hS.act c hc,
       fun c hc h1 => hS.spor c hc (by rw [← sig _ (hS.spSg c hc)]; exact h1), hS.spSg,
-      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg⟩
+      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg, fun c hc => by rw [G.ksb]; exact hS.scKs c hc⟩
     rw [hsc t ht] at hb hne ⊢; rw [ecs] at hne ⊢; exact hS.disj t ht hb hne
   exact ⟨⟨Q, R, h0.agreeD G⟩, hB', hX', hS',
     ⟨hSg.sub, fun b hb => by rw [G.ksb]; exact hSg.ks b hb, fun o h1 h2 => by rw [G.ksb]; exact hSg.ksΩ o h1 h2⟩⟩

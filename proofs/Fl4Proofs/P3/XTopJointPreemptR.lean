@@ -37,7 +37,7 @@ theorem jPreemptRestHypC_of (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hP 
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     JPreemptRestHypC (L := L) arI AR := by
   intro s a σ hJ hn hi hs hf hc hg hC hsc hnsuf hnq hper xt p bd r q hkt hrr hth hke
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := hJ
   have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
   have hres : σ.schedulerAction = .resumeCurThread ∨ σ.schedulerAction = .chooseNewThread := by
     rcases e : σ.schedulerAction with _ | u | _
@@ -51,7 +51,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_invokeJPZA` without `JPreemptRestHypC` [W]** (kp17: proved by
 `jPreemptRestHypC_of` from `JEntryGlob`'s platform facts `maxTU`/`tu`). -/
 theorem dispatch_invokeJPZR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
@@ -71,7 +71,7 @@ set_option maxHeartbeats 4000000 in
 `fl4HandleEvent true`'s branch): no named premise left on the preemption
 path. -/
 theorem dispatch_invokeJEPZR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)

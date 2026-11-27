@@ -173,9 +173,163 @@
   repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
   all_goals p0_close
 
--- #63 added the same-core TS_RUNNING_VM branch; `split` on the grown body
--- exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
 @[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
+  -- #63 added the same-core TS_RUNNING_VM branch; `split` on the grown body
+  -- exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
   unfold notification.send_signal
   p0_structural
+
+@[step] theorem vspace.decode_page_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (slot : obj.Slot) (f : vspace.FrameCap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_page_map machineStoreInst machineArchInst s a length slot f buf ex ⦃ _ => True ⦄ := by
+  -- #65: the frame size match now binds `(fs, huge)`; with the size a
+  -- constructor, `simp` reduces that match, its pair and the `huge` tests
+  -- before stepping (split leaves the pair's `let` unreduced).
+  obtain ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩ := f
+  set_option maxHeartbeats 4000000 in
+  unfold vspace.decode_page_map
+  cases sz <;> simp only [bind_ok, Bool.false_eq_true, ↓reduceIte] <;>
+    (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;>
+    p0_close
+
+-- #71 (FrameBatch): the frame size match binds `(fs, huge)` as in
+-- decode_page_map; with the size a constructor, `simp` reduces it first.
+@[step] theorem vspace.batch_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (b : vspace.Batch) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.batch_map machineStoreInst machineArchInst s a slot b vaddr ⦃ _ => True ⦄ := by
+  unfold vspace.batch_map
+  step
+  step
+  split
+  · p0_auto
+  rename_i f
+  obtain ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩ := f
+  cases sz <;> simp only [bind_ok, Bool.false_eq_true, ↓reduceIte] <;>
+    (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;>
+    p0_close
+
+@[step] theorem vspace.frame_batch_entry.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (b : vspace.Batch) (w0 : Std.U64) (w1 : Std.U64) (w2 : Std.U64) (deferred : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.frame_batch_entry machineStoreInst machineArchInst s a b w0 w1 w2 deferred ⦃ _ => True ⦄ := by
+  -- `p0_structural`, splitting a pair's `let` before casing the pair
+  -- (the deferred-unmap branch's `let (b2, s2)`).
+  unfold vspace.frame_batch_entry
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+@[step] theorem vspace.decode_frame_batch_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (words : Std.U64) (root : Std.U64) (asid : Std.U64) (op : Std.U64) (depth : Std.U64) (i : Std.U64) (i1 : Std.U64) (i2 : Std.U64) (b : Bool) (cnode : capability.Cap) (dest_cnode : capability.Cap) (done1 : Std.U64) (deferred : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst)
+    (hw : words.val ≤ 3) (hn : n.val ≤ 255) :
+    vspace.decode_frame_batch_loop machineStoreInst machineArchInst s a buf ct n words root asid op depth i i1 i2 b cnode dest_cnode done1 deferred ⦃ _ => True ⦄ := by
+  -- P0 precondition: `words ≤ 3` and `n ≤ 255` (the entry index `1 + words * done`
+  -- is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes
+  -- `words = entry_words op ≤ 3` and `n = (hdr >> 8) & 0xff`.
+  unfold vspace.decode_frame_batch_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, d, _) => n.val - d.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3⟩ -
+    unfold vspace.decode_frame_batch_loop.body
+    dsimp only
+    by_cases hd : x2 < n
+    · rw [if_pos hd]
+      have hx : x2.val < n.val := hd
+      have hm : words.val * x2.val ≤ 3 * 255 := Nat.mul_le_mul hw (by omega)
+      p0_body
+    · rw [if_neg hd]; exact (WP.spec_ok _).2 trivial
+  · trivial
+
+-- Discharges the loop's precondition: `words` from `entry_words`' spec,
+-- `n` a byte of the header.
+@[step] theorem vspace.decode_frame_batch.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (ptr : Std.U64) (mapped : Bool) (asid : Std.U64) (call : Bool) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_frame_batch machineStoreInst machineArchInst s a length ptr mapped asid call buf ex ⦃ _ => True ⦄ := by
+  have and255 : ∀ x : U64, (x &&& 255#u64).val ≤ 255 := fun x => by
+    rw [UScalar.val_and]; exact Nat.le_trans Nat.and_le_right (by decide)
+  -- The two 24-case cap matches (`cnode`, `dest_cnode`) bind a `bool`:
+  -- `p0_bind_match` proves each total alone, before `step` would split the
+  -- rest of the body into every case.
+  unfold vspace.decode_frame_batch
+  repeat' (first | p0_cases_sum | (refine WP.spec_bind (vspace.decode_frame_batch_loop.p0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hS hA ‹_› (by subst_vars; exact and255 _)) ?_; intro x _) | p0_bind_match | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close
+
+@[step] theorem localinv.plan_with.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (lbl : Std.U64) (slot : obj.Slot) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :
+    localinv.plan_with machineStoreInst s t lbl slot extra ⦃ _ => True ⦄ := by
+  -- The cap matches bind a value; abstract it rather than split the rest
+  -- of the body into each of their 24 cases.
+  unfold localinv.plan_with
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+-- #92: the loop's fuel (the 4th component) bounds it, as before #92; the
+-- generator's first measure guess (`first - x2`) does not decrease.
+@[step] theorem boot.create_untypeds_for_region_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (device : Bool) (i : Std.U64) (first : Std.U64) (zeroed : Array boot.Region 128#usize) (n_zeroed : Std.U64) (start : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.create_untypeds_for_region_loop machineStoreInst s b device i first zeroed n_zeroed start fuel ⦃ _ => True ⦄ := by
+  unfold boot.create_untypeds_for_region_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1, x2, x3) => x3.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3⟩ -
+    unfold boot.create_untypeds_for_region_loop.body
+    p0_body
+  · trivial
+
+-- #92 (`MAX_REGIONS` 128): the loop counts `i` down, as before.
+@[step] theorem boot.find_rootserver_mem_loop.p0 (a : Array boot.Region 128#usize) (size : Std.U64) (align_bits : Std.U64) (i : Std.U64) :
+    boot.find_rootserver_mem_loop a size align_bits i ⦃ _ => True ⦄ := by
+  unfold boot.find_rootserver_mem_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => x0.val) (inv := fun _ => True)
+  · rintro x0 -
+    unfold boot.find_rootserver_mem_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.report machineStoreInst machineArchInst s a t badge ⦃ _ => True ⦄ := by
+  -- #80: the full-state reply copies the rest of the body into each branch;
+  -- `p0_split` times out in `whnf`. Each bind's first action is proved total
+  -- on its own (the continuation is not split with it), then the rest.
+  set_option maxHeartbeats 8000000 in
+  (unfold vcpu.report
+   repeat' (first
+     | (refine WP.spec_bind (Pₘ := fun _ => True) (by
+          repeat' (first | exact (WP.spec_ok _).2 trivial | (step as ⟨_, _⟩) | split)) ?_; intro _ _)
+     | step
+     | (simp only [bind_tc_ok, bind_ok])
+     | p0_cases_prod
+     | p0_ite_head
+     | split)
+   all_goals p0_close)
+
+-- #97 (localtimer, with losfair/FL4#98's loop form): the search counts its
+-- visits up to `TREE_VISITS` (64); the stack index stays at most `TREE_STACK`
+-- (32), the stack's length, which the pops and guarded pushes keep.
+@[step] theorem localtimer.in_core_timer_tree_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize) (visits : Std.U64) (found : Bool) (overflow : Bool) (hS : StoreTotal machineStoreInst)
+    (hsp : sp.val ≤ 32) :
+    localtimer.in_core_timer_tree_loop machineStoreInst s i d stack sp visits found overflow ⦃ _ => True ⦄ := by
+  -- P0 precondition: `sp ≤ 32` (the stack's length). Its one caller,
+  -- `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.
+  unfold localtimer.in_core_timer_tree_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, v, _, _) => 64 - v.val)
+    (inv := fun x => match x with | (_, p, _, _, _) => p.val ≤ 32)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hx
+    dsimp only at hx
+    unfold localtimer.in_core_timer_tree_loop.body
+    simp only [localtimer.TREE_VISITS, localtimer.TREE_STACK]
+    p0_body
+  · exact hsp
+
+-- Discharges the loop's precondition: `sp` is 0 or 1.
+@[step] theorem localtimer.in_core_timer_tree.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (d : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.in_core_timer_tree machineStoreInst s cpu target d ⦃ _ => True ⦄ := by
+  unfold localtimer.in_core_timer_tree
+  repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close
+
+-- `static_assertions`-style check on the syscall numbers: the constants'
+-- values decide it.
+@[step] theorem localvm.__1.p0  :
+    localvm.__1 ⦃ _ => True ⦄ := by
+  unfold localvm.__1 fl4_abi.syscall.SysVMEnter fl4_abi.syscall.SYSCALL_MIN fl4_abi.syscall.SYSCALL_MAX; p0_auto
+
+-- The cap comparison steps with Specs.lean's `capability.Cap.ne_total`.
+@[step] theorem localvm.handle_vcpu_invocation_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (slot : obj.Slot) (v : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_vcpu_invocation_local machineStoreInst machineArchInst s a number slot v ⦃ _ => True ⦄ := by
+  unfold localvm.handle_vcpu_invocation_local; set_option maxHeartbeats 4000000 in p0_structural
+
+-- #112: the cap match binds a pair (the caller, may_receive); abstract it rather
+-- than split the rest of the body into each of its 26 cases (as plan_with).
+@[step] theorem syscall.handle_nbwait_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (n : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_nbwait_local machineStoreInst machineArchInst s a number n ⦃ _ => True ⦄ := by
+  unfold syscall.handle_nbwait_local
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close

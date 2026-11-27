@@ -505,12 +505,17 @@ theorem xtop_sc_stepW {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {
     rw [hkw _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega), hK.arch]
     exact hIo p hp
   have hKr' : Vs.KRootRel (L.mem s') (L.ksb s') σ' := by
-    unfold Vs.KRootRel Vs.globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hks, hkw _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), hK.arch]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold Vs.KRootW Vs.globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hks, hkw _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), hK.arch]
+      exact hKr
+    · rw [hks]
+      have hfv := Vs.feat_val hkf
+      exact Vs.HugeRel.frame hKr.2 (hkw _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) (by rw [hK.arch])
   -- the placement
   have hz := hK.szKeep
   have hTP' : Vs.TopPlaced st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' := by

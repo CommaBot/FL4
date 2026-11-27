@@ -226,3 +226,116 @@
   set_option maxHeartbeats 4000000 in
   unfold vcpu.write_state_from_frame
   p0_structural
+
+@[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
+  -- #63 added the same-core TS_RUNNING_VM branch (here with the AArch64
+  -- `vcpu.signal_completes` = false and the no-op `vcpu.report`); `split` on the
+  -- grown body exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
+  unfold notification.send_signal
+  p0_structural
+
+-- #71: `p0_structural`, also reducing the `let` pairs the `?` chains leave,
+-- with more heartbeats.
+@[step] theorem localinv.plan_with.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (lbl : Std.U64) (slot : obj.Slot) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :
+    localinv.plan_with machineStoreInst s t lbl slot extra ⦃ _ => True ⦄ := by
+  -- The cap matches bind a value; abstract it rather than split the rest
+  -- of the body into each of their 24 cases.
+  unfold localinv.plan_with
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+-- #97 (localtimer, with losfair/FL4#98's loop form): the search counts its
+-- visits up to `TREE_VISITS` (64); the stack index stays at most `TREE_STACK`
+-- (32), the stack's length, which the pops and guarded pushes keep.
+@[step] theorem localtimer.in_core_timer_tree_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (d : Std.U64) (stack : Array Std.U64 32#usize) (sp : Std.Usize) (visits : Std.U64) (found : Bool) (overflow : Bool) (hS : StoreTotal machineStoreInst)
+    (hsp : sp.val ≤ 32) :
+    localtimer.in_core_timer_tree_loop machineStoreInst s i d stack sp visits found overflow ⦃ _ => True ⦄ := by
+  -- P0 precondition: `sp ≤ 32` (the stack's length). Its one caller,
+  -- `localtimer.in_core_timer_tree`, passes `sp` 0 or 1.
+  unfold localtimer.in_core_timer_tree_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, v, _, _) => 64 - v.val)
+    (inv := fun x => match x with | (_, p, _, _, _) => p.val ≤ 32)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hx
+    dsimp only at hx
+    unfold localtimer.in_core_timer_tree_loop.body
+    simp only [localtimer.TREE_VISITS, localtimer.TREE_STACK]
+    p0_body
+  · exact hsp
+
+-- Discharges the loop's precondition: `sp` is 0 or 1.
+@[step] theorem localtimer.in_core_timer_tree.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (target : obj.Tcb) (d : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localtimer.in_core_timer_tree machineStoreInst s cpu target d ⦃ _ => True ⦄ := by
+  unfold localtimer.in_core_timer_tree
+  repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  all_goals p0_close
+
+-- #86 (LPIs): `id` maps an LPI to `(irq - LPI_BASE).wrapping_add(LPI_ID_BASE)`
+-- (#100: wrapping, so total for every interrupt number) and a banked
+-- interrupt to its bank index.
+@[step] theorem layout.irq.id.p0 (irq : Std.U64) :
+    layout.irq.id irq ⦃ _ => True ⦄ := by
+  unfold layout.irq.id
+  try simp only [layout.irq.LPI_ID_BASE]
+  p0_body
+
+@[step] theorem boot.init_irq_states_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.init_irq_states_loop machineStoreInst s i ⦃ _ => True ⦄ := by
+  unfold boot.init_irq_states_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 5375 + 1 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold boot.init_irq_states_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem smp.handle_ipi.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    smp.handle_ipi machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
+  unfold smp.handle_ipi
+  p0_body
+
+-- The trapped-syscall extra registers: a walk over `TRAP_EXTRA_MESSAGE` (24 entries),
+-- upwards; the generator's measures count the wrong way.
+@[step] theorem faults.trap_extra_mrs_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb) (buf : Std.U64) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
+    faults.trap_extra_mrs_loop machineStoreInst s sender buf i ⦃ _ => True ⦄ := by
+  unfold faults.trap_extra_mrs_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => 24 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold faults.trap_extra_mrs_loop.body
+    have hl : (Slice.len (Array.to_slice faults.TRAP_EXTRA_MESSAGE)).val = 24 := by simp [Slice.len_val]
+    p0_body
+  · trivial
+
+@[step] theorem faults.trap_extra_reply_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (receiver : obj.Tcb) (buf : Std.U64) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
+    faults.trap_extra_reply_loop machineStoreInst s receiver buf i ⦃ _ => True ⦄ := by
+  unfold faults.trap_extra_reply_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => 24 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold faults.trap_extra_reply_loop.body
+    have hl : (Slice.len (Array.to_slice faults.TRAP_EXTRA_MESSAGE)).val = 24 := by simp [Slice.len_val]
+    p0_body
+  · trivial
+
+-- The frame size is matched into a pair bound by `let (fs, b) ←` (`Huge`
+-- refused): the match is total, and the rest is total for any pair, so the
+-- bind is split with `True` in between and the pair taken apart.
+@[step] theorem vspace.decode_test_and_clear_accessed.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (f : vspace.FrameCap) (call : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vspace.decode_test_and_clear_accessed machineStoreInst machineArchInst s a f call ⦃ _ => True ⦄ := by
+  unfold vspace.decode_test_and_clear_accessed
+  split
+  · p0_structural
+  · refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) ?_
+    rintro ⟨fs, b⟩ -
+    -- the pair's `let` is `uncurry _ (fs, b)` (Aeneas): unfold it to its body
+    simp only [Aeneas.Std.uncurry_apply_pair]
+    p0_structural
+
+-- The cap comparison steps with Specs.lean's `capability.Cap.ne_total`.
+@[step] theorem localvm.handle_arm_vcpu_run_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (slot : obj.Slot) (vc : Std.U64) (n : Std.U64) (hw_ok : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    localvm.handle_arm_vcpu_run_local machineStoreInst machineArchInst s a number slot vc n hw_ok ⦃ _ => True ⦄ := by
+  unfold localvm.handle_arm_vcpu_run_local; set_option maxHeartbeats 4000000 in p0_structural
+
+-- #112: the cap match binds a pair (the caller, may_receive); abstract it rather
+-- than split the rest of the body into each of its 26 cases (as plan_with).
+@[step] theorem syscall.handle_nbwait_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (n : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_nbwait_local machineStoreInst machineArchInst s a number n ⦃ _ => True ⦄ := by
+  unfold syscall.handle_nbwait_local
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close

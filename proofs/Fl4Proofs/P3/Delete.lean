@@ -138,8 +138,8 @@ theorem run_bind_ok_st {m : Fl4Spec.NonDetE σ ε α} {s s' : σ} {a : α} (h : 
 
 end
 
-theorem absCap_eq_null {c : capability.Cap} : absCap c = .nullCap ↔ c = .Null := by
-  cases c <;> simp [absCap]
+theorem absCap_eq_null {c : capability.Cap} (hw : CapWf c) : absCap c = .nullCap ↔ c = .Null := by
+  cases c <;> simp [absCap] <;> exact hw
 
 /-- The spec's `finalise_slot` on an empty slot or a trivially finalised
 cap: success, no cleanup, state unchanged (no recursive call). -/
@@ -152,7 +152,7 @@ theorem recDelF_fin (f : Fl4Spec.RecDelCall → Fl4Spec.PMonad Unit (Bool × Fl4
   rw [run_bind_ok (run_liftE hg)]
   rcases ha with rfl | ⟨c, fin, rfl, hcn, ht⟩
   · simp only [↓reduceIte]; rfl
-  · have hn : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  · have hn : absCap c ≠ .nullCap := fun h => by cases c <;> simp [absCap] at h <;> simp [TrivKind] at ht
     simp only [hn, ↓reduceIte]
     rw [run_bind_ok (run_liftE (m := Fl4Spec.isFinalCap (Z := Unit) (absCap c)) rfl)]
     rw [run_bind_ok (run_liftE (finaliseCap_triv σ c fin ht))]

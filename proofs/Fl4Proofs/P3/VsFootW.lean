@@ -166,6 +166,7 @@ theorem VsFrameHypsL.foot (hPl : Placed th) (hH : VsFrameHypsL st A ar th P L4 L
       (sts_foot hPl hsub hS.2 htcb hact)) fun _ ⟨⟨a1, a2, a3, a4, a5, a6⟩, hw⟩ => ⟨a1, a2, a3, a4, ⟨a5, hw⟩, a6⟩
   capStable := foot_stab (fun b h => hsub b (slotW_foot h)) hH.capStable
   map := hH.map.foot hsub
+  huge := fun s a σ hS => hH.huge s a σ hS.1
 
 theorem VsUnmapPageHyps.foot (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR) :
     VsUnmapPageHyps st A ar L3 L2 L1 (FootSR st SR s0 W) where
@@ -356,10 +357,11 @@ theorem frame_map_foot [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arc
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_page_map st ar s a length (cslotAddr (pc.bv, idx)) f buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (frame_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (frame_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -390,10 +392,11 @@ theorem frame_map_large_foot [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machi
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_page_map st ar s a length (cslotAddr (pc.bv, idx)) f buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (frame_map_large_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (frame_map_large_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -424,10 +427,11 @@ theorem frame_map_huge_foot [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machin
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_page_map st ar s a length (cslotAddr (pc.bv, idx)) f buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (frame_map_huge_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (frame_map_huge_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hPO := hPO) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (f := f) (hsz := hsz) (hfw := hfw) (hfe := hfe) (hfcv := hfcv) (hfm := hfm) (hfu := hfu) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -485,11 +489,12 @@ theorem pt_map_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_table st ar s a fl4_abi.label.X86PageTableMap length (cslotAddr (pc.bv, idx))
       (.PageTable ptr mp asid0 va0) buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (pt_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPtMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL1 := hpL1) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (pt_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPtMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL1 := hpL1) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -519,11 +524,12 @@ theorem pd_map_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_table st ar s a fl4_abi.label.X86PageDirectoryMap length (cslotAddr (pc.bv, idx))
       (.PageDirectory ptr mp asid0 va0) buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (pd_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPdMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL2 := hpL2) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (pd_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPdMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL2 := hpL2) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
@@ -553,11 +559,12 @@ theorem pdpt_map_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_table st ar s a fl4_abi.label.X86PDPTMap length (cslotAddr (pc.bv, idx))
       (.Pdpt ptr mp asid0 va0) buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (pdpt_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPdptMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL3 := hpL3) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc)) ?_
+  refine WP.spec_mono (pdpt_map_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsPdptMapHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hS := ⟨hS, WritesIn.refl _ _⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (hPl := hPl) (hVP := hVP) (hD := hD) (hPP := hPP) (hPS := hPS) (hPV := hPV) (hSt := hSt) (hSV := hSV) (hR := hR) (hPt := hPt) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (hPO := hPO) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hpL3 := hpL3) (hfe := hfe) (hpa := hpa) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (slbl := slbl) (hl := hl) (length := length) (buf := buf) (args := args) (hlen := hlen) (hargs := hargs) (xs := xs) (ex := ex) (x := x) (hex := hex) (vc := vc) (hcx := hcx) (vc' := vc') (hvr := hvr) (xsl := xsl) (rest := rest) (hvc := hvc) (hPI := hPI)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, -, -, -, hSR, -⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _

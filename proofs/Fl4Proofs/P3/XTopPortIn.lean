@@ -76,6 +76,42 @@ def PortInVal : Prop :=
       (.ok [v.bv], { σ with machineState := ms }) ∈ ((Fl4Spec.archPerformInvocation (Z := Unit)
         (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 p.val) (inData z.val)))).run σ).1
 
+/-- **The value read, at one arch state and one machine state** (g7b-3): FL4's
+`port_in` from the arch state `a` returns a value the spec's `In` access
+gives at every spec state with the machine state of `σ` (the decode's restart
+changes only the kernel heap). What the IO-port decode reads at its dispatch
+state. -/
+def PortInValAt (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ (a' : A) (p z v : U64), arI.port_in a p z = ok (v, a') → ∀ σ' : Fl4Spec.State Unit,
+    σ'.machineState = σ.machineState →
+    ∃ ms : Fl4Spec.MachineState, ms.underlyingMemory = σ'.machineState.underlyingMemory ∧
+      (.ok [v.bv], { σ' with machineState := ms }) ∈ ((Fl4Spec.archPerformInvocation (Z := Unit)
+        (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 p.val) (inData z.val)))).run σ').1
+
+/-- **`PortInVal` narrowed to `MR`-related states** (g7b-3, INV-PLAN §1.U3L A16):
+the value read at every spec state whose machine state is `MR`-related to the
+arch state the read starts from (XTopJointPortInM's `MachPortIn` without its
+`MR` after). -/
+def PortInValMR (MR : A → Fl4Spec.MachineState → Prop) : Prop :=
+  ∀ (a a' : A) (p z v : U64), arI.port_in a p z = ok (v, a') → ∀ σ : Fl4Spec.State Unit, MR a σ.machineState →
+    ∃ ms : Fl4Spec.MachineState, ms.underlyingMemory = σ.machineState.underlyingMemory ∧
+      (.ok [v.bv], { σ with machineState := ms }) ∈ ((Fl4Spec.archPerformInvocation (Z := Unit)
+        (.invokeIOPort (.ioPortInvocation (BitVec.ofNat 16 p.val) (inData z.val)))).run σ).1
+
+variable {arI} in
+/-- `PortInVal` gives the narrowed form (it asks every state). -/
+theorem PortInVal.toMR {MR : A → Fl4Spec.MachineState → Prop} (h : PortInVal arI) : PortInValMR arI MR :=
+  fun a a' p z v hv σ _ => h a a' p z v hv σ
+
+variable {arI} in
+theorem PortInVal.at (h : PortInVal arI) (a : A) (σ : Fl4Spec.State Unit) : PortInValAt arI a σ :=
+  fun a' p z v hv σ' _ => h a a' p z v hv σ'
+
+variable {arI} in
+theorem PortInValMR.at {MR : A → Fl4Spec.MachineState → Prop} (h : PortInValMR arI MR) {a : A}
+    {σ : Fl4Spec.State Unit} (hR : MR a σ.machineState) : PortInValAt arI a σ :=
+  fun a' p z v hv σ' he => h a a' p z v hv σ' (he ▸ hR)
+
 theorem spec_bind_assoc {α β γ : Type} {m : Result α} {f : α → Result β} {k : β → Result γ} {Q : β → Prop}
     {P : γ → Prop} (h1 : (m >>= f) ⦃ Q ⦄) (h2 : ∀ y, Q y → k y ⦃ P ⦄) : (m >>= fun x => f x >>= k) ⦃ P ⦄ := by
   rw [← bind_assoc_eq]; exact WP.spec_bind h1 h2
@@ -87,7 +123,7 @@ theorem portInTail_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
     (hC : CurRun σ) (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDel : XDelNtfnHyp (L := L) arI AR Z.th)
     {ct : U64} (hcur : σ.curThread = ct.bv)
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION)) (port z : U64) (call : Bool)
-    (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInVal arI) :
+    (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInValAt arI ar σ) :
     portInTail (st := st) arI s ar ct port z call ⦃ res => res.1 = .Ok () ∧
       L.mem res.2.1 (stA ct) ≠ sched.TS_RESTART ∧ ∀ σ1,
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
@@ -122,7 +158,7 @@ theorem portInTail_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) 
         show σ1.kheap ct.bv = _; rw [hσ1, Notif.stsAct_kheap, Notif.updK_kheap, Function.update_self]
       rw [specTail_restart hky rfl false r, specTail_restart hky rfl false v.bv]
       simp only [Bool.false_eq_true, ↓reduceIte]
-    · obtain ⟨ms, hu, hmem⟩ := hval rfl ar a1 port z v hv σ1
+    · obtain ⟨ms, hu, hmem⟩ := hval rfl a1 port z v hv σ1 (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl)
       exact ⟨[v.bv], ms, hu, hmem, rfl⟩
   set σy : Fl4Spec.State Unit := { σ1 with machineState := ms } with hσy
   -- the restart and the access, as primitive steps
@@ -168,7 +204,7 @@ theorem decode_invocation_ioport_inX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : AR
     (hC : CurRun σ) (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDel : XDelNtfnHyp (L := L) arI AR Z.th)
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (call : Bool)
-    (hval : call = true → PortInVal arI)
+    (hval : call = true → PortInValAt arI ar σ)
     (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKRMX (L := L) arI (XTop (L := L) AR) s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf
@@ -262,7 +298,7 @@ theorem portInXHyp_of {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) (s
     (hC : CurRun σ) (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDel : XDelNtfnHyp (L := L) arI AR Z.th)
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (call : Bool)
-    (hval : call = true → PortInVal arI)
+    (hval : call = true → PortInValAt arI ar σ)
     (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     PortInXHyp (L := L) arI AR s ar σ lbl length slot first last blk call don fp buf extra slbl (args.map UScalar.bv)
@@ -282,7 +318,7 @@ theorem decode_invocation_ioportXT {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMa
     (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (first last : U64) (hfl : first.val ≤ last.val) (hl16 : last.val < 65536) (call : Bool)
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a'))
-    (hout : ∀ (a : A) p z d, ∃ a', arI.port_out a p z d = ok a') (hval : call = true → PortInVal arI)
+    (hout : ∀ (a : A) p z d, ∃ a', arI.port_out a p z d = ok a') (hval : call = true → PortInValAt arI ar σ)
     (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T)
     (hDel : XDelNtfnHyp (L := L) arI AR Z.th)
     (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)

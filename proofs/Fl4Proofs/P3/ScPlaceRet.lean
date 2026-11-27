@@ -220,6 +220,7 @@ theorem JCovD.retypeS (h : JCovD (L := L) th H G D Cs s)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
     (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
     (hksb : L.ksb s' = L.ksb s) (hidl : IdleKeep (L := L) s s')
+    (hdx : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q)
     (hs : SrcOK (L := L) th H s xs w cj) :
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
@@ -236,7 +237,7 @@ theorem JCovD.retypeS (h : JCovD (L := L) th H G D Cs s)
       · have := hq.2 kd ho; unfold KsIn at this ⊢; rw [hksb]; exact this
       · exact (newQ_not_ks hs hE hn h1 h2).elim
   refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi hcx => ?_,
-    fun x hx p sb fi hcx q hi => ?_⟩
+    fun x hx p sb fi hcx q hi => ?_, fun q ⟨hd, hn⟩ hq' => ?_⟩
   · rcases hE.th q kd hq with ⟨ho, h0⟩ | ⟨hn, hsz⟩
     · rcases h.th q kd ho with hc | hd | hi
       · exact Or.inl (covered_keep hc hkeep)
@@ -317,6 +318,9 @@ theorem JCovD.retypeS (h : JCovD (L := L) th H G D Cs s)
     · rcases hH' q kd hq with ⟨ho, -⟩ | ⟨hn, -⟩
       · have := o3 kd ho; omega
       · exact (newQ_not_idle hs hE hn hi0).elim
+  · rcases hH' q _ hq' with ⟨ho, -⟩ | ⟨hn', -⟩
+    · exact hdx q hd hn (hq'.trans ho.symm) (h.dx q hd) ho
+    · exact absurd hn' hn
 
 /-- `JCovD.retypeS` for a RAM source. -/
 theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
@@ -324,9 +328,10 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     (hH' : ∀ q kd, H' q = some kd → (H q = some kd ∧ ¬ NewQ A k w cj q) ∨ (NewQ A k w cj q ∧ 2 ^ kd.bits ≤ k))
     (hdead : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadP (L := L) H s q → DeadP (L := L) H' s' q)
     (hksb : L.ksb s' = L.ksb s) (hidl : IdleKeep (L := L) s s')
+    (hdx : ∀ q ∈ D, ¬ NewQ A k w cj q → H' q = H q → DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q)
     (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' :=
-  h.retypeS hE hH' hdead hksb hidl (h.srcOK hE hdv)
+  h.retypeS hE hH' hdead hksb hidl hdx (h.srcOK hE hdv)
 
 end
 
@@ -357,13 +362,14 @@ theorem JCovD.retype_p1 (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s)
     (hb : BlkOK st (Heap.tcbs H) Cs (Heap.omega H) H (Heap.frame H) (Heap.replies H) (Heap.scs H) (Heap.ntfns H)
       (Heap.scBits H) Ac s)
     (hP1 : RetypeP1Hyp st s s' H Cs Ac A k w (NewQ A k w cj)) (hidl : IdleKeep (L := L) s s')
-    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false)
+    (hdx : ∀ q ∈ D, ¬ NewQ A k w cj q → DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   obtain ⟨H', Ac', hb', -, hshape, hdead⟩ := hP1 hb fun q kd hq hm => ((retype_window_dead h hU hI hE hdv).1 q kd hq hm).2
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl hdv⟩
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl (fun q hd hn _ h => hdx q hd hn h) hdv⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | hn
   · refine Or.inl ⟨ho, fun hn => hm ?_⟩
     obtain ⟨j, hj, hv, -⟩ := hn
@@ -431,14 +437,15 @@ theorem JCovD.retype_step (h : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem 
       (Heap.scBits H) Ac s)
     (hdrop : DropOK st H (RegionD H lo hi) Cs s) (hnode : RegionOffNodes st Cs s lo hi)
     (hdbg : DbgLinksOK st H Cs s' lo hi A k w n) (hwp : WinPlaced A k w n us) (h0Cs : 0#u64 ∈ Cs)
-    (hidl : IdleKeep (L := L) s s') (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) :
+    (hidl : IdleKeep (L := L) s s') (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false)
+    (hdx : ∀ q ∈ D, ¬ NewQ A k w cj q → DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q) :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H') (Heap.ntfns H')
         (Heap.scBits H') Ac' s' ∧
       JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   obtain ⟨H', Ac', hb', -, hshape, -, hdead⟩ :=
     (P1.retypeP1Step : RetypeP1Step st s s' H Cs Ac lo hi A k w n us) hb hlo hhi hbits hdrop hnode hw hwin hdbg hwp h0Cs
-  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl hdv⟩
+  refine ⟨H', Ac', hb', h.retype hE (fun q kd hq => ?_) (fun q _ _ e hd => hdead q e hd) hksb hidl (fun q hd hn _ h => hdx q hd hn h) hdv⟩
   rcases hshape q kd hq with ⟨ho, hm⟩ | ⟨⟨j, hj, hv⟩, hk⟩
   · refine Or.inl ⟨ho, fun ⟨j, hj, hv, _⟩ => hm ?_⟩
     unfold MeetsR

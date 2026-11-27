@@ -297,6 +297,7 @@ theorem ps_ipcFr : IpcFrKeep σ (pushSt σ t w xr xt) :=
   IpcFrKeep.of_kbackF (ps_kback hkt hkw hwt)
     (fun q x hq => by obtain ⟨ts, h⟩ := ps_tcbF hkt hkw hwt hq; exact ⟨_, h, rfl, rfl⟩)
     (fun q vms => ps_oth hkt hkw hwt (fun _ e => by cases e) (fun _ e => by cases e))
+    (fun q ao h => (ps_oth hkt hkw hwt (fun _ e => by cases e) (fun _ e => by cases e)).2 h)
 
 theorem ps_ck :
     (∀ q y' m, σ.kheap q = some (.schedContext y' m) → ∃ y'', (pushSt σ t w xr xt).kheap q =
@@ -564,7 +565,8 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 (F.ykeep.trans hyk1),
       J.mcp.frame k1 (F.mcpKeep.trans hmk1), J.buf.frame kb hbuf, hRP',
-      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0), hkern,
+      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       hnsc3, I3, hcur3, hown3, hoff3, hAI3, B3, hiso3, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 (F.ksz.trans hkz1)
@@ -584,7 +586,7 @@ then `reply_push` on `IRel` (`reply_push_iG`, no donation), P1's
 `reply_push.ipc` and `reply_push.nd`, the receiver `Running`, `JAtZ` by
 `JAtZ.wake_postGR` at `pushSt` (`ps_swap`), the tail `JAtZ.sendTailJ`; the
 spec's outcome `sendIpc_call_eq`. -/
-theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     (hres : σ.schedulerAction = .resumeCurThread) (hti : σ.curThread ≠ σ.idleThread)
@@ -1122,7 +1124,7 @@ theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7⟩⟩
+  exact ⟨((), σ7), by rw [hspec', h7]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
 
 
 

@@ -44,7 +44,7 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
     (hdw : (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val)
-    (hcscH : H (L.cscW s') ≠ none) : JKern (L := L) H Cs D Z.th s' σ' := by
+    (hcscH : H (L.cscW s') ≠ none) : JKern (L := L) arI H Cs D Z.th s' σ' := by
   have K := J.kern
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
@@ -63,7 +63,7 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     ⟨pt, by rw [hK.gpml4]; exact hT.archObj hpt⟩, by rw [hK.gpml4]; exact K.ga, by rw [hK.gpml4]; exact K.gf,
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
-    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0⟩
+    by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0, K.csN, K.tdx.frame hK.huge⟩
   rw [hna, hDbg]; exact K.head
 
 /-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,
@@ -139,7 +139,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (J.sch_jpl hwT hK (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
         (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
-        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2))
+        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2) hT.dbgK subset_rfl)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK
     (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1

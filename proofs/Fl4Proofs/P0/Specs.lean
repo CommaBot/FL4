@@ -38,6 +38,33 @@ theorem bvTrailingZeros_le {w : Nat} (x : BitVec w) : bvTrailingZeros x ≤ w :=
     core.result.Result.is_err r ⦃ _ => True ⦄ := by
   cases r <;> simp [core.result.Result.is_err]
 
+/-- #71: the models of `Result::ok` and `Option`'s `?` never fail. -/
+@[step] theorem core.result.Result.ok.spec {T E : Type _} (r : core.result.Result T E) :
+    core.result.Result.ok r ⦃ _ => True ⦄ := by
+  cases r <;> simp [core.result.Result.ok]
+
+@[step] theorem core.option.Option.Insts.CoreOpsTry_traitTry.branch.spec {T : Type _} (o : Option T) :
+    core.option.Option.Insts.CoreOpsTry_traitTry.branch o ⦃ _ => True ⦄ := by
+  cases o <;> simp [core.option.Option.Insts.CoreOpsTry_traitTry.branch]
+
+@[step] theorem core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual.spec
+    (T : Type _) (o : Option Never) :
+    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual T o ⦃ _ => True ⦄ := by
+  simp [core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual]
+
+/-- #71: a FrameBatch entry has at most 3 words. -/
+@[step] theorem vspace.frame_batch.entry_words.spec (op : U64) :
+    vspace.frame_batch.entry_words op ⦃ r => r.val ≤ 3 ⦄ := by
+  unfold vspace.frame_batch.entry_words
+  split <;> (try split) <;> (try split) <;> simp
+
+@[step] theorem frame_batch_map_total {S : Type _} {A : Type _} (st : machine.Store S) (ar : machine.Arch A)
+    {T : Type _} (r : core.result.Result T error.Exc) :
+    core.result.Result.map_err (vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc st ar) r () ⦃ _ => True ⦄ := by
+  cases r <;> simp [core.result.Result.map_err,
+    vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc,
+    vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc.call_once]
+
 /-- `saturating_sub` on u64 is truncated subtraction. -/
 @[simp, scalar_tac_simps] theorem saturating_sub_u64_val (x y : U64) :
     (core.num.U64.saturating_sub x y).val = x.val - y.val := by
@@ -92,5 +119,28 @@ theorem bvTrailingZeros_le {w : Nat} (x : BitVec w) : bvTrailingZeros x ≤ w :=
     rw [Nat.shiftLeft_eq, Nat.one_mul]
     exact Nat.mod_eq_of_lt hp
   exact ⟨hv, rfl, by rw [show (⟨1#64 <<< n.val⟩ : U64).val = (1#64 <<< n.val).toNat from rfl, hv]; positivity⟩
+
+/-- The derived `PartialEq` on frame sizes (a `Cap::Frame` field) never
+fails (its generated P0 theorem comes after this module). -/
+theorem capability.FrameSize.eq_total (a b : capability.FrameSize) :
+    capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq a b ⦃ _ => True ⦄ :=
+  (WP.spec_ok _).2 trivial
+
+/-- The derived `PartialEq` on caps never fails (#104's `localvm`
+compares a slot's cap with `Cap::Vcpu`). -/
+theorem capability.Cap.eq_total (a b : capability.Cap) :
+    capability.Cap.Insts.CoreCmpPartialEqCap.eq a b ⦃ _ => True ⦄ := by
+  unfold capability.Cap.Insts.CoreCmpPartialEqCap.eq
+  cases a <;> cases b <;> simp [lift, core.cmp.impls.PartialEqBool.eq] <;>
+    (repeat' split) <;> (try simp [lift, core.cmp.impls.PartialEqBool.eq]) <;>
+    (try step*) <;> (try exact capability.FrameSize.eq_total _ _)
+
+/-- `!=` on caps never fails. P0 needs only that, and the generic `ne` step
+lemma would need `eq`'s meaning (`r = true ↔ a = b`), which `Cap` has no
+spec for; declared after it, step picks this one. -/
+@[step] theorem capability.Cap.ne_total (a b : capability.Cap) :
+    core.cmp.PartialEq.ne.trait_default capability.Cap.Insts.CoreCmpPartialEqCap a b ⦃ _ => True ⦄ := by
+  unfold core.cmp.PartialEq.ne.trait_default core.cmp.PartialEq.ne.default
+  exact WP.spec_bind (capability.Cap.eq_total a b) fun _ _ => (WP.spec_ok _).2 trivial
 
 end Fl4Proofs.P0

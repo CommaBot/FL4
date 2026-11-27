@@ -177,7 +177,7 @@ theorem UFoot.ne_ks {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Un
 
 theorem domOffs_lt {o : U64} (ho : o ∈ domOffs) : o.val < 256 ∧ o.val % 8 = 0 := by
   simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+  rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
 
 /-- The outcome of a `liftME` is one of the inner decode's. -/
 theorem DecOut.liftME_inv {α β : Type} {f : α → β} {m : Fl4Spec.SEMonad Unit α} {σ : Fl4Spec.State Unit} {inv : β}

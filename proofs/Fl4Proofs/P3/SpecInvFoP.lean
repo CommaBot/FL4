@@ -221,6 +221,12 @@ theorem oi_archPerform {Qo : Option ObjRef} (i : ArchInvocation) (hm : ∀ a, i 
   case invokeASIDControl a => exact absurd rfl (hm a)
   all_goals (simp only [archPerformInvocation]; oi_auto)
 
+/-- fb3e: the frame batch keeps `OI q` (`SInv.ik_performFrameBatchW`). -/
+theorem oiF_performFrameBatch {q : Option ObjRef} (b : Fl4FrameBatchInvocation) : OIK q (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => oi_capInsert _ _ _) (fun _ => oi_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => oi_archFinaliseCap _ _) (fun _ => oi_emptySlot _ _)
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; oi_auto) (fun _ _ _ => oi_setCap _ _) (oi_flushAll _ _)
+
 theorem fo_fl4ArchPerform (N : Irq → ObjRef) (K : List ObjRef) (ai : Fl4ArchInvocation) (σ : State Unit)
     (hσ : FP N K σ) (hD : DecodedFrom (uV σ) (.invokeArchObject ai)) :
     ∀ y ∈ ((fl4ArchPerformInvocation (Z := Unit) ai).run σ).1, ILF K y.2 := by
@@ -248,6 +254,10 @@ theorem fo_fl4ArchPerform (N : Irq → ObjRef) (K : List ObjRef) (ai : Fl4ArchIn
     simp only [fl4ArchPerformInvocation, archNoReturn, performDeriveSubframe] at hy
     obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
     exact fo_ik (fun _ => by il_auto) (fun _ => by oi_auto) σ hF x hx
+  | frameBatch bi =>
+    simp only [fl4ArchPerformInvocation] at hy
+    obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
+    exact fo_ik (fun _ => Fl4Proofs.P3.SInv.il_performFrameBatch bi) (fun _ => oiF_performFrameBatch bi) σ hF x hx
   | _ =>
     refine fo_ik (fun _ => ?_) (fun _ => ?_) σ hF y hy
     · simp only [fl4ArchPerformInvocation, archNoReturn]; il_auto

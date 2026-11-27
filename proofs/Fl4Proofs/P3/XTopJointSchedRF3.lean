@@ -28,9 +28,11 @@ pre-state*:
 (NdOK's [J] facts at the entry, sch2/sch3) and `ArchNdF` [P]; `hTail`'s
 footprint is `KFootN`. They supersede the `F` versions.
 -/
+import Fl4Proofs.P3.SchedIdx
 import Fl4Proofs.P3.XTopJointSchedRF2
 import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointPP
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -57,7 +59,7 @@ def ndFSt (σ : Fl4Spec.State Unit) (dt : BitVec 64) (di : Nat) : Fl4Spec.State 
 /-- **The DOMAIN_TIME / DOM_SCHED_IDX writes as a scheduler step** (as
 DomDecode's `schedStep_start`, without the start word). -/
 theorem schedStep_dom2 (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb : U64} (v16 v24 : U64) (di : Nat)
-    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) :
+    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) (h24 : v24 = 0#u64) :
     SchedStep (L := L) th s1 σ1 (ndF2 (L := L) s1 kb v16 v24) (ndFSt σ1 v16.bv di) := by
   subst hk1
   set kb := L.ksb s1
@@ -78,7 +80,8 @@ theorem schedStep_dom2 (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb 
     rw [h16]
   · obtain ⟨hl1, hent1, hst1⟩ := domRel_iff.2 hD
     refine domRel_iff.1 ⟨hl1, fun i hi => ?_, by
-      rw [hw4 _ (by decide) (by decide) (by decide) (by decide)]; exact hst1⟩
+      rw [hw4 _ (by decide) (by decide) (by decide) (by decide)]; exact hst1.1, by
+      rw [ndF2, mem_ks_same _ _ hkf hka (by decide) (by decide)]; exact h24⟩
     obtain ⟨b1, b2, b3, b4, -, b6, b7, -, b9, b10⟩ := dur_off_bounds hi
     rw [hw4 _ b1 b2 b6 b7, hw4 _ b3 b4 b9 b10]
     exact hent1 i hi
@@ -142,18 +145,18 @@ set_option maxHeartbeats 4000000 in
 /-- The spec step's facts read neither the domain time nor the index. -/
 theorem SchS.ndF {σ σ' : Fl4Spec.State Unit} (h : SchS σ σ') (dt : BitVec 64) (di : Nat) :
     SchS (ndFSt σ dt di) σ' :=
-  ⟨⟨h.1.kh, h.1.um, h.1.cdt, h.1.orig, h.1.dl, h.1.dsi, h.1.io, h.1.gpml4, h.1.asid, h.1.ist, h.1.inode, h.1.isc⟩,
+  ⟨⟨h.1.kh, h.1.um, h.1.cdt, h.1.orig, h.1.dl, h.1.dsi, h.1.io, h.1.gpml4, h.1.huge, h.1.asid, h.1.ist, h.1.inode, h.1.isc⟩,
     ⟨h.2.kh, h.2.cdt, h.2.orig, h.2.dl, h.2.dsi, h.2.isc⟩⟩
 
 /-- **`JAtZ` at the fake state** (module docstring). -/
 theorem JAtZ.ndFJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (v16 v24 v40 : U64) (di : Nat) :
+    (v16 v24 v40 : U64) (di : Nat) (h24 : v24 = 0#u64) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' (ndF (L := L) s (L.ksb s) v16 v24 v40) a (ndFSt σ v16.bv di) := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
-  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka)
+  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka h24)
   obtain ⟨Ac2, Lst2, J2⟩ := J1.workUnitsJD (arI := arI) v40
   have e : core.num.U64.wrapping_add (L.ksb (ndF2 (L := L) s (L.ksb s) v16 v24)) layout.ks.WORK_UNITS =
       ksW (L.ksb s) 40#u64 := by
@@ -186,7 +189,7 @@ theorem JAtZ.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSch.2⟩
   refine ⟨Lst', J.sch_frame hwT hK hX' hCR' hRF' hY' hM' (J.sch_buf hwT hK) hRP' (J.sch_apart hwT hK)
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
-      (J.idleW_keep hS' hik.1 hik.2))
+      (J.idleW_keep hS' hik.1 hik.2) hT.dbgK subset_rfl)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
@@ -195,7 +198,7 @@ set_option maxHeartbeats 4000000 in
 (module docstring): `jat_scheduleFRF` without `σ.domainTime ≠ 0`. -/
 theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -204,6 +207,11 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -218,16 +226,23 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
-  refine WP.spec_mono (WP.spec_and (WP.spec_and
+  -- g7a: the `DOM_SCHED_IDX` word stays 0 (SchedIdx)
+  have hIdx := P1.sched.schedule.idx hAT (P1.ibKeep_holds hAT) hNt s a hB J.kern.ksbFit J.kern.ksbAl
+    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) J.bufAtJ
+    (fun s1 hf1 => fire_ks_of J.kern.ksbFit J.kern.ksbAl J.kern.hks J.kern.heap
+      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1
+      (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8))
+    (idxI_of J.xtop.rel.2.2.2.1 J.xtop.fin.1.1.1 hd)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
     (jat_scheduleWP0F s a σ J hd hnd hAT hSig hA hAN hFO hsni hsend hT)
-    (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
-      hTail)) ?_
-  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
-    hkw⟩, ⟨htinv, hRest⟩⟩
-  simp only [WP.uncurry'_pair] at hkw htinv
+    (P1.sched.schedule.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ)) (WP.spec_and (P1.sched.schedule.tinv hAT (P1.ibKeep_holds hAT) hNt s a Q R hq hBd hSc hXi hSg J.bufAtJ)
+      hTail)) hIdx) ?_
+  rintro ⟨s', a'⟩ ⟨⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
+    hkw⟩, ⟨htinv, hRest⟩⟩, h24'⟩
+  simp only [WP.uncurry'_pair] at hkw htinv h24'
   obtain ⟨rf', hrf', -, hkw⟩ := hkw
   obtain rfl : rf = rf' := by simpa using (hrf'.symm.trans hfr).symm
-  have hTl := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
+  have hTl := hRest rf σ1 σ' D1 hF hfr (Or.inr ⟨V1, Ac1, Lst1, D1, J1⟩) hsc hw hS' hI' hC' hA'
   obtain ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', -, -, -, -⟩ := htinv
   -- the fake pre-state
   have hkf1 := J1.kern.ksbFit
@@ -237,7 +252,7 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     with hs0
   set σ0 := ndFSt σ1 (L.mem s' (ksW kb 16#u64)).bv σ'.domainIndex with hσ0
   obtain ⟨Ac0, Lst0, D0, J0⟩ := J1.ndFJ (L.mem s' (ksW kb 16#u64)) (L.mem s' (ksW kb 24#u64))
-    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex
+    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex (by rw [← hkf] at h24'; exact h24')
   have hw0 : P1.WritesIn st s0 s' (KFoot st Z.T Z.N Z.C Z.c s0 σ0) := ndF_writes σ'.domainIndex hkf1 hka1 hw
   have hk0 : L.ksb s0 = L.ksb rf.1 := ndF_ksb _ _ _ _ _
   have hks' : L.ksb s' = L.ksb s := hkw.1.trans hkf
@@ -343,14 +358,14 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
-  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
+  exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
     RunW.scAndTimer (hr3 J1.curRun) he3⟩
 
 /-- **`jat_scheduleFR2` with `SignalJHyp` reduced to the waking signals**
 (`signalJHyp_of`, as `jat_scheduleSRF`). -/
 theorem jat_scheduleSR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -359,6 +374,11 @@ theorem jat_scheduleSR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -375,7 +395,7 @@ set_option maxHeartbeats 4000000 in
 case, `ArchNdF` [P]. -/
 theorem jat_finishJ2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
     (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
@@ -384,6 +404,11 @@ theorem jat_finishJ2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -401,7 +426,7 @@ theorem jat_finishJ2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   unfold syscall.finish_old
   refine WP.spec_bind (jat_scheduleSR2 s a σ J hd hnd hAT hVt hW hmb hA hAN hFO hsni hsend hT hTail) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1⟩, -, hcr⟩
-  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
+  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1, inferInstance⟩)) ?_
   rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2, hnv⟩
   refine ⟨?_, J2.cur_not_vm hnv⟩
   have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by

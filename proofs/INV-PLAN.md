@@ -447,7 +447,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | A4 | `hnd` | `numDomains = 1` | [P] config | — | — |
 | A5 | `hM : MachPlat` | `now`/`irq_pending`/`take_pending_irq`/`mask_irq`/`ack_irq` are the spec's machine ops at `MR`-related states; `MR` reads only masks, oracle positions, last time | [P] | machine ops, `irq_oracle`/`time_oracle` | ∀a,ms under MR |
 | A6 | `hKD : MRKeepD arI MR` | 15 finalisation arch ops keep `MR` | [P] | — | under MR |
-| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | [P] | — | under MR |
+| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | **[S]** (owner decision, g6b): no IO-port cap covering the kernel's own ports (PIC 0x20/0x21/0xA0/0xA1, PIT 0x40–0x43, the debug serial port) is ever issued; IoPortControl is root-task authority. FL4's `decode_control` (crates/fl4-core/src/ioport.rs) checks only `range_free` (no other cap on the range) and reserves none of those ports, so this is a scope assumption on the root task, not a kernel check; no kernel change | l4v makes the same abstraction (port I/O is a machine op outside the interrupt/timer state) | under MR |
 | A8 | `hIoa : MRKeepIoapic` | ioapic_map(_remapped) keep `MR` | [P] | — | under MR |
 | A9 | `hPA : PPPlatA` | `irqAR` (irq_pending keeps AR), `minBudget` (= `MIN_BUDGET`) | [P] | — | ∀a |
 | A10 | `hIA : IrqPlatA` | `takeAR`, `noIpi` (no vector 126/127: [S] one core), `ackAR` | [P]/[S] | — | ∀a |
@@ -456,9 +456,9 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | A13 | `hT : TimeAgree` | max_period, us_to_ticks, kernel_wcet, wcetUs = 10, timerUnit = 1 | [P] | constants | ∀a |
 | A14 | `hmax`, `htu` | `maxTicksToUs = U64.MAX`, `ticks_to_us = ticksToUs` | [P] | constants | ∀a |
 | A15 | `hRef : ArchRefines` | set_vspace sets CR3 = makeCr3; invalidations keep AR | [P] | set_vm_root corres | under AR |
-| A16 | `hPI : PortInVal` | for every FL4 `port_in` result and **every spec state σ**, some machine state with σ's memory gives that value in the spec's `In` | [P] **∀st** (spec states; consistent only because `in8Impl` is opaque; INV-PLAN §0 G0: restate MR-relative) | `in8`/`in16`/`in32` oracle | ∀st |
+| A16 | `hPI : PortInValMR arI MR` (**narrowed, g7b-3**; was `PortInVal`) | for every FL4 `port_in` result from arch state `a` and every spec state σ **with `MR a σ.machineState`**, some machine state with σ's memory gives that value in the spec's `In`. The IO-port decode asks only `PortInValAt arI ar σ` at its own state, from `hG.portIn.at hR` | [P] (MR-relative, as §0 G0 asked; caveat XTopJointPortInM `MachPortIn.frameAll`: `MR` sees only the four clock/IRQ fields, which the read does not depend on, so it is formally weaker, not much in substance) | `in8`/`in16`/`in32` oracle | under MR |
 | A17 | `hSX : StoreExt` | states equal in aligned words, ksb, cpu are equal | [P] | Fastpath_C state equality | ∀ store states (extensionality, not a reachability claim): fine |
-| A18 | `hJ : JReachU3` | start: `JAtZ ∧ SInvX ∧ SInvIP ∧ MR ∧ UtPgR` at the first state (lead decision 2026-11-20: any state with the invariants) | [S] start | `invs ∧ state_relation` assumed initially | 1 |
+| A18 | `hJ : JReachU3` | start: `JAtZ ∧ SInvX ∧ SInvIP ∧ MR ∧ UtPgR` at the first state (lead decision 2026-11-20: any state with the invariants). Platform clauses inside `JAtZ`, both relations met by the choice of the start state's platform record `σ.archState.x64Plat` (written by no spec step), not assumptions about the CPU: `KRootRel`'s `HugeRel` (#65: ks `FEATURES` bit = `x64Plat.hugePages`) and **`JKern.tdx`** (#68, tdx5: `TdxRel arI σ`, FL4's `tdx_active` / `dma_ram` answer `x64Plat.tdxActive` / `x64Plat.tdxDmaRam` at every arch state; `TdxRel.adjust`: for every platform whose two queries are total, arch-state-independent values (`TdxTotal`), any spec state with the record's TDX fields set from them meets it) | [S] start | `invs ∧ state_relation` assumed initially | 1 |
 
 ### B. Native-syscall clause (per step)
 
@@ -480,7 +480,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | C1 | `stall` | `∀ q, remote_tcb_stall s a q = ok (s, a)` | [P]/[S] one core | — | 1 |
 | C2 | `ioapics` | `num_ioapics a = σ.x64NumIoapics` | [P] (arch state vs spec arch state; could join `MR`) | — | 1 |
 | C3 | `archIrq` | `ArchIrqRel`: `num`, `pins` (per IOAPIC pin counts = spec), `map`/`mapr`/`mask` succeed (∀ a) | [P] | — | 1 |
-| C4 | `vsTyp` | every slot's mapped PT/PD/PDPT cap whose table is in no set: spec table of that kind there + `OffFrame` | [J] (g5a: not carried; L) | `valid_cap` typ_at, `pspace_distinct` | 1, ∀gh (`V'` sets) |
+| C4 | `vsTyp` | every slot's mapped PT/PD/PDPT cap whose table is in no set: spec table of that kind there + `OffFrame` | [J] → **discharged at U20** (jc3: `JCarry.vsTyp`, `JAtZ.offTabOK`) | `valid_cap` typ_at, `pspace_distinct` | 1, ∀gh (`V'` sets) |
 
 `JPathAtM36E` (∀ the front-end values, which are unique; per native cap `c` in the invoked slot — `Vs.NativeCap c` is a
 premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
@@ -491,37 +491,37 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C6 | Frame with `ep = true` or label MapEPT | `JVtxScope` | [S] VT-x | — | 1 |
 | C7 | SchedContext (Consumed/Bind/UnbindObject) `tm mb max tu` | = A13/A12/A14 at this `a` | [P] **duplicate** | | 1 |
 | C8 | SchedContext `arch` | the decode keeps `AR` | [P] (needs an `AR`-version of `MKD.decode_quiet`; `MRKeepD arI AR` is not available because `set_vspace` does not keep AR) | | 1 |
-| C9 | SchedContext `rest` | `∀ H Cs Ac Lst D, JAtZ → decode ⦃ … → ScStepP1 ⦄` (debug word, `DbgKeep`, `BlkOK` after) | [P] "P1-supplied"; really a P1 obligation [W] | | 1, ∀gh |
 | C10 | SchedContext YieldTo `JSchedYieldPath` (`mb max tu`) | = A12/A14 | [P] **duplicate** | | 1 |
 | C11 | SchedControl `tm mb max tu` | = A13/A12/A14 | [P] **duplicate** | | 1 |
 | C12 | SchedControl `core` | `cpu = Z.c` | [P]/[S] one core (no carried cap-core fact) | `valid_cap` bounds the core | 1 |
 | C13 | SchedControl `arch` | as C8 | [P] | | 1 |
-| C14 | SchedControl `rest` | as C9 (configure) | [P]/[W] P1 | | 1, ∀gh |
 | C15 | AsidPool `native` | the first extra slot's cap is not an Ept cap | [S] **derivable**: the extra slot is a typed-heap slot (`JAtZ.frontJ` + `ExtraOK.vsExtra`), `JAtZ.ext.nat` | x64 has no EPT caps | 1 |
-| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
-| C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
+| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L). **(b) discharged (jc6b2, `kernel_entry_reachU27`)**: P1 `ScExtra0.bs` (`BndS`), UnrefBnd `JAtZ.unrefBW`; asked: (c) ∧ `DeadUnarmed` (`RegionUnrefCU`). **Narrowed (jc6a, `kernel_entry_reachU25`)**: `RegionUnrefAt` = (a) ∧ (b) ∧ (c) ∧ (d) (UnrefParts `regionUnrefAt_iff`); (a) reply-stack / yield links proved at `JAtZ` (`JAtZ.keptA`, `JAtZ.unrefA`); asked: `RegionUnrefBCD` = (b) bound/SC-ntfn links, (c) debug lists, (d) timer trees (same for C22 / C24 heapH). **(d) replaced by `DeadUnarmed` (jc6d10, `kernel_entry_reachU26`)**: dead TCBs have deadline 0, at the dispatch state (UnrefTimer `JAtZ.unrefD`) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
+| C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L). **FINDING jc4: false at reachable states** as stated: the `NeedR` roots hold every PML4 cap's table, mapped or not; after the ASID pool is deleted and a mapped PDPT's last cap is finalised (its `unmap_pdpt` fails the ASID lookup and writes nothing), the unreachable mapped PML4 still reaches the dead PDPT in a childless untyped's region (KENTRY-PLAN jc4 (1)). Not dischargeable by `vsNamed`; fix F1 (mapped PML4 caps ask nothing of the sets) is a lead decision. **F1 stage 1 (narrowed in place):** `VNeed.pml4` now holds only of an **unmapped** PML4 cap (`VCapW .Pml4`, `TabUn` widened likewise), so the `NeedR` roots are the tables of unmapped PT/PD/PDPT/PML4 caps and the pools of pool caps; the premise text is unchanged, so every top since U9 asks less (weaker premise, stronger theorem; g7b-2 precedent). The jc4 trace no longer refutes it (the orphaned mapped PML4 is no root); still [J], to be discharged by `vsNamed` (F1 stages 2–6, KENTRY-PLAN f1) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
 | C18 | Untyped RAM `fan`, `rcb` | `retypeFanOutLimit = 256`, `resetChunkBits = 16` (opaque `kernelConfig`) | [P] config | | 1 (state-free) |
 | C19 | Untyped RAM `vtx` | types 14..18: `JVtxScope` | [S] VT-x | | 1 |
 | C20 | Untyped RAM `core0` | `Z.c = 0` | [P]/[S] one core | | 1 |
-| C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | [J] (S–M: B grows at frame retype, shrinks at detype) | `valid_ipc_buffer_cap` + `obj_at` | 1 |
-| C22 | Untyped RAM `heapH` | as C16 | [J] | | 1, ∀gh |
-| C23 | Untyped RAM `vsReach` | `VsReachMiss` for the cap's region at the restart state | [J] (L) | `valid_vs_lookup` | 1 |
-| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there | | 1 |
-| C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | [J] (`DevApart.retype` exists; not carried) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | 1, ∀gh |
-| C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | [J] (`DevFree.retype` exists) | `valid_untyped` | 1 |
-| C27 | Untyped device `devGpm` | global PML4 off every device untyped range | [J] | `valid_global_refs` | 1 |
+| C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | **DISCHARGED (jc1b, `kernel_entry_reachU16`; top of record `kernel_entry_reachU18`, jc1c)**: `JAtZ.carry.bufPg` (`BufPgHyp`, `JCarry.bufObj`). The `ArchFitHyp` halves of C16 / C22 / C24 heapH likewise (`JAtZ.carry.archFit`); their `RegionUnrefAt` halves stay [J] | `valid_ipc_buffer_cap` + `obj_at` | 1 |
+| C22 | Untyped RAM `heapH` | as C16 | [J]; narrowed to (b)+(c)+(d) as C16 (jc6a, U25) | | 1, ∀gh |
+| C23 | Untyped RAM `vsReach` | **narrowed (g7b-2)**: `VsReachMiss` for the cap's region at the restart state, *when the invoked cap has no descendants* (as C17) | [J] (L). FINDING g7b-2 (recorded): the unguarded form was false at reachable states (an untyped with children whose region holds a table named by a slot's cap, a `NeedR` root); the guard is the reset branch's `hnd'` (UtRetResetJ and siblings), applied in place to `JUtPath`/`JUtPathM`, so every top asks the guarded form; top of record `kernel_entry_reachU9`. **FINDING jc4: the guarded form is false too** at reachable states (same trace as C17, KENTRY-PLAN jc4 (1)). **F1 stage 1: roots narrowed in place** as C17 (mapped PML4 caps are no `NeedR` root); the jc4 trace no longer refutes it; still [J] (F1 stages 2–6) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
+| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2; jc4: the guarded device form is **true** — FL4 makes no table in a device range; **vsReach DISCHARGED (jc5, `kernel_entry_reachU21`)**; heapH's `RegionUnrefAt` half narrowed to (b)+(c)+(d) (jc6a, `kernel_entry_reachU25`, as C16): `JAtZ.carry.devTab` (`DevTab`: no spec table / ASID pool in a device untyped cap's range) with `JAtZ.devVsReach`, KENTRY-PLAN jc5; heapH's `RegionUnrefAt` half stays [J]) | | 1 |
+| C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | **DISCHARGED (jc2, `kernel_entry_reachU19`)**: `JAtZ.carry.devApart` (`JCarry` re-indexed `Z H Cs s σ`), carried with `devSep` (RAM and device untyped ranges disjoint; KENTRY-PLAN jc2) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | — |
+| C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | **DISCHARGED (s26, `kernel_entry_reachU14`; in the top of record `kernel_entry_reachU17`, s26-2)**: from the spec invariant `SInvDV.DevRangeS` (SpecInvDvW..DvP, g7a-4's generalised ZR route) through `devFreeT_of`; `DevRangeS` carried in `JReachU14`, asked at the start state | `valid_untyped` | — |
+| C27 | Untyped device `devGpm` | global PML4 off every device untyped range | **DISCHARGED (s27, `kernel_entry_reachU12`)**: from SpecInvGpm's `GpmOutV` (no cap covers `x64GlobalPml4`) carried in `JReachU12`, bridged by `devGpm_of` (KENTRY-PLAN s27) | `valid_global_refs` | — |
 | — | every other native cap (Null, Zombie, Ntfn, Ep, Reply, CNode, IrqControl, IoPortControl, IrqHandler, Domain, PT, PD, PDPT, PML4, native Frame, Thread at any other label) | `True` | — | | |
 
 ### D. `KFinAtR31` leaves (B6; also every event clause's `KFinEv` = this bundle at each pre-finish outcome)
 
 | # | leaf | statement | tag | l4v | asked |
 |---|---|---|---|---|---|
-| D1 | `hd` | `domainTime ≠ 0 ∨ NdOK` (`DomRel ∧ DomListOK ∧` FL4 `DOM_SCHED_IDX` word = `domainIndex`) | [J] (DomRel from `RelTopM`; DomListOK spec; IDX word FL4: none carried) | `valid_domain_list` | 1 |
+| D1 | `hd` | **DISCHARGED (g7a, `kernel_entry_reachU6`)**: see the F list | — | `valid_domain_list` | — |
 | D2 | `arch` | `ArchSwF`: at **every** `SchedRel ∧ NtfnStateRel (∧ FpuOwnOK)` state, `set_vm_root` / `set_kernel_vm_root` refine `arch_switch_to_thread` / `_idle_thread` with one spec outcome | [P] **∀st** | arch switch corres, `det` of the machine ops | ∀st |
 | D3 | `archNd` | `ArchNdF`: at every such state `archPrepareNextDomain` (= `switchLocalFpuOwner none`) has one outcome keeping `SchedRel` | [P] **∀st** (only the single-outcome of the opaque `enableFpu`/`readFpuState`/`disableFpu` is platform; the rest is a spec frame) | | ∀st |
 | D4 | `sni` | `SniHyp`: at every such state `set_next_interrupt` refines `setNextInterrupt` with one outcome and no failure | [P] **∀st**, **FALSE as stated (FINDING g6a)**: the spec's `setNextInterrupt` does `assertOpt` on the current thread's `tcbSchedContext` (and on the release-queue head's); `SchedRel` (`SchedSpec.tcb`: `tcbSchedContext = optRef (scA t)`, `SchedCore.curT`) admits a current thread with `scA = 0`, where the spec run fails, so the triple is false there whatever FL4 does. `hFin`/`KFinEv` therefore cannot be supplied for any store with such a state, and every clause of the top is vacuous in practice (the class of §0). Fix: guard `SniHyp` with the current thread's and the release head's SC (true where it is consumed: after `schedule`, `CurInv`) | `setNextInterrupt` corres | ∀st |
 | D5 | `send` | `SendHyp`: at every such state `send_pending` keeps `SchedRel ∧ NtfnStateRel` | [P]/[S] one core **∀st** | — | ∀st |
-| D6 | `tail` | FL4 `schedule s a ⦃ r => ∀ … (spec run after `Fires`, `schedule`, `SchedRel`, `Inv`, `CurInv`, `ActIdle`) → AR r.2 σ'.x64CurrentCr3 ⦄` | [W] CR3 after the switch (a vtable-to-CR3 relation: `findVSpaceForAsid` of the chosen thread = FL4's `set_vm_root` target) | `set_vm_root` corres + `valid_vspace_objs` | 1 (the post quantifies the spec outcomes of one run) |
+| D6 | `tail` | FL4 `schedule s a ⦃ r => ∀ … (spec run after `Fires`, `schedule`, `SchedRel`, `Inv`, `CurInv`, `ActIdle`) → AR r.2 σ'.x64CurrentCr3 ⦄` | [W] CR3 after the switch (a vtable-to-CR3 relation: `findVSpaceForAsid` of the chosen thread = FL4's `set_vm_root` target) | `set_vm_root` corres + `valid_vspace_objs` | **∀st** (g7c: quantifies over every `Fires` successor σ1, not only the run's, the SniHyp class; fix (route 1, lead): narrow to the run's own σ1, σ' in the `KFinAtR31` restructure with g6b; at the run's outcome G7cSwitch's pieces give it) | **PROVED (g7e, `kernel_entry_reachU8`)**: `kfin_tail_of` (G7eTail) at the narrowed statement (g7d), from `IdleVt` (D7) and A15 `ArchRefines`; see KENTRY-PLAN g7e |
+| D7 (g7c, new) | `IdleVt` (G7cSwitch `RootOK.idle`) | the idle TCB's vtable (FL4 slot 1 of `idleW`; spec `tcbVtable` of `idleThread`) is no mapped PML4 cap (`∀ p asid, x.tcbVtable ≠ .archObjectCap (.pml4Cap p (some asid))`) | [J] new leaf of the eventual top without D6: FL4's `switch_to_idle_thread` loads the kernel root, the spec's `archSwitchToIdleThread` is `setVmRoot idleThread`; true by boot (`create_idle_thread` zeroes the TCB) and because no cap names the idle thread (`ScPlace.noIdle`), not carried by `JAtZ`/`SInvX` | the idle thread is created with null caps (C `Arch_switchToIdleThread` = `setVMRoot(ksIdleThread)`) | 1 (at the switch state; to be framed from the finish state) | **(g7e)**: now a named premise of `kernel_entry_reachU8` (`KFinAtR8.idle`, G7eTail; def `IdleVt`, G7eRoot), asked at each finish state, framed across the timers by `JAtZR.idleVt_fire`. **(sd7) DISCHARGED**: `kernel_entry_reachU13` (`IdleVtS` carried in `JReachU13`, SpecInvSiE); with C27, top `kernel_entry_reachU15` |
+| D6 note (g7c) | — | D6 quantifies over every `Fires` successor σ1, not the run's: KENTRY-PLAN g7c (a), (f) | — | — | — |
 
 ### E. Event clauses
 
@@ -541,23 +541,226 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 `KFinAtR.vt` (`vtAsid_ofR`); `fo` (FpuOwnOK, from `JAtZR`); `JDelParts.vt`, `thr.obj` (`JExt`); `JVtxHypMU`
 (implied by B5); `FastFaultOK` (m73), `hRP5` (m72), `SpecUtZ σ'`/`UtPgR σ'` exit premises (g5i), `LargeFrOK` (g5j),
 `hRest`/`KPreFinRestHypI`, `PPPlat`/`IrqPlat` (replaced by MR-relative A5).
+**g7b (top `kernel_entry_reachU7`, XTopJointKEntryU7):** C9 SchedContext `rest` and C14 SchedControl `rest`
+(`ScStepP1` of the Consumed / Bind / UnbindObject and ConfigureFlags decodes at every ghost with `JAtZ`) are
+theorems (`JAtZ.scCtxStepP1`, `JAtZ.scCtlStepP1`, ScRestJ) from P1's decodes with the footprint `Foot` (ScRestP1:
+`schedcontext.decode.footK`, `decode_sched_control.footK`, `configure_flags.blkK`), every thread on the current
+core (`SchedRel`), the dispatch state `Entered` (`BudgetAt.enteredP`, `SInvX.entered`) and the top's `hA`.
+No premise added.
+**g7a:** D1 `hd` (`domainTime ≠ 0 ∨ NdOK`, at every `specFront` / event pre-finish outcome): DomDecode's `DomRel`
+(carried in `RelTopM` / `XTopAt`) now also says FL4's `DOM_SCHED_IDX` word is 0 (kept by every frame through
+`DomSame` / `domOffs` / `domOffs0`, which gained word 24; set to 0 by `domain_set_start`; kept 0 by `schedule`,
+SchedIdx's `sched.schedule.idx`); with `DomListOK` (`SInvA.dom`, kept by `specFront` and the event handling:
+SpecInvDom's `DP`) `domain_index = 0`, so `NdOK` holds (`JAtZR.hdOK`). Top `kernel_entry_reachU6`.
 
 ### G. Counts and the two lists the owner asked for
 
 Leaves: A 18, B 6 (B4/B6 bundles), C 27 rows (C24 = 7 leaves), D 6, E 5 clauses (≈ 14 leaves).
 By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which **4 duplicates/redundant**: A11, A12,
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
-C27, D1), **[W] 3** (D6 CR3 tail; C9/C14 `rest` as P1 obligations).
+C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**[W] leaves:** D6 `tail` (CR3 relation after `schedule`), C9 / C14 `rest` (`ScStepP1` of the SchedContext /
-SchedControl decodes, P1-provable).
+**Top of record: `SInvR.G5.kernel_entry_reachU27`** (jc6b2, XTopJointKEntryU27) = U26 with part (b) of the
+`RegionUnrefAt` halves of C16 / C22 / C24 heapH (TCB bound notification, SC notification, notification bound TCB:
+no such link names a dead object) **discharged**: P1 carries the bound-link symmetry `BndS` (l4v `sym_refs` for
+`tcb_bound_notification`/`ntfn_bound_tcb` and `sc_ntfn`/`ntfn_sc`, FL4 words) in `ScExtra0.bs`, so `JAtZ.blk` has
+it; UnrefBnd's `JAtZ.keptBW` / `JAtZ.unrefBW` prove (b) at every `Entered` `JAtZ` state. `KDispHypsKVU27` asks
+`JUtPathMU27` / `JAsidCPathU27` / `JDevPathU27` (= U26's with `unref : RegionUnrefCU` = (c) ∧ `DeadUnarmed`);
+`KDispHypsKVU27.toU26 J' hni`. [J] leaves as U26 (C16 / C22 / C24 heapH now (c) and `DeadUnarmed`; C17, C23:
+**[J] 5**); **[W] 0**. The start state's assumption grows by `BndS` (note jc6b2 below). Superseded by U27: U26.
 
-**Quantified over states (must be discharged or narrowed):** A16 `PortInVal` (∀ spec states), D2 `ArchSwF`,
+Previous top (superseded by U27): `SInvR.G5.kernel_entry_reachU26` (jc6d10, XTopJointKEntryU26) = U25 with part (d) of the
+`RegionUnrefAt` halves of C16 / C22 / C24 heapH (timer-tree links of every TCB, every core's `TIMER_ROOT` /
+`TIMER_MIN`, at the restart state, over every region of dead objects) replaced by **`DeadUnarmed H D s`** (every TCB
+of the dispatch state's dead set has deadline word 0; UnrefTimer): `KDispHypsKVU26` asks `JUtPathMU26` /
+`JAsidCPathU26` / `JDevPathU26` (= U25's with `unref : RegionUnrefBCU` = (b) ∧ (c) ∧ `DeadUnarmed`);
+`KDispHypsKVU26.toU25 J' hni` fills (d) from the dispatch state's own `JAtZ` (`JAtZ.unrefD`: `JAtZ.restartSJ`,
+`DeadUnarmed.sts`, `JAtZ.keptD` = P1's `TimerRB.no_link` + `TimerOK` at `J.blk`). [J] leaves as U25 (C16 / C22 / C24
+heapH now (b), (c), `DeadUnarmed`; C17, C23: **[J] 5**); **[W] 0**. `DeadUnarmed` is to be carried in `JAtZ`
+(TIMER-RB-PLAN §14, sized L–XL). Superseded by U26: U25.
+
+Previous top (superseded by U26): `SInvR.G5.kernel_entry_reachU25` (jc6a, XTopJointKEntryU25) = U21 with the `RegionUnrefAt`
+halves of C16 / C22 / C24 heapH narrowed to parts (b)+(c)+(d) (`RegionUnrefBCD`; UnrefParts): `KDispHypsKVU25` asks
+`JUtPathMU25` / `JAsidCPathU25` / `JDevPathU25` (= `JUtPathMU16` / `JAsidCPathU16` / `JDevPathU21` with
+`unref : RegionUnrefBCD`); `KDispHypsKVU25.toU21 J' hni` fills part (a) (reply next/prev, SC reply head, TCB
+yield-to, SC yield-from links) from the dispatch state's own `JAtZ` (`JAtZ.regionUnrefAt`: `JAtZ.keptA` at the
+restart's `JAtZ`, `JAtZ.restartSJ`), `Entered` by `BudgetAt.enteredP`. `JReachU17` unchanged. At U25 the [J] leaves
+are C16 / C22 / C24 heapH (parts (b), (c), (d) of `RegionUnrefAt`), C17, C23 (**[J] 5**); **[W] 0**. Premises added
+relative to U11: none. Names U22 / U23 reserved (parallel redesign), U24 for the top without `RegionUnrefAt`.
+Superseded by U25: U21.
+
+Previous top (superseded by U25): `SInvR.G5.kernel_entry_reachU21` (jc5, XTopJointKEntryU21) = U20 without C24's device `vsReach`:
+`KDispHypsKVU21` asks `JDevPathU21` (= `JDevPathU19` without `vsReach`); `KDispHypsKVU21.toU20 J' hni` fills it from
+the dispatch state's own `JAtZ` (`JAtZ.devVsReach`: the restart's `JAtZ`, `VsReach.mem` into the sets, the sets' tables
+spec tables / pools, the carried `JCarry.devTab` keeping them off every device untyped range), `Entered` at the
+dispatch state by `BudgetAt.enteredP`. `JReachU17` unchanged. At U21 the [J] leaves are C16 / C22 / C24 heapH
+(`RegionUnrefAt` halves), C17, C23 (**[J] 5**; C17 / guarded C23 false at reachable states, jc4); **[W] 0**. Premises
+added relative to U11: none (`JCarry.devTab` is part of the start `JAtZ`, as `devSep` / `vsTyp`). Superseded by U21: U20.
+
+Previous top (superseded by U21): `SInvR.G5.kernel_entry_reachU20` (jc3, XTopJointKEntryU20) = U19 without C4 `vsTyp`:
+`KDispHypsKVU20` asks `JEntryAtR7` (= `JEntryAtR6` without `vsTyp`); `KDispHypsKVU20.toU19 J'` fills `vsTyp` from the
+dispatch state's own `JAtZ` (`JAtZ.offTabOK`: the carried `JCarry.vsTyp` — every table cap's table off its set a spec
+table of its level, its frame off core `Z.c`'s node, the kernel-state block's `OObj` part, the ASID-table area and
+`Z.B`'s words — with the rest of `OffFrame` from `H`'s disjointness). `JReachU17` unchanged. At U20 the [J] leaves are
+C16 / C22 / C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach (**[J] 6**); **[W] 0**. Premises added relative
+to U11: none (`JCarry.vsTyp` is part of the start `JAtZ`, as `bufPg`/`archFit`/`devSep`). Superseded by U20: U19.
+
+jc4 (g7b-4 step 5, `vsNamed`): stopped at analysis, top of record unchanged (U20, [J] 6). FINDING: C17 and the
+guarded C23 are false at reachable states (KENTRY-PLAN jc4 (1)); C24 vsReach is true but needs `devTab` (jc4 (2)).
+
+**f1 (F1 stage 1, KENTRY-PLAN f1): `NeedR` narrowed IN PLACE.** Mapped PML4 caps no longer ask `p ∈ L4`
+(`Vs.VCapW`'s `.Pml4` clause is `(mp = false → p ∈ L4) ∧ p ≠ 0 ∧ (mp = true → a ≠ 0 ∧ a < 2^20)`, `Vs.TabUn` holds of an
+unmapped PML4 cap, `Vs.VNeed.pml4` only of `.Pml4 p false a`); the strict `VCapOK` is unchanged. `NeedR`'s text,
+and with it the text of every `kernel_entry_reach*` statement, is unchanged, but its meaning shrinks: the roots of the
+C17 / C23 / C24 `vsReach` premises (`JAsidCPath.vsReach`, `JUtPath.vsReach`, `JUtPathM(U16).vsReach`,
+`JDevPath.vsReach`) are now the tables of **unmapped** PT / PD / PDPT / PML4 caps and the pools of pool caps. Every top
+from U9 to U20 now asks a weaker premise (stronger theorem); the jc4 trace (an orphaned mapped PML4 reaching a dead
+PDPT) no longer refutes C17 / C23. They stay [J] (to be discharged by `vsNamed`, F1 stages 2–6); C24 vsReach stays
+[J] (true; `devTab` (U21) or `vsNamed` + `tabOff`). The map refinements now derive the extra vspace cap's `p ∈ L4`
+from the successful `find_vspace_for_asid` (`Vs.mem_L4_of_find`, VsRel). A PML4 cap's frame-apartness from `H`'s
+live objects (`JAtZ.vs_ready`, deletion readiness) now comes from `JPlaced.cobj`: ScPlace's `CapObjH` gained
+`.Pml4 p m a => FrApartH H (.Pml4 p m a)` (lead decision; l4v `valid_cap` typ_at + `pspace_distinct`; part of the
+start `JAtZ`, as `devSep` / `vsTyp`; `tyObj` now counts PML4 caps). No new top (the in-place change already
+covers every top; a U22 restating U20 would add nothing). Top of record unchanged: U20, [J] 6.
+
+Previous top (superseded by U20): `SInvR.G5.kernel_entry_reachU19` (jc2, XTopJointKEntryU19) = U18 without C25 `devApart`:
+`JDevPathU19` = `JDevPathU18` without `devApart`, filled by `KDispHypsKVU19.toU18 J'.carry` from the dispatch
+state's `JAtZ.carry.devApart` (KENTRY-PLAN jc2). `JReachU17` unchanged. At U19 the [J] leaves are C4, C16 / C22 /
+C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach (**[J] 7**); **[W] 0**. Premises added relative to U11:
+none (the new carried fact `JCarry.devSep` is part of the start `JAtZ`, as `bufPg`/`archFit`). C4 `vsTyp` (g7b-4
+step 4) is still [J]: handoff in KENTRY-PLAN jc2 (2). Superseded by U19: U18.
+
+Previous top (superseded by U19): `SInvR.G5.kernel_entry_reachU18` (jc1c, XTopJointKEntryU18) = U17 with jc1b's U16 dispatch
+bundle: U11 without C21 `bufObj`, the `ArchFitHyp` half of C16 / C22 / C24 heapH, C26 `devFree`, C27 `devGpm` and D7
+`idle`. `JReachU17` unchanged; `KDispHypsKVU18.toU17 J'.carry` fills C21 (`JCarry.bufObj`) and `ArchFitHyp`
+(`JCarry.archFit`) from the dispatch state's own `JAtZ.carry` (jc1b, KENTRY-PLAN jc1b), then U17 supplies C26. At U18
+the [J] leaves are C4, C16 (`RegionUnrefAt` half), C17, C22 (`RegionUnrefAt` half), C23, C24 heapH (`RegionUnrefAt`
+half), C24 vsReach, C25 (**[J] 8**; C21 and C24 bufObj gone, C16/C22/C24 heapH narrowed to `RegionUnrefAt`); **[W] 0**.
+Premises added relative to U11: none. Superseded by U18: U17 and jc1b's `kernel_entry_reachU16` (U15 without C21 and the
+`ArchFitHyp` half; [J] 9).
+
+Previous top (superseded by U18): `SInvR.G5.kernel_entry_reachU17` (s26-2, XTopJointKEntryU17) = U11 without C26 `devFree`, C27
+`devGpm` and D7 `idle`: U15 and s26's U14 combined. The three spec-only facts are carried in
+`JReachU17 := JReachU3 ∧ GpmOutV ∧ IdleVtS ∧ DevRangeS` (start facts at one state); the proof runs U15 and supplies
+C26 at every dispatch state from `DevRangeS` (U14's `devFreeT_of`, `BudgetAt.devRange`; `KDispHypsKVU17.toU12`), and
+`DevRangeS σ'` at every exit from SpecInvDvP. At U17 the [J] leaves are C4, C16, C17, C21, C22, C23, C24×3, C25
+(**[J] 10**); **[W] 0**. Premises added relative to U11: none.
+
+Superseded by U17: `kernel_entry_reachU15` and `kernel_entry_reachU14` (below).
+
+Previous top (superseded by U17): `SInvR.G5.kernel_entry_reachU15` (sd7-2, XTopJointKEntryU15) = U11 without C27 `devGpm` and
+without D7 `idle`: s27's U12 and sd7's U13 combined. Both spec-only facts are carried in
+`JReachU15 := JReachU3 ∧ GpmOutV ∧ IdleVtS` (start facts at one state): C27 at every dispatch state from `GpmOutV`
+(`devGpm_of`), D7 at every finish state from `IdleVtS` and `JAtZR.idleTcb`. At U15 the [J] leaves are C4, C16, C17,
+C21, C22, C23, C24×3, C25, C26 (**[J] 11**); **[W] 0**.
+
+Parallel tops (superseded by U15): `kernel_entry_reachU12` (s27, XTopJointKEntryU12) = U11 without C27
+(`JReachU12 := JReachU3 ∧ GpmOutV`, [J] 12); `kernel_entry_reachU13` (sd7, XTopJointKEntryU13) = U11 without D7
+(`IdleVtS`, the idle TCB's vtable slot holds the null cap, SpecInvSiA..SiE; `JReachU13 := JReachU3 ∧ IdleVtS`, [J] 12).
+
+Previous top: `SInvR.G5.kernel_entry_reachU11` (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
+
+Parallel top (s26; superseded by U17): `kernel_entry_reachU14` = U11 without C26 `devFree`
+(`JReachU14 := JReachU3 ∧ DevRangeS`, l4v `valid_untyped` for device caps; [J] 12).
+
+route: `JAtZR.hdOK`, `DomListOK` by SpecInvDom's `DP`). At U11 the [J] leaves are C4, C16, C17, C21, C22, C23,
+C24×3, C25, C26, C27 and D7 `IdleVt` (D1 gone: **[J] 13**, counting D7); **[W] 0**.
+
+**[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
+`kernel_entry_reachU7`; see F.)
+
+**Quantified over states (must be discharged or narrowed):** (A16 `PortInVal`: narrowed to `MR`-related states by g7b-3, top `kernel_entry_reachU10`), D2 `ArchSwF`,
 D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; **D4 is false as stated**, see its row: the fix is a guard, as
-`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C9, C14, C16/C22, C25 and the bundles B4/B5/B6)
+`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C16/C22, C25 and the bundles B4/B5/B6)
 are asked at one state but at every ghost choice: dischargeable only by derivation from that state's `JAtZ`.
 
 **Cheapest next (g6a JOB 2 takes the first group):** A11, A12, C7, C10, C11 (duplicates), C15 (from `JAtZ.ext.nat`).
 Then: D3 (spec frame + a state-free [P] "the FPU machine ops have one outcome"), C21 `bufObj` (carry, S–M), C25–C27
 (carry with the existing `.retype` lemmas, M), D1 (carry the IDX word + DomListOK, S). Large: C4, C16/C22
 `RegionUnrefAt`, C17/C23 `vsReach`, D6.
+
+### H. Audit (g6b) of the ∀st hypotheses of `KFinAtR31` and of A16 `PortInVal`
+
+Question per hypothesis: can it hold for a real store, i.e. is it true at **every** state it quantifies over (every
+`SchedRel ∧ NtfnStateRel` pair `(s, σ)`, plus its guard), or is there a state of that class where the spec run fails
+or FL4's run fails / breaks the relation? The quantified class is much larger than the reachable states (`SchedRel`
+says nothing about caps, the ASID table, refills of SCs outside `C`, …), so a spec `assert`/`fail` at such a state
+makes the premise false for every store that has one such state, i.e. unsatisfiable in practice.
+
+* **D4 `SniHyp` — UNSATISFIABLE as stated** (g6a's finding, confirmed). The spec's `setNextInterrupt`
+  (Fl4Spec/Schedule.lean:78) fails (`assertOpt`) when the current thread has no SC and (`getRefillHead`'s `oassert`)
+  when that SC has no refills; likewise for the release-queue head. `SchedRel` admits `scA ct = 0` and an SC whose
+  `REFILL_MAX = 0` (`ScRelW` relates the full ring only when active). Besides, the singleton outcome needs the
+  opaque `setDeadlineImpl` (`doMachineOp (setDeadline _)` = `machineOpLift`, `ignoreFailure`, so never a failure, but
+  as many outcomes as `setDeadlineImpl d mr`) to have at most one outcome: a genuine platform fact. FL4's side is
+  provable: `set_next_interrupt` is total under `ArchTotal` and writes only the node's `ARMED` word
+  (P1 `sched.set_next_interrupt.fp`), which keeps `SchedRel` (`SchedRel.set_armed`) and `NtfnStateRel`; FL4's
+  deadline value (with the TCB timers and the already-armed shortcut) differs from the spec's, but no relation reads
+  the spec's machine deadline. **Fix (g6b):** guard with `SniPre σ` (the current thread and the release head have an
+  SC with nonempty refills), which at the only use site (`tail_refines`, after `switch_sched_context`) follows from
+  `SchedRel` + `Inv` + `CurInv` (current SC active, or the idle SC, configured by `ScRelW.idle`; `Inv.ne`;
+  the head by `Inv.rel`), and PROVE the guarded statement from `ArchTotal` and the platform fact
+  `SetDlDetR MR` (`setDeadlineImpl` has at most one outcome at every `MR`-related machine state; `MachPlat.frame`
+  makes `MR` blind to `machineStateRest`, so one `MR` state yields it for every rest).
+* **D5 `SendHyp` — SATISFIABLE, and a theorem.** `send_pending` reads the node's `IPI_PENDING` word, clears it and
+  calls `send_reschedule`; no spec step, so no spec failure. It is true at every `SchedRel ∧ NtfnStateRel` state as
+  soon as `send_reschedule` is total (`ArchTotal`): node offset 120 is read by no part of `SchedRel` (offsets
+  0–72, 128–4287) and lies outside every notification/TCB word (`SchedRel.nodeNW`). **Fix (g6b):** proved
+  (`sendHyp_of`), dropped from the new bundle.
+* **D2 `ArchSwF` — UNSATISFIABLE as stated (same failure mode as D4).** Its first half asks, at every
+  `SchedRel ∧ NtfnStateRel ∧ FpuOwnOK` state and every `t ∈ T`, that the spec's `arch_switch_to_thread t` have one
+  outcome without failure. `setVmRoot t` (Fl4Spec/X64/VSpace.lean:210) runs `findVspaceForAsid asid` on a
+  `pml4Cap _ (some asid)` in `t`'s vtable slot, which **fails** (`assertE (asid > 0)`) for `asid = 0`, and fails
+  (`getAsidPool`'s `NonDet.fail`) when the ASID table entry names a non-pool object. Neither `SchedRel`,
+  `NtfnStateRel` nor `FpuOwnOK` excludes such a state (the cap slots and the ASID table are outside them). Its second
+  half fails the same way through the idle thread's vtable slot. In reachable states both are excluded
+  (`valid_cap`: a mapped PML4 cap has `asid ≠ 0`, `JAtZR.vsc` / `vtAsid_ofR`; `valid_arch_state` /
+  `valid_asid_table`: table entries are pools), so this is not a reachable-state FINDING, but the premise as stated
+  is unsatisfiable for any store that has such a related pair. Platform residue after a correct guard: only the
+  single outcome of the opaque FPU machine operations of `lazyFpuRestore` (the CR3 write is a spec `archState`
+  update, not a machine op); `set_vm_root` / `find_vspace_for_asid` are FL4 code (provable). **Fix (not done in
+  g6b, see KENTRY-PLAN g6b):** guard with `VsRootOK σ` (every TCB's vtable PML4 cap has a nonzero ASID; every ASID
+  table entry is a pool) — kept by the whole schedule prefix (timer signals, awaken, enqueue/dequeue change no cap
+  and no ASID table) and supplied at `KFinAtR` from the finish state's `JAtZR` (`vsc`, plus a carried ASID-table
+  fact); this needs the guard threaded through every `hA.1`/`hA.2` site (ScScheduleF ×3, ScNextDomF ×2) and their
+  callers.
+* **D3 `ArchNdF` — SATISFIABLE (with its `FpuOwnOK` guard) up to a platform fact.** `archPrepareNextDomain =
+  switchLocalFpuOwner none`: `enableFpu`, `saveFpuState owner` (`asUser` on the owner: a TCB by `FpuOwnOK`),
+  `disableFpu`, `setX64CurrentFpuOwner none` (`archThreadSet` on the owner: a TCB). No other failure; the FL4 store is
+  unchanged and `SchedRel`/`NtfnStateRel` read none of the spec fields changed (owner's `tcbArch` FPU image,
+  `tcbCurFpu`, `x64CurrentFpuOwner`, `machineState`). The one-outcome claim needs the opaque `enableFpuImpl`,
+  `disableFpuImpl`, `readFpuStateImpl` (and `readFpuStateVal` is a function) to have at most one outcome: a platform
+  fact, stateable under `MR` as for `setDeadlineImpl`. So it is not false, but it is a ∀st premise whose only platform
+  part is that determinism; the rest is a spec frame computation (S–M), left as the next step.
+* **A16 `PortInVal` — consistent but over-strong.** It quantifies over every spec state σ: FL4's `port_in` value must
+  be an outcome of the spec's `In` at σ's machine state. The outcomes are `inNVal ms'` over the outcomes `ms'` of the
+  opaque `inNImpl port` at `σ.machineState.machineStateRest`; nothing in Lean refutes it (the opaque constants could
+  make every value reachable from every rest), and no spec failure is possible (`ignoreFailure`). So it is not
+  unsatisfiable, but it says the oracle can produce FL4's value at machine states that are not FL4's (§0 already
+  asked for an `MR`-relative form). Narrowing: `∀ σ, MR a σ.machineState → …`; this needs `MR` at the IO-port
+  decode, which `KDispHypsKV42` does not carry (handoff).
+
+**Status after g6b (top `kernel_entry_reachU5`, XTopJointKEntryU5):** D4 `SniHyp` narrowed in place to `SniPre` states
+(ScScheduleTop; supplied at `tail_refines` by `sniPre_of`) and proved (`sniHyp_of`, ScSniProof) from `ArchTotal` and the
+platform fact `SetDlDetR MR` (the opaque `setDeadlineImpl` has at most one outcome at an `MR`-related machine state);
+D5 `SendHyp` proved (`sendHyp_of`, from `ArchTotal`). Both left the finish bundle (`KFinAtR5`). Still ∀st: D2 `ArchSwF`
+(**unsatisfiable as stated**, see the audit; fix = `VsRootOK` guard threaded through the schedule cone), D3 `ArchNdF`
+(satisfiable up to FPU-op determinism), A16 `PortInVal` (consistent, over-strong). A7 `MRKeepIo` is now [S] (owner
+decision, row A7), so the [P] count of §G drops by one and [S] rises by one.
+**g7a (KENTRY-PLAN g7a):** D1 DISCHARGED (top `kernel_entry_reachU6`, F list). C21, C25, C26, C27 are not derivable from what `JReachU3` carries (the induction step sees only `RJM` at the new state, so a joint fact must be a component of `RJ`); each needs a carry inside `JAtZ` (plan and order there; lead decision: after g6b/g7b/g7c merge, sequentially on the integration branch).
+
+## Note (jc6d9, 2026-11-23): `TimerRB` in the start-state assumption
+
+P1's `ScExtra0` gained the field `rb : TimerRB st T Cs s` (the per-core timer trees are red-black trees holding
+exactly the armed TCBs, unarmed TCBs have null timer links; TIMER-RB-PLAN §13).  `JAtZ` carries P1's `BlkOK`, so
+`JReach.start`'s assumption at the start state now includes `TimerRB`; it holds trivially at boot (empty trees, every
+TCB unarmed with null links).  No `kernel_entry_reach*` statement changed text.
+
+## Note (jc6b2, 2026-11-23): `BndS` in the start-state assumption
+
+P1's `ScExtra0` gained the field `bs : BndS st T Scs Nt s` (a TCB's `BOUND_NTFN` names a notification whose
+`BOUND_TCB` names the TCB back; a notification's `BOUND_TCB` names a TCB whose `BOUND_NTFN` names it back; a nonzero
+SC's `NTFN` names a notification whose `SC` names the SC back; the fourth direction was already `ScExtra0.nsc`).
+`JAtZ` carries P1's `BlkOK`, so `JReach.start`'s assumption at the start state now includes `BndS`; it holds
+trivially at boot (no TCB, notification or SC is bound: all four link words are 0).  No existing
+`kernel_entry_reach*` statement changed text.

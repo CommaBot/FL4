@@ -45,14 +45,14 @@ structure JDelPartsN (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   thr : JThreadFinHypsU (L := L) arI AR th
 
 /-- **`JEntryGlobM` with `JDelPartsN`** (module docstring). -/
-structure JEntryGlobM31 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
+structure JEntryGlobM31 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (th : TypedHeap) : Prop where
   ari : ARIface arI AR
   tot : P0.ArchTotal arI
   delParts : JDelPartsN (L := L) arI AR th
   nd : Fl4Spec.numDomains = 1
   ppA : PPPlatA arI AR
   dom : DomConfig
-  portIn : PortInVal arI
+  portIn : PortInValMR arI MR
   timeAg : TimeAgree arI
   maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
@@ -61,11 +61,11 @@ structure JEntryGlobM31 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pro
 structure KDispHypsKV31 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM31 (L := L) arI AR MR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM31 (L := L) arI AR MR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
 
@@ -78,6 +78,11 @@ structure KFinAtR31 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) 
   sni : SniHyp st arI Z.N Z.T Z.C Z.c
   send : SendHyp st arI Z.N Z.T Z.C Z.c
   tail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
@@ -99,7 +104,7 @@ theorem vtAsid_ofR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   have hx : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
   have h := J1.vsc _ hx
   rw [capV_of_capAt hc] at h
-  have h' : p ∈ _ ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
+  have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
   exact (h'.2.2 rfl).1
 
 variable {arI}
@@ -113,8 +118,8 @@ theorem JDelPartsN.toJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : J
     JDelParts (L := L) arI AR th :=
   ⟨h.archRef, h.arKeep, JVtHyps.ofExt arI AR th, h.thr⟩
 
-theorem JEntryGlobM31.toM {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : JEntryGlobM31 (L := L) arI AR th) :
-    JEntryGlobM (L := L) arI AR th :=
+theorem JEntryGlobM31.toM {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {th : TypedHeap} (h : JEntryGlobM31 (L := L) arI AR MR th) :
+    JEntryGlobM (L := L) arI AR MR th :=
   ⟨h.ari, h.tot, h.delParts.toJ, h.nd, h.ppA, h.dom, h.portIn, h.timeAg, h.maxTU, h.tu⟩
 
 theorem KDispHypsKV31.to27b {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}
@@ -134,7 +139,7 @@ set_option maxHeartbeats 4000000 in
 the bundles inside `hK` (`KDispHypsKV31`) free of the ∀-state `JDelParts.vt`. -/
 theorem kernel_entryJ31 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)

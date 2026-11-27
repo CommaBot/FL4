@@ -12,7 +12,7 @@ only).
 * The arms: Domain, IRQ control, IRQ ack, FL4 TCB, CNode insert / move /
   rotate, TCB setTLSBase / setFlags / notificationControl / register arms
   without suspend / resume, every l4v arch arm but ASID control, PML4 flush,
-  DeriveSubframe, TestAndClearAccessed; `CovFF`, **`armF_covFF`**.
+  DeriveSubframe, TestAndClearAccessed, the frame batch (`perfF_frameBatch`); `CovFF`, **`armF_covFF`**.
 * Notification: rd14b's `bl_sendSignal` / `cp_sendSignalU` give `TB`, `qt_sendSignal`
   (`qt14g_auto`: only Running / Restart / Inactive writes); **`perfF_notification`**, `CovN`.
 * `CF14g2 := CF14g ∨ CovFF ∨ CovN`, `armFU_cf14g2`; tops **`kcall_rdyOffG2`** /
@@ -174,6 +174,17 @@ theorem perfF_testAndClear {σ0 u : State Unit} (p : ObjRef) (h : RF σ0 u) :
     (qt_of_tv _ fun _ => by
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation, performTestAndClearAccessed]; tv_auto)
 
+/-- #68: the TDCALL. -/
+theorem perfF_tdx {σ0 u : State Unit} (i : Fl4TdxInvocation) (h : RF σ0 u) :
+    PerfF σ0 (.invokeArchObject (.tdx i)) u :=
+  perfF_sve h (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+                  cases i <;> simp only [performTdxInvocation, tdxStatus] <;> sv_auto)
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        cases i <;> simp only [performTdxInvocation, tdxStatus] <;> cfk_auto)
+    (qt_of_tv _ fun _ => by
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> simp only [performTdxInvocation, tdxStatus] <;> tv_auto)
+
 theorem perfF_pml4Flush {σ0 u : State Unit} (i : Fl4Pml4Invocation) (h : RF σ0 u) :
     PerfF σ0 (.invokeArchObject (.pml4Flush i)) u :=
   perfF_sve h (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archNoReturn]; sv_auto)
@@ -194,6 +205,25 @@ theorem perfF_archSpec {σ0 u : State Unit} (i : ArchInvocation) (hi : ∀ o, i 
     | (refine SVK.sve_liftE ?_; sv_auto; done)
     | (refine qt_of_tv _ fun _ => ?_; tv_auto; done)
     | skip
+
+theorem tvfb_fbEntryX (V : ObjRef → Option (ThreadState × Option Fault × Option ObjRef))
+    (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : B8d.TVKE V (fbEntryX b w) := by
+  exact ik_fbEntryX_w b w (fun _ _ _ _ => by tv_auto) (fun _ => by tv_auto) (fun _ _ _ _ _ _ _ => by tv_auto)
+    (fun _ => by first | (tv_auto; done) | (unfold emptySlot; tv_auto))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; tv_auto) (fun _ _ _ => by tv_auto)
+
+/-- **The frame batch** (SpecInvRdFb's `SVM ∧ CFK` facts; no TCB view is written). -/
+theorem perfF_frameBatch {σ0 u : State Unit} (i : Fl4FrameBatchInvocation) (h : RF σ0 u) :
+    PerfF σ0 (.invokeArchObject (.frameBatch i)) u :=
+  perfF_sve h (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+                  exact SVK.sve_liftE (svfb_performFrameBatch i))
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        intro σ x hx
+        obtain ⟨y, hy, rfl⟩ := SInv.fbx_mem_liftE hx
+        exact cfkfb_performFrameBatch i σ y hy)
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        exact ike_liftE (qt_of_tv _ fun V => ik_performFrameBatchX (fun w => tvfb_fbEntryX V i w)
+          (by unfold flushAll; tv_auto)))
 
 /-- rd14b's `Cov` without Notification / Endpoint. -/
 def CovFF : Fl4Invocation → Prop
@@ -240,6 +270,8 @@ theorem armF_covFF : ArmF CovFF := by
   | .invokeArchObject (.pml4Flush i), _ => exact perfF_pml4Flush i h
   | .invokeArchObject (.deriveSubframe i), _ => exact perfF_deriveSubframe i h
   | .invokeArchObject (.testAndClearAccessed p), _ => exact perfF_testAndClear p h
+  | .invokeArchObject (.tdx i), _ => exact perfF_tdx i h
+  | .invokeArchObject (.frameBatch i), _ => exact perfF_frameBatch i h
   | .invokeArchObject (.spec (.invokeASIDControl _)), hc => exact False.elim hc
   | .invokeUntyped _, hc => exact False.elim hc
   | .invokeEndpoint _ _ _ _, hc => exact False.elim hc

@@ -1,0 +1,19 @@
+import Fl4Proofs.P2.SlJUB4
+#print axioms Fl4Proofs.P2.PathObl.BXI.shrinkU
+#print axioms Fl4Proofs.P2.PathObl.BXI.growU
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.layP
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.userObj
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.userNode64
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.userAsid
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.user_other
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.not_userOK_omega
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.nuNode64
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.nuAsid
+#print axioms Fl4Proofs.P2.PathObl.bxi_userJ
+#print axioms Fl4Proofs.P2.PathObl.asidOff_agN
+#print axioms Fl4Proofs.P2.PathObl.timerOK_agN
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.preB_wrN
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.preB_wrG
+#print axioms Fl4Proofs.P2.PathObl.slQ_wrG
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsKC4
+#print axioms Fl4Proofs.P2.PathObl.sl_pathsKC4_startAt

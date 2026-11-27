@@ -81,6 +81,10 @@ theorem winSet_bd {A k w : Nat} {q : U64} (h : q ∈ winSet A k w) :
 def XSets.addW (Z : XSets) (nt : U64) (G' : MdbGhost) (W : Set U64) : XSets :=
   if nt.val = 2 then { Z with G := G', E := Z.E ∪ W } else { Z with G := G', N := Z.N ∪ W }
 
+/-- (f6) `Z.addW` keeps `vx`. -/
+instance VxE.addW {Z : XSets} [h : VxE Z] {nt : U64} {G' : MdbGhost} {W : Set U64} :
+    VxE (Z.addW nt G' W) := ⟨by unfold XSets.addW; split <;> exact h.eq⟩
+
 /-- An object of an SC's type has the SC's size (an SC of that size, or a
 malformed CNode of the same garbage size). -/
 theorem objBits_of_aType_sc {ko : Fl4Spec.KernelObject} {y : Fl4Spec.SchedContext} {n : Nat}
@@ -144,15 +148,7 @@ def BufFreeHyp (B : Set (U64 × Fl4Spec.Word)) (m : U64 → U64) (G : MdbGhost) 
   ∀ wp ∈ B, ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV m x = .Untyped p sb fi false →
     wp.1.val + 8 ≤ p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ wp.1.val
 
-/-- **[J] Every IPC-buffer word lies in a spec object** (l4v
-`valid_ipc_buffer_cap` with `obj_at`: a thread's buffer lies in the data
-page its buffer cap names; the ghost set `B` holds such words only: it is
-fixed by every step at `J` and only the retype of frames would add words,
-the reset's detype drop them). With `SpecFree` it gives `BufFreeHyp`
-(`bufFree_of_obj`). -/
-def BufObjHyp (B : Set (U64 × Fl4Spec.Word)) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ wp ∈ B, ∃ (o : Fl4Spec.ObjRef) (ko : Fl4Spec.KernelObject), σ.kheap o = some ko ∧ o.toNat ≤ wp.1.val ∧
-    wp.1.val + 8 ≤ o.toNat + 2 ^ Fl4Spec.objBits ko
+-- `BufObjHyp` (C21) moved to JCarryDefs (jc1, unchanged statement).
 
 theorem bufFree_of_obj {B : Set (U64 × Fl4Spec.Word)} {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit}
     (hF : Sched.SpecFree m G σ) (hO : BufObjHyp B σ) : BufFreeHyp B m G := by
@@ -227,6 +223,37 @@ theorem Vs.VsNat.retype {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : Md
     · rw [(hE.keep y hy0 (by simpa using hu)).2]
       exact h y ((hM.members y).1 hy0).1
   · rw [hE.newc j hj]; exact hn j hj
+
+/-- An untyped cap is no mapped table cap. -/
+theorem mapFree_ut {c : capability.Cap} (h : isUt c = true) : MapFree c :=
+  Or.inr fun _ => by cases c <;> first | trivial | (simp [isUt] at h)
+
+/-- A retype's new cap is no mapped table cap (its table caps are unmapped). -/
+theorem mapFree_newCapOf (n : Nat) (base us : U64) (dev : Bool) : MapFree (newCapOf n base us dev) :=
+  newCapOf_ind MapFree n base us dev (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inl rfl) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inl rfl) (fun _ => Or.inl rfl) (Or.inr fun _ => trivial)
+
+/-- **The slots after a retype** (`RetExp`; jc3, for `VsTyp.stepN`): an old
+slot's cap kept, an untyped cap, a new cap (no mapped table cap by `hn`) or
+null. -/
+theorem retype_hold {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {A0 k w : Nat}
+    {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (hE : RetExp th th' m m' G G' A0 k w dslot cj xs)
+    (hM : MdbLinks th m G) (hM' : MdbLinks th2 m' G')
+    (hn : ∀ j, j < w → MapFree (cj j)) :
+    ∀ y, IsSlot th2 y → MapFree (capV m' y) ∨ ∃ y0, IsSlot th y0 ∧ capV m' y = capV m y0 := by
+  intro y hy
+  by_cases hnull : capV m' y = .Null
+  · rw [hnull]; exact Or.inl (Or.inr fun _ => trivial)
+  have hy' : y ∈ G'.chains.flatten := (hM'.members y).2 ⟨hy, _, capAt_capV m' y, hnull⟩
+  rcases hE.gmem y hy' with hy0 | ⟨j, hj, rfl⟩
+  · by_cases hu : isUt (capV m y) = true
+    · exact Or.inl (mapFree_ut (hE.utk y hy0 hu))
+    · exact Or.inr ⟨y, ((hM.members y).1 hy0).1, (hE.keep y hy0 (by simpa using hu)).2⟩
+  · rw [hE.newc j hj]; exact Or.inl (hn j hj)
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -585,7 +612,8 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
-    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') :
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -599,7 +627,7 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD, hcy⟩
 
 
 set_option maxHeartbeats 1000000 in
@@ -631,7 +659,8 @@ theorem JAtZ.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
-    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') :
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -644,7 +673,7 @@ theorem JAtZ.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD, hcy⟩
 
 end
 

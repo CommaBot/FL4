@@ -132,6 +132,9 @@ inductive ArchCap where
   | pageDirectoryCap (ref : ObjRef) (mapped : Option (Asid × VSpaceRef))
   | pdPointerTableCap (ref : ObjRef) (mapped : Option (Asid × VSpaceRef))
   | pml4Cap (ref : ObjRef) (mapped : Option Asid)
+  /-- FL4 extension (#68, no l4v counterpart): `seL4_X86_TdxControl`, Intel TDX
+  attestation (`Ext/Tdx`). No object. -/
+  | tdxControlCap
 deriving Inhabited
 
 /-- l4v: Arch_Structs_A.X64_A.acap_asid_pool (selector). -/
@@ -300,6 +303,7 @@ def archObjSize : ArchCap → Nat
   | .pageDirectoryCap _ _ => tableSize
   | .pdPointerTableCap _ _ => tableSize
   | .pml4Cap _ _ => tableSize
+  | .tdxControlCap => 0
 
 /-- l4v: Arch_Structs_A.X64_A.arch_cap_is_device. -/
 def archCapIsDevice : ArchCap → Bool
@@ -313,6 +317,7 @@ def archCapIsDevice : ArchCap → Bool
   | .pageDirectoryCap _ _ => false
   | .pdPointerTableCap _ _ => false
   | .pml4Cap _ _ => false
+  | .tdxControlCap => false
 
 /-- l4v: Arch_Structs_A.X64_A.arch_cap_badge (rt X64 gap; RISCV64
 `arch_cap_badge`): no badges on arch caps. -/
@@ -357,6 +362,7 @@ def aobjRef : ArchCap → Option ObjRef
   | .pageTableCap x _ => some x
   | .pdPointerTableCap x _ => some x
   | .pml4Cap x _ => some x
+  | .tdxControlCap => none
 
 /-- l4v: Arch_Structs_A.X64_A.acap_rights_update. -/
 def acapRightsUpdate (rs : CapRights) (ac : ArchCap) : ArchCap :=
@@ -471,6 +477,24 @@ def defaultArchObject (tp : AObjectType) (dev : Bool) (_n : Nat) : ArchKernelObj
 /-- l4v: Arch_Structs_A.X64_A.x64_vspace_region_uses. -/
 abbrev X64VSpaceRegionUses := VSpaceRef → X64VSpaceRegionUse
 
+/-- **FL4 deviation (#65, #68): the platform.** Properties of the machine the
+kernel runs on, fixed at boot and written by no operation after (FL4 reads
+them from CPUID / its arch interface):
+* `hugePages`: the CPU has 1 GiB pages (FL4's ks `FEATURES &
+  FEATURE_HUGE_PAGES`). C seL4 has 1 GiB frames only with
+  `CONFIG_HUGE_PAGE`; l4v models that configuration.
+  `createMappingEntries` refuses a 1 GiB mapping without it.
+* `tdxActive`: the kernel runs in an Intel TDX guest with the TD module
+  (FL4's `Arch::tdx_active`); the TDX control cap's invocations fail with
+  `IllegalOperation` without it (`Ext/Tdx`).
+* `tdxDmaRam frame bytes`: the `bytes` bytes at `frame` are RAM shared with
+  the VMM (FL4's `Arch::dma_ram`); TDX GetQuote's frame must be. -/
+structure X64Platform where
+  hugePages : Bool
+  tdxActive : Bool
+  tdxDmaRam : ObjRef → Nat → Bool
+deriving Inhabited
+
 /-- l4v: Arch_Structs_A.X64_A.arch_state. The VT-d fields are commented out
 in l4v (`FIXME x64-vtd`) and not ported. -/
 structure ArchState where
@@ -486,6 +510,9 @@ structure ArchState where
   x64IoapicNirqs : Word → BitVec 8
   x64IrqState : BitVec 8 → X64IRQState
   x64CurrentFpuOwner : Option ObjRef
+  /-- **FL4 deviation (#65, #68):** the platform (`X64Platform`: 1 GiB
+  pages, TDX), set at boot and never written after. -/
+  x64Plat : X64Platform
 deriving Inhabited
 
 /-- l4v: Arch_Structs_A.X64_A.pd_shift_bits. -/

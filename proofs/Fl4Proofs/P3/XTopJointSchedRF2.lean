@@ -22,6 +22,7 @@ entry with `σ.domainTime ≠ 0 ∨ NdOK s σ` (no `hd`), ScNextDomCF's
 import Fl4Proofs.P3.XTopJointSchedRF
 import Fl4Proofs.P3.ScNextDomCF
 import Fl4Proofs.P3.JEntryIrq
+import Fl4Proofs.P3.BufAtJR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -37,7 +38,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop}
 theorem JAtZ.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hNd : NdOK (L := L) s σ) {s1 : S}
-    (hf : P1.FootD st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s1)
+    {U : Set U64} (hf : P1.FootDU st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) U s s1)
+    (hU : ∀ b ∈ U, ∀ o : U64, o.val < 13568 → o.val % 8 = 0 → core.num.U64.wrapping_add (L.ksb s) o ≠ b)
     (hF : Fires σ σ1) : NdOK (L := L) s1 σ1 := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
@@ -46,6 +48,9 @@ theorem JAtZ.ndOK_fire {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 �
   have hKW := J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)
   obtain ⟨hdl, hdi, hds⟩ := fires_dom hF
   refine hNd.keep hf.1 (fun o ho h8 => hf.mem_eq (ksW_al hkf hka ho h8) fun hb => ?_) hdl hdi hds
+  rcases hb with hb | hu
+  swap
+  · exact hU _ hu o (by omega) h8 rfl
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   rcases hb with hb | hb
   · rcases hKW _ (ksW_al hkf hka ho h8) hb with e | e <;> rw [hv] at e <;> omega
@@ -115,13 +120,13 @@ theorem jat_scheduleWP0F {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
           JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
           timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s ∧ FpuOwnOK σ1)) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT (P1.ibKeep_holds hAT) hNt s a hB J.bufAtJ))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, ⟨J1.inv, J1.cur, J1.off, J1.act, J1.own⟩,
-      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk h1), J1.nk,
+      hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk (fun b hb o ho h8 => (J.bufAtJ.1 b hb).ks o ho h8) h1), J1.nk,
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_fires J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
-  exact schedule_refinesWP0F s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) hA hAN hsni hsend hT
+  exact schedule_refinesWP0F s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hAN hsni hsend hT
 
 end
 

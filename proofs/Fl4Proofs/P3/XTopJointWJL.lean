@@ -54,10 +54,11 @@ def WJL (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U6
     DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s) ∧ NullOrig Z.th (L.mem s) σ
 
 /-- **The finalisation's slot fact for the zombie write at `J`**: a thread
-cap's TCB dead and off core 0's debug list. -/
-abbrev RzJ (H : P1.Heap) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
+cap's TCB dead and off core 0's debug list, and off every core's debug list
+and unarmed (`DeadX`, KENTRY-PLAN jc6e: `timer::remove`, `debug_remove`). -/
+abbrev RzJ (H : P1.Heap) (Cs : Set U64) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
   fun s _ _ _ x => ∀ q, capV (L.mem s) x = .Thread q →
-    DeadP (L := L) H s q ∧ ∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ q
+    DeadP (L := L) H s q ∧ (∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ q) ∧ DeadX (L := L) H Cs s q
 
 /-- **The stronger readiness of the slot `x` to be emptied** (module
 docstring). -/
@@ -82,7 +83,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null) (hz : capV (L.mem s') (cslotAddr sl) = .Zombie p zt n)
     (hal : CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)))
     (hoth : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
-    (hmS : MdbStep (L.mem s) G (L.mem s') G) :
+    (hmS : MdbStep (L.mem s) G (L.mem s') G) (hxk : Vs.VKey (capV (L.mem s) (cslotAddr sl)) = none) :
     ∃ V2 Ac' Lst', XTopAt (L := L) AR ((Z.mv G V).mv G (Z.mv G V).vs) s' a σ' ∧
       (∀ q ∈ D, DeadP (L := L) H s' q) ∧
       (LiveDN (L := L) Z.th H Cs G s' σ' → (∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D) →
@@ -106,7 +107,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     intro irq e
     rw [e] at ha0
     rcases hsg.irq irq _ ha0 with h0 | ⟨q, b, rs, h0⟩
-    · exact hxn (absCap_eq_null.1 h0)
+    · exact hxn ((absCap_eq_null hca0.1).1 h0)
     · obtain ⟨q', b', w', r', rfl⟩ : ∃ q' b' w' r', c0 = .Notification q' b' w' r' := by
         cases c0 <;> simp [absCap] at h0
         exact ⟨_, _, _, _, rfl⟩
@@ -121,28 +122,39 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
       · have := hJ.cnode p _ hc; rw [hHp] at this; cases this
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
-      (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) fun y _ e _ => by rw [e, hz]; trivial
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) (fun y _ e _ => by rw [e, hz]; trivial) fun y _ e _ _ => by rw [e, hz]; trivial
   exact ⟨V, Ac', Lst', J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk, fun q hq => R.jcov.dead q hq,
-    fun hlv hzD => J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
+    fun hlv hzD => J.cs_frameB (hvn := J.vsShr (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hks
+      (Vs.VsKeep.of_nokey (W := (· = cslotAddr sl)) (fun y hy hn => hoth y hy hn) (fun y _ e => by rw [e]; exact hxk)
+        (fun y _ e => by rw [e, hz]; rfl))
+      (Vs.ArchShr.of_objCn hnk.2 (by have e := congrArg Fl4Spec.AbstractState.archState hnk.1; exact e))) hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb)))
-    hlv hzD, hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+    hlv hzD (J.carry.of_objCn hnk.2)
+    (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J.ut (utKept_ins hoth fun p0 sb0 fi0 d0 h => by rw [hz] at h; cases h))
+    (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hks (ArchFwd.of_objCn hnk.2)) (ArchFwd.of_objCn hnk.2), hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A zombie written over a cap alike it keeps `WJL`** (module docstring). -/
 theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    ZombieHypWZ (L := L) (A := A) (WJL (L := L) arI AR Z H Cs kb) (RzJ (L := L) (A := A) H) th := by
+    ZombieHypWZ (L := L) (A := A) (WJL (L := L) arI AR Z H Cs kb) (RzJ (L := L) (A := A) H Cs) th := by
   intro s s' a σ σ' G sl p zt n hW hRz0 hcd hZF hD1 hD2 hF hsc hA hxn hz hal hoth hmS
   subst hth
   have hRz : ∀ q, capV (L.mem s) (cslotAddr sl) = .Thread q →
-      DeadP (L := L) H s q ∧ ∀ k, dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ q := fun q h => hRz0 q h q h
+      DeadP (L := L) H s q ∧ (∀ k, dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ q) ∧ DeadX (L := L) H Cs s q :=
+    fun q h => hRz0 q h q h
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ := hW
   have hP := J.xtop.rel.1
   have hxs := hA.isSlot
   -- the dead set: the TCB zombies' TCBs and the thread's
   set E : Set U64 := ZTcb (L := L) Z.th s ∪ {q | capV (L.mem s) (cslotAddr sl) = .Thread q} with hE
   have J0 := J.addDeadSet (E := E) (fun q hq => hq.elim (hL.ztcb q) (fun h => (hRz q h).1))
+    (fun q hq => hq.elim (fun h => J.jcov.dx q (J.zD q h)) (fun h => (hRz q h).2.2))
   obtain ⟨V2, Ac', Lst', hXb, hdead0, mk, hks, hns', hsg'⟩ :=
-    J0.zombieWD arI hns hsg hD1 hD2 hF hsc hA hxn hz hal hoth hmS
+    J0.zombieWD arI hns hsg hD1 hD2 hF hsc hA hxn hz hal hoth hmS (by
+      cases hzb : isZb (capV (L.mem s) (cslotAddr sl))
+      · rcases (hZF hzb).2 with ⟨q, hq⟩ | ⟨q, r, gs, g, hq⟩ <;> rw [hq] <;> rfl
+      · generalize capV (L.mem s) (cslotAddr sl) = c at hzb ⊢
+        cases c <;> first | rfl | simp [isZb] at hzb)
   have hdead : ∀ q ∈ E, DeadP (L := L) H s' q := fun q hq => hdead0 q (Or.inr hq)
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)))
   have hdk := J.slotFrame_dbgKeep hF
@@ -207,7 +219,7 @@ theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z
       obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← gk_idle (Vs.gk_setCap _ _) (mem_of_single hsc)]; exact hki)
       refine ⟨y, hy, ?_⟩
       by_cases e : y = cslotAddr sl
-      · subst e; exact absurd rfl ((hRz _ hr).2 k)
+      · subst e; exact absurd rfl ((hRz _ hr).2.1 k)
       · rw [hoth y (hmem y hy) e]; exact hr
     · by_cases e : y = cslotAddr sl
       · subst e

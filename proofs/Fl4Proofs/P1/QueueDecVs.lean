@@ -10,6 +10,14 @@ EPT, named — VT-x: not yet refined (DESIGN §5)); a frame's EPT unmap is
 proved from `EptPlace.find` (`ept.unmap.cur0`).  The work is within `Cur0` (after the caller's
 restart): VSpace words (`Cur0.vs`), cap-slot words (`Cur0.capw`), cleared
 regions (`Cur0.zr`) and kernel-global words (`Cur0.ks`).
+
+FrameBatch (#71, `decode_frame_batch.dec`) runs inside the decode without
+the restart (`Cur0` from the decode's start, `Cur0.ofPreV`): per entry the
+CNode lookups through the batch's CNode caps give cap slots (`VsPlace.fbTgt`
+/ `fbSrc`, at the batch's mid states, as `CdtHyps.ins` is stated there), the
+copy's insertion (`CdtHyps.ins`), the map (`batch_map.cur0`), the deletes
+(`cdt.delete.cur0` from `DelGapsAt`), the deferred unmap (VSpace words); then
+the reply's message registers (`XS`) and the thread set running.
 -/
 import Fl4Proofs.P1.QueueDecIrq
 open Aeneas Aeneas.Std Result
@@ -144,6 +152,19 @@ structure VsPlace (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   eptMap : ∀ (Ac : Set U64) (s : S) (a : A) (len : U64) (cap : capability.Cap) (slot buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize), EntAt st P3Ok s → DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra →
     ept.map_frame st ar s a len cap slot buf extra ⦃ r s' _ => DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄
+  /-- FrameBatch (#71): the batch's destination lookups at a state inside the
+  batch (from the decode's start `s0`, within its frame `Fr0`), through a CNode
+  cap read from a cap slot at `s0`, give whole cap slots (as `CdtHyps.tgt` at
+  the entry state; the batch's states are not entry states). -/
+  fbTgt : ∀ (Ac : Set U64) (s0 s : S) (x : U64) (c : capability.Cap) (i d : U64), EntAt st P3Ok s0 →
+    Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapSlotW T Ω Sg x →
+    obj.Slot.cap st x s0 = ok c →
+    cspace.lookup_target_slot st s c i d ⦃ r => ∀ y, r = .Ok y → SlotW T Ω Sg y ⦄
+  /-- FrameBatch (#71): the batch's source lookups, as `fbTgt`. -/
+  fbSrc : ∀ (Ac : Set U64) (s0 s : S) (x : U64) (c : capability.Cap) (i d : U64), EntAt st P3Ok s0 →
+    Fr0 st T Cs Ω H Sg Scs Z s0 s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → CapSlotW T Ω Sg x →
+    obj.Slot.cap st x s0 = ok c →
+    cspace.lookup_source_slot st s c i d ⦃ r => ∀ y, r = .Ok y → SlotW T Ω Sg y ⦄
 
 /-! ## The paging lookups give VSpace words -/
 
@@ -413,7 +434,14 @@ set_option hygiene false in
 /-- The page map's tail, from the frame size's match: the entry slot (a
 VSpace word), the restart, the cap's update and the entry's write. -/
 local macro "pmtail" : tactic => `(tactic| (
-  try simp only [bind_ok, uncurry_apply_pair]
+  try simp only [bind_ok, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte]
+  -- #65: a 1 GiB frame needs `huge_pages` (else IllegalOperation); every
+  -- size then rebinds `large` by a match on the size.
+  try (refine WP.spec_bind (P0.vspace.huge_pages.p0 st s hS) fun hp _ => ?_
+       split
+       swap
+       · errV)
+  try refine WP.spec_bind (Pₘ := fun _ => True) ((WP.spec_ok _).2 trivial) fun _ _ => ?_
   refine WP.spec_bind (vspace.page_entry_slot.vs Pd (WritesIn.refl _ _) hb _ _ _) fun r3 hr3 => ?_
   rcases r3 with v | e
   swap
@@ -438,6 +466,8 @@ local macro "pmpre" : tactic => `(tactic| (
        · errV
        simp only [irq_branch_ok, bind_ok])
     | (simp only [lift, bind_ok])
+    -- #65: the size's `huge` test (`if false = true` / `if true = true`).
+    | (simp only [Bool.false_eq_true, eq_self_iff_true, ↓reduceIte])
     | (refine WP.spec_bind (P0.capability.Rights.from_word.p0 _) fun _ _ => ?_)
     | (refine WP.spec_bind (P0.capability.mask_vm_rights.p0 _ _) fun _ _ => ?_)
     | (refine WP.spec_bind (P0.capability.FrameSize.bits.p0 _) fun _ _ => ?_)
@@ -467,9 +497,11 @@ theorem vspace.decode_page_map.dec {A : Type _} {ar : machine.Arch A} (hA : P0.A
     rcases o with _ | x
     · errV
     try dsimp only
-    split
+    -- #65: `split` on the grown body exceeds simp's step limit.
+    by_cases hl3 : len ≥ 3#u64
     swap
-    · errV
+    · rw [if_neg hl3]; errV
+    rw [if_pos hl3]
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun vaddr _ => ?_
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun _ _ => ?_
     refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun _ _ => ?_
@@ -557,10 +589,14 @@ theorem vspace.decode_test_and_clear_accessed.dec {V : U64 → Prop} {s : S} (Pd
     step with sched.cur_thread.spec as ⟨ct, ect⟩
     have e : ct = L.curW s := ect
     subst e
-    refine WP.spec_bind (LawfulStore.read_spec s x) fun old _ => ?_
     refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun i _ => ?_
     try simp only [lift, bind_ok]
-    refine WP.spec_bind (LawfulStore.write_spec s x _) fun s1 e1 => ?_
+    refine WP.spec_bind (LawfulStore.fetch_and_spec s x _) ?_
+    rintro ⟨old, s1⟩ e1
+    try simp only [uncurry_apply_pair]
+    try dsimp only
+    obtain ⟨hold, e1⟩ := Prod.mk.inj e1
+    rw [← hold] at e1
     subst e1
     obtain ⟨h1, -, -, ec, -, fld, -, -⟩ := blk_of_vs hb.blk Pd.vs (writesIn_wr_V (v := old &&& ~~~i) Pd.vs hx)
     have hU1 : UserOK st T Cs Ω H U (L.wr s x (old &&& ~~~i)) := D.user.ksb (L.ksb_wr _ _ _)
@@ -758,11 +794,415 @@ theorem mask511_mul8 (x : U64) (y : U64) (hy : y.val = (x &&& 511#u64).val * 8) 
   rw [h8]
   exact (Nat.mod_eq_of_lt (by first | (simp [UScalar.size, UScalarTy.numBits]; omega) | scalar_tac)).symm
 
+/-! ## FrameBatch (#71): the batch runs inside the decode, without the restart -/
+
+/-- `Cur0` at the decode's start itself (the batch sets no restart). -/
+theorem Cur0.ofPreV {s : S} {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
+    Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s s := by
+  have hT := D.bxi.1.choose_spec.choose_spec.tcbs
+  refine ⟨D.hcsc, Ac, D.bxi, rfl, rfl, Or.inl rfl, fun y hy e => ?_, nbr_runnable D.run, WritesIn.refl _ _⟩
+  rw [D.act] at e; exact notT_small hT (by simp) (e ▸ hy)
+
+/-- A thread not blocked (on IPC, a notification or a reply) set running. -/
+theorem sched.set_thread_state.running_bxi_nbr {s : S} {t : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (ht : t ∈ T) (hr : ¬ BlockedR (L.mem s (stA t))) :
+    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s' => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
+  have hnb : ¬ Blocked (L.mem s (stA t)) := fun hb => hr (Or.inl hb)
+  have hnr : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_REPLY := fun e => hr (Or.inr e)
+  have hnc : L.mem s (stA t) ≠ sched.TS_BLOCKED_ON_RECV := fun e => hr (Or.inl (Or.inr (Or.inl e)))
+  have hnoref : ∀ r ∈ Rp, L.mem s (rTcbA r) ≠ t := hX.noref (h0.tcbs t ht) hnr hnc
+  refine WP.spec_mono (sts_all s t _ Q R h0 hB hX hS hSg ht not_blocked_running running_ne
+    (Or.inr hnb) hnoref
+    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩) ?_
+  rintro s' ⟨h1, hB1, hX1, hS1, hSg1, -, -⟩
+  exact ⟨⟨Q, R, h1.congrX empty_congr⟩, hB1, hX1, hSg1, hS1⟩
+
+/-- **`unmap_page_unflushed`** writes only the PT/PD/PDPT slot it looks up. -/
+theorem vspace.unmap_page_unflushed.vs (s : S) (root : U64) (size : capability.FrameSize) (vaddr pptr : U64)
+    {V : U64 → Prop} (hV : VsOK Ω Sg V)
+    (hpt : vspace.lookup_pt_slot st s root vaddr ⦃ r => ∀ x, r = .Ok x → V x ⦄)
+    (hpd : vspace.lookup_pd_slot st s root vaddr ⦃ r => ∀ x, r = .Ok x → V x ⦄)
+    (hpdpt : vspace.lookup_pdpt_slot st s root vaddr ⦃ r => ∀ x, r = .Ok x → V x ⦄) :
+    vspace.unmap_page_unflushed st s root size vaddr pptr ⦃ r => WritesIn st s r.2 V ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold vspace.unmap_page_unflushed
+  step with P0.layout.paddr.p0 as ⟨pa, _⟩
+  cases size
+  · refine WP.spec_bind hpt fun r2 hr2 => ?_
+    rcases r2 with x | e
+    · have hx := hr2 x rfl
+      repeat step
+      try split
+      all_goals try simp only [Bool.false_eq_true, not_false_eq_true, ↓reduceIte]
+      all_goals try step*
+      all_goals first | exact WritesIn.refl _ _ | (subst_vars; exact writesIn_wr_V hV hx)
+    · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+  · refine WP.spec_bind hpd fun r2 hr2 => ?_
+    rcases r2 with x | e
+    · have hx := hr2 x rfl
+      repeat step
+      try split
+      all_goals try simp only [Bool.false_eq_true, not_false_eq_true, ↓reduceIte]
+      all_goals try step*
+      all_goals first | exact WritesIn.refl _ _ | (subst_vars; exact writesIn_wr_V hV hx)
+    · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+  · refine WP.spec_bind hpdpt fun r2 hr2 => ?_
+    rcases r2 with x | e
+    · have hx := hr2 x rfl
+      repeat step
+      try split
+      all_goals try simp only [Bool.false_eq_true, not_false_eq_true, ↓reduceIte]
+      all_goals try step*
+      all_goals first | exact WritesIn.refl _ _ | (subst_vars; exact writesIn_wr_V hV hx)
+    · exact (WP.spec_ok _).2 (WritesIn.refl _ _)
+
+/-- An `if` at the head of the program (or of its first bind), by cases on the
+condition (`split` on the batch's grown bodies exceeds simp's step limit). -/
+local macro "ihead" : tactic => `(tactic| first
+  | (refine p0_if _ _ _ _ ?_ ?_ <;> intro)
+  | (refine p0_if_bind _ _ _ _ _ ?_ ?_ <;> intro))
+
+set_option hygiene false in
+/-- A batch leaf with the state unchanged (`h : Cur0 … s0 s`). -/
+local macro "cleaf" : tactic => `(tactic| first
+  | exact (WP.spec_ok _).2 h
+  | (simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, core.result.Result.Insts.CoreOpsTry.branch, bind_ok, bind_tc_ok,
+      error.illegal, error.truncated, error.range, error.invalid_cap, error.invalid_arg, vspace.failed_lookup]
+     exact (WP.spec_ok _).2 h))
+
+set_option maxHeartbeats 8000000 in
+/-- **`batch_map`**: the frame cap's update in its slot and the entry's write
+(a VSpace word), all at a state inside the batch. -/
+theorem vspace.batch_map.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
+    {s0 s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
+    (a : A) (slot : U64) (hslot : SlotW T Ω Sg slot) (b : vspace.Batch) (vaddr : U64) :
+    vspace.batch_map st ar s a slot b vaddr ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  obtain ⟨Ac1, hb⟩ := h.bxi
+  have hf := h.fr
+  unfold vspace.batch_map
+  refine WP.spec_bind (P0.obj.Slot.cap.p0 st slot s hS) fun c _ => ?_
+  refine WP.spec_bind (P0.vspace.as_frame.p0 c) fun o _ => ?_
+  rcases o with _ | ⟨fptr, fsize, frights, fdev, fmapped, fept, fasid, fva⟩
+  · cleaf
+  cases fsize <;> simp only [bind_ok, Bool.false_eq_true, ↓reduceIte] <;>
+    (repeat' (first
+      | cleaf
+      | (refine WP.spec_bind (vspace.page_entry_slot.vs Pd hf hb _ _ _) fun r3 hr3 => ?_
+         rcases r3 with v | e
+         · have hv := hr3 v rfl
+           simp only [irq_branch_ok, bind_ok]
+           refine WP.spec_bind (P0.vspace.frame_address.p0 st ar s a _ hS hA) fun _ _ => ?_
+           refine WP.spec_bind (P0.vspace.make_user_page.p0 st s _ _ _ _ hS) fun en _ => ?_
+           refine WP.spec_bind (obj.Slot.set_cap.capw (s := s) hslot) fun s2 w2 => ?_
+           refine WP.spec_bind (vspace.write_mapping.cur0 hA Pd.vs (h.capw w2 fun _ hb => hb) a hv en _ _ _) ?_
+           rintro ⟨s3, a1⟩ h3
+           exact (WP.spec_ok _).2 h3
+         · cleaf)
+      | (simp only [lift, bind_ok, bind_tc_ok])
+      | (refine WP.spec_bind (P0.vspace.huge_pages.p0 st s hS) fun _ _ => ?_)
+      | (refine WP.spec_bind (P0.capability.Rights.from_word.p0 _) fun _ _ => ?_)
+      | (refine WP.spec_bind (P0.capability.mask_vm_rights.p0 _ _) fun _ _ => ?_)
+      | (refine WP.spec_bind (P0.capability.FrameSize.bits.p0 _) fun _ _ => ?_)
+      | (refine WP.spec_bind (shl_and63 _) fun _ _ => ?_)
+      | (refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun _ _ => ?_)
+      | ihead
+      | split))
+
+set_option maxHeartbeats 8000000 in
+/-- **One batch entry** (`frame_batch_entry`) at a state inside the batch:
+COPY_MAP's insertion (`CdtHyps.ins`), map (`batch_map.cur0`) and rollback
+delete (`cdt.delete.cur0`), REMAP's map, DELETE's deferred unmap (VSpace
+words), the cap's update and the delete. The lookups through the batch's
+CNode caps (read from cap slots at the decode's start) give cap slots
+(`VsPlace.fbTgt` / `fbSrc`). -/
+theorem vspace.frame_batch_entry.cur0 {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
+    {s0 s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s0) (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (hE : EntAt st P3Ok s0) (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (a : A) (b : vspace.Batch)
+    (hcn : ∃ x, CapSlotW T Ω Sg x ∧ obj.Slot.cap st x s0 = ok b.cnode)
+    (hdn : ∃ x, CapSlotW T Ω Sg x ∧ obj.Slot.cap st x s0 = ok b.dest_cnode) (w0 w1 w2 : U64) (d : Bool) :
+    vspace.frame_batch_entry st ar s a b w0 w1 w2 d ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  obtain ⟨Ac1, hb⟩ := h.bxi
+  obtain ⟨xc, hxc, ec⟩ := hcn
+  obtain ⟨xd, hxd, ed⟩ := hdn
+  unfold vspace.frame_batch_entry
+  ihead
+  · -- COPY_MAP
+    refine WP.spec_bind (Vs.fbTgt Ac1 s0 s xd _ w1 b.depth hE h.fr hb hxd ed) fun r hr => ?_
+    rcases r with v | e
+    swap
+    · cleaf
+    have hv := hr v rfl
+    simp only [irq_branch_ok, bind_ok]
+    refine WP.spec_bind (P0.cdt.ensure_empty_slot.p0 st s v hS) fun r1 _ => ?_
+    rcases r1 with _ | e
+    swap
+    · cleaf
+    simp only [irq_branch_ok, bind_ok]
+    refine WP.spec_bind (Vs.fbSrc Ac1 s0 s xc _ w0 b.depth hE h.fr hb hxc ec) fun r2 hr2 => ?_
+    rcases r2 with v1 | e
+    swap
+    · cleaf
+    have hv1 := hr2 v1 rfl
+    simp only [irq_branch_ok, bind_ok]
+    refine WP.spec_bind (P0.obj.Slot.cap.p0 st v1 s hS) fun sc _ => ?_
+    refine WP.spec_bind (P0.vspace.as_frame.p0 sc) fun o _ => ?_
+    try dsimp only
+    ihead
+    · cleaf
+    refine WP.spec_bind (P0.capability.Rights.from_word.p0 _) fun r3 _ => ?_
+    refine WP.spec_bind (P0.capability.mask_cap_rights.p0 _ _) fun masked _ => ?_
+    refine WP.spec_bind (P0.objects.derive_cap.p0 st s v1 masked hS) fun r4 _ => ?_
+    rcases r4 with c4 | e
+    swap
+    · cleaf
+    simp only [irq_branch_ok, bind_ok]
+    refine WP.spec_bind (C.ins Ac1 s0 s c4 sc v1 v hE h.fr hb (SlotW.capw0 hv1) (SlotW.capw0 hv)) fun s1 w1' => ?_
+    have h1 := h.capw w1' fun _ hb => hb
+    refine WP.spec_bind (vspace.batch_map.cur0 hA Pd h1 a v hv b w2) ?_
+    rintro ⟨r5, s2, a1⟩ h2
+    try dsimp only
+    refine WP.spec_bind (P0.core.result.Result.is_err.spec r5) fun b2 _ => ?_
+    ihead
+    · refine WP.spec_bind (cdt.delete.cur0 hA G h2 hv) ?_
+      rintro ⟨r6, s3, a2⟩ h3
+      exact (WP.spec_ok _).2 h3
+    · exact (WP.spec_ok _).2 h2
+  ihead
+  · -- REMAP
+    refine WP.spec_bind (Vs.fbSrc Ac1 s0 s xc _ w0 b.depth hE h.fr hb hxc ec) fun r hr => ?_
+    rcases r with v | e
+    swap
+    · cleaf
+    have hv := hr v rfl
+    simp only [irq_branch_ok, bind_ok]
+    refine WP.spec_bind (vspace.batch_map.cur0 hA Pd h a v hv b w1) ?_
+    rintro ⟨r1, s1, a1⟩ h1
+    exact (WP.spec_ok _).2 h1
+  -- DELETE
+  refine WP.spec_bind (Vs.fbTgt Ac1 s0 s xc _ w0 b.depth hE h.fr hb hxc ec) fun r hr => ?_
+  rcases r with v | e
+  swap
+  · cleaf
+  have hv := hr v rfl
+  simp only [irq_branch_ok, bind_ok]
+  refine WP.spec_bind (P0.obj.Slot.cap.p0 st v s hS) fun c _ => ?_
+  refine WP.spec_bind (P0.capability.Cap.is_null.p0 c) fun bn _ => ?_
+  ihead
+  · cleaf
+  refine WP.spec_bind (P0.vspace.as_frame.p0 c) fun o _ => ?_
+  rcases o with _ | f
+  · cleaf
+  try dsimp only
+  refine WP.spec_bind (Pₘ := fun r : S × Bool => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1) ?_ ?_
+  · repeat' (first
+      | exact (WP.spec_ok _).2 h
+      | (refine WP.spec_bind (vspace.unmap_page_unflushed.vs s b.root f.size f.vaddr f.ptr Pd.vs
+            (Pd.pt Ac1 s b.root _ h.fr hb) (Pd.pd Ac1 s b.root _ h.fr hb) (Pd.pdpt Ac1 s b.root _ h.fr hb)) ?_
+         rintro ⟨b2, s2⟩ w2
+         have h2 := h.vs Pd.vs w2
+         try dsimp only
+         refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun _ _ => ?_
+         refine WP.spec_bind (obj.Slot.set_cap.capw (s := s2) hv) fun s3 w3 => ?_
+         exact (WP.spec_ok _).2 (h2.capw w3 fun _ hb => hb))
+      | ihead
+      | split)
+  rintro ⟨s1, d1⟩ h1
+  try dsimp only
+  refine WP.spec_bind (cdt.delete.cur0 hA G h1 hv) ?_
+  rintro ⟨r2, s2, a2⟩ h2
+  exact (WP.spec_ok _).2 h2
+
+/-- **The batch's loop**: every entry keeps `Cur0` (`hent`). -/
+theorem vspace.decode_frame_batch_loop.cur0 {A : Type _} {ar : machine.Arch A} {s0 s : S} (a : A)
+    (buf : U64) (ct : obj.Tcb) (n words root asid op depth i i1 i2 : U64) (bd : Bool)
+    (cnode dest_cnode : capability.Cap) (done1 : U64) (deferred : Bool)
+    (hw : words.val ≤ 3) (hn : n.val ≤ 255)
+    (hent : ∀ (s : S) (a : A) (w0 w1 w2 : U64) (d : Bool), Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
+      vspace.frame_batch_entry st ar s a
+        { root, asid, op, depth, map_rights := i, cap_rights := i1, attr := i2, defer_delete := bd, cnode,
+          dest_cnode } w0 w1 w2 d ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.2.1 ⦄)
+    (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) :
+    vspace.decode_frame_batch_loop st ar s a buf ct n words root asid op depth i i1 i2 bd cnode dest_cnode done1
+      deferred ⦃ r => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  unfold vspace.decode_frame_batch_loop
+  apply loop.spec_decr_nat (measure := fun x : S × A × U64 × Bool => n.val - x.2.2.1.val)
+    (inv := fun x => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 x.1)
+  · rintro ⟨x0, x1, x2, x3⟩ hx
+    simp only at hx
+    unfold vspace.decode_frame_batch_loop.body
+    dsimp only
+    by_cases hd : x2 < n
+    · rw [if_pos hd]
+      have hx2 : x2.val < n.val := hd
+      have hm : words.val * x2.val ≤ 3 * 255 := Nat.mul_le_mul hw (by omega)
+      step as ⟨i3, hi3⟩
+      step as ⟨i4, hi4⟩
+      refine WP.spec_bind (P0.msg.syscall_arg.p0 st x0 ct buf i4 hS) fun w0 _ => ?_
+      refine WP.spec_bind (Pₘ := fun _ => True) (by
+        split
+        · step as ⟨i5, hi5⟩
+          exact P0.msg.syscall_arg.p0 st x0 ct buf i5 hS
+        · exact (WP.spec_ok _).2 trivial) fun w1 _ => ?_
+      refine WP.spec_bind (Pₘ := fun _ => True) (by
+        split
+        · step as ⟨i5, hi5⟩
+          exact P0.msg.syscall_arg.p0 st x0 ct buf i5 hS
+        · exact (WP.spec_ok _).2 trivial) fun w2 _ => ?_
+      refine WP.spec_bind (hent x0 x1 w0 w1 w2 x3 hx) ?_
+      rintro ⟨r, s1, a1, d1⟩ h1
+      try dsimp only
+      rcases r with _ | e
+      · step as ⟨d2, hd2⟩
+        exact ⟨h1, by scalar_tac⟩
+      · rcases e with _ | _ | e | _
+        all_goals try dsimp only
+        all_goals try exact (WP.spec_ok _).2 h1
+        refine WP.spec_bind (P0.error.SysError.code.p0 e) fun _ _ => ?_
+        exact (WP.spec_ok _).2 h1
+    · rw [if_neg hd]; exact (WP.spec_ok _).2 hx
+  · exact h
+
+set_option maxHeartbeats 8000000 in
+/-- **FrameBatch** (`decode_frame_batch`, #71): the decode's checks (no
+state change), the loop (`Cur0` from the decode's start, no restart), the
+deferred flush (machine state only), the reply's message registers (`XS`) and
+the thread set running. -/
+theorem vspace.decode_frame_batch.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
+    {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s)
+    (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
+    (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
+    (hx : ∀ sl ∈ extra.val, sl ≠ 0#u64 → CapSlotW T Ω Sg sl)
+    (a : A) (len ptr : U64) (mapped : Bool) (asid : U64) (call : Bool) (buf : U64) :
+    vspace.decode_frame_batch st ar s a len ptr mapped asid call buf extra ⦃ r s' _ =>
+      DecPost st T Cs Ω H Sg Rp Scs Nt Z Ac s r s' ⦄ := by
+  have hS : P0.StoreTotal st := L.total
+  have hb := D.bxi
+  have hct : L.curW s ∈ T := hb.1.choose_spec.choose_spec.curT
+  have and255 : ∀ x : U64, (x &&& 255#u64).val ≤ 255 := fun x => by
+    rw [UScalar.val_and]; exact Nat.le_trans Nat.and_le_right (by decide)
+  unfold vspace.decode_frame_batch
+  step with sched.cur_thread.spec as ⟨ct, ect⟩
+  have e : ct = L.curW s := ect
+  subst e
+  ihead
+  swap
+  · errV
+  refine WP.spec_bind (P0.vspace.check_vspace.p0 st s _ hS) fun r _ => ?_
+  refine WP.spec_bind (P0.frame_batch_map_total st ar r) fun r1 _ => ?_
+  rcases r1 with ⟨root, _⟩ | e
+  swap
+  · errV
+  simp only [irq_branch_ok, bind_ok]
+  try dsimp only
+  ihead
+  · errV
+  refine WP.spec_bind (P0.msg.syscall_arg.p0 st s _ buf _ hS) fun hdr _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun i _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun i1 _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (P0.vspace.frame_batch.entry_words.spec _) fun words hw => ?_
+  refine WP.spec_bind (P0.vspace.frame_batch.DEFINED.p0) fun i2 _ => ?_
+  try simp only [lift, bind_ok]
+  ihead
+  · errV
+  ihead
+  · errV
+  ihead
+  · errV
+  ihead
+  · errV
+  have hm : words.val * (i &&& 255#u64).val ≤ 3 * 255 := Nat.mul_le_mul hw (and255 i)
+  step as ⟨i5, hi5⟩
+  step as ⟨i6, hi6⟩
+  ihead
+  · errV
+  refine WP.spec_bind (vspace.extra.mem extra 0#usize) fun o ho => ?_
+  rcases o with _ | x
+  · errV
+  obtain ⟨hxm, hx0⟩ := ho x rfl
+  have hxs := hx x hxm hx0
+  try dsimp only
+  refine WP.spec_bind (spec_eqv (P0.obj.Slot.cap.p0 st x s hS)) fun cnode ⟨ecn, _⟩ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun bc _ => ?_
+  ihead
+  swap
+  · errV
+  refine WP.spec_bind (vspace.extra.mem extra 1#usize) fun o1 ho1 => ?_
+  refine WP.spec_bind (Pₘ := fun dc => ∃ y, CapSlotW T Ω Sg y ∧ obj.Slot.cap st y s = ok dc) (by
+    rcases o1 with _ | x1
+    · exact (WP.spec_ok _).2 ⟨x, hxs, ecn⟩
+    obtain ⟨hxm1, hx01⟩ := ho1 x1 rfl
+    try dsimp only
+    split
+    · exact WP.spec_mono (spec_eqv (P0.obj.Slot.cap.p0 st x1 s hS)) fun c hc => ⟨x1, hx x1 hxm1 hx01, hc.1⟩
+    · exact (WP.spec_ok _).2 ⟨x, hxs, ecn⟩) fun dcn hdcn => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) fun bd _ => ?_
+  ihead
+  swap
+  · errV
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun _ _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun _ _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (Pₘ := fun _ => True) (by p0_auto) fun _ _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (P0.vspace.frame_batch.DEFER_DELETE_FLUSH.p0) fun _ _ => ?_
+  try simp only [lift, bind_ok]
+  refine WP.spec_bind (vspace.decode_frame_batch_loop.cur0 a buf (L.curW s) _ words root asid _ _ _ _ _ _ _ _ 0#u64
+    false hw (and255 _)
+    (fun s1 a1 w0 w1 w2 d h1 => vspace.frame_batch_entry.cur0 hA Pd G C Vs hE h1 a1 _ ⟨x, hxs, ecn⟩ hdcn
+      w0 w1 w2 d) (Cur0.ofPreV D)) ?_
+  rintro ⟨s1, a1, done1, err, deferred⟩ h1
+  try dsimp only
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact hA.invalidate_asid a1 asid
+    · exact (WP.spec_ok _).2 trivial) fun a2 _ => ?_
+  obtain ⟨-, Ac1, hb1, ec1, -, -, -, nb1, f1⟩ := h1
+  have hU1 : UserOK st T Cs Ω H U s1 := D.user.ksb f1.1
+  have hG1 : XG st T Cs Ω H Sg Scs Z P3Ok s1 := hE.xg.of_fr f1
+  refine WP.spec_bind (Pₘ := fun s2 => ∃ Ac2, BXI st T Cs Ω H Sg Rp Scs Nt Z Ac2 s2 ∧
+      ¬ BlockedR (L.mem s2 (stA (L.curW s)))) ?_ ?_
+  · split
+    · obtain ⟨Q, R, x1⟩ := BXI.xs hb1 hU1
+      refine WP.spec_bind (E.buf Ac1 ∅ Q R s1 _ hG1 x1.1 hct) fun bf hbf => ?_
+      refine WP.spec_bind (obj.Tcb.set_reg.xs (v := 0#u64) x1 hct (by simp [layout.reg.BADGE, layout.reg.RDI]))
+        fun s3 x3 => ?_
+      refine WP.spec_bind (msg.set_mr.xs x3 hct hbf (by simp)) ?_
+      rintro ⟨n1, s4⟩ ⟨x4, -⟩
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (msg.set_mr.xs x4 hct hbf (by simp)) ?_
+      rintro ⟨len1, s5⟩ ⟨x5, -⟩
+      try simp only [uncurry_apply_pair]
+      refine WP.spec_bind (P0.msginfo.MessageInfo.new.p0 _ _ _ _) fun mi _ => ?_
+      unfold msg.set_msg_info
+      refine WP.spec_bind (P0.msginfo.MessageInfo.to_word.p0 _) fun w _ => ?_
+      refine WP.spec_mono (obj.Tcb.set_reg.xs (v := w) x5 hct (by simp [layout.reg.MSG_INFO, layout.reg.RSI]))
+        fun s6 x6 => ⟨_, x6.bxi, ?_⟩
+      rw [stA_eq, x6.fr.2.2.2.2.1 _ hct _ (by simp) (by simp) (by simp), ← stA_eq]
+      exact nb1
+    · exact (WP.spec_ok _).2 ⟨Ac1, hb1, nb1⟩
+  rintro s2 ⟨Ac2, hb2, nb2⟩
+  refine WP.spec_bind (sched.set_thread_state.running_bxi_nbr hb2 hct nb2) fun s3 h3 => ?_
+  exact (WP.spec_ok _).2 (DecPost.ok_bxi h3)
+
 set_option maxHeartbeats 16000000 in
 /-- **`vspace.decode`** over the VSpace family's caps. -/
 theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {V : U64 → Prop}
     {s : S} (Pd : DelPlaceAt st T Cs Ω H Sg Rp Scs Nt Z V s) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (G : DelGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s) (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) 
     {cap : capability.Cap} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) (hE : EntAt st P3Ok s)
@@ -787,7 +1227,9 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
     try dsimp only
     split
     swap
-    · errV
+    · split
+      · exact vspace.decode_frame_batch.dec hA Pd G Vs C E D hE hx a len ptr mapped asid call buf
+      · errV
     split
     swap
     · errV
@@ -960,14 +1402,15 @@ theorem decGap_vspace {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
     (Pd : DelPlace st T Cs Ω H Sg Rp Scs Nt Z V P3Ok) (Vs : VsPlace st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (Pe : EptPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok) (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vspace := by
+    (Pl : IrqPlace st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (DG : DelGaps st ar T Cs Ω H Sg Rp Scs Nt Z P3Ok) :
+    DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .vspace := by
   intro Ac s a lbl len slot cap blk call don fp buf extra hf D hslot hE
   cases cap <;> simp [capFam] at hf
   all_goals
     unfold syscall.decode_invocation
     step with sched.cur_thread.spec as ⟨ct, _⟩
     try dsimp only
-    exact vspace.decode.dec hA (Pd s hE) Vs Pe C E D hE (Pl.extra _ _ _ _ hE D) a lbl len slot call buf hslot
+    exact vspace.decode.dec hA (Pd s hE) Vs (DG s hE) Pe C E D hE (Pl.extra _ _ _ _ hE D) a lbl len slot call buf hslot
 
 end
 

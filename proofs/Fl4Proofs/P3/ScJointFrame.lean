@@ -223,6 +223,23 @@ theorem JAtZ.tfoot_vkeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) : VKeep (L := L) Z.th s s' :=
   VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw
 
+/-- **`TdKeep` across a `TFoot` step** (KENTRY-PLAN jc6e), from the scheduler
+relation alone: 3528 is no scheduler offset (`KFoot.ne_td`), nor a `YIELD_TO` word. -/
+theorem TdKeep.of_tfoot {H : P1.Heap} {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : Sched.SchedRel st N T C c s σ) (hth : ∀ t, H t = some .tcb → t ∈ T)
+    (hw : P1.WritesIn st s s' (Sched.TFoot st T N C c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  Sched.TdKeep.of_writes hS.placed.tcb hth hw fun b hb u hu => by
+    rcases hb with hb | ⟨y, hy, rfl⟩
+    · exact Sched.KFoot.ne_td hS hb hu
+    · exact Sched.tdA_ne hS.placed.tcb hy hu (Sched.yieldA_val hS.placed.tcb hy) (by omega) (by omega)
+
+/-- **A `TFoot` step keeps every deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.tfoot_td {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  TdKeep.of_tfoot J.xtop.fin.1.1.1 (fun _ ht => J.tcbZ ht) hw
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` across an SC step** (module docstring). -/
 theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -236,7 +253,7 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hbuf : BufWordRel Z.T (L.mem s') σ')
     (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
     (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
-    (hkern : JKern (L := L) H Cs D' Z.th s' σ')
+    (hkern : JKern (L := L) arI H Cs D' Z.th s' σ')
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
@@ -264,7 +281,12 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS (J.tfoot_vkeep hw),
-    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
+    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
+      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))
+      (J.carry.vsSame hSS hks (ArchFwd.of_ipcFr (IpcFrKeep.of_otk hK.kh)))
+      (J.carry.tabKeep J.xtop.rel.2.1.2.2.1 hSS hX.rel.2.1.2.2.1 hK.ksz)
+      (J.vsW hw fun b h => Sched.tfoot_oobj J.xtop.fin.1.1.1 h)⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

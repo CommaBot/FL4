@@ -454,14 +454,14 @@ theorem cscW_wr_field {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : NodePlaced 
 
 /-- Clearing a notification's `SC` word. -/
 theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnScA n) 0#u64) ∧
+    BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnScA n) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (ntfnScA n) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hP := hO.ntP n hn
   have av := ntfnScA_val hP
   have hm : ntfnScA n ∈ Ω := hSg.sub _ (hO.ntW n hn)
-  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allT (w := 0#u64) h0 hB hX hS hSg hm
+  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allTM (w := 0#u64) h0 hB hX.m hS hSg hm
     (fun r hr => by rw [av, (rp_facts hO hr).2.1]; have := hO.ntORp n hn r hr; omega)
     (fun c hc => by
       obtain ⟨h128, e1, e2, e3, e4, e5, -⟩ := sc_facts hO hc
@@ -483,9 +483,9 @@ theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z A
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.ntW n hn))⟩
 
 /-- Clearing an SC's `NTFN` word. -/
-theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs)
+theorem scn_zero_all {s : S} {c : U64} (h : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs)
     (hfree : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ c) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scNtfnA c) 0#u64) ∧
+    BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scNtfnA c) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scNtfnA c) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
@@ -493,7 +493,7 @@ theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac
   have av := scNtfnA_val hP hz
   obtain ⟨h128, -⟩ := sc_facts hO hc
   have hm : scNtfnA c ∈ Ω := hSg.sub _ (hO.snW c hc)
-  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allT (w := 0#u64) h0 hB hX hS hSg hm
+  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allTM (w := 0#u64) h0 hB hX hS hSg hm
     (fun r hr => by rw [av, (rp_facts hO hr).2.1]; have := hO.rpSc r hr c hc; omega)
     (fun c' hc' => by
       obtain ⟨h128', e1, e2, e3, e4, e5, -⟩ := sc_facts hO hc'
@@ -566,7 +566,11 @@ theorem schedcontext.unbind_ntfn.blk (s : S) (c : U64) (h : BlkOK st T Cs Ω H S
       obtain ⟨-, h2⟩ := hX.2.2.nsc n hn (by rw [e]; exact hc0)
       rw [e, ← ej] at h2
       exact hnj h2.symm
-    obtain ⟨h2, f2⟩ := scn_zero_all h1 hcS hfree
+    obtain ⟨h2M, f2⟩ := scn_zero_all h1 hcS hfree
+    have hsn := hX.2.2.bs.sn c hcS hc0 (by rw [← ej]; simpa using hj)
+    rw [← ej] at hsn
+    have h2 := h2M.x (BndS.pairSN hX.2.2.toScExtra0 h0 hO h.2.2.2.2.sub hcS hjN (Or.inl rfl)
+      (Or.inr ⟨rfl, rfl, ej.symm, hsn⟩))
     obtain ⟨hP, hz⟩ := hO.sc c hcS
     obtain ⟨h128, e1, -⟩ := sc_facts hO hcS
     have av := scNtfnA_val hP hz
@@ -622,7 +626,10 @@ theorem notification.unbind_maybe_notification.blkF (s : S) (n : U64) (h : BlkOK
       foot_wr (h.1.choose_spec.choose_spec.omega _ (h.2.2.2.2.sub _ hm)).1 (kw_sg hm)
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ i 0#u64) fun s2 e2 => ?_
     subst e2
-    exact ⟨bnd_all h1 hiT fun h0 => absurd rfl h0,
+    have hi0 : L.mem s (ntfnBtA n) ≠ 0#u64 := fun e0 => absurd (by simp [ei, e0]) hb
+    have nt := h.2.2.1.2.2.bs.nt n hn hi0
+    rw [← ei] at nt
+    exact ⟨unbind_pair h hiT hn nt ei.symm,
       f1.trans (foot_field (K := 3368#u64) hT hiT (by simp) (by simp) (by simp) (by simp))⟩
 
 /-! ## `finalise_cap` of an endpoint or a notification -/
@@ -993,7 +1000,9 @@ theorem notification.unbind_notification.blkF (s : S) (t : U64) (h : BlkOK st T 
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ t 0#u64) fun s2 e2 => ?_
     subst e2
     have h0 := h.1.choose_spec.choose_spec
-    exact ⟨bnd_all (ntbt_all h hin Tz.zero) ht fun h0 => absurd rfl h0,
+    have tb := h.2.2.1.2.2.bs.tb t ht hi0
+    rw [← ei] at tb
+    exact ⟨unbind_pair h ht hin ei.symm tb,
       f1.trans (foot_field (K := 3368#u64) hT ht (by simp) (by simp) (by simp) (by simp)),
       (ani_out (v := 0#u64) (h0.nodes _ h0.cur) h0.cur (h0.omega _ (h.2.2.2.2.sub _ hm))).trans
         (ani_field (K := 3368#u64) hT (by rw [LawfulStore.cpu_wr]; exact (h0.nodes _ h0.cur).ksb (L.ksb_wr _ _ _))
@@ -1008,8 +1017,8 @@ theorem notification.unbind_notification.blkF (s : S) (t : U64) (h : BlkOK st T 
 for that SC before the write). -/
 theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
     (h0 : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
-    (htx : TScX st Scs c0 s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (hc0 : c0 ∈ Scs)
-    (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ c0) :
+    (htx : TScX st Scs c0 s) (haf : ScAff st T s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s)
+    (hc0 : c0 ∈ Scs) (hnb : ∀ y ∈ T, L.mem s (scA y) ≠ c0) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scTcbA c0) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scTcbA c0) 0#u64) ∧ ANI st s (L.wr s (scTcbA c0) 0#u64) := by
   have hO := hX.1
@@ -1017,9 +1026,19 @@ theorem sctcb_zero_all {s : S} {c0 : U64} {Q : U64 → U64 → List U64} {R : U6
   have ho := h0.omega _ hm
   have hN' := h0.nodes _ h0.cur
   obtain ⟨h128, e1, -, e3, e4, e5, -⟩ := sc_facts hO hc0
+  have haf' : ScAff st T (L.wr s (scTcbA c0) 0#u64) := haf.keep (fun t ht h0' => (hX.2.2.bound t ht h0').1)
+    (fun y hy => L.mem_wr_ne ho.1 (scA_aligned (h0.tcbs y hy))
+      (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
+    (fun c hc => L.mem_wr_ne ho.1 (h0.omega _ (hSg.sub _ (hO.fixW c hc).2)).1 (by
+      rw [e1, (sc_facts hO hc).2.2.1]
+      by_cases hcc : c = c0
+      · subst hcc; omega
+      · have := hO.scDisj c hc c0 hc0 hcc; have := (sc_facts hO hc).1; omega))
+    (fun y hy => L.mem_wr_ne ho.1 (field_aligned (K := 3520#u64) (h0.tcbs y hy) (by simp) (by simp))
+      (out_ne_field (K := 3520#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
   refine ⟨⟨⟨Q, R, inv_of_free h0 ((writesIn_wr (v := 0#u64) ho.1).mono fun b hb => hb ▸ Or.inl hm)⟩,
     BoundInv.owr h0 hB hm, (XInv.set_sctcb h0 hX hSg.sub hc0 hnb (fun h0' => absurd rfl h0') (fun e => absurd e.symm (idle_ne0 h0))).x
-      ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0'),
+      ((TScX.set_sctcb h0 hO hSg.sub hc0 htx hX.2.2.yt.1).full fun h0' => absurd (L.mem_wr_same ho.1) h0') haf',
     SCsOK.wr' h0 hS hO ho.1 (fun y hy => (out_ne_field (K := 3464#u64) ho hy (h0.tcbs y hy) (by simp)).symm)
       (out_ne_node ho h0.cur hN' (by simp [layout.node.CUR_SC])).symm (fun c hc => ?_)
       (scw_ne_spor hO hc0 e1 (by omega) (by omega))
@@ -1117,7 +1136,7 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     rw [f3.sig _ (hX1.1.fixW sc hsc).1, f2.sig _ (hX1.1.fixW sc hsc).1, sc1, ← et]
   refine WP.spec_bind (obj.Tcb.set_sc.wr s3 t 0#u64) fun s4 e4 => ?_
   subst e4
-  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, -, kΩ, ks0⟩ :=
+  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, kf, kΩ, ks0⟩ :=
     clear_sc_state h3 hB3 hX3 hS3 hSg3 htT ⟨qq3, qr3⟩ id3
   have hB4 := kB na3 (fun e => by rw [ka, ea3, ea2]; exact cr1 (by rw [← ec2, ← ec3, ← kc]; exact e))
   have ktx' : TScX st Scs sc (L.wr s3 (scA t) 0#u64) := by
@@ -1131,7 +1150,12 @@ theorem schedcontext.unbind_tcb.blk (s : S) (sc : U64) (h : BlkOK st T Cs Ω H S
     rw [scA_eq]; exact foot_field h3.tcbs htT (by simp) (by simp) (by simp) (by simp)
   refine WP.spec_mono (obj.Sc.set_tcb.wr _ sc 0#u64) fun s5 e5 => ?_
   subst e5
-  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' k4 k5 hsc fun y hy e => by
+  have haf4 : ScAff st T (L.wr s3 (scA t) 0#u64) :=
+    (ScAffX.keep (d := t) (hX3.2.2.aff.x t) (fun y hy _ h0 => (hX3.2.2.bound y hy h0).1)
+      (fun y hy hyt => by rw [scA_eq]; exact kf y hy _ (by simp) (by simp) (fun e => absurd e hyt))
+      (fun c hc => kΩ _ (hSg3.sub _ (hX3.1.fixW c hc).2))
+      (fun y hy _ => kf y hy _ (by simp) (by simp) (fun _ => by simp))).full (fun _ h0 => absurd ks0 h0)
+  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' haf4 k4 k5 hsc fun y hy e => by
     by_cases eyt : y = t
     · subst eyt; rw [ks0] at e; exact hsc0 e.symm
     · have := (k3.2.2.bound y hy (by rw [e]; exact hsc0)).2.1
@@ -1377,6 +1401,36 @@ theorem FootD.trans {s₁ s₂ s₃ : S} {Es : Set U64} (h₁ : FootD st T Cs Sg
 theorem FootD.mono {s s' : S} {Es Es' : Set U64} (f : FootD st T Cs Sg Scs Z Es s s') (hE : Es ⊆ Es') :
     FootD st T Cs Sg Scs Z Es' s s' :=
   WritesIn.mono f fun _ hb => Or.elim hb (fun h => Or.inl (KW.mono h hE)) Or.inr
+
+/-- **The buffer lookups kept across a `KWB` / debug-list / outside-word
+footprint** from a `BlkOK` state, with the heap's endpoints and notifications
+(`BufKeep.of_footDBU`; `U`: e.g. a full-state report's IPC-buffer words). -/
+theorem BufKeep.of_blkDBU {s s' : S} {U : Set U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hU : ∀ b ∈ U, OutsideObjs st T Cs s b)
+    (f : WritesIn st s s' (fun b => KWB st T Cs Sg Scs Z (EH H) s b ∨ DbgW st T Cs s b ∨ b ∈ U)) :
+    BufKeep st T s s' := by
+  obtain ⟨⟨Q, R, h0⟩, -, hX, -, hSg⟩ := h
+  exact BufKeep.of_footDBU h0 hX.1 hSg.sub (fun _ he => he) hU f
+
+/-- **A `FootD` step that keeps every TCB's `IPC_BUFFER` word is a `FootDB`
+step.** -/
+theorem FootDB.of_footD {s s' : S} {Es : Set U64} (f : FootD st T Cs Sg Scs Z Es s s')
+    (hib : ∀ y ∈ T, L.mem s' (ibA y) = L.mem s (ibA y)) : FootDB st T Cs Sg Scs Z Es s s' := by
+  refine ⟨f.1, f.2.1, fun b hb hn => ?_⟩
+  by_cases hk : KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b
+  · rcases hk with (⟨y, hy, K, h1, h2, h3, h4, e⟩ | hk) | hk
+    · by_cases h5 : K.val = 3512
+      · have eK : K = 3512#u64 := UScalar.eq_of_val_eq (by simp [h5])
+        subst eK e
+        exact hib y hy
+      · exact absurd (Or.inl (Or.inl ⟨y, hy, K, h1, h2, h3, h4, h5, e⟩)) hn
+    · exact absurd (Or.inl (Or.inr hk)) hn
+    · exact absurd (Or.inr hk) hn
+  · exact f.2.2 b hb hk
+
+/-- `FootDB` (QueueFoot, KENTRY-PLAN a6f) is a `FootD`. -/
+theorem FootDB.footD {s s' : S} {Es : Set U64} (f : FootDB st T Cs Sg Scs Z Es s s') : FootD st T Cs Sg Scs Z Es s s' :=
+  WritesIn.mono f fun _ hb => Or.elim hb (fun h => Or.inl h.kw) Or.inr
 
 /-- A write of a debug link of a TCB. -/
 theorem dbgF_all {s : S} {y K v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hy : y ∈ T)

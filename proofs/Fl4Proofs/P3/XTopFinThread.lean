@@ -112,10 +112,10 @@ theorem IRel.xtopMv {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {cr : Fl4Spec.
     {σ : Fl4Spec.State Unit} (h : IRel st Z.th cr Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ) (hAR : AR a cr) :
     ∃ (G : MdbGhost) (V : XVs), XTopAt (L := L) AR (Z.mv G V) s a σ := by
   obtain ⟨⟨Z', h1, h2, h3, h4, h5, h6, h7, h8, hX⟩, -, -⟩ := IRel.xtop (L := L) h hAR
-  obtain ⟨th', G', P', L4', L3', L2', L1', N', T', C', E', R', B', c'⟩ := Z'
+  obtain ⟨th', G', P', L4', L3', L2', L1', N', T', C', E', R', B', c', vx'⟩ := Z'
   simp only at h1 h2 h3 h4 h5 h6 h7 h8
   subst h1 h2 h3 h4 h5 h6 h7 h8
-  exact ⟨G', (P', L4', L3', L2', L1'), hX⟩
+  exact ⟨G', (P', L4', L3', L2', L1'), ⟨hX.fin, hX.rel, hX.ipc, hX.esa⟩⟩
 
 /-- **What a thread cap's finalisation at `XTop` reads** [J] (module
 docstring), at an `XTopAt` state. -/

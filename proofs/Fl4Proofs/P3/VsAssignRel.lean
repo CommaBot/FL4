@@ -166,6 +166,24 @@ theorem VsRel.words_eq {P : Set U64} {m m' : U64 → U64} {ksb : U64} {σ σ' : 
     injection hf' with hf'; injection hf' with hf'; injection hf' with hf'; subst hf'
     exact optRef_inj ((hfe' lo hl).symm.trans (hfe lo hl))
 
+/-- (F1 stage 5) Every spec arch object but the one at `p` kept. -/
+def ArchKeepBut (p : U64) (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ q : U64, (∃ ao, σ.kheap q.bv = some (.archObj ao)) → q ≠ p → σ'.kheap q.bv = σ.kheap q.bv
+
+/-- **(F1 stage 5) What an ASID assign leaves for `VsNamed`** (VsNamedStep's
+`assignS`): the PML4 cap `c` before unmapped and after mapped at `asid`, the
+ASID table's entry `hi` naming the pool `pool`, whose entry `lo`
+(`asid = hi · 512 + lo`) is written with the PML4, every other spec arch object
+and the ASID table kept. -/
+def AssignF (m' : U64 → U64) (x : U64) (c : capability.Cap) (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∃ (q0 as0 asid pool hi lo : U64) (f : BitVec 9 → Option Fl4Spec.ObjRef),
+    c = .Pml4 q0 false as0 ∧ capV m' x = .Pml4 q0 true asid ∧
+    hi.val < 2048 ∧ σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) = some pool.bv ∧
+    lo.val < 512 ∧ asid.val = hi.val * 512 + lo.val ∧ q0 ≠ 0#u64 ∧
+    σ.kheap pool.bv = some (.archObj (.asidPool f)) ∧
+    σ'.kheap pool.bv = some (.archObj (.asidPool (Function.update f (Fl4Spec.ucast 9 lo.bv) (some q0.bv)))) ∧
+    ArchKeepBut pool σ σ' ∧ σ'.archState.x64AsidTable = σ.archState.x64AsidTable
+
 /-- **ASIDPool `Assign`** (see the module docstring). -/
 theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U64}
     {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsInvHyps st A th P SR)
@@ -201,7 +219,8 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
           VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
           SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
           VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pml4 ptr1 false asid0) ∧ KFoot σ σ' ∧
-          ∀ b, VsWrite P (L.ksb s) b → L.mem res.2.1 b ≠ L.mem s b → L.mem res.2.1 b = ptr1) ⦄ := by
+          (∀ b, VsWrite P (L.ksb s) b → L.mem res.2.1 b ≠ L.mem s b → L.mem res.2.1 b = ptr1) ∧
+          AssignF (L.mem res.2.1) (cslotAddr (pc.bv, idx)) (.Pml4 ptr1 false asid0) σ σ') ⦄ := by
   rw [decodeAssign_eq hl args xs cte ptr.bv base.bv ptr1.bv (pc.bv, idx) rest]
   generalize hdec : ExceptT.run (assignBody ptr.bv base.bv (pc.bv, idx)) σ = dec
   unfold vspace.decode
@@ -343,7 +362,7 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
             rw [this]; omega⟩
         have hKf : KFoot σ σ3 := (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans (KFoot.arch hkf2 _))
         refine (WP.spec_ok _).2 (Or.inr ⟨rfl, by rw [← hdec]; exact hnf, asid.bv, σ3, by rw [← hdec]; exact hmem,
-          ?_, ?_, ?_, ?_, ?_, hFt, hLk, hKf, ?_⟩)
+          ?_, ?_, ?_, ?_, ?_, hFt, hLk, hKf, ?_, ?_⟩)
         · unfold AssignSpec
           rw [← hct, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
           exact performAssign_eq hkc1 hwf hidx hcs hkf1 asid.bv
@@ -379,6 +398,28 @@ theorem assign_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P : Set U6
               rw [hσ1]; unfold stsAct; split_ifs <;> rfl
             rw [hk1] at hR1
             exact hR.words_eq hR1 ht1 hpools1 b hb
+        · -- (F1 stage 5) `AssignF`
+          have hab : asid.val = base.val + i1.val := by
+            rw [hasid]; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+          have hhi : (i &&& 2047#u64).val = base.val / 512 := by
+            have : (i &&& 2047#u64).val = i.val % 2048 := by
+              rw [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod i.val 11
+            have hb20' : base.val < 1048576 := hb20
+            rw [this, hiv, Nat.shiftRight_eq_div_pow]; simp only [Nat.reducePow]; omega
+          have hlov : (asid &&& 511#u64).val = i1.val := by
+            have : (asid &&& 511#u64).val = asid.val % 512 := by
+              rw [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod asid.val 9
+            rw [this, hab]; omega
+          refine ⟨ptr1, asid0, asid, ptr, i &&& 2047#u64, asid &&& 511#u64, f, rfl, ?_, hlt,
+            by rw [hi_bv base i hiv]; exact htab, hlo, by rw [hhi, hlov, hab]; omega, hp10, hkf, ?_, ?_, ?_⟩
+          · rw [capV_wr_out hPl hxsl s2 hbo, hcv2]
+          · rw [hσ3, lo_bv]; exact Function.update_self _ _ _
+          · rintro q' ⟨ao, hao⟩ hne
+            have h1 : q'.bv ≠ ptr.bv := fun h => hne (eq_of_bv h)
+            have h2 : q'.bv ≠ ct.bv := kheap_ne hao hkt' (fun _ h1 h2 => by subst h1; cases h2)
+            have h3 : q'.bv ≠ pc.bv := kheap_ne hao hkc (fun _ h1 h2 => by subst h1; cases h2)
+            simp [hσ3, updK, hσ2, setCnodeSlot, hσ1, stsAct_kheap, h1, h2, h3]
+          · rw [hσ3, hσ2, hσ1]; unfold stsAct; split <;> rfl
     · have hne : (L.mem s (atA (L.ksb s) (i &&& 2047#u64)) != ptr) = true := by simp [hwp]
       simp only [hne, ↓reduceIte]
       rw [show error.invalid_cap Unit 0#u64 = ok (.Err (.Sys (.InvalidCapability 0#u64))) from rfl]

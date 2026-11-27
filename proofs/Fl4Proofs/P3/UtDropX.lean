@@ -42,6 +42,9 @@ abbrev XSets.dropV (Z : XSets) (rl rh : Nat) (m : U64 → U64) : XSets :=
     L2 := pr2 rl rh m Z.L2 Z.L1
     L1 := pr1 rl rh Z.L1 }
 
+/-- (f6) `Z.dropV` keeps `vx`. -/
+instance VxE.dropV {Z : XSets} [h : VxE Z] {rl rh : Nat} {m : U64 → U64} : VxE (Z.dropV rl rh m) := ⟨h.eq⟩
+
 section Mono
 variable {th : TypedHeap} {lo hi : Nat}
 
@@ -165,7 +168,7 @@ theorem XTopAt.dropB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
   obtain ⟨hSR, hV, hML, hC, hI⟩ := hCR
   have hO : OStep (RgOf p sb) σ σ' := by
     refine ⟨hD.rq, hD.rel, hD.ct, hD.act, hD.csc, hD.time, hD.cons, hrepr, hcdom, hdtime, hD.idle, hD.isc, hist,
-      hinode, by rw [harch], by rw [harch], fun q hq => ?_⟩
+      hinode, by rw [harch], by rw [harch], by rw [harch], fun q hq => ?_⟩
     by_cases hr : RgOf p sb q
     · exact ⟨Or.inl hr, by rw [hD.kin q hr]; exact Or.inl rfl⟩
     · exact absurd (hD.kout q hr) hq

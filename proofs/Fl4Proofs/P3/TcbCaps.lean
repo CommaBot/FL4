@@ -60,7 +60,7 @@ theorem insert_full_abs_fin (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (
   have hb : decide (Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) (absCap c)
       (decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC)))) =
       isPF (revOf (L.mem s) (cslotAddr (ps.bv, idxs))) srcC c (revF c srcC) := by
-    rw [hC.orig _ hAs]; exact sbp_eq srcC c _ hsh hself hes hk
+    rw [hC.orig _ hAs]; exact sbp_eq srcC c _ hsh hself hes hk hwf
   have hsib : ¬ Fl4Spec.shouldBeParentOf (absCap srcC) (σ.isOriginalCap (ps.bv, idxs)) (absCap c)
       (decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC))) →
       ∀ y, ¬ Mdb.Desc G.par y (cslotAddr (ps.bv, idxs)) := by
@@ -748,7 +748,8 @@ theorem mem_liftE_ok {σ' α ε : Type} {m : Fl4Spec.NonDet σ' α} {s : σ'} {x
 
 /-- A new cap and the CNode slot it was derived from, at decode time:
 well-formed, valid, of the source's shape, badge (or a fresh badge) and
-object. -/
+object; (F1 stage 5) a keyed new cap is the source's cap itself, not an
+unmapped table cap (`Vs.vsKeep_copy`). -/
 def NewCapOK (th : TypedHeap) (mem0 : U64 → U64) (nc : capability.Cap) (sl : Fl4Spec.CslotPtr) : Prop :=
   ∃ ps rs, th ps = some (.cnode rs) ∧ sl.1 = ps.bv ∧ sl.2.length = rs ∧ CapWf nc ∧ CapValid th nc ∧ EncWf nc ∧
     (isFrame nc = true → Fl4Spec.sameObjectAs (absCap nc) (absCap nc)) ∧
@@ -757,7 +758,8 @@ def NewCapOK (th : TypedHeap) (mem0 : U64 → U64) (nc : capability.Cap) (sl : F
     okey nc = okey (capV mem0 (cslotAddr sl)) ∧
     (∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV mem0 (cslotAddr sl)) → Vs.VCapOK P L4 L3 L2 L1 nc) ∧
     (Vs.TabUn nc → Vs.TabUn (capV mem0 (cslotAddr sl))) ∧
-    (Vs.NativeCap (capV mem0 (cslotAddr sl)) → Vs.NativeCap nc)
+    (Vs.NativeCap (capV mem0 (cslotAddr sl)) → Vs.NativeCap nc) ∧
+    (Vs.VKey nc ≠ none → nc = capV mem0 (cslotAddr sl) ∧ ¬ Vs.TabUn nc)
 
 /-- FL4's buffer argument: no frame is source slot `0`. -/
 def bufArg (bc0 : capability.Cap) : Option (capability.Cap × Fl4Spec.CslotPtr) → capability.Cap × U64

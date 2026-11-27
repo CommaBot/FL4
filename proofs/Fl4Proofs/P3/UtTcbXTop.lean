@@ -31,7 +31,7 @@ def specDropT (σ : Fl4Spec.State Unit) (W : Set U64) : Fl4Spec.State Unit :=
   { σ with kheap := fun p => if Sched.TW W p then none else σ.kheap p }
 
 theorem ostep_dropT (W : Set U64) : OStep (Sched.TW W) σ (specDropT σ W) := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
   by_cases h : Sched.TW W q
   · exact ⟨Or.inl h, Or.inl (by simp [specDropT, h])⟩
   · exact absurd (by simp [specDropT, h]) hq

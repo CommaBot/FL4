@@ -1,0 +1,19 @@
+import Fl4Proofs.P2.InvLP
+#print axioms Fl4Proofs.P2.PathObl.SlJAt.tcbW_wr
+#print axioms Fl4Proofs.P2.PathObl.ioQ_wr
+#print axioms Fl4Proofs.P2.PathObl.io_pathsKQ
+#print axioms Fl4Proofs.P2.PathObl.io_pathsKQ_startAt
+#print axioms Fl4Proofs.P2.PathObl.tmQ_wr
+#print axioms Fl4Proofs.P2.PathObl.tm_pathsKQ
+#print axioms Fl4Proofs.P2.PathObl.tm_pathsKQ_startAt
+#print axioms Fl4Proofs.P2.PathObl.inv_total
+#print axioms Fl4Proofs.P2.PathObl.inv_pathObl
+#print axioms Fl4Proofs.P2.PathObl.inv_pathSide
+#print axioms Fl4Proofs.P2.PathObl.inv_readOnce
+#print axioms Fl4Proofs.P2.PathObl.inv_localPath
+#print axioms Fl4Proofs.P2.PathObl.planD_of_plan
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsK
+#print axioms Fl4Proofs.P2.PathObl.inv_pathsK_startAt
+#print axioms Fl4Proofs.P2.PathObl.invQ_intro
+#print axioms Fl4Proofs.P2.PathObl.still_holds_congr
+#print axioms Fl4Proofs.P2.PathObl.still_holds_guard

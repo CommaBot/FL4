@@ -215,7 +215,7 @@ theorem bxi_field {s : S} {y K v : U64} (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac 
     BXI st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (core.num.U64.wrapping_add y K) v) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
   obtain ⟨a1, a2, a3, a4, a5, a6, k1, k2, k3, k4, k5, k6, k7⟩ := hKn
-  obtain ⟨b1, b2⟩ := bx_field (v := v) h0 hB hX hSg.sub hy hK hK8 ⟨a1, a2, a3, a4, a5, a6⟩ hKt
+  obtain ⟨b1, b2⟩ := bx_field (v := v) h0 hB hX hSg.sub hy hK hK8 ⟨a1, a2, a3, a4, a5, a6, k5⟩ hKt
   exact ⟨⟨Q, R, inv_wr_field h0 hy hK hK8 ⟨k1, k2, k3, k4, a4, k5, k6, a3, k7⟩⟩, b1, b2,
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩,
     SCsOK.field h0 hS hX hy hK hK8 a1⟩

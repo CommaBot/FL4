@@ -107,7 +107,7 @@ theorem JAtZ.sc_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.ScTKw P σ σ') (hF : FK σ σ')
     (hX' : XTopAt (L := L) AR Z s' a' σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
-    (hD : D' ⊆ D) : JKern (L := L) H Cs D' Z.th s' σ' := by
+    (hD : D' ⊆ D) : JKern (L := L) arI H Cs D' Z.th s' σ' := by
   have K := J.kern
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
@@ -139,7 +139,7 @@ theorem JAtZ.sc_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [hK.arch])⟩
   rw [hna, hDbg]; exact K.head
 
 
@@ -175,7 +175,8 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
-    (hidl : Sched.IdleKeep (L := L) s s') :
+    (hidl : Sched.IdleKeep (L := L) s s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hDD : D' ⊆ D) :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
@@ -188,7 +189,8 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have JC := J.jcov
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead,
     JC.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
-    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
+    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
+    fun q hq => J.dxk hKd (J.tfoot_td hw) q (hDD hq)⟩
   · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'

@@ -31,7 +31,7 @@ theorem jPreemptHypL (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
     PPHypDW (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th := by
   intro s a σ G hDS ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩
   subst hth
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   obtain ⟨⟨r1, s', a'⟩, hr, ⟨⟨σ', hcase, hX', hJ'⟩, -, hw⟩, hK⟩ :=
     spec_exists (WP.spec_and (WP.spec_and (J0.ppJD arI hAK hA hnd hP hp0)
       (P1.sched.preemption_point.pp hA s a J.blk)) (J.ppDbg hA))
@@ -84,14 +84,14 @@ theorem jPostDelHypL (hAM : ARMask arI AR)
   intro s a σ G cl hDS ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ hcl hcln hclw
   subst hth
   have hX := J.xtop
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hLy : IntLayout Z.th (L.ksb s) ∧ IoLayout Z.th (L.ksb s) := ⟨J.intL, J.ioLay⟩
   have hfin : ∀ (s' : S) (a' : A) (σ' : Fl4Spec.State Unit), SlotsSame (Z.mv G V).th (L.mem s) (L.mem s') →
       P1.WritesIn st s s' (KsW (L.ksb s)) → KsStep σ σ' → XTopAt (L := L) AR (Z.mv G V) s' a' σ' →
       CRel Z.th (L.mem s') σ' G → P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' →
       WJL (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' hCR hK => by
     obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a' σ σ' hw hO _ H Cs Ac Lst _ rfl J0 hX'
-    have J' := J0.cs_frameK hw.1 hX' (KBack.of_kheap hO.kh) (IpcFrKeep.of_kheap hO.kh)
+    have J' := J0.cs_frameK (hvn := J0.vsKs hw) hw.1 hX' (KBack.of_kheap hO.kh) (IpcFrKeep.of_kheap hO.kh) (J0.carry.frame subset_rfl (IpcFrKeep.of_kheap hO.kh) ((KSz.of_kheap hO.kh)))
       (JCs.same J0 hSS (KSz.of_kheap hO.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J0.vkeep_of hw fun _ hb => J0.ksW_nv hb)
       hSS hK hO.idle
     have hmem : ∀ y ∈ G.chains.flatten, IsSlot Z.th y := fun y hy => ((hDS.1.2.2.1.members y).1 hy).1

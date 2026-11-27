@@ -192,7 +192,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- **FL4's `reset_untyped` at `J` under `MachPlat`** (module docstring). -/
-theorem JAtZ.reset_untypedJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reset_untypedJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hMP : MachPlat arI MR) (hPA : PPPlatA arI AR)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hc0 : Z.c = 0#u64) (hR0 : PPR0 σ)
     (hres : σ.schedulerAction ≠ .chooseNewThread)
@@ -366,7 +366,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 8000000 in
 /-- **The retype with a reset at `J` under `MachPlat`** (module docstring). -/
-theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -378,7 +378,7 @@ theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (pp.bv, idx))) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -483,7 +483,7 @@ theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   refine retype_reset_wp arI s1 ar _ _ nt us dest off win false
     (J1.reset_untypedJM hAK hA hnd hMP hPA hrcb hc0 hR01 hres1 hpp hidx hcap1 hnc1 hf0 hKR hDT hAF1
       J1.vsc.needR.1 J1.vsc.needR.2.1 J1.vsc.needR.2.2.1 J1.vsc.needR.2.2.2.1 J1.vsc.needR.2.2.2.2
-      (hVM s1 hs1) Vs.needR_roots hMR1 hVT1 hVI1) ?_ ?_
+      (hVM hnd' s1 hs1) Vs.needR_roots hMR1 hVT1 hVI1) ?_ ?_
   swap
   · intro e s2 a2 hpost
     rcases hpost with ⟨h, -⟩ | ⟨he, σ', hmem, hpre, Z', hX⟩
@@ -637,7 +637,7 @@ a native object type (`hNat`), with a reset by `JAtZ.utResetJM`, without one
 by `JAtZ.jUtRetHyp` (its residual `JUtRetHypR` is asked only with a reset or
 of a non-native type: vacuous here, the decode fixes `reset` by the cap's
 children, `RetCtx.resetEq`) and `UtRetPostJ.toM`. -/
-theorem JAtZ.jUtRetHypM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtRetHypM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
@@ -647,7 +647,7 @@ theorem JAtZ.jUtRetHypM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -696,14 +696,14 @@ set_option maxHeartbeats 4000000 in
 spec's reset of the device cap read at the restart's state has no error
 outcome, `NoPre.noErrAt_retypeDev`). -/
 theorem JAtZ.jUtRetHypDevM {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
     (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hGP : DevGpm (L.mem s) Z.G σ)
     (hrcb : Fl4Spec.resetChunkBits = 16)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -742,7 +742,7 @@ theorem JAtZ.jUtRetHypDevM {s : S} {ar : A} {σ : Fl4Spec.State Unit}
 /-- **An untyped cap's decode at `J` under `MachPlat`** (XTopJointUt's
 `decode_invocation_untypedJ` with `JUtRetHypDM`): `XCapP` at `JAt`/`JAtPreMV`. -/
 theorem decode_invocation_untypedJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (argsU : List U64)
@@ -758,7 +758,7 @@ theorem decode_invocation_untypedJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     (hR : JUtRetHypDM (L := L) arI AR MR Z.th s ar σ sl p sb fi dev ct blk call don argsU) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl)
       (.Untyped p sb fi dev) blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, -⟩ := J.xtop.rel
   left
   unfold DecOKDMXP syscall.decode_invocation

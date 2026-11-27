@@ -83,7 +83,7 @@ theorem JAtZ.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have h40 : o.val ≠ 40 := by
       simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-      rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+      rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
     exact hne _ (by unfold P1.Aligned; rw [e]; omega) (by rw [e]; omega)⟩
   have hD := hX.rel.2.2.2.1
   have hAR := hX.fin.1.1.2.2.2.2.2.2
@@ -92,7 +92,7 @@ theorem JAtZ.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frameK hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
+  exact ⟨Ac', Lst', J.cs_frameK (hvn := J.vsKs hw) hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
     hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl⟩
 
 /-- `JAtZ.workUnitsJD` with the dead set existential. -/
@@ -262,7 +262,7 @@ theorem JAtZ.timestampJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · have := congrArg UScalar.val hb; rw [hd, h1] at this; simp at this; omega
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
   exact ⟨Ac, Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2) hKd subset_rfl) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'
     hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD⟩
 

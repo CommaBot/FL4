@@ -109,9 +109,15 @@ def ArchSpecOKN (w : UView) : ArchInvocation → Prop
   | .invokeASIDControl a => MpOKN w a
   | _ => True
 
+/-- What a frame batch needs from its decode (fb3e): the destination CNode cap sits in a slot (its
+lookups' slots are then `DestRefV` destinations). -/
+def FbOKN (w : UView) (b : Fl4FrameBatchInvocation) : Prop :=
+  isCnodeCap b.destCnode = true ∧ ∃ s, w.2.1 s = some b.destCnode
+
 def ArchOKN (w : UView) : Fl4ArchInvocation → Prop
   | .spec i => ArchSpecOKN w i
   | .deriveSubframe iv => DsOKN w iv
+  | .frameBatch b => FbOKN w b
   | _ => True
 
 macro "okva_step" : tactic => `(tactic| first
@@ -249,6 +255,26 @@ theorem okv_decodeDeriveSubframeN {w : UView} (args : List Data) (cte : CslotPtr
   | _ => exact okv_throw _
 
 set_option maxHeartbeats 8000000 in
+theorem fb_the_mem {ex : List (Cap × CslotPtr)} {i : Nat} (h : i < ex.length) :
+    (the ex[i]?).1 ∈ ex.map Prod.fst := by
+  rw [List.getElem?_eq_getElem h]
+  exact List.mem_map.2 ⟨_, List.getElem_mem h, rfl⟩
+
+/-- fb3e: **a decoded frame batch's destination CNode cap is an extra cap** (so it sits in a slot). -/
+theorem okv_decodeFrameBatchN {w : UView} (args : List Data) (cap : ArchCap) (ex : List (Cap × CslotPtr))
+    (hcps : ∀ c ∈ ex.map Prod.fst, ∃ s, w.2.1 s = some c) :
+    OkV w (FbOKN w) (decodeFrameBatch (Z := Unit) args cap ex) := by
+  unfold decodeFrameBatch
+  split
+  · refine okv_bind_uk (fun _ => by uk_auto) fun vs => ?_
+    refine okv_whenE_bind fun _ => okv_whenE_bind fun _ => ?_
+    try dsimp only
+    repeat' (first | exact okv_throw _ | exact okv_throw' _ | exact okv_throw_bind _ | exact okv_liftE_fail | (refine okv_returnOk_bind ?_) | (refine okv_whenE_bind fun _ => ?_) | (dsimp only) | split)
+    all_goals refine okv_unlessE_bind fun _ => okv_unlessE_bind fun hc2 => okv_returnOk ⟨?_, ?_⟩
+    all_goals first | (rw [if_pos ‹_ ∧ ex.length > 1›] at hc2; exact hc2) | (rw [if_neg ‹¬ (_ ∧ ex.length > 1)›] at hc2; exact hc2) | exact hcps _ (fb_the_mem (‹_ ∧ ex.length > 1›).2) | exact hcps _ (fb_the_mem (by omega))
+  · exact okv_throw _
+  · exact okv_liftE_fail
+
 theorem okv_fl4ArchDecodeN {w : UView} (label : Data) (args : List Data) (xs : CapRef) (cte : CslotPtr) (cap : ArchCap)
     (ex : List (Cap × CslotPtr)) (hc : w.2.1 cte = some (.archObjectCap cap)) (hex : ∀ q ∈ ex, w.2.1 q.2 = some q.1) :
     OkV w (ArchOKN w) (fl4ArchDecodeInvocation (Z := Unit) label args xs cte cap ex) := by
@@ -263,7 +289,10 @@ theorem okv_fl4ArchDecodeN {w : UView} (label : Data) (args : List Data) (xs : C
       (okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex)))
   case pml4Cap p m =>
     simp only [fl4ArchDecodeInvocation]
-    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex))
+    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_ite (okv_liftME (okv_decodeFrameBatchN args _ ex hcps))
+      (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex)))
+  case tdxControlCap =>
+    simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_triv fun _ => trivial)
   all_goals (simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex))
 
 /-! ## The VSpace performs -/
@@ -515,9 +544,9 @@ theorem p3_archPerform (i : ArchInvocation) (hm : ∀ a, i ≠ .invokeASIDContro
     obtain rfl := Set.mem_singleton_iff.1 hx
     exact p3_performIoportControl iv σ hI hok z hz
 
-/-- **Every arch invocation but `invokeASIDControl` keeps `P3 N`.** -/
-theorem p3_fl4ArchPerform (ai : Fl4ArchInvocation) (hm : ∀ a, ai ≠ .spec (.invokeASIDControl a)) (σ : State Unit)
-    (hI : P3 N σ) (hok : ArchOKN (uV σ) ai) :
+/-- Every arch perform but MakePool and the frame batch (SpecFbP3's `p3_fl4ArchPerform` adds it). -/
+theorem p3_fl4ArchPerform0 (ai : Fl4ArchInvocation) (hm : ∀ a, ai ≠ .spec (.invokeASIDControl a))
+    (hnb : ∀ b, ai ≠ .frameBatch b) (σ : State Unit) (hI : P3 N σ) (hok : ArchOKN (uV σ) ai) :
     ∀ y ∈ ((fl4ArchPerformInvocation (Z := Unit) ai).run σ).1, P3 N y.2 := by
   intro y hy
   cases ai with
@@ -526,6 +555,7 @@ theorem p3_fl4ArchPerform (ai : Fl4ArchInvocation) (hm : ∀ a, ai ≠ .spec (.i
     simp only [fl4ArchPerformInvocation] at hy
     obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
     exact (hv_bind (p3_performDeriveSubframe iv) fun _ => hv_uk fun _ => by ukc) σ ⟨hI, hok⟩ x hx
+  | frameBatch b => exact absurd rfl (hnb b)
   | _ => exact (p3e_of_uk fun _ => by simp only [fl4ArchPerformInvocation]; uk_auto) σ hI y hy
 
 end

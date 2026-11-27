@@ -38,6 +38,7 @@ code runs between the save and the switch).
 -/
 import Fl4Proofs.P3.ScYieldTo
 import Fl4Proofs.P3.ScPres
+import Fl4Proofs.P3.G7dVsDef
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -384,19 +385,29 @@ to have one outcome, as l4v's `corres` with the same machine operation on
 both sides; FL4's lazy FPU switch lives behind `machine.Arch` and changes no
 word of FL4's store, the spec's FPU fields are read by no relation.
 Supersedes `ArchSw` (`ArchSw.toF`), whose `σ'.kheap = σ.kheap` is false
-whenever the spec has an FPU owner other than `t`. -/
+whenever the spec has an FPU owner other than `t`. Both halves are guarded by
+`VsRootOK T σ` (G7dVsDef; g7d, INV-PLAN §1.U3L D2): without it the spec's
+`setVmRoot` fails on a vtable PML4 cap with ASID 0 or an ASID-table entry
+naming a non-pool, states `SchedRel` does not exclude, so the unguarded
+premise was unsatisfiable (g6b audit). -/
 def ArchSwF (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
   (∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
-    FpuOwnOK σ →
+    FpuOwnOK σ → VsRootOK T σ →
     ∀ t ∈ T, vspace.set_vm_root st ar s a t ⦃ r => ∃ σ1, Fl4Spec.archSwitchToThread (Z := Unit) t.bv σ =
       ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeepsF σ σ1 ⦄) ∧
   (∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
-    vspace.set_kernel_vm_root st ar s a ⦃ r => ∃ σ1, Fl4Spec.archSwitchToIdleThread (Z := Unit) σ =
+    VsRootOK T σ → vspace.set_kernel_vm_root st ar s a ⦃ r => ∃ σ1, Fl4Spec.archSwitchToIdleThread (Z := Unit) σ =
       ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeeps σ σ1 ⦄)
 
 theorem ArchSw.toF {N T C : Set U64} {c : U64} (h : ArchSw st ar N T C c) : ArchSwF st ar N T C c :=
-  ⟨fun s a σ hS hR _ t ht => WP.spec_mono (h.1 s a σ hS hR t ht) fun _ ⟨σ1, e1, e2, e3, e4⟩ =>
-    ⟨σ1, e1, e2, e3, e4.toF⟩, h.2⟩
+  ⟨fun s a σ hS hR _ _ t ht => WP.spec_mono (h.1 s a σ hS hR t ht) fun _ ⟨σ1, e1, e2, e3, e4⟩ =>
+    ⟨σ1, e1, e2, e3, e4.toF⟩, fun s a σ hS hR _ => h.2 s a σ hS hR⟩
+
+/-- `VsRootOK` across a heap equal up to the FPU part of TCBs. -/
+theorem VsRootOK.ofF {T : Set U64} {σ σ' : Fl4Spec.State Unit} (h : VsRootOK T σ) (hk : HeapEqUpToFpu σ σ')
+    (ha : σ'.archState.x64AsidTable = σ.archState.x64AsidTable) : VsRootOK T σ' :=
+  h.of_heap (fun p => (hk p).imp_right fun ⟨x, y, hx, hy, e⟩ =>
+    ⟨x, y, hx, hy, by have e1 := congrArg Fl4Spec.Tcb.tcbVtable e.1; exact e1⟩) ha
 
 /-- **`switch_to_thread` refines l4v `switch_to_thread`, up to the FPU**:
 `switch_to_thread_refines` with `ArchKeepsF` in the arch hypothesis and

@@ -53,6 +53,71 @@ def DeadP (H : Heap) (s : S) (q : U64) : Prop :=
   (∀ z, H q = some (.sc z) → L.mem s (scTcbA q) = 0#u64 ∧ L.mem s (scReplyA q) = 0#u64 ∧
     L.mem s (scNtfnA q) = 0#u64 ∧ L.mem s (scYieldFromA q) = 0#u64)
 
+/-- **A dead TCB is on no debug list and unarmed** (KENTRY-PLAN jc6e): its
+`DEBUG_PREV` word is 0, no core's `DEBUG_TCBS` head names it (with
+`DbgWFL`: on no list, `DbgWFL.notMem_of_deadX`), and its deadline word is 0
+(`DeadUnarmed`). Carried for the dead set in `JCovD.dx` (it reads `Cs`,
+which `DeadP` has not). FL4: the TCB finalisation's `timer::remove` and
+`debug_remove` (objects.rs:341, :351); only `TCBSetTimer` (through a thread
+cap) arms a TCB and only `debug_append` (retype) and `migrate_tcb` (of a
+capped TCB) link one. -/
+def DeadX (H : Heap) (Cs : Set U64) (s : S) (q : U64) : Prop :=
+  H q = some .tcb → L.mem s (P1.dpA q) = 0#u64 ∧
+    (∀ c ∈ Cs, L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ≠ q) ∧ L.mem s (P1.tdA q) = 0#u64
+
+/-- The deadline words of `H`'s TCBs kept. -/
+def TdKeep (H : Heap) (s s' : S) : Prop :=
+  ∀ q, H q = some .tcb → L.mem s' (P1.tdA q) = L.mem s (P1.tdA q)
+
+theorem TdKeep.rfl' {H : Heap} {s : S} : TdKeep (L := L) H s s := fun _ _ => rfl
+
+theorem TdKeep.trans {H : Heap} {s s1 s2 : S} (h1 : TdKeep (L := L) H s s1) (h2 : TdKeep (L := L) H s1 s2) :
+    TdKeep (L := L) H s s2 := fun q hq => (h2 q hq).trans (h1 q hq)
+
+/-- **The words `DeadX` reads, kept** (the kernel-state base, every TCB's
+`DEBUG_PREV` and deadline words, every core's `DEBUG_TCBS` head). -/
+def DXKeep (H : Heap) (Cs : Set U64) (s s' : S) : Prop :=
+  L.ksb s' = L.ksb s ∧ (∀ q, H q = some .tcb → L.mem s' (P1.dpA q) = L.mem s (P1.dpA q)) ∧
+    (∀ c ∈ Cs, L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS)) ∧
+    TdKeep (L := L) H s s'
+
+theorem DXKeep.rfl' {H : Heap} {Cs : Set U64} {s : S} : DXKeep (L := L) H Cs s s :=
+  ⟨rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩
+
+theorem DXKeep.trans {H : Heap} {Cs : Set U64} {s s1 s2 : S} (h1 : DXKeep (L := L) H Cs s s1)
+    (h2 : DXKeep (L := L) H Cs s1 s2) : DXKeep (L := L) H Cs s s2 := by
+  refine ⟨h2.1.trans h1.1, fun q hq => (h2.2.1 q hq).trans (h1.2.1 q hq), fun c hc => ?_,
+    TdKeep.trans h1.2.2.2 h2.2.2.2⟩
+  have e := h2.2.2.1 c hc
+  rw [P1.nodeAt_of_ksb h1.1] at e
+  exact e.trans (h1.2.2.1 c hc)
+
+theorem DeadX.keep {H : Heap} {Cs : Set U64} {s s' : S} {q : U64} (h : DeadX (L := L) H Cs s q)
+    (hk : DXKeep (L := L) H Cs s s') : DeadX (L := L) H Cs s' q := by
+  intro hq
+  obtain ⟨d1, d2, d3⟩ := h hq
+  refine ⟨by rw [hk.2.1 q hq]; exact d1, fun c hc => ?_, by rw [hk.2.2.2 q hq]; exact d3⟩
+  rw [P1.nodeAt_of_ksb hk.1, hk.2.2.1 c hc]; exact d2 c hc
+
+/-- `TdKeep` from a `WritesIn` footprint missing every TCB's deadline word. -/
+theorem TdKeep.of_writes {H : Heap} {T : Set U64} (hT : P1.TcbPlaced T) (hth : ∀ t, H t = some .tcb → t ∈ T)
+    {s s' : S} {W : U64 → Prop} (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ T, b ≠ P1.tdA t) :
+    TdKeep (L := L) H s s' := fun t ht =>
+  hW.mem_eq (P1.field_aligned (hT t (hth t ht)) (K := 3528#u64) (by simp) (by simp)) fun hb => hWV _ hb t (hth t ht) rfl
+
+/-- `DeadX` of a non-TCB. -/
+theorem DeadX.of_ne {H : Heap} {Cs : Set U64} {s : S} {q : U64} (h : H q ≠ some .tcb) :
+    DeadX (L := L) H Cs s q := fun hq => absurd hq h
+
+/-- `DeadX` over a heap agreeing at `q`. -/
+theorem DeadX.heq {H H' : Heap} {Cs : Set U64} {s : S} {q : U64} (e : H' q = H q)
+    (h : DeadX (L := L) H Cs s q) : DeadX (L := L) H' Cs s q := fun hq => h (e ▸ hq)
+
+/-- `DeadX` over fewer cores. -/
+theorem DeadX.mono {H : Heap} {Cs Cs' : Set U64} {s : S} {q : U64} (hC : Cs' ⊆ Cs)
+    (h : DeadX (L := L) H Cs s q) : DeadX (L := L) H Cs' s q := fun hq =>
+  let ⟨d1, d2, d3⟩ := h hq; ⟨d1, fun c hc => d2 c (hC hc), d3⟩
+
 /-- **`JCov` with a dead set** (module docstring): every object of `th`
 and `H` covered, dead, or exempt (`ExAt`): an idle object (`IdleAt`,
 outside the untyped regions: `idleOut`) or one inside the kernel-state block
@@ -64,12 +129,17 @@ structure JCovD (thp : TypedHeap) (H : Heap) (G : MdbGhost) (D : Set U64) (Cs : 
   dead : ∀ q ∈ D, DeadP (L := L) H s q
   ks : UtKsApart (L := L) G Cs s
   idleOut : IdleOut (L := L) thp H G s
+  dx : ∀ q ∈ D, DeadX (L := L) H Cs s q
 
 variable {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
 
 theorem JCov.toD (h : JCov (L := L) th H G Cs s) : JCovD (L := L) th H G ∅ Cs s :=
   ⟨fun q k hq => (h.th q k hq).imp_right Or.inr, fun q k hq => (h.h q k hq).imp_right Or.inr, fun _ h => h.elim,
-    h.ks, h.idleOut⟩
+    h.ks, h.idleOut, fun _ h => h.elim⟩
+
+/-- **The dead set's `DeadX` after a step keeping the words it reads.** -/
+theorem JCovD.dxKeep (h : JCovD (L := L) th H G D Cs s) {s' : S} (hk : DXKeep (L := L) H Cs s s') :
+    ∀ q ∈ D, DeadX (L := L) H Cs s' q := fun q hq => (h.dx q hq).keep hk
 
 /-- The objects of a typed heap that lose their cover, except those `I`
 exempts (the idle objects after). -/
@@ -84,9 +154,11 @@ theorem JCovD.step (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
     (hunc : ∀ q, q ∈ Uncov th H (L.mem s') G' (ExAt (L := L) th H s') → DeadP (L := L) H s' q)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hio : IdleOut (L := L) th H G' s') :
+    (hio : IdleOut (L := L) th H G' s')
+    (hxu : ∀ q, q ∈ Uncov th H (L.mem s') G' (ExAt (L := L) th H s') → DeadX (L := L) H Cs s' q)
+    (hdx : ∀ q ∈ D, DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q) :
     JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, hks, hio⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, hks, hio, fun q hq => ?_⟩
   · by_cases hc : Covered (L.mem s') G' q.val (q.val + max (objSize k) 1)
     · exact Or.inl hc
     · by_cases hi : ExAt (L := L) th H s' q
@@ -100,6 +172,9 @@ theorem JCovD.step (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
   · rcases hq with hq | hq
     · exact hdead q hq (h.dead q hq)
     · exact hunc q hq
+  · rcases hq with hq | hq
+    · exact hdx q hq (h.dx q hq)
+    · exact hxu q hq
 
 /-- **A cover kept**: a cap of the MDB kept by the step (in the MDB after,
 the same cap) covers the same range. -/
@@ -118,9 +193,11 @@ theorem JCovD.same (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s')
+    (hdx : ∀ q ∈ D, DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q) :
     JCovD (L := L) th H G' D Cs s' := by
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => hdead q hq (h.dead q hq), hks, hio⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => hdead q hq (h.dead q hq), hks, hio,
+    fun q hq => hdx q hq (h.dx q hq)⟩
   · rcases h.th q k hq with hc | hd | hi
     · exact Or.inl (covered_keep hc hk)
     · exact Or.inr (Or.inl hd)
@@ -141,7 +218,9 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s')
+    (hxu : ∀ q, q ∈ Uncov th H (L.mem s') G' (ExAt (L := L) th H s') → DeadX (L := L) H Cs s' q)
+    (hdx : ∀ q ∈ D, DeadX (L := L) H Cs s q → DeadX (L := L) H Cs s' q) :
     JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q) := by
@@ -151,7 +230,7 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
     · subst hyx; exact hx lo hi hlh hb ht
     · obtain ⟨hy', e⟩ := hk y hy hyx hp hu
       exact Or.inl ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hu, by rw [e]; exact hb, by rw [e]; exact ht⟩
-  refine h.step (fun q hq => ?_) hdead hks hio
+  refine h.step (fun q hq => ?_) hdead hks hio hxu hdx
   obtain ⟨hni, hq⟩ := hq
   rcases hq with ⟨k, hq, hnc⟩ | ⟨k, hq, hnc⟩
   · rcases h.th q k hq with hc | hd | hi

@@ -57,7 +57,9 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb f true))
     (hnc : ¬ ∃ y, σ.cdt y = some (pp.bv, idx))
     (hTh : restrictTh Z.th p.val (p.val + 2 ^ sb.val) = Z.th)
-    (f' : U64) (hf' : f'.val ≤ 2 ^ sb.val) :
+    (f' : U64) (hf' : f'.val ≤ 2 ^ sb.val)
+    (hHr : ∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
+      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + f'.val ∧ ∃ z, kd = .other z)) :
     obj.Slot.set_cap st (cslotAddr (pp.bv, idx)) s (.Untyped p sb f' true) ⦃ s' =>
       ∃ cs, σ.kheap pp.bv = some (.cnode rs cs) ∧ Fl4Spec.wellFormedCnodeN rs cs ∧
         JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a
@@ -185,16 +187,17 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
     by_cases e : z = x
     · subst e; rw [hcap'] at hc2; cases hc2; exact ⟨_, hxm, f, hcx⟩
     · exact ⟨z, hz, fi2, by rw [← hco z ((hM.members z).1 hz).1 e]; exact hc2⟩
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb
   have hjc : JCovD (L := L) Z.th H Z.G D Cs s' :=
     ⟨fun q k hq => (J.jcov.th q k hq).imp (fun hc => covered_keepC hM hRR'.M hc hCK)
         (Or.imp_right (exAt_of hidl hks).2),
       fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hRR'.M hc hCK)
         (Or.imp_right (exAt_of hidl hks).2),
-      hdead, J.jcov.ks.keep hks hUF, J.jcov.idleOut.keep hidl hUF⟩
+      hdead, J.jcov.ks.keep hks hUF, J.jcov.idleOut.keep hidl hUF, J.dxk hKd (J.tdkeep_slot hw)⟩
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := rfl
-  have hkern := J.kern_keep hks hcpu hX'.fin.1.1.1 hC'.ct hC'.csc (fun sl h => Or.inl h) hgp
+  have hkern := J.kern_keep hks hcpu hX'.fin.1.1.1 hC'.ct hC'.csc (fun sl h => Or.inl h) rfl
     (fun p ao h => (hC'.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D)
   -- the untyped caps' facts
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -232,12 +235,16 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
       CurInvW.cn J.cur hC', J.own.cn hC'.toHStep, J.off.cn hC'.toHStep, J.act.cn hC', J.bsa.cn hC'.toHStep,
       J.isorted.cn hC'.toHStep, J.curRun.cn hC'.toHStep (Or.inr hC'.act), hblk⟩
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
-    (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
+    hKd (fun sl h => h)
     (fun y hy => LSim.of_shape (hshape y hy))
-  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) hJC R
+  exact J.cs_frameD (G' := Z.G) (hvn := J.vsShr (G' := Z.G) hX' hks (Vs.VsKeep.of_nokey (W := (· = x)) (fun y hy e => hco y hy e)
+      (fun y _ e => by subst e; rw [hcx]; rfl) (fun y _ e => by subst e; rw [hcap']; rfl))
+      (Vs.ArchShr.of_objCn hcn.2 (ostep_of_cnk hcn hkc).2.2)) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
+    (fun hI => ⟨J.carry.devApart.setFi hks hI hxm hcx hcap' (fun y hy e => hco y ((hM.members y).1 hy).1 e) hHr,
+      J.carry.devSep.frame hUF⟩) (DevSub.of_utFrom hUF) hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hcap']; exact Vs.vcapW_ut rfl)
-      (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
+      (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial) (fun y _ e _ _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
     hLS.1 (fun p hp => J.zD p (hLS.2 p hp))
 
 /-- **The `H` objects meeting a childless device cap's range are dead**
@@ -284,7 +291,7 @@ def ResetJPostD (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
 set_option maxHeartbeats 16000000 in
 /-- **FL4's `reset_untyped` of a used device cap at `J`** (module
 docstring). -/
-theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hrcb : Fl4Spec.resetChunkBits = 16) (hres : σ.schedulerAction ≠ .chooseNewThread)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -359,7 +366,15 @@ theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hfi0' : ¬ (fi = 0#u64) := fun e => hfi0 (by rw [e]; rfl)
   simp only [bind_ok, untyped.as_untyped, hfi0', ↓reduceIte]
   obtain ⟨s2, hs2, cs2, hk2, hwf2, J2, hcap2, hks2, -, hfr2⟩ := spec_exists
-    (J'.setFiJD hpp' hidx hcap hncD hTh 0#u64 (by rw [e0]; omega))
+    (J'.setFiJD hpp' hidx hcap hncD hTh 0#u64 (by rw [e0]; omega) (fun q kd hq => by
+      rw [P1.Heap.drop_eq_some] at hq
+      obtain ⟨hnr, hq⟩ := hq
+      unfold P1.RegionD P1.MeetsR at hnr
+      rw [hq] at hnr
+      simp only [Option.elim, not_not] at hnr
+      rcases hnr with h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)))
   rw [← hxdef] at hs2 hcap2 hfr2
   rw [hs2]
   simp only [bind_ok]
@@ -424,7 +439,7 @@ theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 set_option maxHeartbeats 8000000 in
 /-- **The retype with the reset of a used device cap at `J`** (module
 docstring; UtRetResetJ's `JAtZ.utResetJ` for a device cap). -/
-theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
@@ -434,7 +449,7 @@ theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s)
     (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hGP : DevGpm (L.mem s) Z.G σ)
     (hrcb : Fl4Spec.resetChunkBits = 16)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (pp.bv, idx))) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -530,7 +545,7 @@ theorem JAtZ.utDevResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L
   refine retype_reset_wp arI s1 ar _ _ nt us dest off win true
     (J1.reset_untypedDJ hrcb hres1 hpp hidx hcap1 hnc1 hf0 hDA1 hDF1 hGP1 hKR hDT hAF1
       J1.vsc.needR.1 J1.vsc.needR.2.1 J1.vsc.needR.2.2.1 J1.vsc.needR.2.2.2.1 J1.vsc.needR.2.2.2.2
-      (hVM s1 hs1) Vs.needR_roots) ?_ ?_
+      (hVM hnd' s1 hs1) Vs.needR_roots) ?_ ?_
   swap
   · intro e s2 a2 hpost
     exact absurd hpost.1 (by simp)
@@ -652,14 +667,14 @@ line"): the no-reset retype and the reset of an unused cap by UtDevUt's
 admits only untypeds and frames for a device cap, `RetCtx.device`). Premises:
 `DevApart`, `DevFreeT`, `DevGpm` [J]; the reset's `resetChunkBits = 16` [P]
 and `VsReachMiss` [J] at the restart's state (as the RAM reset). -/
-theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
     (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hGP : DevGpm (L.mem s) Z.G σ)
     (hrcb : Fl4Spec.resetChunkBits = 16)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))

@@ -1,0 +1,21 @@
+import Fl4Proofs.P2.CoreView
+#print axioms Fl4Proofs.P2.CoreView.tcbRepl_own
+#print axioms Fl4Proofs.P2.CoreView.repl2_own
+#print axioms Fl4Proofs.P2.CoreView.repl_own
+#print axioms Fl4Proofs.P2.CoreView.view_eq_of_own
+#print axioms Fl4Proofs.P2.CoreView.view_aff
+#print axioms Fl4Proofs.P2.CoreView.view_sc_core
+#print axioms Fl4Proofs.P2.CoreView.view_home
+#print axioms Fl4Proofs.P2.CoreView.view_node_other
+#print axioms Fl4Proofs.P2.CoreView.view_tzero
+#print axioms Fl4Proofs.P2.CoreView.view_state
+#print axioms Fl4Proofs.P2.CoreView.view_idem
+#print axioms Fl4Proofs.P2.CoreView.repl2_decEq
+#print axioms Fl4Proofs.P2.CoreView.view_frame
+#print axioms Fl4Proofs.P2.CoreView.view_mix_own
+#print axioms Fl4Proofs.P2.CoreView.ownP_eq_own
+#print axioms Fl4Proofs.P2.CoreView.repl_ownP
+#print axioms Fl4Proofs.P2.CoreView.view_eq_of_ownP
+#print axioms Fl4Proofs.P2.CoreView.view_frameP
+#print axioms Fl4Proofs.P2.CoreView.view_mix_ownP
+#print axioms Fl4Proofs.P2.CoreView.views_aff

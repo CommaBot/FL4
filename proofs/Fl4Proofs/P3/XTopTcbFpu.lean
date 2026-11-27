@@ -85,7 +85,7 @@ theorem XTopAt.tcbWrF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
       exact hne _ (P1.nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
         (by rw [P1.nodeAt_val hN (by simp [layout.node.REPROGRAM])]; simp only [layout.node.REPROGRAM]; simp; omega)
   refine hX.frameStep hw (fun b hb => by subst hb; exact Or.inr (Or.inr (Or.inl ⟨t, ht, by omega, by omega⟩)))
-    (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_
+    (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) (fun hb => ?_) rfl rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · -- not read by the endpoint relation
     subst hb
@@ -113,6 +113,12 @@ theorem XTopAt.tcbWrF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
   · -- not the kernel root
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := congrArg UScalar.val hb
+    rw [hkv, hwv] at this; omega
+  · -- not the FEATURES word (#65)
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := congrArg UScalar.val hb
     rw [hkv, hwv] at this; omega
@@ -144,11 +150,13 @@ theorem XTopAt.frameStepV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : 
     (hWV : ∀ b, W b → ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b)
     (hWE : ∀ b, W b → ¬ Endp.EFoot Z.T Z.E Z.R Z.B b) (hWN : ∀ b, W b → ¬ Notif.NFoot Z.N Z.T b)
     (hWK : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT))
+    (hWF : ¬ W (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES))
     (hkh : σ'.kheap = σ.kheap) (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
     (hct : σ'.curThread = σ.curThread)
     (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
     (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hgh : σ'.archState.x64Plat = σ.archState.x64Plat)
     (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
     (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :
@@ -167,14 +175,21 @@ theorem XTopAt.frameStepV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : 
     Notif.NtfnStateRel.frame hNt hSch.placed (fun b hb hf => hw.mem_eq hb fun h => hWN b h hf)
       ⟨fun p x h => by rw [hkh]; exact h, fun p x h => ⟨x, by rw [hkh]; exact h, rfl, rfl, rfl⟩⟩
   have hKr' : KRootRel (L.mem s') (L.ksb s') σ' := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
-    have hka := hP.vs.ksb_al
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+      have hka := hP.vs.ksb_al
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hk, hw.mem_eq (by unfold P1.Aligned; rw [hkv]; omega) hWK, hgp]
+      exact hKr
+    · rw [hk]
+      have hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64 := by have := hP.vs.ksb_fit; omega
+      have hka := hP.vs.ksb_al
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hw.mem_eq (by unfold P1.Aligned; rw [hfv]; omega) hWF) hgh
   have hvw : ∀ b, VsWrite Z.P (L.ksb s) b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (VsWrite.aligned hP.vs hb) (hvobj b (vsWrite_vobj hP.vs hb))
   have hSz : Sched.SzKeep σ σ' := Sched.SzKeep.of_kheap hkh
@@ -229,7 +244,7 @@ theorem XTopAt.userWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
     fun x hx h => hw.mem_eq hx fun e => h (by rw [e])
   have hbal : b.val % 8 = 0 := hu.al
   refine hX.frameStepV hw (fun x hx => by subst hx; exact hu.vobj) (fun x hx hf => ?_) (fun x hx hf => ?_)
-    (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl (hSch.wr_far hu.al hu.far v) ?_ ?_ ?_ hX.fin.1.1.2.2.2.2.2.2
+    (fun hx => ?_) (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl rfl (hSch.wr_far hu.al hu.far v) ?_ ?_ ?_ hX.fin.1.1.2.2.2.2.2.2
   · subst hx
     rcases hf with ⟨e, he, h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, h | h⟩ | ⟨wp, hwp, h⟩
     · have := hu.ep e he; have := (hP.ep.ep e he).1; omega
@@ -244,6 +259,11 @@ theorem XTopAt.userWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
       have := hf2 t ht; have := (hT t ht).align; omega
   · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := congrArg UScalar.val hx
+    rw [hkv] at this; omega
+  · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := congrArg UScalar.val hx
     rw [hkv] at this; omega
@@ -267,8 +287,8 @@ theorem XTopAt.userWr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
 /-- `XTopAt` at another arch state related to the same CR3. -/
 theorem XTopAt.arch {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a a' : A} {σ : Fl4Spec.State Unit}
     (hX : XTopAt (L := L) AR Z s a σ) (hAR : AR a' σ.archState.x64CurrentCr3) : XTopAt (L := L) AR Z s a' σ :=
-  hX.frameStep (P1.WritesIn.refl s (fun _ => False)) (fun _ h => h.elim) (fun _ h => h.elim) (fun _ h => h.elim) id
-    rfl rfl rfl rfl rfl rfl rfl hX.fin.1.1.1 hX.fin.1.1.2.2.2.1 hX.fin.1.1.2.2.2.2.1 hX.rel.2.2.2.1 hAR
+  hX.frameStep (P1.WritesIn.refl s (fun _ => False)) (fun _ h => h.elim) (fun _ h => h.elim) (fun _ h => h.elim) id id
+    rfl rfl rfl rfl rfl rfl rfl rfl hX.fin.1.1.1 hX.fin.1.1.2.2.2.1 hX.fin.1.1.2.2.2.2.1 hX.rel.2.2.2.1 hAR
 
 /-- **`copy_words` keeps an invariant** kept by each destination write. -/
 theorem copy_words_inv (P : S → Prop) (s : S) (src dst n : U64) (hP : P s)

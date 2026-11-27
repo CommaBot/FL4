@@ -12,6 +12,7 @@ and the callers of the wake-ups** (spec side only).
   `ONLY=…`, family `BK`; `rec_del` / `cap_revoke` by `ik_lfp`).
 -/
 import Fl4Proofs.P3.SpecInvFaultTcbsH5
+import Fl4Proofs.P3.SpecInvFbK
 import Fl4Proofs.P3.SpecInvFaultTcbsH6
 open Classical
 
@@ -135,6 +136,49 @@ macro_rules | `(tactic| b_leaf) => `(tactic| with_reducible exact b_recDel _)
 theorem b_capDelete (slot : CslotPtr) : BKE L E K C (capDelete (Z := Unit) slot) := by
   unfold capDelete; b_autoE
 macro_rules | `(tactic| b_leaf) => `(tactic| with_reducible exact b_capDelete _)
+
+/-- fb3: one `X86PML4FrameBatch` entry (`fbEntry`: CNode lookups, copy, map, `capDelete`s). -/
+theorem b_fbCode {α : Type} {m : SEMonad Unit α} (h : BKE L E K C m) : BKE L E K C (fbCode (Z := Unit) m) := by
+  unfold fbCode; exact ike_handleE h fun _ => ike_throw _
+
+theorem b_fbMap (b : Fl4FrameBatchInvocation) (sl : CslotPtr) (v : Data) : BKE L E K C (fbMap (Z := Unit) b sl v) :=
+  b_of_gfE fun _ _ => by unfold fbMap; fg_auto
+
+theorem b_fbDelete (sl : CslotPtr) : BKE L E K C (fbDelete (Z := Unit) sl) := by
+  unfold fbDelete; exact ike_handleE (b_capDelete sl) fun _ => ike_throw _
+
+macro_rules | `(tactic| b_leaf) => `(tactic| with_reducible exact b_fbDelete _)
+
+theorem b_unmapPageUnflushed (sz : VMPageSize) (vs : ObjRef) (v : VSpaceRef) (p : ObjRef) :
+    BK L E K C (unmapPageUnflushed (Z := Unit) sz vs v p) :=
+  b_of_gf fun _ _ => by unfold unmapPageUnflushed; fg_auto
+macro_rules | `(tactic| b_leaf) => `(tactic| with_reducible exact b_unmapPageUnflushed _ _ _ _)
+
+theorem b_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : BKE L E K C (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry
+  split
+  · refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun dest => ?_
+    refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun _ => ?_
+    refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun src => ?_
+    refine ike_bind (b_of_gfE fun _ _ => by fg_auto) fun srcCap => ?_
+    refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun _ => ?_
+    refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun newCap => ?_
+    refine ike_bind (b_of_gfE fun _ _ => by fg_auto) fun _ => ?_
+    refine ike_bind (ike_handleE (b_fbCode (b_fbMap b dest _)) fun c =>
+      ike_bind (ike_liftE (ik_catch (b_capDelete dest) fun _ => ik_pure _)) fun _ => ike_throw _) fun _ => ?_
+    exact ike_returnOk _
+  · refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun slot => ?_
+    exact ike_bind (b_fbCode (b_fbMap b slot _)) fun _ => ike_returnOk _
+  · refine ike_bind (b_fbCode (b_of_gfE fun _ _ => by fg_auto)) fun slot => ?_
+    refine ike_bind (b_of_gfE fun _ _ => by fg_auto) fun c => ?_
+    split
+    · exact ike_returnOk _
+    · b_autoE
+    · exact ike_throw _
+
+/-- fb3: the batch (`SInv.ik_performFrameBatch`). -/
+theorem b_performFrameBatch (b : Fl4FrameBatchInvocation) : BK L E K C (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatch (fun w => b_fbEntry b w) (by unfold flushAll; b_autoE)
 
 
 /-- One step of `cap_revoke`, its recursive calls keeping the invariant. -/

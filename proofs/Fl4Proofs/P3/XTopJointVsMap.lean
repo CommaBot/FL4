@@ -431,7 +431,8 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (hvf : Vs.vtF (capV (L.mem s') (cslotAddr (pc.bv, idx))) = Vs.vtF (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
-    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s'))
+    (hgr : Z.L3 ⊆ L3' ∧ Z.L2 ⊆ L2' ∧ Z.L1 ⊆ L1') (hvn : (Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s'))) :
     JAtZ (L := L) arI AR (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) H Cs Ac Lst D s' a' σ' := by
   set x := cslotAddr (pc.bv, idx) with hxdef
   have hkb : L.ksb s' = L.ksb s := hW.1
@@ -587,10 +588,16 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       AbsSlot.isSlot ⟨t, rfl, Or.inr ⟨ht, 2, by decide, rfl⟩⟩
     rw [hcap _ hs (fun e => cnode_slot_ne_tcb J.xtop.rel.1 hpc hidx ht 2 (by decide) e.symm)]
     exact hJ.bfs t ht) hidl.2⟩
-  have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hW fun b hb =>
+    J.notDbg (fun p hp => J.vsxObjWX Ap hXa hpc hidx hb hp (fun z h => by cases h))
+      (fun c hc => J.vsxNodeWX hXa hpc hidx hb hc)
+  have hTd : Sched.TdKeep (L := L) H s s' := fun q hq =>
+    tcbK q (J.tcbZ hq) (P1.tdA q) (P1.field_aligned (hT q (J.tcbZ hq)) (K := 3528#u64) (by simp) (by simp))
+      (by rw [J.tdA_val' (J.tcbZ hq)]; omega) (by rw [J.tdA_val' (J.tcbZ hq)]; omega)
+  have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl (DXKeep.of_dbg hKd hTd)
   have hJC := J.jcs_slot hM' hMO' hFI' hUK F.ksz hDel
   -- `JKern`
-  have hkern : JKern (L := L) H Cs D Z.th s' σ' := by
+  have hkern : JKern (L := L) arI H Cs D Z.th s' σ' := by
     have K := J.kern
     have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hkb
     obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -620,7 +627,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
       by rw [hkb]; exact K.ksbFit, by rw [hkb]; exact K.ksbAl, by rw [hkb, hcpu]; exact K.nodeFit,
       by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-      K.csLt, K.cs0⟩
+      K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [F.arch])⟩
     rw [hna, hDbg]; exact K.head
   have hutc := J.vsx_utcX hpc hidx hXa hW hVR1 (fun i h => by rw [F.arch]; exact h) hUt F.cdt F.orig
     (by rw [F.arch]) hDbg
@@ -664,19 +671,37 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     · rw [e]
       exact Vs.FrIn.of_okey hok ((J.fcap x (by rw [← e]; exact hy)).mono fun _ => UFr.keep hfk.page)
     · rw [hcap y hy e]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
-  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hW fun b hb =>
-    J.notDbg (fun p hp => J.vsxObjWX Ap hXa hpc hidx hb hp (fun z h => by cases h))
-      (fun c hc => J.vsxNodeWX hXa hpc hidx hb hc)
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) F.idle hKd
     (fun sl h => by first | rwa [F.orig] at h | rwa [← F.orig] at h)
     (fun y hy => LSim.of_shape (hS y hy))
-  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
+  -- `vsTyp` after (jc3): the invoked slot's cap of the same object key, the
+  -- others kept; the spec's arch objects of the same type; the sets grown
+  have hTT : ∀ R, Vs.TabSlots Z.th R (L.mem s) → Vs.TabSlots Z.th R (L.mem s') := fun R h y hy => by
+    by_cases e : y = x
+    · rw [e]; exact (h x (by rw [← e]; exact hy)).of_okey hok
+    · rw [hcap y hy e]; exact h y hy
+  have hAF : ArchFwd σ σ' := fun p ao hp => by
+    rcases F.kh p with e | ⟨a0, a1, h1, h2, ht⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+    · exact ⟨ao, by rw [e]; exact hp, rfl⟩
+    · rw [hp] at h1; cases h1; exact ⟨a1, h2, ht⟩
+    · rw [hp] at h1; cases h1
+    · rw [hp] at h1; cases h1
+  have hvy : VsTyp (L := L) (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) s' σ' :=
+    J.carry.vsTyp.step hTT (tabSet_mono hgr.2.2 hgr.2.1 hgr.1) subset_rfl rfl hkb hAF
+  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) (hvn := hvn) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
     hvc ⟨fun y hy => by
       by_cases e : y = x
       · subst e; exact (J.ext.nat _ hy).of_vtF hvf
       · rw [hcap y hy e]; exact J.ext.nat y hy,
       J.ext.vkeep (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))⟩
     hLS.1 (fun p hp => J.zD p (hLS.2 p hp))
+    ⟨J.carry.bufPg.frame subset_rfl (fun p vms hp => by
+      rcases F.kh p with e | ⟨a0, a1, h1, h2, ht⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+      · rw [e]; exact hp
+      · rw [hp] at h1; cases h1; rw [h2, aaType_userData.1 ht]
+      · rw [hp] at h1; cases h1
+      · rw [hp] at h1; cases h1),
+      J.carry.archFit.frame F.ksz⟩ (devFrom_kept J.mdbL hM' J.ut hUK) hvy hAF
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/
@@ -692,9 +717,10 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hvf : Vs.vtF (capV (L.mem s') (cslotAddr (pc.bv, idx))) = Vs.vtF (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
-    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) (hvn : (Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s'))) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' :=
   J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hok hnu hvf hl hvc
+    ⟨subset_rfl, subset_rfl, subset_rfl⟩ hvn
 
 end
 
@@ -760,13 +786,13 @@ entry's sets, VsTopX's `VsJPost`): the caller's restart at `J`
 and the action word pinned by `XTopAt` at both states, the spec keeping the
 TCBs' states and the action; the other slots' words by `SlotFoot`), then
 `JAtZ.vsStepJ`. -/
-theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPost (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G s ar σ s' a' σ') : JAt (L := L) arI AR s' a' σ' := by
-  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hTI, hSF, hLk, hsp⟩, hCR', hFI', hMO'⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hTI, hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO'⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
@@ -870,10 +896,23 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
           exact hw.okTab hTI
       exact (hLk.2 _ _ _ _ _ hok).toW
     · rw [hcap y hy e]; exact J1.vsc y hy
+  -- (F1 stage 5, item 4) `VsNamed` after, from the op's fact at `J` (`Vs.VsNamed.ofOpF`)
+  have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') := fun hvx => by
+    obtain ⟨hPl, ⟨-, -, hML, -, hMI⟩, hFI0, -⟩ := J.xtop.rel
+    have hR' : Vs.VsRel Z.P (L.mem s') (L.ksb s) σ' := by rw [← hks']; exact hX'.fin.2.1
+    have h := (J.carry.vsNamed hvx).ofOpF J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 J.xtop.fin.1.2.pt
+      hR' hX'.fin.2.2.1 hA.isSlot hcv0 hSF hOp (fun hf hk => by
+        have hk' : Vs.VKey c ≠ none := by rw [← hcv0]; exact hk
+        have hnz : NeedsFin c ∧ isZb c = false := by
+          cases c <;> first | exact absurd rfl hk' | exact ⟨Or.inl ⟨trivial, rfl⟩, rfl⟩
+        have hx0 : capV (L.mem s) (cslotAddr (pc.bv, idx)) ≠ .Null := fun e => hk (by rw [e]; rfl)
+        exact Vs.huq_of_finF hPl hML hMI hFI0 ((hML.members _).2 ⟨hA.isSlot, _, capAt_capV _ _, hx0⟩)
+          (by rw [hcv0]; exact hnz.1) (by rw [hcv0]; exact hnz.2) hf hk)
+    rw [hks']; exact h
   have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
-    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
-  exact ⟨Z, H, Cs, Ac1, Lst1, D1, J'⟩
+    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc hvn
+  exact ⟨Z, H, Cs, Ac1, Lst1, D1, J', inferInstance⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -881,12 +920,12 @@ set_option maxHeartbeats 8000000 in
 at `J` (`JAtZ.restartJ`, the same FL4 and spec states by determinism), then
 the flush, an arch step keeping FL4's store (XTopJointFpu's `JAtZ.arFrS`:
 the spec's machine state only). -/
-theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ') (hV : VsJFlush (L := L) Z.th Z.G s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
   rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨ct', σ1, ms, hct', hs, hst, rfl, hCR', hFI', hMO'⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have e : ct = ct' := eq_of_ok_eq (hct.symm.trans hct')
   subst e
   obtain ⟨s1, σ1', -, -, hst1, -, -, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
@@ -907,7 +946,7 @@ theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     obtain ⟨⟨⟨hSch, hEp, hNt, -⟩, -⟩, -⟩ := id hFin
     exact ⟨hFin, ⟨hPl, hCR', hFI', hD, by rw [hks']; exact hMO', hIA, hSA⟩, IpcRel.of hNt hEp (sched_sc hSch), hE⟩
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J1.arFrS
-    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
+    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX', inferInstance⟩
 
 end
 
@@ -922,7 +961,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- **A page table cap at `JAt`** (`decode_invocation_page_table_thX`). -/
 theorem decode_invocation_page_tableJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
@@ -952,7 +991,7 @@ theorem decode_invocation_page_tableJV (s : S) (ar : A) (σ : Fl4Spec.State Unit
 set_option maxHeartbeats 4000000 in
 /-- **A page directory cap at `JAt`** (`decode_invocation_page_directory_thX`). -/
 theorem decode_invocation_page_directoryJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageDirectoryMap →
@@ -985,7 +1024,7 @@ theorem decode_invocation_page_directoryJV (s : S) (ar : A) (σ : Fl4Spec.State 
 set_option maxHeartbeats 4000000 in
 /-- **A PDPT cap at `JAt`** (`decode_invocation_pdpt_thX`). -/
 theorem decode_invocation_pdptJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
@@ -1015,7 +1054,7 @@ theorem decode_invocation_pdptJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
 set_option maxHeartbeats 4000000 in
 /-- **An ASID pool cap at `JAt`** (`decode_invocation_asid_pool_thX`). -/
 theorem decode_invocation_asid_poolJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
@@ -1050,7 +1089,7 @@ set_option maxHeartbeats 4000000 in
 with XTopJointStep's `JPostHyp` [W] (`decode_invocation_frame_thX`; `hno` [J]
 as there). -/
 theorem decode_invocation_frameJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress →
@@ -1090,13 +1129,14 @@ theorem decode_invocation_frameJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     exact XCap.imp arI h fun _ _ _ h => J.vsPostJ hni hct h.1 (h.2 h1 h2 h3)
 
 set_option maxHeartbeats 4000000 in
-/-- **A PML4 cap at `JAt`** (`decode_invocation_pml4_thX`; the ASID
-invalidation total by `ArchTotal`). -/
-theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+/-- **A PML4 cap at `JAt`**, every label but FrameBatch (`decode_invocation_pml4_thX`; the ASID
+invalidation total by `ArchTotal`; with the batch: XTopJointVsFb's `decode_invocation_pml4JV`). -/
+theorem decode_invocation_pml4JVn (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (p asid : U64) (mp : Bool) (h0 : mp = true → asid ≠ 0#u64) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
@@ -1110,7 +1150,7 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     obtain ⟨r, hr, -⟩ := spec_exists (hT.invalidate_asid a asid)
     exact ⟨r, hr⟩
   exact XCap.imp arI (decode_invocation_pml4_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
-    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlbl ct hct hcur htcb J.kern.act
+    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlbl hfb ct hct hcur htcb J.kern.act
     (J.curRun.run hni) hinv p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer hX.esa hIA.dom)
     fun _ _ _ h => J.vsFlushJ hni hct h.1 h.2
 end

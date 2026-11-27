@@ -1,0 +1,29 @@
+import Fl4Proofs.P2.InvDelU
+open Fl4Proofs.P2.PathObl
+#print axioms Fl4Proofs.P2.OwnMap.own_upd_slot
+#print axioms Fl4Proofs.P2.OwnMap.stepOK_slot
+#print axioms Fl4Proofs.P2.OwnMap.pws_step
+#print axioms Fl4Proofs.P2.OwnMap.run_gds_mguard
+#print axioms unmap_nop
+#print axioms frNo_of
+#print axioms delEnt_of
+#print axioms delAcc
+#print axioms delFin
+#print axioms delAcc2
+#print axioms delFin2
+#print axioms invBlkW2_of
+#print axioms invBlkGdW2_of
+#print axioms invMoveW_of2
+#print axioms inv_pathsKF
+#print axioms inv_pathsKF2
+#print axioms inv_pathsKF2_startAt
+#print axioms truncAcc
+#print axioms truncFin
+#print axioms onceU_monoR
+#print axioms invUAccW_of2
+#print axioms invBlkUW2_of
+#print axioms invBlkGdUW2_of
+#print axioms invMoveW_ofU
+#print axioms inv_localPathU
+#print axioms inv_pathsKDelU
+#print axioms inv_pathsKFU

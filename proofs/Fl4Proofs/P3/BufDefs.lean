@@ -48,6 +48,9 @@ structure IpcFrKeep (σ σ' : State Unit) : Prop where
     σ'.kheap p = some (.archObj (.dataPage false vms))
   pback : ∀ p vms, σ'.kheap p = some (.archObj (.dataPage false vms)) →
     σ.kheap p = some (.archObj (.dataPage false vms))
+  /-- (jc3) Every arch object kept, of the same type (the page tables a
+  `JCarry.vsTyp` names stay tables of their kind). -/
+  arch : ∀ p ao, σ.kheap p = some (.archObj ao) → ∃ ao', σ'.kheap p = some (.archObj ao') ∧ aaType ao' = aaType ao
 
 theorem aaType_userData {a : ArchKernelObj} {vms : VMPageSize} :
     aaType a = aaType (.dataPage false vms) ↔ a = .dataPage false vms := by
@@ -65,11 +68,15 @@ namespace IpcFrKeep
 variable {σ σ' σ'' : State Unit}
 
 theorem refl (σ : State Unit) : IpcFrKeep σ σ :=
-  ⟨fun _ x h => Or.inr ⟨x, h, rfl, rfl⟩, fun _ _ h => h, fun _ _ h => h⟩
+  ⟨fun _ x h => Or.inr ⟨x, h, rfl, rfl⟩, fun _ _ h => h, fun _ _ h => h, fun _ ao h => ⟨ao, h, rfl⟩⟩
 
 theorem trans (h1 : IpcFrKeep σ σ') (h2 : IpcFrKeep σ' σ'') : IpcFrKeep σ σ'' := by
   refine ⟨fun t x3 h3 => ?_, fun p vms h => h2.page p vms (h1.page p vms h),
-    fun p vms h => h1.pback p vms (h2.pback p vms h)⟩
+    fun p vms h => h1.pback p vms (h2.pback p vms h), fun p ao h => ?_⟩
+  swap
+  · obtain ⟨a1, k1, e1⟩ := h1.arch p ao h
+    obtain ⟨a2, k2, e2⟩ := h2.arch p a1 k1
+    exact ⟨a2, k2, e2.trans e1⟩
   rcases h2.tcb t x3 h3 with e | ⟨x2, h2', e1, e2⟩
   · exact Or.inl e
   · rcases h1.tcb t x2 h2' with e | ⟨x1, h1', f1, f2⟩
@@ -78,12 +85,12 @@ theorem trans (h1 : IpcFrKeep σ σ') (h2 : IpcFrKeep σ' σ'') : IpcFrKeep σ �
 
 theorem of_kheap (hk : σ'.kheap = σ.kheap) : IpcFrKeep σ σ' :=
   ⟨fun _ x h => Or.inr ⟨x, by rw [← hk]; exact h, rfl, rfl⟩, fun _ _ h => by rw [hk]; exact h,
-    fun _ _ h => by rw [← hk]; exact h⟩
+    fun _ _ h => by rw [← hk]; exact h, fun _ ao h => ⟨ao, by rw [hk]; exact h, rfl⟩⟩
 
 /-- An `EpStep` (the endpoint, reply and TCB-state code). -/
 theorem of_epStep (hs : Endp.EpStep σ σ') : IpcFrKeep σ σ' := by
   obtain ⟨-, -, hk⟩ := hs
-  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_⟩
+  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_, fun p ao h => ?_⟩
   · rcases hk t with e | ⟨a, b, h1, h2⟩ | ⟨a, b, h1, h2, -⟩ | ⟨a, b, h1, h2, e⟩
     · exact ⟨x', by rw [← e]; exact hx', rfl, rfl⟩
     · rw [hx'] at h2; cases h2
@@ -101,11 +108,16 @@ theorem of_epStep (hs : Endp.EpStep σ σ') : IpcFrKeep σ σ' := by
     · rw [h] at h1'; cases h1'
     · rw [h] at h1'; cases h1'
     · rw [h] at h1'; cases h1'
+  · rcases hk p with e | ⟨a, b, h1', -⟩ | ⟨a, b, h1', -, -⟩ | ⟨a, b, h1', -, -⟩
+    · exact ⟨ao, by rw [e]; exact h, rfl⟩
+    · rw [h] at h1'; cases h1'
+    · rw [h] at h1'; cases h1'
+    · rw [h] at h1'; cases h1'
 
 /-- A TCB written keeping its IPC frame and buffer address. -/
 theorem of_updTcb {t : ObjRef} {x y : Tcb} (hk : σ.kheap t = some (.tcb x)) (h1 : y.tcbIpcframe = x.tcbIpcframe)
     (h2 : y.tcbIpcBuffer = x.tcbIpcBuffer) : IpcFrKeep σ (Notif.updK σ t (.tcb y)) := by
-  refine ⟨fun q x' hq => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_⟩
+  refine ⟨fun q x' hq => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_, fun p ao h => ?_⟩
   · by_cases e : q = t
     · subst e
       simp only [Notif.updK_kheap, Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hq
@@ -119,14 +131,19 @@ theorem of_updTcb {t : ObjRef} {x y : Tcb} (hk : σ.kheap t = some (.tcb x)) (h1
   · by_cases e : p = t
     · subst e; simp only [Notif.updK_kheap, Function.update_self] at h; cases h
     · simp only [Notif.updK_kheap, Function.update_of_ne e] at h; exact h
+  · by_cases e : p = t
+    · subst e; rw [hk] at h; cases h
+    · exact ⟨ao, by simp only [Notif.updK_kheap, Function.update_of_ne e]; exact h, rfl⟩
 
 /-- An object that is no non-device data page written over no such page, a
 TCB only with a null IPC frame (a new TCB: the retype's `default_tcb`). -/
 theorem of_updObj {p : ObjRef} {o : KernelObject}
     (hp : ∀ vms, σ.kheap p ≠ some (.archObj (.dataPage false vms)))
     (hpo : ∀ vms, o ≠ .archObj (.dataPage false vms))
-    (ho : ∀ x, o = .tcb x → x.tcbIpcframe = .nullCap) : IpcFrKeep σ (Notif.updK σ p o) := by
-  refine ⟨fun q x' hq => ?_, fun q vms h => ?_, fun q vms h => ?_⟩
+    (ho : ∀ x, o = .tcb x → x.tcbIpcframe = .nullCap)
+    (hpa : ∀ ao, σ.kheap p = some (.archObj ao) → ∃ ao', o = .archObj ao' ∧ aaType ao' = aaType ao) :
+    IpcFrKeep σ (Notif.updK σ p o) := by
+  refine ⟨fun q x' hq => ?_, fun q vms h => ?_, fun q vms h => ?_, fun q ao h => ?_⟩
   · by_cases e : q = p
     · subst e
       simp only [Notif.updK_kheap, Function.update_self, Option.some.injEq] at hq
@@ -140,13 +157,18 @@ theorem of_updObj {p : ObjRef} {o : KernelObject}
     · subst e; simp only [Notif.updK_kheap, Function.update_self, Option.some.injEq] at h
       exact absurd h (hpo vms)
     · simp only [Notif.updK_kheap, Function.update_of_ne e] at h; exact h
+  · by_cases e : q = p
+    · subst e
+      obtain ⟨ao', e1, e2⟩ := hpa ao h
+      exact ⟨ao', by simp only [Notif.updK_kheap, Function.update_self, e1], e2⟩
+    · exact ⟨ao, by simp only [Notif.updK_kheap, Function.update_of_ne e]; exact h, rfl⟩
 
 /-- **Objects added at free addresses**, the new TCBs with null IPC frames
 and no new data page (the non-frame retypes). -/
 theorem of_fresh (h : ∀ p, σ'.kheap p = σ.kheap p ∨
     (σ.kheap p = none ∧ (∀ x, σ'.kheap p = some (.tcb x) → x.tcbIpcframe = .nullCap) ∧
       ∀ vms, σ'.kheap p ≠ some (.archObj (.dataPage false vms)))) : IpcFrKeep σ σ' := by
-  refine ⟨fun q x' hq => ?_, fun q vms hq => ?_, fun q vms hq => ?_⟩
+  refine ⟨fun q x' hq => ?_, fun q vms hq => ?_, fun q vms hq => ?_, fun q ao hq => ?_⟩
   · rcases h q with e | ⟨-, hn, -⟩
     · exact Or.inr ⟨x', by rw [← e]; exact hq, rfl, rfl⟩
     · exact Or.inl (hn x' hq)
@@ -156,16 +178,20 @@ theorem of_fresh (h : ∀ p, σ'.kheap p = σ.kheap p ∨
   · rcases h q with e | ⟨-, -, hn⟩
     · rw [← e]; exact hq
     · exact absurd hq (hn vms)
+  · rcases h q with e | ⟨e, -⟩
+    · exact ⟨ao, by rw [e]; exact hq, rfl⟩
+    · rw [hq] at e; cases e
 
 /-- A TCB's IPC-frame slot emptied (a deletion of that slot's cap). -/
 theorem of_nullFrame {t : ObjRef} {x y : Tcb} (hk : σ.kheap t = some (.tcb x)) (h1 : y.tcbIpcframe = .nullCap) :
     IpcFrKeep σ (Notif.updK σ t (.tcb y)) :=
   of_updObj (fun vms e => by rw [hk] at e; cases e) (fun _ e => by cases e) (fun x' e => by cases e; exact h1)
+    (fun ao e => by rw [hk] at e; cases e)
 
 /-- **The SC and scheduler code's object steps** (`OTK`: a TCB changed in its
 scheduling fields only, the other objects in kind kept). -/
 theorem of_otk {P : ObjRef → Prop} (h : ∀ p, Sched.OTK (P p) (σ.kheap p) (σ'.kheap p)) : IpcFrKeep σ σ' := by
-  refine ⟨fun q x' hq => Or.inr ?_, fun q vms hq => ?_, fun q vms hq => ?_⟩
+  refine ⟨fun q x' hq => Or.inr ?_, fun q vms hq => ?_, fun q vms hq => ?_, fun q ao hq => ?_⟩
   · have hq' := h q
     rw [hq] at hq'
     revert hq'
@@ -200,6 +226,17 @@ theorem of_otk {P : ObjRef → Prop} (h : ∀ p, Sched.OTK (P p) (σ.kheap p) (�
       rcases hq' with e' | ⟨_, _, -, h1, -⟩ | ⟨_, _, _, -, h1⟩ | ⟨_, _, -, h1, -⟩ | ⟨_, _, -, h1, -⟩
       · subst e'; rfl
       all_goals cases h1
+  · have hq' := h q
+    rw [hq] at hq'
+    revert hq'
+    cases e : σ'.kheap q with
+    | none => intro hq'; simp [Sched.OTK] at hq'
+    | some o =>
+      intro hq'
+      simp only [Sched.OTK] at hq'
+      rcases hq' with e' | ⟨_, _, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩
+      · subst e'; exact ⟨ao, rfl, rfl⟩
+      all_goals cases h1
 
 /-- **A CSpace step** (module docstring): every object kept, a CNode's slots
 or a TCB's caps changed (its buffer address kept), every TCB of the spec one
@@ -213,7 +250,7 @@ theorem of_slot2 {th : TypedHeap} {mem mem' : U64 → U64}
     (hT : ∀ t x, σ'.kheap t = some (.tcb x) → ∃ q : U64, q.bv = t ∧ th q = some .tcb)
     (h2 : ∀ q, th q = some .tcb → capAt mem' (slotOf q 2) = capAt mem (slotOf q 2) ∨ capV mem' (slotOf q 2) = .Null) :
     IpcFrKeep σ σ' := by
-  refine ⟨fun t x' hx' => ?_, fun p vms h => ?_, fun p vms h => ?_⟩
+  refine ⟨fun t x' hx' => ?_, fun p vms h => ?_, fun p vms h => ?_, fun p ao h => ?_⟩
   · obtain ⟨q, rfl, hq⟩ := hT t x' hx'
     obtain ⟨y', hky', hsl'⟩ := hR'.tcb q hq
     have e1 : y' = x' := by rw [hx'] at hky'; exact (KernelObject.tcb.inj (Option.some.inj hky')).symm
@@ -255,6 +292,12 @@ theorem of_slot2 {th : TypedHeap} {mem mem' : U64 → U64}
     · rw [h] at h1; cases h1
     · rw [h] at h2; cases h2
       rw [h1, aaType_userData.1 ht.symm]
+  · rcases hkc p with e | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩ | ⟨a, a', h1, h2, ht⟩
+    · exact ⟨ao, by rw [e]; exact h, rfl⟩
+    · rw [h] at h1; cases h1
+    · rw [h] at h1; cases h1
+    · rw [h] at h1; cases h1
+      exact ⟨a', h2, ht⟩
 
 /-- A TCB's spec IPC frame is null when FL4's buffer slot is (`StateRel`). -/
 theorem _root_.Fl4Proofs.P3.ipcframe_null_of {th : TypedHeap} {mem : U64 → U64} (hR : StateRel th mem σ) {q : U64}
@@ -279,29 +322,32 @@ data page (the IPC, scheduler and TCB code's per-object change relations,
 `KChg`, `EChg`, `BChg`, …). -/
 def ObjFrK (o o' : KernelObject) : Prop :=
   (∀ y, o' = .tcb y → ∃ x, o = .tcb x ∧ x.tcbIpcframe = y.tcbIpcframe ∧ x.tcbIpcBuffer = y.tcbIpcBuffer) ∧
-    (∀ vms, o ≠ .archObj (.dataPage false vms)) ∧ (∀ vms, o' ≠ .archObj (.dataPage false vms))
+    (∀ vms, o ≠ .archObj (.dataPage false vms)) ∧ (∀ vms, o' ≠ .archObj (.dataPage false vms)) ∧
+    (∀ ao, o = .archObj ao → ∃ ao', o' = .archObj ao' ∧ aaType ao' = aaType ao)
 
 /-- A TCB replaced by one with the same IPC frame and buffer address. -/
 theorem objFrK_tcb {x y : Tcb} (h1 : y.tcbIpcframe = x.tcbIpcframe) (h2 : y.tcbIpcBuffer = x.tcbIpcBuffer) :
     ObjFrK (.tcb x) (.tcb y) := by
   unfold ObjFrK
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
   · intro y' e; cases e; exact ⟨x, rfl, h1.symm, h2.symm⟩
   · intro vms e; cases e
   · intro vms e; cases e
+  · intro ao e; cases e
 
 /-- An object that is neither a TCB nor a data page replaced by another. -/
 theorem objFrK_other {o o' : KernelObject} (h1 : ∀ y, o' ≠ .tcb y) (h2 : ∀ vms, o ≠ .archObj (.dataPage false vms))
-    (h3 : ∀ vms, o' ≠ .archObj (.dataPage false vms)) : ObjFrK o o' := by
+    (h3 : ∀ vms, o' ≠ .archObj (.dataPage false vms)) (h4 : ∀ ao, o ≠ .archObj ao := by intro _ e; cases e) :
+    ObjFrK o o' := by
   unfold ObjFrK
-  exact ⟨fun y e => absurd e (h1 y), h2, h3⟩
+  exact ⟨fun y e => absurd e (h1 y), h2, h3, fun ao e => absurd e (h4 ao)⟩
 
 /-- **A step whose changed objects are `ObjFrK`** (the frame records'
 `kh` shape: each object kept or changed by the record's relation `C`). -/
 theorem of_chg {C : ObjRef → KernelObject → KernelObject → Prop}
     (kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ C p o o')
     (hC : ∀ p o o', C p o o' → ObjFrK o o') : IpcFrKeep σ σ' := by
-  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_⟩
+  refine ⟨fun t x' hx' => Or.inr ?_, fun p vms h => ?_, fun p vms h => ?_, fun p ao h => ?_⟩
   · rcases kh t with e | ⟨o, o', h1, h2, hc⟩
     · exact ⟨x', by rw [← e]; exact hx', rfl, rfl⟩
     · rw [hx'] at h2; cases h2
@@ -311,7 +357,12 @@ theorem of_chg {C : ObjRef → KernelObject → KernelObject → Prop}
     · rw [h] at h1; cases h1; exact absurd rfl ((hC p _ o' hc).2.1 vms)
   · rcases kh p with e | ⟨o, o', h1, h2, hc⟩
     · rw [← e]; exact h
-    · rw [h] at h2; cases h2; exact absurd rfl ((hC p o _ hc).2.2 vms)
+    · rw [h] at h2; cases h2; exact absurd rfl ((hC p o _ hc).2.2.1 vms)
+  · rcases kh p with e | ⟨o, o', h1, h2, hc⟩
+    · exact ⟨ao, by rw [e]; exact h, rfl⟩
+    · rw [h] at h1; cases h1
+      obtain ⟨ao', e1, e2⟩ := (hC p _ o' hc).2.2.2 ao rfl
+      exact ⟨ao', by rw [h2, e1], e2⟩
 
 /-- **Two objects changed** (a TCB keeping its frame and buffer, another
 object by `ObjFrK`), the rest kept. -/

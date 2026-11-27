@@ -1219,7 +1219,7 @@ theorem ssp_tailX [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
   have hnf := vfh_not_frame hv
   obtain ⟨K, hK, hK6, hB⟩ := hKB
   have hok : NewCapOK Z.th (L.mem s1) (capV (L.mem s) x2) e2.2 := by
-    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
+    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hv)
   have hI := install_okW arI (WX (L := L) AR Z.th) Z.th hP (delHypsW_X arI hXF hXP hXD) K hK hK6 hB s1 s1 ar σ1 Z.G
     hDS1 (WX.restart hX hKA hC hTh hcur s1 σ1 hs1 hS1 hst1) p hp 3 (by simp [tcbSlots])
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs

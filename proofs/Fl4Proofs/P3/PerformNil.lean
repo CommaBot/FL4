@@ -147,6 +147,8 @@ theorem perform_nil (b c d : Bool) {inv : Fl4Invocation} (h : NilInv inv) :
     | pml4Flush _ => exact okAll_liftE (by ndall)
     | deriveSubframe _ => exact okAll_liftE (by ndall)
     | testAndClearAccessed _ => exact absurd h id
+    | tdx _ => exact absurd h id
+    | frameBatch _ => exact absurd h id
   | _ => exact absurd h id
 
 macro "okall" : tactic => `(tactic| (
@@ -191,7 +193,8 @@ theorem okAll_pageDecode {label : Data} {args : List Data} {cte : CslotPtr} {cap
 theorem okAll_specDec_arch (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
     {c : fl4_core.capability.Cap} (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) {ac : ArchCap}
     (habs : absCap c = .archObjectCap ac) (hc : ∀ a b c d e f, ac ≠ .pageCap a b c d e f)
-    (hio : ∀ f l, ac ≠ .ioPortCap f l) (hioc : ac ≠ .ioPortControlCap) :
+    (hio : ∀ f l, ac ≠ .ioPortCap f l) (hioc : ac ≠ .ioPortControlCap) (htdx : ac ≠ .tdxControlCap)
+    (hfb : ∀ p m, ac = .pml4Cap p m → dataToNat slbl ≠ fl4FrameBatchLabel) :
     OkAll NilInv (specDec fp slbl args ci sl c excaps buffer) := by
   unfold specDec
   rw [habs]
@@ -201,10 +204,12 @@ theorem okAll_specDec_arch (fp : Bool) (slbl : Data) (args : List Data) (ci : Ca
   unfold fl4ArchDecodeInvocation
   cases ac with
   | pageCap a b c d e f => exact absurd rfl (hc a b c d e f)
-  | pml4Cap _ _ =>
+  | pml4Cap p m =>
     dsimp only
     refine okAll_ite (fun _ => okAll_liftME (okAll_true _) fun _ _ => trivial)
-      (fun _ => okAll_liftME (okAll_archDecode hc hio hioc) fun _ h => h)
+      (fun _ => okAll_ite (fun hb => absurd hb (hfb p m rfl))
+        (fun _ => okAll_liftME (okAll_archDecode hc hio hioc) fun _ h => h))
+  | tdxControlCap => exact absurd rfl htdx
   | _ => dsimp only; exact okAll_liftME (okAll_archDecode hc hio hioc) fun _ h => h
 
 theorem okAll_specDec_frame (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
@@ -239,37 +244,38 @@ theorem okAll_specDec_pageTable (fp : Bool) (slbl : Data) (args : List Data) (ci
     (p : U64) (m : Bool) (asid va : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     OkAll NilInv (specDec fp slbl args ci sl (.PageTable p m asid va) excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ h => by cases h)
 
 theorem okAll_specDec_pageDirectory (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
     (p : U64) (m : Bool) (asid va : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     OkAll NilInv (specDec fp slbl args ci sl (.PageDirectory p m asid va) excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ h => by cases h)
 
 theorem okAll_specDec_pdpt (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
     (p : U64) (m : Bool) (asid va : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     OkAll NilInv (specDec fp slbl args ci sl (.Pdpt p m asid va) excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ h => by cases h)
 
 theorem okAll_specDec_pml4 (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
-    (p : U64) (m : Bool) (asid : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
+    (p : U64) (m : Bool) (asid : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef)
+    (hfb : dataToNat slbl ≠ fl4FrameBatchLabel) :
     OkAll NilInv (specDec fp slbl args ci sl (.Pml4 p m asid) excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ _ => hfb)
 
 theorem okAll_specDec_asidControl (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
     (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     OkAll NilInv (specDec fp slbl args ci sl .AsidControl excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ h => by cases h)
 
 theorem okAll_specDec_asidPool (fp : Bool) (slbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr)
     (p base : U64) (excaps : List (Cap × CslotPtr)) (buffer : Option ObjRef) :
     OkAll NilInv (specDec fp slbl args ci sl (.AsidPool p base) excaps buffer) :=
   okAll_specDec_arch fp slbl args ci sl excaps buffer rfl (fun _ _ _ _ _ _ h => by cases h)
-    (fun _ _ h => by cases h) (fun h => by cases h)
+    (fun _ _ h => by cases h) (fun h => by cases h) (fun h => by cases h) (fun _ _ h => by cases h)
 
 /-- A frame cap, its label neither `GetAddress` nor `TestAndClearAccessed`
 (those reply in the decode, `DecOKRMX`). -/

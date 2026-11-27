@@ -25,6 +25,8 @@ import Fl4Proofs.P3.IpcSignalBound
 import Fl4Proofs.P3.IpcSignalBoundSpec
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.SigNoVm
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -109,6 +111,24 @@ theorem JAtZ.cnW_nf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     have hv : (flagsA t).val = t.val + 3456 := tfield_val (hc.tcbs t ht) (K := 3456#u64) (by simp)
     exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
+
+/-- **A `CnW` word is no TCB's deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.cnW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  have hS := J.xtop.fin.1.1.1
+  intro t ht
+  rcases hb with hb | hx
+  · exact FinW.ntd hS hb t ht
+  · rintro rfl
+    obtain ⟨Q, R0, hc, -⟩ := hS.lists
+    have hv : (P1.tdA t).val = t.val + 3528 := tfield_val (hc.tcbs t ht) (K := 3528#u64) (by simp)
+    exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
+      (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
+
+/-- **A `CnW` step keeps every deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.cnW_td (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  J.tdkeep_of hw fun _ hb => J.cnW_ntd hb
 
 /-- **The frame words a `CnW` step keeps** (`finW_keeps`). -/
 theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
@@ -464,7 +484,8 @@ theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
@@ -515,12 +536,13 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     intro σ1 x1 hc hk1 hin hrib
     obtain ⟨F1, hI1, -⟩ := post1 σ1 x1 hc hk1 hin hrib
     exact ⟨(wake_inv3B hI1 hk1 hin hrib badge.bv).actReady, NoDon.cfr F1 hND⟩
+  have hNV : P1.NoVmSig st n s := Ipc.noVm_of_recv hI hn hk hb hkt hrb
   refine WP.spec_mono (WP.spec_and (send_signal_bound_irel J.ip s a σ hI hn hk hidle hb hkt hrb badge hCR hA3)
-    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH))) ?_
+    (P1.notification.send_signal.tinvF hAT s a n badge J.blk hnH (hNt n hnH) J.bufAtJ.1 J.bufAtJ.2)) ?_
   rintro ⟨s', a'⟩ ⟨⟨ea, s1, σ1, σ', x1, hc, hk1, hin, hrib, hX1, hF1, hW1, hdon, hsend, hmw, hIR, hF2, hFS⟩, hbk⟩
   try simp only [WP.uncurry'_pair] at hbk
-  obtain ⟨hbk, -, hfoot⟩ := hbk
-  have hfoot := hfoot (J.donCore hn)
+  obtain ⟨hbk, -, -, hfoot⟩ := hbk
+  have hfoot := (hfoot hNV).2 (J.donCore hn)
   subst ea
   obtain ⟨F1, hI1, hm1⟩ := post1 σ1 x1 hc hk1 hin hrib
   obtain ⟨-, hk1', hact1⟩ := cancelIpc_recv_cfr (r := n.bv) hkt hst hke hqe hro hm1

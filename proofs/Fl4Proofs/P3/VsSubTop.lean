@@ -35,7 +35,7 @@ theorem insStable_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s s' : S) (a
   have hO := OStep.cnode hk idx a'
   refine TopSR.step0 hS (fun b h => ?_) hw
     ⟨hO.rq, hO.rel, hO.ct, hO.act, hO.csc, hO.ctime, hO.cons, hO.repr, hO.cdom, hO.dtime, hO.idle, hO.isc, hO.ist,
-      hO.inode, hO.io, hO.gpml4, hO.kh⟩ rfl rfl
+      hO.inode, hO.io, hO.gpml4, hO.huge, hO.kh⟩ rfl rfl
   obtain ⟨x, k, hx, hk', rfl⟩ := h
   have hf := hx.fit hS.2.pl
   have := hk'.lt
@@ -195,12 +195,17 @@ theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A)
       subst hb'
       exact hP.nodeE _ (by rw [hW2v]; omega) (by rw [hW2v]; omega) hf
   have hKr' : KRootRel (L.mem s') (L.ksb s') σ1 := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
+      exact hKr
+    · rw [hksb]
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hmK _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) (by rw [harch])
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb, hmV⟩
   · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) hist hinode
   · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) (by rw [harch])

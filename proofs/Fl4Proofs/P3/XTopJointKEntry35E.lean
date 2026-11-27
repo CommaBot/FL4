@@ -272,7 +272,7 @@ entry bundle `hI : SInvI σ` [J] spec in place of `JEntryAtR3`'s `handlers`,
 Every other premise is `kernel_entryJ35`'s. -/
 theorem kernel_entryJ35E [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ) (hI : SInvI σ)
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -293,7 +293,7 @@ theorem kernel_entryJ35E [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
       FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostX (L := L) arI AR c σ r ⦄ := by

@@ -88,8 +88,14 @@ structure TopPlaced (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Se
 
 /-- FL4's kernel root word (`ks::KERNEL_ROOT`) gives the spec's global
 address space. -/
-def KRootRel (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
+def KRootW (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
   Fl4Spec.makeCr3 (Fl4Spec.addrFromPPtr (m (core.num.U64.wrapping_add ksb layout.ks.KERNEL_ROOT)).bv) 0 = globCr3 σ
+
+/-- The kernel words written at boot only: the kernel root (`KRootW`) and,
+since #65, the `FEATURES` word's 1 GiB-page bit (`HugeRel`: the spec's
+`x64Plat.hugePages`). -/
+def KRootRel (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
+  KRootW m ksb σ ∧ HugeRel m ksb σ
 
 /-- The other subsystems' relations, the kernel root, and the arch relation
 `AR` between FL4's arch state and the spec's CR3. -/
@@ -105,6 +111,18 @@ def TopSR {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 N T C E R : Set U64) (B : S
   OthersRel st N T C E R B c AR s a σ ∧ TopPlaced st th P L4 L3 L2 L1 N T C E R B c s σ
 
 end Defs
+
+/-- `ks::FEATURES` (#65) is the word at `ksb + 72`. -/
+theorem feat_val {kb : U64} (hkf : kb.val + 13568 ≤ 2 ^ 64) :
+    (core.num.U64.wrapping_add kb layout.ks.FEATURES).val = kb.val + 72 := by
+  unfold layout.ks.FEATURES
+  simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+
+/-- `HugeRel` across a step keeping the `FEATURES` word and the spec's flag. -/
+theorem HugeRel.frame {m m' : U64 → U64} {kb : U64} {σ σ' : Fl4Spec.State Unit} (h : HugeRel m kb σ)
+    (hm : m' (core.num.U64.wrapping_add kb layout.ks.FEATURES) = m (core.num.U64.wrapping_add kb layout.ks.FEATURES))
+    (hh : σ'.archState.x64Plat = σ.archState.x64Plat) : HugeRel m' kb σ' := by
+  unfold HugeRel at h ⊢; rw [hm, hh]; exact h
 
 
 
@@ -323,13 +341,18 @@ theorem TopSR.step {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Rg : Fl4Spec.Ob
         have hnb : L.nodeBase s' c = L.nodeBase s c := by simp [LawfulStore.nodeBase, hksb]
         rw [hnb] at h1 h2; exact hP.nodeE x h1 h2,
       hP.po, hP.ps, by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩⟩
-  unfold KRootRel globCr3 at hKr ⊢
-  have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-    unfold layout.ks.KERNEL_ROOT
-    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-  rw [hksb, hm _ (by unfold Aligned; rw [hkv]; unfold layout.ks.KERNEL_ROOT at hkv; omega)
-    (Or.inr (Or.inl (by rw [hkv]; omega))), hO.gpml4]
-  exact hKr
+  rw [hksb]
+  refine ⟨?_, HugeRel.frame hKr.2 ?_ hO.huge⟩
+  · have hKr := hKr.1
+    unfold KRootW globCr3 at hKr ⊢
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+      unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rw [hm _ (by unfold Aligned; rw [hkv]; unfold layout.ks.KERNEL_ROOT at hkv; omega)
+      (Or.inr (Or.inl (by rw [hkv]; omega))), hO.gpml4]
+    exact hKr
+  · have hfv := feat_val hkf
+    exact hm _ (by unfold Aligned; rw [hfv]; omega) (Or.inr (Or.inl (by rw [hfv]; omega)))
 
 end Step
 

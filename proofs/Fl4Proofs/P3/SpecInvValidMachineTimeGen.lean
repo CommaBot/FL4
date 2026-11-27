@@ -15,6 +15,7 @@ higher-order `syscall`, `orChoiceE`, `checkCapAt`, `archNoReturn`,
 `decodeIrqControlInvocationWith`, `portIn`, `portOut`.
 -/
 import Fl4Proofs.P3.SpecInvValidMachineTimeKit
+import Fl4Proofs.P3.SpecFbX
 
 open Classical
 
@@ -619,6 +620,37 @@ macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_schedule)
 theorem gk_domainSetStart (index : Nat) : GK (domainSetStart (Z := Unit) index) := by
   unfold domainSetStart; gk_auto
 macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_domainSetStart)
+
+/-- #68: the TDX decode (`Ext/Tdx`). -/
+theorem gk_decodeTdxInvocation (label : Data) (args : List Data) (extraCaps : List (Cap × CslotPtr)) : GKE (decodeTdxInvocation (Z := Unit) label args extraCaps) := by
+  unfold decodeTdxInvocation; gk_auto
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_decodeTdxInvocation)
+
+/-- #68: the TDCALL (the frame write changes the memory only). -/
+theorem gk_performTdxInvocation (i : Fl4TdxInvocation) : GK (performTdxInvocation (Z := Unit) i) := by
+  cases i <;> unfold performTdxInvocation tdxStatus
+  · exact gk_bind (gk_doMachineOp (mt_of_mkf (mkf_tdxFrameWrite _ _))) fun _ => by gk_auto
+  · gk_auto
+  · exact gk_bind (gk_doMachineOp (mt_of_mkf (mkf_tdxFrameWrite _ _))) fun _ => by gk_auto
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_performTdxInvocation)
+/-- fb3c: the batch's decode. -/
+theorem gk_decodeFrameBatch (args : List Data) (cap : ArchCap) (ex : List (Cap × CslotPtr)) :
+    GKE (decodeFrameBatch (Z := Unit) args cap ex) := by
+  unfold decodeFrameBatch; gk_auto
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_decodeFrameBatch)
+
+/-- fb3c: one `X86PML4FrameBatch` entry, its frame `cap_delete` written out (SpecFbX). -/
+theorem gk_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) :
+    GKE (Fl4Proofs.P3.SInv.fbEntryX b w) := by
+  unfold Fl4Proofs.P3.SInv.fbEntryX Fl4Proofs.P3.SInv.fbDeleteX Fl4Proofs.P3.SInv.fbDelX fbCode fbMap unmapPageUnflushed; gk_auto
+
+theorem gk_flushAllFb (b : Fl4FrameBatchInvocation) : GK (flushAll (Z := Unit) b.vspace b.asid) := by
+  unfold flushAll; gk_auto
+
+/-- fb3c: the batch. -/
+theorem gk_performFrameBatch (b : Fl4FrameBatchInvocation) : GK (performFrameBatch (Z := Unit) b) :=
+  fun P hP => Fl4Proofs.P3.SInv.ik_performFrameBatchX (fun w => gk_fbEntryX b w P hP) (gk_flushAllFb b P hP)
+macro_rules | `(tactic| gk_leaf) => `(tactic| with_reducible apply gk_performFrameBatch)
 
 theorem gk_fl4ArchDecodeInvocation (label : Data) (args : List Data) (xSlot : CapRef) (cte : CslotPtr) (cap : ArchCap) (extraCaps : List (Cap × CslotPtr)) : GKE (fl4ArchDecodeInvocation (Z := Unit) label args xSlot cte cap extraCaps) := by
   unfold fl4ArchDecodeInvocation; gk_auto

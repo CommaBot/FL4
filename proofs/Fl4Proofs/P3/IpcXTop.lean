@@ -51,7 +51,7 @@ theorem IRel.xtop {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {cr : Fl4Sp
       XTopAt (L := L) AR Z s a σ) ∧ KsApart N T E R B (L.ksb s) ∧ BufWordRel T (L.mem s) σ := by
   obtain ⟨hIR, ⟨⟨G, hB⟩, hV⟩, hS, hEA⟩ := h
   obtain ⟨P, L4, L3, L2, L1, hR, hPt, hPI, hCO, hP⟩ := hV.ex
-  exact ⟨⟨⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c⟩, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+  exact ⟨⟨⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c, ∅⟩, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
     ⟨⟨⟨hS, hIR.toE, hIR.toN, hV.irq, hV.io, hV.kr, by rw [hV.cr3]; exact hAR⟩, hP⟩, hR, hPt, hPI, hCO⟩, hB, hIR, hEA⟩,
     ⟨hV.ksE, hV.ksR, hV.ksN, hV.ksB⟩, hV.bw⟩
 

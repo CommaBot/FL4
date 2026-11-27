@@ -202,7 +202,7 @@ theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hbuf : BufWordRel Z.T (L.mem s') σ')
     (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
     (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
-    (hkern : JKern (L := L) H Cs D' Z.th s' σ')
+    (hkern : JKern (L := L) arI H Cs D' Z.th s' σ')
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
@@ -226,7 +226,12 @@ theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
     J.ext.ss hSS hv,
-    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
+    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
+      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))
+      (J.carry.vsSame hSS hks (ArchFwd.of_ipcFr (IpcFrKeep.of_otk hK.kh)))
+      (J.carry.tabKeep J.xtop.rel.2.1.2.2.1 hSS hX.rel.2.1.2.2.1 hK.ksz)
+      (J.vsSS (G' := Z.G) hX hks hSS (Vs.ArchShr.of_otk hK.kh (by rw [hK.arch])))⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
@@ -244,7 +249,7 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hw : P1.WritesIn st s s' W) (hK : Sched.ScTKw P σ σ') (hF : FK σ σ')
     (hX' : XTopAt (L := L) AR Z s' a' σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
-    (hD : D' ⊆ D) : JKern (L := L) H Cs D' Z.th s' σ' := by
+    (hD : D' ⊆ D) : JKern (L := L) arI H Cs D' Z.th s' σ' := by
   have K := J.kern
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
@@ -276,7 +281,7 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [hK.arch])⟩
   rw [hna, hDbg]; exact K.head
 
 
@@ -290,7 +295,8 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
-    (hidl : Sched.IdleKeep (L := L) s s') :
+    (hidl : Sched.IdleKeep (L := L) s s')
+    (hDX : Sched.DXKeep (L := L) H Cs s s') (hDD : D' ⊆ D) :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -300,7 +306,8 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have JC := J.jcov
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead,
     JC.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
-    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
+    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
+    fun q hq => J.jcov.dxKeep hDX q (hDD hq)⟩
   · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
@@ -645,7 +652,8 @@ theorem JAtZ.unbindReplyJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   have hKd := J.kw_dbgKeep (hfoot.mono (Set.empty_subset _))
   exact ⟨σ', he, Z.vs, Ac, Lst', J.sc_frameS hks hSS (J.vkeep_of hwR fun b hb u hu => Sched.RW.ne_tcbw hS J.rp hb hu (K := 3664#u64) (by simp)) hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
-    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2))
+    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2)
+      (DXKeep.of_dbg hKd (J.tdkeep_of hwR fun b hb u hu => Sched.RW.ne_tcbw hS J.rp hb hu (K := 3528#u64) (by simp))) subset_rfl)
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'
     (hF.bsa J.bsa) (hF.curRun J.curRun) hblk hKd (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).1 J.zD⟩

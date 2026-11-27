@@ -82,6 +82,7 @@ theorem rnext_zero_all {s : S} {r : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
     (rword_ne_spor hO hr (by rw [av]; omega))
     (fun _ _ _ _ h => absurd (by simp) h)
     (fun c hc e => absurd e (rword_ne_screp hO hr (by rw [av]; omega) c hc))
+    (BndS.wr_rpw hX.2.2.toScExtra0 h0 hO hSg.sub hm hr ⟨by rw [av]; omega, by rw [av]; omega⟩)
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.nextW hr))⟩
 
 /-- Clearing an SC's `REPLY` word. -/
@@ -120,6 +121,7 @@ theorem screp_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z 
         rw [av, e7] at e
         have := hO.scDisj c hc c' hc' (Ne.symm hne); have := (sc_facts hO hc').1; omega
       exact absurd (ec.trans this) (hnoh r hr hb hz))
+    (BndS.wr_scw (o := 32) hX.2.2.toScExtra0 h0 hO hSg.sub hm hc av (by omega) (by omega))
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.repW c hc))⟩
 
 /-- `unbind_reply` (seL4 `schedContext_unbindReply`, the reply-stack head
@@ -426,8 +428,7 @@ theorem XInv.wr_max {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
     (by rw [cscW_wr_out h hm]; exact hX.2.2.cur)
     (fun c hc => scw c hc _ (hO.repW c hc) 32 (sc_facts hO hc).2.2.2.2.2.2.1 (by omega) (by omega))
     (fun y hy => by
-      rw [show boundA y = core.num.U64.wrapping_add y 3368#u64 from rfl, fk y hy _ (by simp) (by simp)]
-      exact hX.2.2.bnd y hy)
+      rw [show boundA y = core.num.U64.wrapping_add y 3368#u64 from rfl]; exact fk y hy _ (by simp) (by simp))
     (fun n hn => k _ (hO.ntAl n hn) (by
       rw [mxv]; have := hO.ntSc n hn p hp; have := (sc_facts hO hp).1; omega))
     (hX.tn (TmFr.wr hT h.nodes hO ha (notTmW_omega hT h.nodes ho (fun n hn e => by
@@ -446,6 +447,7 @@ theorem XInv.wr_max {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U6
       refine k _ a1 ?_
       rw [mxv, maxA_val hPc hzc]
       have := hO.scDisj c hc p hp hne; have := (sc_facts hO hp).1; have := (sc_facts hO hc).1; omega) (idleW_wr_out h hm)
+    (fun y hy => fk y hy _ (by simp) (by simp))
 
 theorem obj.Sc.set_sporadic.wr (s : S) (c : obj.Sc) (v : U64) :
     obj.Sc.set_sporadic st c s v ⦃ s' => s' = L.wr s (core.num.U64.wrapping_add c layout.sc.SPORADIC) v ⦄ := by
@@ -514,6 +516,7 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (fun c hc e => absurd e (ne c hc _ 56 (sc_facts hO hc).2.2.2.2.2.2.2 (by omega) (by omega)))
     (fun r hr e => absurd e (by rw [av, (rp_facts hO hr).2.2.2]; have := hO.rpSc r hr p hp; omega))
     (fun c hc e => absurd e (ne c hc _ 32 (sc_facts hO hc).2.2.2.2.2.2.1 (by omega) (by omega)))
+    (BndS.wr_scw (o := 64) hX5.2.2.toScExtra0 h5 hX5.1 hSg.sub hms hp av (by omega) (by omega))
   -- `SCsOK` for `Ac \ {p}` after both writes
   have hms' : core.num.U64.wrapping_add p layout.sc.SPORADIC ∈ Ω := hms
   have hos := h0.omega _ hms'
@@ -548,7 +551,8 @@ theorem deact_all {s : S} {p : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       have := out c hc hne _ al hh; unfold Outside at this; omega
   have hS6 : SCsOK st T Ω Sg Scs Z (Ac \ {p}) s6 := by
     refine ⟨hS.sub, fun b hb => by rw [w.1]; exact hS.ks b hb, fun o h1 h2 => by rw [w.1]; exact hS.ksΩ o h1 h2,
-      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, ?_, ?_, ?_⟩
+      fun y hy hb hne => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_, ?_, ?_, ?_,
+      fun c hc => by rw [w.1]; exact hS.scKs c hc⟩
     · rw [fld y hy] at hb hne ⊢; rw [csc] at hne ⊢; exact hS.disj y hy hb hne
     · by_cases e : c = p
       · subst e; exact (hS.all c hc).mk' fun hne => absurd mx6 hne

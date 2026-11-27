@@ -214,6 +214,8 @@ theorem vcpu_finalise_vt (hK : ARKeep arI AR) {s : S} (v : U64) (a : A) {cr : Fl
   try simp only at e1 har1
   subst s1
   try dsimp only
+  -- #106: the VCPU's hardware state is released (`ARKeep.vcpu_release` [P])
+  refine WP.spec_bind (hK.vcpu_release a1 v cr har1) fun a2 har2 => ?_
   unfold vcpu.get
   simp only [lift, bind_ok]
   refine WP.spec_bind (LawfulStore.read_spec s _) fun t et => ?_
@@ -256,8 +258,8 @@ theorem vcpu_finalise_vt (hK : ARKeep arI AR) {s : S} (v : U64) (a : A) {cr : Fl
     exact (WP.spec_ok _).2 ⟨(h3.trans (P1.writesIn_wr (a := vPrevA nx) (v := pv) han)).mono fun b hb =>
       Or.elim hb id fun e => Or.inl (by
         have e' : b = vPrevA nx := e
-        rw [e']; exact hXn), har1⟩
-  · exact (WP.spec_ok _).2 ⟨h3, har1⟩
+        rw [e']; exact hXn), har2⟩
+  · exact (WP.spec_ok _).2 ⟨h3, har2⟩
 
 variable {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
 

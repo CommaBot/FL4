@@ -265,6 +265,7 @@ theorem capObjH_addP {H : P1.Heap} {p : U64} (hp : H p = none) {isc : U64} {c : 
   | PageTable q m a v => exact frApartH_addP h
   | PageDirectory q m a v => exact frApartH_addP h
   | Pdpt q m a v => exact frApartH_addP h
+  | Pml4 q m a => exact frApartH_addP h
   | SchedContext q sb => exact ⟨(hAddP_iff (fun _ e => by cases e) hp).2 h.1, h.2⟩
   | _ => trivial
 
@@ -310,14 +311,14 @@ theorem range_ap (q b : U64) (hfit : q.val + 4096 ≤ 2 ^ 64) :
   omega
 
 /-- **`JKern` with the pool's page in `H`.** -/
-theorem JKern.addP {th : TypedHeap} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit} {p : U64}
-    (K : JKern (L := L) H Cs D th s σ) (A : P1.AddOKP st H (· = p) (.other 12) Cs s) :
-    JKern (L := L) (hAddP H p) Cs D th s σ := by
+theorem JKern.addP {Aa : Type} {arI : machine.Arch Aa} {th : TypedHeap} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit} {p : U64}
+    (K : JKern (L := L) arI H Cs D th s σ) (A : P1.AddOKP st H (· = p) (.other 12) Cs s) :
+    JKern (L := L) arI (hAddP H p) Cs D th s σ := by
   have hp : H p = none := A.fresh p rfl
   refine ⟨K.orig, K.cur, K.curT, K.act, K.dwAl, K.dwObj, K.dwNe, K.head, K.gpm, K.ga, K.gf, heapOK_addP A K.heap,
     by rw [hAddP_ne (Ne.symm (A.nz p rfl))]; exact K.h0, fun q k hq hk => K.hks q k ((hAddP_iff hk hp).1 hq) hk,
     fun q z hq => ?_, fun q k hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs,
-    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0⟩
+    (hAddP_iff (fun _ e => by cases e) hp).2 K.curH, ?_, K.csLt, K.cs0, K.csN, K.tdx⟩
   · rcases hAddP_cases hq with ⟨rfl, e⟩ | ⟨-, hq⟩
     · cases e
       rcases A.ks _ rfl with e | e
@@ -343,7 +344,8 @@ theorem Sched.JCovD.addP {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : S
     (hcov : Covered (L.mem s) G p.val (p.val + 4096))
     (hni : ¬ IdleAt (L := L) s p) :
     JCovD (L := L) th (hAddP H p) G D Cs s := by
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, h.ks, fun x hx p' sb fi hc q hq => ?_⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, h.ks, fun x hx p' sb fi hc q hq => ?_,
+    fun q hq => ?_⟩
   · have hqp : q ≠ p := fun e => by subst e; rw [hth] at hq; cases hq
     exact (h.th q k hq).imp_right (Or.imp_right (exAt_addP hqp).2)
   · rcases hAddP_cases hq with ⟨rfl, rfl⟩ | ⟨hqp, hq⟩
@@ -359,6 +361,9 @@ theorem Sched.JCovD.addP {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : S
     have hqp : q ≠ p := fun e => hni (e ▸ hq)
     rw [hAddP_ne hqp] at hk
     exact g3 k hk
+  · by_cases hqp : q = p
+    · rw [hqp]; exact Sched.DeadX.of_ne (by rw [hAddP_self]; exact fun e => by cases e)
+    · exact (h.dx q hq).heq (hAddP_ne hqp)
 
 /-- **The spec's objects in `H` with the pool's page** (`SpecCover`): every
 object after an `MpFr` step is one before but the pool at `p`. -/
@@ -378,6 +383,42 @@ theorem Sched.SpecCover.addP {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Uni
   · have e := hnew o ao ho h1
     have hq : (⟨o⟩ : U64) = p := by rw [e]
     exact ⟨12, le_rfl, by rw [hq, hAddP_self]⟩
+
+/-- Every spec arch object is at least a 4 KiB page (`archKobjSize`). -/
+theorem twelve_le_arch (ao : Fl4Spec.ArchKernelObj) : 12 ≤ Fl4Spec.objBits (.archObj ao) := by
+  cases ao with
+  | dataPage _ sz =>
+    cases sz <;> simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.pageBitsForSize, Fl4Spec.pageBits,
+      Fl4Spec.ptTranslationBits]
+  | _ => simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.tableSize, Fl4Spec.ptTranslationBits,
+      Fl4Spec.wordSizeBits, Fl4Spec.pageBits]
+
+/-- **`JCarry` across `MakePool`** (jc1b): the pool's page added to `H` as a
+4 KiB `other` object (every arch object is at least that large), the data
+pages kept. -/
+theorem JCarryS.addP {B : Set (U64 × Fl4Spec.Word)} {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarryS B H σ) (F : MpFr σ σ')
+    (hnew : ∀ o ao, σ'.kheap o = some (.archObj ao) → σ.kheap o = none → o = p.bv) :
+    JCarryS B (hAddP H p) σ' := by
+  refine ⟨h.bufPg.frame subset_rfl fun q vms hq => ?_, fun o ao n ho hH => ?_⟩
+  · rcases F.kh q with e | ⟨r, cs, cs', h1, -⟩ | ⟨h1, -⟩
+    · rw [e]; exact hq
+    · rw [h1] at hq; cases hq
+    · rw [h1] at hq; cases hq
+  · by_cases hq : (⟨o⟩ : U64) = p
+    · rw [hq, hAddP_self] at hH; cases hH; exact twelve_le_arch ao
+    · rw [hAddP_ne hq] at hH
+      rcases F.kh o with e | ⟨r, cs, cs', -, h2⟩ | ⟨h1, -⟩
+      · rw [e] at ho; exact h.archFit o ao n ho hH
+      · rw [h2] at ho; cases ho
+      · exact absurd (show (⟨o⟩ : U64) = p by rw [hnew o ao ho h1]) hq
+
+/-- The σ part of `JCarry` across `MakePool` (jc2 forwarder). -/
+theorem JCarry.addP {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {p : U64} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarry (L := L) Z H Cs s σ) (F : MpFr σ σ')
+    (hnew : ∀ o ao, σ'.kheap o = some (.archObj ao) → σ.kheap o = none → o = p.bv) :
+    JCarryS Z.B (hAddP H p) σ' :=
+  h.toS.addP F hnew
 
 theorem Sched.ObjCover.mp {N T E R C : Set U64} {σ σ' : Fl4Spec.State Unit} (h : ObjCover N T E R C σ) (F : MpFr σ σ') :
     ObjCover N T E R C σ' :=
@@ -713,6 +754,9 @@ theorem JAtZ.mp_sfree {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
 /-- `Z` with the new MDB ghost and the pool added (the sets after `MakePool`). -/
 abbrev XSets.mp (Z : XSets) (G' : MdbGhost) (p : U64) : XSets := { Z with G := G', P := insert p Z.P }
 
+/-- (f6) `Z.mp` keeps `vx`. -/
+instance VxE.mp {Z : XSets} [h : VxE Z] {G' : MdbGhost} {p : U64} : VxE (Z.mp G' p) := ⟨h.eq⟩
+
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` after `MakePool` when its region is clean** (module docstring),
 from the restart's state `s`: FL4 writes the `MpW` words (slots, the
@@ -745,6 +789,9 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hsrc : capV (L.mem s') (cslotAddr (pp.bv, idx)) = .Untyped p fl4_abi.consts.bits.ASID_POOL 4096#u64 false)
     (hdst : ∃ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b)
     (hdstb : ∀ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b → b.val % 512 = 0 ∧ b.val < 2 ^ 20)
+    (hbhi : ∀ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b → b.val = hi.val * 512)
+    (hat0 : σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) = none)
+    (hat : σ'.archState.x64AsidTable = Function.update σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) (some p.bv))
     (hp0 : p ≠ 0#u64)
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s) y)
@@ -892,16 +939,43 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hni : ¬ IdleAt (L := L) s' p := fun h => by
     have := (J.jcov.idleOut _ hsm p _ fi0 hsv p ((idleAt_of hidl).1 h)).1
     rw [two_pow_asidPool] at this; omega
+  have hdkM : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    dbgKeep_of_writes J.blk hw fun b hb => by
+      rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
+      · have hf := hx.fit hPl
+        have := hk.lt
+        have hv := wordOf_val (a := x) (k := k) (by omega)
+        exact J.inSlot_notDbg ⟨x, hx, by rw [e, hv]; omega, by rw [e, hv]; omega⟩
+      · refine J.notDbg' (fun q hq => ?_) (fun c hc => ?_)
+        · have := hHo q .tcb hq; simp only [P1.HKind.bits] at this ⊢; omega
+        · have := Ad.nodes p rfl c hc; simp only [P1.HKind.bits] at this; omega
+      · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
+        rw [← e] at hb'
+        exact J.notDbg' (fun q hq => J.vsObjW ⟨J.scOut⟩ hb' hq (fun _ e => by cases e))
+          (fun c hc => by rcases J.vsNodeW hb' hc with e' | e' <;> omega)
+  have hTdM : Sched.TdKeep (L := L) H s s' := J.tdkeep_of hw fun b hb t ht e' => by
+    have hv := J.tdA_val' ht
+    have hHt : H t = some .tcb := J.zH.1 t ht
+    rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
+    · have hf := hx.fit hPl
+      have := hk.lt
+      have hv' := wordOf_val (a := x) (k := k) (by omega)
+      exact J.inSlot_ntd ⟨x, hx, by rw [e, hv']; omega, by rw [e, hv']; omega⟩ t ht e'
+    · have := hHo t .tcb hHt; simp only [P1.HKind.bits] at this; rw [e'] at g1 g2; omega
+    · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
+      rw [← e] at hb'
+      have e2 := J.vsObjW ⟨J.scOut⟩ hb' hHt (fun _ e => by cases e)
+      simp only [P1.HKind.bits] at e2; rw [e'] at e2; omega
   have hjc : JCovD (L := L) Z.th (hAddP H p) G' D Cs s' :=
-    (J.jcov_cover hks hM' hCK hUK hdead hidl).addP hp hthp hcovp hni
+    (J.jcov_cover hks hM' hCK hUK hdead hidl (DXKeep.of_dbg hdkM hTdM)).addP hp hthp hcovp hni
   -- `JKern`
   have horig' : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl := by
     intro sl h
     by_cases e : sl = (pd.bv, idxd)
     · right; rw [e]; exact hAd
     · left; rw [← horig sl e]; exact h
-  have hkern : JKern (L := L) (hAddP H p) Cs D Z.th s' σ' :=
-    (J.kern_keep hks hcpu hS' F.ct F.csc horig' F.gpml4 (fun _ _ h => F.arch h) hDbg).addP Ad'
+  have hkern : JKern (L := L) arI (hAddP H p) Cs D Z.th s' σ' :=
+    (J.kern_keep hks hcpu hS' F.ct F.csc horig' (by rw [F.gpml4, hMs.1.huge]) (fun _ _ h => F.arch h) hDbg).addP Ad'
   have hutc := J.mp_utc hh hpp hidx hsrc0 hnch hpd hld hnull (hDL.live _) hsrc hdst hcap hw hzero hcdt horig F.gpml4 hM' hDbg
   have hblk := J.mpBlkAfter Ad hHo hh hw
   have hJC : JCs (L := L) (Z.mp G' p) s' σ' :=
@@ -938,7 +1012,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   -- region's (absent) objects gone; the source an untyped cap, the
   -- destination a pool cap
   have hfk : IpcFrKeep σ σ' := by
-    refine ⟨fun t x' hx => ?_, fun q vms hq => ?_, fun q vms hq => ?_⟩
+    refine ⟨fun t x' hx => ?_, fun q vms hq => ?_, fun q vms hq => ?_, fun q ao hq => ?_⟩
     · rcases F.kh t with e | ⟨r, cs, cs', -, e⟩ | ⟨-, a0, e⟩
       · exact Or.inr ⟨x', by rw [← e]; exact hx, rfl, rfl⟩
       · rw [hx] at e; cases e
@@ -953,6 +1027,10 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         · rw [← e]; exact hq
         · rw [hq] at e; cases e
         · rw [hq] at e; cases e
+    · rcases F.kh q with e | ⟨r, cs, cs', e0, -⟩ | ⟨e0, -⟩
+      · exact ⟨ao, by rw [e]; exact hq, rfl⟩
+      · rw [hq] at e0; cases e0
+      · rw [hq] at e0; cases e0
   have hbf : JBuf (L := L) (Z.mp G' p) s' σ' := by
     refine ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, fun y hy => ?_⟩
     by_cases e1 : y = cslotAddr (pp.bv, idx)
@@ -962,20 +1040,6 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · rw [hcap y hy e1 e2]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
   -- `LiveDN` and `zD` after (LiveFrame's `wstepR`: the destination slot in a
   -- CNode named by a CNode cap, the source's free index changed)
-  have hdkM : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
-    dbgKeep_of_writes J.blk hw fun b hb => by
-      rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
-      · have hf := hx.fit hPl
-        have := hk.lt
-        have hv := wordOf_val (a := x) (k := k) (by omega)
-        exact J.inSlot_notDbg ⟨x, hx, by rw [e, hv]; omega, by rw [e, hv]; omega⟩
-      · refine J.notDbg' (fun q hq => ?_) (fun c hc => ?_)
-        · have := hHo q .tcb hq; simp only [P1.HKind.bits] at this ⊢; omega
-        · have := Ad.nodes p rfl c hc; simp only [P1.HKind.bits] at this; omega
-      · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
-        rw [← e] at hb'
-        exact J.notDbg' (fun q hq => J.vsObjW ⟨J.scOut⟩ hb' hq (fun _ e => by cases e))
-          (fun c hc => by rcases J.vsNodeW hb' hc with e' | e' <;> omega)
   have hTHM : P1.Heap.tcbs (hAddP H p) = P1.Heap.tcbs H := Set.ext fun q => hk' (fun _ e => by cases e) q
   have hZfM : ∀ y, IsSlot Z.th y → ∀ p' zt n, capV (L.mem s') y = .Zombie p' zt n →
       ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p' zt n := fun y hy p' zt n h => by
@@ -1030,7 +1094,70 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
       · rw [hcap y hy e1 e2]; exact J.ext.nat y hy, J.ext.vkeep (J.mp_vkeep hh hw.2.2 hHo)⟩
     hLvM (fun q hq => J.zD q (ZTcb.of_zombies hZfM hq))
-
+    ((J.carry.addP F hnew).withP
+      ⟨J.carry.devApart.frameH (lo := p.val) (hi := p.val + 4096) (fun _ _ h => h)
+        (fun q k h => by
+          rcases P1.Heap.add_eq_some.1 h with ⟨rfl, rfl⟩ | ⟨-, h⟩
+          · exact Or.inr ⟨le_rfl, by simp [P1.HKind.bits]⟩
+          · exact Or.inl h)
+        (fun y hy p' sb' fi' hc => by
+          have := J.carry.devSep _ hsm y hy _ _ _ _ _ _ (capV_of_capAt hsrc0) hc
+          rw [two_pow_asidPool] at this; exact this)
+        hks (devFrom_kept J.mdbL hM' J.ut hUK).1
+        (J.idleH.keep hidl fun q hq => by
+          have hqp : q ≠ p := fun e => hni (e ▸ hq)
+          refine Option.ext fun k => ?_
+          rw [P1.Heap.add_eq_some]
+          constructor
+          · rintro (⟨e, -⟩ | ⟨-, h⟩)
+            · exact absurd e hqp
+            · exact h
+          · intro h; exact Or.inr ⟨hqp, h⟩),
+       J.carry.devSep.frame (devFrom_kept J.mdbL hM' J.ut hUK).2⟩
+      (J.carry.vsTyp.step (fun R h y hy => by
+        by_cases e1 : y = cslotAddr (pp.bv, idx)
+        · rw [e1, hsrc]; trivial
+        by_cases e2 : y = cslotAddr (pd.bv, idxd)
+        · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
+        · rw [hcap y hy e1 e2]; exact h y hy) (tabSet_mono subset_rfl subset_rfl subset_rfl) subset_rfl rfl hks
+        (ArchFwd.of_ipcFr hfk))
+      (J.carry.devTab.step (lo := p.val) (hi := p.val + 4096) (devFrom_kept J.mdbL hM' J.ut hUK).1.sub
+        (fun o ao ho hv => by
+          rcases F.kh o with e | ⟨r, cs, cs', -, h2⟩ | ⟨h1, -⟩
+          · rw [e] at ho; exact Or.inl ⟨ao, ho, hv⟩
+          · rw [h2] at ho; cases ho
+          · right; obtain rfl := hnew o ao ho h1; exact ⟨le_rfl, le_rfl⟩)
+        (fun y hy p' sb' fi' hc => by
+          have := J.carry.devSep _ hsm y hy _ _ _ _ _ _ (capV_of_capAt hsrc0) hc
+          rw [two_pow_asidPool] at this; exact this))
+      (fun hvx => by
+        obtain ⟨b, hb⟩ := hdst
+        have hR := J.xtop.fin.2.1
+        have hPt := J.xtop.fin.2.2.1
+        have hR' : Vs.VsRel (insert p Z.P) (L.mem s') (L.ksb s) σ' := by rw [← hks]; exact hX'.fin.2.1
+        have hPt' : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') σ' := hX'.fin.2.2.1
+        rw [hks]
+        refine Vs.VsNamed.makePoolS (J.carry.vsNamed hvx) J.vsc hR hPt J.xtop.fin.2.2.2.1 hR' hPt'
+          (fun q hq => Set.mem_insert_of_mem _ hq) (Set.mem_insert _ _) hAd.isSlot hb (by rw [hnv]; rfl)
+          (hbhi b hb) hh hp0 (fun y hy hk => ?_) (fun y hy hne hk => ?_) hat0 hat hkp (fun q hq => ?_)
+        · have hcw := J.vsc y hy
+          cases hc : capV (L.mem s) y <;> rw [hc] at hk <;>
+            simp only [Vs.VKey, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hk
+          all_goals try omega
+          rename_i q0 b0
+          rw [hc] at hcw
+          simp only [Vs.VCapW, Vs.VCapOK] at hcw
+          obtain ⟨g, hg, -⟩ := hR.pool q0 hcw.1.1
+          have hq0 : q0 = p := by simpa using hk
+          rw [hq0, hσp] at hg; cases hg
+        · by_cases e1 : y = cslotAddr (pp.bv, idx)
+          · exfalso; subst e1; rw [hsrc, hsv] at hk; exact hk.elim (fun h => h rfl) (fun h => h rfl)
+          · exact hcap y hy e1 hne
+        · obtain ⟨ao, hao⟩ := Vs.arch_of_set hR hPt hq
+          rcases F.kh q.bv with e | ⟨r, cs, cs', e1, -⟩ | ⟨e1, -⟩
+          · exact e
+          · rw [hao] at e1; cases e1
+          · rw [hao] at e1; cases e1))
 
 end
 
@@ -1062,7 +1189,7 @@ at `TopSR` (`MpPlacedHyp` and the region facts from `JAtZ`,
 `JAtZ.mpStepJ` from the restart's `JAtZ` (`JAtZ.restartJ`), with the domain
 schedule (`domFrame_asid_control`). -/
 theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hcl : MpClean (L := L) Z H D s) (hsp : MpSpecClean (L := L) Z s σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
@@ -1105,14 +1232,14 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
       (fun _ _ _ _ => trivial) vsMpHyps_top hX.fin.1 hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.vs hX.fin.1.2.pt
       hX.fin.1.2.vo hX.fin.1.2.po hX.fin.1.2.pv lbl slbl hlM length buf ct hct hcur htcb J.kern.act hrun args hlen hargs
       extra excaps hext' (X := fun s' a' σ' => DomRel (L.mem s') (L.ksb s') σ' → JAt (L := L) arI AR s' a' σ')
-      (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J⟩) ?_ slot blk call don fp ci sl buffer) (fun _ _ _ h => h))
+      (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) ?_ slot blk call don fp ci sl buffer) (fun _ _ _ h => h))
     (domFrame_asid_control arI Z.th s ar σ Z.G hCR hFI J.ut hMO hX.fin.1 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlM length
       buf ct hct hcur htcb J.kern.act hrun args hlen hargs extra excaps hext' hUK slot blk call don fp ci sl buffer)
     (okAll_specDec_asidControl fp slbl (args.map UScalar.bv) ci sl excaps buffer) hDR (fun _ _ _ hx hd => hx hd))
   intro s' a' σ' p th' G' dest ps y rc hex1 hcy hSR hR' hPt' hcur' hPI' hCR' hFI' hMO' hth hk hsc hRg hxu hU' hMS
     hMid hDR'
   obtain ⟨s1, ct', hi, σ1, hs1, hct', hst', hh, hks1, hcpu1, hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst,
-    hdstb, hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
+    hdstb, hbhi, hat0, hat, hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
   -- the region holds no object
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   have hsm : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten :=
@@ -1179,13 +1306,13 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   have hcap1 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s1) y := fun y hy h1 h2 => by rw [hcap y hy h1 h2, hSS.capV hy]
   exact ⟨_, _, Cs, Ac1, Lst1, D1, J1.mpStepJ hh hTh hHo Ad hspec1 hpp hidx hsrc1 hnch1 hpd hld hnull1 hDL1 hX'
-    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hp0 hcap1 (hDI J.del) hU'⟩
+    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hp0 hcap1 (hDI J.del) hU', inferInstance⟩
 
 /-- **The ASID control cap at `JAt`** (XTopJointEntry's dispatch): the
 clean case proved (`decode_invocation_asid_controlJC`), the dirty one asked
 (`JAsidCPath.dirty` [W]). -/
 theorem decode_invocation_asid_controlJM (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
       Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)

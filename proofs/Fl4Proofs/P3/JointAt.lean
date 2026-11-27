@@ -39,6 +39,7 @@ import Fl4Proofs.P3.ScRecvLinks
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.BufDefs
 import Fl4Proofs.P3.LiveDefs
+import Fl4Proofs.P3.JCarryDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -46,10 +47,88 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
+/-! ## The exempt set closed (KENTRY-PLAN f6) -/
+
+/-- (f6) A set of exempt slots that is empty (instance form of `vx = ∅`). -/
+class VxV (v : Set U64) : Prop where
+  eq : v = ∅
+
+/-- (f6) **No slot exempt from `JCarry.vsNamed`** (`Z.vx = ∅`, KENTRY-PLAN f6): what `JAt`
+carries besides `JAtZ`, so that every kernel-entry `JAtZ` gives `VsNamed`. An instance so that
+the steps' generic `Z.mv` / `{Z with …}` outcomes get it from their input's without threading. -/
+class VxE (Z : XSets) : Prop where
+  eq : Z.vx = ∅
+
+instance VxV.ofE {Z : XSets} [h : VxE Z] : VxV Z.vx := ⟨h.eq⟩
+instance VxV.empty : VxV (∅ : Set U64) := ⟨rfl⟩
+instance VxE.ofMk {th : TypedHeap} {G : MdbGhost} {P L4 L3 L2 L1 N T C E R : Set U64}
+    {B : Set (U64 × Fl4Spec.Word)} {c : U64} {vx : Set U64} [h : VxV vx] :
+    VxE ⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c, vx⟩ := ⟨h.eq⟩
+
+/-- (f6) `Z.mv` keeps `vx`. -/
+instance VxE.mv {Z : XSets} [h : VxE Z] {G : MdbGhost} {V : XVs} : VxE (Z.mv G V) := ⟨h.eq⟩
+
 /-! ## Merges -/
 
 section
 variable {A : Type} (arI : machine.Arch A)
+
+/-- **The TDX platform clause** (#68, `Fl4Spec/Ext/Tdx`): FL4's arch queries
+`tdx_active` and `dma_ram` answer the spec state's platform record
+(`σ.archState.x64Plat`, written by no spec step), at every arch state. A
+relation between the platform and the spec state, not a platform
+assumption: any platform whose two queries are total and do not depend on the
+arch state meets it by the choice of the record (`TdxRel.adjust`), as #65's
+`HugeRel` is met by the choice of `x64Plat.hugePages`. Carried by `JKern.tdx`. -/
+def TdxRel (σ : Fl4Spec.State Unit) : Prop :=
+  (∀ a, arI.tdx_active a = ok σ.archState.x64Plat.tdxActive) ∧
+    ∀ a (p n : U64), arI.dma_ram a p n = ok (σ.archState.x64Plat.tdxDmaRam p.bv n.val)
+
+variable {arI} in
+/-- `TdxRel` depends on the spec state's platform record only. -/
+theorem TdxRel.frame {σ σ' : Fl4Spec.State Unit} (h : TdxRel arI σ)
+    (hp : σ'.archState.x64Plat = σ.archState.x64Plat) : TdxRel arI σ' := by
+  unfold TdxRel at h ⊢; rw [hp]; exact h
+
+/-- **The two TDX queries are platform values**: total and the same at every
+arch state (every real platform: CPUID / the TD module, FL4's `cvm` table). -/
+def TdxTotal : Prop :=
+  (∃ b, ∀ a, arI.tdx_active a = ok b) ∧ ∀ p n : U64, ∃ v, ∀ a, arI.dma_ram a p n = ok v
+
+/-- The platform record of a spec state with the TDX fields read off FL4's
+queries (`hugePages` kept). -/
+noncomputable def tdxPlatOf (h : TdxTotal arI) (P : Fl4Spec.X64Platform) : Fl4Spec.X64Platform :=
+  { P with
+    tdxActive := Classical.choose h.1
+    tdxDmaRam := fun p n => if hn : n < 2 ^ 64 then
+      Classical.choose (h.2 ⟨p⟩ ⟨BitVec.ofNatLT n hn⟩) else false }
+
+/-- `σ` with its platform record replaced. -/
+def withPlat (σ : Fl4Spec.State Unit) (P : Fl4Spec.X64Platform) : Fl4Spec.State Unit :=
+  { σ with archState := { σ.archState with x64Plat := P } }
+
+/-- **Satisfiability of `TdxRel`** (lead review of tdx4): for every platform
+whose two TDX queries are total platform values (`TdxTotal`), every spec
+state, with its platform record's TDX fields set from the queries
+(`withPlat σ (tdxPlatOf …)`: every other field of the state, and the record's
+`hugePages`, unchanged), meets `TdxRel`. So the clause restricts the choice
+of the start state's record only, never the platform. -/
+theorem TdxRel.adjust (h : TdxTotal arI) (σ : Fl4Spec.State Unit) :
+    TdxRel arI (withPlat σ (tdxPlatOf arI h σ.archState.x64Plat)) := by
+  refine ⟨fun a => Classical.choose_spec h.1 a, fun a p n => ?_⟩
+  have key : ∀ q m : U64, q = p → m = n → arI.dma_ram a p n = ok (Classical.choose (h.2 q m)) := by
+    rintro q m rfl rfl; exact Classical.choose_spec (h.2 q m) a
+  have hlt : n.val < 2 ^ 64 := n.bv.isLt
+  show arI.dma_ram a p n = ok (if hn : n.val < 2 ^ 64 then
+    Classical.choose (h.2 ⟨p.bv⟩ ⟨BitVec.ofNatLT n.val hn⟩) else false)
+  rw [dif_pos hlt]
+  refine key _ _ rfl ?_
+  cases n with
+  | mk b => exact congrArg UScalar.mk (BitVec.eq_of_toNat_eq (by simp [UScalar.val]))
+
+/-- `withPlat` changes the platform record only. -/
+theorem withPlat_arch (σ : Fl4Spec.State Unit) (P : Fl4Spec.X64Platform) :
+    (withPlat σ P).archState = { σ.archState with x64Plat := P } := rfl
 
 /-- **The arch relation's interface** (`ARKeep` with `ARMask`, one premise). -/
 structure ARIface (AR : A → Fl4Spec.Cr3 → Prop) : Prop extends ARKeep arI AR where
@@ -121,6 +200,15 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   /-- [carried] Core 0, the boot core, is among the cores (boot; `Cs` never
   shrinks). -/
   cs0 : 0#u64 ∈ Cs
+  /-- [carried] **The cores are numbered from 0** (`Cs = {c | c < n}`: boot starts cores
+  `0 .. ks::NUM_NODES - 1`; `Cs` never changes, so every step keeps it). What P2's ownership
+  layout needs of its core count (P2/SlJEnt.lean `SlJAtZ.cs`, P2/SerExit.lean's `hn`; line slj2). -/
+  csN : ∃ n : Nat, ∀ c : U64, c ∈ Cs ↔ c.val < n
+  /-- [carried] **The TDX platform clause** (#68, `TdxRel`): FL4's
+  `tdx_active` / `dma_ram` answer the spec's platform record. Set at the start
+  state by the choice of `σ.archState.x64Plat` (`TdxRel.adjust`); kept by
+  every step, since no spec step writes the record (`TdxRel.frame`). -/
+  tdx : TdxRel arI σ
 
 /-- **The joint extension** (INV-PLAN §4 G2; KENTRY-PLAN g2a): the facts
 carried with `JAtZ` as one sub-structure `JAtZ.ext`, so that a new fact adds
@@ -228,7 +316,7 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   (`JAtZ.scCap`). -/
   hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   -- 1c: CSpace
   del : DelInv Z.th (L.mem s)
   ut : UtInv (L.mem s) Z.G
@@ -319,13 +407,25 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   dead-set carry keeps `LiveJ.zdead`; every TCB zombie's TCB is `DeadP` by
   `live`, so `D ∪ ZTcb` is always a dead set: `JAtZ.addDeadSet`). -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] **The `JCarry` facts** (KENTRY-PLAN g7b-4, jc1): the IPC-buffer
+  words in non-device data pages (`BufPgHyp`, C21 / C24 bufObj) and `H`'s arch
+  objects no larger than their spec objects (`ArchFitHyp`, the first half of C16 /
+  C22 / C24 heapH); jc2: the device untyped caps' apartness (`DevApart`, C25) with
+  RAM/device range separation (`DevSep`). A frame step keeps the σ part by
+  `JCarry.frame` (a `JCarryS`) and the device part by `JCarry.devStep` (`JCarryS.withP`). -/
+  carry : JCarry (L := L) Z H Cs s σ
 
-/-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
+/-- **`JAt`: the joint invariant at a state** (the ghosts existential), with no slot
+exempt from `JCarry.vsNamed` (`VxE Z`, KENTRY-PLAN f6: the deletion loop's window is closed at
+every `JAt` state). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 /-! ## Projections -/
+
+/-- A nonempty exempt set (the deletion loop's window, KENTRY-PLAN f4 (13)). -/
+theorem vx0_ne : ({0#u64} : Set U64) ≠ ∅ := Set.singleton_ne_empty _
 
 namespace JAtZ
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -550,6 +650,59 @@ theorem ksW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb :
   obtain ⟨K, h1, h2, -, e, -⟩ := hb
   exact J.ks_nv (by omega) (by omega)
 
+/-! ## The dead set's debug and deadline words (KENTRY-PLAN jc6e) -/
+
+/-- A TCB of `H` is in `Z.T`. -/
+theorem tcbZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : H t = some .tcb) : t ∈ Z.T := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  exact J.thT t ((hJ.tcb t).2 ht)
+
+/-- **The dead set's `DeadX` after a step keeping the words it reads.** -/
+theorem dxKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hk : Sched.DXKeep (L := L) H Cs s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.jcov.dxKeep hk
+
+/-- **`DXKeep` from the debug words and the deadline words kept.** -/
+theorem dxk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hTd : Sched.TdKeep (L := L) H s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.dxKeep (DXKeep.of_dbg hKd hTd)
+
+theorem tdA_val' (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+    (P1.tdA t).val = t.val + 3528 :=
+  Notif.tfield_val (J.ip.e.tcb t ht) (K := 3528#u64) (by simp)
+
+/-- **`TdKeep` from a `WritesIn` footprint missing every TCB's deadline word.** -/
+theorem tdkeep_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop}
+    (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ P1.tdA t) : Sched.TdKeep (L := L) H s s' :=
+  Sched.TdKeep.of_writes J.ip.e.tcb (fun _ ht => J.tcbZ ht) hW hWV
+
+/-- **A slot word is no TCB's deadline word** (as `inSlot_nv`). -/
+theorem inSlot_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  obtain ⟨x, hx, h1, h2⟩ := hb
+  intro t ht e
+  have h3 := (J.apart x hx).1 t ht
+  rw [e, J.tdA_val' ht] at h1 h2
+  omega
+
+/-- **A step writing slot words only keeps the deadline words.** -/
+theorem tdkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) : Sched.TdKeep (L := L) H s s' :=
+  J.tdkeep_of hw fun _ hb => J.inSlot_ntd hb
+
+/-- **A kernel-state block word is no TCB's deadline word.** -/
+theorem ks_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
+    (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  intro t ht e
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hv := J.tdA_val' ht
+  rw [e] at h1 h2
+  rcases hq.ksOut t (J.zH.1 t ht) with h | h <;> omega
+
+theorem ksW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : KsW (L.ksb s) b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  obtain ⟨K, h1, h2, -, e, -⟩ := hb
+  exact J.ks_ntd (by omega) (by omega)
+
 /-! ## The liveness bundle across a step (KENTRY-PLAN g2i) -/
 
 /-- The spec's idle thread is the idle word at an `XTopAt` state. -/
@@ -560,6 +713,96 @@ theorem _root_.Fl4Proofs.P3.XTopAt.idleThread_bv {Z' : XSets} {s' : S} {a' : A} 
   have h2 := hs.idleTh
   unfold Sched.nodeW at h2
   rw [hc.cur, ← h2]
+
+/-- **The idle objects are `H`'s TCB and SC** (`IdleH`, jc2): the spec's idle
+thread is a TCB (`ActIdle`'s `IdleOK`), so one of the sets' (`ObjCover`), an
+`H` TCB (`zH`); it is bound to the spec's idle SC, an SC (`Inv.back`), so an
+`H` SC unless null (`JPlaced.sc`). -/
+theorem _root_.Fl4Proofs.P3.idleH_of {Z' : XSets} {H' : P1.Heap} {th' : TypedHeap} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ')
+    (hO : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ') (hzT : ∀ t ∈ Z'.T, H' t = some .tcb)
+    (hJ : ∃ Tr Cq, Sched.JPlaced (L := L) th' H' Tr Cq s' σ') (hI : Sched.Inv σ') (hA : Sched.ActIdle σ') :
+    IdleH (L := L) H' s' := by
+  obtain ⟨x, hx, hsc, -, -⟩ := hA.2
+  obtain ⟨Tr, Cq, hJP⟩ := hJ
+  refine ⟨?_, ?_⟩
+  · obtain ⟨t, ht, e⟩ := hO.tcb _ x hx
+    have : t = L.idleW s' := P1.eq_of_bv (e.trans hX.idleThread_bv)
+    rw [← this]; exact hzT t ht
+  · obtain ⟨y, n, hy, -⟩ := hI.back _ x _ hx hsc
+    by_cases h0 : Sched.idleScW (L := L) s' = 0#u64
+    · exact Or.inl h0
+    · refine Or.inr ⟨_, (hJP.sc _ y n h0 ?_).2⟩
+      rw [Sched.SchedRel.idleScW_bv hX.fin.1.1.1]; exact hy
+
+theorem idleH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : IdleH (L := L) H s :=
+  idleH_of J.xtop J.obj J.zH.1 J.jpl J.inv J.act
+
+/-- **The untyped caps after a step keeping every slot** (`SlotsSame`; the
+MDB tree after any tree of the same slots) are the old ones (jc2). -/
+theorem _root_.Fl4Proofs.P3.devFrom_same {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hSS : SlotsSame th m m') :
+    DevFrom G G' m m' ∧ Sched.UtFrom G G' m m' := by
+  have k : ∀ x ∈ G'.chains.flatten, x ∈ G.chains.flatten ∧ capV m' x = capV m x := fun x hx => by
+    obtain ⟨hxs, c, hc, hn⟩ := (hM'.members x).1 hx
+    exact ⟨(hM.members x).2 ⟨hxs, c, by rw [← hSS.capAt hxs]; exact hc, hn⟩, hSS.capV hxs⟩
+  refine ⟨fun x hx p sb fi hc => ⟨x, (k x hx).1, fi, le_rfl, by rw [← (k x hx).2]; exact hc⟩,
+    fun x hx p sb fi d hc => ⟨x, (k x hx).1, fi, by rw [← (k x hx).2]; exact hc⟩⟩
+
+/-- **The untyped caps after a step moving caps** (`UtKept`) are old ones with
+a free index no larger (`UtInv.fib` for the full case) (jc2). -/
+theorem _root_.Fl4Proofs.P3.devFrom_kept {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hU : UtInv m G) (hK : UtKept th m m') :
+    DevFrom G G' m m' ∧ Sched.UtFrom G G' m m' := by
+  have k : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV m' x = .Untyped p sb fi d →
+      ∃ y ∈ G.chains.flatten, ∃ fi0 : U64, fi0.val ≤ fi.val ∧ capV m y = .Untyped p sb fi0 d := by
+    intro x hx p sb fi d hc
+    obtain ⟨y, hy, fi', hc', hle⟩ := hK x ((hM'.members x).1 hx).1 p sb fi d hc
+    have hyG : y ∈ G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
+    have hf := hU.fib y hyG p sb fi' d hc'
+    exact ⟨y, hyG, fi', by omega, hc'⟩
+  exact ⟨fun x hx p sb fi hc => k x hx p sb fi true hc,
+    fun x hx p sb fi d hc => by
+      obtain ⟨y, hy, fi0, -, e⟩ := k x hx p sb fi d hc
+      exact ⟨y, hy, fi0, e⟩⟩
+
+/-- `UtKept` for a slot insertion of a non-untyped cap (the other slots kept). -/
+theorem _root_.Fl4Proofs.P3.utKept_ins {th : TypedHeap} {m m' : U64 → U64} {d0 : U64}
+    (hcap : ∀ y, IsSlot th y → y ≠ d0 → capV m' y = capV m y)
+    (hnu : ∀ p sb fi d, capV m' d0 ≠ .Untyped p sb fi d) : UtKept th m m' := by
+  intro x hx p sb fi d hc
+  by_cases e : x = d0
+  · subst e; exact absurd hc (hnu p sb fi d)
+  · exact ⟨x, hx, fi, by rw [← hcap x hx e]; exact hc, Or.inl le_rfl⟩
+
+/-- **The device facts across a step whose untyped caps are old ones**
+(`DevFrom`, `UtFrom`; `th`, `H` kept), `IdleH` after (jc2). -/
+theorem _root_.Fl4Proofs.P3.JCarry.devStep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) {s' : S} {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s)
+    (hdu : DevFrom Z.G G' (L.mem s) (L.mem s') ∧ Sched.UtFrom Z.G G' (L.mem s) (L.mem s'))
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  ⟨h.devApart.frame (fun _ _ h => h) (fun _ _ h => h) hks hdu.1 hI, h.devSep.frame hdu.2⟩
+
+theorem _root_.Fl4Proofs.P3.JCarry.devKeep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) (hM : MdbLinks Z.th (L.mem s) Z.G) {s' : S}
+    {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G')
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  h.devStep hks (devFrom_same hM hM' hSS) hI
+
+/-- **`devTab` across a step keeping the slots and the objects' types** (jc5). -/
+theorem _root_.Fl4Proofs.P3.JCarry.tabKeep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) (hM : MdbLinks Z.th (L.mem s) Z.G) {s' : S}
+    {G' : MdbGhost} {σ' : Fl4Spec.State Unit}
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G') (hk : KSz σ σ') :
+    DevTab G' (L.mem s') σ' :=
+  h.devTab.frame (devFrom_same hM hM' hSS).1.sub (tabBack_of_ksz hk)
+
+theorem devKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G')
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  J.carry.devKeep J.mdbL hks hSS hM' hI
 
 /-- **`LiveJ` at another MDB tree of the same slots** (the trees' members are
 the slots holding a non-null cap). -/
@@ -642,6 +885,43 @@ theorem not_ztcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx
 theorem zDX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' := fun p hp => hDD p (ZTcb.of_same hSS hp)
+
+/-- (F1 stage 5, item 4) **`vsNamed` across a step writing `OObj` words** (`XTopAt.vsNamed_of`). -/
+theorem vsW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  fun h => J.xtop.vsNamed_of (J.carry.vsNamed h) J.vsc hw hWO
+
+/-- (F1 stage 5, item 4) **`vsNamed` across a step with `VsKeep` and `ArchShr`**, `XTopAt` after at
+`Z`'s VSpace sets (`XTopAt.vsNamedShr`). -/
+theorem vsShr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    {th' : TypedHeap} (hK : Vs.VsKeep Z.th th' (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed th' (L.mem s') (L.ksb s') :=
+  fun h => J.xtop.vsNamedShr hX (J.carry.vsNamed h) J.vsc hks hK hsh
+
+/-- `vsShr` with the slots kept. -/
+theorem vsSS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  J.vsShr hX hks (Vs.VsKeep.of_eq fun y hy => hSS.capV hy) hsh
+
+/-- (F1 stage 5, item 4; KENTRY-PLAN f4 (13)) **`JAtZ` at another exempt set**: only
+`JCarry.vsNamed` reads `Z.vx`, so `JAtZ` moves to `{Z with vx := E}` given `VsNamed` when `E = ∅`
+(vacuous for `E ≠ ∅`: the deletion loop's window after a final ASID pool cap's finalisation). -/
+theorem vxSet (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+    (hN : E = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)) :
+    JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ :=
+  have hX : XTopAt (L := L) AR { Z with vx := E } s a σ := ⟨J.xtop.fin, J.xtop.rel, J.xtop.ipc, J.xtop.esa⟩
+  have hC : JCarry (L := L) { Z with vx := E } H Cs s σ :=
+    ⟨J.carry.bufPg, J.carry.archFit, J.carry.devApart, J.carry.devSep, J.carry.vsTyp, J.carry.devTab, hN⟩
+  { J with xtop := hX, carry := hC }
+
+/-- `JAtZ` at `{Z with vx := E}` for `E = Z.vx` is `JAtZ` at `Z`. -/
+theorem ofVx {E : Set U64} (J : JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ) (h : E = Z.vx) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ := by
+  subst h; exact J
 
 end JAtZ
 

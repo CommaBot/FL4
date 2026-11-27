@@ -19,9 +19,11 @@ module proves the placement, cover and CSpace fields there:
   are null: their caps would be in the MDB, whose slots are off the region,
   `UtCapP3.ns`).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtDropJ
 import Fl4Proofs.P3.UtEpSets
 import Fl4Proofs.P3.BufCov
+import Fl4Proofs.P3.VsNamed
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -52,16 +54,6 @@ end Heap
 
 namespace Vs
 
-/-- **The tables a cap's `VCapW` asks in the sets**: level `k` (VsDrop's
-`lvlSet`: 1 PT, 2 PD, 3 PDPT, 4 PML4, 5 pool) and address `q`; mapped
-PT/PD/PDPT caps ask nothing (their table may be pruned). -/
-inductive VNeed : capability.Cap → Nat → U64 → Prop
-  | pt {p a v : U64} : VNeed (.PageTable p false a v) 1 p
-  | pd {p a v : U64} : VNeed (.PageDirectory p false a v) 2 p
-  | pdpt {p a v : U64} : VNeed (.Pdpt p false a v) 3 p
-  | pml4 {p a : U64} {mp : Bool} : VNeed (.Pml4 p mp a) 4 p
-  | pool {p b : U64} : VNeed (.AsidPool p b) 5 p
-
 /-- `VCapW` at new sets holding what the cap asks. -/
 theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capability.Cap}
     (h : VCapW P L4 L3 L2 L1 c) (hn : ∀ k q, VNeed c k q → q ∈ lvlSet P' L4' L3' L2' L1' k) :
@@ -71,19 +63,10 @@ theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capabili
     | exact ⟨fun e => by subst e; exact hn 1 _ .pt, h.2⟩
     | exact ⟨fun e => by subst e; exact hn 2 _ .pd, h.2⟩
     | exact ⟨fun e => by subst e; exact hn 3 _ .pdpt, h.2⟩
-    | exact ⟨hn 4 _ .pml4, h.2⟩
+    | exact ⟨fun e => by subst e; exact hn 4 _ .pml4, h.2⟩
     | exact ⟨⟨hn 5 _ .pool, h.1.2⟩, h.2⟩
     | exact h
     | trivial
-
-/-- What a slot's cap asks is in the sets (`VsSlotsW`). -/
-theorem VsSlotsW.need {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
-    (h : VsSlotsW th P L4 L3 L2 L1 m) {y : U64} (hy : IsSlot th y) {k : Nat} {q : U64}
-    (hn : VNeed (capV m y) k q) : q ∈ lvlSet P L4 L3 L2 L1 k := by
-  have hc := h y hy
-  generalize capV m y = c at hc hn
-  cases hn <;> simp only [VCapW, VCapOK] at hc
-  all_goals first | exact hc.1 trivial | exact hc.1 rfl | exact hc.1 | exact hc.1.1
 
 /-- **`VsSlotsW` across the drop**: at the restricted typed heap and the
 pruned sets, given that the roots `XP … X1` of `VsReachMiss` hold every
@@ -108,27 +91,6 @@ theorem VsSlotsW.drop {th : TypedHeap} {P L4 L3 L2 L1 XP X4 X3 X2 X1 : Set U64} 
   · exact h3 _ (.x3 hr)
   · exact h4 _ (.x4 hr)
   · exact h5 _ (.xp hr)
-
-/-- **The tables the slots' caps ask** at level `k` (`VNeed`): the roots
-`JAtZ.drop`'s `VsReachMiss` is asked at. -/
-def NeedR (th : TypedHeap) (m : U64 → U64) (k : Nat) : Set U64 :=
-  {q | ∃ y, IsSlot th y ∧ VNeed (capV m y) k q}
-
-/-- The asked tables are roots (`JAtZ.drop`'s `hXc` at `NeedR`). -/
-theorem needR_roots {th : TypedHeap} {m : U64 → U64} :
-    ∀ y, IsSlot th y → ∀ k q, VNeed (capV m y) k q →
-      q ∈ lvlSet (NeedR th m 5) (NeedR th m 4) (NeedR th m 3) (NeedR th m 2) (NeedR th m 1) k := by
-  intro y hy k q hn
-  have hm : q ∈ NeedR th m k := ⟨y, hy, hn⟩
-  generalize capV m y = c at hn
-  cases hn <;> exact hm
-
-/-- The asked tables are in the sets (`VsSlotsW.need`). -/
-theorem VsSlotsW.needR {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
-    (h : VsSlotsW th P L4 L3 L2 L1 m) :
-    NeedR th m 5 ⊆ P ∧ NeedR th m 4 ⊆ L4 ∧ NeedR th m 3 ⊆ L3 ∧ NeedR th m 2 ⊆ L2 ∧ NeedR th m 1 ⊆ L1 :=
-  ⟨fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn,
-    fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn⟩
 
 end Vs
 
@@ -250,6 +212,55 @@ theorem frame_top_of_reg {q r a va : U64} {sz : capability.FrameSize} {d m ep : 
     rw [core.num.U64.wrapping_add_val_eq, hm]; simp [U64.size_def, U64.numBits]
   rw [bs, ts, hw] at hreg; rw [ts, hw]
   exact nowrap64 hq hpos (Nat.pow_le_pow_right (by decide) (by omega)) hreg
+
+/-! ### jc3: the table caps' ranges and the sets' table frames -/
+
+/-- **A page-sized cap's range when it does not wrap** (`UtInv.reg`). -/
+theorem tab_top {c : capability.Cap} {q : U64} (hp : ptrF c = q) (hs : sizeF c = 12#u64)
+    (hreg : baseF c ≤ topF c) : topF c = q.val + 4095 ∧ q.val + 4096 ≤ 2 ^ 64 := by
+  have hm : (maskF (sizeF c)).val = 2 ^ 12 - 1 := by rw [hs, maskF_val (by decide)]; rfl
+  have hq : q.val < 2 ^ 64 := q.hBounds
+  have hw : topF c = (q.val + (2 ^ 12 - 1)) % 2 ^ 64 := by
+    unfold topF; rw [hp, core.num.U64.wrapping_add_val_eq, hm]; simp [U64.size_def, U64.numBits]
+  have hb : baseF c = q.val := by unfold baseF; rw [hp]
+  rw [hb, hw] at hreg
+  have h := nowrap64 hq (show 0 < 2 ^ 12 by decide) (by decide) hreg
+  rw [hw, h.1]; exact ⟨by norm_num, by have := h.2; norm_num at this; omega⟩
+
+/-- **A table frame of the sets misses the ASID-table area** (`TopPlaced.pv`:
+no table word is an ASID-table word). -/
+theorem asid_off {P L4 L3 L2 L1 : Set U64} {ksb q : U64}
+    (hpv : ∀ b, Vs.PtWAll L4 L3 L2 L1 b → ¬ Vs.VsWrite P ksb b) (hq : q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1)
+    (hqa : q.val % 4096 = 0) (hqf : q.val + 4096 ≤ 2 ^ 64) (hk8 : ksb.val % 8 = 0)
+    (hkf : ksb.val + 288000 + 16384 ≤ 2 ^ 64) :
+    q.val + 4096 ≤ ksb.val + 288000 ∨ ksb.val + 288000 + 16384 ≤ q.val := by
+  by_contra hn
+  obtain ⟨b0, g1, g2, g3, g4, g5⟩ : ∃ b0 : Nat, q.val ≤ b0 ∧ b0 < q.val + 4096 ∧ ksb.val + 288000 ≤ b0 ∧
+      b0 < ksb.val + 288000 + 16384 ∧ b0 % 8 = 0 :=
+    ⟨max q.val (ksb.val + 288000), by omega, by omega, by omega, by omega, by omega⟩
+  have e1 : ∀ v : BitVec 64, (⟨v⟩ : U64).val = v.toNat := fun _ => rfl
+  have hiv : (⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ : U64).val = (b0 - q.val) / 8 := by
+    rw [e1, BitVec.toNat_ofNat]; omega
+  have hhv : (⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ : U64).val = (b0 - ksb.val - 288000) / 8 := by
+    rw [e1, BitVec.toNat_ofNat]; omega
+  have hi : (⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ : U64).val < 512 := by rw [hiv]; omega
+  have hh : (⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ : U64).val < 2048 := by rw [hhv]; omega
+  have e : Vs.peA q ⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ = Vs.atA ksb ⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ :=
+    UScalar.eq_of_val_eq (by rw [Vs.peA_val hqf hi, Vs.atA_val hkf hh, hiv, hhv]; omega)
+  exact hpv _ ⟨q, hq, _, hi, rfl⟩ (Or.inl ⟨_, hh, e⟩)
+
+/-- **A table of the sets: its frame `OffK`** (`TopPlaced.disj`: the frame is
+`VObj`, so no `OObj` word; `asid_off`). -/
+theorem JAtZ.offK_of_set (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q : U64}
+    (hq : q ∈ Z.L3 ∨ q ∈ Z.L2 ∨ q ∈ Z.L1) : OffK (L := L) Z s q := by
+  have hP := J.xtop.fin.1.2
+  have hqa : q.val % 4096 = 0 := hP.pt q (Or.inr hq)
+  have hasid := asid_off hP.pv (Or.inr hq) hqa (Vs.tbl_fit hqa) hP.vs.ksb_al hP.vs.ksb_fit
+  intro b g1 g2
+  have hv : Vs.VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b := Or.inr (Or.inr (Or.inl ⟨q, Or.inr (Or.inr hq), g1, g2⟩))
+  have hno : ¬ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := fun ho => hP.disj b ho hv
+  exact ⟨fun h => hno (Or.inl h), fun h => hno (Or.inr (Or.inl h)), fun h => by omega,
+    fun wp hw h => hno (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, h.1, h.2⟩)))))))⟩
 
 section Rg
 variable {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
@@ -388,7 +399,8 @@ theorem JAtZ.dropCov (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     Sched.JCovD (L := L) (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
       (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Z.G D Cs s := by
   have C := J.jcov
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => DeadP.drop (C.dead q hq), C.ks, ?_⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => DeadP.drop (C.dead q hq), C.ks, ?_,
+    fun q hq hq' => C.dx q hq (drop_some hq')⟩
   · rcases C.th q k (restrictTh_some hq).1 with h | h | h
     · exact Or.inl h
     · exact Or.inr (Or.inl h)
@@ -578,6 +590,9 @@ theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
     | Pdpt q m' a' va =>
       rw [hc] at hC
       exact fun q' k hq hk => hC q' k (drop_some hq) hk
+    | Pml4 q m' a' =>
+      rw [hc] at hC
+      exact fun q' k hq hk => hC q' k (drop_some hq) hk
     | SchedContext q sb' =>
       rw [hc] at hC
       obtain ⟨hH, hpi⟩ := hC
@@ -648,7 +663,7 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     (hhd : ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
       (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
     (hg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val)) :
-    JKern (L := L) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs D
+    JKern (L := L) arI (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs D
       (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) s σ' := by
   have K := J.kern
   have hcT : ¬ (p.val ≤ (L.curW s).val ∧ (L.curW s).val < p.val + 2 ^ sb.val) :=
@@ -659,7 +674,7 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     P1.HeapOK.drop K.heap, ?_, fun q k hq hk => K.hks q k (drop_some hq) hk,
     fun q z hq => K.hksIn q z (drop_some hq), fun q k hq c hc => K.hnd q k (drop_some hq) c hc, K.ksbFit,
     K.ksbAl, K.nodeFit, K.cpuCs, drop_keep K.curH hcur, by rw [P1.Heap.drop_of_not hcsc]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [harch])⟩
   · rcases K.head with h | ⟨h1, h2⟩
     · exact Or.inl h
     · exact Or.inr ⟨by rw [restrictTh_out hhd]; exact h1, h2⟩
@@ -764,6 +779,84 @@ theorem JAtZ.dropBuf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
       exact hUF a (by omega) (by omega) (h0 hd a h1 h2)
     | _ => trivial
 
+/-- (jc3) **A table cap's table misses a childless untyped cap's region**
+(as `FrameOffJ`: `UtInv.drange` + `MdbInv.anc_ut`). -/
+theorem JAtZ.tabOff (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {fi : U64} {dv : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    {y : U64} (hy : IsSlot Z.th y) {q : U64} (hp : ptrF (capV (L.mem s) y) = q)
+    (hs : sizeF (capV (L.mem s) y) = 12#u64) (hph : physF (capV (L.mem s) y) = true)
+    (hnu : isUt (capV (L.mem s) y) = false) : q.val + 4096 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val := by
+  obtain ⟨-, ⟨-, -, hML, -, hI⟩, -⟩ := J.xtop.rel
+  have hrx := J.ut.reg x hx (by rw [hcx]; exact physF_ut _ _ _ _)
+  rw [hcx] at hrx
+  obtain ⟨x1, x2, -⟩ := ut_range hsb hrx
+  have hne : capV (L.mem s) y ≠ .Null := fun h => by rw [h, physF_null] at hph; cases hph
+  have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy, _, capAt_capV _ _, hne⟩
+  have hyx : y ≠ x := by rintro rfl; rw [hcx] at hnu; cases hnu
+  obtain ⟨t1, -⟩ := tab_top hp hs (J.ut.reg y hyG hph)
+  have hb : baseF (capV (L.mem s) y) = q.val := by unfold baseF; rw [hp]
+  by_cases hdj : Disj (capV (L.mem s) y) (capV (L.mem s) x)
+  · unfold Disj at hdj; rw [t1, hb, hcx, x1, x2] at hdj
+    have := Nat.one_le_two_pow (n := sb.val)
+    omega
+  · rcases J.ut.drange x hx p sb fi dv hcx y hyG hyx hph hdj with e | e
+    · exact absurd e (hnd y)
+    · have := hI.anc_ut e (by rw [hcx]; rfl); rw [hnu] at this; cases this
+
+set_option maxHeartbeats 4000000 in
+/-- (jc3) **`vsTyp` across the drop**: a table cap's table misses the region
+(`JAtZ.tabOff`), so its spec table is kept; a table pruned from its set was a
+spec table of its kind (`PtRel`) with its frame `OffK` (`JAtZ.offK_of_set`);
+`B` only shrinks. -/
+theorem JAtZ.dropVsTyp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {fi : U64} {dv : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ') :
+    VsTyp (L := L) ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s σ' := by
+  have key : ∀ y, IsSlot Z.th y → ∀ (k : Nat) (q : U64), ptrF (capV (L.mem s) y) = q →
+      sizeF (capV (L.mem s) y) = 12#u64 → physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
+      (q ∈ tabSet Z k → (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) ∧ OffK (L := L) Z s q) →
+      OffR (L := L) Z s σ k q →
+      OffR (L := L) ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s σ' k q := by
+    intro y hy k q hp hs hph hnu hsp hO _
+    have hoff := J.tabOff hsb hfit hx hcx hnd hy hp hs hph hnu
+    have hor : ¬ RgOf p sb q.bv := fun hr => by
+      have := (rgOf_iff hsb hfit q).1 hr; omega
+    have hold : (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) ∧ OffK (L := L) Z s q := by
+      by_cases hq0 : q ∈ tabSet Z k
+      · exact hsp hq0
+      · exact hO hq0
+    obtain ⟨⟨ao, h1, h2⟩, hK⟩ := hold
+    refine ⟨⟨ao, by rw [hD.kout _ hor]; exact h1, h2⟩, fun b g1 g2 => ?_⟩
+    obtain ⟨a1, a2, a3, a4⟩ := hK b g1 g2
+    exact ⟨a1, a2, a3, fun wp hw => a4 wp hw.1⟩
+  have hPt := J.xtop.fin.2.2.1
+  intro y hy
+  have hy0 : IsSlot Z.th y := hy.of_restrict
+  have hO := J.carry.vsTyp y hy0
+  cases hc : capV (L.mem s) y with
+  | PageTable q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 1 q (by rw [hc, ptrF_pt]) (by rw [hc, sizeF_pt]) (by rw [hc, physF_pt]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L1 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l1 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inr (Or.inr h'))⟩
+  | PageDirectory q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 2 q (by rw [hc, ptrF_pd]) (by rw [hc, sizeF_pd]) (by rw [hc, physF_pd]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L2 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l2 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inr (Or.inl h'))⟩
+  | Pdpt q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 3 q (by rw [hc, ptrF_pdpt]) (by rw [hc, sizeF_pdpt]) (by rw [hc, physF_pdpt]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L3 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l3 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inl h')⟩
+  | _ => trivial
+
 end Rg
 
 /-- **The reset's facts of `UtCapP3.rst` for any free index**: at a
@@ -811,7 +904,7 @@ reschedule pending, the spec detype's own facts (`SDrop` and the fields it
 keeps), `KeptRefsP3`/`DbgTimerKept` at the region (`RegionUnrefJ` [J]'s two
 parts, as `utEpJ`), `ArchFitHyp` [J] (as `utEpJ`), and `VsReachMiss` [J]
 (VsDrop) at roots `XP … X1` holding every table a slot's cap asks
-(`hXc`, `Vs.VNeed`: an unmapped PT/PD/PDPT cap's, a PML4 or pool cap's; so
+(`hXc`, `Vs.VNeed`: an unmapped PT/PD/PDPT/PML4 cap's or a pool cap's; so
 the VSpace cap field `vsc` holds at the pruned sets, `VsSlotsW.drop`; the
 callers take the roots `{q | ∃ y, IsSlot Z.th y ∧ VNeed (capV m y) k q}`,
 in the sets by `VsSlotsW.need`). -/
@@ -887,6 +980,22 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     · omega
     · exact ⟨h1, by omega⟩
   have hbf := J.dropBuf hsb hfit hx hcx hSO hIn hnd hp8 hD
+  -- `JCarry` after (jc1b): a kept buffer word's page has its base off the
+  -- region (else the page lies inside it, `hIn`, and so does the word), so the
+  -- page is kept; the arch objects after are old ones, `H`'s kept
+  have hcy : JCarryS (KeepB (KBOf p sb) Z.B) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) σ' := by
+    refine ⟨fun wp hw => ?_, fun o ao n ho hH => ?_⟩
+    · obtain ⟨hwB, -, hw1⟩ := hw
+      obtain ⟨q, vms, hq, h1, h2⟩ := J.carry.bufPg wp hwB
+      have hr : ¬ RgOf p sb q := fun hr => by
+        have h3 := hIn q _ hq hr
+        have e : Fl4Spec.objBits (.archObj (.dataPage false vms)) = Fl4Spec.pageBitsForSize vms := rfl
+        rw [e] at h3
+        rcases hw1 with h | h <;> omega
+      exact ⟨q, vms, by rw [hD.kout q hr]; exact hq, h1, h2⟩
+    · by_cases hr : RgOf p sb o
+      · rw [hD.kin o hr] at ho; cases ho
+      · rw [hD.kout o hr] at ho; exact J.carry.archFit o ao n ho (drop_some hH)
   -- `LiveDN` after (KENTRY-PLAN g2j): the same memory and ghost tree, the typed
   -- heap and `H` restricted; the debug lists' members kept (P1's `DbgTz` after)
   have hLvD : LiveDN (L := L) (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
@@ -904,7 +1013,16 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
     hcr, hblk, hiL, hvc, hbf.1, hbf.2.1, hbf.2.2, ⟨fun y hy => J.ext.nat y (IsSlot.of_restrict hy), fun t ht => J.ext.vw t (restrictTh_some ht).1⟩,
-    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩)⟩
+    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩),
+    hcy.withP ⟨J.carry.devApart.frame (fun q k h => (restrictTh_some h).1) (fun q k h => drop_some h) rfl
+      (DevFrom.of_eq fun _ _ => rfl)
+      (J.idleH.drop fun q hq k hk => (J.jcov.idleOut _ hx p sb fi hcx q hq).2.2 k hk), J.carry.devSep⟩
+      (J.dropVsTyp hsb hfit hx hcx hnd hD)
+      (J.carry.devTab.frame (devSub_of_eq fun _ _ => rfl) fun o ao ho hv => by
+        by_cases hr : RgOf p sb o
+        · rw [hD.kin o hr] at ho; cases ho
+        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)
+      (fun hvx => J.vsNamedDrop (J.carry.vsNamed hvx) U.nostr (U.ns hnc))⟩
 
 /-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

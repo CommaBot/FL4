@@ -83,7 +83,7 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   (`JAtZ.scCap`). -/
   hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   -- 1c: CSpace
   del : DelInv Z.th (L.mem s)
   ut : UtInv (L.mem s) Z.G
@@ -167,11 +167,13 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [carried] As `JAtZ.zD`. -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] As `JAtZ.carry`. -/
+  carry : JCarry (L := L) Z H Cs s σ
 
 /-- `JAtS`: `JAtZS` at a state (the ghosts existential). -/
 def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ
+    JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -227,6 +229,7 @@ theorem JAtZ.toS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZS (L :=
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -280,6 +283,7 @@ theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 /-- A `JAtZS` state is a `JAtZ` state, or `SwBlk` holds. -/
 theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :
@@ -290,11 +294,11 @@ theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   · exact Or.inr h
 
 theorem JAt.toS (h : JAt (L := L) arI AR s a σ) : JAtS (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toS⟩
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toS, inferInstance⟩
 
 /-- `JAtS` with the `JAtZ` case split off. -/
 theorem JAtS.toJ_or (h : JAtS (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ ∨ SwBlk σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J⟩ := h; J.toJ_or.imp (fun J => ⟨Z, H, Cs, Ac, Lst, D, J⟩) id
+  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; J.toJ_or.imp (fun J => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) id
 
 end
 

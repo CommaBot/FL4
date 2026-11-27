@@ -61,20 +61,20 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
 /-- **`TcbInsWM` at `WMR MR WJL`** (module docstring). -/
-theorem tcbInsWM_wjl [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
+theorem tcbInsWM_wjl [Fl4Proofs.P1.PlainStore st] [VxE Z] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR Z.th) (hF : JThreadFinHypsU (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) :
     TcbInsWM (L := L) arI AR MR Z H Cs (fun kb => WMR MR (WJL (L := L) arI AR Z H Cs kb))
-      (RdLO (L := L) (A := A) Z.th H) (RzJ (L := L) (A := A) H) :=
-  ⟨fun kb => insWJ_wjlM hM kb, fun kb => delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb rfl⟩
+      (RdLX (L := L) (A := A) Z.th H Z.vx) (RzJ (L := L) (A := A) H Cs) :=
+  ⟨fun kb => insWJ_wjlM hM kb, fun kb => ⟨_, delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb rfl⟩⟩
 
 set_option maxHeartbeats 4000000 in
 set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAt` after** (module docstring): every label proved at
 `J` (no per-op `JPostHyp`, no X-level `TcbXIpc`). -/
 theorem decode_invocation_threadJ_stepM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hFl : FlagsRel Z.T (L.mem s) σ) (hfnz : FrNZ Z.th (L.mem s))
     (lbl length : U64) (p : U64)
@@ -113,7 +113,7 @@ theorem decode_invocation_threadJ_stepM [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
   -- WriteRegisters: the caller's buffer mapped (`lookup_buf_full`, `BufCover`), the arguments after its restart
@@ -284,7 +284,7 @@ theorem decode_invocation_threadJ_stepM [Fl4Proofs.P1.PlainStore st] (s : S) (ar
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .setTimer by
           simp [tcbExtOf])
-        exact tcb_set_timerJ arI s ar σ J hni p hpT slbl hg he length buf ct hct argsU hlen hargs (hstall' p) call
+        exact tcb_set_timerJ arI s ar σ J hni p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl hg he length buf ct hct argsU hlen hargs (hstall' p) call
           (cslotAddr sl) extra blk don ci sl excaps buffer }) hnpT
 
 

@@ -214,13 +214,17 @@ theorem dk_performPml4Flush (i : Fl4Pml4Invocation) : DK (performPml4Flush (Z :=
 theorem dke_archPerformInvocation (i : ArchInvocation) : DKE (archPerformInvocation (Z := Unit) i) := by
   unfold archPerformInvocation; apply dke_liftE; cases i <;> dk_auto
 
-/-- **The arch invocations keep the domain schedule.** -/
-theorem dke_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DKE (fl4ArchPerformInvocation (Z := Unit) i) := by
+/-- The arch invocations but the frame batch keep the domain schedule (the batch, and so
+`dke_fl4ArchPerformInvocation`: DomFb, after DomRecDel's `capDelete`). -/
+theorem dke_fl4ArchPerformInvocation0 (i : Fl4ArchInvocation) (hb : ∀ b, i ≠ .frameBatch b) :
+    DKE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i with
+  | frameBatch b => exact absurd rfl (hb b)
   | spec i => exact dke_archPerformInvocation i
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto; exact dk_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> dk_auto
 
 end
 end Fl4Proofs.P3.Vs

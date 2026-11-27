@@ -153,7 +153,7 @@ theorem budget_true_facts (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.State
 set_option maxHeartbeats 8000000 in
 /-- **`JFltHyp` of the user-exception entry** (module docstring). -/
 theorem jFltHyp_user (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
-    (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hA : P0.ArchTotal arI) {Z : XSets} [VxE Z] {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread) (n c : U64) (hU : UserHw n c) :
     JFltHyp (L := L) arI AR MR Z H Cs (brU (st := st) arI n c) (brUS n c) s a σ := by
   intro σb s1 a1 Ac' Lst' D' hb _ J1 hM1
@@ -165,8 +165,8 @@ theorem jFltHyp_user (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD 
   rw [hct1, bind_ok]
   refine WP.spec_mono (WP.spec_and (J1.faultHypJZG hA hni1 hct1 hnq1 hvfh1 hf)
     (MKD.faults_handle_fault L.total hA hKD hM1)) ?_
-  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J'⟩, hMr⟩
-  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
+  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J', _⟩, hMr⟩
+  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR, inferInstance⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
   have e1 : n.bv &&& (Fl4Spec.mask 32 : BitVec 64) = n.bv := and_mask_lt n.bv (by decide) hU.1
   have e2 : c.bv &&& (Fl4Spec.mask 28 : BitVec 64) = c.bv := and_mask_lt c.bv (by decide) hU.2
   have hz' : z ∈ (Fl4Spec.handleFault (Z := Unit) σb.curThread
@@ -177,7 +177,7 @@ theorem jFltHyp_user (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD 
 set_option maxHeartbeats 8000000 in
 /-- **`JFltHyp` of the VM-fault entry** (module docstring). -/
 theorem jFltHyp_vmf (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
-    (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hA : P0.ArchTotal arI) {Z : XSets} [VxE Z] {H : P1.Heap} {Cs : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hX : SInvX σ) (hct : σ.curThread ≠ σ.idleThread) (ad c : U64) (ft : Fl4Spec.VMFaultType)
     (hV : VmfHw ad c ft σ) :
     JFltHyp (L := L) arI AR MR Z H Cs (brV (st := st) arI ad c) (brVS ft) s a σ := by
@@ -202,8 +202,8 @@ theorem jFltHyp_vmf (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD :
     Or.inr (Or.inr (Or.inr ⟨ad, c, ins, rfl, rfl⟩))
   refine WP.spec_mono (WP.spec_and (J1.faultHypJZG hA hni1 hct1 hnq1 hvfh1 hf)
     (MKD.faults_handle_fault L.total hA hKD hM1)) ?_
-  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J'⟩, hMr⟩
-  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
+  rintro r ⟨⟨z, hz, -, Z', H', Cs', Ac'', Lst'', D'', J', _⟩, hMr⟩
+  refine ⟨z, ?_, ⟨Z', H', Cs', Ac'', Lst'', D'', J'.toR, inferInstance⟩, msF_mr hM hMr (MachF.mfk_handleFaultG4 _ _ σb z hz)⟩
   have hb0 : (if ins then 1#u64 else 0#u64).bv = ftBit ft := by
     cases ft <;> cases ins
     · rfl
@@ -232,7 +232,7 @@ user-exception and VM-fault steps under their hardware facts. -/
 inductive JReachE3 : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → MR a σ.machineState → JReachE3 s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → MR a σ.machineState → JReachE3 s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReachE3 s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -263,7 +263,7 @@ variable {arI AR MR}
 theorem JReachE2.toE3 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE2 (L := L) arI AR MR s a σ) :
     JReachE3 (L := L) arI AR MR s a σ := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact JReachE3.start J hX hR
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact JReachE3.start J hvx hX hR
   | @step s a σ s' a' σ' n c _ hct hn hv hy hRJ ih => exact JReachE3.step n c ih hct hn hv hy hRJ
   | @irq s a a1 σ s' a' σ' w _ hI hv hO hRJ ih => exact JReachE3.irq w ih hI hv hO hRJ
   | @event s a σ s' a' σ' e fip ev _ hK hev hv hO hRJ ih => exact JReachE3.event e fip ev ih hK hev hv hO hRJ
@@ -272,9 +272,9 @@ theorem JReachE2.toE3 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachE2 (L
 theorem jreach_invE3 (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JReachE3 (L := L) arI AR MR s a σ) :
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) ∧ SInvX σ ∧ MR a σ.machineState := by
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact ⟨⟨_, _, _, _, _, _, J⟩, hX, hR⟩
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, hvx⟩, hX, hR⟩
   | @step s a σ s' a' σ' n c _ hct _ _ hy hRJ ih => exact ⟨hRJ.1.2, kentry_sinvX hnd c ih.2.1 hct _ hy, hRJ.2⟩
   | @irq s a a1 σ s' a' σ' w _ _ _ hO hRJ ih =>
     exact ⟨hRJ.1.2, kcall_sinvX hnd true .interrupt ih.2.1 (fun h => absurd rfl h) _ hO, hRJ.2⟩
@@ -298,7 +298,7 @@ theorem kernel_entry_reachE3 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachE3 (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ MR a σ.machineState ∧
@@ -344,7 +344,7 @@ theorem kernel_entry_reachE3 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         e.run st arI s a ⦃ r => ∃ σ', EvOut fip ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE3 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invE3 hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invE3 hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDM hFin hFast => ?_,
     fun w a1 hct hI hFin => ?_, fun n c hct hU hFin => ?_, fun ad c ft hct hV hFin => ?_,
     fun e fip ev hK hev hE => ?_⟩

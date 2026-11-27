@@ -239,7 +239,7 @@ theorem decode_invocation_page_table_topX (th : TypedHeap) (s : S) (ar : A) (σ 
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
@@ -286,14 +286,14 @@ theorem decode_invocation_page_table_capX (th : TypedHeap) (s : S) (ar : A) (σ 
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   exact decode_invocation_page_table_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 set_option maxHeartbeats 8000000 in
@@ -325,7 +325,7 @@ theorem decode_invocation_page_directory_topX (th : TypedHeap) (s : S) (ar : A) 
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
@@ -372,14 +372,14 @@ theorem decode_invocation_page_directory_capX (th : TypedHeap) (s : S) (ar : A) 
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   exact decode_invocation_page_directory_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 set_option maxHeartbeats 8000000 in
@@ -411,7 +411,7 @@ theorem decode_invocation_pdpt_topX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMX (L := L) arI (FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
@@ -458,14 +458,14 @@ theorem decode_invocation_pdpt_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   exact decode_invocation_pdpt_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 /-! ## The accessed-bit clear of `TestAndClearAccessed` -/
@@ -525,7 +525,7 @@ theorem PtRel.clr5 {m m' : U64 → U64} {σ0 : Fl4Spec.State Unit} (hR : PtRel L
     · rw [hm _ ⟨q, Or.inr (Or.inr (Or.inr hq)), j, hj, rfl⟩ e]; exact hgf j hj
 
 theorem OStep.refl' (σ0 : Fl4Spec.State Unit) : OStep (fun _ => False) σ0 σ0 :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ h => absurd rfl h⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ h => absurd rfl h⟩
 
 /-- **`FinX` after the accessed-bit clear** (the spec unchanged: the bit is
 invisible to the relations). -/
@@ -639,14 +639,14 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   have hX0 := vs_x0T hS hR hPt hPI hCur hCR hFI hMO
   have hDS : lbl = fl4_abi.label.X86PageDeriveSubframe →
       DecOKMQX (L := L) arI (fun _ => True) (fun s' a' σ' => FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR
@@ -697,7 +697,8 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     · exact absurd h hnTAC
 
 set_option maxHeartbeats 8000000 in
-/-- **A PML4 cap at `TopSR`** (`Flush`, any other label), `FinX` after. -/
+/-- **A PML4 cap at `TopSR`** (`Flush`, any other label but FrameBatch: `hfb`, the batch replies in the
+decode, XTopJointVsFb), `FinX` after. -/
 theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G)
@@ -707,6 +708,7 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
@@ -729,12 +731,12 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
   rw [hspec]
   by_cases hl : lbl = fl4_abi.label.X86PML4Flush
   swap
-  · rw [if_neg hl]
+  · rw [if_neg hl, if_neg hfb.2]
     have hd : Fl4Spec.fl4ArchDecodeInvocation (Z := Unit) slbl args ci sl
         (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps =
         Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args ci sl
           (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps) := by
-      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h))]
+      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h)), if_neg hfb.1]
     rw [hd]
     simp only [error.illegal, bind_ok, WP.spec_ok]
     refine (topMQX_err (Q := fun _ => True) ?_ hX0).1

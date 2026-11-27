@@ -26,13 +26,6 @@ namespace Fl4Spec
 noncomputable section
 open Classical
 
-/-- FL4 `vcpu::CR4_ALLOWED`: the guest CR4 bits FL4 lets a guest own (VME
-.. UMIP (bits 0..11), FSGSBASE, PCIDE, OSXSAVE, SMEP, SMAP). Excluded:
-LA57 (12; FL4 uses 4-level paging), VMXE (13; nested VMX), SMXE (14),
-PKE (22), CET (23) and the rest (SDM Vol. 3A §2.5). -/
-def cr4Allowed : Word :=
-  0x0fff ||| (1 <<< 16) ||| (1 <<< 17) ||| (1 <<< 18) ||| (1 <<< 20) ||| (1 <<< 21)
-
 /-- FL4 `vcpu::CR0_OWNED`: NW (29), CD (30) and the reserved bits 6..15,
 17, 19..28 of CR0 (SDM Vol. 3A §2.5): the guest never sets them (CD/NW
 reach the hardware CR0, SDM Vol. 3C §26.3; under SVM there is no CR0
@@ -124,7 +117,7 @@ def sanitizeVmcs (f value : Word) : Except SyscallError Word :=
       if f = Vmx.guestActivity then value
       else if f = Vmx.controlExceptionBitmap then value ||| vcpuExceptions
       else if f = Vmx.controlCr0Mask then value ||| cr0Owned
-      else if f = Vmx.controlCr4Mask then value ||| ~~~cr4Allowed
+      else if f = Vmx.controlCr4Mask then value ||| ~~~cr4AllowedHost
       else if f = Vmx.controlPinExecutionControls then vmxControls 0x481 value pinAllowed pinAllowed
       else if f = Vmx.controlPrimaryProcessorControls then
         vmxControls 0x482 value primaryForced primaryAllowed
@@ -146,7 +139,7 @@ def sanitizeVmcs (f value : Word) : Except SyscallError Word :=
         (value ||| fixed) &&& vcpuCapability 0x487 &&& (fixed ||| ~~~cr0Owned)
       else if f = Vmx.guestCr4 then
         let fixed := vcpuCapability 0x488
-        (value ||| fixed) &&& vcpuCapability 0x489 &&& (fixed ||| cr4Allowed)
+        (value ||| fixed) &&& vcpuCapability 0x489 &&& (fixed ||| cr4AllowedHost)
       else if f = Vmx.guestDebugctrl then value &&& debugctlAllowed
       else value
     .ok (vmxWidthMask f v)
@@ -170,13 +163,15 @@ def sanitizeVmcb (f old value : Word) : Except SyscallError Word :=
 
 /-- FL4 `vcpu::decode` WriteMSR's checks (both backends): LSTAR, CSTAR
 and KERNEL_GS_BASE canonical, XCR0 `validXcr0` against the host's
-(`InvalidArgument 1`); STAR, FMASK and CR2 any value. A field outside
+(`InvalidArgument 1`), FL4's `MSR_VM_IBPB_DEFER` 0 or 1 (`InvalidArgument 1`,
+#85); STAR, FMASK and CR2 any value. A field outside
 `vcpuMsrs` is `IllegalOperation`. -/
 def checkMsrWrite (m value : Word) : Except SyscallError Unit :=
   if m ∉ vcpuMsrs then .error .illegalOperation
   else if (m = msrLstar ∨ m = msrCstar ∨ m = msrKernelGsBase) ∧ ¬ canonical value canonWidth then
     .error (.invalidArgument 1)
   else if m = msrXcr0 ∧ ¬ validXcr0 value hostXcr0 then .error (.invalidArgument 1)
+  else if m = msrVmIbpbDefer ∧ value > 1 then .error (.invalidArgument 1)
   else .ok ()
 
 /-- FL4 `vcpu::enter` on VMX: the primary controls of a VMEnter request,

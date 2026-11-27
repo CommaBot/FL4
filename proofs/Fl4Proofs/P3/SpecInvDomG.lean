@@ -7,6 +7,7 @@ side. The recursive functions as in SpecInvDomF.
 -/
 import Fl4Proofs.P3.SpecInvDomF
 import Fl4Proofs.P3.SpecInvDomL
+import Fl4Proofs.P3.SpecInvFbD
 open Classical
 
 namespace Fl4Proofs.P3.SInvDom
@@ -226,13 +227,6 @@ theorem dl_performPml4Flush (i : Fl4Pml4Invocation) : DL (performPml4Flush (Z :=
 
 theorem dle_archPerformInvocation (i : ArchInvocation) : DLE (archPerformInvocation (Z := Unit) i) := by
   unfold archPerformInvocation; apply dke_liftE; cases i <;> dl_auto0
-
-theorem dle_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DLE (fl4ArchPerformInvocation (Z := Unit) i) := by
-  cases i with
-  | spec i => exact dle_archPerformInvocation i
-  | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0; exact dl_performPml4Flush i
-  | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
-  | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
 
 theorem dl_threadSet' (f : Tcb → Tcb) (t : ObjRef) : DL (threadSet (Z := Unit) f t) := by
   unfold threadSet; dl_auto0
@@ -1141,6 +1135,69 @@ macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_invokeSche
 theorem dl_invokeIrqHandler' (i : IrqHandlerInvocation) : DL (invokeIrqHandler (Z := Unit) i) := by
   cases i <;> unfold invokeIrqHandler <;> dl_auto0
 macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_invokeIrqHandler' _)
+
+theorem dl_lookupSourceSlot' (c : Cap) (r : CapRef) (n : Nat) : DLE (lookupSourceSlot (Z := Unit) c r n) := by
+  unfold lookupSourceSlot; exact dl_lookupSlotForCnodeOp' _ _ _ _
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_lookupSourceSlot' _ _ _)
+
+theorem dle_ensureEmpty' (sl : CslotPtr) : DLE (ensureEmpty (Z := Unit) sl) := by
+  unfold ensureEmpty; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_ensureEmpty' _)
+
+theorem dle_checkVpAlignment' (sz : VMPageSize) (v : Word) : DLE (checkVpAlignment (Z := Unit) sz v) := by
+  unfold checkVpAlignment; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_checkVpAlignment' _ _)
+
+theorem dle_createMappingEntries' (base : Paddr) (vptr : VSpaceRef) (sz : VMPageSize) (r : VMRights)
+    (at' : VMAttributes) (p : ObjRef) : DLE (createMappingEntries (Z := Unit) base vptr sz r at' p) := by
+  cases sz <;> unfold createMappingEntries <;> dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_createMappingEntries' _ _ _ _ _ _)
+
+theorem dle_ensureSafeMapping' (e : VMPageEntry × ObjRef) : DLE (ensureSafeMapping (Z := Unit) e) := by
+  unfold ensureSafeMapping; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_ensureSafeMapping' _)
+
+theorem dle_decodePageInvocation' (label : Data) (args : List Data) (cte : CslotPtr) (cap : ArchCap)
+    (ex : List (Cap × CslotPtr)) : DLE (decodePageInvocation (Z := Unit) label args cte cap ex) := by
+  unfold decodePageInvocation; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_decodePageInvocation' _ _ _ _ _)
+
+theorem dle_fbMap (b : Fl4FrameBatchInvocation) (sl : CslotPtr) (v : Data) : DLE (fbMap (Z := Unit) b sl v) := by
+  unfold fbMap; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_fbMap _ _ _)
+
+theorem dl_unmapPageUnflushed (sz : VMPageSize) (vs : ObjRef) (v : VSpaceRef) (p : ObjRef) :
+    DL (unmapPageUnflushed (Z := Unit) sz vs v p) := by
+  unfold unmapPageUnflushed; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_unmapPageUnflushed _ _ _ _)
+
+theorem dle_fbCode {α : Type} {m : SEMonad Unit α} (h : DLE m) : DLE (fbCode (Z := Unit) m) := by
+  unfold fbCode; exact dke_handleE h fun _ => dke_throw _
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible refine dle_fbCode ?_)
+
+theorem dle_fbDelete (sl : CslotPtr) : DLE (fbDelete (Z := Unit) sl) := by
+  unfold fbDelete; exact dke_handleE (dl_capDelete sl) fun _ => dke_throw _
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_fbDelete _)
+
+/-- fb3: one `X86PML4FrameBatch` entry. -/
+theorem dl_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : DLE (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; dl_auto0
+
+/-- fb3: the batch (SpecInvFbD's `fk_performFrameBatch`). -/
+theorem dl_performFrameBatch (b : Fl4FrameBatchInvocation) : DL (performFrameBatch (Z := Unit) b) :=
+  fk_performFrameBatch (fun w => dl_fbEntry b w) (dl_flushAll _ _)
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_performFrameBatch _)
+
+/-- **The arch invocations keep the domain list** (moved to the end for the batch's leaves). -/
+theorem dle_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DLE (fl4ArchPerformInvocation (Z := Unit) i) := by
+  cases i with
+  | frameBatch b => unfold fl4ArchPerformInvocation; exact dke_liftE (dl_performFrameBatch b)
+  | spec i => exact dle_archPerformInvocation i
+  | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0; exact dl_performPml4Flush i
+  | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
+  | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_fl4ArchPerformInvocation _)
 
 end
 

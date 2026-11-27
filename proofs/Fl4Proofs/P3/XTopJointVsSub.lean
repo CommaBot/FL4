@@ -116,7 +116,9 @@ theorem jowes_slotDFH {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
-  have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgp
+  have hgpP : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat) := by
+    have e := congrArg (fun z => (z.archState.x64GlobalPml4, z.archState.x64Plat)) hcn.1; exact e
+  have hkern := J.kern_keep hw.1 hw.2.1 hX'.fin.1.1.1 hC.ct hC.csc horig hgpP
     (fun p ao h => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D')
   exact ⟨⟨hJC0.del, hJC0.ut, hJC0.finM, hJC0.sfree⟩, ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb' (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_keepCT hkc), hjpl,
@@ -242,6 +244,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hjc := J.jcov_cover hw.1 hS'.M hCK hUK
     (fun q hq => J.deadP_slot hX1' hcn hkcT hw (J.jcov.dead q hq))
     (J.idleW_keep hX1'.fin.1.1.1 (CnStep.of_cnK hcn).idle (CnStep.of_cnK hcn).isc)
+    (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw))
   have hfh' : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) =
         .Endpoint ep b0 b1 b2 b3 b4 := by
@@ -290,7 +293,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       have h0 := h src hs
       rw [capV_of_capAt hcap] at h0
       rw [hdc]
-      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
+      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
       (fun y _ e U h => by
         subst e
         have h0 := h src hs
@@ -301,7 +304,8 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         intro _ x hx1 hx2
         rw [hS] at hx2
         exact h0 rfl x (by omega) (by rw [hL]; omega))
-      fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap]
+      (fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap])
+      fun y _ e _ _ => by subst e; rw [hdc, hcdef]; trivial
   have hZf : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
       ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n := fun y hy p zt n h => by
     by_cases e : y = dest
@@ -325,9 +329,14 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       have e : y0 ≠ dest := fun e => hn (by rw [e]; exact hn0)
       exact ⟨y0, hy0, by rw [hcapV y0 hy0 e]; exact hn, by rw [hcapV y0 hy0 e]⟩)
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
-    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
+    J.cs_frameV (hvn := J.vsShr hX1' hw.1
+        (Vs.VsKeep.of_nokey (W := (· = dest)) (fun y hy hn => hcapV y hy hn)
+          (fun y _ e => by subst e; rw [hn0]; rfl) (fun y _ e => by subst e; rw [hdc, hcdef]; rfl))
+        (Vs.ArchShr.of_objCn hcn.2 (by have e := congrArg Fl4Spec.AbstractState.archState hcn.1; exact e)))
+      hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
-      hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp))⟩
+      hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp)) (J.carry.of_objCn hkcT)
+      (devFrom_kept J.mdbL hS'.M J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkcT)) (ArchFwd.of_objCn hkcT)⟩
 
 end
 
@@ -807,7 +816,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`DeriveSubframe` on a frame cap at `J`** (VsDecFrame's
 `decode_invocation_frame_dsX` with `derive_subframeJ`). -/
 theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl) (hl : lbl = fl4_abi.label.X86PageDeriveSubframe)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
@@ -871,7 +880,7 @@ theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     subst hinv
     rw [Fl4Proofs.P3.nd_bind_one hst] at hrun
     rw [dsPerf_state hrun hy, h1a]
-    exact ⟨_, H, Cs, Ac', Lst', D', J'⟩
+    exact ⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A native frame cap at `JAt`, no per-op premise** (XTopJointVsReply's
@@ -879,7 +888,7 @@ set_option maxHeartbeats 4000000 in
 `decode_invocation_frame_dsJ`: VsTopX's `decode_invocation_frame_capXR`'s
 outcome at `JAt` from `DsJPost`, then VsThX's `DecOKMX.toXD`). -/
 theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (hVC : VsCapsW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress →
@@ -922,7 +931,7 @@ theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
         rcases hq with ⟨e, h1, h2, h3, -⟩ | ⟨inv, h1, σ1, h2, y, hy, h3, -⟩
         · refine Or.inl ⟨e, h1, h2, h3, ?_⟩
           obtain ⟨e1, e2⟩ := hP2 ⟨e, h1⟩
-          rw [e1, e2]; exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+          rw [e1, e2]; exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
         · exact Or.inr ⟨inv, h1, σ1, h2, y, hy, h3, hP1 inv h1 σ1 h2 y hy⟩
       exact Or.inl (DecOKMX.toXD arI hJ
         (domFrame_frame arI Z.th s ar σ Z.G hCR hFI J.ut hMO hA hX.fin.1 hX.fin.2.2.2.1 hX.fin.2.1 hX.fin.2.2.1 hVC

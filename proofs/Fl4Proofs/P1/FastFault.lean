@@ -130,6 +130,31 @@ theorem set_fault_us (s : S) (t : obj.Tcb) (n : U64) :
   exact WP.spec_mono (obj.Tcb.set_fault_w2.wr (L := L) _ t _) fun s5 e5 => by
     subst e2 e3 e4 e5; rfl
 
+/-- `set_fault`'s four writes for a fault of type `ty` with words `w0 w1 w2`
+(pf1; `sfW s t n` is `sfG s t UnknownSyscall n 0 0` by definition). -/
+def sfG (s : S) (t ty w0 w1 w2 : U64) : S :=
+  L.wr (L.wr (L.wr (L.wr s (faultA t) ty)
+    (core.num.U64.wrapping_add t 3384#u64) w0) (core.num.U64.wrapping_add t 3392#u64) w1)
+    (core.num.U64.wrapping_add t 3400#u64) w2
+
+theorem sfW_eq_sfG (s : S) (t n : U64) :
+    sfW (L := L) s t n = sfG (L := L) s t fl4_abi.consts.fault.UnknownSyscall n 0#u64 0#u64 := rfl
+
+/-- `set_fault` of a VM fault (FL4 #71, pf1). -/
+theorem set_fault_vm (s : S) (t : obj.Tcb) (addr fsr : U64) (ins : Bool) :
+    faults.set_fault st s t (error.Fault.VmFault addr fsr ins) =
+      ok (sfG (L := L) s t fl4_abi.consts.fault.VMFault addr fsr (if ins then 1#u64 else 0#u64)) := by
+  cases ins
+  all_goals
+    apply eq_of_spec_fd
+    unfold faults.set_fault
+    simp only [bind_ok, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte, if_true, eq_self_iff_true]
+    refine WP.spec_bind (obj.Tcb.set_fault_type.spec (L := L) s t _) fun s2 e2 => ?_
+    refine WP.spec_bind (obj.Tcb.set_fault_w0.wr (L := L) _ t _) fun s3 e3 => ?_
+    refine WP.spec_bind (obj.Tcb.set_fault_w1.wr (L := L) _ t _) fun s4 e4 => ?_
+    exact WP.spec_mono (obj.Tcb.set_fault_w2.wr (L := L) _ t _) fun s5 e5 => by
+      subst e2 e3 e4 e5; first | rfl | (unfold sfG; simp)
+
 /-- `set_queue`'s two writes. -/
 def epW (s : S) (ep h tl state : U64) : S :=
   L.wr (L.wr s (epHeadA ep) h) (epTSA ep) ((tl &&& ~~~3#u64) ||| (state &&& 3#u64))
@@ -352,18 +377,229 @@ theorem reply_push_fault {A : Type _} (ar : machine.Arch A) (s10 : S) (a : A) (t
 
 end
 
+section
+
+/-- `fastpath.fault` over the fault `f` and its message label `ty` (pf1):
+`fastpath.fault … n` is `fastFaultG … (UnknownSyscall n) UnknownSyscall`,
+FL4 #71's `fastpath_vm.vm_fault … f` is `fastFaultG … f VMFault` (both by
+definition, the extraction's text with those two terms read as `f`, `ty`). -/
+def fastFaultG
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
+  (f : error.Fault) (ty : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let i ← sched.action machineStoreInst s
+  if i != sched.ACTION_RESUME_CURRENT
+  then ok (false, s, a)
+  else
+    let s1 ← obj.Tcb.slot t layout.tcb.SLOT_FAULT_HANDLER
+    let c ← obj.Slot.cap machineStoreInst s1 s
+    match c with
+    | capability.Cap.Null => ok (false, s, a)
+    | capability.Cap.Untyped _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Endpoint ptr badge _ _ grant grant_reply =>
+      if grant
+      then
+        let i1 ← obj.Ep.state machineStoreInst ptr s
+        if i1 != obj.EP_RECV
+        then ok (false, s, a)
+        else
+          let i2 ← obj.Ep.head machineStoreInst ptr s
+          let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+          if i3 = 0#u64
+          then ok (false, s, a)
+          else
+            let b ← fastpath.schedulable_here machineStoreInst s i2
+            if b
+            then
+              let i4 ← sched.cur_domain machineStoreInst s
+              let i5 ← obj.Tcb.prio machineStoreInst i2 s
+              let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+              if b1
+              then
+                let s2 ←
+                  faults.set_fault machineStoreInst s t
+                    f
+                let tail ← obj.Ep.tail machineStoreInst ptr s2
+                let s3 ←
+                  if tail = i2
+                  then
+                    obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                      obj.EP_IDLE
+                  else
+                    do
+                    let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                    let s4 ← obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
+                    obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                      obj.EP_RECV
+                let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                let recv_buf ←
+                  msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                let (sent, s6) ←
+                  faults.set_mrs_fault machineStoreInst machineArchInst s5 a t
+                    i2 recv_buf
+                let mi ←
+                  msginfo.MessageInfo.new ty
+                    0#u64 0#u64 sent
+                let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                let s8 ←
+                  obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE badge
+                let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                let s10 ←
+                  obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
+                let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                let s12 ←
+                  obj.Tcb.set_state machineStoreInst t s11
+                    sched.TS_BLOCKED_ON_REPLY
+                let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                let s14 ←
+                  obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
+                let i6 ← obj.Tcb.sc machineStoreInst i2 s14
+                let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                let s15 ←
+                  if b2
+                  then
+                    do
+                    let s16 ← sched.cur_sc machineStoreInst s14
+                    let b3 ←
+                      core.cmp.PartialEq.ne.trait_default
+                        obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                    if b3
+                    then sporadic.unblock_check machineStoreInst s14 i6
+                    else ok s14
+                  else ok s14
+                let s16 ←
+                  obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                let s17 ←
+                  obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                let (s18, a1) ←
+                  fastpath.switch_to machineStoreInst machineArchInst s17 a i2
+                ok (true, s18, a1)
+              else ok (false, s, a)
+            else ok (false, s, a)
+      else
+        if grant_reply
+        then
+          let i1 ← obj.Ep.state machineStoreInst ptr s
+          if i1 != obj.EP_RECV
+          then ok (false, s, a)
+          else
+            let i2 ← obj.Ep.head machineStoreInst ptr s
+            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+            if i3 = 0#u64
+            then ok (false, s, a)
+            else
+              let b ← fastpath.schedulable_here machineStoreInst s i2
+              if b
+              then
+                let i4 ← sched.cur_domain machineStoreInst s
+                let i5 ← obj.Tcb.prio machineStoreInst i2 s
+                let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+                if b1
+                then
+                  let s2 ←
+                    faults.set_fault machineStoreInst s t
+                      f
+                  let tail ← obj.Ep.tail machineStoreInst ptr s2
+                  let s3 ←
+                    if tail = i2
+                    then
+                      obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                        obj.EP_IDLE
+                    else
+                      do
+                      let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                      let s4 ←
+                        obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
+                      obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                        obj.EP_RECV
+                  let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                  let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                  let recv_buf ←
+                    msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                  let (sent, s6) ←
+                    faults.set_mrs_fault machineStoreInst machineArchInst s5 a
+                      t i2 recv_buf
+                  let mi ←
+                    msginfo.MessageInfo.new ty
+                      0#u64 0#u64 sent
+                  let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                  let s8 ←
+                    obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE
+                      badge
+                  let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                  let s10 ←
+                    obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
+                  let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                  let s12 ←
+                    obj.Tcb.set_state machineStoreInst t s11
+                      sched.TS_BLOCKED_ON_REPLY
+                  let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                  let s14 ←
+                    obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
+                  let i6 ← obj.Tcb.sc machineStoreInst i2 s14
+                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                  let s15 ←
+                    if b2
+                    then
+                      do
+                      let s16 ← sched.cur_sc machineStoreInst s14
+                      let b3 ←
+                        core.cmp.PartialEq.ne.trait_default
+                          obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                      if b3
+                      then sporadic.unblock_check machineStoreInst s14 i6
+                      else ok s14
+                    else ok s14
+                  let s16 ←
+                    obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                  let s17 ←
+                    obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                  let (s18, a1) ←
+                    fastpath.switch_to machineStoreInst machineArchInst s17 a
+                      i2
+                  ok (true, s18, a1)
+                else ok (false, s, a)
+              else ok (false, s, a)
+        else ok (false, s, a)
+    | capability.Cap.Notification _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Reply _ _ => ok (false, s, a)
+    | capability.Cap.CNode _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Thread _ => ok (false, s, a)
+    | capability.Cap.IrqControl => ok (false, s, a)
+    | capability.Cap.IrqHandler _ => ok (false, s, a)
+    | capability.Cap.Zombie _ _ _ => ok (false, s, a)
+    | capability.Cap.Domain => ok (false, s, a)
+    | capability.Cap.SchedContext _ _ => ok (false, s, a)
+    | capability.Cap.SchedControl _ => ok (false, s, a)
+    | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok (false, s, a)
+    | capability.Cap.PageTable _ _ _ _ => ok (false, s, a)
+    | capability.Cap.PageDirectory _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Pdpt _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Pml4 _ _ _ => ok (false, s, a)
+    | capability.Cap.Vcpu _ => ok (false, s, a)
+    | capability.Cap.Ept _ _ _ _ _ => ok (false, s, a)
+    | capability.Cap.AsidControl => ok (false, s, a)
+    | capability.Cap.AsidPool _ _ => ok (false, s, a)
+    | capability.Cap.IoPortControl => ok (false, s, a)
+    | capability.Cap.IoPort _ _ _ => ok (false, s, a)
+    | capability.Cap.TdxControl => ok (false, s, a)
+
+end
+
 /-! ## The accepted run -/
 
 section
 variable {S : Type _} {A : Type _} (st : machine.Store S) (ar : machine.Arch A)
 
-/-- The write part of an accepted `fastpath.fault` (fastpath.rs, from
-`set_fault` to `switch_to`), verbatim from the extraction. -/
-def faultTail (s : S) (a : A) (t : obj.Tcb) (number : Std.U64) (ptr badge i2 i3 : Std.U64) :
+/-- m58's `faultTail` for a fault `f` with message label `ty` (the write part
+of an accepted `fastpath.fault` / `fastpath_vm.vm_fault`, from `set_fault` to
+`switch_to`). -/
+def faultTailG (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (ty : Std.U64) (ptr badge i2 i3 : Std.U64) :
     Result (Bool × S × A) := do
-  let s2 ←
-    faults.set_fault st s t
-      (error.Fault.UnknownSyscall number)
+  let s2 ← faults.set_fault st s t f
   let tail ← obj.Ep.tail st ptr s2
   let s3 ←
     if tail = i2
@@ -384,7 +620,7 @@ def faultTail (s : S) (a : A) (t : obj.Tcb) (number : Std.U64) (ptr badge i2 i3 
     faults.set_mrs_fault st ar s5 a t
       i2 recv_buf
   let mi ←
-    msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall
+    msginfo.MessageInfo.new ty
       0#u64 0#u64 sent
   let s7 ← msg.set_msg_info st s6 i2 mi
   let s8 ←
@@ -421,6 +657,13 @@ def faultTail (s : S) (a : A) (t : obj.Tcb) (number : Std.U64) (ptr badge i2 i3 
     fastpath.switch_to st ar s17 a i2
   ok (true, s18, a1)
 
+/-- The write part of an accepted `fastpath.fault` (fastpath.rs, from
+`set_fault` to `switch_to`): `faultTailG` at an UnknownSyscall fault (pf1;
+m58's verbatim text is `faultTailG`'s). -/
+def faultTail (s : S) (a : A) (t : obj.Tcb) (number : Std.U64) (ptr badge i2 i3 : Std.U64) :
+    Result (Bool × S × A) :=
+  faultTailG st ar s a t (error.Fault.UnknownSyscall number) fl4_abi.consts.fault.UnknownSyscall ptr badge i2 i3
+
 /-- The checks of an accepted `fastpath.fault` at its entry state `s`. -/
 structure FaultChecks (s : S) (t : obj.Tcb) (ptr badge dest r : Std.U64) : Prop where
   act : sched.action st s = ok sched.ACTION_RESUME_CURRENT
@@ -439,13 +682,13 @@ theorem bind_eq_ok {α β : Type _} {m : Result α} {f : α → Result β} {y : 
   obtain ⟨x, e, hx⟩ := spec_bind_inv (spec_of_eq_fd h)
   exact ⟨x, e, eq_of_spec_fd hx⟩
 
-/-- **Inversion of an accepted `fastpath.fault`**: its checks held at the
-entry state and the run is `faultTail` from there. -/
-theorem fault_acc {s : S} {a : A} {t : obj.Tcb} {n : Std.U64} {s' : S} {a' : A}
-    (h : fastpath.fault st ar s a t n = ok (true, s', a')) :
+/-- **Inversion of an accepted fault fast path** (`fastFaultG`, m58's `fault_acc` over
+the fault): its checks held at the entry state and the run is `faultTailG`. -/
+theorem fault_accG {s : S} {a : A} {t : obj.Tcb} {f : error.Fault} {ty : Std.U64} {s' : S} {a' : A}
+    (h : fastFaultG st ar s a t f ty = ok (true, s', a')) :
     ∃ ptr badge dest r, FaultChecks st s t ptr badge dest r ∧
-      faultTail st ar s a t n ptr badge dest r = ok (true, s', a') := by
-  unfold fastpath.fault at h
+      faultTailG st ar s a t f ty ptr badge dest r = ok (true, s', a') := by
+  unfold fastFaultG at h
   obtain ⟨i, hi, h⟩ := bind_eq_ok h
   split at h
   · simp at h
@@ -455,7 +698,7 @@ theorem fault_acc {s : S} {a : A} {t : obj.Tcb} {n : Std.U64} {s' : S} {a' : A}
   cases c
   all_goals try (simp at h; done)
   rename_i ptr badge x y g gr
-  dsimp only at h
+  try dsimp only at h
   by_cases hg : g = true
   · have GR : g = true ∨ gr = true := Or.inl hg
     rw [if_pos hg] at h
@@ -519,16 +762,23 @@ theorem fault_acc {s : S} {a : A} {t : obj.Tcb} {n : Std.U64} {s' : S} {a' : A}
       · rw [hb1, hb1c]
     · rw [if_neg hgr] at h; simp at h
 
+/-- **Inversion of an accepted `fastpath.fault`**: its checks held at the
+entry state and the run is `faultTail` from there. -/
+theorem fault_acc {s : S} {a : A} {t : obj.Tcb} {n : Std.U64} {s' : S} {a' : A}
+    (h : fastpath.fault st ar s a t n = ok (true, s', a')) :
+    ∃ ptr badge dest r, FaultChecks st s t ptr badge dest r ∧
+      faultTail st ar s a t n ptr badge dest r = ok (true, s', a') :=
+  fault_accG st ar (f := error.Fault.UnknownSyscall n) (ty := fl4_abi.consts.fault.UnknownSyscall) h
 
-/-- `faultTail` from the end of the endpoint dequeue (`s5`). -/
-def faultTail2 (s5 : S) (a : A) (t : obj.Tcb) (i2 i3 badge : Std.U64) : Result (Bool × S × A) := do
+/-- `faultTailG` from the end of the endpoint dequeue (`s5`). -/
+def faultTail2G (s5 : S) (a : A) (t : obj.Tcb) (ty i2 i3 badge : Std.U64) : Result (Bool × S × A) := do
   let recv_buf ←
     msg.lookup_ipc_buffer st s5 true i2
   let (sent, s6) ←
     faults.set_mrs_fault st ar s5 a t
       i2 recv_buf
   let mi ←
-    msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall
+    msginfo.MessageInfo.new ty
       0#u64 0#u64 sent
   let s7 ← msg.set_msg_info st s6 i2 mi
   let s8 ←
@@ -565,14 +815,21 @@ def faultTail2 (s5 : S) (a : A) (t : obj.Tcb) (i2 i3 badge : Std.U64) : Result (
     fastpath.switch_to st ar s17 a i2
   ok (true, s18, a1)
 
-/-- The fast path's first writes: `set_fault`, then the dequeue `epFast`. -/
-theorem faultTail_eq [L : LawfulStore st] (s : S) (a : A) (t : obj.Tcb) (n ptr badge dest r : U64) :
-    faultTail st ar s a t n ptr badge dest r =
-      faultTail2 st ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t dest r badge := by
-  unfold faultTail
-  rw [set_fault_us]; simp only [bind_ok]
+/-- `faultTail` from the end of the endpoint dequeue (`s5`): `faultTail2G` at
+an UnknownSyscall label (pf1). -/
+def faultTail2 (s5 : S) (a : A) (t : obj.Tcb) (i2 i3 badge : Std.U64) : Result (Bool × S × A) :=
+  faultTail2G st ar s5 a t fl4_abi.consts.fault.UnknownSyscall i2 i3 badge
+
+/-- The fast path's first writes: `set_fault f` (to `s2`), then the dequeue
+`epFast` (`faultTail_eq` over `f`). -/
+theorem faultTailG_eq [L : LawfulStore st] {s s2 : S} (a : A) (t : obj.Tcb) (f : error.Fault)
+    (ty ptr badge dest r : U64) (h2 : faults.set_fault st s t f = ok s2) :
+    faultTailG st ar s a t f ty ptr badge dest r =
+      faultTail2G st ar (epFast (L := L) s2 ptr dest) a t ty dest r badge := by
+  unfold faultTailG
+  rw [h2]; simp only [bind_ok]
   rw [obj.Ep.tail.ok]; simp only [bind_ok]
-  by_cases htl : (L.epQ (sfW (L := L) s t n) ptr).end = dest
+  by_cases htl : (L.epQ s2 ptr).end = dest
   · rw [if_pos htl, obj.Ep.set_queue.ok]; simp only [bind_ok]
     rw [obj.Tcb.set_ep_next.ok]; simp only [bind_ok]
     rw [obj.Tcb.set_ep_prev.ok]; simp only [bind_ok]
@@ -584,6 +841,13 @@ theorem faultTail_eq [L : LawfulStore st] (s : S) (a : A) (t : obj.Tcb) (n ptr b
     rw [obj.Tcb.set_ep_next.ok]; simp only [bind_ok]
     rw [obj.Tcb.set_ep_prev.ok]; simp only [bind_ok]
     unfold epFast; simp only [htl, ↓reduceIte]; rfl
+
+/-- The fast path's first writes: `set_fault`, then the dequeue `epFast`. -/
+theorem faultTail_eq [L : LawfulStore st] (s : S) (a : A) (t : obj.Tcb) (n ptr badge dest r : U64) :
+    faultTail st ar s a t n ptr badge dest r =
+      faultTail2 st ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t dest r badge :=
+  faultTailG_eq st ar a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall ptr badge dest r
+    (set_fault_us s t n)
 
 
 /-- `faultTail` from the handler made `Running` (`s14`). -/
@@ -623,6 +887,112 @@ def fS10 (s8 : S) (dest r : U64) : S := L.wr (L.wr s8 (rTcbA r) 0#u64) (stA dest
 /-- `reply_push`'s three writes before `schedule_tcb` (both paths). -/
 def fS13 (s10 : S) (t r : U64) : S :=
   L.wr (L.wr (L.wr s10 (rTcbA r) t) (stA t) sched.TS_BLOCKED_ON_REPLY) (replyA t) r
+
+/-- **`handle_fault_pre` over the fault** (`f`, written by `set_fault` to
+`s2`, delivered with the label `ty ≠ NullFault`): the general `handle_fault`
+makes the fast path's writes up to the handler `Running`, plus the action word
+`CHOOSE_NEW`. -/
+theorem handle_fault_preG (hX : StoreExt st) {T : Set U64} (hT : TcbPlaced T)
+    (s s2 : S) (a : A) (t : obj.Tcb) (f : error.Fault) (ty ptr badge dest r : U64) (rest : List U64)
+    (hty0 : ty ≠ fl4_abi.consts.fault.NullFault)
+    (h2 : faults.set_fault st s t f = ok s2)
+    {sl : obj.Slot} {x y g gr : Bool}
+    (hsl : obj.Tcb.slot t layout.tcb.SLOT_FAULT_HANDLER = ok sl)
+    (hcap : obj.Slot.cap st sl s = ok (capability.Cap.Endpoint ptr badge x y g gr)) (hG : g = true ∨ gr = true)
+    (hE : EpPlaced T ptr)
+    (hq1 : QueueRel (L.mem s2) T .Ep (L.epQ s2 ptr) (dest :: rest))
+    (hst1 : L.epState s2 ptr = obj.EP_RECV)
+    {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
+    (hbuf : msg.lookup_ipc_buffer st (epFast (L := L) s2 ptr dest) true dest = ok rb)
+    (hmrs : faults.set_mrs_fault st ar (epFast (L := L) s2 ptr dest) a t dest rb = ok (sent, S6))
+    (hR5 : L.mem (epFast (L := L) s2 ptr dest) (faultA t) = ty)
+    (hR6 : L.mem S6 (faultA t) = ty)
+    (hmi : msginfo.MessageInfo.new ty 0#u64 0#u64 sent = ok mi)
+    (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
+    (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8)
+    (hR8 : L.mem S8 (replyA dest) = r) (hr0 : r ≠ 0#u64) (hdt : dest ≠ t)
+    (hR10c : L.mem (fS10 (L := L) S8 dest r) (curA (L := L) S8) = t)
+    (hR10f : L.mem (fS10 (L := L) S8 dest r) (faultA t) = ty)
+    (hR10a : L.actionW (fS10 (L := L) S8 dest r) = sched.ACTION_RESUME_CURRENT)
+    (hR13s : L.mem (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (stA t) = sched.TS_BLOCKED_ON_REPLY)
+    (hR13c : L.mem (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (curA (L := L) S8) = t)
+    (hR13a : L.actionW (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) = sched.ACTION_RESUME_CURRENT)
+    (hR13d : L.mem (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8) sched.ACTION_CHOOSE_NEW)
+      (scA dest) ≠ 0#u64)
+    (hR14c : L.mem (L.wr (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8)
+      sched.ACTION_CHOOSE_NEW) (stA dest) sched.TS_RUNNING) (curA (L := L) S8) = t) :
+    faults.handle_fault st ar s a t f =
+      (do
+        let s6 ← endpoint.unblock_sporadic st (L.wr (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r)
+          (actA (L := L) S8) sched.ACTION_CHOOSE_NEW) (stA dest) sched.TS_RUNNING) dest
+        let s7 ← sched.possible_switch_to st s6 dest
+        ok (s7, a)) := by
+  have hcur10 : ∀ v w, curA (L := L) (L.wr (L.wr S8 v w) (stA dest) sched.TS_INACTIVE) = curA (L := L) S8 :=
+    fun v w => by rw [curA_wr, curA_wr]
+  have hRP : ∀ cd, ipc.reply_push st ar (fS10 (L := L) S8 dest r) a t dest r cd =
+      ok (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8) sched.ACTION_CHOOSE_NEW, a) := by
+    intro cd
+    have e := reply_push_fault (L := L) ar (fS10 (L := L) S8 dest r) a t dest r cd
+      (by unfold fS10; rw [hcur10]; exact hR10c) hR10a hR13s
+      (by unfold fS10 at hR13c ⊢; rw [hcur10]; exact hR13c) hR13a
+      (by unfold fS13 at hR13d; unfold fS10 at hR13d ⊢; simp only [actA_wr]; exact hR13d)
+    unfold fS13 at e ⊢
+    rw [e]; unfold fS10; simp only [actA_wr]
+  unfold faults.handle_fault
+  rw [hsl]; simp only [bind_ok]
+  rw [hcap]; simp only [bind_ok]
+  rw [eq_of_spec_fd (obj.Tcb.sc.spec (L := L) s t)]; simp only [bind_ok]
+  unfold faults.send_fault_ipc
+  rw [h2]; simp only [bind_ok]
+  unfold endpoint.send_ipc
+  have e1 : obj.EP_RECV ≠ obj.EP_IDLE := by unfold obj.EP_RECV obj.EP_IDLE; decide
+  have e2 : obj.EP_RECV ≠ obj.EP_SEND := by unfold obj.EP_RECV obj.EP_SEND; decide
+  rw [eq_of_spec_fd (obj.Ep.state.spec (L := L) _ ptr), hst1]
+  simp only [bind_ok, e1, e2, ↓reduceIte]
+  rw [eq_of_spec_fd (endpoint.get_queue.spec (L := L) _ ptr)]; simp only [bind_ok]
+  have hh : (L.epQ s2 ptr).head = dest := by simpa using hq1.head
+  rw [hh, ep_dequeue_head hX hT hE hq1 hst1]; simp only [bind_ok]
+  unfold ipc.do_ipc_transfer
+  rw [hbuf]; simp only [bind_ok]
+  rw [fault_type_ok, hR5]; simp only [bind_ok, hty0, ↓reduceIte]
+  unfold ipc.do_fault_transfer
+  rw [hmrs]; simp only [bind_ok, uncurry_apply_pair]
+  rw [fault_type_ok, hR6]; simp only [bind_ok]
+  rw [hmi]; simp only [bind_ok]
+  rw [hS7]; simp only [bind_ok]
+  rw [hS8]; simp only [bind_ok]
+  rw [eq_of_spec_fd (obj.Tcb.reply_obj.spec (L := L) S8 dest), hR8]
+  simp only [bind_ok, bne_iff_ne, ne_eq, hr0, not_false_eq_true, ↓reduceIte]
+  unfold ipc.reply_unlink
+  rw [eq_of_spec_fd (obj.Reply.set_tcb.spec (L := L) S8 r _)]; simp only [bind_ok]
+  unfold sched.set_thread_state
+  rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
+  rw [schedule_tcb_other _ dest (by rw [hcur10]; unfold fS10 at hR10c; rw [hR10c]; exact Ne.symm hdt)]
+  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+  have hf10 := hR10f; unfold fS10 at hf10
+  rw [fault_type_ok, hf10]; simp only [bind_ok, bne_iff_ne, ne_eq, hty0, not_false_eq_true, ↓reduceIte]
+  have hRP' := hRP; unfold fS10 at hRP'
+  rcases hG with hg | hgr
+  · subst hg; simp only [↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
+    rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
+    rw [schedule_tcb_other _ dest (by
+      unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
+    simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
+    unfold fS13 fS10; rfl
+  · subst hgr
+    cases g
+    · simp only [Bool.false_eq_true, ↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
+      rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
+      rw [schedule_tcb_other _ dest (by
+        unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
+      simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
+      unfold fS13 fS10; rfl
+    · simp only [↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
+      rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
+      rw [schedule_tcb_other _ dest (by
+        unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
+      simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
+      unfold fS13 fS10; rfl
 
 /-- **The general `handle_fault` of an UnknownSyscall fault to a waiting
 handler** (fastpath.rs `fault`, KENTRY-PLAN m57 (2)), up to the
@@ -665,86 +1035,22 @@ theorem handle_fault_pre (hX : StoreExt st) {T : Set U64} (hT : TcbPlaced T)
         let s6 ← endpoint.unblock_sporadic st (L.wr (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r)
           (actA (L := L) S8) sched.ACTION_CHOOSE_NEW) (stA dest) sched.TS_RUNNING) dest
         let s7 ← sched.possible_switch_to st s6 dest
-        ok (s7, a)) := by
-  have hcur10 : ∀ v w, curA (L := L) (L.wr (L.wr S8 v w) (stA dest) sched.TS_INACTIVE) = curA (L := L) S8 :=
-    fun v w => by rw [curA_wr, curA_wr]
-  have hRP : ∀ cd, ipc.reply_push st ar (fS10 (L := L) S8 dest r) a t dest r cd =
-      ok (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8) sched.ACTION_CHOOSE_NEW, a) := by
-    intro cd
-    have e := reply_push_fault (L := L) ar (fS10 (L := L) S8 dest r) a t dest r cd
-      (by unfold fS10; rw [hcur10]; exact hR10c) hR10a hR13s
-      (by unfold fS10 at hR13c ⊢; rw [hcur10]; exact hR13c) hR13a
-      (by unfold fS13 at hR13d; unfold fS10 at hR13d ⊢; simp only [actA_wr]; exact hR13d)
-    unfold fS13 at e ⊢
-    rw [e]; unfold fS10; simp only [actA_wr]
-  unfold faults.handle_fault
-  rw [hsl]; simp only [bind_ok]
-  rw [hcap]; simp only [bind_ok]
-  rw [eq_of_spec_fd (obj.Tcb.sc.spec (L := L) s t)]; simp only [bind_ok]
-  unfold faults.send_fault_ipc
-  rw [set_fault_us]; simp only [bind_ok]
-  unfold endpoint.send_ipc
-  have e1 : obj.EP_RECV ≠ obj.EP_IDLE := by unfold obj.EP_RECV obj.EP_IDLE; decide
-  have e2 : obj.EP_RECV ≠ obj.EP_SEND := by unfold obj.EP_RECV obj.EP_SEND; decide
-  rw [eq_of_spec_fd (obj.Ep.state.spec (L := L) _ ptr), hst1]
-  simp only [bind_ok, e1, e2, ↓reduceIte]
-  rw [eq_of_spec_fd (endpoint.get_queue.spec (L := L) _ ptr)]; simp only [bind_ok]
-  have hh : (L.epQ (sfW (L := L) s t n) ptr).head = dest := by simpa using hq1.head
-  rw [hh, ep_dequeue_head hX hT hE hq1 hst1]; simp only [bind_ok]
-  unfold ipc.do_ipc_transfer
-  rw [hbuf]; simp only [bind_ok]
-  rw [fault_type_ok, hR5]; simp only [bind_ok, us_ne_null, ↓reduceIte]
-  unfold ipc.do_fault_transfer
-  rw [hmrs]; simp only [bind_ok, uncurry_apply_pair]
-  rw [fault_type_ok, hR6]; simp only [bind_ok]
-  rw [hmi]; simp only [bind_ok]
-  rw [hS7]; simp only [bind_ok]
-  rw [hS8]; simp only [bind_ok]
-  rw [eq_of_spec_fd (obj.Tcb.reply_obj.spec (L := L) S8 dest), hR8]
-  simp only [bind_ok, bne_iff_ne, ne_eq, hr0, not_false_eq_true, ↓reduceIte]
-  unfold ipc.reply_unlink
-  rw [eq_of_spec_fd (obj.Reply.set_tcb.spec (L := L) S8 r _)]; simp only [bind_ok]
-  unfold sched.set_thread_state
-  rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
-  rw [schedule_tcb_other _ dest (by rw [hcur10]; unfold fS10 at hR10c; rw [hR10c]; exact Ne.symm hdt)]
-  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-  have hf10 := hR10f; unfold fS10 at hf10
-  rw [fault_type_ok, hf10]; simp only [bind_ok, bne_iff_ne, ne_eq, us_ne_null, not_false_eq_true, ↓reduceIte]
-  have hRP' := hRP; unfold fS10 at hRP'
-  rcases hG with hg | hgr
-  · subst hg; simp only [↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
-    rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
-    rw [schedule_tcb_other _ dest (by
-      unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
-    simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
-    unfold fS13 fS10; rfl
-  · subst hgr
-    cases g
-    · simp only [Bool.false_eq_true, ↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
-      rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
-      rw [schedule_tcb_other _ dest (by
-        unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
-      simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
-      unfold fS13 fS10; rfl
-    · simp only [↓reduceIte]; rw [hRP']; simp only [bind_ok, uncurry_apply_pair]
-      rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
-      rw [schedule_tcb_other _ dest (by
-        unfold fS13 fS10 at hR14c; (try unfold fS13); simp only [curA_wr]; rw [hR14c]; exact Ne.symm hdt)]
-      simp only [bind_ok, Std.bind_assoc, ↓reduceIte, uncurry_apply_pair]
-      unfold fS13 fS10; rfl
+        ok (s7, a)) :=
+  handle_fault_preG ar hX hT s (sfW (L := L) s t n) a t (error.Fault.UnknownSyscall n) fl4_abi.consts.fault.UnknownSyscall
+    ptr badge dest r rest us_ne_null (set_fault_us s t n) hsl hcap hG hE hq1 hst1 hbuf hmrs hR5 hR6 hmi hS7 hS8 hR8 hr0
+    hdt hR10c hR10f hR10a hR13s hR13c hR13a hR13d hR14c
 
-/-- The fast path from the dequeue to the handler `Running`: the general
-path's writes in the same order (`fS10`, `fS13`), then `dest` Running. -/
-theorem faultTail2_eq (s5 : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
+/-- `faultTail2_eq` over the label `ty`. -/
+theorem faultTail2G_eq (s5 : S) (a : A) (t : obj.Tcb) (ty dest r badge : U64)
     {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
     (hbuf : msg.lookup_ipc_buffer st s5 true dest = ok rb)
     (hmrs : faults.set_mrs_fault st ar s5 a t dest rb = ok (sent, S6))
-    (hmi : msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall 0#u64 0#u64 sent = ok mi)
+    (hmi : msginfo.MessageInfo.new ty 0#u64 0#u64 sent = ok mi)
     (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
     (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
-    faultTail2 st ar s5 a t dest r badge =
+    faultTail2G st ar s5 a t ty dest r badge =
       faultTail3 st ar (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (stA dest) sched.TS_RUNNING) a dest := by
-  unfold faultTail2
+  unfold faultTail2G
   rw [hbuf]; simp only [bind_ok]
   rw [hmrs]; simp only [bind_ok, uncurry_apply_pair]
   rw [hmi]; simp only [bind_ok]
@@ -758,28 +1064,34 @@ theorem faultTail2_eq (s5 : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
   rw [eq_of_spec_fd (obj.Tcb.set_state.spec (L := L) _ dest _)]; simp only [bind_ok]
   unfold faultTail3 fS13 fS10; rfl
 
+/-- The fast path from the dequeue to the handler `Running`: the general
+path's writes in the same order (`fS10`, `fS13`), then `dest` Running. -/
+theorem faultTail2_eq (s5 : S) (a : A) (t : obj.Tcb) (dest r badge : U64)
+    {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
+    (hbuf : msg.lookup_ipc_buffer st s5 true dest = ok rb)
+    (hmrs : faults.set_mrs_fault st ar s5 a t dest rb = ok (sent, S6))
+    (hmi : msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall 0#u64 0#u64 sent = ok mi)
+    (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
+    (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
+    faultTail2 st ar s5 a t dest r badge =
+      faultTail3 st ar (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (stA dest) sched.TS_RUNNING) a dest :=
+  faultTail2G_eq ar s5 a t fl4_abi.consts.fault.UnknownSyscall dest r badge hbuf hmrs hmi hS7 hS8
 
-/-- **The reads of the general fault path** at the states where it makes them
-(KENTRY-PLAN m57 F1, F2, F5 at those states), for the run's intermediate
-states `S6` (after `set_mrs_fault`) and `S8` (after the `BADGE` write). Each
-is a read of a word that only the named writes before it could change; their
-derivation from the entry state's P1 placement (`TcbPlaced`, `EpPlaced`,
-`NodePlaced`, the receive buffer outside the kernel objects) is the next step
-(m58 handoff). -/
-structure FaultReads (T : Set U64) (s : S) (t : obj.Tcb) (n ptr dest r : U64) (rest : List U64) (S6 S8 : S) :
+/-- m58's `FaultReads` at the state `s2` that `set_fault f` writes, with the
+label `ty` (same fields; `FaultReads T s t n …` is `FaultReadsG T (sfW s t n)
+… UnknownSyscall …`). -/
+structure FaultReadsG (T : Set U64) (s2 : S) (t : obj.Tcb) (ty ptr dest r : U64) (rest : List U64) (S6 S8 : S) :
     Prop where
   hT : TcbPlaced T
   hE : EpPlaced T ptr
-  /-- F2 at `set_fault`'s state: the endpoint's queue, headed by `dest`. -/
-  hq1 : QueueRel (L.mem (sfW (L := L) s t n)) T .Ep (L.epQ (sfW (L := L) s t n) ptr) (dest :: rest)
-  hst1 : L.epState (sfW (L := L) s t n) ptr = obj.EP_RECV
-  hR5 : L.mem (epFast (L := L) (sfW (L := L) s t n) ptr dest) (faultA t) = fl4_abi.consts.fault.UnknownSyscall
-  hR6 : L.mem S6 (faultA t) = fl4_abi.consts.fault.UnknownSyscall
+  hq1 : QueueRel (L.mem s2) T .Ep (L.epQ s2 ptr) (dest :: rest)
+  hst1 : L.epState s2 ptr = obj.EP_RECV
+  hR5 : L.mem (epFast (L := L) s2 ptr dest) (faultA t) = ty
+  hR6 : L.mem S6 (faultA t) = ty
   hR8 : L.mem S8 (replyA dest) = r
-  /-- F1: the handler is not the faulting thread. -/
   hdt : dest ≠ t
   hR10c : L.mem (fS10 (L := L) S8 dest r) (curA (L := L) S8) = t
-  hR10f : L.mem (fS10 (L := L) S8 dest r) (faultA t) = fl4_abi.consts.fault.UnknownSyscall
+  hR10f : L.mem (fS10 (L := L) S8 dest r) (faultA t) = ty
   hR10a : L.actionW (fS10 (L := L) S8 dest r) = sched.ACTION_RESUME_CURRENT
   hR13s : L.mem (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (stA t) = sched.TS_BLOCKED_ON_REPLY
   hR13c : L.mem (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (curA (L := L) S8) = t
@@ -788,10 +1100,19 @@ structure FaultReads (T : Set U64) (s : S) (t : obj.Tcb) (n ptr dest r : U64) (r
       (scA dest) ≠ 0#u64
   hR14c : L.mem (L.wr (L.wr (fS13 (L := L) (fS10 (L := L) S8 dest r) t r) (actA (L := L) S8)
       sched.ACTION_CHOOSE_NEW) (stA dest) sched.TS_RUNNING) (curA (L := L) S8) = t
-  /-- F5 for the action word and the handler's state word. -/
   haA : Aligned (actA (L := L) S8)
   hsA : Aligned (stA dest)
   hAS : actA (L := L) S8 ≠ stA dest
+
+/-- **The reads of the general fault path** at the states where it makes them
+(KENTRY-PLAN m57 F1, F2, F5 at those states), for the run's intermediate
+states `S6` (after `set_mrs_fault`) and `S8` (after the `BADGE` write). Each
+is a read of a word that only the named writes before it could change; their
+derivation from the entry state's P1 placement (`TcbPlaced`, `EpPlaced`,
+`NodePlaced`, the receive buffer outside the kernel objects) is the next step
+(m58 handoff). -/
+abbrev FaultReads (T : Set U64) (s : S) (t : obj.Tcb) (n ptr dest r : U64) (rest : List U64) (S6 S8 : S) : Prop :=
+  FaultReadsG (L := L) T (sfW (L := L) s t n) t fl4_abi.consts.fault.UnknownSyscall ptr dest r rest S6 S8
 
 /-- **The two paths meet** (m58): an accepted `fastpath.fault` run and the
 general `handle_fault` reach the same state `S14` (the handler `Running`)
@@ -817,7 +1138,7 @@ theorem fault_sync (hX : StoreExt st) {T : Set U64} {s : S} {a : A} {t : obj.Tcb
           ok (s7, a)) := by
   rw [faultTail_eq] at hfast
   have hf0 := hfast
-  unfold faultTail2 at hfast
+  unfold faultTail2 faultTail2G at hfast
   obtain ⟨rb, hbuf, h1⟩ := bind_eq_ok hfast
   obtain ⟨⟨sent, S6⟩, hmrs, h2⟩ := bind_eq_ok h1
   try simp only [uncurry_apply_pair] at h2

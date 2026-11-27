@@ -133,7 +133,7 @@ theorem sched.set_thread_state.running_bxi {s : S} {t : U64} (h : BXI st T Cs Ω
 /-- The families of caps `decode_invocation` dispatches on. -/
 inductive CapFam where
   | null | untyped | endpoint | notification | reply | cnode | thread | irqControl | irqHandler | zombie
-  | domain | schedContext | schedControl | vspace | vcpu | ept | ioPortControl | ioPort
+  | domain | schedContext | schedControl | vspace | vcpu | ept | ioPortControl | ioPort | tdx
   deriving DecidableEq
 
 /-- The family of a cap (`vspace`: frames, the paging structures, the ASID
@@ -163,6 +163,7 @@ def capFam : capability.Cap → CapFam
   | .AsidPool .. => .vspace
   | .IoPortControl => .ioPortControl
   | .IoPort .. => .ioPort
+  | .TdxControl => .tdx
 
 /-- What a decoded invocation leaves: the invariants (with a possibly
 smaller active set) and, when it was preempted, the current thread's step
@@ -266,10 +267,13 @@ structure InvGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ept
   ioPortControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPortControl
   ioPort : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPort
+  tdx : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .tdx
 
 /-- The facts at an invocation (P3's): the current thread is runnable and to
 be resumed, and the caps it invokes (the slot's and the extra caps) are
-typed. -/
+typed.
+**Contradictory** (p1g, P1/EntryVacuous): no `EntAt` `BXI` state satisfies it (`cur`); not a
+specification of the kernel. -/
 structure InvHyps (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap)
     (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (P3Ok : S → Prop) : Prop where
   cur : ∀ (Ac : Set U64) (s : S), EntAt st P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s →
@@ -351,7 +355,10 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
     try dsimp only
     split
     · obtain ⟨hn, hH⟩ := hcap.2.1 _ _ _ _ rfl
-      refine WP.spec_mono (ntfn_signal.blkF hA s a _ p b h.blk hct hrun hn hH) ?_
+      have hBA : BufAt st T Cs H Sg Scs Z U s := by
+        obtain ⟨Q, R, x0⟩ := BXI.xs h hU
+        exact BufAt.of_user hU h.blk fun y hy => E.buf _ _ _ _ s y he.xg x0.1 hy
+      refine WP.spec_mono (ntfn_signal.blkF hA s a _ p b h.blk hct hrun hn hH hBA) ?_
       rintro ⟨r, s', a'⟩ hr
       simp only [WP.uncurry'_pair] at hr ⊢
       exact ⟨Ac, BlkOK.bxi hr.2.1, fun e => by rw [hr.1] at e; cases e⟩
@@ -376,6 +383,7 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
   | Ept => exact G.ept _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
   | IoPortControl => exact G.ioPortControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
   | IoPort => exact G.ioPort _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
+  | TdxControl => exact G.tdx _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
 
 /-- **`decode_invocation` over every cap family**, the heap possibly growing
 (an untyped's retype, `InvGaps.untyped`; the others keep the set tuple). -/
@@ -510,7 +518,9 @@ theorem syscall.handle_invocation.inv {A : Type _} {ar : machine.Arch A} {Adm : 
 /-- The P3 placement facts the kernel entry rests on (with `InvGaps`):
 the transfer's (`XferHyps`), the invocation's (`InvHyps`), `tmoOK`,
 `blkU`, `recvOK` and `irqcap` (as in `EntryHyps`), `dbg`: the thread caps the
-debug syscalls invoke name TCBs, and `tmoAny`. -/
+debug syscalls invoke name TCBs, and `tmoAny`.
+**Contradictory** (p1g, P1/EntryVacuous): no `BXI` state satisfies it (`blkU`, `tmoAny`); not a
+specification of the kernel. -/
 structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
     (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64) (P3Ok : S → Prop) : Prop where
   xfer : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok
@@ -541,19 +551,22 @@ structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   other than the current one: the reply's caller's timeout fault). -/
   tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
     obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
-  /-- **[P] (#57) `finish`'s `vcpu.check` keeps `EntryInv` on a `TS_RUNNING_VM`
-  current thread**: since #57 every `finish` ends with `vcpu.check` of the
-  current thread, which off `TS_RUNNING_VM` does nothing (`check_of_ne`) and on
-  it completes the thread's VMEnter (`vcpu.report`: its message registers and
-  IPC buffer, the VCPU's `PENDING` word, the thread made running; or a bound
-  active notification made idle first). VT-x / SVM: no l4v counterpart (the
-  l4v-derived spec has no `RunningVM` entry; the P1 top already leaves
-  `SysVMEnter` out, and P3 runs under `NativeScope`, where the case does not
-  arise). True wherever `vcpu.report` keeps the invariants (P1 proves it keeps
-  `Cur0`: `vcpu.report.cur0`). -/
-  vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+  /-- **[P] (#57; vmchk) The placement `finish`'s `vcpu.check` needs** of a
+  `TS_RUNNING_VM` current thread at an `EntryInv` state: its IPC buffer lies in
+  the user words `U` (`BufOK U`, as `xfer.buf`'s), and its bound VCPU's
+  `PENDING` word is a user-class word (`UsrW`; P2's `VcpuUsr`). With it
+  `vcpu.check` keeps `EntryInv` (P1 `vcpu.check.entry`, `EntryHyps0.vmchk`):
+  off `TS_RUNNING_VM` it does nothing (`check_of_ne`), on it it completes the
+  thread's VMEnter (`vcpu.report`: its message registers and IPC buffer, the
+  VCPU's `PENDING` word, the thread made running; or a bound active
+  notification made idle first). Replaces the former behavioural field
+  `vmchk`. VT-x / SVM: no l4v counterpart (P3 runs under `NativeScope`). -/
+  vmpl : ∀ (Ac : Set U64) (s : S), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
-    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
+    msg.lookup_ipc_buffer st s true (L.curW s) ⦃ b => BufOK U b ⦄ ∧
+    (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64) ≠ 0#u64 →
+      UsrW st T Cs H Sg Scs Z s
+        (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add (L.curW s) 3664#u64)) vcpu.PENDING))
 
 /-- **`EntryHyps` from the decode gaps and the placement facts** (those of
 every admissible tuple, `PF`, for after a retype). -/
@@ -576,23 +589,12 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
       (fun σ' h' Ac s h => (PF σ' h').blkU Ac s h)
       (fun σ' h' => (PF σ' h').xfer) (fun σ' h' => (PF σ' h').errG) hflt s a call blk don fp cptr he h hcA hcsc)
     P.blkU P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
-    P.vmchk
+    P.vmpl (fun Ac s hG h => by
+      obtain ⟨-, hU⟩ := P.blkU Ac s h
+      obtain ⟨Q, R, x0⟩ := BXI.xs h hU
+      exact BufAt.of_user hU h.blk fun y hy => P.xfer.buf _ _ _ _ s y hG x0.1 hy)
 
-/-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
-and the P3 placement facts `P3Place`** of every admissible tuple; the entry
-ends over some admissible tuple. -/
-theorem kernel_entry.entry_of {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (TX : TmoXG st ar)
-    (GF : ∀ σ : PSets, Adm σ → P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧
-      InvGaps st ar Adm σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ ∀ n ∈ σ.Nt, σ.H n = some .ntfn)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall_old st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry hA TX (fun σ h' => ⟨EntryHyps.of_gaps hA h' (fun σ'' h'' => (GF σ'' h'').1) (GF σ h').1
-    (GF σ h').2.1, (GF σ h').2.2⟩) hσ s a hP h
+-- (int6) `kernel_entry.entry_of` moved to `P1/EntryFin` (it needs par/a6x's `EntryXGTop`).
 
 end
 

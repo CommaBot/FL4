@@ -16,6 +16,7 @@ import Fl4Proofs.P1.QueueDecVcpu
 import Fl4Proofs.P1.QueueDecEpt
 import Fl4Proofs.P1.QueueIpcFoot
 import Fl4Proofs.P1.FastDecline
+import Fl4Proofs.P1.IbKeepHolds
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -71,11 +72,13 @@ theorem InvGaps4.gaps3 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop}
       FinGapsAt st ar T Cs Ω H Sg Rp Scs Nt Z s0).kinds hA (Pd s0 hE))
   ⟨decGap_untyped hA hσ (G.utPl.choose_spec.1.utPlace hA) G.utPl.choose_spec.2, decGap_thread hA G.thread Pt E DG C.toCdtHyps,
     decGap_irqControl hA C.toCdtHyps, decGap_irqHandler hA C.toCdtHyps Pd G.irqPl,
-    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl G.eptPl.pl C.toCdtHyps E G.irqPl, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
+    decGap_schedControl hA G.scCtl, decGap_vspace hA Pd G.vsPl G.eptPl.pl C.toCdtHyps E G.irqPl DG, decGap_vcpu hA G.vcpuPl E G.irqPl.extra, decGap_ept hA G.eptPl, decGap_ioPortControl C.toCdtHyps,
     decGap_ioPort hA E, scYieldGap_holds hA U, DG⟩
 
 /-- The placement facts and gaps of an admissible set tuple (`InvGaps4`'s
-kernel entry). -/
+kernel entry).
+**Contradictory** (p1g, P1/EntryVacuous): no `EntryInv` state satisfies it (its `P3Place`); not a
+specification of the kernel. -/
 def Hyps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (Adm : PSets → Prop)
     (Cs U : Set U64) (P3Ok : S → Prop) (σ : PSets) : Prop :=
   P3Place st ar σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z U P3Ok ∧ CdtHyps2 st σ.T Cs σ.Ω σ.H σ.Sg σ.Rp σ.Scs σ.Nt σ.Z P3Ok ∧
@@ -86,7 +89,10 @@ def Hyps4 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine
 (`handle_syscall_old` = `handle_syscall_general`, `handle_syscall_general_eq`),
 from `InvGaps4` and the placement facts of every admissible tuple
 (`Hyps4`); the entry ends over some admissible tuple (a retype grows the
-heap). -/
+heap).
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of4G {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
@@ -95,7 +101,7 @@ theorem kernel_entry.entry_of4G {A : Type _} {ar : machine.Arch A} {Adm : PSets 
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry_of3 hA (tmoXG_holds hA) (fun σ h' => by
+  kernel_entry.entry_of3 hA (tmoXG_holds hA) (ibKeep_holds hA) (fun σ h' => by
     obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, hNt⟩ := GF σ h'
     exact ⟨P, C, G.gaps3 hA h' C Pd Pt P.xfer, hNt⟩) hσ s a hP h
 
@@ -105,7 +111,10 @@ about the entry `handle_syscall`, which may take a fast path), from
 `hF` [P]: at the entry state the fast paths keep what the general path
 guarantees where they answer (`FastAcc`: only the runs where `fastpath.fault`
 or `fastpath.reply_recv` took the entry; a declined fast path is the general
-path, `syscall_decline`, FastDecline). -/
+path, `syscall_decline`, FastDecline).
+**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
+(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
+which has this conclusion from U29's premises. -/
 theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)

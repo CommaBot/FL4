@@ -80,6 +80,12 @@ theorem mkf_machineOpLift (f : MachineRestMonad Unit) : MKF (machineOpLift f) :=
   exact mkf_bind (mkf_gets _) fun _ => mkf_bind (mkf_selectF _) fun _ => mkf_bind (mkf_modify fun _ => rfl)
     fun _ => mkf_pure _
 
+/-- #68: the TD module's write of a frame changes the memory only. -/
+theorem mkf_tdxFrameWrite (b : Word) (n : Nat) : MKF (tdxFrameWrite b n) := by
+  unfold tdxFrameWrite
+  refine mkf_bind (mkf_gets _) fun _ => mkf_bind ?_ fun _ => mkf_modify fun _ => rfl
+  intro ms x hx; obtain ⟨-, h⟩ := hx; rw [h]
+
 end MKF
 
 theorem mfk_doMachineOp {α : Type} {mop : NonDet MachineState α} (hm : MKF mop) :
@@ -103,6 +109,7 @@ macro_rules | `(tactic| mfk_leaf) => `(tactic| fail "no mfk_leaf")
 macro_rules | `(tactic| mfk_leaf) => `(tactic| with_reducible exact mfk_doMachineOp (mkf_loadWord _))
 macro_rules | `(tactic| mfk_leaf) => `(tactic| with_reducible exact mfk_doMachineOp (mkf_storeWord _ _))
 macro_rules | `(tactic| mfk_leaf) => `(tactic| with_reducible exact mfk_doMachineOp (mkf_machineOpLift _))
+macro_rules | `(tactic| mfk_leaf) => `(tactic| with_reducible exact mfk_doMachineOp (mkf_tdxFrameWrite _ _))
 
 macro "mfk_auto" : tactic => `(tactic| repeat' (first | mfk_leaf | dk_step0))
 

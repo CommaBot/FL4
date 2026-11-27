@@ -173,17 +173,17 @@ theorem JPathAtM35.toM {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
 
 /-- **`JEntryGlobM32` from the top's [P] / [S] premises** (every field a
 duplicate, but `archRef` and `portIn`). -/
-theorem jEntryGlobM32_of {AR : A → Fl4Spec.Cr3 → Prop} (th : TypedHeap) (hARI : ARIface arI AR)
+theorem jEntryGlobM32_of {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} (th : TypedHeap) (hARI : ARIface arI AR)
     (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPA : PPPlatA arI AR) (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI) : JEntryGlobM32 arI AR th :=
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) : JEntryGlobM32 arI AR MR th :=
   ⟨hARI, hA, ⟨hRef, hARI.toARKeep, ⟨hmax, htu⟩⟩, hnd, hPA, ⟨hnd⟩, hPI, hT, hmax, htu⟩
 
 theorem KDispHypsKV35.to33 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}
     {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hG : JEntryGlobM32 arI AR Z.th) (h : KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c) :
+    (hG : JEntryGlobM32 arI AR MR Z.th) (h : KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c) :
     KDispHypsKV33 (L := L) arI AR MR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hI => let ⟨e, p, v⟩ := h.inv ct call bl don hct hI; ⟨hG, e, p.toM J, v⟩,
     fun ct rg sr cr hct hM => let ⟨e, p, v⟩ := h.mid ct rg sr cr hct hM; ⟨hG, e, p.toM J, v⟩⟩
@@ -214,7 +214,7 @@ open per-state bundles, KENTRY-PLAN g4a class (d)), the [P] bundle (with
 `hRef`, `hPI` from `JEntryGlobM32`), `hnd` [S], `hFast` [P]. -/
 theorem kernel_entryJ35 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hct : σ.curThread ≠ σ.idleThread)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
     (hR : MR a σ.machineState) (hX : SInvX σ)
     (n : I64) (c : Fl4Spec.Syscall)
     (hn : NativeSys n c)
@@ -235,7 +235,7 @@ theorem kernel_entryJ35 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
       FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostX (L := L) arI AR c σ r ⦄ := by
@@ -266,7 +266,7 @@ exit ([W]: the one carry `KPost` does not give, KENTRY-PLAN g4a T4). -/
 inductive JReach : S → A → Fl4Spec.State Unit → Prop
   | start {s : S} {a : A} {σ : Fl4Spec.State Unit} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       {Lst : U64 → List U64} {D : Set U64} :
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SInvX σ → MR a σ.machineState → JReach s a σ
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → SInvX σ → MR a σ.machineState → JReach s a σ
   | step {s : S} {a : A} {σ : Fl4Spec.State Unit} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (n : I64)
       (c : Fl4Spec.Syscall) :
       JReach s a σ → σ.curThread ≠ σ.idleThread → NativeSys n c →
@@ -281,9 +281,9 @@ carries `JAtZ` at some ghosts (with `live`, `zD`, `ext`), `SInvX` and `MR`. -/
 theorem jreach_inv (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (h : JReach (L := L) arI AR MR s a σ) :
     (∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) ∧ SInvX σ ∧ MR a σ.machineState := by
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ VxE Z) ∧ SInvX σ ∧ MR a σ.machineState := by
   induction h with
-  | @start s a σ Z H Cs Ac Lst D J hX hR => exact ⟨⟨_, _, _, _, _, _, J⟩, hX, hR⟩
+  | @start s a σ Z H Cs Ac Lst D J hvx hX hR => exact ⟨⟨_, _, _, _, _, _, J, hvx⟩, hX, hR⟩
   | @step s a σ s' a' σ' n c _ hct _ _ hy hRJ hM ih => exact ⟨hRJ.2, kentry_sinvX hnd c ih.2.1 hct _ hy, hM⟩
 
 set_option maxHeartbeats 4000000 in
@@ -301,7 +301,7 @@ theorem kernel_entry_reach [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) 
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReach (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ MR a σ.machineState ∧
@@ -321,7 +321,7 @@ theorem kernel_entry_reach [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) 
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧
           (MR r.2 σ'.machineState → JReach (L := L) arI AR MR r.1 r.2 σ') ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_inv hnd hJ
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_inv hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hFin hFast => ?_⟩
   have hE := kernel_entryJ35 (MR := MR) s a σ J hct hR hX n c hn hflag hK hFin hARI hA hnd hM hKD hPA hIA
     hmrt hmb hT hmax htu hRef hPI hFast

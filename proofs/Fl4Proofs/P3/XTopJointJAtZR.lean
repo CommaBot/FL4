@@ -92,7 +92,7 @@ structure JAtZR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   (`JAtZ.scCap`). -/
   hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   -- 1c: CSpace
   del : DelInv Z.th (L.mem s)
   ut : UtInv (L.mem s) Z.G
@@ -175,6 +175,8 @@ structure JAtZR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [carried] As `JAtZ.zD`. -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] As `JAtZ.carry`. -/
+  carry : JCarry (L := L) Z H Cs s σ
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -230,6 +232,7 @@ theorem JAtZ.toR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L :=
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ where
   xtop := J.xtop
@@ -282,6 +285,7 @@ theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L 
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -335,6 +339,7 @@ theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 
 /-- `JAtZ.liveX` at `JAtZR` (`liveDN_frame`). -/
@@ -373,7 +378,7 @@ structure JRestR (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List
   apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
   jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
     Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
   nsc : Sched.NSC Z.N Z.C σ

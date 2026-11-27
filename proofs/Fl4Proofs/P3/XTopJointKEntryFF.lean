@@ -36,6 +36,7 @@ import Fl4Proofs.P3.XTopJointKEntryRRF
 import Fl4Proofs.P3.XTopJointXferB
 import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P1.FastFaultEntU
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -61,10 +62,6 @@ theorem nb_of_code {ts : Fl4Spec.ThreadState} (h : NotIpcBlk ts) {w : U64} (hv :
     cases ts <;> simp [tsCode] at hv
     exact n1 _ rfl
 
-/-- The IPC-buffer words of the TCBs of `Z.T`. -/
-def BufU (Z : XSets) (σ : Fl4Spec.State Unit) : Set U64 :=
-  {b | ∃ y ∈ Z.T, ∃ xd, σ.kheap y.bv = some (.tcb xd) ∧ RcvBufW xd b}
-
 /-- The ASID-table and pool words. -/
 def VsU (Z : XSets) (kb : U64) : Set U64 := {b | VsWrite Z.P kb b}
 
@@ -77,19 +74,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {MR : A → Fl4Spec.MachineState → Prop}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
-
-theorem JAtZ.bufU_B {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {b : U64} (hb : b ∈ BufU Z σ) : ∃ wp ∈ Z.B, wp.1 = b := by
-  obtain ⟨y, hy, xd, hk, rp, hrp, i, hi, rfl⟩ := hb
-  obtain ⟨-, hBC, -⟩ := J.xferH
-  exact ⟨_, hBC y hy xd true rp hk hrp ⟨rp⟩ rfl i hi, rfl⟩
-
-theorem JAtZ.bufU_rbuf {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {b : U64} (hb : b ∈ BufU Z σ) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
-      (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧
-      b ∉ P1.Heap.frame H := by
-  obtain ⟨y, hy, xd, hk, hb'⟩ := hb
-  exact J.rbufU hy (J.thTcb hy) hk b hb'
 
 theorem JAtZ.vsU_place {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : b ∈ VsU Z (L.ksb s)) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
@@ -162,23 +146,6 @@ theorem JAtZ.bufU_out {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hwp, by rw [e], by rw [e]; omega⟩))))))
     exact J.xtop.fin.1.2.disj b hO (vsWrite_vobj J.xtop.fin.1.2.vs hv)
 
-/-- **Every TCB's receive buffer in `BufU`** (module docstring). -/
-theorem JAtZ.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {y : U64} (hy : y ∈ P1.Heap.tcbs H) :
-    msg.lookup_ipc_buffer st s true y ⦃ w => P1.BufOK (BufU Z σ) w ⦄ := by
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have hth : Z.th y = some .tcb := (hJ.tcb y).2 hy
-  have hyT := J.thT y hth
-  obtain ⟨xd, hk, hws⟩ := J.buf y hyT
-  refine WP.spec_mono (lookup_buf_full s σ J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.1 hth hk J.xferH.1 true) ?_
-  rintro w ⟨h0, hp⟩ hw0 i hi
-  cases hb : Endp.ipcBufOf true xd with
-  | none => exact absurd (h0.2 hb) hw0
-  | some p' =>
-    have e := hp hws p' hb
-    subst e
-    exact ⟨y, hyT, xd, hk, _, hb, i, hi, rfl⟩
-
 /-- **The current thread not blocked** where `CurInv` holds (module
 docstring). -/
 theorem JAtZ.curNb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
@@ -212,7 +179,7 @@ The dispatch state of the real run carries `JAtZ` (the prefix of
 `kernel_entryJ13PUN`): after the entry's own `NEXT_IP` read and `FAULT_IP`
 write and a passing `budget_ok`, `JAtZ` holds at the ghosts `Z.mv Z.G V0`, `H`,
 `Cs`, its spec state with the kheap of `faultIPSt σ`. -/
-theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -263,7 +230,7 @@ theorem JAtZ.fltDisp {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
 set_option maxHeartbeats 4000000 in
 /-- **`P1.FastFaultOK` at a `JAtZ` entry state** (module docstring): no
 premise beyond what `JReachE4` / `JReachU` carry. -/
-theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.fastFaultOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hni : Entered σ) (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
     (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
@@ -309,7 +276,7 @@ theorem kernel_entry_reachE5 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI) (hSX : P1.StoreExt st)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachE4 (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ MR a σ.machineState ∧
@@ -361,8 +328,8 @@ theorem kernel_entry_reachE5 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           JReachE4 (L := L) arI AR MR r.1 r.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachE4 (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachE4V (arI := arI) (AR := AR) (MR := MR) hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, hSys, hIrq, hUs, hVm, hTr, fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ
     (fun _ _ => offReady_faultIPSt hX.offReady) hARI hA hnd hM hmrt hmb hmax htu n) hFin
@@ -396,7 +363,7 @@ theorem kernel_entry_reachUH2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI) (hSX : P1.StoreExt st)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ SInvR.B8w.SInvW σ ∧ SInvIP σ ∧
@@ -449,8 +416,8 @@ theorem kernel_entry_reachUH2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
         syscall.handle_syscall st arI s a n ⦃ r => ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ (SpecUtZ σ' → JReachU (L := L) arI AR MR r.1 r.2 σ') ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachUH hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, hvx, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
+    kernel_entry_reachUHV hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu hRef hPI hSX hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hSys, hIrq, hUs, hVm, hTr,
     fun n hct hU hD hFin => ?_⟩
   exact hSU n hct hU hD (J.fastFaultOK (hX.entered hct) hR hX.sb hX.ctQ

@@ -299,7 +299,7 @@ same `J`'s `RInv`). -/
 theorem JAtZ.rrTailJ {σy : Fl4Spec.State Unit} {ct : U64} {x : Fl4Spec.Tcb} {ms : List Fl4Spec.Word}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a
       (MrS (Notif.updK σy ct.bv (.tcb (Notif.setReg x Fl4Spec.badge_register 0))) ct.bv
-        (Notif.setReg x Fl4Spec.badge_register 0) (Endp.ipcBufOf true x) ms))
+        (Notif.setReg x Fl4Spec.badge_register 0) (Endp.ipcBufOf true x) ms)) [VxE Z]
     (hct : ct ∈ Z.T) (hcur : ct.bv = σy.curThread) (hk : σy.kheap ct.bv = some (.tcb x))
     (hrs : x.tcbState = .restart) (hlen : ms.length ≤ Fl4Spec.msgMaxLength)
     (hfr : ∀ p, Endp.ipcBufOf true x = some p → ∀ z ∈ Endp.mrPairs ms,
@@ -338,7 +338,7 @@ theorem JAtZ.rrTailJ {σy : Fl4Spec.State Unit} {ct : U64} {x : Fl4Spec.Tcb} {ms
   rintro s5 ⟨⟨hI5, hst5, -⟩, Lst', D', J5⟩
   rw [WP.spec_ok]
   exact ⟨by rw [hst5]; exact run_ne_rst, _, by rw [specTail_data hk hrs ms hlen hfr]; exact Set.mem_singleton _,
-    J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+    J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **ReadRegisters' leaf at `J`** (IpcReadRegsJ's `readRegsXHypJ` with
@@ -349,7 +349,7 @@ set_option maxHeartbeats 64000000 in
 `JAtZ.bufWord`) and the message info and `Running` (`JAtZ.rrTailJ`); not
 called, `Running` (`JAtZ.runJ`, `XTop`'s facts by `nodata_tail_core`). -/
 theorem JAtZ.readRegsJ {s1 : S} {σ1 : Fl4Spec.State Unit} {ct p : U64} {blk call don : Bool}
-    (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a σ1)
+    (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a σ1) [VxE Z]
     (hns : ∀ u, σ1.schedulerAction = .switchThread u → False) (hidp : p.bv ≠ σ1.idleThread)
     (hcur1 : σ1.curThread = ct.bv) {x1 : Fl4Spec.Tcb} (hkc1 : σ1.kheap ct.bv = some (.tcb x1))
     (hrs1 : x1.tcbState = .restart) (hpne : p ≠ ct) (hpT : p ∈ Z.T) (flags n : U64) :
@@ -421,7 +421,7 @@ theorem JAtZ.readRegsJ {s1 : S} {σ1 : Fl4Spec.State Unit} {ct p : U64} {blk cal
     simp only [hrs] at hz
     rw [Endp.nd_when_false (by simp), Notif.nd_pure_bind', Notif.setThreadState_eq .running hky] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J5⟩
+    exact ⟨_, _, _, _, _, _, J5, inferInstance⟩
   -- called: the caller's buffer, the badge, the words, the message info and `Running`
   simp only [↓reduceIte]
   obtain ⟨x', hk', hwx⟩ := J2.buf ct hctT

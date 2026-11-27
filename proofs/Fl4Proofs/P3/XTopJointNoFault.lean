@@ -276,7 +276,7 @@ theorem JAtZ.stsCurJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : En
     J.deadP_sc_stepQ hX' hW hK (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hlk hfk hAI.1 hY' (hYK6.dk q.bv) (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2) hKd subset_rfl) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
@@ -301,7 +301,7 @@ theorem fhCap_rel {th : TypedHeap} {m : U64 → U64} {σ' : Fl4Spec.State Unit} 
 
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J`** (module docstring). -/
-theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hnull : capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok .Null)
     (f : error.Fault) (f' : Fl4Spec.Fault) :
@@ -348,7 +348,7 @@ theorem JAtZ.noFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : E
   rintro s6 ⟨Lst', J6⟩
   refine (WP.spec_ok _).2 ⟨_, by rw [hspec]; exact Set.mem_singleton _,
     ⟨Z.th, Z.G, J6.xtop.rel.1, J6.xtop.rel.2.1, J6.xtop.rel.2.2.1, J6.xtop.rel.2.2.2.1, J6.xtop.rel.2.2.2.2.1⟩,
-    ⟨Z, H, Cs, Ac, Lst', D, J6⟩⟩
+    ⟨Z, H, Cs, Ac, Lst', D, J6, inferInstance⟩⟩
 
 /-- **[W] The fault handler at `JAt` when the faulting thread's
 fault-handler slot holds an endpoint cap**: FL4's `set_fault` then the
@@ -370,7 +370,7 @@ theorem faultHypJ (s : S) (σ : Fl4Spec.State Unit) (hni : Entered σ) {ct : U64
     (f : error.Fault) (f' : Fl4Spec.Fault) (hep : FaultEpHypJ (L := L) (arI := arI) AR s σ ct f f') :
     FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct f f' := by
   intro a hJ
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := hJ
   obtain ⟨hcur, x, hk⟩ := J.curEq hct
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
   obtain ⟨x1, c1, hk1, hc1, hcr⟩ := fhCap_rel J.xtop.rel.2.1.1 htcb
@@ -381,7 +381,7 @@ theorem faultHypJ (s : S) (σ : Fl4Spec.State Unit) (hni : Entered σ) {ct : U64
   · subst hn
     exact J.noFaultJ hni hct (hnq hni.2) hc1 f f'
   · obtain ⟨e, b, x1, x2, x3, x4, rfl⟩ := vfh_ep hv hn
-    exact hep ⟨e, b, x1, x2, x3, x4, hc1⟩ a ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    exact hep ⟨e, b, x1, x2, x3, x4, hc1⟩ a ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 end
 

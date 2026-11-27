@@ -24,7 +24,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJS` with `MR` and `ValidIrqMasks` after (module docstring). -/
-theorem JHole.mcsPPJSM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJSM [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -67,13 +67,13 @@ theorem JHole.mcsPPJSM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     have hO := Hh.offOK_suff hT hC hni hsch hsufH
     obtain ⟨Lst', J'⟩ := Hh.toJ hO (Or.inl (curOwn_of_curInv hS Hh.inv hC))
     exact ⟨σ, fun y hy => mem_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy,
-      fun hy => fail_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, rfl, fun hN => hN⟩
+      fun hy => fail_pp_sched hsch (by rw [checkBudget_suff hnd hsuf']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J', inferInstance⟩, rfl, fun hN => hN⟩
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJC` with `MR` and `ValidIrqMasks` after (module docstring). -/
-theorem JHole.mcsPPJCM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJCM [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -127,14 +127,14 @@ theorem JHole.mcsPPJCM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
       rw [hs.consumed]; exact h1
     exact ⟨σ', fun y hy => mem_pp_charge hsch hga (by rw [h1']; rfl) hy,
-      fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, MachF.mfk_chargeBudget _ _ σ ((), σ') (by rw [h1']; rfl),
+      fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J', inferInstance⟩, MachF.mfk_chargeBudget _ _ σ ((), σ') (by rw [h1']; rfl),
         fun hN => SInv.ns_chargeBudget _ _ σ hN ((), σ') (by rw [h1']; rfl)⟩
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJU` with `MR` and `ValidIrqMasks` after (module docstring). -/
-theorem JHole.mcsPPJUM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JHole.mcsPPJUM [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -191,7 +191,7 @@ theorem JHole.mcsPPJUM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
       rw [hs.consumed]; exact h1
     exact ⟨σ', fun y hy => mem_pp_charge hsch hga (by rw [h1']; rfl) hy,
-      fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, MachF.mfk_chargeBudget _ _ σ ((), σ') (by rw [h1']; rfl),
+      fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, ⟨Z, H, Cs, Ac, Lst', D, J', inferInstance⟩, MachF.mfk_chargeBudget _ _ σ ((), σ') (by rw [h1']; rfl),
         fun hN => SInv.ns_chargeBudget _ _ σ hN ((), σ') (by rw [h1']; rfl)⟩
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
     fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩

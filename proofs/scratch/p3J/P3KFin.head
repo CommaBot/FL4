@@ -1,0 +1,25 @@
+/-
+P3 (line p3J, gen 10): **the old finish chain on the g7e scheduler chain** (hand part of the U41 → U42
+transport, P3KGen).
+
+U41's cone runs, besides G7eTail's `kfin_tail_of` (g7e chain, `RootFr`), the pre-g7e path
+`KFinAtR5 → KFinAtR31 → KFinAtR27 → KFinAtR` (records) → `jat_finishJRNM` / `jat_finishJRN` / `jat_finishJRP`
+→ `jat_scheduleSR2ZRP` / `jat_scheduleFR2ZR` → `jat_scheduleWP0FZR` → ScNextDomCFR's `schedule_refinesWP0FR`,
+which applies `ArchSwF`'s idle half at states without `IdleVt`. Here that path is moved onto the g7e chain:
+
+* `FinRootR arI AR σ` (`IdleVt σ` [J], `ArchRefines` [P], `ARKeep`), `FinRootI` (`FpuOwnOK σ` [J] with it).
+* Records `KFinAtR5I` / `KFinAtR31I` / `KFinAtR27I` (the originals with `arch : ArchSwF'` and a last field
+  `rr : FinRootR`), `KFinAtRI` (`arch : ArchSwF'`, `fo : FinRootI`). Conversions `KFinAtR8.to5I` (from the
+  transported `KFinAtR8` / `kfin_tail_of` of P3KGen1; `rr` from `KFinAtR8.idle` and the `hRef`/`hK` it is
+  given), `KFinAtR5I.to31I`, `KFinAtR31I.to27I`, `KFinAtR27I.toRI` (`fo := ⟨fo, rr⟩`).
+* **`jat_scheduleWP0FZRI`**: `jat_scheduleWP0FZR` with `hFO : FinRootI`, proved on the transported
+  `schedule_refinesWP0FRA` (G7eChain on `ArchSwF'`): the fire result pinned (`spec_exists`), `RootFr` by
+  `JAtZR.rootFr` at `IdleVt σ1` (`JAtZR.idleVt_fire`), the CR3 conjunct dropped. The non-g7e scheduler chain
+  (`schedule_refinesWP0FR`, `cn_*0F`, `scnt_refines0F`, `sw_refinesF`) leaves U41's cone.
+* `jat_scheduleFR2ZRI`, `jat_scheduleSR2ZRPI`, `jat_finishJRPI`, `jat_finishJRNI`, `jat_finishJRNMQI` (the
+  irqfix copy's statement: `MachPlatT`, `msF_mrT`): text copies (`scratch/p3J/genK2.py`) with `hA : ArchSwF'`
+  and `hFO : FinRootI`, the proofs passing them on unchanged.
+
+Named premises: those of the copied lemmas, plus the fields of `FinRootR` (`IdleVt` [J], `ArchRefines` [P],
+`ARKeep`), each supplied at `KFinAtR8.to5I` from premises its caller already has. No sorry.
+-/

@@ -14,7 +14,7 @@ noncomputable section
 
 /-- The caps whose finalisation does nothing, final or not. -/
 def TrivFin : capability.Cap → Prop
-  | .Untyped .. | .Domain | .IrqControl | .SchedControl _ | .AsidControl | .IoPortControl => True
+  | .Untyped .. | .Domain | .IrqControl | .SchedControl _ | .AsidControl | .IoPortControl | .TdxControl => True
   | _ => False
 
 theorem cap_cases (c : capability.Cap) (hc : c ≠ .Null) :
@@ -25,7 +25,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- What one finalisation of the cap `c` at `x` gives. -/
-def FinPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+def FinPost (W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) (c : capability.Cap)
     (r : (capability.Cap × capability.Cap) × S × A) : Prop :=
   ∃ σ1 G1, ((absCap r.1.1, absCap r.1.2), σ1) ∈
@@ -35,11 +35,11 @@ def FinPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
       (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
     CleanCap r.1.2 ∧ CapWf r.1.2 ∧ (isZb c = true → r.1.1 = c) ∧
     (r.1.1 = .Null ∨ ∃ p zt n, r.1.1 = .Zombie p zt n ∧ ZCond th (L.mem r.2.1) G1 x p zt n) ∧
-    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x)
+    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ WF W Wx r.1.1 x r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x)
 
 /-- `FinPost` with `Rz` at `x` after, when `c` is a thread cap and the
 remainder a zombie. -/
-def FinPostZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+def FinPostZ (W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) (c : capability.Cap)
     (r : (capability.Cap × capability.Cap) × S × A) : Prop :=
   ∃ σ1 G1, ((absCap r.1.1, absCap r.1.2), σ1) ∈
@@ -49,15 +49,15 @@ def FinPostZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
       (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
     CleanCap r.1.2 ∧ CapWf r.1.2 ∧ (isZb c = true → r.1.1 = c) ∧
     (r.1.1 = .Null ∨ ∃ p zt n, r.1.1 = .Zombie p zt n ∧ ZCond th (L.mem r.2.1) G1 x p zt n) ∧
-    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x) ∧
+    MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ WF W Wx r.1.1 x r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x) ∧
     (∀ q, c = .Thread q → ∀ p zt n, r.1.1 = .Zombie p zt n → Rz r.2.1 r.2.2 σ1 G1 x) ∧
     (isZb c = false → ∀ p zt n, r.1.1 = .Zombie p zt n → (∀ i, IsSlotAt th p i → i < n.val) ∧
       ((∃ q, c = .Thread q) ∨ ∃ q r gs g, c = .CNode q r gs g))
 
-theorem FinPostZ.fp {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+theorem FinPostZ.fp {W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
     {G : MdbGhost} {x : U64} {c : capability.Cap} {r : (capability.Cap × capability.Cap) × S × A}
-    (h : FinPostZ (L := L) W Rd Rz th s σ G x c r) : FinPost (L := L) W Rd th s σ G x c r := by
+    (h : FinPostZ (L := L) W Wx Rd Rz th s σ G x c r) : FinPost (L := L) W Wx Rd th s σ G x c r := by
   obtain ⟨σ1, G1, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, -, -⟩ := h
   exact ⟨σ1, G1, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
 
@@ -85,15 +85,16 @@ theorem finRem_zombie {c : capability.Cap} {b : Bool} {p zt n : U64} (h : finRem
   cases c <;> simp only [finRem] at h <;> try cases h
   case Thread t => split_ifs at h <;> cases h <;> exact ⟨rfl, rfl⟩
 
-theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
-    (hO : FinObjHypWRcZ (L := L) arI W Rd Rz th) (hRT : RdTrivHyp (L := L) W Rd th) (hF : FinalHyp (L := L) th)
+    (hO : FinObjHypWRcZ (L := L) arI W Wx Rd Rz th) (hwx : ∀ s a σ G, W s a σ G → Wx s a σ G) (hRT : RdTrivHyp (L := L) W Rd th) (hF : FinalHyp (L := L) th)
     (hP : Placed th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl)
     {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null)
     (b : Bool) (hb : NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) :
     objects.finalise_cap st arI s a c b false ⦃ r =>
-      FinPostZ (L := L) W Rd Rz th s σ G (cslotAddr sl) c r ⦄ := by
+      FinPostZ (L := L) W Wx Rd Rz th s σ G (cslotAddr sl) c r ⦄ := by
+  have hWF : ∀ {rem : capability.Cap} {x : U64}, WF W Wx rem x s a σ G := WF.of (hwx s a σ G) hW
   have hRd := hRT s a σ G sl c hDS hW hA hc hcn
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
   have hcvx := capV_of_capAt hc
@@ -106,7 +107,7 @@ theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Un
   rcases cap_cases c hcn with ht | ⟨p, r, gs, g, rfl⟩ | ⟨p, zt, n, rfl⟩ | ho
   · rw [finalise_triv arI s a c b ht, WP.spec_ok]
     refine ⟨σ, G, mem_single (finaliseCap_trivF σ c _ ht), ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame,
-      trivial, trivial, fun h => ?_, Or.inl rfl, MdbStep.refl hM, hW, fun _ => hRd ?_ ?_ ?_,
+      trivial, trivial, fun h => ?_, Or.inl rfl, MdbStep.refl hM, hWF, fun _ => hRd ?_ ?_ ?_,
       fun q e => (by subst e; simp [TrivFin] at ht), fun _ _ _ _ e => by cases e⟩
     · cases c <;> simp [TrivFin] at ht <;> simp [isZb] at h
     · cases c <;> simp [TrivFin] at ht <;> simp [FinObjKind]
@@ -124,7 +125,7 @@ theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Un
         simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte, lift, hz, uncurry_apply_pair]
       rw [e, WP.spec_ok]
       refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
-        Or.inr ⟨p, r, z, rfl, cnode_zcond hR hP hM hA hc hfin hcvp hr hen.1 z hzv⟩, MdbStep.refl hM, hW,
+        Or.inr ⟨p, r, z, rfl, cnode_zcond hR hP hM hA hc hfin hcvp hr hen.1 z hzv⟩, MdbStep.refl hM, hWF,
         fun hrm => hRd (by simp [FinObjKind]) (fun p' r' gs' g' e _ => by
           cases e
           rcases hrm with e0 | ⟨p1, zt1, n1, e1, h1⟩
@@ -151,7 +152,7 @@ theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Un
         simp [objects.finalise_cap, objects.finalise_cap_object]
       rw [e, WP.spec_ok]
       refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun h => by simp [isZb] at h,
-        Or.inl rfl, MdbStep.refl hM, hW,
+        Or.inl rfl, MdbStep.refl hM, hWF,
         fun _ => hRd (by simp [FinObjKind]) (fun _ _ _ _ e hf => absurd (e ▸ hf) hfin) (fun _ _ _ e => by cases e),
         fun _ e => (by cases e), fun _ _ _ _ e => by cases e⟩
       rw [decide_eq_false hfin]
@@ -164,7 +165,7 @@ theorem fin_stepZ [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Un
       simp [objects.finalise_cap, objects.finalise_cap_object]
     rw [e, WP.spec_ok]
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, hcvx, hsame, trivial, trivial, fun _ => rfl,
-      Or.inr ⟨p, zt, n, rfl, ?_⟩, MdbStep.refl hM, hW,
+      Or.inr ⟨p, zt, n, rfl, ?_⟩, MdbStep.refl hM, hWF,
       fun hrm => hRd (by simp [FinObjKind]) (fun _ _ _ _ e => by cases e) (fun p' zt' n' e => by
         cases e
         rcases hrm with e0 | ⟨p1, zt1, n1, e1, h1⟩
@@ -220,8 +221,8 @@ theorem fin_step [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Uni
     {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null)
     (b : Bool) (hb : NeedsFin c → b = decide (Fl4Spec.isFinalCap' (absCap c) σ)) :
     objects.finalise_cap st arI s a c b false ⦃ r =>
-      FinPost (L := L) W Rd th s σ G (cslotAddr sl) c r ⦄ :=
-  WP.spec_mono (fin_stepZ arI W Rd RzT th (hO.z arI) hRT hF hP s a σ G hDS hW hA hc hcn b hb) (fun _ h => h.fp)
+      FinPost (L := L) W W Rd th s σ G (cslotAddr sl) c r ⦄ :=
+  WP.spec_mono (fin_stepZ arI W W Rd RzT th (hO.z arI) (fun _ _ _ _ h => h) hRT hF hP s a σ G hDS hW hA hc hcn b hb) (fun _ h => h.fp)
 
 end
 

@@ -30,6 +30,7 @@ the window's `sc` objects) and the dead set without the new objects.
   block, the node (`JCovD.ks`) and the idle SC (`JCovD.idleOut`); its words
   are zero (`WinZero`).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtReplyAdd
 import Fl4Proofs.P3.UtScAdd
 import Fl4Proofs.P3.UtBodyJ
@@ -88,10 +89,12 @@ theorem JAtZ.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hS' : Sched.SchedRel st Z.N Z.T C' Z.c s' σ')
     (hct : σ'.curThread = σ.curThread) (hcsc : σ'.curSc = σ.curSc)
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
-    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hgp : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat))
     (hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao))
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    JKern (L := L) H Cs D' Z.th s' σ' := by
+    JKern (L := L) arI H Cs D' Z.th s' σ' := by
+  have hpl : σ'.archState.x64Plat = σ.archState.x64Plat := congrArg Prod.snd hgp
+  replace hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := congrArg Prod.fst hgp
   have K := J.kern
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -114,7 +117,7 @@ theorem JAtZ.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.csN, K.tdx.frame hpl⟩
   rw [hna, hDbg]; exact K.head
 
 /-- ScJointRest's `JAtZ.idleW_keep` with the scheduler relation after at any
@@ -326,7 +329,7 @@ from the state itself (after the restart, or after the restart and the
 reset), the arguments' `RetCtx` there (any `reset` flag, `fiv = fi`),
 `Entered`, and the kept references to a range of the cap's free part (`hRU`),
 FL4's `untyped::retype` without a reset ends in `UtBodyPost`. -/
-theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -645,6 +648,9 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hgp' : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcnk.1
     exact e.trans (congrArg (fun a => a.x64GlobalPml4) hA.arch)
+  have hgpP : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat) := by
+    have e := congrArg (fun z => (z.archState.x64GlobalPml4, z.archState.x64Plat)) hcnk.1
+    exact e.trans (congrArg (fun a => (a.x64GlobalPml4, a.x64Plat)) hA.arch)
   have hao : ∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao) := fun q ao h => by
     have hB := hA.kold h
     rcases hkc q with e | ⟨r0, cs, cs', e1, -⟩
@@ -732,7 +738,7 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hwI.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have K1 := J.kern_keepC (D' := {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q}) hwI.1 hwI.2.1
-    hX'.fin.1.1.1 (hC2.ct.trans hctB) (hC2.csc.trans hcscB) horig hgp' hao hDbg
+    hX'.fin.1.1.1 (hC2.ct.trans hctB) (hC2.csc.trans hcscB) horig hgpP hao hDbg
   have hRD := (retype_window_dead J.jcov J.ut hI hE ⟨p, sb, fiv, capV_of_capAt hcap⟩).1
   have hoffD : ∀ q kd, H q = some kd → q ∉ D → H' q = some kd := fun q kd hq hqD =>
     hout_old hout0 rfl rfl hE.k1 hq (by
@@ -901,7 +907,7 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       rcases hb1 _ e1 with h1 | ⟨_, -, -, he⟩
       · exact Or.inr (Or.inl ⟨r0, cs, cs', h1, rfl⟩)
       · cases he
-  have harch1 : ArchFitHyp H σ := hAF
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
   have hK5 : newKind nt.val us.val = some (.sc us.val) := by simp [newKind, hnt]
   have hout' := hout0
   rw [hK5] at hout'
@@ -967,15 +973,36 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hAF' : ArchFitHyp H' σ' := fun o ao n ho hH => by
+    rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨q, -, -, e⟩
+    · rcases hout_back hout' hH with ⟨-, hK⟩ | hH0
+      · cases hK
+      · exact J.carry.archFit o ao n e hH0
+    · cases e
+    · cases e
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have hTB : TabBack σ σ' := fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩
+    · exact ⟨ao', h, hv⟩
+    · cases e
+    · cases e
+  -- (F1 stage 5, item 4) `vsNamed` after: no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hX'.fin.2.1 hX'.fin.2.2.1 hks hE hM hX'.rel.2.1.2.2.1
+    (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.VKey]) hAS hcnk hkc
   have JZ := J.add_frameC (Z' := { Z with G := G', C := Z.C ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hW0 rfl hwI.1 hX' hCs hJR (by rw [hwI.1]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hwI.1]; exact J.nk n hn) hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
+      hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout0 fun kd h => by rw [newKind_bits h]))
+      (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTB.new _ _)) hvnR)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', LstC Z.C Lst, _, JZ⟩
+    exact ⟨_, H', Cs, Ac', LstC Z.C Lst, _, JZ, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of SCs at `J`** (module docstring; one core,
@@ -984,7 +1011,7 @@ reschedule pending), the decoded arguments (`RetCtx`, no reset: the source
 cap has a child), the source a CNode slot's RAM untyped cap, FL4's restart
 and `untyped::retype` of SCs end in `UtRetPostJ` (done, `JAt` after at the
 sets with `C` grown by the window's SCs). -/
-theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))

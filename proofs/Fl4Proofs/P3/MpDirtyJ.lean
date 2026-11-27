@@ -161,7 +161,7 @@ VsThX's `domFrame_asid_control`). Premises: `ArchFitHyp` and
 restart's state for a childless pool-sized RAM untyped's region, at the
 tables the slots' caps ask (`Vs.NeedR`, as `JUtPath.vsReach`). -/
 theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
@@ -208,6 +208,7 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
       ∀ (pd : U64) (rd : Nat) (idxd : List Bool), Z.th pd = some (.cnode rd) → idxd.length = rd →
       capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null → CnRef Z.th (L.mem s) rc pd →
       ∀ (i base : U64), i.val < 2048 → base.val = i.val * 512 →
+      σ.archState.x64AsidTable (Fl4Spec.ucast 11 i.bv) = none →
       (do
         let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
         let i1 ← lift (sb &&& 63#u64)
@@ -228,7 +229,7 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
     rcases hext.2 with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
     · exact Or.inl h
     refine Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, ?_⟩
-    intro p sb fi hsb hcap hnch pd rd idxd hpd hld hnull hCn i base hi hbase
+    intro p sb fi hsb hcap hnch pd rd idxd hpd hld hnull hCn i base hi hbase hfree
     subst hsb
     have hpp := h1
     have hidx := h2
@@ -330,11 +331,12 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
     rw [hs1]; simp only [bind_ok]
     refine WP.spec_mono (mp_perform_relB (L := L) vsMpHyps_top s1 ar σd Zd.G hPld hCRd.1 hCRd.2.1 hCRd.2.2.1
       hCRd.2.2.2.1 hCRd.2.2.2.2 Jd.ut Jd.xtop.fin.2.1 Jd.xtop.fin.2.2.1 Jd.xtop.fin.1 Jd.xtop.fin.1.2.vs
-      Jd.xtop.fin.1.2.pt hppd hidx rfl hcap1 hnchd hpdd hld hnull1 hi hbase hRg hRO Jd.xtop.fin.1.2.vo
+      Jd.xtop.fin.1.2.pt hppd hidx rfl hcap1 hnchd hpdd hld hnull1 hi hbase
+      (by show σ1.archState.x64AsidTable _ = none; rw [he1]; unfold Notif.stsAct; split_ifs <;> exact hfree) hRg hRO Jd.xtop.fin.1.2.vo
       Jd.xtop.fin.1.2.po Jd.xtop.fin.1.2.pv hFId hMOd.1.1 (rc := rc)) ?_
     rintro res ⟨hok, har, σ', th', G', hm, hnf, hP', hSt', hSV', hM', hC', hI', hU', hR', hPt', hSRq, hF', -, -, hMS, -,
       hcur', hth', hk', hsc, hRg', hxu, hPI', hMid⟩
-    obtain ⟨hi', hh, hks1, hcpu1', hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst, hdstb, hcap', hDI, -, -⟩ := hMid
+    obtain ⟨hi', hh, hks1, hcpu1', hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst, hdstb, hbhi, hat0, hat, hcap', hDI, -, -⟩ := hMid
     have hTh := hE.1
     have hrt := restrictTh_clean hTh
     rw [hrt] at hth'
@@ -394,12 +396,12 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
       exact ⟨y', r, gs, g, isSlot_restrict_off hPl hN hy' (by rw [h2sb]; exact hns y' hy'G),
         by rw [hSS1.capV hy']; exact hc⟩
     exact ⟨_, _, Cs, Ac1, Lst1, D1, Jd.mpStepJ hh hTh hE.2.1 Ad hspecd hppd hidx hcap1 hnchd hpdd hld hnull1 hDLd hX'
-      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hRg.p0 hcap' (hDI Jd.del) hU'⟩
+      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hRg.p0 hcap' (hDI Jd.del) hU', inferInstance⟩
   have hD := decode_invocation_asid_controlXP arI Z.th hPl s ar σ Z.G hCR hFI J.ut hMO vsMpHyps_top hX.fin.1
     hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.vs hX.fin.1.2.pt hX.fin.1.2.vo hX.fin.1.2.po hX.fin.1.2.pv lbl slbl hlM length
     buf ct hct hcur htcb J.kern.act hrun args hlen hargs extra excaps (Q := fun s' => P1.WritesIn st s s' W)
     (X := fun s' a' σ' => DomRel (L.mem s') (L.ksb s') σ' → JAt (L := L) arI AR s' a' σ') hext'
-    (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J⟩) slot blk call don fp ci sl buffer
+    (fun _ => ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩) slot blk call don fp ci sl buffer
   -- the domain schedule (VsThX's `domFrame_asid_control`)
   have hS := hX.fin.1
   have hF : DomFrame (L := L) arI s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl

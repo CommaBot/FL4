@@ -30,6 +30,7 @@ import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.BufAtJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -44,7 +45,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- A machine-state-only spec step is an `ArFr` step. -/
 theorem arFr_setUm (σ : Fl4Spec.State Unit) (um : Fl4Spec.Word → Fl4Spec.Word8) : ArFr σ (Endp.setUm σ um) :=
-  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 open Fl4Proofs.P1 in
 set_option maxHeartbeats 16000000 in
@@ -204,12 +205,6 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s1 σ1 :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc).2⟩
   have hkern := J.kern_keepA hkb hcpu hX1.fin.1.1.1 F hDbg
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ1 :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
-      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
-      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
-      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb => by
     subst hb
     refine J.notDbg (fun t ht => ?_) (fun c hc => ?_)
@@ -217,129 +212,28 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · left; omega
       · right; simpa [P1.HKind.bits] using e
     · rcases J.nodeB wp hwB c (J.kern.csLt c hc) with e | e <;> omega
-  exact J.cs_frameK hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  have hTd : Sched.TdKeep (L := L) H s s1 := fun q hq =>
+    tcbK q (J.tcbZ hq) _ (P1.field_aligned (hT q (J.tcbZ hq)) (K := 3528#u64) (by simp) (by simp))
+      (by rw [J.tdA_val' (J.tcbZ hq)]; omega) (by rw [J.tdA_val' (J.tcbZ hq)]; omega)
+  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ1 :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
+      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc)
+        (DXKeep.of_dbg hKd hTd), hkern,
+      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
+      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.of_keep rfl fun _ _ _ => rfl)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
     hSS hKd F.idle
 
-/-- **The IPC-buffer word `k` lies in the buffer's frame** (as IpcBuf's
-`buf_frame_base`, by value): at least the frame's base, its last byte below
-the frame's end, the frame not wrapping. -/
-theorem buf_frame_rng (vms : Fl4Spec.VMPageSize) (pb tb : BitVec 64) (k : Nat) (hk : k < 128)
-    (hpb : pb.toNat % 2 ^ Fl4Spec.pageBitsForSize vms = 0) (htb : tb.toNat % 1024 = 0) :
-    pb.toNat ≤ (Endp.bufAddr (pb + (tb &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat ∧
-      (Endp.bufAddr (pb + (tb &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat + 8 ≤
-        pb.toNat + 2 ^ Fl4Spec.pageBitsForSize vms ∧
-      pb.toNat + 2 ^ Fl4Spec.pageBitsForSize vms ≤ 2 ^ 64 := by
-  have hm := Endp.pageBits_mem vms
-  set b := Fl4Spec.pageBitsForSize vms with hbdef
-  have hb : 12 ≤ b ∧ b ≤ 30 := by simp at hm; omega
-  have h2b : 1024 ∣ 2 ^ b := by
-    have : 2 ^ 10 ∣ 2 ^ b := Nat.pow_dvd_pow 2 (by omega)
-    simpa using this
-  have hpos : 0 < 2 ^ b := by positivity
-  have hpbL := pb.isLt
-  have htbL := tb.isLt
-  have hoff := Endp.mask_toNat' b hm tb
-  have hoff1 : tb.toNat % 2 ^ b % 1024 = 0 := by
-    rw [Nat.mod_mod_of_dvd _ h2b]; exact htb
-  have hoff2 : tb.toNat % 2 ^ b < 2 ^ b := Nat.mod_lt _ hpos
-  have hb64 : 2 ^ b ∣ 2 ^ 64 := Nat.pow_dvd_pow 2 (by omega)
-  have hpbm : pb.toNat + 2 ^ b ≤ 2 ^ 64 := by
-    obtain ⟨a, ha⟩ := Nat.dvd_of_mod_eq_zero hpb
-    obtain ⟨c, hc⟩ := hb64
-    have : a < c := by
-      by_contra h; push_neg at h
-      have := Nat.mul_le_mul_left (2 ^ b) h; omega
-    have := Nat.mul_le_mul_left (2 ^ b) (Nat.succ_le_of_lt this)
-    rw [Nat.mul_succ] at this; omega
-  unfold Endp.bufAddr
-  rw [BitVec.toNat_add, BitVec.toNat_add, hoff, BitVec.toNat_ofNat]
-  have hk8 : k * Fl4Spec.wordSize % 2 ^ 64 = k * 8 := by
-    simp only [Fl4Spec.wordSize]; omega
-  rw [hk8]
-  have h1 : (pb.toNat + tb.toNat % 2 ^ b) % 2 ^ 64 = pb.toNat + tb.toNat % 2 ^ b := Nat.mod_eq_of_lt (by omega)
-  rw [h1]
-  have h3 : tb.toNat % 2 ^ b + k * 8 + 8 ≤ 2 ^ b := by
-    have : tb.toNat % 2 ^ b ≤ 2 ^ b - 1024 := by
-      obtain ⟨q, hq⟩ := h2b
-      omega
-    omega
-  rw [Nat.mod_eq_of_lt (by omega)]
-  omega
-
 set_option maxHeartbeats 8000000 in
-/-- **A word of a TCB's IPC buffer at `J`** (for `JAtZ.userWrJ`): apart from
-every non-`other` object of `H` (the TCB's IPC-frame slot holds a frame cap,
-`StateRel.bufCap`, whose range meets no such object, `JPlaced.cobj`'s
-`FrApartH`) and inside a spec object (the frame's data page, `IpcBufCapOK`). -/
+/-- **A word of a TCB's receive buffer at `J`** (`JAtZ.bufWordG` for the
+receiver's lookup; lcv generalised it over the receiver flag). -/
 theorem JAtZ.bufWord (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
     (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {q : Fl4Spec.ObjRef}
     (hq : Endp.ipcBufOf true x = some q) (k : Nat) (hk128 : k < 128) {b : U64} (hb : b.bv = Endp.bufAddr q k) :
     (∀ p k', H p = some k' → (∀ z, k' ≠ .other z) → b.val + 8 ≤ p.val ∨ p.val + 2 ^ k'.bits ≤ b.val) ∧
-      ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ b.val ∧ b.val < o.toNat + 2 ^ Fl4Spec.objBits ko := by
-  have hbv : b.val = (Endp.bufAddr q k).toNat := by rw [← hb]; rfl
-  unfold Endp.ipcBufOf at hq
-  split at hq
-  · rename_i dev pb R mt vms md he
-    split_ifs at hq with hc
-    cases hq
-    have hro : Fl4Spec.vmReadOnly ⊆ R := by
-      rcases hc with h | ⟨h, -⟩
-      · exact fun z hz => h (by unfold Fl4Spec.vmReadOnly Fl4Spec.vmReadWrite at *; simp at hz ⊢; simp [hz])
-      · exact h
-    obtain ⟨-, -, hd, ha, hpa⟩ := hOK t.bv x hk dev pb R mt vms md he hro
-    obtain ⟨r1, r2, r3⟩ := buf_frame_rng vms pb x.tcbIpcBuffer k hk128 hpa ha
-    rw [← hbv] at r1 r2
-    refine ⟨?_, ?_⟩
-    swap
-    · obtain ⟨sz', hsz'⟩ := hd k hk128
-      have hn := Endp.and_not_mask_toNat (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
-        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k) _ (Endp.pageBits_mem sz')
-      have hpos : 0 < 2 ^ Fl4Spec.pageBitsForSize sz' := by positivity
-      have hlo := Nat.div_mul_le_self (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
-        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat (2 ^ Fl4Spec.pageBitsForSize sz')
-      have hhi := Nat.lt_div_mul_add (a := (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
-        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat) hpos
-      refine ⟨_, _, hsz', ?_, ?_⟩
-      · rw [hn, hbv]; exact hlo
-      · show b.val < _ + 2 ^ Fl4Spec.pageBitsForSize sz'
-        rw [hn, hbv]; exact hhi
-    intro p k' hp hk'
-    obtain ⟨x', c, hkx, hcap, hcr⟩ := J.xtop.rel.2.1.1.bufCap ht
-    rw [hk] at hkx; cases hkx
-    rw [he] at hcr
-    obtain ⟨-, h2⟩ := hcr
-    cases c <;> try (simp [absCap] at h2; done)
-    case Frame p0 sz r0 d0 m0 ep0 as0 va0 =>
-      simp only [absCap] at h2
-      injection h2 with h2
-      injection h2 with _ hp0 _ _ hsz _
-      have hsl : IsSlot Z.th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩
-      obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-      have hcv : capV (L.mem s) (slotOf t 2) = .Frame p0 sz r0 d0 m0 ep0 as0 va0 := capV_of_capAt hcap
-      have hFA : Sched.FrApartH H (.Frame p0 sz r0 d0 m0 ep0 as0 va0) := by
-        have := hJ.cobj _ hsl; rw [hcv] at this; exact this
-      obtain ⟨bs, ts⟩ := frame_range p0 sz r0 d0 m0 as0 va0 ep0
-      have hm := Endp.pageBits_mem vms
-      have hbits : (fbitsF sz).val = Fl4Spec.pageBitsForSize vms := by rw [fbitsF_val, hsz]
-      have hmk : (maskF (fbitsF sz)).val = 2 ^ Fl4Spec.pageBitsForSize vms - 1 := by
-        rw [maskF_val (by rw [hbits]; simp at hm; omega), hbits]
-      have hpv : p0.val = pb.toNat := by rw [← hp0]; rfl
-      have hpos : 0 < 2 ^ Fl4Spec.pageBitsForSize vms := by positivity
-      have htop : topF (.Frame p0 sz r0 d0 m0 ep0 as0 va0) = p0.val + 2 ^ Fl4Spec.pageBitsForSize vms - 1 := by
-        rw [ts]
-        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hmk]
-        omega
-      rcases hFA p k' hp hk' with e | e
-      · rw [bs] at e; right; omega
-      · rw [htop] at e; left; omega
-  · cases hq
-
-/-- FL4's buffer word `i` at the spec's buffer address (both wrapping). -/
-theorem fl4BufA_bv (w i : U64) : (Endp.fl4BufA w i).bv = Endp.bufAddr w.bv i.val := by
-  apply BitVec.eq_of_toNat_eq
-  simp only [Endp.fl4BufA, Endp.bufAddr, UScalar.bv_toNat, core.num.U64.wrapping_add_val_eq,
-    core.num.U64.wrapping_mul_val_eq, BitVec.toNat_add, BitVec.toNat_ofNat, Fl4Spec.wordSize]
-  simp [U64.size_def, U64.numBits]
+      ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ b.val ∧ b.val < o.toNat + 2 ^ Fl4Spec.objBits ko :=
+  J.bufWordG hOK ht hk hq k hk128 hb
 
 theorem mrIdx_ne_badge (k : Nat) : Endp.mrIdx k ≠ Fl4Spec.badge_register := fun e =>
   badge_not_mr (e ▸ Endp.mrIdx_mem k)
@@ -431,7 +325,7 @@ set_option maxHeartbeats 16000000 in
 `ms` (the caller `Restart`), `JAt` at the spec's success tail with data
 (`specTail_data`). -/
 theorem JAtZ.replyTailJ {σ0 : Fl4Spec.State Unit} {ct : U64} {x0 : Fl4Spec.Tcb} {ms : List Fl4Spec.Word}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a (MrS σ0 ct.bv x0 (Endp.ipcBufOf true x0) ms))
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a (MrS σ0 ct.bv x0 (Endp.ipcBufOf true x0) ms)) [VxE Z]
     (hct : ct ∈ Z.T) (hk0 : σ0.kheap ct.bv = some (.tcb x0)) (hrs : x0.tcbState = .restart)
     (hlen : ms.length ≤ Fl4Spec.msgMaxLength)
     (hfr : ∀ p, Endp.ipcBufOf true x0 = some p → ∀ z ∈ Endp.mrPairs ms,
@@ -451,7 +345,7 @@ theorem JAtZ.replyTailJ {σ0 : Fl4Spec.State Unit} {ct : U64} {x0 : Fl4Spec.Tcb}
     rintro s5 ⟨Lst', D', J5⟩ z hz
     rw [specTail_data hk0 hrs ms hlen hfr] at hz
     rw [Set.mem_singleton_iff.1 hz]
-    exact ⟨_, _, _, _, _, _, J5⟩
+    exact ⟨_, _, _, _, _, _, J5, inferInstance⟩
   unfold tcb.reply_words
   refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec s ct layout.reg.BADGE 0#u64) ?_
   rintro s1 rfl

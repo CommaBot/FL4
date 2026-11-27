@@ -689,11 +689,14 @@ theorem tcb.decode_bind_notification.dec {A : Type _} {s s1 : S} {a1 : A} {t len
     exact (WP.spec_ok _).2 (Cur0.post c1)
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
   obtain ⟨hxm, hx0⟩ := hx x rfl
-  refine WP.spec_bind (obj.Tcb.bound_ntfn.val s1 t) fun i _ => ?_
+  refine WP.spec_bind (obj.Tcb.bound_ntfn.val s1 t) fun i ei => ?_
   split
   · simp only [error.illegal, bind_ok]
     exact (WP.spec_ok _).2 (Cur0.post c1)
-  refine WP.spec_bind (Pₘ := fun r : core.result.Result obj.Ntfn error.Exc => ∀ n, r = .Ok n → n ∈ Nt) ?_ ?_
+  rename_i hi
+  have hb0 : L.mem s1 (boundA t) = 0#u64 := by rw [← ei]; exact UScalar.eq_of_val_eq (by simpa using hi)
+  refine WP.spec_bind (Pₘ := fun r : core.result.Result obj.Ntfn error.Exc =>
+    ∀ n, r = .Ok n → n ∈ Nt ∧ L.mem s1 (ntfnBtA n) = 0#u64) ?_ ?_
   · unfold tcb.bindable_ntfn
     refine WP.spec_bind (D.extra s1 h1.node x hxm hx0) fun c hc => ?_
     cases c <;> dsimp only
@@ -704,10 +707,11 @@ theorem tcb.decode_bind_notification.dec {A : Type _} {s s1 : S} {a1 : A} {t len
     · refine WP.spec_bind (P0.obj.Ntfn.head.p0 st n s1 hS) fun _ _ => ?_
       split
       · simp [error.illegal, WP.spec_ok]
-      · refine WP.spec_bind (P0.obj.Ntfn.bound_tcb.p0 st n s1 hS) fun _ _ => ?_
+      · refine WP.spec_bind (obj.Ntfn.bound_tcb.val s1 n) fun j ej => ?_
         split
         · simp [error.illegal, WP.spec_ok]
-        · exact (WP.spec_ok _).2 fun n' e => by cases e; exact hn
+        · rename_i hj
+          exact (WP.spec_ok _).2 fun n' e => by cases e; exact ⟨hn, by rw [← ej]; exact UScalar.eq_of_val_eq (by simpa using hj)⟩
     · simp [error.illegal, WP.spec_ok]
   rintro r hr
   rcases r with n | e
@@ -717,8 +721,9 @@ theorem tcb.decode_bind_notification.dec {A : Type _} {s s1 : S} {a1 : A} {t len
       bind_tc_ok]
     exact (WP.spec_ok _).2 (Cur0.post c1)
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-  refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, _⟩ => ?_
-  refine WP.spec_bind (notification.bind_notification.blk s2 t n h2 ht (hr n rfl)) fun s3 h3 => ?_
+  refine WP.spec_bind (h1.restart D) fun s2 ⟨h2, _, _, k⟩ => ?_
+  refine WP.spec_bind (notification.bind_notification.blk s2 t n h2 ht (hr n rfl).1
+    (by rw [k.bndf ht]; exact hb0) (by rw [k.ntb _ (hr n rfl).1]; exact (hr n rfl).2)) fun s3 h3 => ?_
   exact (WP.spec_ok _).2 (DecPost.ok_bxi (BlkOK.bxi h3))
 
 theorem debug.check_bp_num.lt (bp : U64) :

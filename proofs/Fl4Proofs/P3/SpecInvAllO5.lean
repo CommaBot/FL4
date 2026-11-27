@@ -1,5 +1,6 @@
 /- g1c: OnlyIdle frame lemmas, part 5 (generated; see SpecInvAllO1). -/
 import Fl4Proofs.P3.SpecInvAllO4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvAll
@@ -286,6 +287,15 @@ macro_rules | `(tactic| oi_leaf) => `(tactic| with_reducible exact oi_performPml
 theorem oi_performTestAndClearAccessed (_slot : ObjRef) : OIK N (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; oi_auto
 macro_rules | `(tactic| oi_leaf) => `(tactic| with_reducible exact oi_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem oi_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : OIKE N (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; oi_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem oi_performFrameBatch (b : Fl4FrameBatchInvocation) : OIK N (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => oi_fbEntry b w) (by unfold flushAll; oi_auto)
+macro_rules | `(tactic| oi_leaf) => `(tactic| with_reducible exact oi_performFrameBatch _)
 
 theorem oi_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : OIKE N (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; oi_auto

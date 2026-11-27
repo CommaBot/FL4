@@ -19,6 +19,8 @@ entries** (spec side only; sl4 handoff 3: the performs, the shell, the events).
 * Tops **`kentry_scKindR_of hG`** / **`kcall_scKindR_of hG`**.
 -/
 import Fl4Proofs.P3.SpecInvSlKU
+import Fl4Proofs.P3.SpecFbM
+import Fl4Proofs.P3.SpecFbQ
 open Classical
 
 namespace Fl4Proofs.P3.SInvL
@@ -250,6 +252,51 @@ theorem ks_performAsidPoolInvocation (i : AsidPoolInvocation) : KK (performAsidP
       exact (ik_bind (ks_setCap _ ((hσ _ _ hc).kd (kd_arch_same (a' := .pml4Cap _ (some asid)) rfl))) fun _ => by hv_auto) σ hσ x hx
     · exact ikp_of_ik ik_fail σ
 
+theorem kok_frame_rng {σ0 : State Unit} {dev dev' : Bool} {p : ObjRef} {R R' : VMRights} {mt mt' : VMMapType}
+    {sz : VMPageSize} {m m' : Option (Asid × VSpaceRef)} (h : KOk σ0 (.archObjectCap (.pageCap dev p R mt sz m))) :
+    KOk σ0 (.archObjectCap (.pageCap dev' p R' mt' sz m')) :=
+  kok_arch_rng h fun r hr => by simpa [acRng, aobjRef] using hr
+
+set_option maxHeartbeats 4000000 in
+/-- fb3f: **the frame batch keeps `KS σd`** (`ik_fbEntryX_of`): every cap it writes is a frame cap with the
+range of a frame cap held in a slot (`KS.cap`); its maps are decoded (`kr_okd_archDecode`, `ArchSpecOKN`). -/
+theorem ks_performFrameBatch {σd : State Unit} (b : Fl4FrameBatchInvocation) :
+    IK (KS σd) (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => ik_fbEntryX_of b w fbx_lookupTargetSlot fbx_lookupSourceSlot fbx_ensureEmpty
+    fbx_deriveCap
+    (fun s c src dest c0 hs _ _ _ hc0 hpg hder => by
+      obtain ⟨dev, p, R, mt, sz, m, rfl⟩ := fbx_frame_of_isPageCap hpg
+      have hder' := hder
+      simp only [maskCap, capRightsUpdate, acapRightsUpdate, deriveCap, archDeriveCap] at hder'
+      obtain ⟨e1, -⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 hder')
+      simp only [Except.ok.injEq] at e1
+      subst e1
+      exact ks_capInsert src dest (kok_frame_rng (hs.cap hc0)) s hs)
+    (fun sl v => ik_fbMapQ (Q := fun t iv => (∃ c, SInvU.capAt t sl = some c ∧ (KOk σd c → KArchS σd iv)) ∧
+        ArchSpecOKN (uV t) iv) b sl v
+      (fun _ _ _ _ _ _ => fbx_decodePageInvocation _ _ _ _ _)
+      (fun s dev p R mt sz m hcap iv t h => by
+        have hv : uV t = uV s := uk_decodePageInvocation (uvw := uV s) _ _ _ _ _ s rfl _ h
+        have hct : SInvU.capAt t sl = some (.archObjectCap (.pageCap dev p R mt sz m)) := by
+          have := congrArg (fun w : UView => w.2.1 sl) hv
+          simp only [uV] at this
+          rw [this]; exact hcap
+        refine ⟨⟨_, hct, fun hk => ?_⟩, ?_⟩
+        · have h1 := kr_okd_archDecode σd fbPageMapLabel [v, b.mapRights, b.attr] ([] : CapRef) sl
+            (.pageCap dev p R mt sz m) [(.archObjectCap (.pml4Cap b.vspace (some b.asid)), sl)] hk s
+          simp only [archDecodeInvocation] at h1
+          exact h1 iv t h
+        · rw [hv]
+          exact okv_decodePageInvocationF _ _ _ _ _ _ _ _ _ _ hcap s rfl iv t h)
+      (fun s pi hs hq x hx => by
+        obtain ⟨⟨c, hc, himp⟩, hok⟩ := hq
+        exact ikp_of_kap (ksv_performPageInvocation pi) (himp (hs.cap hc)) hok hs x hx))
+    (fun sl => ik_fbDelXF sl (fun _ => fbx_isFinalCap _) (fun c x => by hv_auto)
+      (fun s _ _ _ _ _ _ hs _ x hx => ks_emptySlot sl .nullCap σd s hs x hx))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; hv_auto)
+    (fun s _ _ _ _ _ _ sl hs hc0 x hx => ks_setCap sl (kok_frame_rng (hs.cap hc0)) s hs x hx))
+    (by hv_auto)
+
 /-! ## The retype performs (intermediate) -/
 
 /-- **The reset retype and MakePool keep `ScKindR`** (intermediate
@@ -349,6 +396,10 @@ theorem ks_fl4Perform (hG : KrGap) (blk call don : Bool) (inv : Fl4Invocation) (
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
         refine ike_liftE (ik_bind (ks_performDeriveSubframe hK iv hds) fun _ => ?_)
         hv_auto) σ hS y hy).cur
+    | frameBatch bi =>
+      refine ((show IKE (KS σd) _ by
+        simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        exact ike_liftE (ks_performFrameBatch bi)) σ hS y hy).cur
     | _ =>
       refine ((show IKE (KS σd) _ by
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation]

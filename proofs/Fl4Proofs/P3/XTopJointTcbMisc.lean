@@ -352,7 +352,8 @@ theorem JAtZ.reg_frameFp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
-      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hwF fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
@@ -463,11 +464,12 @@ set_option maxHeartbeats 16000000 in
 (`bind_ntfn_eq`) against the spec's (`bindNotification_eq`), `IRel` after
 (`bound_wr_irel`), the footprint `FinW` (as `unbindNJ`'s), the spec frame
 `BKY` with `Inv` after (`Inv.updNtfn`, `Inv.tcbUpd`), P1's
-`bind_notification.blk` and its footprint (as `unbind_notification.blkF`);
+`bind_notification.blk` (both unbound before, `hz1`/`hz2`: the decode's
+checks) and its footprint (as `unbind_notification.blkF`);
 the thread and the notification leave the dead set, covered by their caps
 (`JAtZ.cover_tn`). -/
 theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64} (ht : t ∈ Z.T) (hn : n ∈ Z.N)
-    (hn0 : n ≠ 0#u64) {xT xN : U64} (hxT : IsSlot Z.th xT) (hcT : capAt (L.mem s) xT = ok (.Thread t))
+    (hn0 : n ≠ 0#u64) (hz1 : L.mem s (P1.boundA t) = 0#u64) (hz2 : L.mem s (P1.ntfnBtA n) = 0#u64) {xT xN : U64} (hxT : IsSlot Z.th xT) (hcT : capAt (L.mem s) xT = ok (.Thread t))
     (hxN : IsSlot Z.th xN) {nb : U64} {nw nr : Bool} (hcN : capAt (L.mem s) xN = ok (.Notification n nb nw nr)) :
     notification.bind_notification st s t n ⦃ s' => ∃ σ',
       Fl4Spec.bindNotification (Z := Unit) t.bv n.bv σ = ({((), σ')}, False) ∧
@@ -481,7 +483,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
   obtain ⟨⟨cT1, cT2⟩, ⟨cN1, cN2⟩⟩ := J.cover_tn ht hn hxT hcT hxN hcN
   -- P1's `BlkOK` and footprint
-  have hblk0 := P1.notification.bind_notification.blk s t n J.blk htH hnH
+  have hblk0 := P1.notification.bind_notification.blk s t n J.blk htH hnH hz1 hz2
   rw [Sched.bind_ntfn_eq s t n, WP.spec_ok] at hblk0
   have hb := J.blk
   have hT := hb.1.choose_spec.choose_spec.tcbs
@@ -560,7 +562,8 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
   have hJ0 : JCovD (L := L) Z.th H Z.G D' Cs s := by
-    refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => J.jcov.dead q hq.1, J.jcov.ks, J.jcov.idleOut⟩
+    refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => J.jcov.dead q hq.1, J.jcov.ks, J.jcov.idleOut,
+      fun q hq => J.jcov.dx q hq.1⟩
     · rcases J.jcov.th q k hq with hc | hd | hi
       · exact Or.inl hc
       · by_cases e1 : q = t
@@ -582,6 +585,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
     exact hJ0.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (fun q _ h => h.keep (DXKeep.of_dbg hKd (J.tdkeep_of hw fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)))
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y m _ hq => F.szKeep q.bv y m hq) hks (J.finW_irq hw) hidl.2⟩

@@ -87,12 +87,13 @@ theorem capw_bx {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U
       (fun c hc => sig _ (hX.1.snW c hc)) (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))
       (fun c hc => sig _ (hX.1.mxW c hc)) ei
+      (fun y hy => fld y hy _ (by simp) (by simp) (by simp))
   have hS' : SCsOK st T Ω Sg Scs Z Ac s' := by
     refine ⟨hS.sub, fun b hb => by rw [hw.1]; exact hS.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hS.ksΩ o h1 h2,
       fun t ht hb hne => ?_, fun c hc => (hS.all c hc).agree sig,
       fun c hc => by rw [show L.rmax s' c = L.rmax s c from sig _ (hS.all c hc).2.1]; exact hS.act c hc,
       fun c hc h1 => hS.spor c hc (by rw [← sig _ (hS.spSg c hc)]; exact h1), hS.spSg,
-      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg⟩
+      fun c hc h1 => hS.rep c hc (by rw [← sig _ (hS.repSg c hc)]; exact h1), hS.repSg, fun c hc => by rw [hw.1]; exact hS.scKs c hc⟩
     rw [hsc t ht] at hb hne ⊢; rw [ecs] at hne ⊢; exact hS.disj t ht hb hne
   exact ⟨inv_of_capw h0 hw hBw, BoundInv.capw h0 hBd hw hBw, hX', hS',
       ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩,
@@ -196,19 +197,7 @@ theorem XG.xs {P3Ok : S → Prop} {s0 s : S} (hG : XG st T Cs Ω H Sg Scs Z P3Ok
 
 /-! ## The transfer's writes -/
 
-/-- The words of a (non-null) IPC buffer are user words: its 128 words
-(1024 bytes). FL4's IPC buffer is only 1024-byte aligned
-(`check_valid_ipc_buffer`, `bits::IPC_BUFFER = 10`) and `lookup_ipc_buffer`
-returns the frame pointer plus the in-frame offset, so only these 128 words
-are guaranteed inside the frame (l4v `ipc_buffer_wp_at` / P3
-`Endp.IpcBufCapOK`: `k < 128`). Every buffer index the kernel writes is below
-128 (`msg_max_length` 120 + 1, the three extra-cap / badge words at 122..124,
-the receive CNode / index / depth words 125..127; the fault messages and the
-register / VCPU transfers write fewer). (Before m72 this claimed 512 words,
-false for a buffer at frame offset 3072 followed by a TCB: KENTRY-PLAN m71.) -/
-def BufOK (U : Set U64) (buf : U64) : Prop :=
-  buf ≠ 0#u64 → ∀ i : U64, i.val < 128 → core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64) ∈ U
-
+-- `BufOK` (the IPC buffer's words are user words) moved to QueueSignal (int6).
 theorem obj.Tcb.set_reg.xs {s0 s : S} {y r v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hy : y ∈ T)
     (hr : r.val < 384) :
     obj.Tcb.set_reg st y s r v ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by

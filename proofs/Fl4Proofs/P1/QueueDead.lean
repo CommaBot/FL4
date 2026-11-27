@@ -1170,7 +1170,7 @@ theorem schedcontext.unbind_tcb.dead (s : S) (sc : U64) (h : BlkOK st T Cs Ω H 
     rw [f3.sig _ (hX1.1.fixW sc hsc).1, f2.sig _ (hX1.1.fixW sc hsc).1, sc1, ← et]
   refine WP.spec_bind (obj.Tcb.set_sc.wr s3 t 0#u64) fun s4 e4 => ?_
   subst e4
-  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, -, kΩ, ks0⟩ :=
+  obtain ⟨k1, kB, -, k3, ktx, k4, k5, ka, kc, ki, -, kf, kΩ, ks0⟩ :=
     clear_sc_state h3 hB3 hX3 hS3 hSg3 htT ⟨qq3, qr3⟩ id3
   have hB4 := kB na3 (fun e => by rw [ka, ea3, ea2]; exact cr1 (by rw [← ec2, ← ec3, ← kc]; exact e))
   have ktx' : TScX st Scs sc (L.wr s3 (scA t) 0#u64) := by
@@ -1184,7 +1184,12 @@ theorem schedcontext.unbind_tcb.dead (s : S) (sc : U64) (h : BlkOK st T Cs Ω H 
     rw [scA_eq]; exact foot_field h3.tcbs htT (by simp) (by simp) (by simp) (by simp)
   refine WP.spec_mono (obj.Sc.set_tcb.wr _ sc 0#u64) fun s5 e5 => ?_
   subst e5
-  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' k4 k5 hsc fun y hy e => by
+  have haf4 : ScAff st T (L.wr s3 (scA t) 0#u64) :=
+    (ScAffX.keep (d := t) (hX3.2.2.aff.x t) (fun y hy _ h0 => (hX3.2.2.bound y hy h0).1)
+      (fun y hy hyt => by rw [scA_eq]; exact kf y hy _ (by simp) (by simp) (fun e => absurd e hyt))
+      (fun c hc => kΩ _ (hSg3.sub _ (hX3.1.fixW c hc).2))
+      (fun y hy _ => kf y hy _ (by simp) (by simp) (fun _ => by simp))).full (fun _ h0 => absurd ks0 h0)
+  obtain ⟨hb5, fw5, an5⟩ := sctcb_zero_all k1 hB4 k3 ktx' haf4 k4 k5 hsc fun y hy e => by
     by_cases eyt : y = t
     · subst eyt; rw [ks0] at e; exact hsc0 e.symm
     · have := (k3.2.2.bound y hy (by rw [e]; exact hsc0)).2.1

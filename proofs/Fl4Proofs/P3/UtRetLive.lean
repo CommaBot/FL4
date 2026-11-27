@@ -333,6 +333,24 @@ theorem JAtZ.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   rw [hth]
   exact ⟨hLv.extendE hold hNE, fun p hp => hnew p (ZTcb.of_zombies hZf (ZTcb.of_extendE hold hNE hp))⟩
 
+
+/-- (jc5) The tables after a retype whose new arch objects lie in the window
+`NewAt A (2 ^ z) w` with `12 ≤ z`: old ones or inside `[A, A + w * 2 ^ z)`. -/
+theorem tabNew_win {σ σ' : Fl4Spec.State Unit} {A z w : Nat}
+    (h : ∀ o ao', σ'.kheap o = some (.archObj ao') → VsTy (Fl4Spec.aaType ao') →
+      (∃ ao, σ.kheap o = some (.archObj ao) ∧ VsTy (Fl4Spec.aaType ao)) ∨
+      ∃ q, NewAt A (2 ^ z) w q ∧ q.bv = o ∧ 12 ≤ z) : TabNew σ σ' A (A + w * 2 ^ z) := by
+  intro o ao' ho hv
+  rcases h o ao' ho hv with h1 | ⟨q, ⟨j, hj, hqv⟩, rfl, hz⟩
+  · exact Or.inl h1
+  · right
+    have hm : (j + 1) * 2 ^ z ≤ w * 2 ^ z := Nat.mul_le_mul_right _ hj
+    rw [Nat.succ_mul] at hm
+    have h12 : 2 ^ 12 ≤ 2 ^ z := Nat.pow_le_pow_right (by norm_num) hz
+    have e4 : (2 : Nat) ^ 12 = 4096 := by norm_num
+    show A ≤ q.val ∧ q.val + 4096 ≤ A + w * 2 ^ z
+    omega
+
 end
 
 end

@@ -121,15 +121,15 @@ theorem Sched.SlotsApart.grow {T N C R : Set U64} {c : U64} {s : S} {σ : Fl4Spe
 
 /-- **`JKern` at the grown heap**: `th`'s objects stay; the scheduler-action
 word and core 0's debug-list head word lie outside the window. -/
-theorem JKern.grow {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit}
-    (h : JKern (L := L) H Cs D th s σ) (hT : ThX th th' A k w n us)
+theorem JKern.grow {Aa : Type} {arI : machine.Arch Aa} {H : P1.Heap} {Cs D : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+    (h : JKern (L := L) arI H Cs D th s σ) (hT : ThX th th' A k w n us)
     (hks : ∀ kd, thKindN n us = some kd → objSize kd ≤ k) (hk0 : 0 < k)
     (hpos : ∀ q kd, th q = some kd → 0 < objSize kd) (hP' : Placed th')
     (hact : ¬ (A ≤ (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val ∧
       (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val < A + w * k))
     (hdw : ¬ (A ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
       (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val < A + w * k)) :
-    JKern (L := L) H Cs D th' s σ := by
+    JKern (L := L) arI H Cs D th' s σ := by
   refine { h with
     orig := fun sl hs => AbsSlot.thMono hT hk0 hpos (h.orig sl hs)
     curT := hT.mono hk0 hpos h.curT
@@ -290,7 +290,8 @@ theorem JAtZ.add_frameT {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
-    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') :
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -304,7 +305,7 @@ theorem JAtZ.add_frameT {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, hbound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, hintL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD⟩
+    R.curRun, R.blk, hintL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD, hcy⟩
 
 end Frame
 

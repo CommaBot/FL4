@@ -139,7 +139,7 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     refine ⟨hO.rp, fun c hc => ?_, fun r hr b ha h1 h2 => fS (hO.rpW r hr b ha h1 h2), fun c hc b ha hin => ?_,
       fun c hc => ?_, fun c hc c' hc' hne => ?_, fun r hr c hc => ?_, fun c hc => ?_, fun n hn => fS (hO.ntW n hn),
       hO.ntRp, fun n hn c hc => ?_, hO.ntAl, hO.ntP, fun n hn => ⟨fS (hO.ntB n hn).1, fS (hO.ntB n hn).2⟩,
-      hO.ntORp, fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, hO.nt0, hO.rp0⟩
+      hO.ntORp, fun n hn c hc => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc => ?_, hO.nt0, hO.rp0, fun c hc => ?_⟩
     · rcases (SS c).1 hc with hc | hc
       · rw [A.scBits_old hc]; exact hO.sc c hc
       · rw [A.scBits_new hc]
@@ -198,6 +198,9 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     · rcases (SS c).1 hc with hc | hc
       · exact fS (hO.mxW c hc)
       · exact fM c hc
+    · rcases (SS c).1 hc with hc | hc
+      · exact hO.sc0 c hc
+      · exact A.nz c hc
   have rinv : ReplyInv st H.tcbs H.replies (H.add N (.sc z)).scs s := by
     obtain ⟨⟨r1, r2, r3, r4, r5, r6, r7⟩, r8⟩ := hX.2.1
     refine ⟨⟨r1, r2, fun r hr h0' => ?_, r4, r5, fun c hc h0' => ?_, fun c hc e => ?_⟩, r8⟩
@@ -235,7 +238,11 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
       tsc := fun c hc hc0 h0' => by
         rcases (SS c).1 hc with hc | hc
         · exact hE.tsc c hc hc0 h0'
-        · exact absurd (zT c hc) h0' }
+        · exact absurd (zT c hc) h0'
+      bs := ⟨hE.bs.tb, hE.bs.nt, fun c hc hc0 h0' => by
+        rcases (SS c).1 hc with hc | hc
+        · exact hE.bs.sn c hc hc0 h0'
+        · exact absurd (zN c hc) h0'⟩ }
   have sub : ∀ b ∈ (H.add N (.sc z)).frame, b ∈ (H.add N (.sc z)).omega := fun b hb => Heap.frame_omega hb
   have ks : ∀ b ∈ (H.add N (.sc z)).frame, b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val := by
     intro b hb
@@ -253,7 +260,7 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
   have sc : SCsOK st H.tcbs (H.add N (.sc z)).omega (H.add N (.sc z)).frame (H.add N (.sc z)).scs
       (H.add N (.sc z)).scBits {c | c ∈ Ac ∧ ¬ N c} s := by
     refine ⟨sub, ks, kO, fun t ht h1 h2 b hb => ?_, fun c hc => ?_, fun c hc => ?_, fun c hc h0' => ?_,
-      fun c hc => ?_, fun c hc h0' => ?_, fun c hc => ?_⟩
+      fun c hc => ?_, fun c hc h0' => ?_, fun c hc => ?_, fun c hc => ?_⟩
     · have e1 := A.scBits_old (hE.bound t ht h1).1
       have e2 := A.scBits_old hE.cur
       rw [e1] at hb; rw [e2]; exact hS.disj t ht h1 h2 b hb
@@ -277,6 +284,10 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
     · rcases (SS c).1 hc with hc | hc
       · exact fS (hS.repSg c hc)
       · exact fR c hc
+    · rcases (SS c).1 hc with hc | hc
+      · rw [A.scBits_old hc]; exact hS.scKs c hc
+      · rw [A.scBits_new hc]
+        have := A.ks c hc; rw [show (HKind.sc z).bits = z from rfl] at this; exact this
   have bnd : BoundInv st H.tcbs {c | c ∈ Ac ∧ ¬ N c} s :=
     { hB with sact := fun t ht hs h0' => ⟨hB.sact t ht hs h0', A.notN (hE.bound t ht h0').1⟩ }
   exact ⟨⟨Q, R, q⟩, bnd, x, sc, ⟨sub, ks, kO⟩⟩

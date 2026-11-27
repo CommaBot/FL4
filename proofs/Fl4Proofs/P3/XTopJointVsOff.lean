@@ -81,7 +81,7 @@ set** (module docstring): `JAtZ.vsPostJ`'s argument with FL4 also writing
 `q`'s frame, and `JAtZ` after at the sets with `q` added. `q`'s facts at the
 entry: 4 KiB-aligned, a spec arch object of a page, and its frame no `OObj`,
 `VObj` or typed-heap word (XTopJointEntry's `JEntryAt.vsTyp`). -/
-theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {pc : U64} {r : Nat} {idx : List Bool} {c : capability.Cap} {q : U64}
     (hqa : q.val % 4096 = 0) (hTy : ∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12)
@@ -92,8 +92,8 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPostO (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G pc r idx c q s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
-  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp⟩, hCR', hFI', hMO', hz, hTE⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO', hz, hTE⟩
+  · exact ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, hσ1, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
@@ -230,10 +230,24 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       exact VCapW.mono (subset_refl _) (subset_refl _) Set.subset_union_left Set.subset_union_left
         Set.subset_union_left (J1.vsc y hy)
   have Ap : VsApart (L := L) Z H Cs s1 := jVsApartHyp arI Z H Cs Ac1 Lst1 D1 s1 ar σ1 rfl J1
+  -- (F1 stage 5, item 4) `VsNamed` after, from the op's fact at `J` (`Vs.VsNamed.ofOpF`, the old sets)
+  have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') := fun hvx => by
+    obtain ⟨hPl, ⟨-, -, hML, -, hMI⟩, hFI0, -⟩ := J.xtop.rel
+    have hR' : Vs.VsRel Z.P (L.mem s') (L.ksb s) σ' := by rw [← hks']; exact hX'.fin.2.1
+    have h := (J.carry.vsNamed hvx).ofOpF J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 J.xtop.fin.1.2.pt
+      hR' hX'.fin.2.2.1 hA.isSlot hcv0 hSF hOp (fun hf hk => by
+        have hk' : Vs.VKey c ≠ none := by rw [← hcv0]; exact hk
+        have hnz : NeedsFin c ∧ isZb c = false := by
+          cases c <;> first | exact absurd rfl hk' | exact ⟨Or.inl ⟨trivial, rfl⟩, rfl⟩
+        have hx0 : capV (L.mem s) (cslotAddr (pc.bv, idx)) ≠ .Null := fun e => hk (by rw [e]; rfl)
+        exact Vs.huq_of_finF hPl hML hMI hFI0 ((hML.members _).2 ⟨hA.isSlot, _, capAt_capV _ _, hx0⟩)
+          (by rw [hcv0]; exact hnz.1) (by rw [hcv0]; exact hnz.2) hf hk)
+    rw [hks']; exact h
   have J' := J1.vsStepJX Ap hpc hidx hXa hX'' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
-  exact ⟨_, H, Cs, Ac1, Lst1, D1, J'⟩
+    ⟨Set.subset_union_left, Set.subset_union_left, Set.subset_union_left⟩ hvn
+  exact ⟨_, H, Cs, Ac1, Lst1, D1, J', inferInstance⟩
 
 end
 
@@ -273,7 +287,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_page_table_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_page_tableJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
     (hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap)
@@ -311,7 +325,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_page_directory_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_page_directoryJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageDirectoryMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap)
     (hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
@@ -349,7 +363,7 @@ set_option maxHeartbeats 4000000 in
 (VsOffDec's `decode_invocation_pdpt_offX`, then `JAtZ.vsPostOffJ`);
 `q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
 theorem decode_invocation_pdptJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hA : ArchRefines arI AR)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
     (hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap)

@@ -157,11 +157,11 @@ theorem DelInv.empty {th : TypedHeap} {mem mem' : U64 → U64} {G : MdbGhost} (h
 /-- **`empty_slot slot cl`** for a slot of the typed heap and a cleanup cap
 (the cleanup's premise only for a cleanup cap), the slot ready (`Rd`) when
 not null. -/
-theorem empty_stepWR' (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem empty_stepWR' (W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    {cl : capability.Cap} (hPD : cl ≠ .Null → PostDelHypW (L := L) arI W th) (hE : EmptyHypWR (L := L) W Rd th)
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hW : W s a σ G)
-    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl)
+    {cl : capability.Cap} (hPD : cl ≠ .Null → PostDelHypW (L := L) arI W th) (hE : EmptyHypWR (L := L) W Wx Rd th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hW : Wx s a σ G)
+    {sl : Fl4Spec.CslotPtr} (hWn : capV (L.mem s) (cslotAddr sl) = .Null → W s a σ G) (hA : AbsSlot th sl)
     (hRd : capV (L.mem s) (cslotAddr sl) ≠ .Null → Rd s a σ G (cslotAddr sl)) (hcl : CleanCap cl) (hclw : CapWf cl) :
     cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPostW (L := L) W th s σ G sl cl r ⦄ := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ := hDS
@@ -172,9 +172,9 @@ theorem empty_stepWR' (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
   · subst hcn
     rw [empty_slot_null arI s a _ hc, WP.spec_ok]
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
-      fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM, hW⟩
+      fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM, hWn (capV_of_capAt hc)⟩
     rw [emptySlot_null_cap _ hg]; rfl
-  have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  have hcan : absCap c ≠ .nullCap := fun h => hcn ((absCap_eq_null hca.1).1 h)
   have hsplit := empty_slot_split (st := st) arI s a (cslotAddr sl) cl (c := c) (by rw [slot_cap_eq]; exact hc) hcn
   rw [hsplit]
   have hxm0 : cslotAddr sl ∈ G.chains.flatten := (hM.members _).2 ⟨hxs, c, hc, hcn⟩
@@ -246,7 +246,7 @@ theorem empty_stepW' (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) 
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G) (hW : W s a σ G)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (hcl : CleanCap cl) (hclw : CapWf cl) :
     cdt.empty_slot st arI s a (cslotAddr sl) cl ⦃ r => EmptyPostW (L := L) W th s σ G sl cl r ⦄ :=
-  empty_stepWR' arI W RdT th hP hPD hSl.empty s a σ G hDS hW hA (fun _ => trivial) hcl hclw
+  empty_stepWR' arI W W RdT th hP hPD hSl.empty s a σ G hDS hW (fun _ => hW) hA (fun _ => trivial) hcl hclw
 
 /-- **`empty_slot slot cl`** for a slot of the typed heap and a cleanup cap. -/
 theorem empty_stepW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)

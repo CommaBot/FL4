@@ -785,7 +785,7 @@ theorem JAtZ.maybeReturnJQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
   have hKd := J.kw_dbgKeep hfoot
   exact ⟨hW, σ2, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2)
-    (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
+    (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2) hKd subset_rfl)
     (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD⟩
 
@@ -932,7 +932,7 @@ theorem JAtZ.recvSigBlockPreJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
     exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg (J.rbw_dbgKeep hRB) (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, by rw [← hcur]; exact hC.notRel⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik
@@ -970,7 +970,7 @@ set_option maxHeartbeats 4000000 in
 `JRecvSigRetHyp` [W]): the current thread blocks on an idle or waiting
 notification whose SC is the current SC (`hsc`); `JAtZ.recvSigBlockPreJ`,
 then `JAtZ.maybeReturnJ` unbinds the SC (a reschedule is pending already). -/
-theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
@@ -999,7 +999,7 @@ theorem JAtZ.recvSigRetJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
   refine WP.spec_mono (J3.maybeReturnJ ht hn hiC hkt3 hkn3 (by rw [hib]; exact hscc) (by rw [hib]; exact hsc)
     (by rfl) hnrw (fun u hu => by rw [hact3] at hu; cases hu) (by rw [hid3, ← hcur]; exact hni.1)) ?_
   rintro s5 ⟨σ5, he5, Ac', Lst', J5⟩
-  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5⟩
+  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`JRecvSigHyp` at a resumed entry**: polling, an active notification,
@@ -1007,7 +1007,7 @@ the blocking receive (`JAtZ.recvSigBlockJ`) and the blocking receive giving
 the SC back (`JAtZ.recvSigRetJ`), the held cap's slot covering the
 notification (`JAtZ.cover_cap`). No premise left. -/
 theorem jRecvSigHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
     (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (blocking : Bool) :
     JRecvSigHyp (L := L) arI AR Z.th ct blocking s a σ := by
   rintro p b w rd ac hcr ⟨x, hk⟩ ⟨y, hy, hcv⟩
@@ -1039,7 +1039,7 @@ set_option maxHeartbeats 4000000 in
 premise left. -/
 theorem dispatch_recvJS (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)

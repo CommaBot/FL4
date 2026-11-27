@@ -591,7 +591,7 @@ theorem JAtZ.tmoBaseJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
       (writesIn_wr (v := b) (a_fw0 hta).1)).trans (writesIn_wr (v := 0#u64) (a_fw1 hta).1)).trans
       (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
     refine w.mono fun w0 hw0 => ?_
-    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
+    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ ((K ≠ 3512 ∧ K ≠ 3528) ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
       rcases hw0 with ((h | h) | h) | h <;> subst h
       · exact ⟨3376, by omega, by omega, by omega, by omega, by omega, val_fault hta⟩
       · exact ⟨3384, by omega, by omega, by omega, by omega, by omega, val_fw0 hta⟩
@@ -653,7 +653,7 @@ shadows `rhoT` of the states between: `t` and its SC as at the base). -/
 theorem JAtZ.sendTmoRecvIJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
     {t : U64} (ht : t ∈ Z.T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
@@ -1251,7 +1251,7 @@ theorem JAtZ.sendTmoRecvIJ (hAT : P0.ArchTotal arI)
   rintro ⟨s7', a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7⟩⟩
+  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
   rw [hspec]
   show ((), σ7) ∈ (Endp.specWakeTailE d'.bv σ5).1
   rw [h7]; exact Set.mem_singleton _
@@ -1270,7 +1270,7 @@ is not the current thread). -/
 theorem JAtZ.sendTmoRecvPJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
     {t : U64} (ht : t ∈ Z.T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
@@ -2003,7 +2003,7 @@ theorem JAtZ.sendTmoRecvPJ (hAT : P0.ArchTotal arI)
   rintro ⟨s7', a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
   subst ha7
-  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7⟩⟩
+  refine ⟨((), σ7), ?_, ⟨_, _, _, _, _, _, J7, inferInstance⟩⟩
   rw [hspec, heq5, hpb]
   show ((), σ7) ∈ (Endp.specWakeTailE d'.bv σ').1
   rw [h7]; exact Set.mem_singleton _
@@ -2021,7 +2021,7 @@ theorem JAtZ.runTmoRecvJ (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hcr : ∃ xc, σ.kheap σ.curThread = some (.tcb xc) ∧ Fl4Spec.runnable xc.tcbState = true)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
     {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n))
@@ -2228,7 +2228,7 @@ theorem JAtZ.runTmoRecvJ (hAT : P0.ArchTotal arI)
         (writesIn_wr (v := b) (a_fw0 hta).1)).trans (writesIn_wr (v := 0#u64) (a_fw1 hta).1)).trans
         (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
       refine w.mono fun w0 hw0 => ?_
-      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
+      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ ((K ≠ 3512 ∧ K ≠ 3528) ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
         rcases hw0 with ((h | h) | h) | h <;> subst h
         · exact ⟨3376, by omega, by omega, by omega, by omega, by omega, val_fault hta⟩
         · exact ⟨3384, by omega, by omega, by omega, by omega, by omega, val_fw0 hta⟩
@@ -2302,7 +2302,7 @@ theorem runTmoP_recv (Z0 : XSets) (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     RunTmoP (L := L) arI AR Z0 (fun xe => ¬ Endp.CanBlock false xe) :=
-  fun _ _ _ _ _ _ _ a _ hth J hcr _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hthd hcb ts hrun hts v hv hB =>
+  fun _ _ _ _ _ _ _ a _ hth J _ hcr _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hthd hcb ts hrun hts v hv hB =>
     JAtZ.runTmoRecvJ hAT hmax (htu a) hcr J ht htD hk hrs htc
       hsc hxsc hky hya hthd hcb ts hrun hts v hv hB
 end
