@@ -43,8 +43,7 @@ Instances stated here: **`retype_full_rngOne`** (native non-TCB, non-PML4 retype
 `EnableIOPort`'s IO-port rewrite, which is not an `MdbStep` in mmuAD's posts).
 
 No named premise. `RngOne` is a new **state** fact (the candidate [J] field replacing `VcpuOneChain`, which it
-implies); it holds at boot iff every exact range class of non-untyped, non-frame physical caps lies in one chain
-(each boot object has one cap). New file only; no existing statement changed.
+implies); it holds at the boot ghost (`rngOne_empty`: JBootZ / JBootQZ start from the empty ghost `Gw`). New file only; no existing statement changed.
 -/
 import Fl4Proofs.P3.MdbStepInv
 import Fl4Proofs.P3.VirtVChunkIns
@@ -64,6 +63,11 @@ def RngOne (mem : U64 → U64) (G : MdbGhost) : Prop :=
   ∀ y ∈ G.chains.flatten, ∀ y' ∈ G.chains.flatten, RngKey (capV mem y) → RngKey (capV mem y') →
     baseF (capV mem y) = baseF (capV mem y') → topF (capV mem y) = topF (capV mem y') →
     ∃ ch ∈ G.chains, y ∈ ch ∧ y' ∈ ch
+
+/-- **`RngOne` at the boot ghost** (JBootZ / JBootQZ's `Gw = ⟨[], fun _ => none⟩`: no member). -/
+theorem rngOne_empty (mem : U64 → U64) : RngOne mem ⟨[], fun _ => none⟩ := by
+  intro y hy
+  simp at hy
 
 theorem noA_key {c' c : capability.Cap} (h : NoA c' c) (hk : RngKey c') : RngKey c :=
   ⟨by rw [← h.phys]; exact hk.1, by rw [← h.ut]; exact hk.2.1, by rw [← h.frame]; exact hk.2.2⟩
