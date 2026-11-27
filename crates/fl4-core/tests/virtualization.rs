@@ -906,6 +906,82 @@ fn same_core_vm_signal_donates_the_notifications_sc_and_switches_to_it() {
     assert_eq!(n.state(&s), NTFN_IDLE);
 }
 
+/// A RunningVM thread whose timeslice ended sits in the release queue
+/// (`end_timeslice` postpones it, its state still RunningVM). A signal
+/// that completes its VMEnter must not move its head refill to now
+/// (`refill_unblock_check`) while it is queued there: the release queue
+/// stays sorted by head refill time, with the thread at its head or
+/// behind another queued thread.
+#[test]
+fn vm_signal_keeps_the_release_queue_sorted() {
+    use fl4_core::obj::node_get;
+    // (t's head time, the other queued threads' head times).
+    for (t_time, others) in [(100, &[105][..]), (103, &[98, 105][..])] {
+        let (mut s, mut a, t, v) = fixture(2);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+        t.set_state(&mut s, sched::TS_RUNNING_VM);
+        // Another thread with its own SC runs on this core.
+        let cur = Tcb(0x30000);
+        let cur_sc = Sc(0xa0000);
+        cur.set_state(&mut s, sched::TS_RUNNING);
+        cur.set_sc(&mut s, cur_sc.0);
+        node_set(&mut s, 0, node::CUR_THREAD, cur.0);
+        node_set(&mut s, 0, node::CUR_SC, cur_sc.0);
+        // `t` runs on the notification's sporadic SC, donated earlier.
+        let n = bind_ntfn(&mut s, t);
+        let sc = Sc(0x90000);
+        node_set(&mut s, 0, node::CUR_TIME, t_time);
+        sporadic::refill_new(&mut s, sc, 2, 1000, 10000);
+        sc.set_sporadic(&mut s, 1);
+        schedcontext::bind_ntfn(&mut s, sc, n);
+        sc.set_tcb(&mut s, t.0);
+        t.set_sc(&mut s, sc.0);
+        sched::release_enqueue(&mut s, t);
+        // Other runnable threads waiting for their refills.
+        let mut queued = vec![t];
+        for (i, &time) in others.iter().enumerate() {
+            let b = Tcb(0xb0000 + 0x2000 * i as u64);
+            let b_sc = Sc(0xc0000 + 0x2000 * i as u64);
+            node_set(&mut s, 0, node::CUR_TIME, time);
+            sporadic::refill_new(&mut s, b_sc, 2, 1000, 10000);
+            b_sc.set_sporadic(&mut s, 1);
+            b_sc.set_tcb(&mut s, b.0);
+            b.set_sc(&mut s, b_sc.0);
+            b.set_state(&mut s, sched::TS_RUNNING);
+            sched::release_enqueue(&mut s, b);
+            queued.push(b);
+        }
+        assert!(sched::in_release_queue(&s, t));
+        // An interrupt advanced the time: every head is ready, awaken has
+        // not run yet.
+        node_set(&mut s, 0, node::CUR_TIME, 110);
+        assert!(sporadic::ready(&s, sc));
+
+        notification::send_signal(&mut s, &mut a, n.0, 7);
+        assert_eq!(t.state(&s), sched::TS_RUNNING);
+        assert_eq!(t.reg(&s, reg::BADGE), 7);
+        assert!(sched::in_release_queue(&s, t));
+        let mut times = Vec::new();
+        let mut q = Tcb(node_get(&s, 0, node::RELEASE_HEAD));
+        while !q.is_null() {
+            times.push(sporadic::head(&s, Sc(q.sc(&s))).time);
+            q = Tcb(q.sched_next(&s));
+        }
+        assert_eq!(times.len(), queued.len());
+        assert!(times.windows(2).all(|w| w[0] <= w[1]), "release queue unsorted: {times:?}");
+        assert_eq!(sporadic::head(&s, sc).time, t_time, "head refill left alone");
+
+        // awaken releases them all, `t` included.
+        sched::awaken(&mut s, &mut a);
+        for q in queued {
+            assert!(!sched::in_release_queue(&s, q));
+        }
+        assert!(sched::is_schedulable(&s, t));
+    }
+}
+
 #[test]
 fn nested_asids_are_distinct_and_unmapping_reaches_all_recorded_cores() {
     let mut s = Memory::default();

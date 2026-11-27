@@ -103,12 +103,18 @@ pub fn send_signal<S: Store, A: Arch>(s: &mut S, a: &mut A, n_ptr: u64, badge: u
             if sched::is_schedulable(s, t) {
                 sched::possible_switch_to(s, t);
             }
+            // Unlike a thread blocked on receive, a RunningVM thread can sit
+            // in the release queue (end_timeslice postpones it without
+            // changing its state). Moving its head refill to now there
+            // would leave the queue unsorted by ready time; awaken
+            // releases it once its head is ready anyway.
             let sc = Sc(t.sc(s));
             if !sc.is_null()
                 && sporadic::sc_active(s, sc)
                 && sc.0 == n.sc(s)
                 && sporadic::sc_sporadic(s, sc)
                 && sc != sched::cur_sc(s)
+                && !sched::in_release_queue(s, t)
             {
                 sporadic::unblock_check(s, sc);
             }
