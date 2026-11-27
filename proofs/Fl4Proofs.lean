@@ -2424,3 +2424,11 @@ import Fl4Proofs.P3.P3JCnCp
 import Fl4Proofs.P3.P3JCbsFt
 import Fl4Proofs.P3.P3JCnCbs
 import Fl4Proofs.P3.P3JThIll
+import Fl4Proofs.P3.P3JThTls
+import Fl4Proofs.P3.P3JThMcp
+import Fl4Proofs.P3.P3JThBp
+import Fl4Proofs.P3.P3JThBind
+import Fl4Proofs.P3.P3JThSs
+import Fl4Proofs.P3.P3JThFlg
+import Fl4Proofs.P3.P3JThFpuW
+import Fl4Proofs.P3.P3JThPrio
