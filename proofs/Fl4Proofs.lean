@@ -2459,3 +2459,4 @@ import Fl4Proofs.P3.VirtHinvB
 import Fl4Proofs.P3.VirtRetVcpuPre
 import Fl4Proofs.P3.VirtRetFullV
 import Fl4Proofs.P3.VirtResetV
+import Fl4Proofs.P3.VirtResetSpecV
