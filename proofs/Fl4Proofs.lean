@@ -2259,3 +2259,5 @@ import Fl4Proofs.P2.BootRFinF
 import Fl4Proofs.P2.BootRBlkF
 import Fl4Proofs.P2.BootRLiveF
 import Fl4Proofs.P2.BootRJAtZ
+import Fl4Spec.Ext.IrqNode
+import Fl4Proofs.P2.BootIrqNode
