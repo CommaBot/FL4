@@ -2439,3 +2439,4 @@ import Fl4Proofs.P3.VirtVmcbTail
 import Fl4Proofs.P3.VirtVmcbE2E
 import Fl4Proofs.P3.VirtArgsSpec
 import Fl4Proofs.P3.VirtFinNR
+import Fl4Proofs.P3.VirtWrSys
