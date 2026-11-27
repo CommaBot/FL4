@@ -187,3 +187,7 @@ import Fl4ProofsA64.P1.QueueSlotTyDec3
 import Fl4ProofsA64.P1.QueueVcTy
 import Fl4ProofsA64.P1.QueueVcTyThr
 import Fl4ProofsA64.P1.QueueVcTyEnt
+import Fl4ProofsA64.P1.QueueZombieEnc
+import Fl4ProofsA64.P1.QueueZombieV
+import Fl4ProofsA64.P1.QueueIrqV
+import Fl4ProofsA64.P1.QueueSlotTyDecV
