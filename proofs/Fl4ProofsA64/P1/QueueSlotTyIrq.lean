@@ -23,7 +23,11 @@ premise):
   43232), and under QueueSlotTy's reading `OS`'s kernel-global slots are the IRQ node's: true on reachable
   states. It is a fact of the ghost set and the fixed `ks` base, not of a word class.
 
-The IRQ bound `irq < 5376` comes from `SlotTy` (`A5.I.DelCapOK`). No existing statement changed.
+The IRQ bound `irq < 5376` comes from `SlotTy` (`A5.I.DelCapOK`).
+
+**[J] `SlotTyEntI`** (new, named; consumed by `SlotTyEntI.entAt` and `cdt.delete.irq_ent`): [J] `SlotTyEntT`
+and `IrqStApart OS (ks e)` at every `P3Ok` entry state; it implies `SlotTyEntT` (`SlotTyEntI.toT`). With it,
+`cdt.delete.irq_ent` takes no apartness hypothesis. No existing statement changed.
 -/
 import Fl4ProofsA64.P1.QueueSlotTyFin
 open Aeneas Aeneas.Std Result
@@ -269,6 +273,50 @@ theorem cdt.delete.irq {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_tc_ok]
     exact (WP.spec_ok _).2 h1
+
+/-! ## The entry fact with the IRQ-state apartness -/
+
+/-- **[J] (a64) `SlotTyEntI`**: [J] `SlotTyEntT` and `IrqStApart` for the same `OS` at the entry's `ks` base. At
+`P3Ok` states only, over the ghost `OS` and the fixed `ks` base, not a word class. Source: under QueueSlotTy's
+reading `OS` is the live CNode / TCB / IRQ-node slots; CNodes and TCBs lie outside the kernel-global area
+(`SchedQueuesInvX.ksOut` for TCBs; CNodes are retyped from untyped memory, untyped.rs), and the IRQ node starts at
+`ks + 43232`, above the IRQ-state table `ks + 224 … ks + 43232` (layout.rs `ks::IRQ_STATE`, `ks::IRQ_NODE`). -/
+def SlotTyEntI (st : machine.Store S) [L : LawfulStore st] (T Ω Sg : Set U64) (H : Heap) (Rp Nt : Set U64)
+    (P3Ok : S → Prop) : Prop :=
+  ∀ e, P3Ok e → ∃ OS, OSOK T Ω Sg OS ∧ SlotTy st T Ω Sg H Rp Nt OS e ∧ EntApart st e OS ∧ (∀ t ∈ T, t ∈ OS) ∧
+    IrqStApart OS (L.ksb e)
+
+/-- `SlotTyEntI` implies `SlotTyEntT` (a field dropped). -/
+theorem SlotTyEntI.toT (h : SlotTyEntI st T Ω Sg H Rp Nt P3Ok) : SlotTyEntT st T Ω Sg H Rp Nt P3Ok :=
+  fun e he => by obtain ⟨OS, a, b, c, d, -⟩ := h e he; exact ⟨OS, a, b, c, d⟩
+
+/-- `SlotTyEntI` at every `EntAt` state (the entry prefix writes no `OS` word and keeps the `ks` base). -/
+theorem SlotTyEntI.entAt (hJ : SlotTyEntI st T Ω Sg H Rp Nt P3Ok) {s : S} (hE : EntAt st P3Ok s) :
+    ∃ OS, OSOK T Ω Sg OS ∧ SlotTy st T Ω Sg H Rp Nt OS s ∧ (∀ t ∈ T, t ∈ OS) ∧ IrqStApart OS (L.ksb s) := by
+  obtain ⟨e, he, hw⟩ := hE
+  obtain ⟨OS, hO, hT, hA, hc, hap⟩ := hJ e he
+  refine ⟨OS, hO, fun y hy => ?_, hc, by rw [hw.1]; exact hap⟩
+  obtain ⟨v8, v16, v24⟩ := vals hO hy
+  have k : ∀ b, Aligned b → y.val ≤ b.val → b.val < y.val + 32 → L.mem s b = L.mem e b :=
+    fun b hb h1 h2 => hw.mem_eq hb fun hb' => hA b hb' y hy ⟨h1, h2⟩
+  exact (hT y hy).of_eq (k _ (hO.al0 hy) (by omega) (by omega)) (k _ (hO.al hy (by simp) (by simp)) (by omega) (by omega))
+    (k _ (hO.al hy (by simp) (by simp)) (by omega) (by omega)) (k _ (hO.al hy (by simp) (by simp)) (by omega) (by omega))
+
+/-- **The IrqHandler deletion from the entry fact**: at an `EntAt` decode start, under [J] `SlotTyEntI`, after
+the decode's restart (`J.restart`), the exposed `cdt.delete` of an IrqHandler slot of `OS` whose IRQ node slot
+is `IslTriv` keeps `J`; no apartness hypothesis is left. -/
+theorem cdt.delete.irq_ent {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (hJ : SlotTyEntI st T Ω Sg H Rp Nt P3Ok) {s : S} (hE : EntAt st P3Ok s) {cap : capability.Cap}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize} (D : DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s cap extra) :
+    ∃ OS, OSOK T Ω Sg OS ∧ SlotTy st T Ω Sg H Rp Nt OS s ∧
+      sched.set_thread_state st s (L.curW s) sched.TS_RESTART ⦃ s1 =>
+        J st T Cs Ω H Sg Rp Scs Nt Z Ac OS s s1 ∧
+        ∀ (a : A) (x irq : U64), x ∈ OS → obj.Slot.cap st x s1 = ok (.IrqHandler irq) →
+          IslTriv st OS (irqSlotA (L.ksb s1) irq) s1 →
+          cdt.delete st ar s1 a x true ⦃ r => J st T Cs Ω H Sg Rp Scs Nt Z Ac OS s r.2.1 ⦄ ⦄ := by
+  obtain ⟨OS, hO, hT, -, hap⟩ := hJ.entAt hE
+  exact ⟨OS, hO, hT, WP.spec_mono (J.restart hO D hT) fun s1 h1 =>
+    ⟨h1.1, fun a x irq hx hc hk => cdt.delete.irq hA hO h1.1 hx hc hk hap⟩⟩
 
 end ST
 end R
