@@ -150,6 +150,7 @@ import Fl4ProofsA64.P1.QueueDecDel5
 import Fl4ProofsA64.P1.QueueEntryGaps5
 import Fl4ProofsA64.P1.QueueDecVcpuA
 import Fl4ProofsA64.P1.QueueDecVcpuRegA
+import Fl4ProofsA64.P1.QueueDecVcpuStA
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -293,3 +294,14 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.vcpu.decode_read_reg.dec
 #print axioms Fl4ProofsA64.P1.vcpu.decode_write_reg.dec
 #print axioms Fl4ProofsA64.P1.vcpu.decode_inject_irq.dec
+#print axioms Fl4ProofsA64.P1.VcJ.wr
+#print axioms Fl4ProofsA64.P1.VcJ.regSet
+#print axioms Fl4ProofsA64.P1.VcJ.sync
+#print axioms Fl4ProofsA64.P1.VcJ.copyFrom
+#print axioms Fl4ProofsA64.P1.VcJ.lrLoop0
+#print axioms Fl4ProofsA64.P1.VcJ.setReg
+#print axioms Fl4ProofsA64.P1.VcJ.gprLoop
+#print axioms Fl4ProofsA64.P1.vcpu.write_state_from_frame.vcj
+#print axioms Fl4ProofsA64.P1.vcpu.st_restart
+#print axioms Fl4ProofsA64.P1.vcpu.read_state_to_frame.cur0A
+#print axioms Fl4ProofsA64.P1.vcpu.decode_state_transfer.dec
