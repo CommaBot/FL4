@@ -2474,3 +2474,4 @@ import Fl4Proofs.P3.VirtUtInvVR
 import Fl4Proofs.P3.VirtVFinal
 import Fl4Proofs.P3.JExtV2
 import Fl4Proofs.P3.VirtJExtV2Del
+import Fl4Proofs.P3.VirtJExtV2Cap
