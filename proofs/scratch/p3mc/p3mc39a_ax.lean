@@ -6,7 +6,7 @@ import Fl4Proofs.P2.BootRSInv
 #print axioms Fl4Proofs.P2.BootSt.uA_toB
 #print axioms Fl4Proofs.P2.BootSt.uA_irqNode_ne
 #print axioms Fl4Proofs.P2.BootSt.uA_scActive_R
-#print axioms Fl4Proofs.P2.BootSt.uA_not_scLiveT_R
+#print axioms Fl4Proofs.P2.BootSt.uA_irqNode_ne'
 #print axioms Fl4Proofs.P2.BootSt.uA_vfh_R
 #print axioms Fl4Proofs.P2.BootSt.uA_cnDom_R
 #print axioms Fl4Proofs.P2.BootSt.uA_fts_R
@@ -28,9 +28,11 @@ import Fl4Proofs.P2.BootRSInv
 #print axioms Fl4Proofs.P2.BootSt.uA_ntfnScB_R
 #print axioms Fl4Proofs.P2.BootSt.uA_scInv_R
 #print axioms Fl4Proofs.P2.BootSt.uA_scKindR_R
+#print axioms Fl4Proofs.P2.BootSt.uA_dom_R
 #print axioms Fl4Proofs.P2.BootSt.uA_cs_R
+#print axioms Fl4Proofs.P2.BootSt.uA_scLiveT_R
 #print axioms Fl4Proofs.P2.BootSt.uA_sinvA_R_of
-#print axioms Fl4Proofs.P2.BootSt.uA_not_sinvA_R
+#print axioms Fl4Proofs.P2.BootSt.uA_sinvA_R
 #print axioms Fl4Proofs.P2.BootSt.uA_ctExit_R
 #print axioms Fl4Proofs.P2.BootSt.uA_onlyIdle_R
 #print axioms Fl4Proofs.P2.BootSt.uA_t4_R
@@ -43,4 +45,4 @@ import Fl4Proofs.P2.BootRSInv
 #print axioms Fl4Proofs.P2.BootSt.uA_offReady_R
 #print axioms Fl4Proofs.P2.BootSt.uA_cAx_R
 #print axioms Fl4Proofs.P2.BootSt.uA_sinvX_R_of
-#print axioms Fl4Proofs.P2.BootSt.uA_not_sinvX_R
+#print axioms Fl4Proofs.P2.BootSt.sinvX_R

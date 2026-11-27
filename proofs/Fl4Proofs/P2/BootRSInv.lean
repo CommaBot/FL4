@@ -1,17 +1,12 @@
 /-
 # P2 (line p3mc, gen 39, unit A): P3's spec invariant `SInvX` at the second boot start `σR`
 
-Gen 34's `boot_sinvX_B` (P2/BootSpecInv, `SInvX σB`) re-proved field by field at `σR` (P2/BootRSpec: `σB` with
-the running root thread `tRp` current, bound to the root SC `scRp`, and the one non-null cap `threadCap tRp` in the
-root thread's CSpace-root slot). Each field is split by `kheapR_cases` (the root TCB, the root SC, or one of
-`σB`'s objects, where gen 34's lemma applies) and by `capAt_R` / `capOpt_R` (the one non-null cap).
-
-**`SInvX σR` is false** (`uA_not_scLiveT_R`, `uA_not_sinvX_R`): `SInvA.sl`'s `ScLiveT (idleP σ) σ` (sl's typed
-`ScLive`) asks every live object other than the idle thread / idle SC to be named by a thread cap or an SC cap. The
-root SC `scRp` is live (`scTcb = some tRp`) and is neither idle object, but the only non-null cap of `σR` is
-`threadCap tRp`, which names `tRp`, not `scRp`. Every other field of `SInvX` is proved here (`uA_*_R`), and
-`uA_sinvX_R_of` derives `SInvX σR` from `ScLiveT (idleP σR) σR` alone. A start with an SC cap
-`schedContextCap scRp _` in some slot (e.g. one of the root thread's slots) would make `ScLiveT` hold.
+Gen 34's `boot_sinvX_B` (P2/BootSpecInv, `SInvX σB`) re-proved at `σR` (P2/BootRSpec, round 2: `σB` with the
+running root thread `tRp` current, bound to the root SC `scRp`, and two non-null caps, `threadCap tRp` in the root
+thread's CSpace-root slot and `schedContextCap scRp 0` in its timeout-handler slot): **`sinvX_R`**. Each field is
+split by `kheapR_cases` (the root TCB, the root SC, or one of `σB`'s objects, where gen 34's lemma applies) and by
+`capAt_R` / `capOpt_R` (the two non-null caps). `ScLiveT` (`uA_scLiveT_R`) holds by the two caps: the root thread is
+named by its thread cap, the root SC by its SC cap.
 
 No premise. No existing statement changed.
 -/
@@ -57,15 +52,11 @@ theorem uA_irqNode_ne (irq : Irq) : (σR (Z := Unit)).interruptIrqNode irq ≠ t
 
 theorem uA_scActive_R : scActive scR = true := by decide
 
-/-! ## `ScLiveT` is false at `σR` -/
-
-/-- **`ScLiveT` fails at `σR`**: the root SC is live and named by no thread / SC cap. -/
-theorem uA_not_scLiveT_R : ¬ SInvL.ScLiveT (SInvL.idleP (σR (Z := Unit))) (σR (Z := Unit)) := by
-  intro h
-  obtain ⟨s, c, hc, hn⟩ := h scRp _ kheapR_scR (Or.inl (by simp [scR])) (by decide) (by decide)
-  rcases capAt_R hc with e | ⟨-, e⟩
-  · subst e; exact hn
-  · subst e; exact tRp_ne_scRp hn
+theorem uA_irqNode_ne' (irq : Irq) : (σR (Z := Unit)).interruptIrqNode irq ≠ scRp := by
+  intro e
+  have h := σB_node_val irq
+  change (σB (Z := Unit)).interruptIrqNode irq = scRp at e
+  rw [e, scRp_toNat, kbB_val] at h; omega
 
 /-! ## `SInvA`'s fields -/
 
@@ -75,7 +66,7 @@ theorem uA_vfh_R : SInv.VfhAll (σR (Z := Unit)) :=
 theorem uA_cnDom_R : SInv.CnDom (σR (Z := Unit)) := by
   intro sl c hc p r g e
   subst e
-  rcases capOpt_R hc with e | ⟨-, -, e⟩ <;> cases e
+  rcases capOpt_R hc with e | ⟨-, -, e⟩ | ⟨-, -, e⟩ <;> cases e
 
 theorem uA_fts_R : SInv.FaultTcbsS (σR (Z := Unit)) :=
   uA_TI (fun hf => absurd rfl hf) SInv.boot_faultTcbsS_B
@@ -95,30 +86,34 @@ theorem uA_ns_R : SInv.NativeScopeS (σR (Z := Unit)) :=
 
 theorem uA_sg_R : SInvG.SpecGlobS (σR (Z := Unit)) where
   irq irq a ha := by
-    rcases capAt_R ha with e | ⟨e, -⟩
+    rcases capAt_R ha with e | ⟨e, -⟩ | ⟨e, -⟩
     · exact Or.inl e
     · have e2 : ([] : CnodeIndex) = tcbCnodeIndex 0 := congrArg Prod.snd e
       exact absurd e2 (by decide)
+    · have e2 : ([] : CnodeIndex) = tcbCnodeIndex 4 := congrArg Prod.snd e
+      exact absurd e2 (by decide)
   ref p cref a ha _ irq := by
-    rcases capAt_R ha with e | ⟨-, e⟩
+    rcases capAt_R ha with e | ⟨-, e⟩ | ⟨-, e⟩
     · subst e; simp [objRefs]
     · subst e; simp only [objRefs, Set.mem_singleton_iff]; exact uA_irqNode_ne irq
+    · subst e; simp only [objRefs, Set.mem_singleton_iff]; exact uA_irqNode_ne' irq
   idle p cref a ha _ := by
-    rcases capAt_R ha with e | ⟨-, e⟩
+    rcases capAt_R ha with e | ⟨-, e⟩ | ⟨-, e⟩
     · subst e; simp [objRefs]
     · subst e; simp only [objRefs, Set.mem_singleton_iff]; exact fun e => tRp_ne_idle e.symm
+    · subst e; simp only [objRefs, Set.mem_singleton_iff]; exact fun e => absurd e (by decide)
 
 theorem uA_vih_R : SInvV.ValidIrqHandlers (σR (Z := Unit)) := by
   intro p cref irq hc
-  rcases capOpt_R hc with e | ⟨-, -, e⟩ <;> cases e
+  rcases capOpt_R hc with e | ⟨-, -, e⟩ | ⟨-, -, e⟩ <;> cases e
 
 theorem uA_utInv_R : SInvU.UtInv (σR (Z := Unit)) := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ <;> cases e
-  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ <;> cases e
-  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ <;> cases e
-  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ <;> cases e
-  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ <;> cases e
+  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · intro s1 _ _ _ _ _ _ _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · intro sl _ _ _ _ hc; rcases capAt_R hc with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
 
 theorem uA_utInv'_R : SInvU.UtInv' (σR (Z := Unit)) := by
   refine ⟨uA_utInv_R, fun c p h => ?_, fun x hx => ?_⟩
@@ -128,29 +123,40 @@ theorem uA_utInv'_R : SInvU.UtInv' (σR (Z := Unit)) := by
 
 theorem uA_utNV_R : SInvU.UtNV (SInvU.uV (σR (Z := Unit))) := by
   have h0 : ∀ sl c, (SInvU.uV (σR (Z := Unit))).2.1 sl = some c →
-      c = .nullCap ∨ (sl = (tRp, tcbCnodeIndex 0) ∧ c = .threadCap tRp) := fun _ _ h => capAt_R h
+      c = .nullCap ∨ (sl = (tRp, tcbCnodeIndex 0) ∧ c = .threadCap tRp) ∨
+        (sl = (tRp, tcbCnodeIndex 4) ∧ c = .schedContextCap scRp 0) := fun _ _ h => capAt_R h
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro u dev b n fi hu; rcases h0 _ _ hu with e | ⟨-, e⟩ <;> cases e
-  · rintro p c hp hne ⟨u, dev, b, n, fi, hu, -⟩; rcases h0 _ _ hu with e | ⟨-, e⟩ <;> cases e
-  · intro u dev b n fi hu; rcases h0 _ _ hu with e | ⟨-, e⟩ <;> cases e
+  · intro u dev b n fi hu; rcases h0 _ _ hu with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · rintro p c hp hne ⟨u, dev, b, n, fi, hu, -⟩; rcases h0 _ _ hu with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  · intro u dev b n fi hu; rcases h0 _ _ hu with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
   · intro s c s' c' r hs hs' hr hr'
-    rcases h0 _ _ hs' with e' | ⟨-, e'⟩ <;> subst e'
+    rcases h0 _ _ hs' with e' | ⟨-, e'⟩ | ⟨-, e'⟩ <;> subst e'
     · simp [SInvU.sRefs] at hr'
-    · rcases h0 _ _ hs with e | ⟨-, e⟩ <;> subst e
+    · simp only [SInvU.sRefs, Set.mem_singleton_iff] at hr'
+      subst hr'
+      rcases h0 _ _ hs with e | ⟨-, e⟩ | ⟨-, e⟩ <;> subst e
       · simp [SInvU.capRng, objRefs] at hr
       · rfl
+      · simp only [SInvU.capRng, objRefs, Set.mem_singleton_iff] at hr
+        exact absurd hr tRp_ne_scRp
+    · simp [SInvU.sRefs] at hr'
   · intro s c r hs hr i c' hc' hn
-    rcases h0 _ _ hc' with e | ⟨e1, -⟩
+    rcases h0 _ _ hc' with e | ⟨e1, -⟩ | ⟨e1, -⟩
     · exact absurd e hn
-    · rcases h0 _ _ hs with e | ⟨-, e⟩ <;> subst e
+    · rcases h0 _ _ hs with e | ⟨-, e⟩ | ⟨-, e⟩ <;> subst e
       · simp [SInvU.sRefs] at hr
       · cases e1; exact ⟨0, by decide, rfl⟩
-  · intro s r b n hs; rcases h0 _ _ hs with e | ⟨-, e⟩ <;> cases e
+      · simp [SInvU.sRefs] at hr
+    · rcases h0 _ _ hs with e | ⟨-, e⟩ | ⟨-, e⟩ <;> subst e
+      · simp [SInvU.sRefs] at hr
+      · cases e1; exact ⟨4, by decide, rfl⟩
+      · simp [SInvU.sRefs] at hr
+  · intro s r b n hs; rcases h0 _ _ hs with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
   · intro s c hs b hb
-    rcases h0 _ _ hs with e | ⟨-, e⟩ <;> subst e <;> simp [SInvU.shp] at hb
+    rcases h0 _ _ hs with e | ⟨-, e⟩ | ⟨-, e⟩ <;> subst e <;> simp [SInvU.shp] at hb
 
 theorem uA_ut_R : SInvU.UtInv3 (σR (Z := Unit)) :=
-  ⟨⟨uA_utInv'_R, uA_utNV_R⟩, irqOut_R _ uA_irqNode_ne⟩
+  ⟨⟨uA_utInv'_R, uA_utNV_R⟩, irqOut_R _ uA_irqNode_ne uA_irqNode_ne'⟩
 
 theorem uA_nq_R : SInv.NtfnQB (σR (Z := Unit)) := by
   intro n x t hn ht
@@ -189,7 +195,7 @@ theorem uA_vi_R : SInvI.ValidIdle (σR (Z := Unit)) := by
 theorem uA_ft_R : SInvF.FT (σR (Z := Unit)) := fun t ht => by
   simp [σR, σB, initArchState] at ht
 
-theorem uA_idleScOut_R : SInvL.IdleScOutV (σR (Z := Unit)) := irqOut_R _ fun _ => by decide
+theorem uA_idleScOut_R : SInvL.IdleScOutV (σR (Z := Unit)) := irqOut_R _ (fun _ => by decide) (fun _ => by decide)
 
 theorem uA_ntfnScB_R : SInvL.NtfnScB (σR (Z := Unit)) := by
   intro n ntf c hn hc
@@ -218,8 +224,13 @@ theorem uA_scInv_R : SInvB.ScInv (σR (Z := Unit)) := by
     · exact hRn p y n h
 
 theorem uA_scKindR_R : SInvL.ScKindR (σR (Z := Unit)) := by
-  intro s r b s' c' h1 _ _
-  rcases capAt_R h1 with e | ⟨-, e⟩ <;> cases e
+  intro s r b s' c' h1 h2 h3
+  rcases capAt_R h1 with e | ⟨-, e⟩ | ⟨-, e⟩ <;> cases e
+  rcases capAt_R h2 with e | ⟨-, e⟩ | ⟨-, e⟩ <;> subst e
+  · simp [SInvU.capRng, objRefs] at h3
+  · simp only [SInvU.capRng, objRefs, Set.mem_singleton_iff] at h3
+    exact absurd h3.symm tRp_ne_scRp
+  · exact ⟨0, rfl⟩
 
 theorem uA_dom_R : DomListOK (σR (Z := Unit)) := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -237,6 +248,17 @@ theorem uA_cs_R : SInvQ.CurScT (σR (Z := Unit)) := by
   intro x hx
   change kheapR tRp = some (.tcb x) at hx
   rw [kheapR_tR] at hx; cases hx; rfl
+
+/-- **`ScLiveT` at `σR`**: the root thread is named by its thread cap, the root SC by its SC cap; `σB`'s live
+objects are the idle pair. -/
+theorem uA_scLiveT_R : SInvL.ScLiveT (SInvL.idleP (σR (Z := Unit))) (σR (Z := Unit)) := by
+  intro p o hp hl h1 h2
+  rcases kheapR_cases hp with ⟨e, -⟩ | ⟨e, -⟩ | ⟨-, -, h⟩
+  · subst e; exact ⟨_, _, capAt_R_root, rfl⟩
+  · subst e; exact ⟨_, _, capAt_R_tmo, rfl⟩
+  · obtain ⟨s, c, hs, hn⟩ := SInvL.boot_scLiveT_B p o h hl h1 h2
+    rw [SInvU.init_capAt_B hs] at hn
+    simp [SInvL.NCap] at hn
 
 /-- **`SInvA σR` from `ScLiveT`** (every other field proved). -/
 theorem uA_sinvA_R_of (hT : SInvL.ScLiveT (SInvL.idleP (σR (Z := Unit))) (σR (Z := Unit))) :
@@ -261,7 +283,7 @@ theorem uA_sinvA_R_of (hT : SInvL.ScLiveT (SInvL.idleP (σR (Z := Unit))) (σR (
   sl := ⟨⟨hT, uA_idleScOut_R, uA_ntfnScB_R, uA_scInv_R⟩, uA_scKindR_R⟩
   cs := uA_cs_R
 
-theorem uA_not_sinvA_R : ¬ SInvAll.SInvA (σR (Z := Unit)) := fun h => uA_not_scLiveT_R h.sl.1.1
+theorem uA_sinvA_R : SInvAll.SInvA (σR (Z := Unit)) := uA_sinvA_R_of uA_scLiveT_R
 
 /-! ## The rest of `SInvX` -/
 
@@ -348,15 +370,14 @@ theorem uA_offReady_R : Sched.OffReady (σR (Z := Unit)) := by
 theorem uA_cAx_R : SInvR.CAx (σR (Z := Unit)) :=
   fun _ => ⟨tcbR, scRp, scR, 0, kheapR_tR, rfl, kheapR_scR, uA_scActive_R⟩
 
-/-- **`SInvX σR` from `ScLiveT`** (the one false field, `uA_not_scLiveT_R`). -/
+/-- `SInvX σR` from `ScLiveT`. -/
 theorem uA_sinvX_R_of (hT : SInvL.ScLiveT (SInvL.idleP (σR (Z := Unit))) (σR (Z := Unit))) :
     SInvR.G4.SInvX (σR (Z := Unit)) :=
   ⟨⟨⟨⟨⟨⟨⟨⟨uA_sinvA_R_of hT, uA_ctExit_R⟩, uA_onlyIdle_R⟩, uA_ex_R, uA_rb_R, uA_t4_R⟩, rfl⟩, uA_bsa_R⟩,
     uA_vb_R⟩, uA_rdy_R, uA_offReady_R, uA_cAx_R⟩, uA_rpos_R⟩
 
-/-- **`SInvX` is false at `σR`** (module docstring). -/
-theorem uA_not_sinvX_R : ¬ SInvR.G4.SInvX (σR (Z := Unit)) :=
-  fun h => uA_not_sinvA_R h.1.1.1.1.1.1.1.1
+/-- **`SInvX` at the second boot start `σR`.** -/
+theorem sinvX_R : SInvR.G4.SInvX (σR (Z := Unit)) := uA_sinvX_R_of uA_scLiveT_R
 
 end
 
