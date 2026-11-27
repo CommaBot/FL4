@@ -542,6 +542,19 @@ pub fn vcpu_guest<S: Store>(s: &S, vc: u64) -> Tcb {
 /// refuses gets its error reply, as on the general path (its errors come
 /// before any write). Returns false otherwise, having written only
 /// `FAULT_IP` and the timestamp (Decline).
+///
+/// Footprint (DESIGN.md §7): besides `ct`, its IPC buffer frame, `vc`
+/// and this core's state, the run writes the guest thread's registers
+/// (`write_state_from_frame`, `FAULT_IP`) and reads its VSpace slot's cap
+/// words (`set_stage2_root`), as `handle_arm_vcpu_run_exit_local` writes
+/// its `ELR_EL1`. They are held through `vc`'s lock, not the guest's
+/// `AFFINITY`, which is not checked (a guest without an SC keeps the 0 it
+/// was created with): the guest is inactive and bound to `vc`, binding
+/// changes only under the gate, and every other local path declines a
+/// thread with a bound VCPU before writing it. `remote_tcb_stall(guest)`
+/// reads `CUR_THREAD` of the core `AFFINITY` names without its lock; no
+/// core's current thread is an inactive thread with a bound VCPU, so it
+/// stalls nothing whatever it reads.
 #[cfg(feature = "aarch64")]
 pub fn handle_arm_vcpu_run_local<S: Store, A: Arch>(
     s: &mut S,
