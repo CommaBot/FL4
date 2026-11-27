@@ -1,0 +1,21 @@
+import Fl4Proofs.P2.BootSpecF
+#print axioms Fl4Proofs.P2.BootSt.idleTcbB
+#print axioms Fl4Proofs.P2.BootSt.idleScB
+#print axioms Fl4Proofs.P2.BootSt.kheapB_ti
+#print axioms Fl4Proofs.P2.BootSt.kheapB_sci
+#print axioms Fl4Proofs.P2.BootSt.kheapB_tcb
+#print axioms Fl4Proofs.P2.BootSt.kheapB_sc
+#print axioms Fl4Proofs.P2.BootSt.kheapB_noEp
+#print axioms Fl4Proofs.P2.BootSt.kheapB_noNtfn
+#print axioms Fl4Proofs.P2.BootSt.kheapB_noReply
+#print axioms Fl4Proofs.P2.BootSt.idleScB_active
+#print axioms Fl4Proofs.P2.BootSt.σB_off
+#print axioms Fl4Proofs.P2.BootSt.σB_act
+#print axioms Fl4Proofs.P2.BootSt.σB_curRun
+#print axioms Fl4Proofs.P2.BootSt.σB_isorted
+#print axioms Fl4Proofs.P2.BootSt.σB_cur
+#print axioms Fl4Proofs.P2.BootSt.σB_own
+#print axioms Fl4Proofs.P2.BootSt.σB_slink
+#print axioms Fl4Proofs.P2.BootSt.σB_sv
+#print axioms Fl4Proofs.P2.BootSt.σB_inv
+#print axioms Fl4Proofs.P2.BootSt.σB_bsa
