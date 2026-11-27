@@ -5,8 +5,8 @@
 `Cq = {sciB, scRw}`), as gen 34's `jpl_B` at `(sB, σB)`: `HR` well formed, `thR` placed (`placed_R`), its two TCBs
 the heap's, its IRQ CNodes `other 5` objects of `HR`, the spec's two SCs (`scRp`, the idle SC) `sc 7` objects of
 `HR` in `Cq`, the block placement (`jKern_R`'s), and every slot fact by `slotR_cases` (each slot holds the null cap
-or, at the root slot, `Thread tRw`: no endpoint, notification, reply, frame or SC cap; slots 2 and 3 of a TCB are
-not the root slot, so null).
+`Thread tRw` at the root slot, or `SchedContext scRw 7` at the timeout-handler slot `tmoW`: `HR`'s `sc 7`, not the
+idle SC; no endpoint, notification, reply or frame cap; slots 2 and 3 of a TCB are neither, so null).
 
 No premise. No existing statement changed.
 -/
@@ -29,21 +29,24 @@ theorem uB_nodeA_slot (i : U64) (hi : i.val < 128) : IsSlot thR (nodeA (bsL.ksb 
 
 theorem uB_typed_R {a : U64} (ha : IsSlot thR a) :
     CapTyped HR (Heap.replies HR) (Heap.ntfns HR) (capV (bsL.mem sR) a) := by
-  rcases slotR_cases ha with rfl | ⟨hn, -⟩
+  rcases slotR_cases ha with rfl | rfl | ⟨hn, -⟩
   · rw [capV_R_root]
+    exact ⟨fun _ _ _ _ _ _ h => (by cases h), fun _ _ _ _ h => (by cases h), fun _ _ h => (by cases h)⟩
+  · rw [capV_R_tmo]
     exact ⟨fun _ _ _ _ _ _ h => (by cases h), fun _ _ _ _ h => (by cases h), fun _ _ h => (by cases h)⟩
   · rw [hn]
     exact ⟨fun _ _ _ _ _ _ h => (by cases h), fun _ _ _ _ h => (by cases h), fun _ _ h => (by cases h)⟩
 
-/-- A TCB slot of `thR` but slot 0 is not the root slot. -/
-theorem uB_slot_ne {t : U64} (ht : thR t = some .tcb) {i : Nat} (h0 : 0 < i) (h6 : i < tcbSlots) :
-    slotOf t i ≠ tRw := by
-  simp only [tcbSlots] at h6
-  intro e
-  have := congrArg UScalar.val e
-  rcases thR_cases ht with ⟨h1, -⟩ | ⟨h1, -⟩ | ⟨h1, -⟩
+/-- Slots 2 and 3 of a TCB of `thR` are neither capped slot (`tRw` slot 0, `tmoW` slot 4). -/
+theorem uB_slot_ne {t : U64} (ht : thR t = some .tcb) {i : Nat} (h0 : 0 < i) (h4 : i < 4) :
+    slotOf t i ≠ tRw ∧ slotOf t i ≠ tmoW := by
+  constructor <;> intro e <;> have := congrArg UScalar.val e <;>
+    rcases thR_cases ht with ⟨h1, -⟩ | ⟨h1, -⟩ | ⟨h1, -⟩
   · rw [slotOf_val (by omega), tRw_val] at this; omega
   · rw [slotOf_val (by omega), tRw_val] at this; omega
+  · cases h1
+  · rw [slotOf_val (by omega), tmoW_val] at this; omega
+  · rw [slotOf_val (by omega), tmoW_val] at this; omega
   · cases h1
 
 theorem jpl_R : JPlaced (L := bsL) thR HR {tiB, tRw} {sciB, scRw} sR (σR (Z := Unit)) where
@@ -100,14 +103,20 @@ theorem jpl_R : JPlaced (L := bsL) thR HR {tiB, tRw} {sciB, scRw} sR (σR (Z := 
   fh t ht := by
     left
     rw [cslot_tcb3]
-    exact uB_null ⟨t, 3, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩ (uB_slot_ne ht (by decide) (by simp [tcbSlots]))
+    have hn := uB_slot_ne ht (i := 3) (by decide) (by decide)
+    exact uB_null ⟨t, 3, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩ hn.1 hn.2
   bfs t ht := by
     left
     rw [cslot_tcb2]
-    exact uB_null ⟨t, 2, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩ (uB_slot_ne ht (by decide) (by simp [tcbSlots]))
+    have hn := uB_slot_ne ht (i := 2) (by decide) (by decide)
+    exact uB_null ⟨t, 2, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩ hn.1 hn.2
   cobj a ha := by
-    rcases slotR_cases ha with rfl | ⟨hn, -⟩
+    rcases slotR_cases ha with rfl | rfl | ⟨hn, -⟩
     · rw [capV_R_root]; trivial
+    · rw [capV_R_tmo]
+      refine ⟨?_, ?_⟩
+      · rw [HR_scR]; first | rfl | simp
+      · rw [uB_idleScW]; exact scRw_ne_sciB
     · rw [hn]; trivial
 
 end
