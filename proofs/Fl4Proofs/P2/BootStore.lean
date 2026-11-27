@@ -8,7 +8,7 @@ The joint-satisfiability item `hB` (handoff §36c, §38) needs a concrete `machi
   (a subtype, so that two states with the same aligned words are equal);
 * **`bst : machine.Store BS`**: every operation total; `read` / `read_pair` read the map, `write` updates an
   aligned word (an unaligned write is a no-op), `zero` / `clear_free` clear the aligned words of `[a, a + n)`,
-  `frame_masks` is `(0, 0)`;
+  `frame_masks` is `(0, 0)`, `fetch_and` (#111) returns the old word and writes it masked (int26);
 * **`bsL : LawfulStore bst`**, **`bsP : PlainStore bst`**, **`bs_ext : StoreExt bst`** (the gen-32 conditional
   `locPlat_archT` asks `StoreExt st`: this discharges it for `bst`);
 * **`BS.of m kb c`**: the state with aligned words `m`, base `kb` and CPU `c` (`BS.of_mem`), to build boot states.
@@ -56,6 +56,7 @@ def bst : machine.Store BS where
   clear_free s a n := ok (s.zr a n)
   ks_base s := ok s.kb
   cur_cpu s := ok s.cpu
+  fetch_and s a m := ok (s.m a, s.wr a (s.m a &&& m))
 
 /-- **`bst` is lawful.** -/
 instance bsL : LawfulStore bst where
@@ -72,6 +73,7 @@ instance bsL : LawfulStore bst where
   clear_free_eq _ _ _ := rfl
   ks_base_eq _ := rfl
   cur_cpu_eq _ := rfl
+  fetch_and_eq _ _ _ := rfl
   mem_wr s a v b ha _ := by
     show (if Aligned a ∧ a = b then v else s.m b) = _
     by_cases h : a = b
