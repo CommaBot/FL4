@@ -2784,3 +2784,6 @@ import Fl4Proofs.P3.P3JThSs
 import Fl4Proofs.P3.P3JThFlg
 import Fl4Proofs.P3.P3JThFpuW
 import Fl4Proofs.P3.P3JThPrio
+import Fl4Proofs.P3.VirtRngOne
+import Fl4Proofs.P3.VirtInstFrN
+import Fl4Proofs.P3.VirtThTcbLay
