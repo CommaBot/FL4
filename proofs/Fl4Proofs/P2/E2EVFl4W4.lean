@@ -627,20 +627,6 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **FL4 end to end, P3 scope, glue premises named, start entry facts shrunk** (module docstring):
-`serializable_fl4_localP3W` with `StartP3W4` starts (the P1 invariants of every VM / io / st entry from clause 7 at
-the index's sets, io / st at their canonical `Q`). -/
-theorem serializable_fl4_localW4 (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3W st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) (StartP3W4 st ar hA hSt hm a0) P s0 K0 Ch0
-      s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_W (fun _ _ _ _ _ _ _ _ _ hCh hi =>
-    startAt_P3W st ar hA hSt hm a0 hCh (startP3W_of_W4 st ar hA hSt hm a0 hi)) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3WV st ar hA hSt hm a0 h0 hA0 hok.1 hok.2 hM0 hE hq
-
 end top
 
 end

@@ -159,21 +159,6 @@ structure PmAccInsW {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : Pm
   /-- [W] accepted PageMap runs are `InsTP` at the epoch's paging words. -/
   acc : PmAccIns st ar hA (masksWr_plain st) B
 
-/-- **FL4 end to end with the PageMap slot and A/D writes to every paging word of the epoch** (module docstring):
-premises U1P's (`P`, [P] `hIoa`, `B` = [P] `cs` / [P] `lk`, `h0`, `hA0`, `hB`, `hc0`, `hM0`, the execution, `hq`),
-[P] `MmuAD` (in `ExecU3b`'s `mmu` step) and [W] `hW : PmAccInsW` (the PageMap walk). -/
-theorem serializable_fl4_localU3c (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
-    (hW : PmAccInsW st ar hA B)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecU3b (famU1P st ar hA a0 B) (StartU1P st ar hA a0 B (arI := arI) (AR := AR) (MR := MR)) P s0 K0 Ch0
-      s K Ch E)
-    (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_localU3c_ofAcc st ar hA a0 P hIoa B hW.acc h0 hA0 hB hc0 hM0 h hq
-
 end top
 
 end

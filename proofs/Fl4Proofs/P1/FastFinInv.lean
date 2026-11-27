@@ -427,7 +427,6 @@ theorem mem_wrs_qw {T : Set U64} {s X : S} {b : U64} (hT : TcbPlaced T) (hN : No
     (hl : ∀ x ∈ lW, QW (L := L) T s x.1) : L.mem (wrs (L := L) X lW) b = L.mem X b :=
   mem_wrs_ne hb lW X fun x hx => ⟨(hl x hx).aligned hT hN, hne _ (hl x hx)⟩
 
-
 /-! ## Nothing due, past the enqueue -/
 
 /-- **`NoDue` at the enqueued state** from `NoDue` at the entry state: the
@@ -540,7 +539,6 @@ theorem rel_head {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat
       rw [hb2] at hrel; exact hrel hnr
     have := hO.scDisj _ hcS _ hdsc hne
     unfold InRing at hR; unfold InSC at hin; omega
-
 
 /-! ## (d2) `FinReads` at `s15` from the entry state -/
 
@@ -1010,38 +1008,6 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
-
-/-- **Native kernel entries keep `EntryInv`**, `entry_of5` with the fault
-half's reads `FastFaultOK` (m60, a bundle over five intermediate states)
-replaced by `FastFaultPre` (m63 (d4)): placement facts at the state where
-`fastpath.fault` is entered — the ASID placement `AsidOff` [J] and m61's
-`FaultEnt` for the accepted checks (to be derived from that state's P1
-invariants and Hyps4's cap typing, KENTRY-PLAN m63 (d3) handoff). The P1
-invariants there come from `budget_ok.bxc`. `StoreExt` [P] and the
-ReplyRecv half `FastRRP` [P] unchanged.
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of6 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hFP : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
-      FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a number)
-    (hRR : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
-      FastRRP (st := st) ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
-  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
-      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
-      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
-    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  exact kernel_entry.entry_of5 hA GF hσ s a hP h hX
-    (fun number hN => FastFaultOK.of_pre ar hA E0 hP h (hFP number hN)) hRR
 
 end
 

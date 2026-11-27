@@ -488,14 +488,6 @@ theorem execPV_of_WPRV7 {LP : PathsP ι}
     rw [← hk1 x hx]
     exact hw_gate_keep hK hM hH hx
 
-/-- **Every homed U5 execution is a U7 execution.** -/
-theorem execWPRV7_of_WPRRHo {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPRRHo LP SF P s0 K0 Ch0 s K Ch) :
-    ExecWPRV7 LP SF P s0 K0 (fun _ => Ch0) s K (fun _ => Ch) :=
-  execWPRV7_of_WPRV (execWPRV_of_WPRRHo h)
-
 end exec
 
 /-! ## The top -/
@@ -529,20 +521,6 @@ theorem serializable_fl4_localU7 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3
   · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
   · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
   · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-
-/-- **U7 is not weaker than U5 on homed executions**: U5's conclusion for every homed U5 execution, from
-`serializable_fl4_localU7`, under U5's premises only. -/
-theorem serializable_fl4_localU5Ho7 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRRHo (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU7 st ar hA a0 P hIoa h0 hA0 (fun _ => hB) hc0 hM0 (execWPRV7_of_WPRRHo h) hq
 
 /-- **U6 follows from U7** (every U6 execution is a U7 execution): `VPte` is redundant in U6. -/
 theorem serializable_fl4_localU6of7 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)

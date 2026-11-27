@@ -574,28 +574,6 @@ theorem serializable_fl4_localVX4G (P : LocPlat st arI AR MR) {ιN : Type} (LN :
   · have hsf' : IoStartX st ar hA hm K s.mem hK hU c hs q j := hsf
     exact ioStartX_at (hV hsf'.1) hsf'
 
-/-- **FL4 end to end with every U1 slot in native epochs and the VM-exit, VM-timer and I/O-port slots in VM epochs**
-(module docstring): `serializable_fl4_localVX2` with the VM-timer start entry shrunk to `VtEntS` [S] and the
-I/O-port slot `ioSlotPX` added for VM epochs (record `IoPremX2`: `iw` [J], `qf` [J], `kd` [P]; start entry [S]); VM
-serial exits carry `VtxBundle4` [S]. No [W]. -/
-theorem serializable_fl4_localVX4 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotU st ar hA hm)) (cmSlotU st ar hA hm)))
-        (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm))
-      (StartVX4 st ar hA hm (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU2 st ar hA hm))) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_fl4_localVX4G st ar hA hm P _ ?_ h0 hA0 hB hc0 hM0 h hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  rcases i with i | ((j | j) | j)
-  · exact startAt_U st ar hA hm hSt a0 P hIoa hC hE hsf
-  · exact delPteStart_at st ar hA hm hC hE hsf
-  · exact invStartU2_at st ar hA hm hC hE hsf
-  · exact cmStartU2_at st ar hA hm hC hE hsf
-
 end top
 
 end

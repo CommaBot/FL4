@@ -46,28 +46,6 @@ def StartInvU1P {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7
   | .inl j => StartInvU2 st ar hA hm Ch K m hK hU c hs q j
   | .inr j => StartPmK hA hm B Ch K m hK hU c hs q j
 
-/-- **FL4 end to end with every slot and the PageMap slot, no [W]** (module docstring): the eight W11 slots (PJ12
-with `yb`), the mapped-frame Delete slot, the CNodeDelete slot, the Copy / Mint slot and the PageMap slot.
-Premises beyond `serializable_fl4_localU1`'s: `B : PmObl7` = [P] `cs`, [P] `lk`. -/
-theorem serializable_fl4_localU1P (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0)
-        (PathsP.sum (PathsP.sum (PathsP.sum (delPteSlot st ar hA hm) (invSlotU st ar hA hm))
-          (cmSlotU st ar hA hm)) (pmPathsK hA hm B)))
-      (StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU1P st ar hA hm B)) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_fl4_localU1G st ar hA hm hSt a0 P hIoa _ ?_ h0 hA0 hB hc0 hM0 h hq
-  intro Ch K s hK hU c hs q j hC hE hsf
-  rcases j with ((j | j) | j) | j
-  · exact delPteStart_at st ar hA hm hC hE hsf
-  · exact invStartU2_at st ar hA hm hC hE hsf
-  · exact cmStartU2_at st ar hA hm hC hE hsf
-  · exact pm_hSFQK hA hm B Ch K s.mem hK hU c hs q j hC hE hsf
-
 end top
 
 end

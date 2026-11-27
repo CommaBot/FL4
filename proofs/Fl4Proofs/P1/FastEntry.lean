@@ -145,118 +145,12 @@ def FastFaultOK (s : S) (a : A) (n : I64) : Prop :=
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
     UsfOK (L := L) ar s1 a (IScalar.hcast .U64 n) ∧ HusOK (L := L) ar s1 a n
 
-/-- **[P] The ReplyRecv half** of `FastAcc`: only the runs where
-`fastpath.reply_recv` answered, from the dispatch state (the `FAULT_IP` write,
-then a passing `budget_ok`; P3 `KFrontB` / `FastRR`). l4v counterpart:
-`Fastpath_C`'s `fastpath_reply_recv` refines the slow path where it does not
-fall back. -/
-def FastRRP (s : S) (a : A) (n : I64) (P : S × A → Prop) : Prop :=
-  ∀ t nx s1 s2 a2 s' a', sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
-    obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
-    syscall.budget_ok st ar s1 a = ok (true, s2, a2) →
-    fastpath.reply_recv st ar s2 a2 = ok (true, s', a') →
-    syscall.handle_syscall_general st ar s a n ⦃ P ⦄ → P (s', a')
-
-/-- **`FastAcc` from its two halves**: the fault half proved (`usf_same`,
-`hus_same`) under `StoreExt` and the reads `FastFaultOK`, the ReplyRecv half
-`FastRRP`. -/
-theorem FastAcc.of_split (hX : StoreExt st) {s : S} {a : A} {n : I64} {P : S × A → Prop}
-    (hF : FastFaultOK (L := L) ar s a n) (hR : FastRRP (st := st) ar s a n P) : FastAcc st ar s a n P := by
-  intro hg s' a' e0
-  have hgen : syscall.syscall st ar s a n false = ok (false, s', a') →
-      syscall.handle_syscall_general st ar s a n = ok (s', a') := fun hs => by
-    unfold syscall.handle_syscall_general; rw [hs]; simp only [bind_ok, uncurry_apply_pair]
-  have e1 : syscall.syscall st ar s a n true = ok (true, s', a') := by
-    unfold syscall.handle_syscall_fast at e0; exact e0
-  have h' := spec_of_eq_fd e1
-  clear e0
-  have hsyn : syscall.syscall st ar s a n false = ok (false, s', a') ∨
-      ∃ t nx s1 s2 a2, sched.cur_thread st s = ok t ∧ obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx ∧
-        obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 ∧
-        syscall.budget_ok st ar s1 a = ok (true, s2, a2) ∧ fastpath.reply_recv st ar s2 a2 = ok (true, s', a') := by
-    unfold syscall.syscall at h' ⊢
-    simp only [lift, bind_ok] at h' ⊢
-    obtain ⟨t, et, h'⟩ := spec_bind_inv h'
-    rw [et]; simp only [bind_ok, uncurry_apply_pair]
-    obtain ⟨nx, enx, h'⟩ := spec_bind_inv h'
-    rw [enx]; simp only [bind_ok, uncurry_apply_pair]
-    obtain ⟨s1, es1, h'⟩ := spec_bind_inv h'
-    rw [es1]; simp only [bind_ok, uncurry_apply_pair]
-    obtain ⟨hU, hH⟩ := hF t nx s1 et enx es1
-    obtain ⟨i1, e, h'⟩ := spec_bind_inv h'
-    rw [e]; simp only [bind_ok, uncurry_apply_pair]
-    by_cases c1 : (i1 &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS != 0#u64) = true
-    · simp only [if_pos c1] at h' ⊢
-      exact Or.inl (usf_same ar hX hU (eq_of_spec_fd h'))
-    simp only [if_neg c1] at h' ⊢
-    by_cases c2 : n < fl4_abi.syscall.SYSCALL_MIN
-    · simp only [if_pos c2] at h' ⊢; exact Or.inl (hus_same ar hX hH (eq_of_spec_fd h'))
-    simp only [if_neg c2] at h' ⊢
-    by_cases c3 : n > fl4_abi.syscall.SYSCALL_MAX
-    · simp only [if_pos c3] at h' ⊢; exact Or.inl (hus_same ar hX hH (eq_of_spec_fd h'))
-    simp only [if_neg c3] at h' ⊢
-    obtain ⟨⟨b, s2, a1⟩, e, h'⟩ := spec_bind_inv h'
-    try simp only [uncurry_apply_pair] at h'
-    cases b
-    · exfalso; simp only [Bool.false_eq_true, ↓reduceIte] at h'
-      obtain ⟨⟨u, v⟩, -, h'⟩ := spec_bind_inv h'
-      try simp only [uncurry_apply_pair] at h'
-      rw [WP.spec_ok] at h'; simp at h'
-    simp only [↓reduceIte] at h'
-    by_cases c4 : n = fl4_abi.syscall.SysReplyRecv
-    · simp only [if_pos c4] at h'
-      obtain ⟨⟨b1, s3, a2⟩, e2, h'⟩ := spec_bind_inv h'
-      try simp only [uncurry_apply_pair] at h'
-      cases b1
-      · exfalso; simp only [Bool.false_eq_true, ↓reduceIte] at h'
-        obtain ⟨⟨u, v⟩, -, h'⟩ := spec_bind_inv h'
-        try simp only [uncurry_apply_pair] at h'
-        obtain ⟨⟨u', v'⟩, -, h'⟩ := spec_bind_inv h'
-        try simp only [uncurry_apply_pair] at h'
-        rw [WP.spec_ok] at h'; simp at h'
-      · simp only [↓reduceIte, WP.spec_ok, Prod.mk.injEq, true_and] at h'
-        obtain ⟨rfl, rfl⟩ := h'
-        exact Or.inr ⟨t, nx, s1, s2, a1, by first | exact et | rfl, by first | exact enx | rfl,
-          by first | exact es1 | rfl, e, e2⟩
-    · exfalso; simp only [if_neg c4] at h'
-      obtain ⟨⟨u, v⟩, -, h'⟩ := spec_bind_inv h'
-      try simp only [uncurry_apply_pair] at h'
-      obtain ⟨⟨u', v'⟩, -, h'⟩ := spec_bind_inv h'
-      try simp only [uncurry_apply_pair] at h'
-      rw [WP.spec_ok] at h'; simp at h'
-  rcases hsyn with hs | ⟨t, nx, s1, s2, a2, et, enx, es1, eb, er⟩
-  · rw [hgen hs, WP.spec_ok] at hg; exact hg
-  · exact hR t nx s1 s2 a2 s' a' et enx es1 eb er hg
-
 end
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {P3Ok : S → Prop}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
-
-/-- **Native kernel entries keep `EntryInv`**, `entry_of4` with its fast-path
-premise `hF` [P] split (m60 (e)): the fault half discharged (`FastAcc.of_split`)
-from `StoreExt` [P] and the general path's reads `FastFaultOK` [J] (each true
-in reachable states, from the entry state's placement invariants: KENTRY-PLAN
-m58–m60 (d)), the ReplyRecv half `FastRRP` [P] (unchanged).
-**Vacuous** (p1g): its premise bundles are contradictory with the `EntryInv` premise
-(P1/EntryVacuous). Use P3's `kernel_entry_entryInvU29` (P3/XTopJointEntryInv29),
-which has this conclusion from U29's premises. -/
-theorem kernel_entry.entry_of5 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
-    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
-    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
-    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hX : StoreExt st)
-    (hFt : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FastFaultOK (L := L) ar s a number)
-    (hRR : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
-      FastRRP (st := st) ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
-    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
-    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
-      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
-  kernel_entry.entry_of4 hA GF hσ s a hP h fun number hN =>
-    FastAcc.of_split ar hX (hFt number hN) (hRR number hN)
 
 end
 

@@ -407,19 +407,6 @@ theorem serializable_fl4_localU1G (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P
   | inl i => exact startAt_U st ar hA hm hSt a0 P hIoa hC hE hsf
   | inr j => exact hSFQ Ch K s hK hU c hs q j hC hE hsf
 
-/-- **`serializable_fl4_localU1G` with the mapped-frame Delete slot** (`LQ := delPteSlot`, `SFQ := DelPteStart`,
-invj gen 8). -/
-theorem serializable_fl4_localU1D (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0) (delPteSlot st ar hA hm))
-      (StartU1 st ar hA hm hSt a0 arI AR MR (DelPteStart st ar hA hm)) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU1G st ar hA hm hSt a0 P hIoa (delPteSlot st ar hA hm)
-    (fun _ _ _ _ _ _ _ _ _ hC hEp hS => delPteStart_at st ar hA hm hC hEp hS) h0 hA0 hB hc0 hM0 h hq
-
 end top
 
 /-! ## Satisfiability at a chain state, any number of cores -/

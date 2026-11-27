@@ -80,57 +80,6 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
 
-set_option maxHeartbeats 8000000 in
-/-- **The frame-cap invocation beside the serial gate, accepted** (module
-docstring): `kernel_entry_reachU29`'s syscall clause for
-`handle_invocation_local … n p` on the runs that return `true`, with `p`
-fl4-sync's plan at the entry state. -/
-theorem kernel_entry_reachU29V [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      (∀ (n : I64) (c : Fl4Spec.Syscall) (p : localinv.Plan), σ.curThread ≠ σ.idleThread → NativeSys n c →
-        (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-          ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            KDispHypsKVU29 (L := L) arI AR (Z.mv Z.G V') H Cs D' s' a' σb n c) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            ∀ ct', sched.cur_thread st s' = ok ct' →
-              JDecMRLK (L := L) arI VtxK AR MR (Z.mv Z.G V') H Cs D' s' a' σb ct') →
-        (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-          (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-            JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-            KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-        localinv.plan st s n = ok (some p) →
-        syscall.handle_invocation_local st arI s a n p ⦃ r => r.1 = true →
-          ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-            RJ (L := L) arI AR r.2.1 r.2.2 σ' ∧ SInvX σ' ∧ MR r.2.2 σ'.machineState ∧
-            SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ SInvUZ.UtPgR σ' ∧
-            JReachU17 (L := L) arI AR MR r.2.1 r.2.2 σ' ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, -, -, -, -, -, -, hSys, -⟩ :=
-    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  refine ⟨Z, H, Cs, Ac, Lst, D, J, fun n c p hct hn hflag hK hDL hFin hp => ?_⟩
-  have hbuf : ∀ t, sched.cur_thread st s = ok t →
-      msg.lookup_ipc_buffer st s false t ⦃ w => P1.BufOK {b | P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b} w ⦄ := by
-    intro t et
-    have hc : t ∈ P1.Heap.tcbs H := by
-      obtain ⟨⟨_, _, hSQ⟩, -, -, -, -⟩ := J.bxi
-      rw [P1.cur_thread_ok] at et; rw [← P1.ok_inj_ff et]; exact hSQ.curT
-    exact J.sbufOK hc
-  exact P1.inv_local_triple arI hA J.bxi (fun _ et => J.cnOff et) hbuf hflag hp
-    (hSys n c hct hn hflag hK hDL hFin)
-
 end
 
 end
