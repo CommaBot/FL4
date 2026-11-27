@@ -2420,3 +2420,7 @@ import Fl4Proofs.P3.P3JScLeaf
 import Fl4Proofs.P3.P3JScTop
 import Fl4Proofs.P3.P3JScUnb
 import Fl4Proofs.P3.P3JScYld
+import Fl4Proofs.P3.P3JCnCp
+import Fl4Proofs.P3.P3JCbsFt
+import Fl4Proofs.P3.P3JCnCbs
+import Fl4Proofs.P3.P3JThIll
