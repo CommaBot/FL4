@@ -2392,3 +2392,5 @@ import Fl4Proofs.P3.P3JRecvFtN
 import Fl4Proofs.P3.P3JRecvFtW
 import Fl4Proofs.P3.P3JRecvFtTop
 import Fl4Proofs.P3.P3JMidCls
+import Fl4Proofs.P3.P3JMidInv
+import Fl4Proofs.P3.P3JMidDecK
