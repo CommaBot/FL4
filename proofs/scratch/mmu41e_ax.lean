@@ -124,5 +124,4 @@ import Fl4Proofs.P3.JAtZV3EptRel
 #print axioms Fl4Proofs.P3.eptA
 #print axioms Fl4Proofs.P3.EptRel
 #print axioms Fl4Proofs.P3.EptCapL
-#print axioms Fl4Proofs.P3.JAtZV4
 #print axioms Fl4Proofs.P3.eptRel_empty

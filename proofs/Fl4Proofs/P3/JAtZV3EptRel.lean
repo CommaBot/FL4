@@ -46,10 +46,11 @@ related words.
 6. **Guest execution**: the only writes to `X` while a guest runs are `eptHw` bits.
 7. **`mark_core`**: writes only the upper half of root words 510 / 511 (unrelated).
 
-**Should it become a field?** Yes: `JAtZV4 := JAtZV3 ∧ EptRel ∧ EptCapL` (defined below), not a premise: it is
-a state invariant like `VRel`, true at boot, and every step must keep it (obligations 2-7). `JAtZV3` itself
-cannot change (no existing statement changes); the EPT success arms would be proved at `JAtZV4`, the rest of the
-line lifted by obligation 2.
+**Should it become a field?** Yes, not a premise: it is a state invariant like `VRel`, true at boot, and every
+step must keep it (obligations 2-7). Per the architect contract (mmuAD 42) there is no `JAtZV4` shell: in gen 42b
+`EptRel` and `EptCapL` (with the ASID-pool guest tag and the placement apartness of `X`) become the fields of the
+flat record `EptCore X Z s σ`, with `abbrev VmEptState := VmState ∧ EptCore`; the EPT success arms are proved at
+`VmEptState`. `JAtZV3` itself does not change (no existing statement changes).
 
 No theorem here depends on a premise; `eptRel_empty` is the boot case. No existing statement changed.
 -/
@@ -80,19 +81,6 @@ structure EptRel (X : Set U64) (XL : U64 → Nat) (σ : Fl4Spec.State Unit) (m :
 /-- A slot's EPT cap has the ghost level of its table (module docstring). -/
 def EptCapL (th : TypedHeap) (XL : U64 → Nat) (m : U64 → U64) : Prop :=
   ∀ y, IsSlot th y → ∀ p l a v (mm : Bool), capV m y = .Ept p l mm a v → l.val = XL p
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
-
-/-- **`JAtZV3` with the guest page-table relation** (module docstring: the field the EPT success arms need). -/
-structure JAtZV4 (arI : machine.Arch A) (V X : Set U64) (XL : U64 → Nat) (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
-    (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit) : Prop where
-  z3 : JAtZV3 (L := L) arI V X AR Z H Cs Ac Lst D s a σ
-  ept : EptRel X XL σ (L.mem s)
-  capL : EptCapL Z.th XL (L.mem s)
-
-end
 
 /-- Boot (obligation 1): with no spec guest table, `EptRel ∅` holds. -/
 theorem eptRel_empty {XL : U64 → Nat} {σ : Fl4Spec.State Unit} {m : U64 → U64}
