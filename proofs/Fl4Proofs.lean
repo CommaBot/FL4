@@ -2244,3 +2244,8 @@ import Fl4Proofs.P2.BootCfg
 import Fl4Proofs.P2.OpaqueSat
 import Fl4Proofs.P2.BootStart
 import Fl4Proofs.P2.BootRun
+import Fl4Proofs.P2.BootRSpec
+import Fl4Proofs.P2.BootRMem
+import Fl4Proofs.P2.BootRNonIdle
+import Fl4Proofs.P2.BootRSpecS
+import Fl4Proofs.P2.BootRZ
