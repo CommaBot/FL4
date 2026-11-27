@@ -2476,3 +2476,8 @@ import Fl4Proofs.P3.JExtV2
 import Fl4Proofs.P3.VirtJExtV2Del
 import Fl4Proofs.P3.VirtJExtV2Cap
 import Fl4Proofs.P3.VirtVChunkKeep
+import Fl4Proofs.P3.VirtRetFullV2
+import Fl4Proofs.P3.VirtVChunkIns
+import Fl4Proofs.P3.JExtV2Bind
+import Fl4Proofs.P3.VirtUtInvV2
+import Fl4Proofs.P3.VirtUtInvVR2
