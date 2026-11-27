@@ -1,0 +1,22 @@
+import Fl4Proofs.P3.P3JCapDomW
+#print axioms Fl4Proofs.P3.JAtZ.inSlotProjW
+#print axioms Fl4Proofs.P3.JAtZ.schWProjW
+#print axioms Fl4Proofs.P3.QJW
+#print axioms Fl4Proofs.P3.stepClosed_jatW
+#print axioms Fl4Proofs.P3.Steps.jatZW
+#print axioms Fl4Proofs.P3.IsRestCap
+#print axioms Fl4Proofs.P3.restCap_of
+#print axioms Fl4Proofs.P3.restCap_not
+#print axioms Fl4Proofs.P3.decDomSt
+#print axioms Fl4Proofs.P3.dispEnteredSg
+#print axioms Fl4Proofs.P3.midDecDom_of
+#print axioms Fl4Proofs.P3.invDecDom_of
+#print axioms Fl4Proofs.P3.midDecRest_of_dom
+#print axioms Fl4Proofs.P3.invDecRest_of_dom
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLo
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLj_of_Lo
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLo
+#print axioms Fl4Proofs.P3.midDecStW_anti
+#print axioms Fl4Proofs.P3.invDecStW_anti
+#print axioms Fl4Proofs.P3.Mc.restCapW
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLo_of_Lj

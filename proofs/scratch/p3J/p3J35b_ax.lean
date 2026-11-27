@@ -1,0 +1,22 @@
+import Fl4Proofs.P3.P3JInvLeaf
+#print axioms Fl4Proofs.P1.syscall.error_mrs.xsfc
+#print axioms Fl4Proofs.P1.syscall.reply_error.xsfc
+#print axioms Fl4Proofs.P3.Mc.replyErrProjW
+#print axioms Fl4Proofs.P3.Mc.flTailProjWc
+#print axioms Fl4Proofs.P3.InvDecSt
+#print axioms Fl4Proofs.P3.invInvHI
+#print axioms Fl4Proofs.P3.inv_afterSt
+#print axioms Fl4Proofs.P3.dispatch_invSt
+#print axioms Fl4Proofs.P3.dispInv_stFt
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLi
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLn_of_Li
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLi
+#print axioms Fl4Proofs.P3.InvDecStW
+#print axioms Fl4Proofs.P3.invDecSt_of_w
+#print axioms Fl4Proofs.P3.invDecEasy_of
+#print axioms Fl4Proofs.P3.invDecReply_of
+#print axioms Fl4Proofs.P3.invDecEp_of
+#print axioms Fl4Proofs.P3.invDecSt_of_rest
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLj
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLi_of_Lj
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLj
