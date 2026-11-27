@@ -176,3 +176,4 @@ import Fl4ProofsA64.P1.QueueSlotTy
 import Fl4ProofsA64.P1.QueueSlotTyDec
 import Fl4ProofsA64.P1.QueueSlotTyFin
 import Fl4ProofsA64.P1.QueueSlotTyIrq
+import Fl4ProofsA64.P1.QueueFoot7
