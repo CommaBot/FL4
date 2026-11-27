@@ -2393,3 +2393,4 @@ import Fl4Proofs.P3.JAtZV3VFront
 import Fl4Proofs.P3.JAtZV3EptE
 import Fl4Proofs.P3.JAtZV3EptG
 import Fl4Proofs.P3.JAtZV3HiRun
+import Fl4Proofs.P3.JAtZV3HiComm
