@@ -2376,3 +2376,5 @@ import Fl4Proofs.P3.JAtZV3VDec
 import Fl4Proofs.P3.JAtZV3VDecE
 import Fl4Proofs.P3.JAtZV3VDisp
 import Fl4Proofs.P3.JAtZV3VInv
+import Fl4Proofs.P3.JAtZV3VDecE2
+import Fl4Proofs.P3.JAtZV3VDisp2
