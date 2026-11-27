@@ -1,0 +1,41 @@
+import Fl4Proofs.P3.VirtMsrE2E
+import Fl4Proofs.P3.VirtVmcbStore
+import Fl4Proofs.P3.VirtVmcbDec
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_of_slot
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_xcr0
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_ibpb
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrOff_cr2
+#print axioms Fl4Proofs.P3.VirtMsrStore.gprOff_nat
+#print axioms Fl4Proofs.P3.VirtMsrStore.exitOff_nat
+#print axioms Fl4Proofs.P3.VirtMsrStore.vmcsOff_nat
+#print axioms Fl4Proofs.P3.VirtMsrStore.ioOff_nat
+#print axioms Fl4Proofs.P3.VirtMsrStore.hO_of
+#print axioms Fl4Proofs.P3.VirtMsrStore.VcpuRelCommon.upd
+#print axioms Fl4Proofs.P3.VirtMsrStore.toNat_ne_of_ne
+#print axioms Fl4Proofs.P3.VirtMsrStore.set_vmx_msr
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrStore_vmx
+#print axioms Fl4Proofs.P3.VirtMsrStore.svm_canon_of
+#print axioms Fl4Proofs.P3.VirtMsrStore.msrStore_svm
+#print axioms Fl4Proofs.P3.VirtMsrStore.memW_wr
+#print axioms Fl4Proofs.P3.VirtMsrStore.wrmsrTail_gen
+#print axioms Fl4Proofs.P3.VirtMsrStore.wrmsrTail_vmx
+#print axioms Fl4Proofs.P3.VirtMsrStore.wrmsrTail_svm
+#print axioms Fl4Proofs.P3.VirtMsrStore.getVcpu_out
+#print axioms Fl4Proofs.P3.VirtMsrStore.vcpuUpdate_out
+#print axioms Fl4Proofs.P3.VirtMsrStore.writeMsr_out
+#print axioms Fl4Proofs.P3.VirtMsrStore.set_msr_ne_svm
+#print axioms Fl4Proofs.P3.VirtMsrStore.writeMsr_rel_vmx
+#print axioms Fl4Proofs.P3.VirtMsrStore.writeMsr_rel_svm
+#print axioms Fl4Proofs.P3.VirtVmcbStore.VcpuRelCommon.keep
+#print axioms Fl4Proofs.P3.VirtVmcbStore.rax_nat
+#print axioms Fl4Proofs.P3.VirtVmcbStore.VcpuRelSvm.keep_word
+#print axioms Fl4Proofs.P3.VirtVmcbStore.svm_writable_nat
+#print axioms Fl4Proofs.P3.VirtVmcbStore.VcpuRelSvm.store_vmcb
+#print axioms Fl4Proofs.P3.VirtVmcbStore.regs_gpr0
+#print axioms Fl4Proofs.P3.VirtVmcbStore.VcpuRelSvm.store_rax
+#print axioms Fl4Proofs.P3.VirtVmcbStore.vmcbStore_svm
+#print axioms Fl4Proofs.P3.VirtVmcbStore.writeVmcb_out
+#print axioms Fl4Proofs.P3.VirtVmcbStore.writeVmcb_rel_svm
+#print axioms Fl4Proofs.P3.VirtReplyKeep.wrmsrTail_genAg
+#print axioms Fl4Proofs.P3.VirtReplyKeep.wrmsrTail_vmxN
+#print axioms Fl4Proofs.P3.VirtReplyKeep.wrmsrTail_svmN

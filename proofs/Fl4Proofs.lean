@@ -2354,3 +2354,13 @@ import Fl4Proofs.P3.JAtZV3Check
 import Fl4Proofs.P3.JAtZV3SetTcb
 import Fl4Proofs.P3.JAtZV3SigComp
 import Fl4Proofs.P3.JAtZV3SigVm
+import Fl4Proofs.P3.VirtInitIo
+import Fl4Proofs.P3.VirtInitWalk
+import Fl4Proofs.P3.VirtRetypeInit
+import Fl4Proofs.P3.VirtMsrEq
+import Fl4Proofs.P3.VirtMsrDec
+import Fl4Proofs.P3.VirtMsrStore
+import Fl4Proofs.P3.VirtVmcbStore
+import Fl4Proofs.P3.VirtReplyKeep
+import Fl4Proofs.P3.VirtMsrE2E
+import Fl4Proofs.P3.VirtVmcbDec
