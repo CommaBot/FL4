@@ -22,17 +22,15 @@ Ext/VirtDispatch's `fl4DecodeInvocationV` at `.eptCap`).
 
 **Not covered (state of the arms, nothing claimed):** the arms that read or write a guest table or the ASID
 table — unmap of a final cap (`ept::unmap`, `s.zero(ptr, 4096)`, `set_cap`, l. 269-283), map past the `mapped`
-check (the guest-address bound, `ept::root`'s ASID lookup `ept::find`, `ept::slot`'s walk `ept::lookup`, the entry
+check and the guest-address bound (`ept::root`'s ASID lookup `ept::find`, `ept::slot`'s walk `ept::lookup`, the entry
 test `DeleteFirst`, the entry write and `set_cap`, l. 289-310). `JAtZV3` has no relation between FL4's guest-table
 pages and the spec's `.ept l es` objects (its `X` is only the set of EPT cap pointers in `VtxCap`; no
 `StateRel`/`VRel` component reads a guest table), so these arms' spec outcomes (`getEpt`, `guestLookupSlot`,
 `storeGuestEntry`, `findGuestRoot`'s pool entry with bit 0) are not determined by FL4's memory at `JAtZV3`: an
 EPT-table relation (FL4 table word `i` of `t ∈ X` ↔ `es i` of the spec's `.ept l es` at `t`, and, for `findGuestRoot`, the ASID-pool
 entries with the guest tag `r ||| 1`; whether the base's VSpace relation covers tagged entries was not checked) is
-what is missing. The guest-address bound arm (l. 288-292) reads no table but was
-not done this generation: FL4 masks with `1 << (level & 63)`, the spec with `1 <<< level.val`, equal because a
-decoded cap has `level < 64` (`Cap::decode`, capability.rs l. 205: `(w0 >> 53) & 0x3f`), a fact still to be
-lifted from `capV`.
+what is missing. The guest-address bound arm (l. 288-292) reads no table: it is P3/JAtZV3EptG (`JAtZV3.eptGpaJ`;
+FL4's `1 << (level & 63)` mask equals the spec's `1 <<< level.val` since a decoded cap has `level < 64`).
 
 No named premise. No existing statement changed.
 -/
