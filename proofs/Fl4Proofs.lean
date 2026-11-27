@@ -2461,3 +2461,4 @@ import Fl4Proofs.P3.VirtRetFullV
 import Fl4Proofs.P3.VirtResetV
 import Fl4Proofs.P3.VirtResetSpecV
 import Fl4Proofs.P3.VirtVCapped
+import Fl4Proofs.P3.VirtVCappedDel
