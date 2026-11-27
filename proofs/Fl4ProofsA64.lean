@@ -174,3 +174,4 @@ import Fl4ProofsA64.P1.QueueDelPlaceFalse
 import Fl4ProofsA64.P1.QueueSlotFieldsFalse
 import Fl4ProofsA64.P1.QueueSlotTy
 import Fl4ProofsA64.P1.QueueSlotTyDec
+import Fl4ProofsA64.P1.QueueSlotTyFin
