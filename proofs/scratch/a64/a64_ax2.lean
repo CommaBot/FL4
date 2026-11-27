@@ -151,6 +151,7 @@ import Fl4ProofsA64.P1.QueueEntryGaps5
 import Fl4ProofsA64.P1.QueueDecVcpuA
 import Fl4ProofsA64.P1.QueueDecVcpuRegA
 import Fl4ProofsA64.P1.QueueDecVcpuStA
+import Fl4ProofsA64.P1.QueueEntryGaps7
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -305,3 +306,6 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.vcpu.st_restart
 #print axioms Fl4ProofsA64.P1.vcpu.read_state_to_frame.cur0A
 #print axioms Fl4ProofsA64.P1.vcpu.decode_state_transfer.dec
+#print axioms Fl4ProofsA64.P1.decGap_vcpuB
+#print axioms Fl4ProofsA64.P1.InvGaps7.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of7A
