@@ -2455,3 +2455,5 @@ import Fl4Proofs.P3.VirtVKeep
 import Fl4Proofs.P3.VirtHinvV
 import Fl4Proofs.P3.VirtVBridge
 import Fl4Proofs.P3.VirtLoopSharp
+import Fl4Proofs.P3.VirtHinvB
+import Fl4Proofs.P3.VirtRetVcpuPre
