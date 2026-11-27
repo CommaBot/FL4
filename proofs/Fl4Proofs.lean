@@ -2787,3 +2787,11 @@ import Fl4Proofs.P3.P3JThPrio
 import Fl4Proofs.P3.VirtRngOne
 import Fl4Proofs.P3.VirtInstFrN
 import Fl4Proofs.P3.VirtThTcbLay
+import Fl4Proofs.P3.JAtZV3HiRun
+import Fl4Proofs.P3.JAtZV3HiComm
+import Fl4Proofs.P3.JAtZV3HiRep
+import Fl4Proofs.P3.JAtZV3HiTail
+import Fl4Proofs.P3.JAtZV3HiErr
+import Fl4Proofs.P3.JAtZV3HiLen
+import Fl4Proofs.P3.JAtZV3HiTop
+import Fl4Proofs.P3.JAtZV3EptRel
