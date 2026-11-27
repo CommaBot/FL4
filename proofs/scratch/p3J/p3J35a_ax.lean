@@ -1,0 +1,19 @@
+import Fl4Proofs.P3.P3JMidEp
+#print axioms Fl4Proofs.P3.JAtZ.sendRecvJ0St
+#print axioms Fl4Proofs.P3.JAtZ.sendDonJSt
+#print axioms Fl4Proofs.P3.JAtZ.sendCallIJSt
+#print axioms Fl4Proofs.P3.JAtZ.sendCallPJSt
+#print axioms Fl4Proofs.P3.JAtZ.sendCallPDJSt
+#print axioms Fl4Proofs.P3.JSendRestSt
+#print axioms Fl4Proofs.P3.jSendRest_ofSt
+#print axioms Fl4Proofs.P3.sendAfterRestartSt
+#print axioms Fl4Proofs.P3.Mc.sendIpcProjW
+#print axioms Fl4Proofs.P3.IsEpCap
+#print axioms Fl4Proofs.P3.isEp_cases
+#print axioms Fl4Proofs.P3.JAtZ.restartFactsSt
+#print axioms Fl4Proofs.P3.JAtZ.curScNZ
+#print axioms Fl4Proofs.P3.midDecEp_of
+#print axioms Fl4Proofs.P3.midDecRest_of_ep
+#print axioms Fl4Proofs.P3.Mc.DispStabFootLn
+#print axioms Fl4Proofs.P3.Mc.dispStabFootLe_of_Ln
+#print axioms Fl4Proofs.P3.Mc.kernel_entry_runMcWKR_sysLn
