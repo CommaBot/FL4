@@ -169,6 +169,9 @@ import Fl4ProofsA64.P1.QueueEntryGaps10
 import Fl4ProofsA64.P1.QueueDelPlaceFalse
 import Fl4ProofsA64.P1.QueueSlotFieldsFalse
 import Fl4ProofsA64.P1.QueueSlotTy
+import Fl4ProofsA64.P1.QueueSlotTyDec
+import Fl4ProofsA64.P1.QueueSlotTyFin
+import Fl4ProofsA64.P1.QueueSlotTyIrq
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -620,3 +623,65 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.W7.R.ST.EntApart
 #print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEnt
 #print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEnt.entAt
+#print axioms Fl4ProofsA64.P1.W7.R.ST.tcb4096
+#print axioms Fl4ProofsA64.P1.W7.R.ST.capw_ne_hi
+#print axioms Fl4ProofsA64.P1.W7.R.ST.capw_ne_node
+#print axioms Fl4ProofsA64.P1.W7.R.ST.OSKeep
+#print axioms Fl4ProofsA64.P1.W7.R.ST.OSKeep.of_writes
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTy.keep
+#print axioms Fl4ProofsA64.P1.W7.R.ST.CapTrivAt.keep
+#print axioms Fl4ProofsA64.P1.W7.R.ST.sts_fine
+#print axioms Fl4ProofsA64.P1.W7.R.ST.J.restart
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cnode_del_ty
+#print axioms Fl4ProofsA64.P1.W7.R.ST.RootOK
+#print axioms Fl4ProofsA64.P1.W7.R.ST.and63
+#print axioms Fl4ProofsA64.P1.W7.R.ST.shr_tot
+#print axioms Fl4ProofsA64.P1.W7.R.ST.decode_rad'
+#print axioms Fl4ProofsA64.P1.W7.R.ST.decode_rad
+#print axioms Fl4ProofsA64.P1.W7.R.ST.mask_val
+#print axioms Fl4ProofsA64.P1.W7.R.ST.and_lt_pow
+#print axioms Fl4ProofsA64.P1.W7.R.ST.slot_index_in
+#print axioms Fl4ProofsA64.P1.W7.R.ST.body_in
+#print axioms Fl4ProofsA64.P1.W7.R.ST.resolve_in
+#print axioms Fl4ProofsA64.P1.W7.R.ST.lookup_tgt_in
+#print axioms Fl4ProofsA64.P1.W7.R.ST.TgtTriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.lbl_c1
+#print axioms Fl4ProofsA64.P1.W7.R.ST.lbl_c2
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cnode.decode.del_ty
+#print axioms Fl4ProofsA64.P1.W7.R.ST.RootOK.of_slot
+#print axioms Fl4ProofsA64.P1.W7.R.ST.syscall.decode_invocation.del_ty
+#print axioms Fl4ProofsA64.P1.W7.R.ST.syscall.decode_invocation.del_ent
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntT
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntT.toEnt
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntT.entAt
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.empty_slot.tyN
+#print axioms Fl4ProofsA64.P1.W7.R.ST.J.witness_ent
+#print axioms Fl4ProofsA64.P1.W7.R.ST.eq_of_spec
+#print axioms Fl4ProofsA64.P1.W7.R.ST.NonFinK
+#print axioms Fl4ProofsA64.P1.W7.R.ST.FinTriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.nonfin
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cai_idle
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.ep_idle
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.reply_null
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.frame_off
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.fintriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.CapFinTrivAt
+#print axioms Fl4ProofsA64.P1.W7.R.ST.CapFinTrivAt.of_triv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.finalise_slot_immediate.fintriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.delete.fintriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.delete.fintriv_of_triv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.IrqStApart
+#print axioms Fl4ProofsA64.P1.W7.R.ST.IslTriv
+#print axioms Fl4ProofsA64.P1.W7.R.ST.OSKeep.wr1
+#print axioms Fl4ProofsA64.P1.W7.R.ST.pcd_irq.ty
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.empty_slot.tyC
+#print axioms Fl4ProofsA64.P1.W7.R.ST.fc_eq_fco
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.delete_one.ty
+#print axioms Fl4ProofsA64.P1.W7.R.ST.finalise_cap.irq_fin
+#print axioms Fl4ProofsA64.P1.W7.R.ST.irqH_nonfin
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.finalise_slot_immediate.irq
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.delete.irq
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntI
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntI.toT
+#print axioms Fl4ProofsA64.P1.W7.R.ST.SlotTyEntI.entAt
+#print axioms Fl4ProofsA64.P1.W7.R.ST.cdt.delete.irq_ent
