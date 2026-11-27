@@ -2227,3 +2227,5 @@ import Fl4Proofs.P2.YbwAnch
 import Fl4Proofs.P2.LocPlatModel
 import Fl4Proofs.P2.BootStore
 import Fl4Proofs.P2.BootL4vRefute
+import Fl4Proofs.P2.BootSpec
+import Fl4Proofs.P2.BootSpecInv
