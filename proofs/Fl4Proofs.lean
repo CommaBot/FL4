@@ -2351,3 +2351,6 @@ import Fl4Proofs.P3.JAtZV3ReportJ3
 import Fl4Proofs.P3.JAtZBSigPost
 import Fl4Proofs.P3.JAtZV3Ntfn
 import Fl4Proofs.P3.JAtZV3Check
+import Fl4Proofs.P3.JAtZV3SetTcb
+import Fl4Proofs.P3.JAtZV3SigComp
+import Fl4Proofs.P3.JAtZV3SigVm
