@@ -2396,3 +2396,5 @@ import Fl4Proofs.P3.P3JMidInv
 import Fl4Proofs.P3.P3JMidDecK
 import Fl4Proofs.P3.P3JMidReply
 import Fl4Proofs.P3.P3JReplyFtN
+import Fl4Proofs.P3.P3JReplyFtX
+import Fl4Proofs.P3.P3JReplyFtTop
