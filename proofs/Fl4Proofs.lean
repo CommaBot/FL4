@@ -2373,3 +2373,4 @@ import Fl4Proofs.P3.VirtArgsSpec
 import Fl4Proofs.P3.VirtWrSys
 import Fl4Proofs.P3.JAtZV3Vmcb
 import Fl4Proofs.P3.JAtZV3VDec
+import Fl4Proofs.P3.JAtZV3VDecE
