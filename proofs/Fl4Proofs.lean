@@ -2398,3 +2398,4 @@ import Fl4Proofs.P3.P3JMidReply
 import Fl4Proofs.P3.P3JReplyFtN
 import Fl4Proofs.P3.P3JReplyFtX
 import Fl4Proofs.P3.P3JReplyFtTop
+import Fl4Proofs.P3.P3JMidNtfn
