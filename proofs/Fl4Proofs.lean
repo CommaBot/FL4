@@ -2414,3 +2414,9 @@ import Fl4Proofs.P3.P3JCapDomW
 import Fl4Proofs.P3.P3JNtfnFt
 import Fl4Proofs.P3.P3JCapIrq
 import Fl4Proofs.P3.P3JCapIrqTop
+import Fl4Proofs.P3.P3JIrqB
+import Fl4Proofs.P3.P3JScFt
+import Fl4Proofs.P3.P3JScLeaf
+import Fl4Proofs.P3.P3JScTop
+import Fl4Proofs.P3.P3JScUnb
+import Fl4Proofs.P3.P3JScYld
