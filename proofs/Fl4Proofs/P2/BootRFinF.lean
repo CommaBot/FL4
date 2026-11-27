@@ -5,7 +5,7 @@ At `(sR, σR)` with the ghosts `ZR` (P2/BootRSpec, P2/BootRMem, P2/BootRZ: `T = 
 any arch state `a` with `AR a σR.archState.x64CurrentCr3`, gen 35's P2/BootFinF ported:
 
 * the TCB words: the idle TCB (`STATE = 7`, `SC = sciB`) against `idleTcbB`, the root TCB (`STATE = 1` =
-  running, `SC = scRw`, slot 0 the thread cap) against `tcbR`; every other word read 0 (no fault, no bound
+  running, `SC = scRw`, slot 0 the thread cap, slot 4 the root SC cap) against `tcbR`; every other word read 0 (no fault, no bound
   notification, registers 0 = `emptyContext`, priority / domain / affinity 0): `uE_tcbRelE_i` / `uE_tcbRelE_r`
   (`TcbRelE`), `uE_tcbRel1_i` / `uE_tcbRel1_r` (`TcbRel1`);
 * the SCs: `uE_scRel1` (one proof for both SCs: the idle SC's words, `TCB` the SC's thread), `uE_scRel1_i`
@@ -14,7 +14,7 @@ any arch state `a` with `AR a σR.archState.x64CurrentCr3`, gen 35's P2/BootFinF
   `IDLE_THREAD = tiB`, `IDLE_SC = sciB`, empty queues, the two SCs disjoint and outside the TCBs / node / block);
 * `uE_epStateRel`, `uE_ntfnStateRel`, `uE_irqRel`, `uE_ioRel`, `uE_kRootRel`, `uE_topPlaced` (with `uE_placed`:
   `Placed thR`), `uE_vsRel`, `uE_ptRel`, `uE_poolsIn`, `uE_curOK` (the current thread `tRw`: its vtable slot
-  holds the null cap), `uE_ipcRel`, `uE_esa`;
+  holds the null cap; slot 4 the root SC's cap), `uE_ipcRel`, `uE_esa`;
 * **`xtop_R_of`**: `XTopAt AR ZR sR a σR` from its `rel` component (`hrel`, exactly `XTopAt.rel`'s type at this
   instance; proved by another unit).
 
@@ -69,9 +69,9 @@ theorem uE_scK {sc : U64} (hsc : sc ∈ ZR.C) {x : Fl4Spec.SchedContext} {n : Na
 
 /-! ## Words of `sR` -/
 
-/-- A word of a TCB of `ZR.T` past the slots other than `STATE` / `SC`: 0. -/
+/-- A word of a TCB of `ZR.T` past the slots (offset ≥ 200) other than `STATE` / `SC`: 0. -/
 theorem uE_tw0 {t : U64} (ht : t ∈ ZR.T) {K : U64} {k : Nat} (hK : K.val = k) (hk : k < 4096) (h8 : k % 8 = 0)
-    (h0 : 32 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
+    (h0 : 200 ≤ k) (h1 : k ≠ 3328) (h2 : k ≠ 3464) :
     bsL.mem sR (core.num.U64.wrapping_add t K) = 0#u64 := by
   rcases ZR_T.1 ht with rfl | rfl
   · rw [memR_at (tiB_off hK hk) (by omega)]; exact wordR_zero_of (by omega)
@@ -91,7 +91,8 @@ theorem uE_st_r : bsL.mem sR (tStA tRw) = 1#u64 := by
   rw [memR_at (a := tStA tRw) (uE_tRoff (n := 3328) (by simp [layout.tcb.STATE, layout.tcb.F]) (by omega))
     (by omega)]
   unfold wordR
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos rfl]
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    if_neg (by omega), if_pos rfl]
 
 theorem uE_sc_i : bsL.mem sR (scA tiB) = sciB := by
   rw [memR_at (a := scA tiB) (tiB_off (n := 3464) (by decide) (by omega)) (by omega), wordR_of (by omega)]
@@ -100,7 +101,8 @@ theorem uE_sc_i : bsL.mem sR (scA tiB) = sciB := by
 theorem uE_sc_r : bsL.mem sR (scA tRw) = scRw := by
   rw [memR_at (a := scA tRw) (uE_tRoff (n := 3464) (by decide) (by omega)) (by omega)]
   unfold wordR
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_pos rfl]
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    if_neg (by omega), if_neg (by omega), if_pos rfl]
 
 /-- A node-0 word of `sR` by offset. -/
 theorem uE_nw {o : U64} {k : Nat} (ho : o.val = k) (hk : k < 4288) (h8 : k % 8 = 0) :
@@ -727,9 +729,11 @@ theorem uE_poolsIn : PoolsIn ZR.P ZR.L4 (bsL.mem sR) := fun _ h => h.elim
 theorem uE_curOK : Vs.CurOK bst ZR.th sR (σR (Z := Unit)) :=
   ⟨tRw, tRw_bv, thR_tR, fun p asid h => by
     have hs : IsSlot thR (slotOf tRw 1) := ⟨tRw, 1, Or.inr ⟨thR_tR, by decide⟩, rfl⟩
-    rcases slotR_cases hs with e | ⟨hn, -⟩
+    rcases slotR_cases hs with e | e | ⟨hn, -⟩
     · have := congrArg UScalar.val e
       rw [slotOf_val (by rw [tRw_val]; omega), tRw_val] at this; omega
+    · have := congrArg UScalar.val e
+      rw [slotOf_val (by rw [tRw_val]; omega), tRw_val, tmoW_val] at this; omega
     · rw [capAt_capV, hn] at h
       cases ok_inj_ff h⟩
 
