@@ -1,0 +1,481 @@
+lrwxrwxrwx 1 debian debian 23 Nov 26 12:40 proofs/.lake -> /data/fl4/lake/FL4-a64s
+#!/bin/bash
+# afk-build.sh (afkprover2): run from a synced FL4 worktree mirror (cwd = $M/<worktree>).
+# MODE=build (full x86 lake build) | mod (MODS="A B ...") | a64 (Fl4ProofsA64)
+# SEED=<other mirror name>: clone its proofs/.lake if this mirror has none.  SCR=1: apply the FrameBatch scratch
+# (proofs/scratch/fb3scratch.py, else ./m77scratch.py; SCRS=<path> overrides) for this build, reverted on exit.
+# AX=<file, relative to the worktree>: `lake env lean <file>` after a green build.  Logs: ./afklogs/b-$MODE.log
+# SEED: a cache name under /data/fl4/cache (B, A, ...), a /data/fl4/<name> dir, a mirror name under $M, or an
+# absolute path (a .lake dir, or a dir holding proofs/.lake or .lake).  Durable state: /data/fl4 (see afk-setup.sh).
+M=/home/debian/.monoid/remote/sessions/de7adef11839efd864675761d4db585096cfaf4f28add8c1607f02966671d599/work
+D=/data/fl4; FR=$D/leanq-root
+export ELAN_HOME=$D/elan PATH=$FR/bin:$D/elan/bin:$PATH; unset LEAN_NUM_THREADS  # no thread caps (lake/lean defaults)
+R=$PWD; MODE=${MODE:-build}; L=$R/afklogs; mkdir -p $L
+FR=/data/fl4/leanq-root /data/fl4/leanq-root/bin/lake
+scratch/a64/g31/cone.lean:15:22: warning: Variable name `env` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _env
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+CONE Fl4ProofsA64.P1.QueueFinal 659 673 Fl4ProofsA64.P1.fin_ntfn.blk
+CONE Fl4ProofsA64.P1.QueueFoot 33 36 Fl4ProofsA64.P1.Foot
+CONE Fl4ProofsA64.P1.QueueFoot 24 31 Fl4ProofsA64.P1.KW
+CONE Fl4ProofsA64.P1.QueueFoot 56 56 Fl4ProofsA64.P1.Foot.refl
+CONE Fl4ProofsA64.P1.QueueFoot 62 64 Fl4ProofsA64.P1.Foot.mono
+CONE Fl4ProofsA64.P1.QueueFoot 47 54 Fl4ProofsA64.P1.KW.mono
+CONE Fl4ProofsA64.P1.QueueFoot 58 60 Fl4ProofsA64.P1.Foot.trans
+CONE Fl4ProofsA64.P1.QueueFoot 40 45 Fl4ProofsA64.P1.KW.ksb
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.fin_ntfn.blk.match_1_3
+CONE Fl4ProofsA64.P1.QueueFinal 150 168 Fl4ProofsA64.P1.notification.cancel_all_signals.blk
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.notification.cancel_all_signals.blk.match_1_7
+CONE Fl4ProofsA64.P1.QueueFinal 114 121 Fl4ProofsA64.P1.sched.reschedule_required.blk
+CONE Fl4ProofsA64.P1.QueueFoot 758 760 Fl4ProofsA64.P1.sched.reschedule_required.kw
+CONE Fl4ProofsA64.P1.QueueFoot 181 182 Fl4ProofsA64.P1.FootB.foot
+CONE Fl4ProofsA64.P1.QueueFoot 154 157 Fl4ProofsA64.P1.FootB
+CONE Fl4ProofsA64.P1.QueueFoot 145 152 Fl4ProofsA64.P1.KWB
+CONE Fl4ProofsA64.P1.QueueFoot 159 163 Fl4ProofsA64.P1.KWB.kw
+CONE Fl4ProofsA64.P1.QueueFoot 730 756 Fl4ProofsA64.P1.sched.reschedule_required.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 186 188 Fl4ProofsA64.P1.FootB.trans
+CONE Fl4ProofsA64.P1.QueueFoot 165 170 Fl4ProofsA64.P1.KWB.ksb
+CONE Fl4ProofsA64.P1.QueueFoot 687 690 Fl4ProofsA64.P1.sched.set_action.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 227 229 Fl4ProofsA64.P1.footB_node
+CONE Fl4ProofsA64.P1.QueueFoot 206 208 Fl4ProofsA64.P1.kwB_node
+CONE Fl4ProofsA64.P1.QueueFoot 218 220 Fl4ProofsA64.P1.footB_wr
+CONE Fl4ProofsA64.P1.QueueFoot 184 184 Fl4ProofsA64.P1.FootB.refl
+CONE Fl4ProofsA64.P1.QueueFoot 645 655 Fl4ProofsA64.P1.sched.enqueue.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 243 250 Fl4ProofsA64.P1.LawfulStore.QFoot.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 201 204 Fl4ProofsA64.P1.kwB_field
+CONE Fl4ProofsA64.P1.QueueFoot 239 241 Fl4ProofsA64.P1.LawfulStore.NodeOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 231 237 Fl4ProofsA64.P1.LinkOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 194 195 Fl4ProofsA64.P1.FootB.of
+CONE Fl4ProofsA64.P1.QueueFinal 123 148 Fl4ProofsA64.P1.notification.cancel_all_signals_loop.blk
+CONE Fl4ProofsA64.P1.QueueFinal 35 111 Fl4ProofsA64.P1.cas_round
+CONE Fl4ProofsA64.P1.QueueFoot 365 374 Fl4ProofsA64.P1.Foot.epQ
+CONE Fl4ProofsA64.P1.QueueFoot 274 299 Fl4ProofsA64.P1.ep_not_kw
+CONE Fl4ProofsA64.P1.QueueFoot 787 789 Fl4ProofsA64.P1.sched.possible_switch_to.kw
+CONE Fl4ProofsA64.P1.QueueFoot 762 785 Fl4ProofsA64.P1.sched.possible_switch_to.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 854 857 Fl4ProofsA64.P1.notification.unblock_sporadic.kw
+CONE Fl4ProofsA64.P1.QueueFoot 825 852 Fl4ProofsA64.P1.notification.unblock_sporadic.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 259 260 Fl4ProofsA64.P1.InRing.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 212 213 Fl4ProofsA64.P1.kwB_sc
+CONE Fl4ProofsA64.P1.QueueFoot 726 728 Fl4ProofsA64.P1.sched.set_thread_state.kw
+CONE Fl4ProofsA64.P1.QueueFoot 715 724 Fl4ProofsA64.P1.sched.set_thread_state.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 222 225 Fl4ProofsA64.P1.footB_field
+CONE Fl4ProofsA64.P1.QueueFoot 696 709 Fl4ProofsA64.P1.sched.schedule_tcb.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 125 130 Fl4ProofsA64.P1.EpFoot.kw
+CONE Fl4ProofsA64.P1.QueueFoot 88 89 Fl4ProofsA64.P1.kw_ep
+CONE Fl4ProofsA64.P1.QueueFoot 104 110 Fl4ProofsA64.P1.LinkOf.kw
+CONE Fl4ProofsA64.P1.QueueFoot 75 77 Fl4ProofsA64.P1.kw_field
+CONE Fl4ProofsA64.P1.QueueFoot 66 67 Fl4ProofsA64.P1.Foot.of
+CONE Fl4ProofsA64.P1.QueueFinal 613 642 Fl4ProofsA64.P1.notification.unbind_maybe_notification.blkF
+CONE Fl4ProofsA64.P1.QueueFoot 95 98 Fl4ProofsA64.P1.foot_field
+CONE Fl4ProofsA64.P1.QueueFoot 91 93 Fl4ProofsA64.P1.foot_wr
+CONE Fl4ProofsA64.P1.QueueFoot 83 83 Fl4ProofsA64.P1.kw_sg
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.fin_ntfn.blk.match_1_1
+CONE Fl4ProofsA64.P1.QueueFinal 598 609 Fl4ProofsA64.P1.schedcontext.maybe_unbind_ntfn.blk
+CONE Fl4ProofsA64.P1.QueueFinal 540 596 Fl4ProofsA64.P1.schedcontext.unbind_ntfn.blk
+CONE Fl4ProofsA64.P1.QueueFinal 494 538 Fl4ProofsA64.P1.scn_zero_all
+CONE Fl4ProofsA64.P1.QueueFinal 464 492 Fl4ProofsA64.P1.ntsc_zero_all
+CONE Fl4ProofsA64.P1.QueueFinal 646 657 Fl4ProofsA64.P1.fin_endpoint.blk
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.fin_endpoint.blk.match_1_1
+CONE Fl4ProofsA64.P1.QueueFinal 402 423 Fl4ProofsA64.P1.endpoint.cancel_all_ipc.blk
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.endpoint.cancel_all_ipc.blk.match_1_7
+CONE Fl4ProofsA64.P1.QueueFinal 375 400 Fl4ProofsA64.P1.endpoint.cancel_all_ipc_loop.blk
+CONE Fl4ProofsA64.P1.QueueFinal 236 372 Fl4ProofsA64.P1.cai_round
+CONE Fl4ProofsA64.P1.QueueFinal 174 213 Fl4ProofsA64.P1.endpoint.restart_thread_if_no_fault.blk
+CONE Fl4ProofsA64.P1.QueueFoot 820 823 Fl4ProofsA64.P1.endpoint.unblock_sporadic.kw
+CONE Fl4ProofsA64.P1.QueueFoot 791 818 Fl4ProofsA64.P1.endpoint.unblock_sporadic.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 871 874 Fl4ProofsA64.P1.ipc.reply_unlink.kw
+CONE Fl4ProofsA64.P1.QueueFoot 859 869 Fl4ProofsA64.P1.ipc.reply_unlink.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 210 210 Fl4ProofsA64.P1.kwB_sg
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.cai_round.match_1_12
+CONE Fl4ProofsA64.P1.QueueReplyPop 700 737 Fl4ProofsA64.P1.fin_reply.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1553 1556 Fl4ProofsA64.P1.FootD
+CONE Fl4ProofsA64.P1.QueueFoot 24 31 Fl4ProofsA64.P1.KW
+CONE Fl4ProofsA64.P1.QueueFinal 1558 1559 Fl4ProofsA64.P1.Foot.d
+CONE Fl4ProofsA64.P1.QueueFoot 33 36 Fl4ProofsA64.P1.Foot
+CONE Fl4ProofsA64.P1.QueueFinal 784 875 Fl4ProofsA64.P1.ipc.cancel_ipc.kw
+CONE Fl4ProofsA64.P1.QueueFinal 736 782 Fl4ProofsA64.P1.ipc.reply_remove_tcb.kw
+CONE Fl4ProofsA64.P1.QueueFoot 683 685 Fl4ProofsA64.P1.Foot.curN
+CONE Fl4ProofsA64.P1.QueueFinal 712 720 Fl4ProofsA64.P1.ipc.reply_unlink.kwP
+CONE Fl4ProofsA64.P1.QueueFoot 58 60 Fl4ProofsA64.P1.Foot.trans
+CONE Fl4ProofsA64.P1.QueueFoot 40 45 Fl4ProofsA64.P1.KW.ksb
+CONE Fl4ProofsA64.P1.QueueFinal 699 710 Fl4ProofsA64.P1.sched.set_thread_state.kwP
+CONE Fl4ProofsA64.P1.QueueFoot 95 98 Fl4ProofsA64.P1.foot_field
+CONE Fl4ProofsA64.P1.QueueFoot 75 77 Fl4ProofsA64.P1.kw_field
+CONE Fl4ProofsA64.P1.QueueFoot 91 93 Fl4ProofsA64.P1.foot_wr
+CONE Fl4ProofsA64.P1.QueueFoot 711 713 Fl4ProofsA64.P1.sched.schedule_tcb.kw
+CONE Fl4ProofsA64.P1.QueueFoot 181 182 Fl4ProofsA64.P1.FootB.foot
+CONE Fl4ProofsA64.P1.QueueFoot 154 157 Fl4ProofsA64.P1.FootB
+CONE Fl4ProofsA64.P1.QueueFoot 145 152 Fl4ProofsA64.P1.KWB
+CONE Fl4ProofsA64.P1.QueueFoot 159 163 Fl4ProofsA64.P1.KWB.kw
+CONE Fl4ProofsA64.P1.QueueFoot 696 709 Fl4ProofsA64.P1.sched.schedule_tcb.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 687 690 Fl4ProofsA64.P1.sched.set_action.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 227 229 Fl4ProofsA64.P1.footB_node
+CONE Fl4ProofsA64.P1.QueueFoot 206 208 Fl4ProofsA64.P1.kwB_node
+CONE Fl4ProofsA64.P1.QueueFoot 218 220 Fl4ProofsA64.P1.footB_wr
+CONE Fl4ProofsA64.P1.QueueFoot 184 184 Fl4ProofsA64.P1.FootB.refl
+CONE Fl4ProofsA64.P1.QueueFinal 682 684 Fl4ProofsA64.P1.foot_sgw
+CONE Fl4ProofsA64.P1.QueueFoot 83 83 Fl4ProofsA64.P1.kw_sg
+CONE Fl4ProofsA64.P1.QueueFoot 56 56 Fl4ProofsA64.P1.Foot.refl
+CONE Fl4ProofsA64.P1.QueueFinal 722 734 Fl4ProofsA64.P1.dequeue_blocked_kw
+CONE Fl4ProofsA64.P1.QueueFoot 125 130 Fl4ProofsA64.P1.EpFoot.kw
+CONE Fl4ProofsA64.P1.QueueFoot 88 89 Fl4ProofsA64.P1.kw_ep
+CONE Fl4ProofsA64.P1.QueueFoot 104 110 Fl4ProofsA64.P1.LinkOf.kw
+CONE Fl4ProofsA64.P1.QueueFoot 66 67 Fl4ProofsA64.P1.Foot.of
+CONE Fl4ProofsA64.P1.QueueReplyPop 588 696 Fl4ProofsA64.P1.ipc.reply_remove.blk
+CONE Fl4ProofsA64.P1.QueueReplyPop 376 560 Fl4ProofsA64.P1.ipc.reply_pop.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1561 1568 Fl4ProofsA64.P1.FootD.trans
+CONE Fl4ProofsA64.P1.QueueReplyPop 181 207 Fl4ProofsA64.P1.ipc.reply_unlink.blk
+CONE Fl4ProofsA64.P1.QueueFoot 871 874 Fl4ProofsA64.P1.ipc.reply_unlink.kw
+CONE Fl4ProofsA64.P1.QueueFoot 859 869 Fl4ProofsA64.P1.ipc.reply_unlink.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 210 210 Fl4ProofsA64.P1.kwB_sg
+CONE Fl4ProofsA64.P1.QueueFoot 186 188 Fl4ProofsA64.P1.FootB.trans
+CONE Fl4ProofsA64.P1.QueueFoot 165 170 Fl4ProofsA64.P1.KWB.ksb
+CONE Fl4ProofsA64.P1.QueueFoot 715 724 Fl4ProofsA64.P1.sched.set_thread_state.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 222 225 Fl4ProofsA64.P1.footB_field
+CONE Fl4ProofsA64.P1.QueueFoot 201 204 Fl4ProofsA64.P1.kwB_field
+CONE Fl4ProofsA64.P1.QueueFootD 182 188 Fl4ProofsA64.P1.schedcontext.donate.kw
+CONE Fl4ProofsA64.P1.QueueFootD 163 172 Fl4ProofsA64.P1.schedcontext.donate.kwC
+CONE Fl4ProofsA64.P1.QueueFinal 1600 1602 Fl4ProofsA64.P1.FootDB.footD
+CONE Fl4ProofsA64.P1.QueueFoot 521 524 Fl4ProofsA64.P1.FootDB
+CONE Fl4ProofsA64.P1.QueueFootD 44 161 Fl4ProofsA64.P1.schedcontext.donate.kwCB
+CONE Fl4ProofsA64.P1.QueueFoot 262 269 Fl4ProofsA64.P1.FootB.of0
+CONE Fl4ProofsA64.P1.QueueFoot 526 527 Fl4ProofsA64.P1.FootB.d
+CONE Fl4ProofsA64.P1.QueueFoot 529 535 Fl4ProofsA64.P1.FootDB.trans
+CONE Fl4ProofsA64.P1.QueueFoot 351 354 Fl4ProofsA64.P1.Foot0.out
+CONE Fl4ProofsA64.P1.QueueFoot 337 344 Fl4ProofsA64.P1.kw0_out
+CONE Fl4ProofsA64.P1.QueueFoot 346 349 Fl4ProofsA64.P1.Foot0.dbg
+CONE Fl4ProofsA64.P1.QueueFoot 328 335 Fl4ProofsA64.P1.kw0_not_dbg
+CONE Fl4ProofsA64.P1.QueueFootD 0 0 Fl4ProofsA64.P1.schedcontext.donate.kwCB.match_1_11
+CONE Fl4ProofsA64.P1.QueueFootD 0 0 Fl4ProofsA64.P1.schedcontext.donate.kwCB.match_1_13
+CONE Fl4ProofsA64.P1.QueueFoot 730 756 Fl4ProofsA64.P1.sched.reschedule_required.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 645 655 Fl4ProofsA64.P1.sched.enqueue.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 243 250 Fl4ProofsA64.P1.LawfulStore.QFoot.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 239 241 Fl4ProofsA64.P1.LawfulStore.NodeOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 231 237 Fl4ProofsA64.P1.LinkOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 194 195 Fl4ProofsA64.P1.FootB.of
+CONE Fl4ProofsA64.P1.QueueFoot 673 677 Fl4ProofsA64.P1.sched.release_remove.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 661 667 Fl4ProofsA64.P1.sched.dequeue.kwB
+CONE Fl4ProofsA64.P1.QueueFinal 982 1005 Fl4ProofsA64.P1.smp.remote_tcb_stall.blk
+CONE Fl4ProofsA64.P1.QueueFoot 100 102 Fl4ProofsA64.P1.foot_node
+CONE Fl4ProofsA64.P1.QueueFoot 79 81 Fl4ProofsA64.P1.kw_node
+CONE Fl4ProofsA64.P1.QueueReplyPop 0 0 Fl4ProofsA64.P1.ipc.reply_pop.blk.match_1_9
+CONE Fl4ProofsA64.P1.QueueFinSc 591 644 Fl4ProofsA64.P1.fin_sc.blk
+CONE Fl4ProofsA64.P1.QueueFoot 33 36 Fl4ProofsA64.P1.Foot
+CONE Fl4ProofsA64.P1.QueueFoot 24 31 Fl4ProofsA64.P1.KW
+CONE Fl4ProofsA64.P1.QueueFoot 58 60 Fl4ProofsA64.P1.Foot.trans
+CONE Fl4ProofsA64.P1.QueueFoot 40 45 Fl4ProofsA64.P1.KW.ksb
+CONE Fl4ProofsA64.P1.QueueFinSc 455 587 Fl4ProofsA64.P1.deact_all
+CONE Fl4ProofsA64.P1.QueueFoot 85 86 Fl4ProofsA64.P1.kw_sc
+CONE Fl4ProofsA64.P1.QueueFoot 83 83 Fl4ProofsA64.P1.kw_sg
+CONE Fl4ProofsA64.P1.QueueFoot 91 93 Fl4ProofsA64.P1.foot_wr
+CONE Fl4ProofsA64.P1.QueueFinSc 318 336 Fl4ProofsA64.P1.schedcontext.complete_yield_to.blkS
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.schedcontext.complete_yield_to.blkS.match_1_9
+CONE Fl4ProofsA64.P1.QueueFinSc 279 316 Fl4ProofsA64.P1.schedcontext.cancel_yield_to.blkS
+CONE Fl4ProofsA64.P1.QueueFinal 1355 1419 Fl4ProofsA64.P1.schedcontext.cancel_yield_to.blk
+CONE Fl4ProofsA64.P1.QueueFoot 95 98 Fl4ProofsA64.P1.foot_field
+CONE Fl4ProofsA64.P1.QueueFoot 75 77 Fl4ProofsA64.P1.kw_field
+CONE Fl4ProofsA64.P1.QueueFoot 56 56 Fl4ProofsA64.P1.Foot.refl
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.schedcontext.complete_yield_to.blkS.match_1_7
+CONE Fl4ProofsA64.P1.QueueFinSc 248 277 Fl4ProofsA64.P1.schedcontext.set_consumed.blkS
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.schedcontext.set_consumed.blkS.match_1_1
+CONE Fl4ProofsA64.P1.QueueFinSc 199 211 Fl4ProofsA64.P1.regSK
+CONE Fl4ProofsA64.P1.QueueFinal 1315 1320 Fl4ProofsA64.P1.regW_spec
+CONE Fl4ProofsA64.P1.QueueFinal 1252 1263 Fl4ProofsA64.P1.regW_all
+CONE Fl4ProofsA64.P1.QueueFinSc 213 246 Fl4ProofsA64.P1.schedcontext.update_consumed.blkS
+CONE Fl4ProofsA64.P1.QueueFinal 1297 1313 Fl4ProofsA64.P1.schedcontext.update_consumed.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1265 1291 Fl4ProofsA64.P1.consumedW_all
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.fin_sc.blk.match_1_3
+CONE Fl4ProofsA64.P1.QueueFinSc 132 195 Fl4ProofsA64.P1.schedcontext.unbind_reply.blk
+CONE Fl4ProofsA64.P1.QueueFinSc 93 130 Fl4ProofsA64.P1.screp_zero_all
+CONE Fl4ProofsA64.P1.QueueFinSc 66 91 Fl4ProofsA64.P1.rnext_zero_all
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.fin_sc.blk.match_1_1
+CONE Fl4ProofsA64.P1.QueueFinal 540 596 Fl4ProofsA64.P1.schedcontext.unbind_ntfn.blk
+CONE Fl4ProofsA64.P1.QueueFinal 494 538 Fl4ProofsA64.P1.scn_zero_all
+CONE Fl4ProofsA64.P1.QueueFinal 464 492 Fl4ProofsA64.P1.ntsc_zero_all
+CONE Fl4ProofsA64.P1.QueueFinSc 359 385 Fl4ProofsA64.P1.schedcontext.unbind_all_tcbs.blk
+CONE Fl4ProofsA64.P1.QueueFinSc 0 0 Fl4ProofsA64.P1.schedcontext.unbind_all_tcbs.blk.match_1_7
+CONE Fl4ProofsA64.P1.QueueFinal 1224 1232 Fl4ProofsA64.P1.schedcontext.unbind_tcb.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1097 1220 Fl4ProofsA64.P1.schedcontext.unbind_tcb.blkR
+CONE Fl4ProofsA64.P1.QueueFinal 1059 1095 Fl4ProofsA64.P1.sctcb_zero_all
+CONE Fl4ProofsA64.P1.QueueFoot 679 681 Fl4ProofsA64.P1.sched.release_remove.kw
+CONE Fl4ProofsA64.P1.QueueFoot 181 182 Fl4ProofsA64.P1.FootB.foot
+CONE Fl4ProofsA64.P1.QueueFoot 154 157 Fl4ProofsA64.P1.FootB
+CONE Fl4ProofsA64.P1.QueueFoot 145 152 Fl4ProofsA64.P1.KWB
+CONE Fl4ProofsA64.P1.QueueFoot 159 163 Fl4ProofsA64.P1.KWB.kw
+CONE Fl4ProofsA64.P1.QueueFoot 673 677 Fl4ProofsA64.P1.sched.release_remove.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 243 250 Fl4ProofsA64.P1.LawfulStore.QFoot.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 201 204 Fl4ProofsA64.P1.kwB_field
+CONE Fl4ProofsA64.P1.QueueFoot 239 241 Fl4ProofsA64.P1.LawfulStore.NodeOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 206 208 Fl4ProofsA64.P1.kwB_node
+CONE Fl4ProofsA64.P1.QueueFoot 231 237 Fl4ProofsA64.P1.LinkOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 194 195 Fl4ProofsA64.P1.FootB.of
+CONE Fl4ProofsA64.P1.QueueFoot 669 671 Fl4ProofsA64.P1.sched.dequeue.kw
+CONE Fl4ProofsA64.P1.QueueFoot 661 667 Fl4ProofsA64.P1.sched.dequeue.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 758 760 Fl4ProofsA64.P1.sched.reschedule_required.kw
+CONE Fl4ProofsA64.P1.QueueFoot 730 756 Fl4ProofsA64.P1.sched.reschedule_required.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 186 188 Fl4ProofsA64.P1.FootB.trans
+CONE Fl4ProofsA64.P1.QueueFoot 165 170 Fl4ProofsA64.P1.KWB.ksb
+CONE Fl4ProofsA64.P1.QueueFoot 687 690 Fl4ProofsA64.P1.sched.set_action.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 227 229 Fl4ProofsA64.P1.footB_node
+CONE Fl4ProofsA64.P1.QueueFoot 218 220 Fl4ProofsA64.P1.footB_wr
+CONE Fl4ProofsA64.P1.QueueFoot 184 184 Fl4ProofsA64.P1.FootB.refl
+CONE Fl4ProofsA64.P1.QueueFoot 645 655 Fl4ProofsA64.P1.sched.enqueue.kwB
+CONE Fl4ProofsA64.P1.QueueFinSc 340 357 Fl4ProofsA64.P1.smp.remote_tcb_stall.blkS
+CONE Fl4ProofsA64.P1.QueueFinal 982 1005 Fl4ProofsA64.P1.smp.remote_tcb_stall.blk
+CONE Fl4ProofsA64.P1.QueueFoot 683 685 Fl4ProofsA64.P1.Foot.curN
+CONE Fl4ProofsA64.P1.QueueFoot 100 102 Fl4ProofsA64.P1.foot_node
+CONE Fl4ProofsA64.P1.QueueFoot 79 81 Fl4ProofsA64.P1.kw_node
+CONE Fl4ProofsA64.P1.QueueFinal 1663 1741 Fl4ProofsA64.P1.fin_thread.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1553 1556 Fl4ProofsA64.P1.FootD
+CONE Fl4ProofsA64.P1.QueueFoot 24 31 Fl4ProofsA64.P1.KW
+CONE Fl4ProofsA64.P1.QueueFoot 56 56 Fl4ProofsA64.P1.Foot.refl
+CONE Fl4ProofsA64.P1.QueueFoot 33 36 Fl4ProofsA64.P1.Foot
+CONE Fl4ProofsA64.P1.QueueFinal 1570 1572 Fl4ProofsA64.P1.FootD.mono
+CONE Fl4ProofsA64.P1.QueueFoot 47 54 Fl4ProofsA64.P1.KW.mono
+CONE Fl4ProofsA64.P1.QueueFoot 62 64 Fl4ProofsA64.P1.Foot.mono
+CONE Fl4ProofsA64.P1.QueueFinal 1558 1559 Fl4ProofsA64.P1.Foot.d
+CONE Fl4ProofsA64.P1.QueueFinal 1561 1568 Fl4ProofsA64.P1.FootD.trans
+CONE Fl4ProofsA64.P1.QueueFoot 40 45 Fl4ProofsA64.P1.KW.ksb
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.fin_thread.blk.match_1_9
+CONE Fl4ProofsA64.P1.QueueFinal 1626 1630 Fl4ProofsA64.P1.objects.debug_remove.blk
+CONE Fl4ProofsA64.P1.QueueFinal 968 980 Fl4ProofsA64.P1.sched.suspend.blk
+CONE Fl4ProofsA64.P1.QueueFinal 879 964 Fl4ProofsA64.P1.sched.suspend.kw
+CONE Fl4ProofsA64.P1.QueueFinal 699 710 Fl4ProofsA64.P1.sched.set_thread_state.kwP
+CONE Fl4ProofsA64.P1.QueueFoot 58 60 Fl4ProofsA64.P1.Foot.trans
+CONE Fl4ProofsA64.P1.QueueFoot 95 98 Fl4ProofsA64.P1.foot_field
+CONE Fl4ProofsA64.P1.QueueFoot 75 77 Fl4ProofsA64.P1.kw_field
+CONE Fl4ProofsA64.P1.QueueFoot 91 93 Fl4ProofsA64.P1.foot_wr
+CONE Fl4ProofsA64.P1.QueueFoot 711 713 Fl4ProofsA64.P1.sched.schedule_tcb.kw
+CONE Fl4ProofsA64.P1.QueueFoot 181 182 Fl4ProofsA64.P1.FootB.foot
+CONE Fl4ProofsA64.P1.QueueFoot 154 157 Fl4ProofsA64.P1.FootB
+CONE Fl4ProofsA64.P1.QueueFoot 145 152 Fl4ProofsA64.P1.KWB
+CONE Fl4ProofsA64.P1.QueueFoot 159 163 Fl4ProofsA64.P1.KWB.kw
+CONE Fl4ProofsA64.P1.QueueFoot 696 709 Fl4ProofsA64.P1.sched.schedule_tcb.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 687 690 Fl4ProofsA64.P1.sched.set_action.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 227 229 Fl4ProofsA64.P1.footB_node
+CONE Fl4ProofsA64.P1.QueueFoot 206 208 Fl4ProofsA64.P1.kwB_node
+CONE Fl4ProofsA64.P1.QueueFoot 218 220 Fl4ProofsA64.P1.footB_wr
+CONE Fl4ProofsA64.P1.QueueFoot 184 184 Fl4ProofsA64.P1.FootB.refl
+CONE Fl4ProofsA64.P1.QueueFinal 682 684 Fl4ProofsA64.P1.foot_sgw
+CONE Fl4ProofsA64.P1.QueueFoot 83 83 Fl4ProofsA64.P1.kw_sg
+CONE Fl4ProofsA64.P1.QueueFoot 683 685 Fl4ProofsA64.P1.Foot.curN
+CONE Fl4ProofsA64.P1.QueueFoot 116 123 Fl4ProofsA64.P1.LawfulStore.QFoot.kw
+CONE Fl4ProofsA64.P1.QueueFoot 112 114 Fl4ProofsA64.P1.LawfulStore.NodeOf.kw
+CONE Fl4ProofsA64.P1.QueueFoot 79 81 Fl4ProofsA64.P1.kw_node
+CONE Fl4ProofsA64.P1.QueueFoot 104 110 Fl4ProofsA64.P1.LinkOf.kw
+CONE Fl4ProofsA64.P1.QueueFoot 66 67 Fl4ProofsA64.P1.Foot.of
+CONE Fl4ProofsA64.P1.QueueFinal 784 875 Fl4ProofsA64.P1.ipc.cancel_ipc.kw
+CONE Fl4ProofsA64.P1.QueueFinal 736 782 Fl4ProofsA64.P1.ipc.reply_remove_tcb.kw
+CONE Fl4ProofsA64.P1.QueueFinal 712 720 Fl4ProofsA64.P1.ipc.reply_unlink.kwP
+CONE Fl4ProofsA64.P1.QueueFinal 722 734 Fl4ProofsA64.P1.dequeue_blocked_kw
+CONE Fl4ProofsA64.P1.QueueFoot 125 130 Fl4ProofsA64.P1.EpFoot.kw
+CONE Fl4ProofsA64.P1.QueueFoot 88 89 Fl4ProofsA64.P1.kw_ep
+CONE Fl4ProofsA64.P1.QueueFinal 1507 1525 Fl4ProofsA64.P1.schedcontext.complete_yield_to.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1355 1419 Fl4ProofsA64.P1.schedcontext.cancel_yield_to.blk
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.schedcontext.complete_yield_to.blk.match_1_7
+CONE Fl4ProofsA64.P1.QueueFinal 1322 1351 Fl4ProofsA64.P1.schedcontext.set_consumed.blk
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.schedcontext.set_consumed.blk.match_1_1
+CONE Fl4ProofsA64.P1.QueueFinal 1315 1320 Fl4ProofsA64.P1.regW_spec
+CONE Fl4ProofsA64.P1.QueueFinal 1252 1263 Fl4ProofsA64.P1.regW_all
+CONE Fl4ProofsA64.P1.QueueFinal 1297 1313 Fl4ProofsA64.P1.schedcontext.update_consumed.blk
+CONE Fl4ProofsA64.P1.QueueFinal 1265 1291 Fl4ProofsA64.P1.consumedW_all
+CONE Fl4ProofsA64.P1.QueueFoot 85 86 Fl4ProofsA64.P1.kw_sc
+CONE Fl4ProofsA64.P1.QueueFinal 1097 1220 Fl4ProofsA64.P1.schedcontext.unbind_tcb.blkR
+CONE Fl4ProofsA64.P1.QueueFinal 1059 1095 Fl4ProofsA64.P1.sctcb_zero_all
+CONE Fl4ProofsA64.P1.QueueFoot 679 681 Fl4ProofsA64.P1.sched.release_remove.kw
+CONE Fl4ProofsA64.P1.QueueFoot 673 677 Fl4ProofsA64.P1.sched.release_remove.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 243 250 Fl4ProofsA64.P1.LawfulStore.QFoot.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 201 204 Fl4ProofsA64.P1.kwB_field
+CONE Fl4ProofsA64.P1.QueueFoot 239 241 Fl4ProofsA64.P1.LawfulStore.NodeOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 231 237 Fl4ProofsA64.P1.LinkOf.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 194 195 Fl4ProofsA64.P1.FootB.of
+CONE Fl4ProofsA64.P1.QueueFoot 669 671 Fl4ProofsA64.P1.sched.dequeue.kw
+CONE Fl4ProofsA64.P1.QueueFoot 661 667 Fl4ProofsA64.P1.sched.dequeue.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 758 760 Fl4ProofsA64.P1.sched.reschedule_required.kw
+CONE Fl4ProofsA64.P1.QueueFoot 730 756 Fl4ProofsA64.P1.sched.reschedule_required.kwB
+CONE Fl4ProofsA64.P1.QueueFoot 186 188 Fl4ProofsA64.P1.FootB.trans
+CONE Fl4ProofsA64.P1.QueueFoot 165 170 Fl4ProofsA64.P1.KWB.ksb
+CONE Fl4ProofsA64.P1.QueueFoot 645 655 Fl4ProofsA64.P1.sched.enqueue.kwB
+CONE Fl4ProofsA64.P1.QueueFinal 0 0 Fl4ProofsA64.P1.fin_thread.blk.match_1_1
+CONE Fl4ProofsA64.P1.QueueTimerR 23 28 Fl4ProofsA64.P1.TF
+CONE Fl4ProofsA64.P1.QueueTimerR 30 31 Fl4ProofsA64.P1.TF.start
+CONE Fl4ProofsA64.P1.QueueTimerR 40 45 Fl4ProofsA64.P1.timer.remove.tf
+CONE Fl4ProofsA64.P1.QueueTimerR 36 38 Fl4ProofsA64.P1.TFB.tf
+CONE Fl4ProofsA64.P1.QueueTimer 381 388 Fl4ProofsA64.P1.TFB
+CONE Fl4ProofsA64.P1.QueueTimer 393 395 Fl4ProofsA64.P1.TFB.tinv
+CONE Fl4ProofsA64.P1.QueueTimerR 33 34 Fl4ProofsA64.P1.TF.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 697 760 Fl4ProofsA64.P1.timer.remove.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove.tfb._proof_1_10
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove.tfb._proof_1_9
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove.tfb._proof_1_11
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove.tfb._proof_1_8
+CONE Fl4ProofsA64.P1.QueueTimer 445 457 Fl4ProofsA64.P1.TFB.wr_clear
+CONE Fl4ProofsA64.P1.QueueTimer 397 398 Fl4ProofsA64.P1.TFB.cur
+CONE Fl4ProofsA64.P1.QueueTimer 416 417 Fl4ProofsA64.P1.TFB.nodes
+CONE Fl4ProofsA64.P1.QueueTimer 415 415 Fl4ProofsA64.P1.TFB.tcbs
+CONE Fl4ProofsA64.P1.QueueTimer 414 414 Fl4ProofsA64.P1.TFB.tm
+CONE Fl4ProofsA64.P1.QueueTimer 436 443 Fl4ProofsA64.P1.TFB.wr_node
+CONE Fl4ProofsA64.P1.QueueFoot 100 102 Fl4ProofsA64.P1.foot_node
+CONE Fl4ProofsA64.P1.QueueTimer 459 461 Fl4ProofsA64.P1.timer.core_of.csf
+CONE Fl4ProofsA64.P1.QueueTimer 639 648 Fl4ProofsA64.P1.timer.remove_loop3.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 466 474 Fl4ProofsA64.P1.timer.left.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 628 637 Fl4ProofsA64.P1.timer.remove_loop2.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 617 626 Fl4ProofsA64.P1.timer.remove_loop1.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 606 615 Fl4ProofsA64.P1.timer.remove_loop0.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 516 524 Fl4ProofsA64.P1.timer.set_parent.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 419 425 Fl4ProofsA64.P1.TFB.wr_ptr
+CONE Fl4ProofsA64.P1.QueueTimer 507 515 Fl4ProofsA64.P1.timer.set_right.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 498 506 Fl4ProofsA64.P1.timer.set_left.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 684 694 Fl4ProofsA64.P1.timer.remove_fixup.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 532 547 Fl4ProofsA64.P1.timer.set_red.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 427 434 Fl4ProofsA64.P1.TFB.wr_ht
+CONE Fl4ProofsA64.P1.QueueTimer 650 682 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb._proof_1_13
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb._proof_1_15
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb._proof_1_14
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb._proof_1_12
+CONE Fl4ProofsA64.P1.QueueTimer 0 0 Fl4ProofsA64.P1.timer.remove_fixup_loop.tfb._proof_1_10
+CONE Fl4ProofsA64.P1.QueueTimer 584 604 Fl4ProofsA64.P1.timer.rotate_right.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 549 560 Fl4ProofsA64.P1.timer.replace_child.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 526 530 Fl4ProofsA64.P1.timer.set_root.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 484 492 Fl4ProofsA64.P1.timer.parent.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 475 483 Fl4ProofsA64.P1.timer.right.tzf
+CONE Fl4ProofsA64.P1.QueueTimer 562 582 Fl4ProofsA64.P1.timer.rotate_left.tfb
+CONE Fl4ProofsA64.P1.QueueTimer 493 496 Fl4ProofsA64.P1.timer.root.tzf
+CONE Fl4ProofsA64.P1.QueueFinal 1007 1034 Fl4ProofsA64.P1.notification.unbind_notification.blkF
+CONE Fl4ProofsA64.P1.QueueFinal 982 1005 Fl4ProofsA64.P1.smp.remote_tcb_stall.blk
+KIND thm HASVAL true
+USES [fl4_core_a64.machine.Store,
+ Fl4ProofsA64.P1.LawfulStore,
+ Set,
+ Aeneas.Std.U64,
+ Fl4ProofsA64.P1.Heap,
+ Nat,
+ fl4_core_a64.machine.Arch,
+ Bool,
+ Fl4ProofsA64.P1.BlkOK,
+ Membership.mem,
+ Set.instMembership,
+ Eq,
+ Option,
+ Fl4ProofsA64.P1.HKind,
+ Option.some,
+ Fl4ProofsA64.P1.HKind.ntfn,
+ id,
+ Aeneas.Std.WP.spec,
+ Prod,
+ fl4_core_a64.capability.Cap,
+ fl4_core_a64.objects.finalise_cap_object,
+ fl4_core_a64.capability.Cap.Notification,
+ And,
+ Prod.fst,
+ Prod.mk,
+ fl4_core_a64.capability.Cap.Null,
+ Prod.snd,
+ Fl4ProofsA64.P1.Foot,
+ Singleton.singleton,
+ Set.instSingletonSet,
+ fl4_core_a64.capability.Cap.encode.match_1,
+ Aeneas.Std.Result,
+ Unit,
+ Aeneas.Std.Result.ok,
+ ite,
+ Bool.true,
+ instDecidableEqBool,
+ Aeneas.Std.bind,
+ fl4_core_a64.endpoint.cancel_all_ipc,
+ fl4_core_a64.schedcontext.maybe_unbind_ntfn,
+ fl4_core_a64.notification.unbind_maybe_notification,
+ fl4_core_a64.notification.cancel_all_signals,
+ fl4_core_a64.obj.Reply.tcb,
+ fl4_core_a64.obj.Tcb.is_null,
+ fl4_core_a64.obj.Tcb.state,
+ fl4_core_a64.sched.TS_BLOCKED_ON_REPLY,
+ Aeneas.Std.instDecidableEqUScalar_1,
+ Aeneas.Std.UScalarTy.U64,
+ fl4_core_a64.ipc.reply_remove,
+ Aeneas.Std.uncurry,
+ fl4_core_a64.sched.TS_BLOCKED_ON_RECV,
+ fl4_core_a64.ipc.cancel_ipc,
+ Aeneas.Std.UScalar,
+ Aeneas.Std.lift,
+ HAnd.hAnd,
+ Aeneas.Std.instHAndUScalar,
+ Aeneas.Std.U64.ofNat,
+ OfNat.ofNat,
+ instOfNatNat,
+ fl4_core_a64.fl4_abi.label.ARMVCPUWriteReg._proof_1,
+ HShiftLeft.hShiftLeft,
+ Aeneas.Std.instHShiftLeftUScalarResult,
+ fl4_core_a64.fl4_abi.consts.error.InvalidArgument._proof_1,
+ fl4_core_a64.capability.Cap.Zombie,
+ fl4_core_a64.smp.remote_tcb_stall,
+ fl4_core_a64.vcpu.detach,
+ fl4_core_a64.notification.unbind_notification,
+ fl4_core_a64.timer.remove,
+ fl4_core_a64.obj.Tcb.sc,
+ fl4_core_a64.obj.Sc.is_null,
+ fl4_core_a64.schedcontext.unbind_tcb,
+ fl4_core_a64.obj.Sc.yield_from,
+ fl4_core_a64.schedcontext.complete_yield_to,
+ fl4_core_a64.sched.suspend,
+ fl4_core_a64.objects.debug_remove,
+ fl4_core_a64.machine.Arch.fpu_release,
+ fl4_core_a64.obj.Slot,
+ fl4_core_a64.obj.Tcb.slot,
+ fl4_core_a64.layout.tcb.SLOT_CTABLE,
+ fl4_core_a64.capability.ZOMBIE_TCB,
+ fl4_core_a64.layout.tcb.NUM_SLOTS,
+ fl4_core_a64.schedcontext.unbind_all_tcbs,
+ fl4_core_a64.schedcontext.unbind_ntfn,
+ fl4_core_a64.schedcontext.unbind_reply,
+ fl4_core_a64.obj.Sc.set_refill_max,
+ fl4_core_a64.fl4_abi.consts.object.Untyped._proof_1,
+ fl4_core_a64.obj.Sc.set_sporadic,
+ fl4_core_a64.capability.FrameSize,
+ bne,
+ Aeneas.Std.instBEqUScalar_1,
+ fl4_core_a64.capability.FrameSize.bits,
+ fl4_core_a64.ept.unmap,
+ Bool.false,
+ fl4_core_a64.vspace.unmap_page,
+ fl4_core_a64.objects.retire_dma_frame,
+ fl4_core_a64.vspace.unmap_page_table,
+ fl4_core_a64.vspace.unmap_page_directory,
+ fl4_core_a64.vspace.unmap_pdpt,
+ fl4_core_a64.vspace.delete_asid,
+ fl4_core_a64.vcpu.finalise,
+ fl4_core_a64.ept.finalise,
+ fl4_core_a64.vspace.delete_asid_pool,
+ fl4_core_a64.vcpu.revoke_ports,
+ HOr.hOr,
+ Aeneas.Std.instHOrUScalar,
+ fl4_core_a64.vspace.ROOT_HIGH,
+ dite,
+ Eq.mpr,
+ congrFun',
+ congrArg,
+ Aeneas.Std.WP.Post,
+ ite_eq_left,
+ Aeneas.Std.WP.spec_bind,
+ EmptyCollection.emptyCollection,
+ Set.instEmptyCollection,
+ Fl4ProofsA64.P1.schedcontext.maybe_unbind_ntfn.blk,
+ Fl4ProofsA64.P1.fin_ntfn.blk.match_1_1,
+ Fl4ProofsA64.P1.notification.unbind_maybe_notification.blkF,
+ Fl4ProofsA64.P1.notification.cancel_all_signals.blk,
+ Fl4ProofsA64.P1.fin_ntfn.blk.match_1_3,
+ Iff.mpr,
+ Aeneas.Std.WP.spec_ok,
+ And.intro,
+ rfl,
+ Fl4ProofsA64.P1.Foot.trans,
+ Fl4ProofsA64.P1.Foot.mono,
+ Set.empty_subset,
+ Not,
+ ite_eq_right,
+ Fl4ProofsA64.P1.Foot.refl]
+EXIT 0
