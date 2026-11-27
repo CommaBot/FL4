@@ -1,1 +1,1 @@
-MAXKB=14000000 TO=1500 N=40 bash proofs/scratch/virt23/run.sh Fl4Proofs.P3.VirtVCappedDel
+MODE=mod MODS="Fl4Proofs" AX=proofs/scratch/virt/virt23_ax.lean bash /data/fl4/afk-build.sh; (cd proofs && ELAN_HOME=/data/fl4/elan PATH=/data/fl4/leanq-root/bin:/data/fl4/elan/bin:$PATH lake env lean scratch/virt/virt23_ax.lean > ../afklogs/v23ax.txt 2>&1); grep -c "depends on axioms\|does not depend" afklogs/v23ax.txt; sort afklogs/v23ax.txt | grep -o "\[.*\]\|does not depend on any axioms" | sort | uniq -c; grep -n "sorry" afklogs/v23ax.txt | head
