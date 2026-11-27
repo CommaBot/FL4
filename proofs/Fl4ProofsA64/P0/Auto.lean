@@ -4539,6 +4539,9 @@ theorem localvm.MAX_VM_LOCKS.p0  :
     localvm.handle_arm_vcpu_run_local machineStoreInst machineArchInst s a number slot vc n hw_ok ⦃ _ => True ⦄ := by
   unfold localvm.handle_arm_vcpu_run_local; set_option maxHeartbeats 4000000 in p0_structural
 
+-- #112: the cap match binds a pair (the caller, may_receive); abstract it rather
+-- than split the rest of the body into each of its 26 cases (as plan_with).
+
 @[step] theorem localvm.arm_vm_entry_ready.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : Std.U64) (hS : StoreTotal machineStoreInst) :
     localvm.arm_vm_entry_ready machineStoreInst s n ⦃ _ => True ⦄ := by
   unfold localvm.arm_vm_entry_ready; p0_auto
@@ -5459,6 +5462,11 @@ theorem sporadic.min_budget_us.p0  :
 @[step] theorem syscall.handle_ioport_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_ioport_local machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
   unfold syscall.handle_ioport_local; p0_auto
+
+@[step] theorem syscall.handle_nbwait_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (n : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_nbwait_local machineStoreInst machineArchInst s a number n ⦃ _ => True ⦄ := by
+  unfold syscall.handle_nbwait_local
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
 
 @[step] theorem syscall.handle_invocation_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (p : localinv.Plan) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_invocation_local machineStoreInst machineArchInst s a number p ⦃ _ => True ⦄ := by

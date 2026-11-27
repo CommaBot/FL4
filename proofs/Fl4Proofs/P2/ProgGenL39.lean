@@ -66,8 +66,12 @@ variable {S : Type} {A : Type} (mS : machine.Store S) (mA : machine.Arch A)
                     let s4 ← R.sched.cur_sc
                     let b6 ← SProg.liftR (core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc i2 s4)
                     if b6 then do
-                      let _ ← R.sporadic.unblock_check i2
-                      pure (())
+                      let b7 ← R.sched.in_release_queue i
+                      if b7 then do
+                        pure (())
+                      else do
+                        let _ ← R.sporadic.unblock_check i2
+                        pure (())
                     else do
                       pure (())
                   else do
@@ -148,8 +152,12 @@ variable {S : Type} {A : Type} (mS : machine.Store S) (mA : machine.Arch A)
                       let s4 ← R.sched.cur_sc
                       let b6 ← SProg.liftR (core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc i2 s4)
                       if b6 then do
-                        let _ ← R.sporadic.unblock_check i2
-                        pure (())
+                        let b7 ← R.sched.in_release_queue i
+                        if b7 then do
+                          pure (())
+                        else do
+                          let _ ← R.sporadic.unblock_check i2
+                          pure (())
                       else do
                         pure (())
                     else do
@@ -248,6 +256,7 @@ variable {S : Type} {A : Type} (mS : machine.Store S) (mA : machine.Arch A)
     | (with_reducible apply R.obj.Tcb.set_reg_nz)
     | (with_reducible apply R.obj.Tcb.state_nz)
     | (with_reducible apply R.sched.cur_sc_nz)
+    | (with_reducible apply R.sched.in_release_queue_nz)
     | (with_reducible apply R.sched.is_schedulable_nz)
     | (with_reducible apply R.sched.possible_switch_to_nz)
     | (with_reducible apply R.sched.set_thread_state_nz)

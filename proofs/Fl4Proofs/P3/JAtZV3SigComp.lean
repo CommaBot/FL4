@@ -184,7 +184,8 @@ theorem JAtZV3.repKh (J : JAtZV3 (L := L) arI V X AR Z H Cs Ac Lst D s a σ) {t 
       exact v3_jMrSt_kh _ _ _ _ _ ho
     · exact v3_jMrSt_kh _ _ _ _ _ ho
 
-/-- FL4's tail of `send_signal` after `vcpu::report` (verbatim from the extracted `send_signal`). -/
+/-- FL4's tail of `send_signal` after `vcpu::report` (verbatim from the extracted `send_signal`; since FL4 #114 the
+sporadic `unblock_check` is skipped for a thread in the release queue, `sched.in_release_queue`). -/
 def sigVmTailF (st : machine.Store S) (arI : machine.Arch A) (s1 : S) (a : A) (i : obj.Tcb) (n_ptr : U64) :
     Result (S × A) := do
   let (s2, a1) ← notification.maybe_donate_sched_context st arI s1 a i n_ptr
@@ -208,8 +209,12 @@ def sigVmTailF (st : machine.Store S) (arI : machine.Arch A) (s1 : S) (a : A) (i
           let b6 ← core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc i2 s4
           if b6
           then
-            let s5 ← sporadic.unblock_check st s3 i2
-            ok (s5, a1)
+            let b7 ← sched.in_release_queue st s3 i
+            if b7
+            then ok (s3, a1)
+            else
+              let s5 ← sporadic.unblock_check st s3 i2
+              ok (s5, a1)
           else ok (s3, a1)
         else ok (s3, a1)
       else ok (s3, a1)

@@ -13,8 +13,11 @@ is the badge branch below. This module states and proves the branch against `sen
 
 * **`SigVmTailJ3`** [J]: from a `JAtZV3` state where `t` (a TCB of the typed heap) is `running` and `n ∈ N` is idle
   and bound to `t`, FL4's tail after the report (`sigVmTailF`: `maybe_donate_sched_context`, `possible_switch_to`
-  if schedulable, the sporadic `unblock_check`) refines the spec's (`sigVmTailS`: `maybeDonateSc`,
-  `possibleSwitchTo`, `refillUnblockCheck`), deterministically, domain time kept, `JAtZV3` after. Why not proved:
+  if schedulable, the sporadic `unblock_check` unless the thread is in the release queue, FL4 #114) refines the
+  spec's (`sigVmTailS`: `maybeDonateSc`, `possibleSwitchTo`, `refillUnblockCheck`), deterministically, domain time
+  kept, `JAtZV3` after. (sync114: `sigVmTailS` / `sendSignalVF` do not yet have #114's `in release queue` condition;
+  until they do, this premise is false for a thread in the release queue whose sporadic SC would be checked.) Why not
+  proved:
   it is the wake tail of P3/ScSignalDonJ (`wake_irelD` / `signal_boundDJ`), proved over `JAtZ` for a thread
   that was blocked, not over `JAtZV3` and not for a running (possibly current) thread (`JAtZV3.switchJ` takes
   `t ≠ curThread`). Not false: FL4's tail is the code of the woken-receiver branch with `unblock_sporadic`
