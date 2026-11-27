@@ -2365,3 +2365,5 @@ import Fl4Proofs.P3.VirtReplyKeep
 import Fl4Proofs.P3.VirtMsrE2E
 import Fl4Proofs.P3.VirtVmcbDec
 import Fl4Proofs.P3.JAtZV3SwitchC
+import Fl4Proofs.P3.SigVmTailFalse
+import Fl4Proofs.P3.JAtZV3Msr
