@@ -2453,3 +2453,4 @@ import Fl4Proofs.P3.VirtDispVcpu
 import Fl4Proofs.P3.VirtLoopInv0
 import Fl4Proofs.P3.VirtVKeep
 import Fl4Proofs.P3.VirtHinvV
+import Fl4Proofs.P3.VirtVBridge
