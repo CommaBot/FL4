@@ -162,3 +162,5 @@ import Fl4ProofsA64.P1.QueueDelVsB
 import Fl4ProofsA64.P1.QueueDecTcbB
 import Fl4ProofsA64.P1.QueueDecVcpuB
 import Fl4ProofsA64.P1.QueueEntryGaps7B
+import Fl4ProofsA64.P1.QueueDecVcpuRunB
+import Fl4ProofsA64.P1.QueueEntryGaps8

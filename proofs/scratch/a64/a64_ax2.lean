@@ -153,6 +153,13 @@ import Fl4ProofsA64.P1.QueueDecVcpuRegA
 import Fl4ProofsA64.P1.QueueDecVcpuStA
 import Fl4ProofsA64.P1.QueueEntryGaps7
 import Fl4ProofsA64.P1.QueueIrqWideA5
+import Fl4ProofsA64.P1.QueueUnbindB
+import Fl4ProofsA64.P1.QueueDelVsB
+import Fl4ProofsA64.P1.QueueDecTcbB
+import Fl4ProofsA64.P1.QueueDecVcpuB
+import Fl4ProofsA64.P1.QueueEntryGaps7B
+import Fl4ProofsA64.P1.QueueDecVcpuRunB
+import Fl4ProofsA64.P1.QueueEntryGaps8
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let env ← getEnv
@@ -314,3 +321,30 @@ open Lean Elab Command in
 #print axioms Fl4ProofsA64.P1.W7.R.A5.I.DelCapOK.to7
 #print axioms Fl4ProofsA64.P1.W7.R.A5.I.FinGapAt.ofR
 #print axioms Fl4ProofsA64.P1.W7.R.A5.I.FinGapAt.toR
+#print axioms Fl4ProofsA64.P1.vcpu.complete_run.ub
+#print axioms Fl4ProofsA64.P1.vcpu.unbind.ub
+#print axioms Fl4ProofsA64.P1.vcpu.detach.ub
+#print axioms Fl4ProofsA64.P1.fin_thread.ubR
+#print axioms Fl4ProofsA64.P1.UbF.ofW
+#print axioms Fl4ProofsA64.P1.sched.set_thread_state.running_ub
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.finGapB_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.finRv_thread
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.fin_all
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.delGaps_of
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.decGap_cnode_rv4
+#print axioms Fl4ProofsA64.P1.vcpu.cancel_run.w8
+#print axioms Fl4ProofsA64.P1.sched.suspend.blk8
+#print axioms Fl4ProofsA64.P1.tcb.decode_read_registers.dec8
+#print axioms Fl4ProofsA64.P1.tcb.decode_copy_registers.dec8
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.tcb.decode.dec
+#print axioms Fl4ProofsA64.P1.W7.R.A5.B.decGap_thread4
+#print axioms Fl4ProofsA64.P1.decGap_irqHandler5B
+#print axioms Fl4ProofsA64.P1.vcpu.decode_set_tcb.dec
+#print axioms Fl4ProofsA64.P1.decGap_vcpuC
+#print axioms Fl4ProofsA64.P1.InvGaps7B.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of7B
+#print axioms Fl4ProofsA64.P1.vcpu.check.ub
+#print axioms Fl4ProofsA64.P1.vcpu.decode_run.dec
+#print axioms Fl4ProofsA64.P1.decGap_vcpuD
+#print axioms Fl4ProofsA64.P1.InvGaps8.gaps
+#print axioms Fl4ProofsA64.P1.kernel_entry.entry_of8A
