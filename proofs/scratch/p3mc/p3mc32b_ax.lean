@@ -1,0 +1,19 @@
+import Fl4Proofs.P2.LocPlatModel
+#print axioms Fl4Proofs.P2.LocPlatM.archT
+#print axioms Fl4Proofs.P2.LocPlatM.ART
+#print axioms Fl4Proofs.P2.LocPlatM.modelMR_refl
+#print axioms Fl4Proofs.P2.LocPlatM.OpaqueH
+#print axioms Fl4Proofs.P2.LocPlatM.archT_total
+#print axioms Fl4Proofs.P2.LocPlatM.archT_ari
+#print axioms Fl4Proofs.P2.LocPlatM.archT_machPlat
+#print axioms Fl4Proofs.P2.LocPlatM.archT_kd
+#print axioms Fl4Proofs.P2.LocPlatM.archT_io
+#print axioms Fl4Proofs.P2.LocPlatM.mrKeepIoapic_archT
+#print axioms Fl4Proofs.P2.LocPlatM.archT_ref
+#print axioms Fl4Proofs.P2.LocPlatM.archT_time
+#print axioms Fl4Proofs.P2.LocPlatM.archT_pa
+#print axioms Fl4Proofs.P2.LocPlatM.no_irq_val
+#print axioms Fl4Proofs.P2.LocPlatM.archT_ia
+#print axioms Fl4Proofs.P2.LocPlatM.archT_pi
+#print axioms Fl4Proofs.P2.LocPlatM.archT_dr
+#print axioms Fl4Proofs.P2.LocPlatM.locPlat_archT

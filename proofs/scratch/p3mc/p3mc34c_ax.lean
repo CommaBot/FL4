@@ -1,0 +1,24 @@
+import Fl4Proofs.P2.BootZCheap
+#print axioms Fl4Proofs.P2.BootSt.ZB
+#print axioms Fl4Proofs.P2.BootSt.eq_of_val'
+#print axioms Fl4Proofs.P2.BootSt.kheapB_cases
+#print axioms Fl4Proofs.P2.BootSt.wordB_zero_of
+#print axioms Fl4Proofs.P2.BootSt.wordB_zero
+#print axioms Fl4Proofs.P2.BootSt.slot_null
+#print axioms Fl4Proofs.P2.BootSt.ZB_thT
+#print axioms Fl4Proofs.P2.BootSt.ZB_thk
+#print axioms Fl4Proofs.P2.BootSt.ZB_ks
+#print axioms Fl4Proofs.P2.BootSt.tiB_addr
+#print axioms Fl4Proofs.P2.BootSt.tcbPlaced_B
+#print axioms Fl4Proofs.P2.BootSt.ZB_ip
+#print axioms Fl4Proofs.P2.BootSt.ZB_nk
+#print axioms Fl4Proofs.P2.BootSt.ZB_nodeB
+#print axioms Fl4Proofs.P2.BootSt.ZB_cover
+#print axioms Fl4Proofs.P2.BootSt.ZB_obj
+#print axioms Fl4Proofs.P2.BootSt.ZB_zH
+#print axioms Fl4Proofs.P2.BootSt.ZB_hset
+#print axioms Fl4Proofs.P2.BootSt.ZB_hscC
+#print axioms Fl4Proofs.P2.BootSt.ZB_nsc
+#print axioms Fl4Proofs.P2.BootSt.ZB_c0
+#print axioms Fl4Proofs.P2.BootSt.ZB_intL
+#print axioms Fl4Proofs.P2.BootSt.ZB_ext
