@@ -52,8 +52,8 @@ def specL : Spec where
      (`Fl4Proofs.P3.SInvR.G5.JPathAtMU28.toU27, `Fl4Proofs.P3.SInvR.G5.JPathAtMU28L.toU27L),
      (`Fl4Proofs.P3.SInvR.G5.JPathAtMU29.toU28, `Fl4Proofs.P3.SInvR.G5.JPathAtMU29L.toU28L),
      (`Fl4Proofs.P3.SInvR.G5.JPathAtMU30.toU29, `Fl4Proofs.P3.SInvR.G5.JPathAtMU35.toU29L),
-     (`Fl4ProofsI.P3.handle_invocation_entryJMU, `Fl4Proofs.P3.handle_invocation_entryJMUL),
-     (`Fl4ProofsQI.P3.handle_invocation_entryJMUM, `Fl4Proofs.P3.handle_invocation_entryJMUML)]
+     (`Fl4Proofs.P3.handle_invocation_entryJMU, `Fl4Proofs.P3.handle_invocation_entryJMUL),
+     (`Fl4ProofsQ.P3.handle_invocation_entryJMUM, `Fl4Proofs.P3.handle_invocation_entryJMUML)]
 
 end Fl4Proofs.P3.P3JX
 

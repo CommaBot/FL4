@@ -14,7 +14,7 @@ P3 (line p3J, gen 2): **the path premises narrowed to the invoked slot** (invent
   slot / cap the lookup returned (`LookAt`; the original proof has that outcome as `hl` where it applies
   `hDec`).
 * `handle_invocation_entryJMUL`, `handle_invocation_entryJMUML`: the two consumers that apply the path
-  premise (copies of `Fl4ProofsI.P3.handle_invocation_entryJMU` / `Fl4ProofsQI.P3.handle_invocation_entryJMUM`).
+  premise (copies of `handle_invocation_entryJMU` / `Fl4ProofsQ.P3.handle_invocation_entryJMUM`).
 No new premise; no sorry.
 -/
 import Fl4Proofs.P3.XTopJointKEntryU35
@@ -1235,12 +1235,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
-/-- `Fl4ProofsI.P3.handle_invocation_entryJMU` on `JPathAtML` (P3JLook). -/
+/-- `handle_invocation_entryJMU` on `JPathAtML` (P3JLook). -/
 theorem handle_invocation_entryJMUL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAtN (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtML (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
@@ -1290,7 +1290,7 @@ theorem handle_invocation_entryJMUL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     have h := lookup_extra_named Z.th s σ J.dstate.1.1 J.dstate.1.2.1 htcb buf info
     rw [hr2, WP.spec_ok] at h
     exact h e h1
-  exact Fl4ProofsI.P3.decOK_JMU arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
+  exact decOK_JMU arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
     (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2 hL)
     hPD hR hVT hVI hNs
@@ -1309,12 +1309,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
-/-- `Fl4ProofsQI.P3.handle_invocation_entryJMUM` on `JPathAtML` (P3JLook). -/
+/-- `Fl4ProofsQ.P3.handle_invocation_entryJMUM` on `JPathAtML` (P3JLook). -/
 theorem handle_invocation_entryJMUML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAtN (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtML (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct)
     (hDL : JDecMRL (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
@@ -1377,7 +1377,7 @@ theorem handle_invocation_entryJMUML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
     have h := lookup_extra_named Z.th s σ J.dstate.1.1 J.dstate.1.2.1 htcb buf info
     rw [hr2, WP.spec_ok] at h
     exact h e h1
-  exact Fl4ProofsQI.P3.decOK_JMM arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
+  exact Fl4ProofsQ.P3.decOK_JMM arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
     (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2 hL)
     hPD hDL hR hVT hVI hNs hM hKD hA

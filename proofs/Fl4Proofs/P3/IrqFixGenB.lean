@@ -24,8 +24,8 @@ def specB : Spec where
      (``Fl4Proofs.P3.issue_tailM, ``Fl4Proofs.P3.issue_tailMQ),
      (``Fl4Proofs.P3.irq_issue_refinesM, ``Fl4Proofs.P3.irq_issue_refinesMQ),
      (``Fl4Proofs.P3.irq_msi_refinesM, ``Fl4Proofs.P3.irq_msi_refinesMQ),
-     (``Fl4Proofs.P3.irq_ioapic_refinesMN, ``Fl4Proofs.P3.irq_ioapic_refinesMNQ),
-     (``Fl4Proofs.P3.irq_remap_refinesMN, ``Fl4Proofs.P3.irq_remap_refinesMNQ)]
+     (``Fl4Proofs.P3.irq_ioapic_refinesM, ``Fl4Proofs.P3.irq_ioapic_refinesMNQ),
+     (``Fl4Proofs.P3.irq_remap_refinesM, ``Fl4Proofs.P3.irq_remap_refinesMNQ)]
 
 end Fl4Proofs.P3.IrqFix
 
@@ -34,16 +34,16 @@ open Fl4Proofs.P3.IrqFix in
 run_cmd liftCoreM do
   let (n, r) ← transport specB
     [``Fl4Proofs.P3.MachPlat.takeAt, ``Fl4Proofs.P3.JAtZ.handleIrqJIAN, ``Fl4Proofs.P3.JAtZ.handleIrqJIANM,
-     `Fl4ProofsI.P3.decode_invocation_irq_controlXSM, ``Fl4Proofs.P3.XCapP.mrG, ``Fl4Proofs.P3.XCapP.mr,
-     ``Fl4Proofs.P3.mF_mr, `Fl4ProofsI.P3.jDecMRL2_ofT, `Fl4ProofsI.P3.jDecMRLK_ofU]
+     ``Fl4Proofs.P3.decode_invocation_irq_controlXSM, ``Fl4Proofs.P3.XCapP.mrG, ``Fl4Proofs.P3.XCapP.mr,
+     ``Fl4Proofs.P3.mF_mr, ``Fl4Proofs.P3.jDecMRL2_ofT, ``Fl4Proofs.P3.jDecMRLK_ofU]
   logInfo m!"irqfix transport B: {n} copied, {r} reused"
 
 #check @Fl4Proofs.P3.MachPlatT.takeAt
 #check @Fl4ProofsQ.P3.JAtZ.handleIrqJIAN
 #check @Fl4ProofsQ.P3.JAtZ.handleIrqJIANM
-#check @Fl4ProofsQI.P3.decode_invocation_irq_controlXSM
+#check @Fl4ProofsQ.P3.decode_invocation_irq_controlXSM
 #check @Fl4ProofsQ.P3.XCapP.mrG
 #check @Fl4ProofsQ.P3.XCapP.mr
 #check @Fl4ProofsQ.P3.mF_mr
-#check @Fl4ProofsQI.P3.jDecMRL2_ofT
-#check @Fl4ProofsQI.P3.jDecMRLK_ofU
+#check @Fl4ProofsQ.P3.jDecMRL2_ofT
+#check @Fl4ProofsQ.P3.jDecMRLK_ofU

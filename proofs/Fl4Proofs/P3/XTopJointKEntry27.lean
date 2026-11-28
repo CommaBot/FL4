@@ -125,7 +125,7 @@ docstring): `ni`, `ctnq`, `sg`, `rd0`, `vfh`, `cnf` removed; every other field a
 structure JEntryAtR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
   /-- [P] `JEntryAt.stall`. -/
-  stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
+  stall : ∀ q ∈ Z.T, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [J] `JEntryAt.flags`. -/
   flags : FlagsRel Z.T (L.mem s) σ
   /-- [J] `JEntryAt.epQ`. -/

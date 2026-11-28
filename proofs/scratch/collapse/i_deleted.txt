@@ -1,0 +1,16 @@
+# collapse A, I (x86): the in-range ArchIrqRel written back; ArchIrqNarrowGen and every Fl4ProofsI.* copy
+# (360 constants, depdump of f9d7aec84) gone; JBoot5CtlQ's …MQ0 re-proofs collapsed into the base.
+RESTATED P3/IrqArch                 ArchIrqRel.map / .mapr    every argument ↦ the arguments FL4's decode passes (= ArchIrqRelN)
+RESTATED P3/XTopJointKEntryU32      SInvR.G5.JEntryAtR7T.archIrq  ArchIrqRelN ↦ ArchIrqRel (same content)
+RESTATED P3/IrqFixA                 irq_ioapic_refinesMNQ irq_remap_refinesMNQ  hAR : ArchIrqRelN ↦ ArchIrqRel (same content)
+REPROVED P3/IrqArch                 irq_ioapic_refines irq_remap_refines    (the range facts already in scope passed to .map / .mapr)
+REPROVED P3/IrqCtlMR                irq_ioapic_refinesM irq_remap_refinesM  (same)
+DEL      P3/ArchIrqNarrow           ArchIrqRelN irq_ioapic_refinesN irq_remap_refinesN irq_ioapic_refinesMN irq_remap_refinesMN
+DEL      P3/ArchIrqNarrowGen        the run_cmd (Fl4ProofsI.*, 360 copies)
+DEL      P3/JBoot5CtlQ              irq_ioapic_refinesMQ0 irq_remap_refinesMQ0 (re-proofs of the un-narrowed decodes over MaskMRF)
+DEL      P3/JBoot5GenB              ctlQ0 (their map; IrqFixGenB's …M ↦ …MNQ covers them)
+DEL      P3/StallNarrowGen          the transport library (ours, Spec, mapName, trE, stamp, transport); depsOf moved to P3/IrqFixXport
+REPOINTED (forced, Q/J/W Gen inputs naming Fl4ProofsI/QI constants that no longer exist):
+         P3/IrqFixGenB roots/maps, P3/IrqFixGen constMap, P3/P3JGen constMap, P2/WitU34Gen specM (drops ctlQ0),
+         P3/IrqFixC (Fl4ProofsQI.* ↦ Fl4ProofsQ.*, JEntryAt base), P3/P3JLook (JEntryAt base), P3/P3JXport import
+REMOVED-MODULE P3/StallNarrowGen P3/ArchIrqNarrow P3/ArchIrqNarrowGen P3/JBoot5CtlQ (root 2862 -> 2858)

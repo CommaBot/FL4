@@ -217,7 +217,7 @@ the dispatch state, `flags_front`): the three [P] fields and `vsTyp` [J]. -/
 structure JEntryAtR6 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) :
     Prop where
   /-- [P] `JEntryAt.stall` (one core). -/
-  stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
+  stall : ∀ q ∈ Z.T, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [P] `JEntryAt.ioapics`. -/
   ioapics : ∃ nA, arI.num_ioapics ar = ok nA ∧ nA.bv = σ.archState.x64NumIoapics
   /-- [P] `JEntryAt.archIrq`. -/

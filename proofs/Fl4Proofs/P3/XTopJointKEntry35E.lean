@@ -117,7 +117,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 structure JEntryAtR5 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) :
     Prop where
   /-- [P] `JEntryAt.stall` (one core). -/
-  stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
+  stall : ∀ q ∈ Z.T, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [J] joint `JEntryAt.flags` (l4v `tcb_relation`'s flags). -/
   flags : FlagsRel Z.T (L.mem s) σ
   /-- [P] `JEntryAt.ioapics`. -/

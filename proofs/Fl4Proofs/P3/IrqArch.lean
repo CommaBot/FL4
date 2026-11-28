@@ -363,8 +363,13 @@ theorem nirq_toNat (x : BitVec 8) (h : 0 < x.toNat) : (Fl4Spec.ucast 64 (x - 1) 
   omega
 
 /-- The arch operations of the IOAPIC labels against the spec's arch state:
-the IOAPIC count and each IOAPIC's pin count (at least one), and total
-`ioapic_map`, `ioapic_map_remapped`, `mask_irq`.
+the IOAPIC count and each IOAPIC's pin count (at least one), `ioapic_map` /
+`ioapic_map_remapped` at the arguments FL4's decode passes (an IOAPIC below
+`num_ioapics`, a pin below its `ioapic_pins`, level and polarity at most 1, a
+handle below 2^16: `interrupt.rs`'s `map_ioapic` checks these before routing,
+and FL4's x86_64 backend returns `false` outside them; collapse A, I: narrowed
+in place from ArchIrqNarrow's `ArchIrqRelN`, the form "every argument" was
+false for FL4's backend), and total `mask_irq`.
 
 [P] `map`/`mapr` also say the IOAPIC entry is routed (`true`): FL4 #42
 returns `false`, and the invocation `IllegalOperation`, when the entry
@@ -378,8 +383,11 @@ structure ArchIrqRel (a : A) (σ : Fl4Spec.State Unit) : Prop where
   num : ∃ n, arI.num_ioapics a = ok n ∧ n.bv = σ.archState.x64NumIoapics
   pins : ∀ n, arI.num_ioapics a = ok n → ∀ i : U64, i.val < n.val →
     ∃ p, arI.ioapic_pins a i = ok p ∧ p.val = (σ.archState.x64IoapicNirqs i.bv).toNat ∧ 0 < p.val
-  map : ∀ (a : A) i p l po v, ∃ a', arI.ioapic_map a i p l po v = ok (true, a')
-  mapr : ∀ (a : A) i p l po v h, ∃ a', arI.ioapic_map_remapped a i p l po v h = ok (true, a')
+  map : ∀ (a : A) (n i p l po v np : U64), arI.num_ioapics a = ok n → ¬ i >= n → arI.ioapic_pins a i = ok np →
+    ¬ p >= np → ¬ l > 1#u64 → ¬ po > 1#u64 → ∃ a', arI.ioapic_map a i p l po v = ok (true, a')
+  mapr : ∀ (a : A) (n i p l po v h np : U64), arI.num_ioapics a = ok n → ¬ i >= n → arI.ioapic_pins a i = ok np →
+    ¬ p >= np → ¬ l > 1#u64 → ¬ po > 1#u64 → ¬ h >= 65536#u64 →
+    ∃ a', arI.ioapic_map_remapped a i p l po v h = ok (true, a')
   mask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a'
 
 theorem shl16 : (1#u64 <<< 16#i32 : Result U64) = ok 65536#u64 := by
@@ -588,7 +596,7 @@ theorem irq_ioapic_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   -- the handle is 0
   rw [if_neg (by scalar_tac)]
   -- the IOAPIC (#42: routed, `ArchIrqRel.map`), `set_thread_state Restart`, then `invoke_irq_control`
-  obtain ⟨a1, hmap⟩ := hAR.map ar y2 y3 y4 y5 z2
+  obtain ⟨a1, hmap⟩ := hAR.map ar nA y2 y3 y4 y5 z2 p hnum hia hp hpin hlv hpo
   simp only [Std.bind_assoc, bind_ok, hmap, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte]
   have hrs := restart_irq th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIR ct hcur htcb hact hact2
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_
@@ -828,7 +836,7 @@ theorem irq_remap_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ
   rw [if_neg hh, whenE_neg (by rw [GE.ge, BitVec.le_def]; show ¬ (65536 : BitVec 64).toNat ≤ y7.val; simp; scalar_tac)]
   refine CPost.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   -- the IOAPIC (#42: routed, `ArchIrqRel.mapr`), `set_thread_state Restart`, then `invoke_irq_control`
-  obtain ⟨a1, hmap⟩ := hAR.mapr ar y2 y3 y4 y5 z2 y7
+  obtain ⟨a1, hmap⟩ := hAR.mapr ar nA y2 y3 y4 y5 z2 y7 p hnum hia hp hpin hlv hpo hh
   simp only [Std.bind_assoc, bind_ok, hmap, uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte]
   have hrs := restart_irq th hP s σ G ⟨hR, hV, hM, hC, hI⟩ hL hIR ct hcur htcb hact hact2
   refine WP.spec_bind (WP.spec_and (WP.spec_and hrs (sts_dk4c hP s htcb sched.TS_RESTART)) (spec_self hrs)) ?_

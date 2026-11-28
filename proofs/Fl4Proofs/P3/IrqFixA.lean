@@ -15,12 +15,13 @@ states. This module gives the records the transport (IrqFixGenB, IrqFixGen) puts
 * `MaskMRF`: `MaskMR` with the same restriction (`MachPlatT.mask` is one).
 The unmasking users of `MaskMR` are FL4's IRQ control issues (`invoke_irq_control`, `IRQ_SIGNAL`),
 whose lines the decodes bound by `ISA_MAX = 15` and `USER_MAX = 123`: `invoke_mrMQ` asks `irq < 126`,
-and its four callers and `irq_issue_refinesMQ` (IrqCtlMR / ArchIrqNarrow, verbatim copies) pass the
+and its four callers and `irq_issue_refinesMQ` (IrqCtlMR, verbatim copies; the IOAPIC ones of the in-range `ArchIrqRel`, collapse A I) pass the
 decode's bound (`hz126`, `hirq6`) where the originals passed `z < 256`.
 
 No premise of the tops is added here; no sorry.
 -/
-import Fl4Proofs.P3.ArchIrqNarrow
+import Fl4Proofs.P3.IrqArch
+import Fl4Proofs.P3.IrqCtlMR
 import Fl4Proofs.P3.JBootIpi
 open Aeneas Aeneas.Std Result
 
@@ -466,7 +467,7 @@ theorem irq_ioapic_refinesMNQ (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (hAR : ArchIrqRelN arI ar σ)
+    (hAR : ArchIrqRel arI ar σ)
     (hMk : MaskMRF arI MR) (hfr : FrameMR MR) (hR0 : MR ar σ.machineState) (hIoa : MRKeepIoapic arI MR) :
     interrupt.decode_irq_control st arI s ar fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC length
       (cslotAddr (ps.bv, idxs)) buf extra ⦃ res =>
@@ -704,7 +705,7 @@ theorem irq_remap_refinesMNQ (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) 
     (excaps : List Fl4Spec.Cap) (hex : ExtraRel th (L.mem s) x0 excaps)
     {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
     (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (hAR : ArchIrqRelN arI ar σ)
+    (hAR : ArchIrqRel arI ar σ)
     (hMk : MaskMRF arI MR) (hfr : FrameMR MR) (hR0 : MR ar σ.machineState) (hIoa : MRKeepIoapic arI MR) :
     interrupt.decode_irq_control st arI s ar fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped length
       (cslotAddr (ps.bv, idxs)) buf extra ⦃ res =>

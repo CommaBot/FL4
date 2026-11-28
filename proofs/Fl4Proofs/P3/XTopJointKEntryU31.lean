@@ -10,11 +10,11 @@ P3 (p3P gen 2): **`kernel_entry_reachU31`** = `kernel_entry_reachU30` with no `s
 * **Premise change:** `KDispHypsKVU31` = `KDispHypsKVU30` with `JEntryAtR7` replaced by
   `JEntryAtR7S` = `JEntryAtR7` without `stall` (`ioapics`, `archIrq` kept verbatim). Every other
   premise and the conclusion are U30's, verbatim. [J] 0, [W] 0, no new [P]; one [P] removed.
-* **Proof:** StallNarrowGen's kernel-checked transport of U30's proof onto entry records whose
-  `stall` is `∀ q ∈ Z.T, …` (`Fl4ProofsN.P3.SInvR.G5.kernel_entry_reachU30`), with that field
-  supplied from the clause's `JAtZ` (`KDispHypsKVU31.toN`).
+* **Proof:** U30 itself, whose entry records' `stall` is `∀ q ∈ Z.T, …` (collapse A, N: written back
+  from StallNarrowGen's former `Fl4ProofsN` transport), with that field supplied from the clause's `JAtZ`
+  (`KDispHypsKVU31.toN`).
 -/
-import Fl4Proofs.P3.StallNarrowGen
+import Fl4Proofs.P3.XTopJointKEntryU30
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5
@@ -47,13 +47,13 @@ structure KDispHypsKVU31 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
 
 variable {arI}
 
-/-- **`KDispHypsKVU31` gives the transported `KDispHypsKVU30`** at a `JAtZ` state: the narrowed
+/-- **`KDispHypsKVU31` gives `KDispHypsKVU30`** at a `JAtZ` state: the narrowed
 `stall` by `JAtZ.stallT`. -/
 theorem KDispHypsKVU31.toN {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : KDispHypsKVU31 (L := L) arI AR Z H Cs D s a σ n c) :
-    Fl4ProofsN.P3.SInvR.G5.KDispHypsKVU30 (L := L) arI AR Z H Cs D s a σ n c :=
-  Fl4ProofsN.P3.SInvR.G5.KDispHypsKVU30.mk
+    KDispHypsKVU30 (L := L) arI AR Z H Cs D s a σ n c :=
+  KDispHypsKVU30.mk
     (fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi
       ⟨⟨J.stallT, e.ioapics, e.archIrq⟩, p⟩)
     (fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm
@@ -127,7 +127,7 @@ theorem kernel_entry_reachU31 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ JReachU17 (L := L) arI AR MR r.1 r.2 σ' ⦄)  := by
   obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    Fl4ProofsN.P3.SInvR.G5.kernel_entry_reachU30 arI AR MR hARI hA hnd hM hKD hIo hIoa hPAi hIA hT hmax htu hRef
+    kernel_entry_reachU30 arI AR MR hARI hA hnd hM hKD hIo hIoa hPAi hIA hT hmax htu hRef
       hPI hSX hDR hJ
   exact ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg,
     fun n c hct hn hfl hK hDL hFin => hSys n c hct hn hfl (fun σb hb V' Ac' Lst' D' s' a' hF J' =>
