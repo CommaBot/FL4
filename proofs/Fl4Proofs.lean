@@ -2745,6 +2745,8 @@ import Fl4Proofs.P3.EptSetRoot
 import Fl4Proofs.P3.EptAssignRel
 import Fl4Proofs.P3.EptAssign
 import Fl4Proofs.P3.EptRetype
+import Fl4Proofs.P3.RetFoot
+import Fl4Proofs.P3.RetVm
 import Fl4Proofs.P3.EptAssignJ
 import Fl4Proofs.P3.EptAssignV
 import Fl4Proofs.P3.EptLookup
