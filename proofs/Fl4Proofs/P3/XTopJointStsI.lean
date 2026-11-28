@@ -15,6 +15,9 @@ and the fault reply sets it `Restart` or `Inactive`).
 * `JAtZ.rstPostJ`: XTopJointRunPost's `JAtZ.runPostJ` with `Restart` for
   `Running` (both runnable: `postpone` then puts the thread in the release
   queue).
+
+(mmuAD gen 42b18) `stsIJ` stated over `JAtZB` in place (the copy's post, with the `TFoot` footprint); `JAtZ.stsIJ` its
+corollary (`ext` by `JAtZ.ext_tfoot`). P3/JAtZV3FaultDon's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointRunPost
 open Aeneas Aeneas.Std Result
@@ -74,10 +77,10 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-set_option maxHeartbeats 16000000 in
+set_option maxHeartbeats 4000000 in
 /-- **`set_thread_state` of an `Inactive` thread at `J`** (module
 docstring). -/
-theorem JAtZ.stsIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+theorem JAtZB.stsIJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (ts : Fl4Spec.ThreadState) (hts : tsCode ts < 3) (v : U64) (hv : v.val = tsCode ts)
     (hrel : inClass ts → RelIfBound σ t.bv)
@@ -85,8 +88,9 @@ theorem JAtZ.stsIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
       (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' ∧
       P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s' ⦄) :
     sched.set_thread_state st s t v ⦃ s6 => ∃ (Lst' : U64 → List U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst' D s6 a
-        (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ⦄ := by
+      JAtZB (L := L) arI AR Z H Cs Ac Lst' D s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ∧
+      P1.WritesIn st s s6 (TFoot st Z.T Z.N Z.C Z.c s σ) ⦄ := by
   have hP0 := J.ip
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
@@ -263,7 +267,20 @@ theorem JAtZ.stsIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD, hW⟩
+
+/-- `JAtZB.stsIJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.stsIJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
+    (ts : Fl4Spec.ThreadState) (hts : tsCode ts < 3) (v : U64) (hv : v.val = tsCode ts)
+    (hrel : inClass ts → RelIfBound σ t.bv)
+    (hB : sched.set_thread_state st s t v ⦃ s' => P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H
+      (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' ∧
+      P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s' ⦄) :
+    sched.set_thread_state st s t v ⦃ s6 => ∃ (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac Lst' D s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := ts })) t.bv) ⦄ :=
+  WP.spec_mono (Fl4Proofs.P3.JAtZB.stsIJ (J := J.toB) (ht := ht) (htD := htD) (hk := hk) (hrs := hrs) (ts := ts) (hts := hts) (v := v) (hv := hv) (hrel := hrel) (hB := hB)) fun _ ⟨Lst', B, hw⟩ => ⟨Lst', B.toJAtZ (J.ext_tfoot hw)⟩
 
 
 set_option maxHeartbeats 32000000 in

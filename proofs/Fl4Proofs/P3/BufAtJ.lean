@@ -13,6 +13,10 @@ Moved here unchanged (same names and statements; the proofs read `J.bok` /
 
 New: `JAtZ.usrWJ`, `JAtZ.bufAtJ` (`P1.BufAt … (BufU Z σ) s`),
 `JAtZ.bufU_noSlot`. No premise.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `bufAtJ`,
+`bufOK`, `bufU_B`, `bufU_noSlot`, `bufU_rbuf`, `bufWordG`, `rbufU`, `thTcb`, `usrWJ`; each `JAtZ` name is a one-line
+corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.JointAt
 import Fl4Proofs.P3.IpcBuf
@@ -167,17 +171,22 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 /-- A thread of `Z.T` is a TCB of the typed heap. -/
-theorem JAtZ.thTcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+theorem JAtZB.thTcb (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
     Z.th t = some .tcb := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   exact (hJ.tcb t).2 (J.zH.1 t ht)
+
+/-- `JAtZB.thTcb` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.thTcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+    Z.th t = some .tcb :=
+  Fl4Proofs.P3.JAtZB.thTcb (J := J.toB) (ht := ht)
 
 set_option maxHeartbeats 8000000 in
 /-- **A word of a TCB's IPC buffer at `J`** (for `JAtZ.userWrJ`): apart from
 every non-`other` object of `H` (the TCB's IPC-frame slot holds a frame cap,
 `StateRel.bufCap`, whose range meets no such object, `JPlaced.cobj`'s
 `FrApartH`) and inside a spec object (the frame's data page, `IpcBufCapOK`). -/
-theorem JAtZ.bufWordG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
+theorem JAtZB.bufWordG (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
     (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {q : Fl4Spec.ObjRef}
     {isR : Bool} (hq : Endp.ipcBufOf isR x = some q) (k : Nat) (hk128 : k < 128) {b : U64}
     (hb : b.bv = Endp.bufAddr q k) :
@@ -241,10 +250,19 @@ theorem JAtZ.bufWordG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : E
       · rw [htop] at e; left; omega
   · cases hq
 
+/-- `JAtZB.bufWordG` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufWordG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
+    (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {q : Fl4Spec.ObjRef}
+    {isR : Bool} (hq : Endp.ipcBufOf isR x = some q) (k : Nat) (hk128 : k < 128) {b : U64}
+    (hb : b.bv = Endp.bufAddr q k) :
+    (∀ p k', H p = some k' → (∀ z, k' ≠ .other z) → b.val + 8 ≤ p.val ∨ p.val + 2 ^ k'.bits ≤ b.val) ∧
+      ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ b.val ∧ b.val < o.toNat + 2 ^ Fl4Spec.objBits ko :=
+  Fl4Proofs.P3.JAtZB.bufWordG (J := J.toB) (hOK := hOK) (ht := ht) (hk := hk) (hq := hq) (k := k) (hk128 := hk128) (hb := hb)
+
 set_option maxHeartbeats 8000000 in
 /-- The receiver's buffer words at `J` are untracked for P1 (`JAtZ.bufWord`,
 `JAtZ`'s `nodeB`). -/
-theorem JAtZ.rbufU (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U64}
+theorem JAtZB.rbufU (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U64}
     (hdT : d ∈ Z.T) (hdth : Z.th d = some .tcb) {xd : Fl4Spec.Tcb} (hkd : σ.kheap d.bv = some (.tcb xd)) :
     ∀ b, RcvBufW xd b → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
       (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧ b ∉ P1.Heap.frame H := by
@@ -274,21 +292,40 @@ theorem JAtZ.rbufU (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U64}
     obtain ⟨g1, g2⟩ := hin
     rcases hAp p k hp hko with e | e <;> omega
 
-theorem JAtZ.bufU_B {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.rbufU` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rbufU (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d : U64}
+    (hdT : d ∈ Z.T) (hdth : Z.th d = some .tcb) {xd : Fl4Spec.Tcb} (hkd : σ.kheap d.bv = some (.tcb xd)) :
+    ∀ b, RcvBufW xd b → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
+      (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧ b ∉ P1.Heap.frame H :=
+  Fl4Proofs.P3.JAtZB.rbufU (J := J.toB) (hdT := hdT) (hdth := hdth) (hkd := hkd)
+
+theorem JAtZB.bufU_B {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : b ∈ BufU Z σ) : ∃ wp ∈ Z.B, wp.1 = b := by
   obtain ⟨y, hy, xd, hk, rp, hrp, i, hi, rfl⟩ := hb
   have hBC := bufCover_of_frameCover (T := Z.T) J.bok J.fcov
   exact ⟨_, hBC y hy xd true rp hk hrp ⟨rp⟩ rfl i hi, rfl⟩
 
-theorem JAtZ.bufU_rbuf {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.bufU_B` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufU_B {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : b ∈ BufU Z σ) : ∃ wp ∈ Z.B, wp.1 = b :=
+  Fl4Proofs.P3.JAtZB.bufU_B (J := J.toB) (hb := hb)
+
+theorem JAtZB.bufU_rbuf {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : b ∈ BufU Z σ) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
       (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧
       b ∉ P1.Heap.frame H := by
   obtain ⟨y, hy, xd, hk, hb'⟩ := hb
   exact J.rbufU hy (J.thTcb hy) hk b hb'
 
+/-- `JAtZB.bufU_rbuf` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufU_rbuf {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : b ∈ BufU Z σ) : P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b ∧
+      (∀ e, (H e = some .ep ∨ H e = some .ntfn) → b.val + 8 ≤ e.val ∨ e.val + 16 ≤ b.val) ∧
+      b ∉ P1.Heap.frame H :=
+  Fl4Proofs.P3.JAtZB.bufU_rbuf (J := J.toB) (hb := hb)
+
 /-- **Every TCB's receive buffer in `BufU`** (module docstring). -/
-theorem JAtZ.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {y : U64} (hy : y ∈ P1.Heap.tcbs H) :
     msg.lookup_ipc_buffer st s true y ⦃ w => P1.BufOK (BufU Z σ) w ⦄ := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -304,10 +341,16 @@ theorem JAtZ.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
     subst e
     exact ⟨y, hyT, xd, hk, _, hb, i, hi, rfl⟩
 
+/-- `JAtZB.bufOK` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {y : U64} (hy : y ∈ P1.Heap.tcbs H) :
+    msg.lookup_ipc_buffer st s true y ⦃ w => P1.BufOK (BufU Z σ) w ⦄ :=
+  Fl4Proofs.P3.JAtZB.bufOK (J := J.toB) (hy := hy)
+
 /-- **An IPC-buffer word is a user word** (`P1.UsrW`, int6): outside the
 TCBs and nodes, the endpoints and notifications and the frame words
 (`JAtZ.bufU_rbuf`), off the kernel-state block (`KsApart.buf`), in no SC. -/
-theorem JAtZ.usrWJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.usrWJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : b ∈ BufU Z σ) :
     P1.UsrW st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) s b := by
   obtain ⟨ho, he, hf⟩ := J.bufU_rbuf hb
@@ -323,19 +366,35 @@ theorem JAtZ.usrWJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
     rw [hz'] at hin
     exact hf ⟨ho.1, c, .sc z, hz, Or.inr (Or.inl ⟨z, rfl⟩), hin⟩
 
+/-- `JAtZB.usrWJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.usrWJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : b ∈ BufU Z σ) :
+    P1.UsrW st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) s b :=
+  Fl4Proofs.P3.JAtZB.usrWJ (J := J.toB) (hb := hb)
+
 /-- **The int6 core's placement carrier at `J`** (`P1.BufAt`): the IPC-buffer
 words `BufU Z σ` are user words and every TCB's buffer is among them. -/
-theorem JAtZ.bufAtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.bufAtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     P1.BufAt st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (BufU Z σ) s :=
   ⟨fun _ hb => J.usrWJ hb, fun _ hy => J.bufOK hy⟩
 
+/-- `JAtZB.bufAtJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufAtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    P1.BufAt st (P1.Heap.tcbs H) Cs H (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (BufU Z σ) s :=
+  Fl4Proofs.P3.JAtZB.bufAtJ (J := J.toB)
+
 /-- **No IPC-buffer word in a slot** (`BufPlaced.slot`). -/
-theorem JAtZ.bufU_noSlot {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.bufU_noSlot {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     ∀ x, IsSlot Z.th x → ∀ b ∈ BufU Z σ, ¬ (x.val ≤ b.val ∧ b.val < x.val + 32) := by
   intro x hx b hb
   obtain ⟨wp, hwp, e⟩ := J.bufU_B hb
   subst e
   exact BufPlaced.slot J.xtop.fin.1.2 hwp hx
+
+/-- `JAtZB.bufU_noSlot` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufU_noSlot {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    ∀ x, IsSlot Z.th x → ∀ b ∈ BufU Z σ, ¬ (x.val ≤ b.val ∧ b.val < x.val + 32) :=
+  Fl4Proofs.P3.JAtZB.bufU_noSlot (J := J.toB)
 
 end
 

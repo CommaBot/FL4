@@ -12,19 +12,19 @@ This module adds the start-side premises and an execution:
   `wordB_zero_of`), so **`ptesR_B`**: `ptesR (KB O) memB = ∅`, and **`hc0_B`**: `(KB O).vcpus = ∅ ∧ (KB O).ptes =
   ptesR (KB O) memB` — for every choice `chainC` makes (only `ksb` is read). `KB O` is used unchanged.
 * **`init_B`** (`Init`), **`armInv_B`** (`ArmInv`), **`mapsP_B`** (`MapsP`), **`noLoc_B`**.
-* **`exec_B`**: a non-empty `ExecWPRV12` from `s0B O` for every path family / start fact (so for V12's `StartV2C`
-  and V13's `StartV13` alike): core 0 arms the empty glue `.done`, enters, leaves (log `[.done]`), takes the ticket,
+* **`exec_B`**: a non-empty execution from `s0B O` (gen 56: an `ExecV15 cfg` for every configuration whose VCPU
+  convention admits the VCPU-free layout; until gen 55 an `ExecWPRV12` for every path family / start fact): core 0
+  arms the empty glue `.done`, enters, leaves (log `[.done]`), takes the ticket,
   scans itself, drains, and runs the empty serial body, releasing with the gate open (log `[.done, .done]`). Every
-  step's `Fl4StepWPRV12` fields hold: `arm` (`PureGlue.done`), `serX` (gen 35's `serExitW_B`), `serC` (`hc0_B`),
+  step's `Fl4StepV15` fields hold: `arm` (`PureGlue.done`), `serX` (gen 35's `serExitW_B`), `serC` (`hc0_B`),
   `serG` (the serial step installs `ownP (KB O)` again), `keep`; `start` is not reached (no `.start` marker).
   The end state `c7B O` satisfies `NoLoc` (`hq`).
-* **`premisesV12_B`** / **`premisesV13_B`**: for every `OpaqueH` and `a0`, one concrete instance (store `bst`, arch
-  `archT` for both `ar` and `arI`, `hA := archT_total`, `AR := ART`, `MR := modelMR`) satisfying **every** premise
-  of `serializable_fl4_localV12` (resp. `V13`) at once: `P`, `hIoa`, `h0`, `hA0`, `hB`, `hc0`, `hM0`, `h`, `hq`.
-  **`runAllV12_B`** / **`runAllV13_B`** apply the tops to it (type-checking the instance against the statements).
+* The concrete instance (store `bst`, arch `archT` for both `ar` and `arI`, `hA := archT_total`, `AR := ART`,
+  `MR := modelMR`) is applied to V15 in P2/BootV15 (`runAllV15_B`); gen 55 / 56 retired the V12 / V13 forms
+  (`premisesV12_B`, `premisesV13_B`, `runAllV12_B`, `runAllV13_B`).
 
 ## What the witness does not exercise
-* The step field `start` [P] of `Fl4StepWPRV12` (and so `StartV2C`'s / `StartV13`'s contents, V13's [J] `ybw` and
+* The step field `start` [P] of the step (and so `StartV2C`'s / `StartV13`'s contents, V13's [J] `ybw` and
   `anch` inside `StartV13`, and every path family's start obligations): the execution never runs a `.start` marker,
   so no local path body starts. A witness that runs one needs the glue's start fact at a real view (U-level
   `StartAt`), not attempted here.
@@ -32,6 +32,7 @@ This module adds the start-side premises and an execution:
 No premise added. No existing statement changed except the root import list.
 -/
 import Fl4Proofs.P2.BootJAtZ
+import Fl4Proofs.P2.E2EPV15Base
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.BootSt
@@ -138,8 +139,6 @@ theorem cfg_armInv : ArmInv (cfg0 K m) := fun c p h => by rw [cfg0_ph] at h; cas
 
 theorem cfg_noLoc : NoLoc (cfg7 K m) := fun d h => by rw [cfg7_ph] at h; exact h
 
-theorem cfg7_log : (cfg7 K m).log = [.done, .done] := rfl
-
 theorem cfg7_mem : (cfg7 K m).mem = m := rfl
 
 theorem mapsP_cfg0 : MapsP K (cfg0 K m) := ⟨rfl, rfl, rfl⟩
@@ -166,8 +165,7 @@ theorem cfg_steps :
 end gen
 
 section exec
-variable {ι : Type} {LP : PathsP ι} {NoV : ι → Prop}
-  {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+variable {ι : Type} {cfg : ExecCfg BS ι}
   {P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR} {K : KLayoutP} {Ch0 : U64 → BS → Prop} {m : U64 → U64}
 
 theorem noArm_idle {s' : Cfg U64 U64 U64 U64} {c : U64} (h : s'.ph c = .idle) :
@@ -177,12 +175,12 @@ theorem noSt_idle {s : Cfg U64 U64 U64 U64} {c : U64} (h : s.ph c = .idle) :
     ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W := fun p0 k W h' => by rw [h] at h'; cases h'
 
 /-- A step keeping the layout and chain at a configuration with memory `m` and rule 8's ghosts: every field of
-`Fl4StepWPRV12` from the phases at `c`. -/
-theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m)
+`Fl4StepV15` from the phases at `c`. -/
+theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
     {s s' : Cfg U64 U64 U64 U64} {c : U64}
     (harm : ∀ p, s'.ph c = .arm p → PureGlue p)
     (hst : ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W) (hm : s'.mem = m) (hM : MapsP K s') :
-    Fl4StepWPRV12 LP NoV SF P s K Ch0 c s' K Ch0 where
+    Fl4StepV15 cfg P s K Ch0 c s' K Ch0 where
   arm := harm
   start p0 k W h := absurd h (hst p0 k W)
   serX _ := hB
@@ -190,26 +188,26 @@ theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : K.vcpus =
   serG _ := hM
   keep _ := ⟨rfl, rfl⟩
 
-theorem execE {s0 s s' : Cfg U64 U64 U64 U64} (he : ExecWPRV12 LP NoV SF P s0 K Ch0 s K Ch0) (hS : Step s 0#u64 s')
-    (g : Fl4StepWPRV12 LP NoV SF P s K Ch0 0#u64 s' K Ch0) : ExecWPRV12 LP NoV SF P s0 K Ch0 s' K Ch0 :=
-  .step he hS g
+theorem execE {s0 s s' : Cfg U64 U64 U64 U64} {E : U64 → U64} (he : ExecV15 cfg P s0 K Ch0 s K Ch0 E)
+    (hS : Step s 0#u64 s') (g : Fl4StepV15 cfg P s K Ch0 0#u64 s' K Ch0) : ∃ E', ExecV15 cfg P s0 K Ch0 s' K Ch0 E' :=
+  ⟨_, .step he hS g⟩
 
 /-- **The seven-step execution** (module docstring), for any layout / chain satisfying `hB` and `hc0`. -/
-theorem exec_cfg (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m) :
-    ExecWPRV12 LP NoV SF P (cfg0 K m) K Ch0 (cfg7 K m) K Ch0 := by
+theorem exec_cfg (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m) :
+    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (cfg7 K m) K Ch0 E := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := cfg_steps K m
-  have e1 := execE (LP := LP) (NoV := NoV) (SF := SF) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
+  obtain ⟨_, e1⟩ := execE (cfg := cfg) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
     (stepW_keep hB hc (fun p h => by rw [cfg1_ph0] at h; cases h; exact .done) (noSt_idle (cfg0_ph K m _)) rfl
       (mapsP_cfg1 K m))
-  have e2 := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [cfg2_ph0] at h; cases h)
+  obtain ⟨_, e2⟩ := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [cfg2_ph0] at h; cases h)
       (fun p0 k W h => by rw [cfg1_ph0] at h; cases h) rfl (mapsP_cfg2 K m))
-  have e3 := execE e2 h3 (stepW_keep hB hc (noArm_idle (cfg3_ph0 K m))
+  obtain ⟨_, e3⟩ := execE e2 h3 (stepW_keep hB hc (noArm_idle (cfg3_ph0 K m))
       (fun p0 k W h => by rw [cfg2_ph0] at h; cases h) rfl (mapsP_cfg3 K m))
-  have e4 := execE e3 h4 (stepW_keep hB hc (fun p h => by rw [cfg4_ph0] at h; cases h)
+  obtain ⟨_, e4⟩ := execE e3 h4 (stepW_keep hB hc (fun p h => by rw [cfg4_ph0] at h; cases h)
       (noSt_idle (cfg3_ph0 K m)) rfl (mapsP_cfg4 K m))
-  have e5 := execE e4 h5 (stepW_keep hB hc (fun p h => by rw [cfg5_ph0] at h; cases h)
+  obtain ⟨_, e5⟩ := execE e4 h5 (stepW_keep hB hc (fun p h => by rw [cfg5_ph0] at h; cases h)
       (fun p0 k W h => by rw [cfg4_ph0] at h; cases h) rfl (mapsP_cfg5 K m))
-  have e6 := execE e5 h6 (stepW_keep hB hc (fun p h => by rw [cfg6_ph0] at h; cases h)
+  obtain ⟨_, e6⟩ := execE e5 h6 (stepW_keep hB hc (fun p h => by rw [cfg6_ph0] at h; cases h)
       (fun p0 k W h => by rw [cfg5_ph0] at h; cases h) rfl (mapsP_cfg6 K m))
   exact execE e6 h7 (stepW_keep hB hc (noArm_idle (cfg7_ph0 K m))
       (fun p0 k W h => by rw [cfg6_ph0] at h; cases h) rfl (mapsP_cfg7 K m))
@@ -228,64 +226,12 @@ theorem armInv_B (O : LocPlatM.OpaqueH) : ArmInv (s0B O) := cfg_armInv _ _
 theorem mapsP_B (O : LocPlatM.OpaqueH) : MapsP (KB O) (s0B O) := mapsP_cfg0 _ _
 theorem noLoc_B (O : LocPlatM.OpaqueH) : NoLoc (c7B O) := cfg_noLoc _ _
 
-/-- **A non-empty execution from `s0B O`** (module docstring), for every path family and start fact. -/
-theorem exec_B {ι : Type} {LP : PathsP ι} {NoV : ι → Prop}
-    {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (O : LocPlatM.OpaqueH) :
-    ExecWPRV12 LP NoV SF (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) (c7B O) (KB O)
-      (fun _ => ChB O) :=
-  exec_cfg (fun _ => serExitW_B O) (hc0_B O)
-
-/-! ## Every premise of the tops at once -/
-
-/-- The path family of V12 / V13 at the concrete instance. -/
-abbrev famB (a0 : Fl4Spec.MachineState) :=
-  PathsP.sum (fl4LocW11JC bst LocPlatM.archT LocPlatM.archT_total (masksWr_plain bst) bsL.total a0)
-    (PathsP.sum (PathsP.sum (delPteSlot bst LocPlatM.archT LocPlatM.archT_total (masksWr_plain bst))
-      (invSlotU bst LocPlatM.archT LocPlatM.archT_total (masksWr_plain bst)))
-      (cmSlotU bst LocPlatM.archT LocPlatM.archT_total (masksWr_plain bst)))
-
-/-- **Every premise of `serializable_fl4_localV12` holds at one concrete instance** (module docstring), under
-`OpaqueH`: `P`, `hIoa`, `h0`, `hA0`, `hB`, `hc0`, `hM0`, a non-empty execution `h` and `hq`. -/
-theorem premisesV12_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    ∃ (P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR) (s0 s : Cfg U64 U64 U64 U64) (K0 K : KLayoutP)
-      (Ch0 Ch : U64 → BS → Prop),
-      MRKeepIoapic LocPlatM.archT modelMR ∧ Init s0 ∧ ArmInv s0 ∧ (∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) ∧
-      (K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem) ∧ MapsP K0 s0 ∧
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV2C bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR) P s0 K0 Ch0
-        s K Ch ∧
-      NoLoc s ∧ s.log ≠ [] :=
-  ⟨_, s0B O, c7B O, KB O, KB O, fun _ => ChB O, fun _ => ChB O, LocPlatM.mrKeepIoapic_archT, init_B O,
-    armInv_B O, fun _ => serExitW_B O, hc0_B O, mapsP_B O, exec_B O, noLoc_B O, by rw [cfg7_log]; simp⟩
-
-/-- **Every premise of `serializable_fl4_localV13` holds at one concrete instance** (its start fact `StartV13`,
-with the [J] `ybw` / `anch` inside, is never reached by the execution: module docstring). -/
-theorem premisesV13_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    ∃ (P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR) (s0 s : Cfg U64 U64 U64 U64) (K0 K : KLayoutP)
-      (Ch0 Ch : U64 → BS → Prop),
-      MRKeepIoapic LocPlatM.archT modelMR ∧ Init s0 ∧ ArmInv s0 ∧ (∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) ∧
-      (K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem) ∧ MapsP K0 s0 ∧
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR) P s0 K0 Ch0
-        s K Ch ∧
-      NoLoc s ∧ s.log ≠ [] :=
-  ⟨_, s0B O, c7B O, KB O, KB O, fun _ => ChB O, fun _ => ChB O, LocPlatM.mrKeepIoapic_archT, init_B O,
-    armInv_B O, fun _ => serExitW_B O, hc0_B O, mapsP_B O, exec_B O, noLoc_B O, by rw [cfg7_log]; simp⟩
-
-/-- **V12 applied to the instance** (checks the instance against the top's statement). -/
-theorem runAllV12_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    RunAll (c7B O).log (s0B O).mem (c7B O).mem :=
-  serializable_fl4_localV12 bst LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext)
-    LocPlatM.mrKeepIoapic_archT (init_B O) (armInv_B O) (fun _ => serExitW_B O) (hc0_B O) (mapsP_B O)
-    (exec_B O) (noLoc_B O)
-
-/-- **V13 applied to the instance.** -/
-theorem runAllV13_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    RunAll (c7B O).log (s0B O).mem (c7B O).mem :=
-  serializable_fl4_localV13 bst LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext)
-    LocPlatM.mrKeepIoapic_archT (init_B O) (armInv_B O) (fun _ => serExitW_B O) (hc0_B O) (mapsP_B O)
-    (exec_B O) (noLoc_B O)
+/-- **A non-empty execution from `s0B O`** (module docstring), for every configuration whose VCPU convention
+admits the VCPU-free layout. -/
+theorem exec_B {ι : Type} {cfg : ExecCfg BS ι} (O : LocPlatM.OpaqueH) (hv : ∀ K m, K.vcpus = ∅ → cfg.VcpuOK K m) :
+    ∃ E, ExecV15 cfg (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) (c7B O) (KB O)
+      (fun _ => ChB O) E :=
+  exec_cfg (fun _ => serExitW_B O) ⟨hv _ _ (hc0_B O).1, (hc0_B O).2⟩
 
 end
 end Fl4Proofs.P2.BootSt

@@ -19,6 +19,10 @@ two words, the replies' `TCB` words) and the spec frame `CFr`
 * `JAtZ.wake_postB`: `JAtZ.wake_post` (ScSignalJ) for `CnW` and `CFr`:
   `CallRel` carried by the call stacks, `reply_sc` and the reply links
   (`CFr.callKeep`), `RFree` by `RecvReplyHyp` for the freed reply.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `cnW_irq`,
+`cnW_keeps`, `cnW_nf`, `cnW_ntd`, `cnW_nv`, `cnW_scOut`, `cnW_td`, `cnW_utc`, `cnX_not`, `donCore`; each `JAtZ` name
+is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.IpcSignalBound
@@ -43,8 +47,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 `DonCore`): the TCBs on core `Z.c` (`SchedCore.aff`), the notification's SC,
 when it has one, in `Z.C` (`NSC`) and so on core `Z.c` (`SchedRel.core`). A
 wake donation then moves no thread across cores. -/
-theorem JAtZ.donCore {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+theorem JAtZB.donCore {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
     P1.DonCore st (P1.Heap.tcbs H) (P1.Heap.scs H) n s := by
   intro x _ h0 e y hy
   have hSR := J.xtop.fin.1.1.1
@@ -56,13 +60,19 @@ theorem JAtZ.donCore {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rwa [show nScA n = P1.ntfnScA n from rfl, e] at this
   rw [hc.aff y hyT, Fl4Proofs.P3.Sched.scCoreA_eq, hSR.core x hxC]
 
+/-- `JAtZB.donCore` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.donCore {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+    P1.DonCore st (P1.Heap.tcbs H) (P1.Heap.scs H) n s :=
+  Fl4Proofs.P3.JAtZB.donCore (J := J.toB) (hn := hn)
+
 /-- `CnW`'s words beyond `FinW`. -/
 def CnX (E R : Set U64) (b : U64) : Prop := (∃ e ∈ E, EW e b) ∨ (∃ r ∈ R, b.val = r.val)
 
 /-- **A `CnX` word is in no other object of `H`** (module docstring): not in
 an object `p` of `H` other than an endpoint or reply, nor in a reply's words
 other than its `TCB` word. -/
-theorem JAtZ.cnX_not (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : CnX Z.E Z.R b)
+theorem JAtZB.cnX_not (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : CnX Z.E Z.R b)
     {p : U64} {k : P1.HKind} (hp : H p = some k) (h1 : p.val ≤ b.val) (h2 : b.val < p.val + 2 ^ k.bits)
     (hk : (k ≠ .ep ∧ k ≠ .reply) ∨ (k = .reply ∧ b.val ≠ p.val)) : False := by
   have hH := J.kern.heap
@@ -82,12 +92,18 @@ theorem JAtZ.cnX_not (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
   · have := hH.disj p k q kq hp hq e
     omega
 
+/-- `JAtZB.cnX_not` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnX_not (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : CnX Z.E Z.R b)
+    {p : U64} {k : P1.HKind} (hp : H p = some k) (h1 : p.val ≤ b.val) (h2 : b.val < p.val + 2 ^ k.bits)
+    (hk : (k ≠ .ep ∧ k ≠ .reply) ∨ (k = .reply ∧ b.val ≠ p.val)) : False :=
+  Fl4Proofs.P3.JAtZB.cnX_not (J := J.toB) (hb := hb) (hp := hp) (h1 := h1) (h2 := h2) (hk := hk)
+
 theorem JAtZ.cnW_cases (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (h : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) :
     FinW (st := st) Z.T Z.N Z.C Z.c s σ b ∨ CnX Z.E Z.R b := h.imp_right id
 
 /-- **A `CnW` word is no TCB's VCPU word** (KENTRY-PLAN g2b). -/
-theorem JAtZ.cnW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+theorem JAtZB.cnW_nv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
   have hS := J.xtop.fin.1.1.1
   intro t ht
@@ -99,8 +115,13 @@ theorem JAtZ.cnW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
 
+/-- `JAtZB.cnW_nv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t :=
+  Fl4Proofs.P3.JAtZB.cnW_nv (J := J.toB) (hb := hb)
+
 /-- **A `CnW` word is no TCB's flags word** (KENTRY-PLAN g5d). -/
-theorem JAtZ.cnW_nf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+theorem JAtZB.cnW_nf (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ flagsA t := by
   have hS := J.xtop.fin.1.1.1
   intro t ht
@@ -112,8 +133,13 @@ theorem JAtZ.cnW_nf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
 
+/-- `JAtZB.cnW_nf` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_nf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ flagsA t :=
+  Fl4Proofs.P3.JAtZB.cnW_nf (J := J.toB) (hb := hb)
+
 /-- **A `CnW` word is no TCB's deadline word** (KENTRY-PLAN jc6e). -/
-theorem JAtZ.cnW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+theorem JAtZB.cnW_ntd (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
   have hS := J.xtop.fin.1.1.1
   intro t ht
@@ -125,13 +151,23 @@ theorem JAtZ.cnW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
 
+/-- `JAtZB.cnW_ntd` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t :=
+  Fl4Proofs.P3.JAtZB.cnW_ntd (J := J.toB) (hb := hb)
+
 /-- **A `CnW` step keeps every deadline word** (KENTRY-PLAN jc6e). -/
-theorem JAtZ.cnW_td (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.cnW_td (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
   J.tdkeep_of hw fun _ hb => J.cnW_ntd hb
 
+/-- `JAtZB.cnW_td` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_td (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  Fl4Proofs.P3.JAtZB.cnW_td (J := J.toB) (hw := hw)
+
 /-- **The frame words a `CnW` step keeps** (`finW_keeps`). -/
-theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.cnW_keeps (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
     (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
@@ -183,8 +219,18 @@ theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
             (Or.inr ⟨rfl, by omega⟩)
     exact ⟨k _ (Or.inl h8), k _ (Or.inr h16)⟩
 
+/-- `JAtZB.cnW_keeps` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) :=
+  Fl4Proofs.P3.JAtZB.cnW_keeps (J := J.toB) (hw := hw)
+
 /-- **The header words of `H`'s SCs outside `Z.C` are kept** by a `CnW` step. -/
-theorem JAtZ.cnW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.cnW_scOut (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) {q : U64} {z : Nat}
     (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
     L.mem s' (scW q K) = L.mem s (scW q K) := by
@@ -227,8 +273,15 @@ theorem JAtZ.cnW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
   · exact J.cnX_not hb hq (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
 
+/-- `JAtZB.cnW_scOut` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) {q : U64} {z : Nat}
+    (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
+    L.mem s' (scW q K) = L.mem s (scW q K) :=
+  Fl4Proofs.P3.JAtZB.cnW_scOut (J := J.toB) (hw := hw) (hq := hq) (hqC := hqC) (hK8 := hK8) (hK := hK)
+
 /-- **The IRQ node's caps are kept** by a `CnW` step. -/
-theorem JAtZ.cnW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.cnW_irq (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) (i : U64) (hi : i.val < 128) :
     capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) := by
   have hS := J.xtop.fin.1.1.1
@@ -245,10 +298,16 @@ theorem JAtZ.cnW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     · have := hJ.ks e _ (J.zH.2.1 e he) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; unfold EW at h; omega
     · have := hJ.ks r _ (J.zH.2.2.1 r hr) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
 
+/-- `JAtZB.cnW_irq` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) (i : U64) (hi : i.val < 128) :
+    capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
+  Fl4Proofs.P3.JAtZB.cnW_irq (J := J.toB) (hw := hw) (i := i) (hi := hi)
+
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after a `CnW` step** (`finW_utc`; the endpoints
 and replies are spec objects, outside the free parts, `SpecFree`). -/
-theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.cnW_utc (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
@@ -310,6 +369,17 @@ theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
     rw [hcdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `JAtZB.cnW_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cnW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (harch : σ'.archState = σ.archState)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.cnW_utc (J := J.toB) (hw := hw) (hSS := hSS) (hcdt := hcdt) (horig := horig) (harch := harch) (hDbg := hDbg)
 
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a `CFr` step** with the footprint `CnW`

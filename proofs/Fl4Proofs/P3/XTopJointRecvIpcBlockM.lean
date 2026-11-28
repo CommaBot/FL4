@@ -16,6 +16,10 @@ in `JAtZR`.
   `CurRunM` by its first disjunct; `JRestR` and `J.toR.cs_frameI`.
 * `JAtZ.recvIpcBlockJM` (no bound notification), `JAtZ.recvIpcBlockNJGM`
   (a bound idle or waiting notification whose SC is not the thread's).
+
+(p3J gen 53) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSigM
 import Fl4Proofs.P3.XTopJointRecvIpcLink
@@ -186,16 +190,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 set_option maxHeartbeats 16000000 in
-/-- **The blocking receive at `J` under a pending switch** (`MidE`, action not
-resumed; `JAtZ.recvIpcBlockJG`'s changes as XTopJointRecvSigM's
-`recvSigBlockJM`), ending in `JAtZR`: the current thread
-`t` blocks receiving on the idle or receiving endpoint `e`, covered by a cap
-(`hcov`), with a null reply cap or one naming a reply object linked to no
-thread, covered by the cap (`hcovR`); `hred`, `hsp`: FL4's and the spec's
-`receive_ipc` reduce to the wait (no bound notification: `receive_ipc_block_red`,
-`receiveIpc_noSend`; a bound idle or waiting one: XTopJointRecvIpcBound), stated
-for any FL4 program `m` reducing to the wait. -/
-theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- (p3J gen 53) **`JAtZ.recvIpcBlockJGM` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvIpcBlockJGM` is its instance at `RJR`). -/
+theorem JAtZ.recvIpcBlockJGMQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -212,10 +208,13 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [
       let s3 ← endpoint.wait_for_sender st s t e true rv
       ok (s3, a)) ⦃ P ⦄ → m ⦃ P ⦄)
     (hsp : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
-      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ) :
+      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
   have hC : CurInv σ := J.curInv hni.ncn
@@ -398,7 +397,70 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [
       · exact h1
       · exact ⟨h1, fun e' => by rw [Set.mem_singleton_iff.1 e', J.zH.2.2.1 rv (hrv h0).1] at hT; cases hT⟩)
   rw [heq]
-  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3, inferInstance⟩
+  exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, hPq _ _ _ _ _ _ _ _ J3⟩
+
+set_option maxHeartbeats 16000000 in
+set_option maxHeartbeats 16000000 in
+/-- **The blocking receive at `J` under a pending switch** (`MidE`, action not
+resumed; `JAtZ.recvIpcBlockJG`'s changes as XTopJointRecvSigM's
+`recvSigBlockJM`), ending in `JAtZR`: the current thread
+`t` blocks receiving on the idle or receiving endpoint `e`, covered by a cap
+(`hcov`), with a null reply cap or one naming a reply object linked to no
+thread, covered by the cap (`hcovR`); `hred`, `hsp`: FL4's and the spec's
+`receive_ipc` reduce to the wait (no bound notification: `receive_ipc_block_red`,
+`receiveIpc_noSend`; a bound idle or waiting one: XTopJointRecvIpcBound), stated
+for any FL4 program `m` reducing to the wait. -/
+theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
+    (hc : Endp.CanBlock true x)
+    (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
+      (∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)))
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {m : Result (S × A)} (hred : ∀ {P : S × A → Prop}, (do
+      let s3 ← endpoint.wait_for_sender st s t e true rv
+      ok (s3, a)) ⦃ P ⦄ → m ⦃ P ⦄)
+    (hsp : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
+      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ) :
+    m ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvIpcBlockJGMQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    J ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights hred hsp (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
+
+/-- (p3J gen 53) **`JAtZ.recvIpcBlockJM` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvIpcBlockJM` is its instance at `RJR`). -/
+theorem JAtZ.recvIpcBlockJMQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
+    (hc : Endp.CanBlock true x)
+    (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
+      (∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)))
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    (hred : ∀ {P : S × A → Prop}, (do
+      let s3 ← endpoint.wait_for_sender st s t e true rv
+      ok (s3, a)) ⦃ P ⦄ → endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ P ⦄)
+    (hsp : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
+      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ :=
+  J.recvIpcBlockJGMQ ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights hred hsp hPq
 
 /-- **The blocking receive at `J` under a pending switch**, no bound
 notification: `JAtZ.recvIpcBlockJGM`. -/
@@ -423,13 +485,13 @@ theorem JAtZ.recvIpcBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [V
     endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
         RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.recvIpcBlockJGM ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights hred hsp
+  JAtZ.recvIpcBlockJMQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    J ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights hred hsp (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 set_option maxHeartbeats 4000000 in
-/-- **The blocking receive with a bound idle or waiting notification at `J`**
-(module docstring): the notification's SC is not the thread's (`hnr`); at a
-mid state with a pending switch (`MidE`, as `JAtZ.recvIpcBlockJGM`). -/
-theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- (p3J gen 53) **`JAtZ.recvIpcBlockNJGM` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvIpcBlockNJGM` is its instance at `RJR`). -/
+theorem JAtZ.recvIpcBlockNJGMQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -444,10 +506,13 @@ theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) 
     {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
     (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
       (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
-    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hns : ∀ q, x ≠ .sendEP q := fun q h => by subst h; simp [Endp.CanBlock] at hc
   have hx := hI.1.toE.at_ep he hk
@@ -478,9 +543,36 @@ theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) 
     · refine Or.inr fun he' => hnr ⟨?_, ?_⟩
       · rw [hsN, he']; exact hsct.symm
       · rw [hsN, Notif.optRef_ne h0]; simp
-  exact J.recvIpcBlockJGM ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights
+  exact J.recvIpcBlockJGMQ ht hcur hni hsw hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights
     (fun h => receive_ipc_blockN_red hrc hbound (by rw [← hbound]; exact hbz) hstN hwn hst2 h)
-    (receiveIpc_boundNA b rights true (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hk hns hkn hna (fun _ => hnr))
+    (receiveIpc_boundNA b rights true (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hk hns hkn hna (fun _ => hnr)) hPq
+
+set_option maxHeartbeats 4000000 in
+/-- **The blocking receive with a bound idle or waiting notification at `J`**
+(module docstring): the notification's SC is not the thread's (`hnr`); at a
+mid state with a pending switch (`MidE`, as `JAtZ.recvIpcBlockJGM`). -/
+theorem JAtZ.recvIpcBlockNJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {n : U64} (hn : n ∈ Z.N) (hbn : xt.tcbBoundNotification = some n.bv)
+    {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn))
+    (hna : Fl4Spec.isActive xn = false) (hnr : ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none))
+    {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
+    (hc : Endp.CanBlock true x)
+    (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
+      (∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)))
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvIpcBlockNJGMQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    J ht hcur hni hsw hnq hkt hn hbn hkn hna hnr he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

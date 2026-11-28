@@ -16,6 +16,10 @@ reschedule branch here asks exactly that:
 
 At a `chooseNewThread` mid state with `CurInv` (`MidC`, XTopJointRecvSigC)
 the receiver has the current SC, so the second disjunct holds.
+
+(p3J gen 54) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSendP
 open Aeneas Aeneas.Std Result
@@ -32,12 +36,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 
 set_option maxHeartbeats 64000000 in
-/-- **`receive_ipc` from a faulted head sender pushing a reply at `J`**
-(module docstring): the sender holds a fault (a timeout only without an SC),
-has the grant or grant-reply right, the receiver passes a reply object
-(covered, `hcovR`), at a resumed entry or under a pending reschedule without a donation; for any FL4 program `m` reducing to
-the endpoint-state switch. -/
-theorem JAtZ.recvSendFPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- (p3J gen 54) **`JAtZ.recvSendFPJGC` with its post as a parameter** (module docstring: `Pq` from every `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvSendFPJGC` is its instance at `RJ`). -/
+theorem JAtZ.recvSendFPJGCQ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -66,10 +66,13 @@ theorem JAtZ.recvSendFPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
             else if st1 = obj.EP_RECV then do
               let s3 ← endpoint.wait_for_sender st s t e blk rv
               ok (s3, a)
-            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
@@ -417,13 +420,13 @@ theorem JAtZ.recvSendFPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
   have hrv0 : (rv != 0#u64) = true := by simpa using hw00
   suffices HH : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ by
     have HH' : (do
         let i3 ← obj.Tcb.sc st sd' s3
         let can_donate ← if i3 != 0#u64 then ok (ft != fl4_abi.consts.fault.Timeout) else ok false
         ipc.reply_push st arI s3 a sd' t rv can_donate) ⦃ r =>
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-            RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+            RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
       refine WP.spec_bind (Fl4Proofs.P1.obj.Tcb.sc.spec s3 sd') ?_
       rintro i3 hi3
       by_cases h3' : (i3 != 0#u64) = true
@@ -589,14 +592,54 @@ theorem JAtZ.recvSendFPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inr (by rw [hft]; simp)) hPS
-  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6, inferInstance⟩
+  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, hPq _ _ _ _ _ _ _ _ J6⟩
 
 set_option maxHeartbeats 64000000 in
-/-- **`receive_ipc` from a calling head sender (no fault) pushing a reply at
-`J`** (module docstring; XTopJointRecvSend's `JAtZ.recvSendJG` up to the
-transfer, its intermediate `JAtZ` `Jy` at `σy`): the grant or grant-reply
-right, a reply object (covered, `hcovR`), at a resumed entry. -/
-theorem JAtZ.recvSendPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- **`receive_ipc` from a faulted head sender pushing a reply at `J`**
+(module docstring): the sender holds a fault (a timeout only without an SC),
+has the grant or grant-reply right, the receiver passes a reply object
+(covered, `hcovR`), at a resumed entry or under a pending reschedule without a donation; for any FL4 program `m` reducing to
+the endpoint-state switch. -/
+theorem JAtZ.recvSendFPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
+    (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
+      σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
+      (blk = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)))
+    (hct : σ.curThread = t.bv) (hni : σ.curThread ≠ σ.idleThread) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
+    {e sd : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
+    (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) {f : Fl4Spec.Fault}
+    (hft : xs.tcbFault = some f) (hto : ∀ b, f = .timeout b → xs.tcbSchedContext = none)
+    (hAct : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ t.bv ∉ σ.releaseQueue ∧
+        (xs.tcbSchedContext = none ∨ xt.tcbSchedContext ≠ none)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (hyes : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd →
+      dd.senderCanGrant = true ∨ dd.senderCanGrantReply = true) (hrn : rc ≠ .Null)
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {m : Result (S × A)} (hm : ∀ {P : S × A → Prop}, (do
+            let st1 ← obj.Ep.state st e s
+            if st1 = obj.EP_IDLE then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else if st1 = obj.EP_RECV then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+    m ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvSendFPJGCQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT J ht hkt hrun hbN hct hni hnq he hk hks hft hto hAct cb c1 c2 c3 c4 hrc hcovR hyes hrn b rights hm (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
+
+set_option maxHeartbeats 64000000 in
+/-- (p3J gen 54) **`JAtZ.recvSendPJGC` with its post as a parameter** (module docstring: `Pq` from every `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvSendPJGC` is its instance at `RJ`). -/
+theorem JAtZ.recvSendPJGCQ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -625,10 +668,13 @@ theorem JAtZ.recvSendPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
             else if st1 = obj.EP_RECV then do
               let s3 ← endpoint.wait_for_sender st s t e blk rv
               ok (s3, a)
-            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
@@ -961,13 +1007,13 @@ theorem JAtZ.recvSendPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
   have hrv0 : (rv != 0#u64) = true := by simpa using hw00
   suffices HH : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ by
     have HH' : (do
         let i3 ← obj.Tcb.sc st sd' s3
         let can_donate ← if i3 != 0#u64 then ok (ft != fl4_abi.consts.fault.Timeout) else ok false
         ipc.reply_push st arI s3 a sd' t rv can_donate) ⦃ r =>
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-            RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+            RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
       refine WP.spec_bind (Fl4Proofs.P1.obj.Tcb.sc.spec s3 sd') ?_
       rintro i3 hi3
       by_cases h3' : (i3 != 0#u64) = true
@@ -1123,7 +1169,49 @@ theorem JAtZ.recvSendPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inl hcl) hPS
-  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6, inferInstance⟩
+  exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, hPq _ _ _ _ _ _ _ _ J6⟩
+
+set_option maxHeartbeats 64000000 in
+/-- **`receive_ipc` from a calling head sender (no fault) pushing a reply at
+`J`** (module docstring; XTopJointRecvSend's `JAtZ.recvSendJG` up to the
+transfer, its intermediate `JAtZ` `Jy` at `σy`): the grant or grant-reply
+right, a reply object (covered, `hcovR`), at a resumed entry. -/
+theorem JAtZ.recvSendPJGC (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
+    (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
+      σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
+      (blk = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)))
+    (hct : σ.curThread = t.bv) (hni : σ.curThread ≠ σ.idleThread) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
+    {e sd : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
+    (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (hAct : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ t.bv ∉ σ.releaseQueue ∧
+        (xs.tcbSchedContext = none ∨ xt.tcbSchedContext ≠ none)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (hcl0 : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = true)
+    (hyes : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd →
+      dd.senderCanGrant = true ∨ dd.senderCanGrantReply = true) (hrn : rc ≠ .Null)
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {m : Result (S × A)} (hm : ∀ {P : S × A → Prop}, (do
+            let st1 ← obj.Ep.state st e s
+            if st1 = obj.EP_IDLE then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else if st1 = obj.EP_RECV then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+    m ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvSendPJGCQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT J ht hkt hrun hbN hct hni hnq he hk hks hfs hAct cb c1 c2 c3 c4 hrc hcovR hcl0 hyes hrn b rights hm (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

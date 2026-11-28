@@ -25,6 +25,13 @@ slot: `send_fault_ipc` returns `false` without writing, then
   (`FaultEpHypJ`, the blocking `send_ipc`), `Entered`, l4v `ct_not_in_q` and
   l4v `valid_fault_handler` for the current thread (a cap that is neither
   null nor an endpoint is excluded).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `curBits`; each
+`JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
+
+(mmuAD gen 42b18) `stsCurJ` stated over `JAtZB` in place (the copy's post, with the `TFoot` footprint); `JAtZ.stsCurJ`
+its corollary (`ext` by `JAtZ.ext_tfoot`). P3/JAtZV3HiFault's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointStsI
 open Aeneas Aeneas.Std Result
@@ -113,7 +120,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 /-- **The queue bits of a thread in no spec queue** (module docstring). -/
-theorem JAtZ.curBits (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZB.curBits (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (hq : ∀ d p, t.bv ∉ σ.readyQueues d p) (hr : t.bv ∉ σ.releaseQueue) :
     (L.mem s (P1.inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 := by
   have hS := J.xtop.fin.1.1.1
@@ -128,18 +135,25 @@ theorem JAtZ.curBits (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
     rw [hs.rel]
     exact List.mem_map_of_mem hm
 
-set_option maxHeartbeats 16000000 in
-/-- **`set_thread_state Inactive` of the current thread at `J`** (module
-docstring). -/
-theorem JAtZ.stsCurJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {t : U64} (ht : t ∈ Z.T)
+/-- `JAtZB.curBits` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.curBits (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (hq : ∀ d p, t.bv ∉ σ.readyQueues d p) (hr : t.bv ∉ σ.releaseQueue) :
+    (L.mem s (P1.inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 :=
+  Fl4Proofs.P3.JAtZB.curBits (J := J.toB) (ht := ht) (hq := hq) (hr := hr)
+
+set_option maxHeartbeats 4000000 in
+/-- **`set_thread_state Inactive` of the current thread at `JAtZB`** (P3/XTopJointNoFault's `JAtZ.stsCurJ` over
+`JAtZB`; the post adds the `TFoot` footprint, as P3/JAtZV3HiRun's `JAtZB.runJDB`). -/
+theorem JAtZB.stsCurJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {t : U64} (ht : t ∈ Z.T)
     (htD : t ∉ D) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hcur : σ.curThread = t.bv)
     (hrn : Fl4Spec.runnable x.tcbState = true) (hnq : ∀ d p, t.bv ∉ σ.readyQueues d p)
     (hB : sched.set_thread_state st s t sched.TS_INACTIVE ⦃ s' => P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H
       (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' ∧
       P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s' ⦄) :
     sched.set_thread_state st s t sched.TS_INACTIVE ⦃ s6 => ∃ (Lst' : U64 → List U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst' D s6 a
-        (stsAct (updK σ t.bv (.tcb { x with tcbState := .inactive })) t.bv) ⦄ := by
+      JAtZB (L := L) arI AR Z H Cs Ac Lst' D s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .inactive })) t.bv) ∧
+      P1.WritesIn st s s6 (TFoot st Z.T Z.N Z.C Z.c s σ) ⦄ := by
   have hts : tsCode Fl4Spec.ThreadState.inactive < 3 := by decide
   have hcode := runnable_code hrn
   have hP0 := J.ip
@@ -280,7 +294,19 @@ theorem JAtZ.stsCurJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : En
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD, hW⟩
+
+/-- `JAtZB.stsCurJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.stsCurJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {t : U64} (ht : t ∈ Z.T)
+    (htD : t ∉ D) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hcur : σ.curThread = t.bv)
+    (hrn : Fl4Spec.runnable x.tcbState = true) (hnq : ∀ d p, t.bv ∉ σ.readyQueues d p)
+    (hB : sched.set_thread_state st s t sched.TS_INACTIVE ⦃ s' => P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H
+      (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' ∧
+      P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s' ⦄) :
+    sched.set_thread_state st s t sched.TS_INACTIVE ⦃ s6 => ∃ (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac Lst' D s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .inactive })) t.bv) ⦄ :=
+  WP.spec_mono (Fl4Proofs.P3.JAtZB.stsCurJ (J := J.toB) (hni := hni) (ht := ht) (htD := htD) (hk := hk) (hcur := hcur) (hrn := hrn) (hnq := hnq) (hB := hB)) fun _ ⟨Lst', B, hw⟩ => ⟨Lst', B.toJAtZ (J.ext_tfoot hw)⟩
 
 /-- FL4's and the spec's fault-handler slot of a related TCB. -/
 theorem fhCap_rel {th : TypedHeap} {m : U64 → U64} {σ' : Fl4Spec.State Unit} (hR : StateRel th m σ') {t : U64}

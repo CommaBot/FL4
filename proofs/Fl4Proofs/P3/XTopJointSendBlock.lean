@@ -24,6 +24,10 @@ endpoint (`JAtZ.sendBlockJ`), from `JAtZ` before to `JAtZ` after.
 * The dead set: the endpoint may lie in it only while covered by a cap (the
   invoked cap, ScDeadStep's `JAtZ.cover_cap`), so it leaves the dead set
   (`JCovD.undead`); every other dead object is kept (`JAtZ.deadP_keep`).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `curSc_ne_idle`;
+each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.XTopJointCancel
@@ -650,7 +654,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- The current SC is not the idle SC when the current thread is not idle
 (`Inv.back`: both threads would be the SC's). -/
-theorem JAtZ.curSc_ne_idle (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hC : CurInv σ)
+theorem JAtZB.curSc_ne_idle (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hC : CurInv σ)
     (hti : σ.curThread ≠ σ.idleThread) : σ.curSc ≠ σ.idleSc := by
   intro hci
   obtain ⟨xc, hkc, hcs, -⟩ := hC.tcb
@@ -660,6 +664,11 @@ theorem JAtZ.curSc_ne_idle (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hC
   rw [hci, hk2] at hk1; cases hk1
   rw [hy1] at hy2
   exact hti (Option.some.inj hy2)
+
+/-- `JAtZB.curSc_ne_idle` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.curSc_ne_idle (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hC : CurInv σ)
+    (hti : σ.curThread ≠ σ.idleThread) : σ.curSc ≠ σ.idleSc :=
+  Fl4Proofs.P3.JAtZB.curSc_ne_idle (J := J.toB) (hC := hC) (hti := hti)
 
 set_option maxHeartbeats 16000000 in
 /-- **The blocking send at `J`** (module docstring): the current thread

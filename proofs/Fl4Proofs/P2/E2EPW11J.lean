@@ -206,59 +206,9 @@ def ptesCanon (K : KLayoutP) (m : U64 → U64) : Set U64 :=
 
 variable {st}
 
-/-- **The convention gives `PteConv`** at a layout with a bundle state and no VCPU. -/
-theorem pteConv_canon {K : KLayoutP} {s1 : Cfg U64 U64 U64 U64} (hb : ∃ σe, SlJAt (L := L) K.toKLayout σe)
-    (nv : K.vcpus = ∅) (he : K.ptes = ptesCanon st K s1.mem) : PteConv st K s1 := by
-  have h : ∃ Zx, GhostOf st K.toKLayout Zx := by
-    obtain ⟨σe, A', arI, AR, Zx, Cx, Ax, Lst, D, a', τ, B⟩ := hb
-    exact ⟨Zx, σe, A', arI, AR, Cx, Ax, Lst, D, a', τ, B⟩
-  unfold ptesCanon at he
-  rw [dif_pos h] at he
-  obtain ⟨σe, A', arI, AR, Cx, Ax, Lst, D, a', τ, B⟩ := Classical.choose_spec h
-  exact pteConv_of B nv (by rw [he])
-
-/-- `RegionOKP` / `UserOKP` from `PteConv` (gen 5's lemmas at its bundle). -/
-theorem okP_of_conv {K : KLayoutP} {s1 : Cfg U64 U64 U64 U64} (hC : PteConv st K s1)
-    (hV : RegionOKV K.toKLayoutV) (hU : UserOKV K.toKLayoutV) : RegionOKP K ∧ UserOKP K := by
-  obtain ⟨σe, A', arI, AR, Zx, Cx, Ax, Lst, D, a', τ, B, hsub, nv⟩ := hC
-  exact ⟨regionOKP_of_conv B hV (fun b hb => (hsub hb).1) nv, userOKP_of_conv B hU (fun b hb => (hsub hb).1)⟩
-
-/-- **`QPs` at a start state of any store type** from `PteConv` at the epoch start, agreement with it on the `GateW`
-words, the kernel base and the start's memory link. -/
-theorem qPs_of_conv {S' : Type} {st' : machine.Store S'} [L' : LawfulStore st'] {K : KLayoutP}
-    {s1 s : Cfg U64 U64 U64 U64} (hC : PteConv st K s1) (hkeep : ∀ x, GateW K x → s.mem x = s1.mem x)
-    {σ : S'} (hk : L'.ksb σ = K.ksb) (hμ : ∀ x, Aligned x → x ∉ K.user → L'.mem σ x = s.mem x) :
-    QPs K st' σ := by
-  obtain ⟨σe, A', arI, AR, Zx, Cx, Ax, Lst, D, a', τ, B, hsub, nv⟩ := hC
-  have Q : QPs K st σe := qPs_of_bundle B (fun b hb => (hsub hb).1) nv
-  have hnu : ∀ hi : U64, hi.val < 2048 → atAF K.ksb hi ∉ K.user :=
-    fun hi hhi hu => Q.uoff _ (Or.inl hu) hi hhi rfl
-  have hnp : ∀ hi : U64, hi.val < 2048 → atAF K.ksb hi ∉ K.ptes :=
-    fun hi hhi hb => ((hsub hb).2 hi hhi).1 rfl
-  have hm : ∀ hi : U64, hi.val < 2048 → L'.mem σ (atAF K.ksb hi) = s1.mem (atAF K.ksb hi) := by
-    intro hi hhi
-    rw [hμ _ (Q.al hi hhi) (hnu hi hhi)]
-    exact hkeep _ (gateW_of_region (region_none_tab B hhi) (hnp hi hhi) nv)
-  refine ⟨Q.ks, hk, ?_, Q.al, Q.uoff⟩
-  intro hi hhi
-  rw [hk]
-  refine ⟨hnp hi hhi, fun lo hlo hne hb => ?_⟩
-  rw [hm hi hhi] at hne hb
-  exact ((hsub hb).2 hi hhi).2 hne lo hlo rfl
-
 end conv
 
 /-! ## The glue with the convention -/
-
-/-- **`StartQPB`** [P]: `StartQP` without its `QPs` clause — at every state the glue starts the `ownV` path `Pv` as
-`q0`, the armed program `q` is the body of `Pp` (the restricted, PTE-cut path) there. -/
-def StartQPB {own own' : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → U64}
-    {ko : U64 → Serial.ClsOwner U64} {User : U64 → Prop}
-    (Pv : E2E.LocalPath own cls ko User) (Pp : E2E.LocalPath own' cls ko User) (hS : Pv.S = Pp.S)
-    (hA : Pv.A = Pp.A) (c : U64) (hs : U64 → Prop) (μ : U64 → U64) (q0 q : SP) : Prop :=
-  ∀ (σ : Pv.S) (a : Pv.A), Pv.Pre σ → Pv.L.cpu σ = c → Pv.Locks σ = hs →
-    (∀ x, Aligned x → ¬ User x → Pv.L.mem σ x = μ x) → q0 = Pv.body σ a →
-    q = Pp.body (cast hS σ) (cast hA a)
 
 section exec
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
@@ -305,86 +255,7 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The W11 start fact, the convention's form**: `StartP3W11` [P] for some `q0` and `StartQPB` [P]. -/
-def StartP3W11JB (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
-    (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : Fl4IxW (S := S)) : Prop :=
-  ∃ q0, StartP3W11 st ar hA hm hSt a0 arI AR MR Ch K.toKLayoutV m hK.base hU.base c hs q0 i ∧
-    StartQPB ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base)
-      (fl4LocW11J st ar hA hm hSt a0 i K m hK hU) rfl rfl c hs m q0 q
-
 variable {arI AR MR}
-
-/-- **The convention's boot facts** give the boot layout's `RegionOKP` / `UserOKP`. -/
-theorem boot_okP (P : LocPlat st arI AR MR) {K0 : KLayoutP} {Ch0 : S → Prop} {s0 : Cfg U64 U64 U64 U64}
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem) :
-    PteConv st K0 s0 ∧ RegionOKP K0 ∧ UserOKP K0 := by
-  have hok := serExitW_ok hB (vcpuLay_empty hc0.1)
-  obtain ⟨σe, hC, hσ⟩ := hB.lay
-  have hc := pteConv_canon ⟨σe, hC.bun σe hσ⟩ hc0.1 hc0.2
-  exact ⟨hc, okP_of_conv hc hok.1 hok.2⟩
-
-/-- **An `ExecWPJ` is an `ExecP`, with the epoch invariant** (module docstring). -/
-theorem execP_of_WPJ (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JB st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch) :
-    ExecP (fl4LocW11J st ar hA hm hSt a0) s0 K0 s K ∧ SerExitW P K.toKLayoutV Ch ∧
-      ∃ s1, PteConv st K s1 ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
-  obtain ⟨hC0, hK0, hU0⟩ := boot_okP st P hB hc0
-  induction h with
-  | refl => exact ⟨.refl, hB, s0, hC0, fun _ _ => rfl⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    have hst : Fl4StepP (fl4LocW11J st ar hA hm hSt a0) s1 K1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨i, q0, hW, hQB⟩ := g.start p0 k W hph hK hU
-        obtain ⟨σ, a, hP, hc, hl, hμ, e⟩ := startAt_P3W11 st ar hA hm hSt a0 P hIoa hX.chainOf hW
-        have hk := pre_ksbW6 st ar hA hm hSt a0 i K1 s1.mem hK hU σ hP
-        have hq := qPs_of_conv
-          (L' := ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K1.toKLayoutV s1.mem hK.base hU.base).L)
-          hCe hk1 hk (fun x hx hu => hμ x hx hu)
-        exact ⟨i, σ, a, ⟨hP, hq⟩, hc, hl, hμ, hQB σ a hP hc hl hμ e⟩
-      · have hok := serExitW_ok (g.serX hs) (vcpuLay_empty (g.serC hs).1)
-        obtain ⟨σe, hC, hσ⟩ := (g.serX hs).lay
-        have hc := pteConv_canon ⟨σe, hC.bun σe hσ⟩ (g.serC hs).1 (g.serC hs).2
-        have hP := okP_of_conv hc hok.1 hok.2
-        exact ⟨hP.1, hP.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, ?_, ?_⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-    · by_cases hs : SerStep s1 c1
-      · obtain ⟨σe, hC, hσ⟩ := (g.serX hs).lay
-        exact ⟨s1', pteConv_canon ⟨σe, hC.bun σe hσ⟩ (g.serC hs).1 (g.serC hs).2, fun _ _ => rfl⟩
-      · obtain ⟨eK, -⟩ := g.keep hs
-        subst eK
-        obtain ⟨hr, -, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-        obtain ⟨-, hSI, -⟩ := xsafeRun_greach h0 hA0 hr
-        refine ⟨e1, hCe, fun x hx => ?_⟩
-        rw [← hk1 x hx]
-        exact step_gate_keep hM (allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨-, hK, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
-/-- **FL4 end to end, W11's family and glue, rule 8 with the PTE set by the glue's convention** (module
-docstring): no `PteLay`, no `StartQP` `QPs` clause; the only PTE-side condition is the convention itself
-(`serC` and its boot instance `hc0`). -/
-theorem serializable_fl4_localW11PJ (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JB st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨-, hK0, hU0⟩ := boot_okP st P hB hc0
-  exact serializable_e2eP _ h0 hA0 hK0 hU0 hM0
-    (execP_of_WPJ st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h).1 hq
 
 end top
 

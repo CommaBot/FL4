@@ -28,6 +28,15 @@ or "∀ related states" hypotheses that the fold re-scopes, plan §0).
 Merges (plan §1): `ARIface` (`ARKeep` with `ARMask`), `DelBound.delE`
 (CnodeAll's `K`, `hK`, `hK6` and `DelE` from `DelBound`), `SchedValid.toLink`
 (`ScLinkHyp`, whose `scSpor` is `SchedValid.scSpor`).
+`JAtZB` (moved here from P3/JAtZV in mmuAD gen 42b3, unchanged): `JAtZ` without its `ext : JExt` field, with
+`JAtZ.toB` / `JAtZB.toJAtZ`; the lemmas below that do not read `ext` (`tcbZ`, `tdA_val'`, `liveX`, `zDX`, `vsShr`,
+`vsSS`, `vxSet`) are stated over `JAtZB`, the `JAtZ` names their corollaries (statements unchanged).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `inSlot_ntd`, `inSlot_nv`, `tdkeep_of`, `tdkeep_slot`, `slotCapW`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `curInv`,
+`dxKeep`, `dxk`, `mdbL`, `scOut`, `vsW`, `ztcb_tcb`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its
+statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopCnodeAll
 import Fl4Proofs.P3.XTopTcbAll
@@ -396,7 +405,153 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   /-- [carried] **The joint extension** (`JExt`, G2). -/
   ext : JExt (L := L) Z.th s
   /-- [carried] **The liveness bundle at the ghosts** (KENTRY-PLAN g2i; INV-PLAN
-  E15, the former `JEntryAt.live` / `kernel_entryJ33`'s `hLv` [J]): `LiveJ`
+  E15, the former `JEntryAt.live` / the gen-33 joint entry theorem's `hLv` [J]): `LiveJ`
+  (l4v `if_unsafe_then_cap`, `if_live_then_nonz_cap`, `zombies_final`; the idle
+  thread and the kernel-state block exempt, KENTRY-PLAN g2e), `DbgWF` (FL4's
+  debug lists) and `NullOrig` (l4v `valid_nullcaps`) at `Z.th`, `H`, `Cs`,
+  `Z.G`. Each construction proves it where its frames are visible
+  (`JAtZ.liveX` for a step keeping the slots). -/
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
+  /-- [carried] **The TCB zombies' TCBs are in the dead set** (so a frame step's
+  dead-set carry keeps `LiveJ.zdead`; every TCB zombie's TCB is `DeadP` by
+  `live`, so `D ∪ ZTcb` is always a dead set: `JAtZ.addDeadSet`). -/
+  zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] **The `JCarry` facts** (KENTRY-PLAN g7b-4, jc1): the IPC-buffer
+  words in non-device data pages (`BufPgHyp`, C21 / C24 bufObj) and `H`'s arch
+  objects no larger than their spec objects (`ArchFitHyp`, the first half of C16 /
+  C22 / C24 heapH); jc2: the device untyped caps' apartness (`DevApart`, C25) with
+  RAM/device range separation (`DevSep`). A frame step keeps the σ part by
+  `JCarry.frame` (a `JCarryS`) and the device part by `JCarry.devStep` (`JCarryS.withP`). -/
+  carry : JCarry (L := L) Z H Cs s σ
+
+/-- **`JAtZ` without `ext`** (module docstring; fields as P3/JointAt's `JAtZ`). -/
+structure JAtZB (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
+    (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop where
+  -- 1a: the refinement relation
+  xtop : XTopAt (L := L) AR Z s a σ
+  call : Sched.CallRel (L.mem s) Z.R Z.C σ Lst
+  rfree : Sched.RFree (L.mem s) Z.R Z.C σ Lst
+  /-- A reply bound to a thread blocked receiving has null links (ScRecvLinks;
+  l4v `valid_replies`). -/
+  rrecv : Sched.RRecv (L.mem s) Z.R σ
+  yld : Sched.YieldRel Z.T Z.C (L.mem s) σ
+  mcp : Sched.McpRel Z.T (L.mem s) σ
+  buf : BufWordRel Z.T (L.mem s) σ
+  -- 1b: placement
+  ks : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)
+  thT : ∀ t, Z.th t = some .tcb → t ∈ Z.T
+  /-- [carried] `Z.th` holds TCBs and CNodes only (its one producer, the
+  retype's `ThX`, adds `thKindN`'s kinds; deletions only drop entries). -/
+  thk : ∀ q k, Z.th q = some k → k = .tcb ∨ ∃ r, k = .cnode r
+  ip : IPlaced Z.N Z.T Z.E Z.R Z.B
+  rp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s σ
+  apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
+  nk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val
+  /-- [carried] The IPC-buffer words miss every node slot of the kernel-state
+  block (all 64 cores', not only `Cs`'s: the buffer words are user frames;
+  kept by every step, `Z.B` grows only by a frame retype from an untyped
+  region, which misses the block). -/
+  nodeB : ∀ wp ∈ Z.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val
+  jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
+  cover : Sched.SpecCover H σ
+  obj : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ
+  /-- [carried] The sets' objects are `H`'s (derivable: `IpcRel`/`SchedRel`
+  and `SpecCover`, `JPlaced`). -/
+  zH : (∀ t ∈ Z.T, H t = some .tcb) ∧ (∀ e ∈ Z.E, H e = some .ep) ∧ (∀ r ∈ Z.R, H r = some .reply) ∧
+    (∀ n ∈ Z.N, H n = some .ntfn)
+  sfree : Sched.SpecFree (L.mem s) Z.G σ
+  /-- [carried] `H`'s endpoints, notifications and replies are the sets'
+  (the converse of `zH`; for the `SchedValid` rebuild). -/
+  hset : (∀ e, H e = some .ep → e ∈ Z.E) ∧ (∀ n, H n = some .ntfn → n ∈ Z.N) ∧
+    (∀ r, H r = some .reply → r ∈ Z.R)
+  /-- [carried] `H`'s SCs are `Z.C`'s (the converse of `JPlaced.sc` with
+  `ObjCover.sc`; l4v: an SC object of the heap is one the scheduler
+  relation covers). Kept by every step at `J` (each keeps `H` and `Z.C`;
+  a retype adds its new SCs to both). The idle SC, when the spec has one at
+  a non-null address, is in both (`JPlaced.sc`, `ObjCover.sc`); a cap never
+  names it (`CapObjH`). With `JPlaced.cobj` it gives an SC cap's spec SC
+  (`JAtZ.scCap`). -/
+  hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
+  jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
+  kern : JKern (L := L) arI H Cs D Z.th s σ
+  -- 1c: CSpace
+  del : DelInv Z.th (L.mem s)
+  ut : UtInv (L.mem s) Z.G
+  bound : DelBound Z.th
+  /-- [carried] `FinM` at every tree of the slots (`FinInv` gives it at
+  `Z.G`; `DelE` reads every `G`). -/
+  finM : ∀ G, MdbLinks Z.th (L.mem s) G → FinM (L.mem s) G
+  /-- [carried] The RAM untyped caps' facts (`UtCapP3`: l4v `valid_untyped`,
+  `valid_cap`, the kernel's placement). Not asked of device untypeds: since
+  losfair/FL4#34 a device untyped's pointer `paddr + PPTR_BASE` may lie in
+  the kernel image, so its region may hold the kernel-state block with the
+  IRQ node's CNodes (`IntLayout.node`, objects of `Z.th` with MDB slots) and
+  the preemption point's word: `free`, `nostr`, `nsFree`, `ns` and `pp` are
+  false of such a cap at boot. -/
+  utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+    Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
+  -- 1d: the scheduler
+  nsc : Sched.NSC Z.N Z.C σ
+  inv : Sched.Inv σ
+  /-- `CurInv` unless a reschedule is pending (mid-entry, as `ScEntry`). -/
+  cur : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ
+  /-- The current SC's owner, or the current SC unowned (`CurOwnW`, what
+  `schedule` from a mid-entry state reads; unowned after the current thread
+  deleted itself or unbound its SC; `curOwn_of_curInv` where `CurInv`
+  holds). -/
+  own : Sched.CurOwnW Z.T Z.C σ
+  off : Sched.OffOK σ
+  act : Sched.ActIdle σ
+  c0 : ∀ q ∈ Z.C, q ≠ 0#u64
+  bsa : Sched.BlockedScActive σ
+  sv : Sched.SchedValid σ
+  /-- The spec's IPC queues sorted by priority (l4v `sorted_ipc_queues`). -/
+  isorted : Sched.IpcSorted σ
+  /-- The spec's SC, TCB and notification links (per-op; for the
+  `SchedValid` rebuild). -/
+  slink : Sched.ScLinkHyp σ
+  /-- The current thread runnable, or the idle thread current (`CurRunW`:
+  at kernel exit `schedule` may have chosen the idle thread), unless a
+  reschedule or switch is pending (`CurRunM`: mid-entry after a blocking
+  step, or after suspending the current thread with a switch pending). -/
+  curRun : CurRunM σ
+  -- 1e: P1
+  blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+    (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
+  /-- [carried] The interrupt state and node layout (`IntLayout`, the boot's
+  [P]; kept by every step: `Z.th` and the kernel-state base are kept). -/
+  intL : IntLayout Z.th (L.ksb s)
+  /-- [carried] **The VSpace caps placed in the relation's own sets**, weakened
+  (VsCapW's `VsCapsW`: l4v `valid_cap` for the arch caps with
+  `valid_table_caps`), at every slot of the typed heap: an unmapped page-table/directory/PDPT cap's table in
+  its set, a PML4 or ASID pool cap's object in its set, the ASID and
+  alignment facts; a mapped table may lie outside the sets (pruned by a
+  detype). Kept by every step (`VsSlotsW.of_eq` for slots kept,
+  `VsSlotsT` for the slot steps, `VCapW.transfer` for a copy), the sets kept
+  or grown. -/
+  vsc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s)
+  /-- [carried] **Every IPC frame cap valid** (l4v `valid_ipc_buffer_cap`,
+  from `valid_objs`; FL4's form `Endp.IpcBufCapOK`: the buffer's words in a
+  user frame, so an alias inside a large page from `Page_DeriveSubframe`
+  counts). Kept by every step not touching an IPC frame or a data page
+  (`IpcFrKeep`), set by SetIPCBuffer/Configure (`IpcBufCapOK.setFrame`, the
+  cap checked), dropped TCBs' frames by `IpcBufCapOK.sdrop`. -/
+  bok : Endp.IpcBufCapOK σ
+  /-- [carried] **`B` covers every word of every non-device user frame**
+  (`FrameCover`; FL4's ghost `B` relates FL4 memory and the spec's
+  `underlyingMemory` there, l4v's shared `machine_state`). Kept by every step
+  keeping the data pages (`FrameCover.ipcFr`), grown with `B` at the frame
+  retype, shrunk with `B` at the detype (`FrameCover.sdrop`). -/
+  fcov : FrameCover Z.B σ
+  /-- [carried] **Every non-device frame cap names user frames** (l4v
+  `valid_cap` for frame caps: each byte of a slot's frame cap range lies in a
+  non-device data page). Kept by every step keeping the data pages and moving
+  frame caps within old ranges (`Vs.VsSlotsT`'s `FrSlots` part: copy, mint,
+  move, swap, DeriveSubframe's sub-range), set at the frame retype for the new
+  pages, released at the detype by `FrameOffJ`. -/
+  fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
+  /-- [carried] **The liveness bundle at the ghosts** (KENTRY-PLAN g2i; INV-PLAN
+  E15, the former `JEntryAt.live` / the gen-33 joint entry theorem's `hLv` [J]): `LiveJ`
   (l4v `if_unsafe_then_cap`, `if_live_then_nonz_cap`, `zombies_final`; the idle
   thread and the kernel-state block exempt, KENTRY-PLAN g2e), `DbgWF` (FL4's
   debug lists) and `NullOrig` (l4v `valid_nullcaps`) at `Z.th`, `H`, `Cs`,
@@ -431,13 +586,26 @@ namespace JAtZ
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
+/-- `JAtZ` without `ext` (`JAtZB`). -/
+theorem toB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ :=
+  ⟨J.xtop, J.call, J.rfree, J.rrecv, J.yld, J.mcp, J.buf, J.ks, J.thT, J.thk, J.ip, J.rp, J.apart, J.nk, J.nodeB, J.jpl, J.cover, J.obj, J.zH, J.sfree, J.hset, J.hscC, J.jcov, J.kern, J.del, J.ut, J.bound, J.finM, J.utc, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.c0, J.bsa, J.sv, J.isorted, J.slink, J.curRun, J.blk, J.intL, J.vsc, J.bok, J.fcov, J.fcap, J.live, J.zD, J.carry⟩
+
+/-- `JAtZB` with a `JExt` is `JAtZ`. -/
+theorem _root_.Fl4Proofs.P3.JAtZB.toJAtZ (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (E : JExt (L := L) Z.th s) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ :=
+  ⟨B.xtop, B.call, B.rfree, B.rrecv, B.yld, B.mcp, B.buf, B.ks, B.thT, B.thk, B.ip, B.rp, B.apart, B.nk, B.nodeB, B.jpl, B.cover, B.obj, B.zH, B.sfree, B.hset, B.hscC, B.jcov, B.kern, B.del, B.ut, B.bound, B.finM, B.utc, B.nsc, B.inv, B.cur, B.own, B.off, B.act, B.c0, B.bsa, B.sv, B.isorted, B.slink, B.curRun, B.blk, B.intL, B.vsc, B.bok, B.fcov, B.fcap, E, B.live, B.zD, B.carry⟩
+
 /-- `WX` (the deletions' bundle). -/
 theorem wx (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : WX (L := L) AR Z.th s a σ Z.G :=
   ⟨Z, rfl, rfl, J.xtop, J.ks, J.thT⟩
 
 /-- The MDB tree's links (`CRel`'s). -/
-theorem mdbL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : MdbLinks Z.th (L.mem s) Z.G :=
+theorem _root_.Fl4Proofs.P3.JAtZB.mdbL (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) : MdbLinks Z.th (L.mem s) Z.G :=
   J.xtop.rel.2.1.2.2.1
+
+/-- `JAtZB.mdbL` at `JAtZ` (via `JAtZ.toB`). -/
+theorem mdbL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : MdbLinks Z.th (L.mem s) Z.G :=
+  Fl4Proofs.P3.JAtZB.mdbL (J := J.toB)
 
 /-- `DState` (the CSpace deletions' state). -/
 theorem dstate (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : DState (L := L) Z.th s σ Z.G :=
@@ -451,9 +619,14 @@ theorem delE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
 /-- **No SC of `H` lies outside `Z.C`** (`hscC`): any statement about
 `H`'s SCs outside `Z.C` holds vacuously (XTopJointFinVs's
 `JVsApartHyp.scOut`). -/
-theorem scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {P : U64 → Nat → Prop} :
+theorem _root_.Fl4Proofs.P3.JAtZB.scOut (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {P : U64 → Nat → Prop} :
     ∀ p z, H p = some (.sc z) → p ∉ Z.C → P p z :=
   fun p z hp hpC => absurd (J.hscC p z hp) hpC
+
+/-- `JAtZB.scOut` at `JAtZ` (via `JAtZ.toB`). -/
+theorem scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {P : U64 → Nat → Prop} :
+    ∀ p z, H p = some (.sc z) → p ∉ Z.C → P p z :=
+  Fl4Proofs.P3.JAtZB.scOut (J := J.toB)
 
 /-- `ScLinkHyp`. -/
 theorem link (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Sched.ScLinkHyp σ := J.sv.toLink
@@ -471,8 +644,13 @@ theorem ipcZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (cr : Fl4Spec.Cr3
   ⟨J.ks, J.buf, hH, hBf, hBm, tailOK_of J.act.1 J.inv, J.ip, hct⟩
 
 /-- `CurInv` when no reschedule is pending. -/
-theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
+theorem _root_.Fl4Proofs.P3.JAtZB.curInv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
     Sched.CurInv σ := J.cur.resolve_left h
+
+/-- `JAtZB.curInv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedulerAction ≠ .chooseNewThread) :
+    Sched.CurInv σ :=
+  Fl4Proofs.P3.JAtZB.curInv (J := J.toB) (h := h)
 
 /-- **The current SC is live unless a reschedule is pending**: outside the
 dead set, or `chooseNewThread`. Derived, not carried: under `CurInv` the
@@ -593,10 +771,15 @@ theorem joint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
 
 /-- **P1's cap slots are cap-slot words** (`JPlaced.slotCapW`; P1's
 `CdtHyps`/`XferHyps`/`DelPlace` slot fields). -/
-theorem slotCapW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hTL : Sched.TLowSlots (P1.Heap.tcbs H)) :
+theorem _root_.Fl4Proofs.P3.JAtZB.slotCapW (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hTL : Sched.TLowSlots (P1.Heap.tcbs H)) :
     Sched.SlotCapW Z.th (P1.Heap.tcbs H) (P1.Heap.omega H) (P1.Heap.frame H) :=
   by obtain ⟨_, _, hJ⟩ := J.jpl; exact hJ.slotCapW hTL
 
+
+/-- `JAtZB.slotCapW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem slotCapW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hTL : Sched.TLowSlots (P1.Heap.tcbs H)) :
+    Sched.SlotCapW Z.th (P1.Heap.tcbs H) (P1.Heap.omega H) (P1.Heap.frame H) :=
+  J.toB.slotCapW hTL
 /-- **A slot's cap is typed in P1's sets** (`capTypedP1Hyp_of` at this state;
 P1's `CdtHyps.slotcap`, `InvHyps.slotcap`, `P3Place`'s cap fields). -/
 theorem capTyped (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hTL : Sched.TLowSlots (P1.Heap.tcbs H))
@@ -623,7 +806,7 @@ theorem mpPlaced (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : D = ∅
 
 /-- **A slot word is no TCB's VCPU word** (KENTRY-PLAN g2b; `SlotsApart`:
 a TCB's own slots lie below its offset 256). -/
-theorem inSlot_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+theorem _root_.Fl4Proofs.P3.JAtZB.inSlot_nv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
     ∀ t ∈ Z.T, b ≠ tVcpuA t := by
   obtain ⟨x, hx, h1, h2⟩ := hb
   intro t ht e
@@ -631,6 +814,11 @@ theorem inSlot_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h
   rw [e, Sched.tVcpuA_val J.ip.e.tcb ht] at h1 h2
   omega
 
+
+/-- `JAtZB.inSlot_nv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem inSlot_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+    ∀ t ∈ Z.T, b ≠ tVcpuA t :=
+  J.toB.inSlot_nv hb
 /-- **A step writing slot words only keeps the VCPU words.** -/
 theorem vkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (InSlot Z.th)) : VKeep (L := L) Z.th s s' :=
@@ -653,30 +841,55 @@ theorem ksW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb :
 /-! ## The dead set's debug and deadline words (KENTRY-PLAN jc6e) -/
 
 /-- A TCB of `H` is in `Z.T`. -/
-theorem tcbZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : H t = some .tcb) : t ∈ Z.T := by
+theorem _root_.Fl4Proofs.P3.JAtZB.tcbZ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : H t = some .tcb) : t ∈ Z.T := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   exact J.thT t ((hJ.tcb t).2 ht)
 
+/-- `JAtZB.tcbZ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem tcbZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : H t = some .tcb) : t ∈ Z.T :=
+  J.toB.tcbZ ht
+
 /-- **The dead set's `DeadX` after a step keeping the words it reads.** -/
-theorem dxKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hk : Sched.DXKeep (L := L) H Cs s s') :
+theorem _root_.Fl4Proofs.P3.JAtZB.dxKeep (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hk : Sched.DXKeep (L := L) H Cs s s') :
     ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.jcov.dxKeep hk
 
+/-- `JAtZB.dxKeep` at `JAtZ` (via `JAtZ.toB`). -/
+theorem dxKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hk : Sched.DXKeep (L := L) H Cs s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q :=
+  Fl4Proofs.P3.JAtZB.dxKeep (J := J.toB) (hk := hk)
+
 /-- **`DXKeep` from the debug words and the deadline words kept.** -/
-theorem dxk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem _root_.Fl4Proofs.P3.JAtZB.dxk (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hTd : Sched.TdKeep (L := L) H s s') :
     ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.dxKeep (DXKeep.of_dbg hKd hTd)
 
-theorem tdA_val' (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+/-- `JAtZB.dxk` at `JAtZ` (via `JAtZ.toB`). -/
+theorem dxk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hTd : Sched.TdKeep (L := L) H s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q :=
+  Fl4Proofs.P3.JAtZB.dxk (J := J.toB) (hKd := hKd) (hTd := hTd)
+
+theorem _root_.Fl4Proofs.P3.JAtZB.tdA_val' (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
     (P1.tdA t).val = t.val + 3528 :=
   Notif.tfield_val (J.ip.e.tcb t ht) (K := 3528#u64) (by simp)
 
+/-- `JAtZB.tdA_val'` at `JAtZ` (via `JAtZ.toB`). -/
+theorem tdA_val' (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+    (P1.tdA t).val = t.val + 3528 :=
+  J.toB.tdA_val' ht
+
 /-- **`TdKeep` from a `WritesIn` footprint missing every TCB's deadline word.** -/
-theorem tdkeep_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop}
+theorem _root_.Fl4Proofs.P3.JAtZB.tdkeep_of (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop}
     (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ P1.tdA t) : Sched.TdKeep (L := L) H s s' :=
   Sched.TdKeep.of_writes J.ip.e.tcb (fun _ ht => J.tcbZ ht) hW hWV
 
+
+/-- `JAtZB.tdkeep_of` at `JAtZ` (via `JAtZ.toB`). -/
+theorem tdkeep_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop}
+    (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ P1.tdA t) : Sched.TdKeep (L := L) H s s' :=
+  J.toB.tdkeep_of hW hWV
 /-- **A slot word is no TCB's deadline word** (as `inSlot_nv`). -/
-theorem inSlot_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+theorem _root_.Fl4Proofs.P3.JAtZB.inSlot_ntd (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
     ∀ t ∈ Z.T, b ≠ P1.tdA t := by
   obtain ⟨x, hx, h1, h2⟩ := hb
   intro t ht e
@@ -684,11 +897,21 @@ theorem inSlot_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (
   rw [e, J.tdA_val' ht] at h1 h2
   omega
 
+
+/-- `JAtZB.inSlot_ntd` at `JAtZ` (via `JAtZ.toB`). -/
+theorem inSlot_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t :=
+  J.toB.inSlot_ntd hb
 /-- **A step writing slot words only keeps the deadline words.** -/
-theorem tdkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem _root_.Fl4Proofs.P3.JAtZB.tdkeep_slot (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (InSlot Z.th)) : Sched.TdKeep (L := L) H s s' :=
   J.tdkeep_of hw fun _ hb => J.inSlot_ntd hb
 
+
+/-- `JAtZB.tdkeep_slot` at `JAtZ` (via `JAtZ.toB`). -/
+theorem tdkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) : Sched.TdKeep (L := L) H s s' :=
+  J.toB.tdkeep_slot hw
 /-- **A kernel-state block word is no TCB's deadline word.** -/
 theorem ks_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
     (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
@@ -853,7 +1076,7 @@ theorem _root_.Fl4Proofs.P3.liveDN_frame {Z : XSets} {H : P1.Heap} {Cs : Set U64
   rw [hc1.aff y (by rw [hT, hTe]; exact hy), hc0.aff y (by rw [hTe]; exact hy), hc]
 
 /-- **`LiveDN` across a step keeping the slots**, at `J` (`liveDN_frame`). -/
-theorem liveX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s' : S} {a' : A}
+theorem _root_.Fl4Proofs.P3.JAtZB.liveX (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = Z.th) (hT : Z'.T = Z.T)
     (hc : Z'.c = Z.c) (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (horig : σ'.isOriginalCap = σ.isOriginalCap)
@@ -864,13 +1087,27 @@ theorem liveX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s'
         exact Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩)
     hX hth hT hc hSS hK horig hidl hdead
 
+/-- `JAtZB.liveX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem liveX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = Z.th) (hT : Z'.T = Z.T)
+    (hc : Z'.c = Z.c) (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hidl : L.idleW s' = L.idleW s) (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p) :
+    LiveDN (L := L) Z.th H Cs Z'.G s' σ' :=
+  J.toB.liveX hX hth hT hc hSS hK horig hidl hdead
+
 /-- A TCB zombie's object is a TCB of the typed heap (`DelInv.zwf`). -/
-theorem ztcb_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
+theorem _root_.Fl4Proofs.P3.JAtZB.ztcb_tcb (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
     (hp : p ∈ ZTcb (L := L) Z.th s) : Z.th p = some .tcb := by
   obtain ⟨y, hy, zt, n, hz, h65⟩ := hp
   rcases J.del.zwf y hy p zt n hz with ⟨-, h, -⟩ | ⟨h, -⟩
   · exact h
   · exact absurd h65 h
+
+/-- `JAtZB.ztcb_tcb` at `JAtZ` (via `JAtZ.toB`). -/
+theorem ztcb_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
+    (hp : p ∈ ZTcb (L := L) Z.th s) : Z.th p = some .tcb :=
+  Fl4Proofs.P3.JAtZB.ztcb_tcb (J := J.toB) (hp := hp)
 
 /-- **An object named by a non-zombie cap of a slot is no TCB zombie's TCB**
 (`FinInv.zombie_alone`). -/
@@ -882,41 +1119,73 @@ theorem not_ztcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx
   exact FinInv.zombie_alone J.xtop.rel.2.2.1 J.mdbL hy hz x hx hne hp
 
 /-- **`JAtZ.zD` across a step keeping the slots**, the dead set grown. -/
-theorem zDX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
+theorem _root_.Fl4Proofs.P3.JAtZB.zDX (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' := fun p hp => hDD p (ZTcb.of_same hSS hp)
 
+/-- `JAtZB.zDX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem zDX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
+    ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' :=
+  J.toB.zDX hSS hDD
+
 /-- (F1 stage 5, item 4) **`vsNamed` across a step writing `OObj` words** (`XTopAt.vsNamed_of`). -/
-theorem vsW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+theorem _root_.Fl4Proofs.P3.JAtZB.vsW (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
     (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) :
     Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
   fun h => J.xtop.vsNamed_of (J.carry.vsNamed h) J.vsc hw hWO
 
+/-- `JAtZB.vsW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem vsW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  Fl4Proofs.P3.JAtZB.vsW (J := J.toB) (hw := hw) (hWO := hWO)
+
 /-- (F1 stage 5, item 4) **`vsNamed` across a step with `VsKeep` and `ArchShr`**, `XTopAt` after at
 `Z`'s VSpace sets (`XTopAt.vsNamedShr`). -/
-theorem vsShr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+theorem _root_.Fl4Proofs.P3.JAtZB.vsShr (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
     {th' : TypedHeap} (hK : Vs.VsKeep Z.th th' (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
     Z.vx = ∅ → Vs.VsNamed th' (L.mem s') (L.ksb s') :=
   fun h => J.xtop.vsNamedShr hX (J.carry.vsNamed h) J.vsc hks hK hsh
 
+/-- `JAtZB.vsShr` at `JAtZ` (via `JAtZ.toB`). -/
+theorem vsShr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    {th' : TypedHeap} (hK : Vs.VsKeep Z.th th' (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed th' (L.mem s') (L.ksb s') :=
+  J.toB.vsShr hX hks hK hsh
+
 /-- `vsShr` with the slots kept. -/
-theorem vsSS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+theorem _root_.Fl4Proofs.P3.JAtZB.vsSS (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
     Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
   J.vsShr hX hks (Vs.VsKeep.of_eq fun y hy => hSS.capV hy) hsh
 
+/-- `JAtZB.vsSS` at `JAtZ` (via `JAtZ.toB`). -/
+theorem vsSS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ') (hks : L.ksb s' = L.ksb s)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hsh : Vs.ArchShr σ σ') :
+    Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') :=
+  J.toB.vsSS hX hks hSS hsh
+
 /-- (F1 stage 5, item 4; KENTRY-PLAN f4 (13)) **`JAtZ` at another exempt set**: only
 `JCarry.vsNamed` reads `Z.vx`, so `JAtZ` moves to `{Z with vx := E}` given `VsNamed` when `E = ∅`
 (vacuous for `E ≠ ∅`: the deletion loop's window after a final ASID pool cap's finalisation). -/
-theorem vxSet (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+theorem _root_.Fl4Proofs.P3.JAtZB.vxSet (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
     (hN : E = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)) :
-    JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ :=
+    JAtZB (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ :=
   have hX : XTopAt (L := L) AR { Z with vx := E } s a σ := ⟨J.xtop.fin, J.xtop.rel, J.xtop.ipc, J.xtop.esa⟩
   have hC : JCarry (L := L) { Z with vx := E } H Cs s σ :=
     ⟨J.carry.bufPg, J.carry.archFit, J.carry.devApart, J.carry.devSep, J.carry.vsTyp, J.carry.devTab, hN⟩
   { J with xtop := hX, carry := hC }
+
+/-- `JAtZB.vxSet` at `JAtZ` (via `JAtZ.toB`). -/
+theorem vxSet (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+    (hN : E = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)) :
+    JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ :=
+  (J.toB.vxSet hN).toJAtZ J.ext
 
 /-- `JAtZ` at `{Z with vx := E}` for `E = Z.vx` is `JAtZ` at `Z`. -/
 theorem ofVx {E : Set U64} (J : JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ) (h : E = Z.vx) :

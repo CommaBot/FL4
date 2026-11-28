@@ -5,7 +5,7 @@ P3 (line mmuAD, gen 41): **FL4's `reply_error` at `JAtZV3`** (syscall.rs l. 197)
 * **`JAtZV3.replyErrJ3`**: XTopJointReplyTail's `JAtZ.replyErrJ` at `JAtZV3`: the badge and the message info by
   gen 33's `JAtZV3.regWr`, the error words by `error_mrs_gen` with the invariant "`JAtZV3` at the spec's `set_mrs`
   state" and gen 34's `setMrJ3` (+ `zv_setMr_ret` for the length), the debug word by gen 33's `JAtZV3.userWr`
-  (`JAtZB.bufWordG` / `JAtZB.bufPlacedB` at the words' state); the spec side `fl4ReplyErr_eq` (ReplyFailX).
+  (`JAtZB.bufWordG` / `JAtZB.bufPlacedJ` at the words' state); the spec side `fl4ReplyErr_eq` (ReplyFailX).
   Hand-written (the source's steps over `JAtZ` replaced), so the default heartbeats apart from the proof's one
   `maxHeartbeats 4000000`.
 * **`JAtZV3.replyFailJ3`**: the error reply when called (HandleTopX's `ReplyHypMX.fail` program).
@@ -174,7 +174,7 @@ theorem JAtZV3.replyErrJ3 (J : JAtZV3 (L := L) arI V X AR Z H Cs Ac Lst D s a σ
         (Fl4Spec.msgFromSyscallError e').2)) = some p := hb
     obtain ⟨hAp, hObj⟩ := J3.z2.zv.base.bufWordG J3.z2.zv.base.bok htcb hkM hqM 7 (by decide)
       (b := Endp.fl4BufA w 7#u64) (by rw [fl4BufA_bv, hwp hwx p hb]; rfl)
-    have hBP3 : Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s3 σM := J3.z2.zv.base.bufPlacedB
+    have hBP3 : Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s3 σM := J3.z2.zv.base.bufPlacedJ
     have J4 := J3.userWr hBP3 hpair hAp hObj (L.mem s3 (Endp.fl4BufA w 7#u64) &&& ~~~255#u64)
     simp only [hval] at J4
     refine WP.spec_bind (code_label he) ?_

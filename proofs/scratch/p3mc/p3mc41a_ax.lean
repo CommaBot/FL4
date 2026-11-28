@@ -5,8 +5,6 @@ import Fl4Proofs.P2.E2EPV15Bridge
 #print axioms Fl4Proofs.P2.E2EP.ExecCfg.VcpuNone
 #print axioms Fl4Proofs.P2.E2EP.Fl4StepV15
 #print axioms Fl4Proofs.P2.E2EP.ExecV15
-#print axioms Fl4Proofs.P2.E2EP.execWPRV12_of_V15
-#print axioms Fl4Proofs.P2.E2EP.execV15_of_WPRV12
 #print axioms Fl4Proofs.P2.E2EP.execV15_vcpus
 #print axioms Fl4Proofs.P2.E2EP.hwStepP_noVcpu
 #print axioms Fl4Proofs.P2.E2EP.hwV15_dead
@@ -17,9 +15,6 @@ import Fl4Proofs.P2.E2EPV15Bridge
 #print axioms Fl4Proofs.P2.E2EP.ExecCfg.native
 #print axioms Fl4Proofs.P2.E2EP.native_noAd
 #print axioms Fl4Proofs.P2.E2EP.native_vcpuNone
-#print axioms Fl4Proofs.P2.E2EP.execV15_native_iff
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_V15_native
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localV13ofV15
 #print axioms Fl4Proofs.P2.E2EP.hwStepP_writes
 #print axioms Fl4Proofs.P2.E2EP.hwStepP_vdata
 #print axioms Fl4Proofs.P2.E2EP.chain_vcpuWr

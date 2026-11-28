@@ -18,6 +18,13 @@ and `irq_of_ufoot`, `XTopAt` by `xtop_sc_stepCW`, yield and MCP by
 `ScAll.of_u`, the buffer words by `callW'_nobuf`, P1's `BlkOK` by
 `unbind_reply.blk`; a dead SC's `REPLY` word stays null through the call
 stacks before and after (`RFr`: an SC's stack never grows).
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `sc_kernW`; the `JAtZ` names are one-line corollaries via `JAtZ.toB`, statements
+unchanged.
+
+(mmuAD gen 42b18) `sc_frameS` stated over `JAtZB` in place; `JAtZ.sc_frameS` rebuilds `ext` from its `hSS` / `hv`.
+P3/JAtZV3FaultDon's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointFinScNtfn
 import Fl4Proofs.P3.ScDecodeAll
@@ -186,9 +193,58 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
-set_option maxHeartbeats 1000000 in
+set_option maxHeartbeats 4000000 in
 /-- **`JAtZ.sc_frame` with the kernel-state base and the slots kept as
 inputs** (its only uses of the writes). -/
+theorem JAtZB.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} {P : Fl4Spec.ObjRef → Prop}
+    (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hv : VKeep (L := L) Z.th s s')
+    (hK : Sched.ScTKw P σ σ')
+    (hX : XTopAt (L := L) AR Z s' a' σ')
+    (hcall : Sched.CallRel (L.mem s') Z.R Z.C σ' Lst') (hrf : Sched.RFree (L.mem s') Z.R Z.C σ' Lst')
+    (hrr : Sched.RRecv (L.mem s') Z.R σ')
+    (hyl : Sched.YieldRel Z.T Z.C (L.mem s') σ') (hmcp : Sched.McpRel Z.T (L.mem s') σ')
+    (hbuf : BufWordRel Z.T (L.mem s') σ')
+    (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
+    (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
+    (hkern : JKern (L := L) arI H Cs D' Z.th s' σ')
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
+    (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
+    (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
+    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRunM σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
+    JAtZB (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
+  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  have hsl' : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
+  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX J.tcbs_eq.1 (J.obj.tkw hK) hblk J.hset.2.1 hjpl J.c0
+  have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
+    J.hset.2.1 hcall hyl J.c0 hinv hsl
+  refine ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
+    fun n hn => by rw [hks]; exact J.nk n hn,
+    fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, J.hscC, hjc, hkern,
+    J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
+    J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk, by rw [hks]; exact J.intL,
+    J.vsc.of_eq fun y hy => hSS.capV hy,
+    J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
+    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
+    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
+      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))
+      (J.carry.vsSame hSS hks (ArchFwd.of_ipcFr (IpcFrKeep.of_otk hK.kh)))
+      (J.carry.tabKeep J.xtop.rel.2.1.2.2.1 hSS hX.rel.2.1.2.2.1 hK.ksz)
+      (J.vsSS (G' := Z.G) hX hks hSS (Vs.ArchShr.of_otk hK.kh (by rw [hK.arch])))⟩
+  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
+    rw [← hSS.capV (hsl' x' hx')]; exact hc
+  · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
+    have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
+    exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)
+
+/-- `JAtZB.sc_frameS` at `JAtZ` (via `JAtZ.toB`). -/
 theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
@@ -211,40 +267,16 @@ theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
-    JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
-  obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
-  have hsl' : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
-  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX J.tcbs_eq.1 (J.obj.tkw hK) hblk J.hset.2.1 hjpl J.c0
-  have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
-    J.hset.2.1 hcall hyl J.c0 hinv hsl
-  refine ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
-    fun n hn => by rw [hks]; exact J.nk n hn,
-    fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, J.hscC, hjc, hkern,
-    J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
-    J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk, by rw [hks]; exact J.intL,
-    J.vsc.of_eq fun y hy => hSS.capV hy,
-    J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
-    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
-    J.ext.ss hSS hv,
-    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
-    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
-      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))
-      (J.carry.vsSame hSS hks (ArchFwd.of_ipcFr (IpcFrKeep.of_otk hK.kh)))
-      (J.carry.tabKeep J.xtop.rel.2.1.2.2.1 hSS hX.rel.2.1.2.2.1 hK.ksz)
-      (J.vsSS (G' := Z.G) hX hks hSS (Vs.ArchShr.of_otk hK.kh (by rw [hK.arch])))⟩
-  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
-    rw [← hSS.capV (hsl' x' hx')]; exact hc
-  · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
-    have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
-    exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)
+    JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' :=
+  (Fl4Proofs.P3.JAtZB.sc_frameS (J := J.toB) (hks := hks) (hSS := hSS) (hv := hv) (hK := hK) (hX := hX) (hcall := hcall) (hrf := hrf) (hrr := hrr) (hyl := hyl) (hmcp := hmcp) (hbuf := hbuf) (hrp := hrp) (hap := hap) (hjpl := hjpl) (hjc := hjc) (hkern := hkern) (hutc := hutc) (hnsc := hnsc) (hinv := hinv) (hcur := hcur) (hown := hown) (hoff := hoff) (hact := hact) (hbsa := hbsa) (hcr := hcr) (hblk := hblk) (hKd := hKd) (hidl := hidl) (hDD := hDD)).toJAtZ (J.ext.ss hSS hv)
 
 
 /-- **`JKern` after a step** writing any words (as `JAtZ.sc_kern`): the current thread and SC words are the
 spec's, which the step keeps (`ScTKw`, `FK`); the node-0 `DEBUG_TCBS` word
 kept (`hDbg`, P1-supplied); the dead set shrinking. -/
-theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {P : Fl4Spec.ObjRef → Prop} {D' : Set U64} {W : U64 → Prop}
     (hw : P1.WritesIn st s s' W) (hK : Sched.ScTKw P σ σ') (hF : FK σ σ')
     (hX' : XTopAt (L := L) AR Z s' a' σ')
@@ -261,7 +293,7 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     have h1 := hs'.curThread; have h2 := hs.curThread
     unfold P1.LawfulStore.curW
     rw [hcpu, hna, hc.cur]
-    unfold nodeW at h1 h2
+    unfold Sched.nodeW at h1 h2
     rw [hna] at h1
     rw [← h1, ← h2, hK.ct]
   have ecs : L.cscW s' = L.cscW s := by
@@ -269,7 +301,7 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     have h1 := hs'.curSc; have h2 := hs.curSc
     unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA
     rw [hcpu, hna, hc.cur]
-    unfold nodeW at h1 h2
+    unfold Sched.nodeW at h1 h2
     rw [hna] at h1
     rw [← h1, ← h2, hF.1]
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
@@ -283,6 +315,17 @@ theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
     K.csLt, K.cs0, K.csN, K.tdx.frame (by rw [hK.arch])⟩
   rw [hna, hDbg]; exact K.head
+
+/-- `JAtZB.sc_kernW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sc_kernW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {P : Fl4Spec.ObjRef → Prop} {D' : Set U64} {W : U64 → Prop}
+    (hw : P1.WritesIn st s s' W) (hK : Sched.ScTKw P σ σ') (hF : FK σ σ')
+    (hX' : XTopAt (L := L) AR Z s' a' σ')
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
+    (hD : D' ⊆ D) : JKern (L := L) arI H Cs D' Z.th s' σ' :=
+  Fl4Proofs.P3.JAtZB.sc_kernW (J := J.toB) (hw := hw) (hK := hK) (hF := hF) (hX' := hX') (hDbg := hDbg) (hD := hD)
 
 
 /-- **`JCovD` after a step keeping the slots and the base** (as `JAtZ.sc_jcov`), the dead set shrinking to `D'`: the dead

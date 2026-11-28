@@ -31,6 +31,9 @@ Spec outcome, `IRel` and `XTopAt` steps in XTopFpuRel:
 * `JAtZ.fpuReleaseJ`: FL4's `fpu_release` against the spec's at `J`, from
   `ARKeep.fpu_release` [P] (part of `ARIface`, already a top-level premise:
   `JDelParts.arKeep`).
+
+(mmuAD gen 42b18) `arFrS` stated over `JAtZB` in place (FL4's state kept, so `JAtZ.arFrS` reuses `J.ext`).
+P3/JAtZBVcpu's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P3.XTopJointYield
@@ -71,9 +74,9 @@ theorem JAtZ.tcbArchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across an `ArFr` spec step with FL4's store kept** (XTopJointFinVs's
 `finVsJb` with no word written): `XTopAt` after given (at any arch state). -/
-theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.arFrS (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {σ' : Fl4Spec.State Unit}
     (F : ArFr σ σ') (hX : XTopAt (L := L) AR Z s a' σ') :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' := by
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D s a' σ' := by
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s) := SlotsSame.refl _ _
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) ∧ L.mem s (flagsA t) = L.mem s (flagsA t) := fun _ _ => ⟨rfl, rfl⟩
@@ -107,8 +110,14 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
       J.apart.sc_frame rfl F.szKeep, hjpl, J.jcov, hkern, hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F,
       J.own.ar F, J.off.ar F, J.act.ar F, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, J.blk⟩
-  exact J.cs_frameK (hvn := J.carry.vsNamed) rfl hX F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) VKeep.rfl'
+  exact J.cs_frameK (hvn := J.carry.vsNamed) rfl hX F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
     hSS (P1.DbgKeep.refl s) F.idle
+
+/-- `JAtZB.arFrS` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {σ' : Fl4Spec.State Unit}
+    (F : ArFr σ σ') (hX : XTopAt (L := L) AR Z s a' σ') :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' :=
+  (Fl4Proofs.P3.JAtZB.arFrS (J := J.toB) (F := F) (hX := hX)).toJAtZ J.ext
 
 /-- The FPU owner's and the machine state's change is an `ArFr` step. -/
 theorem arFr_fpuOwner (σ : Fl4Spec.State Unit) (ms : Fl4Spec.MachineState) (o : Option Fl4Spec.ObjRef) :

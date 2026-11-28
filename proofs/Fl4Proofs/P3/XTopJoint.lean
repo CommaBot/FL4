@@ -17,6 +17,9 @@ premises of the plan's §2 are derived (the CSpace relation, `FinInv`,
 * `decode_invocation_cnodeJAt`: the CNode cap.
 * `decode_invocation_threadJAt`: the Thread cap (TcbXRest from the IPC/Sc
   leaves `TcbXIpc`; every label proved or a named premise).
+
+(mmuAD gen 42b18) `otherTmOK` stated over `JAtZB` in place, `JAtZ.otherTmOK` its corollary (P3/JAtZBFire's copy
+deleted).
 -/
 import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.XTopFinIrq
@@ -82,7 +85,7 @@ core's node misses `H`'s objects (`JKern.hnd`), which hold the slots' CNodes
 and TCBs (`JPlaced`), the sets' objects (`zH`), the SCs (`JPlaced.sc`) and the
 arch objects (`SpecCover.arch`); it lies below the ASID table (`JKern.csLt`)
 and misses the IPC-buffer words (`nodeB`). -/
-theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     OtherTmOK (L := L) Z Cs s σ := by
   intro c' hc' e
   have hX := J.xtop
@@ -142,6 +145,11 @@ theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     intro sc hsc x n hk ⟨h1, h2⟩
     obtain ⟨-, hH⟩ := hJ.sc sc x n (J.c0 sc hsc) hk
     exact miss sc _ hH ⟨h1, by simp only [P1.HKind.bits]; omega⟩
+
+/-- `JAtZB.otherTmOK` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    OtherTmOK (L := L) Z Cs s σ :=
+  Fl4Proofs.P3.JAtZB.otherTmOK (J := J.toB)
 
 /-- **`TimerInsHyp` on `JAt`** (P1's `set_thread_state.restart_ok` and
 `timer.insert.foot` at `JAtZ.blk`; the current thread runnable, so neither

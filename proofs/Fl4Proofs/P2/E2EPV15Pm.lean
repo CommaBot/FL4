@@ -6,7 +6,9 @@
 `startV2C_of_V13` (the chain is in the obligation's hypotheses) and U28's start cases, `vs` by `vSafe_ioC`, `fh` by
 `u28At_all` (every non-io start is a U28 exempt start) and U28's fifteen `…_annV_…` discharges. So
 **`serializable_fl4_localV13viaV15`** proves V13's exact statement through `serializable_fl4_V15_exact` (a second,
-independent route besides gen 41's `serializable_fl4_localV13ofV15`).
+independent route besides gen 41's `serializable_fl4_localV13ofV15`). Gen 55 (V12–V14 retired, handoff §60): gen 41's
+**`serializable_fl4_V15_native`** and **`serializable_fl4_localV13ofV15`** moved here from P2/E2EPV15Base, statements
+unchanged, the native top now proved by `serializable_fl4_V15_exact` at `slotOblV13` instead of from V13.
 
 ## The CoreView PageMap slot
 * Family **`fl4LocV13Pm B`** = `fl4LocV13` ⊕ `pmPathsG hA (masksWr_plain st) B` (the W11PR line's PageMap path,
@@ -45,6 +47,11 @@ mmuAD line discharged in InvPmRo* / InvPmMv* / InvPmFoot (≈ 3300 lines, not on
 
 No premise on any existing top. New premises of the new top: `B : PmObl4` (its [W] `blk`, `mv`, `roA`, [P] `cs`,
 `lk`, as `serializable_fl4_localW11PRIPmG`), `PmFhV B` [J], and the start facts `StartPmV` [P].
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `slotOblV13`,
+`serializable_fl4_V15_native`, `serializable_fl4_localV13ofV15`, `serializable_fl4_localV13viaV15`, `fl4LocV13Pm`,
+`StartPmV`, `StartV13Pm`, `nativePm`, `PmFhV`, `pmStartV_at`, `slotOblV13Pm`, `nativePm_noAd`, `nativePm_vcpuNone`,
+`serializable_fl4_V15_pm`, `serializable_fl4_localV13ofV15Pm`.
 -/
 import Fl4Proofs.P2.E2EPV15Bridge
 import Fl4Proofs.P2.InvPmTop3
@@ -94,14 +101,14 @@ variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
 set_option maxHeartbeats 4000000 in
-/-- **V13's slot obligations hold** (module docstring). -/
-theorem slotOblV13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) :
+/-- **`slotOblV13` on the re-based platform** (gen 54, in place: `P : LocPlatCR` for `P : LocPlat` / `hIoa`). -/
+theorem slotOblV13_C (P : LocPlatCR st arI AR MR) :
     SlotOblV15 (L := L) arI AR MR (ExecCfg.native st ar hA a0 arI AR MR) where
   sf := by
     intro Ch K s hK hU c hs q i hC hE hsf
     have hsf' := startV2C_of_V13 st ar hA a0 hC hsf
     rcases i with i | ((j | j) | j)
-    · exact startAt_UNC st ar hA a0 P hIoa hC hE hsf'
+    · exact startAt_UNC_C st ar hA a0 P.run hC hE hsf'
     · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf'.2 fun _ s b v _ _ _ => hsf'.1.wr s b v)
     · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf'.2 fun _ s b v _ _ _ => hsf'.1.wr s b v)
     · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf'.2 fun _ s b v _ _ _ => hsf'.1.wr s b v)
@@ -113,9 +120,9 @@ theorem slotOblV13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic 
     have hsf := startV2C_of_V13 st ar hA a0 hC hsf0
     have hf := u28At_all (S := S) K c (fun l => s.lk l = some c) ρ k i hn
     rcases hf with ((((((((((((((hf | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf)
-    · exact vmF_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact vmR_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact sl_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
+    · exact vmF_annV_allC_C st ar hA a0 P hC hE hsf hM hV hf
+    · exact vmR_annV_allC_C st ar hA a0 P hC hE hsf hM hV hf
+    · exact sl_annV_allC_C st ar hA a0 P hC hE hsf hM hV hf
     · exact st_annV_fh st ar hA a0 hC hE hsf hM hV hf
     · exact st_annV_h st ar hA a0 hC hE hsf hM hV hf
     · exact vx_annV st ar hA a0 hsf hM hV hf
@@ -128,19 +135,6 @@ theorem slotOblV13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic 
     · exact inv_annV_delA st ar hA a0 hC hE hsf hM hV hf
     · exact inv_annV_cmA st ar hA a0 hC hE hsf hM hV hf
     · exact inv_annV_pteA st ar hA a0 hC hE hsf hM hV hf
-
-/-- **V13's exact statement through `serializable_fl4_V15_exact`** (module docstring). -/
-theorem serializable_fl4_localV13viaV15 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (fl4LocV13 st ar hA a0) (fun i => ¬ IoIx (S := S) i) (StartV13 st ar hA a0 arI AR MR) P s0 K0 Ch0
-      s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨E, h'⟩ := (execV15_native_iff st ar hA a0).2 h
-  exact serializable_fl4_V15_exact (slotOblV13 st ar hA a0 P hIoa) (native_noAd st ar hA a0 arI AR MR)
-    (native_vcpuNone st ar hA a0 arI AR MR) P h0 hA0 hB hc0 hM0 h' hq
 
 end native
 
@@ -155,110 +149,12 @@ variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop}
 /-- The index type with PageMap. -/
 abbrev IxV13Pm (S : Type) := (Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)) ⊕ (I64 × localinv.Plan)
 
-/-- **The family with the PageMap slot.** -/
-abbrev fl4LocV13Pm (B : PmObl4 st ar Cs Ω Sg Ac Locks) : PathsP (IxV13Pm S) :=
-  PathsP.sum (fl4LocV13 st ar hA a0) (pmPathsG hA (masksWr_plain st) B)
-
-/-- **The PageMap start fact on the view** [P] (module docstring): `StartPmG` with `GateEp` of the start state. -/
-def StartPmV (B : PmObl4 st ar Cs Ω Sg Ac Locks) (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
-    (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (j : I64 × localinv.Plan) : Prop :=
-  ∃ (σ : S) (a : A), Ch σ ∧ PmQF st Cs Ω Sg Ac Locks j.2 K m σ ∧ PmEx st j.2 σ ∧ PmRoot st j.2 σ ∧ GateEp st K σ ∧
-    L.cpu σ = c ∧ Locks σ = hs ∧ (∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x) ∧
-    q = (pmPathsG hA (masksWr_plain st) B j K m hK hU).body σ a
-
-/-- **The start facts with PageMap.** -/
-def StartV13Pm (B : PmObl4 st ar Cs Ω Sg Ac Locks) (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64)
-    (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) : IxV13Pm S → Prop
-  | .inl i => StartV13 st ar hA a0 arI AR MR Ch K m hK hU c hs q i
-  | .inr j => StartPmV st ar hA B Ch K m hK hU c hs q j
-
 /-- The re-annotated paths: V13's on its indices, every PageMap start. -/
 def NoVPm : IxV13Pm S → Prop
   | .inl i => ¬ IoIx (S := S) i
   | .inr _ => True
 
-/-- **The native configuration with PageMap.** -/
-def ExecCfg.nativePm (B : PmObl4 st ar Cs Ω Sg Ac Locks) : ExecCfg S (IxV13Pm S) where
-  Fam := fl4LocV13Pm st ar hA a0 B
-  NoV := NoVPm (S := S)
-  SF := StartV13Pm st ar hA a0 arI AR MR B
-  VcpuOK := fun K _ => K.vcpus = ∅
-  AdStep := fun _ _ _ _ _ => False
-
 variable {arI AR MR}
-
-/-- **[J] The PageMap `VSafe9` content on CoreView** (module docstring): the re-annotated body is `Safe` at the
-physical memory at every PageMap start of the view. -/
-def PmFhV (B : PmObl4 st ar Cs Ω Sg Ac Locks) : Prop :=
-  ∀ (Ch : S → Prop) (s : Cfg U64 U64 U64 U64) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (k : SP)
-    (ρ : U64 → U64) (j : I64 × localinv.Plan),
-    (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) → EpochPteN K (CoreView.view K.toKLayout c ρ) →
-    StartPmV st ar hA B Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k j → MapsP K s →
-    VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem →
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k)
-
-/-- **The PageMap start gives `StartAt`** (`sf` at the PageMap summand). -/
-theorem pmStartV_at (B : PmObl4 st ar Cs Ω Sg Ac Locks) {Ch : S → Prop} {K : KLayoutP} {m : U64 → U64}
-    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : I64 × localinv.Plan}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (h : StartPmV st ar hA B Ch K m hK hU c hs q j) :
-    StartAt (pmPathsG hA (masksWr_plain st) B j K m hK hU) c hs m q := by
-  obtain ⟨σe, Z, H, Cx, nc, -, -, -, hCL, -⟩ := hC
-  obtain ⟨σ, a, hCh, hQ, hEx, hRt, hG, hc, hl, hμ, rfl⟩ := h
-  exact ⟨σ, a, ⟨⟨hCL.bun σ hCh, hQ, hG⟩, hEx, hRt⟩, hc, hl, hμ, rfl⟩
-
-set_option maxHeartbeats 4000000 in
-/-- **The slot obligations with PageMap** (module docstring). -/
-theorem slotOblV13Pm (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl4 st ar Cs Ω Sg Ac Locks) (hPm : PmFhV st ar hA (arI := arI) (AR := AR) (MR := MR) B) :
-    SlotOblV15 (L := L) arI AR MR (ExecCfg.nativePm st ar hA a0 arI AR MR B) where
-  sf := by
-    intro Ch K s hK hU c hs q i hC hE hsf
-    rcases i with i | j
-    · exact (slotOblV13 st ar hA a0 P hIoa).sf Ch K s hK hU c hs q i hC hE hsf
-    · exact pmStartV_at st ar hA B hC hsf
-  vs := by
-    intro s K hK hU c k ρ i hM hV hn
-    rcases i with i | j
-    · exact (slotOblV13 st ar hA a0 P hIoa).vs s K hK hU c k ρ i hM hV hn
-    · exact absurd trivial hn
-  fh := by
-    intro Ch s K hK hU c k ρ i hC hE hsf hM hV hn
-    rcases i with i | j
-    · exact (slotOblV13 st ar hA a0 P hIoa).fh Ch s K hK hU c k ρ i hC hE hsf hM hV hn
-    · exact hPm Ch s K hK hU c k ρ j hC hE hsf hM hV
-
-theorem nativePm_noAd (B : PmObl4 st ar Cs Ω Sg Ac Locks) :
-    (ExecCfg.nativePm st ar hA a0 arI AR MR B).NoAd := fun _ _ _ _ _ h => h
-
-theorem nativePm_vcpuNone (B : PmObl4 st ar Cs Ω Sg Ac Locks) :
-    (ExecCfg.nativePm st ar hA a0 arI AR MR B).VcpuNone := fun _ _ h => h
-
-/-- **FL4 end to end over V13's slots and the CoreView PageMap slot** (module docstring): exact form. -/
-theorem serializable_fl4_V15_pm (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl4 st ar Cs Ω Sg Ac Locks) (hPm : PmFhV st ar hA (arI := arI) (AR := AR) (MR := MR) B)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecV15 (ExecCfg.nativePm st ar hA a0 arI AR MR B) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_V15_exact (slotOblV13Pm st ar hA a0 P hIoa B hPm) (nativePm_noAd st ar hA a0 B)
-    (nativePm_vcpuNone st ar hA a0 B) P h0 hA0 hB hc0 hM0 h hq
-
-/-- **V13's exact statement from the PageMap top** (V13's executions embed by `.inl`). -/
-theorem serializable_fl4_localV13ofV15Pm (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl4 st ar Cs Ω Sg Ac Locks) (hPm : PmFhV st ar hA (arI := arI) (AR := AR) (MR := MR) B)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (fl4LocV13 st ar hA a0) (fun i => ¬ IoIx (S := S) i) (StartV13 st ar hA a0 arI AR MR) P s0 K0 Ch0
-      s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨E, h'⟩ := (execV15_native_iff st ar hA a0).2 h
-  have h2 := ExecV15.map (c2 := ExecCfg.nativePm st ar hA a0 arI AR MR B) Sum.inl
-    (fun _ _ _ _ _ _ _ _ _ hi => hi) (fun _ hn => hn) (fun _ _ h => h) (fun _ _ _ _ _ h => h) h'
-  exact serializable_fl4_V15_pm st ar hA a0 P hIoa B hPm h0 hA0 hB hc0 hM0 h2 hq
 
 end pm
 

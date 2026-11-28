@@ -18,6 +18,9 @@ its words. So a write of any word of it (not an IPC-buffer word) keeps `JAtZ` wi
 
 Premises (all facts of the VCPU, asked by the caller): `hσ` the spec object, `hH` the `H` object, `hks` its
 placement off the kernel-global area. No named premise here; P2 states them (`P2/E2EVVcpuWr.lean`).
+
+(mmuAD gen 42b18) the side facts of `vcpuWrJ` split out as `JAtZB.vcpuWr_side` (new); `JAtZB.vcpuWrJ` and
+`JAtZ.vcpuWrJ` are each it then `frameWrJ`. P3/JAtZBWr's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointReadFpu
 import Fl4Proofs.P3.XTopJointFinVs
@@ -33,14 +36,19 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-set_option maxHeartbeats 8000000 in
-/-- **A word of a VCPU written at `J`** (module docstring; the spec state kept). -/
-theorem JAtZ.vcpuWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p w : U64}
+set_option maxHeartbeats 4000000 in
+/-- **The five side facts of a VCPU word** (module docstring; mmuAD gen 42b18: out of `vcpuWrJ`'s proof, so that
+`JAtZB.vcpuWrJ` and `JAtZ.vcpuWrJ` are both `frameWrJ` after it): `UserW`, apart from `H`'s non-`other` objects,
+inside the spec VCPU, off the kernel-global area. -/
+theorem JAtZB.vcpuWr_side (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {p w : U64}
     (hσ : ∃ x, σ.kheap p.bv = some (.archObj (.vcpu x))) (hH : H p = some (.other 15))
     (hks : p.val + 32768 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ p.val)
     (hal : P1.Aligned w) (g1 : p.val ≤ w.val) (g2 : w.val < p.val + 32768)
-    (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w) (v : U64) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
+    (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w) :
+    UserW (L := L) Z s σ w ∧
+      (∀ q k, H q = some k → (∀ z, k ≠ .other z) → w.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ w.val) ∧
+      (∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ w.val ∧ w.val < o.toNat + 2 ^ Fl4Spec.objBits ko) ∧
+      (w.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ w.val) := by
   obtain ⟨x, hσx⟩ := hσ
   have hHO := J.kern.heap
   have h15 : (2 : Nat) ^ 15 = 32768 := by norm_num
@@ -125,6 +133,26 @@ theorem JAtZ.vcpuWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p w : U6
     ⟨p.bv, _, hσx, g1, by
       show w.val < p.val + 2 ^ Fl4Spec.archKobjSize (.vcpu x)
       simp only [Fl4Spec.archKobjSize, h15]; exact g2⟩
+  exact ⟨hu, hAp, hObj, hksw⟩
+
+/-- **A word of a VCPU written at `J`** (module docstring; the spec state kept). -/
+theorem JAtZB.vcpuWrJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {p w : U64}
+    (hσ : ∃ x, σ.kheap p.bv = some (.archObj (.vcpu x))) (hH : H p = some (.other 15))
+    (hks : p.val + 32768 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ p.val)
+    (hal : P1.Aligned w) (g1 : p.val ≤ w.val) (g2 : w.val < p.val + 32768)
+    (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w) (v : U64) :
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
+  obtain ⟨hu, hAp, hObj, hksw⟩ := J.vcpuWr_side hσ hH hks hal g1 g2 hnB
+  exact J.frameWrJ hu hnB hAp hObj hksw v
+
+/-- `JAtZB.vcpuWrJ` at `JAtZ` (the side facts by `JAtZB.vcpuWr_side`, then `JAtZ.frameWrJ`). -/
+theorem JAtZ.vcpuWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p w : U64}
+    (hσ : ∃ x, σ.kheap p.bv = some (.archObj (.vcpu x))) (hH : H p = some (.other 15))
+    (hks : p.val + 32768 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ p.val)
+    (hal : P1.Aligned w) (g1 : p.val ≤ w.val) (g2 : w.val < p.val + 32768)
+    (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w) (v : U64) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
+  obtain ⟨hu, hAp, hObj, hksw⟩ := J.toB.vcpuWr_side hσ hH hks hal g1 g2 hnB
   exact J.frameWrJ hu hnB hAp hObj hksw v
 
 end

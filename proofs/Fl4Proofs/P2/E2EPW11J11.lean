@@ -652,31 +652,6 @@ def StartC (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
 
 variable {arI AR MR}
 
-/-- **`StartC` gives `StartAt` of `fl4LocW11JA`**, given the current chain and the epoch invariant. -/
-theorem startAt_C (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
-    {q : SP} {i : Fl4IxW (S := S)}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayoutV.toKLayout Ch)
-    (hE : ∃ s1, PteConv st K s1 ∧ ∀ x, GateW K x → s.mem x = s1.mem x)
-    (h : StartC st ar hA hm hSt a0 arI AR MR Ch K s.mem hK hU c hs q i) :
-    StartAt (fl4LocW11JA st ar hA hm hSt a0 i K s.mem hK hU) c hs s.mem q := by
-  have hC0 := hC
-  obtain ⟨σe, hC'⟩ := hC
-  cases i with
-  | sl j =>
-    obtain ⟨q0, ⟨h, hG⟩, e⟩ := h
-    refine startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (i := .sl j) ⟨q0, ⟨h, hG.mono fun σ he hμ => ⟨he.1, ?_⟩⟩, e⟩
-    have hJ := ChainOf.bun hC' σ he.1
-    refine he.2.toQ hA (chain_run P hIoa hC' he.1 he.2.hct) fun d hd => ?_
-    obtain ⟨h1, h2⟩ := hJ.userOK.tcb d hd oAFFINITY (Or.inl rfl)
-    exact (hμ _ h1 h2).symm
-  | vmF j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .vmF j) h)
-  | vmR j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .vmR j) h)
-  | io j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .io j) h)
-  | st j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .st j) h)
-  | irq j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .irq j) h)
-  | vq j => exact startAt_A st ar hA hm hSt a0 P hIoa hC0 hE (startA_of_B st ar hA hm hSt a0 (i := .vq j) h)
-
 end start
 
 section top
@@ -684,21 +659,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end, W11's glue, PTE convention, sl's `SlPreB` derived** (module docstring):
-`serializable_fl4_localW11PJ10` with `StartC` starts. sl's entry: the index convention (`OmegaS` / `SgS`), `hct`
-[P], `SlEntL` / `SlSyncC` / `SlAccR` [P] and `SlPreR` (`hy0f` / `hy0r` [J] iolay, `hrz` / `hlk` [P]). -/
-theorem serializable_fl4_localW11PJ11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11JA st ar hA hm hSt a0) (StartC st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨-, hK0, hU0⟩ := boot_okP st P hB hc0
-  exact serializable_e2eP _ h0 hA0 hK0 hU0 hM0
-    (execP_of_WPJG (fun _ _ _ _ _ _ _ _ _ hC hE hsf => startAt_C st ar hA hm hSt a0 P hIoa hC hE hsf)
-      P h0 hA0 hB hc0 hM0 h).1 hq
 
 end top
 

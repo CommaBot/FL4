@@ -155,6 +155,37 @@ theorem chainC_spec [Fl4Proofs.P1.PlainStore st] (P : LocPlat st arI AR MR) {σe
   Classical.choose_spec (chainOf_exists P h)
 
 end chain
+
+/-! ## The platform the V15 trunk reads (moved here from P2/LocPlatC, gen 54: statements unchanged) -/
+
+section locC
+variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
+variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
+
+/-- **What the V15 trunk reads off the platform** (module docstring): one scheduling domain, and a P3 chain at
+every `JReachU17` exit. -/
+structure LocPlatC : Prop where
+  nd : Fl4Spec.numDomains = 1
+  chain : ∀ {σe : S} {a3 : A3} {τ : Fl4Spec.State Unit}, Fl4Proofs.P3.SInvR.G5.JReachU17 (L := L) arI AR MR σe a3 τ →
+    ∃ KC : KLayout × (S → Prop), ChainOf (L := L) arI AR MR σe KC.1 KC.2
+
+variable {st arI AR MR}
+
+/-- **The base platform gives `LocPlatC`** (`chainOf_exists`). -/
+theorem LocPlat.toC [Fl4Proofs.P1.PlainStore st] (P : LocPlat st arI AR MR) : LocPlatC st arI AR MR :=
+  ⟨P.nd, fun h => chainOf_exists P h⟩
+
+/-- The chain chosen at a P3 exit, from `LocPlatC`. -/
+def chainCC (P : LocPlatC st arI AR MR) {σe : S} {a3 : A3} {τ : Fl4Spec.State Unit}
+    (h : Fl4Proofs.P3.SInvR.G5.JReachU17 (L := L) arI AR MR σe a3 τ) : KLayout × (S → Prop) :=
+  Classical.choose (P.chain h)
+
+theorem chainCC_spec (P : LocPlatC st arI AR MR) {σe : S} {a3 : A3} {τ : Fl4Spec.State Unit}
+    (h : Fl4Proofs.P3.SInvR.G5.JReachU17 (L := L) arI AR MR σe a3 τ) :
+    ChainOf (L := L) arI AR MR σe (chainCC P h).1 (chainCC P h).2 :=
+  Classical.choose_spec (P.chain h)
+
+end locC
 end
 end Fl4Proofs.P2.PathObl
 
@@ -469,24 +500,50 @@ def SerExitW (P : LocPlat st arI AR MR) (K : KLayoutV) (Ch : S → Prop) : Prop 
   ∃ (σe : S) (a3 : A3) (τ : Fl4Spec.State Unit) (hJ : Fl4Proofs.P3.SInvR.G5.JReachU17 (L := L) arI AR MR σe a3 τ),
     chainC P hJ = (K.toKLayout, Ch)
 
-theorem SerExitW.chainOf {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch) :
+/-- **The serial exit's ghost choice over `LocPlatC`** (`SerExitW`'s body with `chainCC`; moved here from
+P2/LocPlatC, gen 54). -/
+def SerExitC (P : LocPlatC st arI AR MR) (K : KLayoutV) (Ch : S → Prop) : Prop :=
+  ∃ (σe : S) (a3 : A3) (τ : Fl4Spec.State Unit) (hJ : Fl4Proofs.P3.SInvR.G5.JReachU17 (L := L) arI AR MR σe a3 τ),
+    chainCC P hJ = (K.toKLayout, Ch)
+
+theorem SerExitC.chainOf {P : LocPlatC st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitC P K Ch) :
     ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch := by
   obtain ⟨σe, a3, τ, hJ, e⟩ := h
-  have hs := chainC_spec P hJ
+  have hs := chainCC_spec P hJ
   rw [e] at hs
   exact ⟨σe, hs⟩
 
-/-- Clause 7 and the layout facts on the chosen chain. -/
-theorem SerExitW.lay {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch) :
+/-- **The base platform's serial exits are `SerExitC`'s** (definitionally: the same `Classical.choose`; moved here
+from P2/LocPlatC, gen 54). -/
+theorem serExitW_iff_C (P : LocPlat st arI AR MR) {K : KLayoutV} {Ch : S → Prop} :
+    SerExitW P K Ch ↔ SerExitC P.toC K Ch :=
+  Iff.rfl
+
+theorem SerExitW.chainOf {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch) :
+    ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch :=
+  SerExitC.chainOf ((serExitW_iff_C P).1 h)
+
+/-- **`SerExitW.lay` over `LocPlatC`** (gen 54, in place). -/
+theorem SerExitC.lay {P : LocPlatC st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitC P K Ch) :
     ∃ σe, ChainLay (L := L) K.toKLayout Ch ∧ Ch σe := by
   obtain ⟨σe, Z, H, Cx, nc, -, -, -, hC, hσ⟩ := h.chainOf
   exact ⟨σe, hC, hσ⟩
 
-/-- **`Fl4StepV.ser`'s conclusion from the glue premises** (`regionOKV_of_JAtZ` at the exit). -/
-theorem serExitW_ok {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch)
+/-- Clause 7 and the layout facts on the chosen chain. -/
+theorem SerExitW.lay {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch) :
+    ∃ σe, ChainLay (L := L) K.toKLayout Ch ∧ Ch σe :=
+  SerExitC.lay ((serExitW_iff_C P).1 h)
+
+/-- **`serExitW_ok` over `LocPlatC`** (gen 54, in place). -/
+theorem serExitC_ok {P : LocPlatC st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitC P K Ch)
     (hV : VcpuLay L K) : RegionOKV K ∧ UserOKV K := by
   obtain ⟨σe, hC, hσ⟩ := h.lay
   exact ⟨regionOKV_of_JAtZ hC.hK (hC.bun σe hσ) hV.1 hV.2, ⟨hC.hU⟩⟩
+
+/-- **`Fl4StepV.ser`'s conclusion from the glue premises** (`regionOKV_of_JAtZ` at the exit). -/
+theorem serExitW_ok {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch)
+    (hV : VcpuLay L K) : RegionOKV K ∧ UserOKV K :=
+  serExitC_ok ((serExitW_iff_C P).1 h) hV
 
 variable {ι : Type}
 

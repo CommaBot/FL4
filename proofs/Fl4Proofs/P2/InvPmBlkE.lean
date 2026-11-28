@@ -8,7 +8,10 @@ what `finish` reads, so **`pmFinG`**: at a `PmPreG` entry, on any store `gS` rea
 writing `W` (`IoWr`) with the caller's `STATE` write (`SWr`), the reply is `Ok ()` and `FinOK` holds after it.
 The part after the run is `cmFin8`'s, verbatim at `KSUPm (ptU K)`.
 
-No named premise. New module; no existing statement changes.
+**`pmFinGC`** (gen-45 p3mc, moved here from P2/InvPmGdV) is the proof for any read set `R`, the entry record
+`IoEnt … R W s` given; `pmFinG` is its one-line instance at `R := IoRS (ptU K) s` (statement unchanged).
+
+No named premise. New module; gen 45 re-proves `pmFinG` as a corollary (statement unchanged).
 -/
 import Fl4Proofs.P2.InvPmBlkD
 open Aeneas Aeneas.Std Result
@@ -25,26 +28,28 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayoutP} {μ : U64 → U64}
 variable {A : Type} {ar : machine.Arch A}
 
-/-- **`FinOK` after the PageMap decode block** (module docstring). -/
-theorem pmFinG (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S}
+set_option maxHeartbeats 2000000 in
+/-- **`FinOK` after the PageMap decode block, for any read set `R`** (module docstring): the entry record
+`IoEnt … R W s` is given (`pmFinG` is its instance at `R := IoRS (ptU K) s`). -/
+theorem pmFinGC (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S}
     {a1 : A} {buf length : U64} {cap : capability.Cap} {y : (core.result.Result Unit error.Exc) × S × A}
     {z : S × A × core.result.Result Unit error.Exc}
-    {W : U64 → Prop} {gS : machine.Store S} [GRd gS st (IoRS (st := st) K.ptU Locks s)] [GWr gS st W]
+    {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
     (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s)
-    (hW : IoWr st W K.heap.scBits s) (hsw : SWr gS st (L.curW s) sched.TS_RUNNING)
+    (Ent : IoEnt st K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac R W s)
+    (hsw : SWr gS st (L.curW s) sched.TS_RUNNING)
     (emi : msg.msg_info st s (L.curW s) = ok info) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
     (hcap : obj.Slot.cap st p.slot s2 = ok cap)
     (hy : syscall.decode_invocation st ar s2 a1 info.label length p.slot cap true true true false buf p.extra =
       ok y)
     (hz : invRep st (L.curW s) y.2.1 y.2.2 y.1 = ok z) :
-    z.2.2 = .Ok () ∧ FinOK (L := L) gS (IoRS (st := st) K.ptU Locks s) W ar s z.1 z.2.1 := by
+    z.2.2 = .Ok () ∧ FinOK (L := L) gS R W ar s z.1 z.2.1 := by
   obtain ⟨fp, rt, asid, va, mp, x0, root, rasid, e, hcs, hcs2, hx0, hxK, hcx2, hcv2, hpe2, hpt, hle, hRS, hWS, hu,
     hf, hsl, hsl0, hO⟩ := pm_s2 hA hE C
   obtain ⟨⟨hJ, hq, hG⟩, -, -⟩ := hE
   have Pb := hq.1.1.1
   have P := Pb.ptU hG
   obtain ⟨-, es1, eu, eac, ey, ehere, -⟩ := C
-  have Ent := P.ent (Locks := Locks) hW
   have Hf := here_facts ehere
   have I := IoS2.of_ent hA Ent es1 eu Hf.sc
   have hct : L.curW s2 = L.curW s := I.cur
@@ -165,6 +170,21 @@ theorem pmFinG (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInf
   · rw [hcur3]; exact A0.wnx
   · rw [hcur3]; exact A0.rin
 
+/-- **`FinOK` after the PageMap decode block** (module docstring): `pmFinGC` at `R := IoRS (ptU K) s`. -/
+theorem pmFinG (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S}
+    {a1 : A} {buf length : U64} {cap : capability.Cap} {y : (core.result.Result Unit error.Exc) × S × A}
+    {z : S × A × core.result.Result Unit error.Exc}
+    {W : U64 → Prop} {gS : machine.Store S} [GRd gS st (IoRS (st := st) K.ptU Locks s)] [GWr gS st W]
+    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s)
+    (hW : IoWr st W K.heap.scBits s) (hsw : SWr gS st (L.curW s) sched.TS_RUNNING)
+    (emi : msg.msg_info st s (L.curW s) = ok info) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
+    (hcap : obj.Slot.cap st p.slot s2 = ok cap)
+    (hy : syscall.decode_invocation st ar s2 a1 info.label length p.slot cap true true true false buf p.extra =
+      ok y)
+    (hz : invRep st (L.curW s) y.2.1 y.2.2 y.1 = ok z) :
+    z.2.2 = .Ok () ∧ FinOK (L := L) gS (IoRS (st := st) K.ptU Locks s) W ar s z.1 z.2.1 := by
+  obtain ⟨⟨-, hq, hG⟩, -, -⟩ := id hE
+  exact pmFinGC hA hE ((hq.1.1.1.ptU hG).ent (Locks := Locks) hW) hsw emi C hcap hy hz
 
 end fin
 

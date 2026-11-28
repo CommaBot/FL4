@@ -90,11 +90,6 @@ theorem alt_pmU {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {
   ⟨Al.cpu, Al.ksb, Al.masks, fun y hy => Al.read y (pmRS_U hy),
     fun y hy hu ho => Al.clsEq y (fun h => hy (pmRSU_nu h hu)) hu ho⟩
 
-theorem altOf_pmU {P : S → Prop} {cls : U64 → U64 → U64} {ko : U64 → Serial.ClsOwner U64} {s' : S}
-    (h : AltOf st P (PmRSU st K Locks) cls ko (· ∈ K.user) s') :
-    AltOf st P (PmRS st K Locks) cls ko (· ∈ K.user) s' :=
-  let ⟨s0, hP, Al⟩ := h; ⟨s0, hP, alt_pmU Al⟩
-
 /-- **`IoWS (ptU K) ⊆ PmWS K`** (the layout's region facts). -/
 theorem pmWS_of_ptU (hK : RegionOKP K) (hx : IoWS (st := st) K.ptU Locks s x) : PmWS st K Locks s x :=
   ⟨hx.1, wpermP_of_V hK (wpermV_of_own' hK.base hx.2)⟩
@@ -147,24 +142,6 @@ def PmBlkUW {A : Type} (ar : machine.Arch A) (p : localinv.Plan) (K : KLayoutP) 
 
 variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayoutP} {μ : U64 → U64}
 variable {A : Type} {ar : machine.Arch A}
-
-/-- **`acc` from the decode block** (`inv_acc_gen` at `ptU K` on `guard st (PmRSU s) (PmWSU s)`). -/
-theorem pm_accU_of_blk (hA : P0.ArchTotal ar) (hK : RegionOKP K) {number : I64}
-    (hblk : PmBlkUW st ar p K Locks (PmPreF st Cs Ω Sg Ac Locks p K μ)) :
-    PmAccUW st ar number p K Locks (PmPreF st Cs Ω Sg Ac Locks p K μ) := fun s a _ _ hE h => by
-  obtain ⟨hJ, hq, hG⟩ := hE
-  have P := hq.1.1.1.ptU hG
-  obtain ⟨-, -, -, -, -, -, hsl, -, -, -⟩ := pm_core hq
-  obtain ⟨-, hf⟩ := P.lay.slot8 _ hsl
-  have r0 : IoRS (st := st) K.ptU Locks s p.slot := by
-    have := pm_slotRS hJ hq P (o := 0#u64) (by simp) (by simp)
-    rwa [wadd_zero hf] at this
-  have r8 := pm_slotRS hJ hq P (o := 8#u64) (by simp) (by simp)
-  haveI : GRd (guard st (PmRSU st K Locks s) (PmWSU st K Locks s)) st (IoRS (st := st) K.ptU Locks s) :=
-    grd_sub (fun _ hy => pmRSU_ioRS hG hy)
-  exact inv_acc_gen (W := PmWSU st K Locks s) hA P ((P.ioWr (Locks := Locks)).mono (fun _ hy => pmWSU_ioWS hK hy))
-    (pm_seen hJ hq P) ⟨r0, r8⟩
-    (fun info nx s1 s2 a1 buf length cap emi hc => hblk s a info nx s1 s2 a1 buf length cap ⟨hJ, hq, hG⟩ emi hc) h
 
 end obl
 
@@ -311,21 +288,6 @@ variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop}
 /-- **`PmIw` from a core set below 64** (gen 11's [J] `iw`; [P] `hCs`, iolay's `ioPre_wr_hIw`). -/
 theorem pm_iw (hCs : ∀ c ∈ Cs, c.val < 64) : PmIw st Cs Ω Sg Ac := ioPre_wr_hIw hCs
 
-/-- **`uf` of the PageMap slot at the user-word sets** (`pm_huf`; the user part of the sets is fixed). -/
-theorem pm_hufU (hIw : PmIw st Cs Ω Sg Ac) (hPDw : PmPdw st Cs Ω Sg Ac Locks) (hlk : PmLk st Locks) :
-    ∀ (j : I64 × localinv.Plan) (K : KLayoutP) m s b v, PmPreF st Cs Ω Sg Ac Locks j.2 K m s →
-      b ∈ K.user → Aligned b →
-      PmPreF st Cs Ω Sg Ac Locks j.2 K m (L.wr s b v) ∧
-        Locks (L.wr s b v) = Locks s ∧
-        PmRSU st K Locks (L.wr s b v) = PmRSU st K Locks s ∧
-        PmWSU st K Locks (L.wr s b v) = PmWSU st K Locks s ∧
-        IoDS (st := st) (L.wr s b v) = IoDS (st := st) s := by
-  intro j K m s b v h hb ha
-  obtain ⟨⟨h1, h2⟩, el, eR, eW, eD⟩ := pm_huf hIw hPDw hlk j K m s b v h hb ha
-  refine ⟨⟨h1, h2, gateEp_userWr h.2.2 hb ha⟩, el, ?_, ?_, eD⟩
-  · funext y; unfold PmRSU; rw [eR]
-  · funext y; unfold PmWSU; rw [eW]
-
 end huf
 
 /-! ## The slot -/
@@ -352,35 +314,7 @@ structure PmObl3 (Cs Ω Sg Ac : Set U64) (Locks : S → U64 → Prop) : Prop whe
 
 variable {st ar}
 
-/-- **The PageMap slot family at the user-word sets.** -/
-def pmPathsU {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl3 st ar Cs Ω Sg Ac Locks) :
-    PathsP (I64 × localinv.Plan) :=
-  fun j K m hK hU =>
-    pm_localPathU (K := K) (m0 := m) (Locks := Locks) ar hA hK hU j.1 j.2 hm
-      (P := PmPreF st Cs Ω Sg Ac Locks j.2 K m) (fun _ h => h.2.1.1.1.1)
-      (pm_accU_of_blk hA hK (B.blk j K m)) (pm_dec hA j.1) (B.mv j K m) (pm_ra hA j.1)
-      (pm_hufU (pm_iw B.cs) B.pdw B.lk j K m)
-      (R.invBodyPmG j.1 j.2) ((pm_isProgOn hA j.1).mono (fun _ hy => altOf_pmU hy))
-      (pm_noZero j.1 j.2) (B.roA j K m) (pm_ro hA j.1)
-
-/-- **The PageMap slot's start fact** (as `StartPmF`). -/
-def StartPmU {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl3 st ar Cs Ω Sg Ac Locks)
-    (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) (j : I64 × localinv.Plan) : Prop :=
-  ∃ (σ : S) (a : A), Ch σ ∧ PmQF st Cs Ω Sg Ac Locks j.2 K m σ ∧ L.cpu σ = c ∧ Locks σ = hs ∧
-    (∀ x, Aligned x → x ∉ K.user → L.mem σ x = m x) ∧ q = (pmPathsU hA hm B j K m hK hU).body σ a
-
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **`hSFQ` of `serializable_fl4_localW11PRI` for the PageMap slot at the user-word sets.** -/
-theorem pm_hSFQU {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl3 st ar Cs Ω Sg Ac Locks) :
-    ∀ Ch K m hK hU c hs q j, (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → m x = s1.mem x) →
-      StartPmU hA hm B Ch K m hK hU c hs q j → StartAt (pmPathsU hA hm B j K m hK hU) c hs m q := by
-  rintro Ch K m hK hU c hs q j ⟨σe, hC⟩ ⟨s1, hc1, hg⟩ ⟨σ, a, hCh, hQ, hc, hl, hμ, rfl⟩
-  obtain ⟨Z, H, Cx, nc, -, -, -, hCL, -⟩ := hC
-  exact ⟨σ, a, ⟨hCL.bun σ hCh, hQ, s1.mem, hc1, fun x hx ha hu => (hμ x ha hu).trans (hg x hx)⟩, hc, hl, hμ,
-    rfl⟩
 
 end slot
 
@@ -389,19 +323,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end over W11's slots and the PageMap slot at the user-word sets** (module docstring). -/
-theorem serializable_fl4_localW11PRIPmU (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl3 st ar Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11J st ar hA hm hSt a0) (pmPathsU hA hm B))
-      (StartW11RI st ar hA hm hSt a0 arI AR MR (StartPmU hA hm B)) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localW11PRI st ar hA hm hSt a0 P hIoa (pmPathsU hA hm B) (pm_hSFQU hA hm B) h0 hA0 hB hc0 hM0
-    h hq
 
 end top
 

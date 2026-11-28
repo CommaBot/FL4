@@ -37,6 +37,8 @@ deletion loop by `WJL` (XTopJointWJL) from XTopJointEntry's `JEntryAt.live`.
   cap elsewhere; `readyLive_noRef` (`x`'s cap names no container),
   `readyLive_key` (another cap alike `x`'s: a non-final cap, `other_keyN`),
   `readyLive_zombie` (a removable zombie: its slots unused, `zslots`).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `idleThread_bv`, `bv_ne_idleThread`, `ref_cover`, `thread_coverF`, `readyLive`, `readyLive_noRef`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -63,7 +65,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- **The spec's idle thread is the idle word at `J`** (XTopJointDelR's
 `JAtZ.idleThread_eq`, here for XTopJointLive's readers). -/
-theorem JAtZ.idleThread_bv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.idleThread_bv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     σ.idleThread = (L.idleW s).bv := by
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
   unfold P1.LawfulStore.idleW
@@ -71,12 +73,22 @@ theorem JAtZ.idleThread_bv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   unfold nodeW at h2
   rw [hc.cur, ← h2]
 
+
+/-- `JAtZB.idleThread_bv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.idleThread_bv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    σ.idleThread = (L.idleW s).bv :=
+  J.toB.idleThread_bv
 /-- A word other than the idle word is not the spec's idle thread. -/
-theorem JAtZ.bv_ne_idleThread (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64} (h : w ≠ L.idleW s) :
+theorem JAtZB.bv_ne_idleThread (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64} (h : w ≠ L.idleW s) :
     w.bv ≠ σ.idleThread := fun e => h (P1.eq_of_bv (e.trans J.idleThread_bv))
 
+
+/-- `JAtZB.bv_ne_idleThread` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bv_ne_idleThread (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64} (h : w ≠ L.idleW s) :
+    w.bv ≠ σ.idleThread :=
+  J.toB.bv_ne_idleThread h
 /-- **A cap naming a container covers each of its slots.** -/
-theorem JAtZ.ref_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
+theorem JAtZB.ref_cover (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
     (hy : y ∈ Z.G.chains.flatten) {q : U64} (hr : RefsObj q (capV (L.mem s) y)) {i : Nat}
     (hqi : IsSlotAt Z.th q i) :
     physF (capV (L.mem s) y) = true ∧ isUt (capV (L.mem s) y) = false ∧
@@ -142,8 +154,16 @@ theorem JAtZ.ref_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U6
     · exact cnCase _ zt (Or.inr ⟨n, rfl⟩) hth
   | _ => simp [RefsObj] at hr
 
+
+/-- `JAtZB.ref_cover` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ref_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
+    (hy : y ∈ Z.G.chains.flatten) {q : U64} (hr : RefsObj q (capV (L.mem s) y)) {i : Nat}
+    (hqi : IsSlotAt Z.th q i) :
+    physF (capV (L.mem s) y) = true ∧ isUt (capV (L.mem s) y) = false ∧
+      baseF (capV (L.mem s) y) ≤ (slotOf q i).val ∧ (slotOf q i).val + 1 ≤ topF (capV (L.mem s) y) + 1 :=
+  J.toB.ref_cover hy hr hqi
 /-- **A thread cap of the MDB covers its TCB's first word.** -/
-theorem JAtZ.thread_coverF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
+theorem JAtZB.thread_coverF (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
     (hy : y ∈ Z.G.chains.flatten) {w : U64} (hT : capV (L.mem s) y = .Thread w) :
     physF (capV (L.mem s) y) = true ∧ isUt (capV (L.mem s) y) = false ∧
       baseF (capV (L.mem s) y) ≤ w.val ∧ w.val + 1 ≤ topF (capV (L.mem s) y) + 1 := by
@@ -159,6 +179,13 @@ theorem JAtZ.thread_coverF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y 
   rw [hv] at h3 h4
   exact ⟨h1, h2, h3, h4⟩
 
+
+/-- `JAtZB.thread_coverF` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.thread_coverF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
+    (hy : y ∈ Z.G.chains.flatten) {w : U64} (hT : capV (L.mem s) y = .Thread w) :
+    physF (capV (L.mem s) y) = true ∧ isUt (capV (L.mem s) y) = false ∧
+      baseF (capV (L.mem s) y) ≤ w.val ∧ w.val + 1 ≤ topF (capV (L.mem s) y) + 1 :=
+  J.toB.thread_coverF hy hT
 theorem JAtZ.thread_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y : U64}
     (hy : y ∈ Z.G.chains.flatten) {w : U64} (hT : capV (L.mem s) y = .Thread w) :
     Covered (L.mem s) Z.G w.val (w.val + 1) :=
@@ -168,7 +195,7 @@ theorem JAtZ.thread_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y :
 /-- **`ReadyLive` from `LiveJ`** (module docstring): the slots in use and the
 debug-list head are named by caps; a cap at `x` naming one has another
 elsewhere. -/
-theorem JAtZ.readyLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H Z.G s σ)
+theorem JAtZB.readyLive (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H Z.G s σ)
     {x : U64}
     (hc1 : ∀ q i, IsSlotAt Z.th q i → slotOf q i ≠ x → InUse (L.mem s) σ (slotOf q i) →
       RefsObj q (capV (L.mem s) x) → ∃ y ∈ Z.G.chains.flatten, y ≠ x ∧ RefsObj q (capV (L.mem s) y))
@@ -195,12 +222,27 @@ theorem JAtZ.readyLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hL : L
     obtain ⟨h1, h2, h3, h4⟩ := J.thread_coverF hy'' hT''
     exact ⟨y'', hy'', hne, h1, h2, h3, h4⟩
 
+
+/-- `JAtZB.readyLive` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.readyLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H Z.G s σ)
+    {x : U64}
+    (hc1 : ∀ q i, IsSlotAt Z.th q i → slotOf q i ≠ x → InUse (L.mem s) σ (slotOf q i) →
+      RefsObj q (capV (L.mem s) x) → ∃ y ∈ Z.G.chains.flatten, y ≠ x ∧ RefsObj q (capV (L.mem s) y))
+    (hc2 : ∀ w, capV (L.mem s) x = .Thread w → ∃ y ∈ Z.G.chains.flatten, y ≠ x ∧ capV (L.mem s) y = .Thread w) :
+    ReadyLive (L := L) Z.th s σ Z.G x :=
+  J.toB.readyLive hL hc1 hc2
 /-- `ReadyLive` when `x`'s cap names no container and is no thread cap. -/
-theorem JAtZ.readyLive_noRef (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.readyLive_noRef (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hL : LiveJ (L := L) Z.th H Z.G s σ) {x : U64} (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x)) :
     ReadyLive (L := L) Z.th s σ Z.G x :=
   J.readyLive hL (fun q _ _ _ _ h => absurd h (hn q)) (fun w h => absurd (by rw [h]; rfl) (hn w))
 
+
+/-- `JAtZB.readyLive_noRef` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.readyLive_noRef (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hL : LiveJ (L := L) Z.th H Z.G s σ) {x : U64} (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x)) :
+    ReadyLive (L := L) Z.th s σ Z.G x :=
+  J.toB.readyLive_noRef hL hn
 /-- `ReadyLive` when another cap of the MDB has `x`'s cap's key (`okey`;
 a CNode or thread cap not final). -/
 theorem JAtZ.readyLive_key (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

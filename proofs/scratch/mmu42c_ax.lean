@@ -1,0 +1,20 @@
+import Fl4Proofs.P3.JAtZV3SigDon
+#print axioms Fl4Proofs.P3.JAtZB.cnX_not
+#print axioms Fl4Proofs.P3.JAtZB.cnW_nf
+#print axioms Fl4Proofs.P3.JAtZB.cnW_keeps
+#print axioms Fl4Proofs.P3.JAtZB.cnW_scOut
+#print axioms Fl4Proofs.P3.JAtZB.ntfn_link
+#print axioms Fl4Proofs.P3.JAtZB.ntfnSc_not_dead
+#print axioms Fl4Proofs.P3.JAtZB.deadP_dfr
+#print axioms Fl4Proofs.P3.JAtZB.cnW_irq
+#print axioms Fl4Proofs.P3.JAtZB.cnW_ntd
+#print axioms Fl4Proofs.P3.JAtZB.cnW_td
+#print axioms Fl4Proofs.P3.JAtZB.cnW_utc
+#print axioms Fl4Proofs.P3.JAtZB.cnW_nv
+#print axioms Fl4Proofs.P3.JAtZB.wake_postD
+#print axioms Fl4Proofs.P3.JAtZB.donCore
+#print axioms Fl4Proofs.P3.JAtZB.not_dead_of_st
+#print axioms Fl4Proofs.P3.JAtZB.donJ
+#print axioms Fl4Proofs.P3.JAtZV3.donJ3
+#print axioms Fl4Proofs.P3.sigVmDonJ3_of
+#print axioms Fl4Proofs.P3.JAtZV3.signalVmJ3

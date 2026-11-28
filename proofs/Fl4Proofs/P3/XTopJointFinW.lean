@@ -13,6 +13,10 @@ P3 (DESIGN.md §9), IPC: **what a notification's finalisation keeps of
 * `JAtZ.finW_irq`: the IRQ node's caps.
 * `JAtZ.finW_utc`: the untyped caps' facts, the CDT and original bits kept
   (`sc_utc`'s argument, a TCB word a typed TCB's).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `finW_irq`,
+`finW_keeps`, `finW_scOut`, `finW_utc`, `kw_dbg`, `kw_dbgKeep`; each `JAtZ` name is a one-line corollary via
+`JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJointRest
 import Fl4Proofs.P3.IpcFinNtfn
@@ -43,9 +47,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- **The frame words a finalisation keeps**: the TCBs' `MCP`, `YIELD_TO` and
 IPC-buffer words, the SCs' `REPLY` words, the replies' links. -/
-theorem JAtZ.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) :
     (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
@@ -71,11 +75,23 @@ theorem JAtZ.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       · have := J.rp.tcb r hr y hy; omega
   exact ⟨k _ (Or.inl h8), k _ (Or.inr h16)⟩
 
-/-- **The header words of `H`'s SCs outside `Z.C` are kept** by a
-finalisation (`sc_out_keep`'s argument). -/
-theorem JAtZ.finW_scOut {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `JAtZB.finW_keeps` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) :=
+  Fl4Proofs.P3.JAtZB.finW_keeps (J := J.toB) (hw := hw)
+
+/-- **The header words of `H`'s SCs outside `Z.C` are kept** by a
+finalisation (`sc_out_keep`'s argument). -/
+theorem JAtZB.finW_scOut {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) {q : U64} {z : Nat}
     (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
     L.mem s' (scW q K) = L.mem s (scW q K) := by
@@ -114,12 +130,21 @@ theorem JAtZ.finW_scOut {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     simp only [P1.HKind.bits] at this
     omega
 
+/-- `JAtZB.finW_scOut` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finW_scOut {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) {q : U64} {z : Nat}
+    (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
+    L.mem s' (scW q K) = L.mem s (scW q K) :=
+  Fl4Proofs.P3.JAtZB.finW_scOut (J := J.toB) (hw := hw) (hq := hq) (hqC := hqC) (hK8 := hK8) (hK := hK)
+
 /-- **The IRQ node's caps are kept** by a finalisation (its words lie in the
 kernel-state block; the TCBs, notifications and SCs outside it, the node
 after it). -/
-theorem JAtZ.finW_irq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.finW_irq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) (i : U64) (hi : i.val < 128) :
     capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) := by
   have hS := J.xtop.fin.1.1.1
@@ -133,15 +158,23 @@ theorem JAtZ.finW_irq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   · have := J.nk n hn; omega
   · have := (hS.scOut sc hsc x n hk b ⟨g1, g2⟩).2.2.2; omega
 
+/-- `JAtZB.finW_irq` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finW_irq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) (i : U64) (hi : i.val < 128) :
+    capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
+  Fl4Proofs.P3.JAtZB.finW_irq (J := J.toB) (hw := hw) (i := i) (hi := hi)
+
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after a finalisation**: the caps kept (the slots
 same), the free parts zero (no `FinW` word there: the TCBs are typed, the
 notifications and SCs are spec objects outside it, `SpecFree`, the node is
 outside every untyped cap, `JCovD`), the rest by the kept kernel state, CDT,
 original bits and the node-0 `DEBUG_TCBS` word (`hDbg`). -/
-theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
@@ -193,24 +226,54 @@ theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
+/-- `JAtZB.finW_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (harch : σ'.archState = σ.archState)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.finW_utc (J := J.toB) (hw := hw) (hSS := hSS) (hcdt := hcdt) (horig := horig) (harch := harch) (hDbg := hDbg)
+
 /-- **Core 0's `DEBUG_TCBS` word is kept by P1's footprint** (`KW` leaves it
 out; core 0 among the cores, `JKern.cs0`). -/
+theorem JAtZB.kw_dbg {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s)) :
+    L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
+  hw.mem_eq J.kern.dwAl fun hk => P1.dbg0_not_schedW J.blk J.kern.cs0 (Or.inl hk)
+
+/-- `JAtZB.kw_dbg` at `JAtZ` (via `JAtZ.toB`). -/
 theorem JAtZ.kw_dbg {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
       (P1.EH H) s)) :
     L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
-  hw.mem_eq J.kern.dwAl fun hk => P1.dbg0_not_schedW J.blk J.kern.cs0 (Or.inl hk)
+  Fl4Proofs.P3.JAtZB.kw_dbg (J := J.toB) (hw := hw)
 
 /-- **P1's footprint keeps every debug word** (`P1.Foot.dbgKeep`; KENTRY-PLAN
 g2i, the `DbgKeep` of the construction sites' `LiveDN` frame). -/
+theorem JAtZB.kw_dbgKeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s)) : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+  P1.Foot.dbgKeep J.blk (fun _ h => h) hw
+
+/-- `JAtZB.kw_dbgKeep` at `JAtZ` (via `JAtZ.toB`). -/
 theorem JAtZ.kw_dbgKeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
       (P1.EH H) s)) : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
-  P1.Foot.dbgKeep J.blk (fun _ h => h) hw
+  Fl4Proofs.P3.JAtZB.kw_dbgKeep (J := J.toB) (hw := hw)
 
 end
 

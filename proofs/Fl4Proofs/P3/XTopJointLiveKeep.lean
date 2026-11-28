@@ -11,6 +11,8 @@ that keeps the slots** (toward carrying XTopJointLive's `LiveJ` and DbgWF's
 * `DbgWFL.of_keep`: `DbgKeep` and the affinities kept keep `DbgWFL` at the
   same lists; `JAtZ.dbgWF_keep`: the affinities from `JAtZ` before and after
   (`SchedCore.aff`: every TCB on the current core).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `addDeadSet`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointDbgKeep
 open Aeneas Aeneas.Std Result
@@ -27,10 +29,10 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {D : Set U64}
 
 /-- **A dead set joins the dead set** (as XTopJointFinThreadU's `JAtZ.addDead`). -/
-theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+theorem JAtZB.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
     (hd : ∀ p ∈ E, DeadP (L := L) H s p) (hx : ∀ p ∈ E, DeadX (L := L) H Cs s p) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
+    JAtZB (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
   { J with
     jcov := ⟨fun q k hq => (J.jcov.th q k hq).imp_right (Or.imp_left Or.inl),
       fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left Or.inl),
@@ -40,6 +42,13 @@ theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
     zD := fun p hp => Or.inl (J.zD p hp) }
 
 
+
+/-- `JAtZB.addDeadSet` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+    (hd : ∀ p ∈ E, DeadP (L := L) H s p) (hx : ∀ p ∈ E, DeadX (L := L) H Cs s p) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
+  (J.toB.addDeadSet hd hx).toJAtZ J.ext
 /-- **`DbgWFL` across a `JAtZ` step keeping the debug words** (the
 affinities: every TCB on the current core before and after). -/
 theorem JAtZ.dbgWF_keep {s : S} {a : A} {σ : Fl4Spec.State Unit}

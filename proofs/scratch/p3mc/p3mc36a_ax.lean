@@ -25,7 +25,6 @@ import Fl4Proofs.P2.BootCfg
 #print axioms Fl4Proofs.P2.BootSt.cfg_init
 #print axioms Fl4Proofs.P2.BootSt.cfg_armInv
 #print axioms Fl4Proofs.P2.BootSt.cfg_noLoc
-#print axioms Fl4Proofs.P2.BootSt.cfg7_log
 #print axioms Fl4Proofs.P2.BootSt.cfg7_mem
 #print axioms Fl4Proofs.P2.BootSt.mapsP_cfg0
 #print axioms Fl4Proofs.P2.BootSt.mapsP_cfg1
@@ -48,11 +47,6 @@ import Fl4Proofs.P2.BootCfg
 #print axioms Fl4Proofs.P2.BootSt.mapsP_B
 #print axioms Fl4Proofs.P2.BootSt.noLoc_B
 #print axioms Fl4Proofs.P2.BootSt.exec_B
-#print axioms Fl4Proofs.P2.BootSt.famB
-#print axioms Fl4Proofs.P2.BootSt.premisesV12_B
-#print axioms Fl4Proofs.P2.BootSt.premisesV13_B
-#print axioms Fl4Proofs.P2.BootSt.runAllV12_B
-#print axioms Fl4Proofs.P2.BootSt.runAllV13_B
 #print axioms Fl4Proofs.P2.OpaqueSat.kcFL4
 #print axioms Fl4Proofs.P2.OpaqueSat.tcFL4
 #print axioms Fl4Proofs.P2.OpaqueSat.tcFL4one

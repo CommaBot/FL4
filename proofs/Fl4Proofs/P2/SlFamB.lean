@@ -216,8 +216,8 @@ def StartV2B (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP 
 
 variable {arI AR MR}
 
-/-- **An sl start of the new family** (module docstring). -/
-theorem startAt_slB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **`startAt_slB` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
+theorem startAt_slB_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
     {q : SP} {j : SlArg S}
     (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K s.mem)
@@ -233,7 +233,7 @@ theorem startAt_slB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic
   obtain ⟨σ', a, e', hc, hl, hμ, rfl⟩ := hG hR
   subst e'
   have hJ : SlJAt (L := L) K.toKLayout σ' := ChainOf.bun hC' σ' hCσ
-  have hrun := chain_run P hIoa hC' hCσ hEn.hct
+  have hrun := hRun hC' hCσ hEn.hct
   have hq : Fl4Proofs.P2.PathObl.SlQ st ar j.Locks j.n j.found j.Cs j.Ω j.Sg j.Ac K.toKLayout s.mem σ' :=
     ((hEn.toJ12 hA hrun).toJ11 hA).toQ hA hrun fun d hd => by
       obtain ⟨h1, h2⟩ := hJ.userOK.tcb d hd oAFFINITY (Or.inl rfl)
@@ -250,8 +250,17 @@ theorem startAt_slB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic
   rw [hc']
   try rfl
 
-/-- **`StartU2B` gives `StartAt` of the new family** (`startAt_UN` off sl, `startAt_slB` at sl). -/
-theorem startAt_UNB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **An sl start of the new family** (module docstring). -/
+theorem startAt_slB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
+    {q : SP} {j : SlArg S}
+    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K s.mem)
+    (h : StartU2B st ar hA a0 arI AR MR Ch K s.mem hK hU c hs q (.sl j)) :
+    StartAt (fl4LocW11JB st ar hA (masksWr_plain st) L.total a0 (.sl j) K s.mem hK hU) c hs s.mem q :=
+  startAt_slB_C st ar hA a0 (chainRun_of P hIoa) hC hE h
+
+/-- **`startAt_UNB` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
+theorem startAt_UNB_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
     {q : SP} {i : Fl4IxW (S := S)}
     (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K s.mem)
@@ -261,28 +270,37 @@ theorem startAt_UNB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic
     obtain ⟨_, ⟨nv, _⟩, _⟩ := hE
     exact nv
   cases i with
-  | sl j => exact startAt_slB st ar hA a0 P hIoa hC hE h
+  | sl j => exact startAt_slB_C st ar hA a0 hRun hC hE h
   | vmF j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .vmF j) h)
   | vmR j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .vmR j) h)
   | io j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .io j) h)
   | st j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .st j) h)
   | irq j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .irq j) h)
   | vq j =>
-    exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE
+    exact startAt_UN_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE
       (startU_of_U2 st ar hA a0 hC nv (i := .vq j) h)
 
-/-- **The sl start fact of a chain gives `SlV0`** (`sl_v0_SF` for `StartV2B`). -/
-theorem sl_v0_SFB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **`StartU2B` gives `StartAt` of the new family** (`startAt_UN` off sl, `startAt_slB` at sl). -/
+theorem startAt_UNB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
+    {q : SP} {i : Fl4IxW (S := S)}
+    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K s.mem)
+    (h : StartU2B st ar hA a0 arI AR MR Ch K s.mem hK hU c hs q i) :
+    StartAt (fl4LocW11JB st ar hA (masksWr_plain st) L.total a0 i K s.mem hK hU) c hs s.mem q :=
+  startAt_UNB_C st ar hA a0 (chainRun_of P hIoa) hC hE h
+
+/-- **`sl_v0_SFB` on the re-based platform** (gen 54, in place: `P : LocPlatCR` for `P : LocPlat` / `hIoa`). -/
+theorem sl_v0_SFB_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
     {ρ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : SlArg S}
     (h : StartV2B st ar hA a0 arI AR MR Ch K (view K.toKLayout c ρ) hK hU c hs q (.inl (.sl j))) :
@@ -297,7 +315,15 @@ theorem sl_v0_SFB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic a
   obtain ⟨σ', a'', e', hc, -, hμ, -⟩ := hG hR
   subst e'
   exact ⟨_, hc, slJAt_ksb (ChainOf.bun hC' _ hCσ), fun x hx hu => hμ x hx hu,
-    chain_act0 st P hIoa hC' hCσ hE.hct, chain_run P hIoa hC' hCσ hE.hct⟩
+    P.act0 hC' hCσ hE.hct, P.run hC' hCσ hE.hct⟩
+
+/-- **The sl start fact of a chain gives `SlV0`** (`sl_v0_SF` for `StartV2B`). -/
+theorem sl_v0_SFB (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
+    {ρ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : SlArg S}
+    (h : StartV2B st ar hA a0 arI AR MR Ch K (view K.toKLayout c ρ) hK hU c hs q (.inl (.sl j))) :
+    SlV0 st K c ρ :=
+  sl_v0_SFB_C st ar hA a0 (locPlatCR_of P hIoa) hC nv h
 
 end start
 

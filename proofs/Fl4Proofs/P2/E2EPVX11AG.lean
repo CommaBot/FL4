@@ -419,6 +419,34 @@ inductive ExecVX4d (LP : PathsP ι)
       ExecVX4d LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
       ExecVX4d LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
 
+/-- **`ExecVX4d` on the re-based platform** (gen 55): the same constructors over `Fl4StepVX4C`. -/
+inductive ExecVX4dC (LP : PathsP ι)
+    (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
+    (P : LocPlatC st arI AR MR) (s0 : Cfg U64 U64 U64 U64) (K0 : KLayoutP) (Ch0 : S → Prop) :
+    Cfg U64 U64 U64 U64 → KLayoutP → (S → Prop) → (U64 → U64) → Prop
+  | refl : ExecVX4dC LP SF P s0 K0 Ch0 s0 K0 Ch0 s0.mem
+  | step {s s' : Cfg U64 U64 U64 U64} {K K' : KLayoutP} {Ch Ch' : S → Prop} {c : U64} {E : U64 → U64} :
+      ExecVX4dC LP SF P s0 K0 Ch0 s K Ch E → Step s c s' → Fl4StepVX4C LP SF P s K Ch c s' K' Ch' →
+      /- [S] the VM layout fact at a VM serial exit -/
+      (SerStep s c → K'.vcpus ≠ ∅ → VmPweT K' s'.mem) →
+      ExecVX4dC LP SF P s0 K0 Ch0 s' K' Ch' (if SerStep s c then s'.mem else E)
+  | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {E : U64 → U64} {v a x : U64} :
+      ExecVX4dC LP SF P s0 K0 Ch0 s K Ch E → HwStepP K s v a x → ExecVX4dC LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
+  | mmu {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {E : U64 → U64} {a x : U64} :
+      ExecVX4dC LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
+      ExecVX4dC LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
+
+/-- An `ExecVX4d` run is an `ExecVX4dC` run at `P.toC`. -/
+theorem ExecVX4d.toC {LP : PathsP ι}
+    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64}
+    (h : ExecVX4d LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4dC LP SF P.toC s0 K0 Ch0 s K Ch E := by
+  induction h with
+  | refl => exact .refl
+  | step _ hS g hPw ih => exact .step ih hS g.toC hPw
+  | hw _ hH ih => exact .hw ih hH
+  | mmu _ hH ih => exact .mmu ih hH
+
 /-- **An `ExecVX4d` execution is an `ARunR` one at the epoch's paging words**; `hIns` also receives `VmPweT` in VM
 epochs (`execVX4c_aRunR`'s proof). -/
 theorem execVX4d_aRunR {LP : PathsP ι}

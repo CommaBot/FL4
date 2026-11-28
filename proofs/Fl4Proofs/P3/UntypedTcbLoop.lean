@@ -8,6 +8,10 @@ writes only inside the new TCB past its slots, the old debug-list head's
 created are still zero, every non-null slot is a slot of the old typed heap,
 and the debug-list head word holds 0 or a TCB outside the region not yet
 used.
+
+(mmuAD gen 42b18) `create_loop_rel_tcb`'s proof is now an instance of UntypedLoop's `create_new_objects_loopI`
+(invariant `LoopInv ∧ TcbX`, object step `create_step`, insert step `loop_step` with `tcbx_insert`; statement
+unchanged). `create_loop_frame_tcb` is not yet (its `WFrame` part).
 -/
 import Fl4Proofs.P3.UntypedTcb
 open Aeneas Aeneas.Std Result
@@ -286,91 +290,61 @@ theorem create_loop_rel_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th th
   have hz12 : zOf nt.val us.val = 12 := by simp [zOf, hnt]
   have hk : 2 ^ zOf nt.val us.val = 4096 := by rw [hz12]; rfl
   have hn14 : nt.val < 14 := by omega
-  unfold objects.create_new_objects
-  rw [object_size_eq nt us hn14 hus]
-  simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have h63 : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val = zOf nt.val us.val := by
-    have : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val =
-        (⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64).val % 64 := by
-      simp only [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 6
-    rw [this]
-    show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat % 64 = _
-    simp; omega
   have hdsl : ∀ j, j < win.val → IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
     fun j hj => ⟨dest, off.val + j, Or.inl ⟨r, hdesto, by omega⟩, rfl⟩
   have hnewcv : ∀ i, i < win.val →
       CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i * 2 ^ zOf nt.val us.val)⟩ us dev) := by
     intro i hi; rw [hk, hnt]; exact hnew i hi
-  refine loop.spec_decr_nat (measure := fun x => win.val - x.2.2.val)
-    (inv := fun x => x.2.1 = ar ∧ x.2.2.val ≤ win.val ∧ LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
-      (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
-      ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
-      base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
-      (base.val + win.val * 4096) zhi G0 m0 (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) x.1 x.2.2.val ∧
-      TcbX (L := L) th th' ksb0 DW base.val win.val zhi x.1 x.2.2.val) _ _ _ ?_ ?_
-  · rintro ⟨s1, a1, i⟩ ⟨ha, hiw, hI, hXi⟩
-    simp only at ha hiw hI hXi ⊢
-    subst ha
-    unfold objects.create_new_objects_loop.body
-    by_cases hit : i < win
-    · rw [if_pos hit]
-      have hit' : i.val < win.val := hit
-      simp only [lift, bind_ok]
-      have hik : (i.val + 1) * 4096 ≤ win.val * 4096 := Nat.mul_le_mul_right _ hit'
-      rw [Nat.add_mul, Nat.one_mul] at hik
-      obtain ⟨i2, hi2, hv2, -⟩ := spec_exists (UScalar.ShiftLeft_spec i
-        ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64) _
-        (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
-      rw [hi2]; simp only [bind_ok]
-      have hi2v : i2.val = i.val * 4096 := by
-        rw [hv2, h63, Nat.shiftLeft_eq, hk]
-        simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-      have hi3 : core.num.U64.wrapping_add base i2 = ⟨BitVec.ofNat 64 (base.val + i.val * 4096)⟩ := by
-        apply u64_ofNat_eq
-        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hi2v]; omega
-      rw [hi3]
-      obtain ⟨⟨c, s2, a2⟩, hcr, hc, ha2, hI2, hk2, hz2, hX22, hm2⟩ := spec_exists (create_step (L := L) arI a1 th th'
-        hP' ksb0 DW base.val win.val zhi hDWal hDWout hDWreg hDW rfl hzhi hfit hal hnew
-        (fun j hj => hext _ (hdsl j hj)) (hext _ hppo) nt us dev hnt s1 i.val hit' hI hXi)
-      simp only at hc ha2 hI2 hk2 hz2 hX22 hm2
-      subst hc ha2
-      rw [hcr]; simp only [bind_ok, uncurry_apply_pair]
-      have hi4 : (core.num.U64.wrapping_add off i).bv = BitVec.ofNat 64 (off.val + i.val) := by
+  refine WP.spec_mono (create_new_objects_loopI arI ar s nt _ dest off win base us dev _ (zOf nt.val us.val)
+    (by show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat = _; simp; omega) (object_size_eq nt us hn14 hus)
+    (by rw [hz12]; decide) (by rw [hk]; exact hfit)
+    (fun s1 i => LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
+        (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
+        ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
+        base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
+        (base.val + win.val * 4096) zhi G0 m0 (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) s1 i ∧
+      TcbX (L := L) th th' ksb0 DW base.val win.val zhi s1 i)
+    (fun s2 c i => c = .Thread ⟨BitVec.ofNat 64 (base.val + i * 4096)⟩ ∧ LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
+        (Fl4Spec.createCap (Z := Unit) t us.val (pp.bv, idx) dev)
+        ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 base.val) win.val (2 ^ zOf nt.val us.val)))
+        base.val (2 ^ zOf nt.val us.val) win.val (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off.val + j)))
+        (base.val + win.val * 4096) zhi G0 m0 (cjOf nt.val us dev base.val (2 ^ zOf nt.val us.val)) s2 i ∧
+      L.ksb s2 = ksb0 ∧ ZeroRegion (L.mem s2) (base.val + (i + 1) * 4096) (base.val + win.val * 4096) ∧
+      (∀ a, IsSlot th' a → (∃ c, capAt (L.mem s2) a = ok c ∧ c ≠ .Null) → IsSlot th a) ∧
+      L.mem s2 DW = ⟨BitVec.ofNat 64 (base.val + i * 4096)⟩)
+    (fun s1 i hi ⟨hI, hXi⟩ => by
+      rw [show (⟨BitVec.ofNat 64 (base.val + i * 2 ^ zOf nt.val us.val)⟩ : U64) =
+        ⟨BitVec.ofNat 64 (base.val + i * 4096)⟩ by rw [hk]]
+      exact WP.spec_mono (create_step (L := L) arI ar th th' hP' ksb0 DW base.val win.val zhi hDWal hDWout hDWreg hDW
+        rfl hzhi hfit hal hnew (fun j hj => hext _ (hdsl j hj)) (hext _ hppo) nt us dev hnt s1 i hi hI hXi)
+        fun _ ⟨hc, ha2, hI2, hk2, hz2, hX22, hm2⟩ => ⟨ha2, hc, hI2, hk2, hz2, hX22, hm2⟩)
+    (fun s2 c iw hi ⟨hc, hI2, hk2, hz2, hX22, hm2⟩ => by
+      subst hc
+      have hi4 : (core.num.U64.wrapping_add off iw).bv = BitVec.ofNat 64 (off.val + iw.val) := by
         rw [bv_eq_ofNat]; congr 1
-        have : off.val + i.val < 2 ^ 64 := by
+        have : off.val + iw.val < 2 ^ 64 := by
           have := Nat.pow_le_pow_right (show 0 < 2 by decide) hr; omega
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-      rw [show obj.Slot.index dest (core.num.U64.wrapping_add off i) =
-        ok (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val))) by
-          rw [spec_eq_ok (slot_index_spec dest _), hi4]]
-      simp only [bind_ok]
-      have hcap : capability.Cap.Thread ⟨BitVec.ofNat 64 (base.val + i.val * 4096)⟩ =
-          newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev := by
+      rw [hi4]
+      have hcap : capability.Cap.Thread ⟨BitVec.ofNat 64 (base.val + iw.val * 4096)⟩ =
+          newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + iw.val * 2 ^ zOf nt.val us.val)⟩ us dev := by
         rw [hk, hnt]; rfl
       rw [hcap]
       obtain ⟨σi, Gi, -, -, -, hM2, -, -, hsrc2, hnull2, -⟩ := id hI2
       have hsm : cslotAddr (pp.bv, idx) ∈ Gi.chains.flatten := (hM2.members _).2 ⟨hext _ hppo, _, hsrc2, by simp⟩
-      have hdn : slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val)) ∉ Gi.chains.flatten := by
+      have hdn : slotAddr dest.bv (BitVec.ofNat 64 (off.val + iw.val)) ∉ Gi.chains.flatten := by
         intro h; obtain ⟨-, c0, h0, hn0⟩ := (hM2.members _).1 h
-        rw [hnull2 i.val le_rfl hit'] at h0; exact hn0 (eq_of_ok_eq h0).symm
-      have he : EncWf (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev) :=
+        rw [hnull2 iw.val le_rfl hi] at h0; exact hn0 (eq_of_ok_eq h0).symm
+      have he : EncWf (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + iw.val * 2 ^ zOf nt.val us.val)⟩ us dev) :=
         newCap_encWf (by omega) _ us dev hus (canonical_of_high (by
           show 2 ^ 64 - 2 ^ 47 ≤ (BitVec.ofNat 64 _).toNat; rw [hk]; simp; omega))
-      obtain ⟨s3, hs3, hL3⟩ := spec_exists (loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht
-        (by omega) hus (by omega) (fun h => by omega) off.val win.val base.val hwin (by rw [hk]; exact hfit) (CanonR.of_high hhigh) hpA
-        (by rw [hk]; exact hAp) hnewcv (base.val + win.val * 4096) zhi hzs G0 m0 hsrcd s2 i.val hit' hI2)
-      obtain ⟨s3', hs3', hX3⟩ := spec_exists (tcbx_insert (L := L) th th' hP' hext ksb0 DW base.val win.val zhi hDWal
-        hDWout hold hzhi hnew hfit hal s2 Gi hM2 _ _ hsm hppo (hdsl i.val hit') hdn _ he i.val hit' hk2 hz2 hX22 hm2)
-      rw [hs3] at hs3'; cases eq_of_ok_eq hs3'
-      rw [hs3]; simp only [bind_ok]
-      step as ⟨i5, hi5⟩
-      refine ⟨by omega, by rw [hi5]; exact hL3, by rw [hi5]; exact hX3, by omega⟩
-    · rw [if_neg hit, WP.spec_ok]
-      have : i.val = win.val := by have : ¬ i.val < win.val := hit; omega
-      rw [this] at hI
-      exact ⟨rfl, hI, hXi.1⟩
-  · exact ⟨rfl, by simp, hinv, hX⟩
+      exact WP.spec_and (loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht
+        (by omega) hus (by omega) (fun h => by omega) off.val win.val base.val hwin (by rw [hk]; exact hfit)
+        (CanonR.of_high hhigh) hpA (by rw [hk]; exact hAp) hnewcv (base.val + win.val * 4096) zhi hzs G0 m0 hsrcd s2
+        iw.val hi hI2)
+        (tcbx_insert (L := L) th th' hP' hext ksb0 DW base.val win.val zhi hDWal hDWout hold hzhi hnew hfit hal s2 Gi
+          hM2 _ _ hsm hppo (hdsl iw.val hi) hdn _ he iw.val hi hk2 hz2 hX22 hm2))
+    ⟨hinv, hX⟩) fun _ ⟨ha, hL, hX'⟩ => ⟨ha, hL, hX'.1⟩
 
 end
 

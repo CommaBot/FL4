@@ -7,8 +7,4 @@ import Fl4Proofs.P2.E2EPU13
 #print axioms Fl4Proofs.P2.E2EP.vm_cur_home
 #print axioms Fl4Proofs.P2.E2EP.rrDR0_vn
 #print axioms Fl4Proofs.P2.E2EP.vmR_fh_annV
-#print axioms Fl4Proofs.P2.E2EP.vmR_act0_SF
 #print axioms Fl4Proofs.P2.E2EP.vmR_k0_fh
-#print axioms Fl4Proofs.P2.E2EP.vmR_annV_rfh
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU13
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU12of13

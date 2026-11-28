@@ -16,6 +16,15 @@ register: the frame is `nfrStep`'s (XTopJointFinThread) with the spec's
   register words are TCB words, `IRel.iframe_of`), the footprint inside
   `FinW` (`finW_keeps`: the yield, MCP, buffer and call-stack words kept),
   P1's `BlkOK` and `KW` footprint given.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `deadP_qk`; each
+`JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
+
+(mmuAD gen 42b18) `reg_frameFZ` (P3/JAtZV3Sched's gen-31 variant: post at `Z` with the `FinW` footprint) is now the
+in-place generalisation of `reg_frameF`; `JAtZB.reg_frameF` / `JAtZ.reg_frameF` are its corollaries (witness `Z.vs`;
+`ext` by `JAtZ.ext_oobj`). `regFW_finW` (new, out of `reg_frameF`'s proof): a `RegFW` word is a `FinW` word.
+`JAtZB.reg_frame` moved here. P3/JAtZV3Sched's copies deleted.
 -/
 import Fl4Proofs.P3.XTopJointFinThreadSc
 import Fl4Proofs.P3.BufFr
@@ -305,7 +314,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 /-- **The dead stay dead across a quiet step** (`deadP_keep`). -/
-theorem JAtZ.deadP_qk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S} {σ3 : Fl4Spec.State Unit}
+theorem JAtZB.deadP_qk (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S} {σ3 : Fl4Spec.State Unit}
     (hA : QKY σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
@@ -324,6 +333,16 @@ theorem JAtZ.deadP_qk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S}
   · obtain ⟨w, hw, e⟩ := hA.sc hx
     exact ⟨w, hw, Or.inl (by rw [e]), Or.inl (by rw [e])⟩
 
+/-- `JAtZB.deadP_qk` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_qk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S} {σ3 : Fl4Spec.State Unit}
+    (hA : QKY σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
+    (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
+    (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
+    ∀ q ∈ D, DeadP (L := L) H s3 q :=
+  Fl4Proofs.P3.JAtZB.deadP_qk (J := J.toB) (hA := hA) (hS3 := hS3) (hI3 := hI3) (hw := hw) (k3 := k3) (hAS := hAS) (hY3 := hY3) (hYK := hYK)
+
 /-- The words a register step writes: TCB registers and SCs' `CONSUMED`
 words. -/
 def RegCW (T C : Set U64) (b : U64) : Prop :=
@@ -333,12 +352,19 @@ def RegCW (T C : Set U64) (b : U64) : Prop :=
 `clear_fault`). -/
 def RegFW (T C : Set U64) (b : U64) : Prop := RegCW T C b ∨ ∃ y ∈ T, b.val = y.val + 3376
 
+/-- A `RegFW` word is a `FinW` word (the registers and fault word are TCB words, a consumed word an SC header
+word); mmuAD gen 42b18, out of `reg_frameF`'s proof for its `ext` rebuild. -/
+theorem regFW_finW {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {b : U64} (hb : RegFW T C b) : Ipc.FinW (st := st) T N C c s σ b := by
+  rcases hb with (⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩
+  · exact Or.inr ⟨y, hy, b.val - y.val, by omega, by omega, by omega, by omega, by omega, by omega⟩
+  · exact Or.inl (KFoot.of_sw (sw_hdr hS hq (K := 8#u64) (by simp) (by simp) (by decide)))
+  · exact Or.inr ⟨y, hy, 3376, by omega, by omega, by omega, by omega, by omega, hb⟩
+
 set_option maxHeartbeats 8000000 in
-/-- **`JAtZ` across a register step** (module docstring): FL4 writing TCB
-registers and fault words and SCs' consumed words, the spec a quiet step
-keeping the yield fields (`YKeep`), `Inv` after given (`Inv.scFields`,
-`ArchStep.inv`). -/
-theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+/-- **`reg_frameF` at `Z` itself, with the footprint**: the witness of `reg_frameF` is `Z.vs`, so the
+post-state `JAtZB` is at `Z`; also names the `FinW` footprint (gen 31, for the VM-epoch lift). -/
+theorem JAtZB.reg_frameFZ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {Ac' : Set U64}
     (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hw : P1.WritesIn st s s' (RegFW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
@@ -346,7 +372,8 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
       (P1.Heap.scBits H) ∅ s)) :
-    ∃ V', JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' := by
+    P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) ∧
+      JAtZB (L := L) arI AR Z H Cs Ac' Lst D s' a σ' := by
   have hI := J.xtop.irelK J.ks J.buf
   have hT : TcbPlaced Z.T := J.ip.e.tcb
   have hS := J.xtop.fin.1.1.1
@@ -359,11 +386,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl
         ⟨q, hq, x0, n0, hk0, hx0.in_obj (hx0.hdr (K := 8#u64) (by simp) (by simp)).2⟩))))))
     · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
-  have hwF : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) := hw.mono fun b hb => by
-    rcases hb with (⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩
-    · exact Or.inr ⟨y, hy, b.val - y.val, by omega, by omega, by omega, by omega, by omega, by omega⟩
-    · exact Or.inl (KFoot.of_sw (sw_hdr hS hq (K := 8#u64) (by simp) (by simp) (by decide)))
-    · exact Or.inr ⟨y, hy, 3376, by omega, by omega, by omega, by omega, by omega, hb⟩
+  have hwF : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) := hw.mono fun _ hb => regFW_finW hS hb
   have hck : Fl4Proofs.P3.CKeep σ σ' := hA.ckeepP
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hI3 hAR hF.1 hck.cdt hck.orig hck.ks hF.2
@@ -392,11 +415,50 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
         (DXKeep.of_dbg hKd (J.tdkeep_of hwF fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
-  have hC0 := JCs.same J hF.1 hA.ksz
+  have hC0 := JCs.sameB J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
+  have JZ := J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD
+  exact ⟨hwF, JZ⟩
+
+/-- `JAtZB.reg_frameFZ` with the VSpace sets existential (their witness `Z.vs`). -/
+theorem JAtZB.reg_frameF (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64}
+    (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hw : P1.WritesIn st s s' (RegFW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s)) :
+    ∃ V', JAtZB (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' :=
+  ⟨Z.vs, (J.reg_frameFZ hI3 hw hA hyk hInv hblk hfoot).2⟩
+
+/-- `JAtZB.reg_frameFZ` at `JAtZ` (via `JAtZ.toB`; `ext` across the `FinW` footprint). -/
+theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64}
+    (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hw : P1.WritesIn st s s' (RegFW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s)) :
+    ∃ V', JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' :=
+  have hS := J.xtop.fin.1.1.1
+  have h := J.toB.reg_frameFZ hI3 hw hA hyk hInv hblk hfoot
+  ⟨Z.vs, h.2.toJAtZ (J.ext_oobj h.1 (fun _ hb => Ipc.FinW.oobj hS hb) (fun _ hb => Ipc.FinW.nv hS hb))⟩
 
 /-- **`JAtZ` across a register step** (`reg_frameF` without fault words). -/
+theorem JAtZB.reg_frame (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64}
+    (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hw : P1.WritesIn st s s' (RegCW Z.T Z.C)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s)) :
+    ∃ V', JAtZB (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' :=
+  J.reg_frameF hI3 (hw.mono fun _ h => Or.inl h) hA hyk hInv hblk hfoot
+
+/-- `JAtZB.reg_frame` at `JAtZ` (via `JAtZ.toB`). -/
 theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {Ac' : Set U64}
     (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')

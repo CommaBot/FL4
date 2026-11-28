@@ -18,6 +18,8 @@ the start fact.
   `VSafe9`). Open: `VSafe` [J].
 
 No existing statement changed except the root import list.
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `serializable_fl4_localU28`.
 -/
 import Fl4Proofs.P2.E2EPU27
 import Fl4Proofs.P2.InvDelPteAnnA
@@ -90,60 +92,6 @@ theorem inv_annV_pteA {Ch : S → Prop}
     all_goals rfl
   · exact False.elim hf
   · exact False.elim hf
-
-/-- **FL4 end to end with `VSafe9` discharged at every invocation start** (module docstring), over U18's family.
-The conclusion is about the physical memory. -/
-theorem serializable_fl4_localU28 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U28At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_WPRV10S ?_ ?_ ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  · intro Ch K s hK hU c hs q i hC hE hsf
-    rcases i with i | ((j | j) | j)
-    · exact startAt_UNC st ar hA a0 P hIoa hC hE hsf
-    · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · intro s K hK hU c k ρ i hM hV hn
-    exact vSafe_ioC st ar hA a0 hM hV (not_not.mp hn)
-  · intro Ch s K hK hU c k ρ i hC hE hsf hM hV hf
-    rcases hf with ((((((((((((((hf | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf) | hf)
-    · exact vmF_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact vmR_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact sl_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact st_annV_fh st ar hA a0 hC hE hsf hM hV hf
-    · exact st_annV_h st ar hA a0 hC hE hsf hM hV hf
-    · exact vx_annV st ar hA a0 hsf hM hV hf
-    · exact vt_annV st ar hA a0 hE hsf hM hV hf
-    · exact irq_annV_fh st ar hA a0 hC hE hsf hM hV hf
-    · exact irq_annV_hn st ar hA a0 hC hE hsf hM hV hf
-    · exact irq_annV_wf st ar hA a0 hC hE hsf hM hV hf
-    · exact irq_annV_wh st ar hA a0 hC hE hsf hM hV hf
-    · exact inv_annV_del st ar hA a0 hC hE hsf hM hV hf
-    · exact inv_annV_delA st ar hA a0 hC hE hsf hM hV hf
-    · exact inv_annV_cmA st ar hA a0 hC hE hsf hM hV hf
-    · exact inv_annV_pteA st ar hA a0 hC hE hsf hM hV hf
-
-/-- **U27's statement follows from U28** (every U27 execution is a U28 one). -/
-theorem serializable_fl4_localU27of28 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U27At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU28 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV10_mono (fun _ _ _ _ _ _ hf => Or.inl hf) h) hq
 
 end all
 

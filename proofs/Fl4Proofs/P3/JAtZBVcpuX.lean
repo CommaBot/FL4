@@ -30,6 +30,9 @@ change, `associateVcpuTcb` / `vcpuDetach`): FL4's write of `vTcbA p` is a `JW` w
 side of that step.
 
 No named premise. No existing statement changed.
+
+Gen 42b11 (mmuAD): `XTopAt.vcpuSpec` generalised in place to **`XTopAt.archSpec`** (a VCPU or guest-table object
+replaced by one of the same `aaType`), `vcpuSpec` its corollary (statement unchanged).
 -/
 import Fl4Proofs.P3.JAtZBVcpu
 import Fl4Proofs.P3.XTopBuf
@@ -44,43 +47,55 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
 
 set_option maxHeartbeats 4000000 in
-/-- **`XTopAt` across a spec VCPU-object update**, FL4's state kept (module docstring). -/
-theorem XTopAt.vcpuSpec {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (hX : XTopAt (L := L) AR Z s a σ) {p : Fl4Spec.ObjRef} {vs : Fl4Spec.VcpuState}
-    (hk : σ.kheap p = some (.archObj (.vcpu vs))) (vs' : Fl4Spec.VcpuState) :
-    XTopAt (L := L) AR Z s a (Notif.updK σ p (.archObj (.vcpu vs'))) := by
-  have F := arFr_vcpu hk vs'
+/-- **`XTopAt` across a spec update of a VCPU or guest-table object** by one of the same `aaType`, FL4's state kept
+(mmuAD gen 42b11: `XTopAt.vcpuSpec` generalised in place, for the EPT table map's `storeGuestEntry`; `vcpuSpec` is
+its corollary). -/
+theorem XTopAt.archSpec {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {p : Fl4Spec.ObjRef} {ao : Fl4Spec.ArchKernelObj}
+    (hk : σ.kheap p = some (.archObj ao)) (hvx : (∃ vs, ao = .vcpu vs) ∨ ∃ l es, ao = .ept l es)
+    (ao' : Fl4Spec.ArchKernelObj) (ht : Fl4Spec.aaType ao' = Fl4Spec.aaType ao) :
+    XTopAt (L := L) AR Z s a (Notif.updK σ p (.archObj ao')) := by
+  have F := arFr_arch hk ao' ht
   obtain ⟨⟨hS, hR, hPt, hPI, hCO⟩, ⟨hPl, ⟨hSt, hV, hM, hC, hI⟩, hFI, hD, hMO, hIA, hSA⟩, -, hE⟩ := hX
   have hS' : TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s a
-      (Notif.updK σ p (.archObj (.vcpu vs'))) :=
+      (Notif.updK σ p (.archObj ao')) :=
     TopSR.step0 (W := fun _ => False) hS (fun _ h => h.elim) (P1.WritesIn.refl _ _)
       (OStep.arch (Or.inr (Or.inr ⟨_, hk⟩)) _) rfl rfl
   have hkeep : ∀ q : Fl4Spec.ObjRef, σ.kheap q ≠ σ.kheap p →
-      (Notif.updK σ p (.archObj (.vcpu vs'))).kheap q = σ.kheap q := by
+      (Notif.updK σ p (.archObj ao')).kheap q = σ.kheap q := by
     intro q hq
     have e : q ≠ p := fun e => hq (by rw [e])
     simp [Notif.updK, e]
   refine ⟨⟨hS', ?_, ?_, hPI, hCO⟩, ⟨hPl, ⟨?_, hV, hM, ⟨hC.cdt, hC.cdt_slot, hC.orig, hC.par_slot⟩, hI⟩,
     ⟨hFI.kt.sub F.ksub, hFI.fm⟩, hD, hMO, hIA, hSA.mono F.szKeep⟩,
     IpcRel.of hS'.1.2.2.1 hS'.1.2.1 (sched_sc hS'.1.1), hE.mono rfl F.szKeep⟩
-  · refine hR.frame (fun _ _ => rfl) rfl fun q hq => ?_
-    obtain ⟨f, hf, -⟩ := hR.pool q hq
-    exact hkeep _ (by rw [hf, hk]; intro h; cases h)
-  · refine hPt.frame (fun _ _ => rfl) fun q hq => ?_
-    rcases hq with hq | hq | hq | hq
-    · obtain ⟨g, hg, -⟩ := hPt.l4 q hq
-      exact hkeep _ (by rw [hg, hk]; intro h; cases h)
-    · obtain ⟨g, hg, -⟩ := hPt.l3 q hq
-      exact hkeep _ (by rw [hg, hk]; intro h; cases h)
-    · obtain ⟨g, hg, -⟩ := hPt.l2 q hq
-      exact hkeep _ (by rw [hg, hk]; intro h; cases h)
-    · obtain ⟨g, hg, -⟩ := hPt.l1 q hq
-      exact hkeep _ (by rw [hg, hk]; intro h; cases h)
-  · refine ⟨fun q r hq => ?_, fun t ht => ?_⟩
-    · obtain ⟨cs, hq', h1, h2⟩ := hSt.cnode q r hq
-      exact ⟨cs, (hkeep _ (by rw [hq', hk]; intro h; cases h)).trans hq', h1, h2⟩
-    · obtain ⟨x, hx, h1⟩ := hSt.tcb t ht
-      exact ⟨x, (hkeep _ (by rw [hx, hk]; intro h; cases h)).trans hx, h1⟩
+  all_goals rcases hvx with ⟨vs, rfl⟩ | ⟨l, es, rfl⟩
+  all_goals first
+    | (refine hR.frame (fun _ _ => rfl) rfl fun q hq => ?_
+       obtain ⟨f, hf, -⟩ := hR.pool q hq
+       exact hkeep _ (by rw [hf, hk]; intro h; cases h))
+    | (refine hPt.frame (fun _ _ => rfl) fun q hq => ?_
+       rcases hq with hq | hq | hq | hq
+       · obtain ⟨g, hg, -⟩ := hPt.l4 q hq
+         exact hkeep _ (by rw [hg, hk]; intro h; cases h)
+       · obtain ⟨g, hg, -⟩ := hPt.l3 q hq
+         exact hkeep _ (by rw [hg, hk]; intro h; cases h)
+       · obtain ⟨g, hg, -⟩ := hPt.l2 q hq
+         exact hkeep _ (by rw [hg, hk]; intro h; cases h)
+       · obtain ⟨g, hg, -⟩ := hPt.l1 q hq
+         exact hkeep _ (by rw [hg, hk]; intro h; cases h))
+    | (refine ⟨fun q r hq => ?_, fun t ht => ?_⟩
+       · obtain ⟨cs, hq', h1, h2⟩ := hSt.cnode q r hq
+         exact ⟨cs, (hkeep _ (by rw [hq', hk]; intro h; cases h)).trans hq', h1, h2⟩
+       · obtain ⟨x, hx, h1⟩ := hSt.tcb t ht
+         exact ⟨x, (hkeep _ (by rw [hx, hk]; intro h; cases h)).trans hx, h1⟩)
+
+/-- **`XTopAt` across a spec VCPU-object update**, FL4's state kept (module docstring). -/
+theorem XTopAt.vcpuSpec {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) {p : Fl4Spec.ObjRef} {vs : Fl4Spec.VcpuState}
+    (hk : σ.kheap p = some (.archObj (.vcpu vs))) (vs' : Fl4Spec.VcpuState) :
+    XTopAt (L := L) AR Z s a (Notif.updK σ p (.archObj (.vcpu vs'))) :=
+  hX.archSpec hk (Or.inl ⟨vs, rfl⟩) _ rfl
 
 end
 

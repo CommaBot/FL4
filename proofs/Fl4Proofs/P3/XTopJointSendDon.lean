@@ -22,6 +22,10 @@ reschedule (the caller is current), and binds the SC to the receiver.
   donation: FL4's `donate_bound_refines` lifted by `tk_lift`, P1's
   `donate.ipc` and `donate.kwAX`, the spec's outcome `donate_cur_eq`, then
   the receiver `Running`, `JAtZ` by `wake_postG` at `dnSt`, the tail.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`:
+`scOwned_not_dead`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB`
+copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJointSendCall
 import Fl4Proofs.P3.IpcSendDon
@@ -674,7 +678,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
 
 
 /-- An SC bound to a thread is not dead (a dead SC's `TCB` word is 0). -/
-theorem JAtZ.scOwned_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t q : U64} (ht : t ∈ Z.T)
+theorem JAtZB.scOwned_not_dead (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t q : U64} (ht : t ∈ Z.T)
     {y : Fl4Spec.SchedContext} {k : Nat} (hq : σ.kheap q.bv = some (.schedContext y k))
     (hyt : y.scTcb = some t.bv) : ¬ DeadP (L := L) H s q := by
   intro hd
@@ -690,6 +694,12 @@ theorem JAtZ.scOwned_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) 
   rw [← scTcbA_eq] at h24
   rw [h24] at d1
   exact (hc.tcbs t ht).ne0 (by rw [d1]; rfl)
+
+/-- `JAtZB.scOwned_not_dead` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.scOwned_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t q : U64} (ht : t ∈ Z.T)
+    {y : Fl4Spec.SchedContext} {k : Nat} (hq : σ.kheap q.bv = some (.schedContext y k))
+    (hyt : y.scTcb = some t.bv) : ¬ DeadP (L := L) H s q :=
+  Fl4Proofs.P3.JAtZB.scOwned_not_dead (J := J.toB) (ht := ht) (hq := hq) (hyt := hyt)
 
 set_option maxHeartbeats 64000000 in
 /-- **A send to a waiting receiver without an SC at `J`, with the caller's SC

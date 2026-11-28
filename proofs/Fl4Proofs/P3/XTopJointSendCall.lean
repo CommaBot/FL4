@@ -17,6 +17,13 @@ nor the grant-reply right, so FL4 (and l4v `send_ipc`) makes the caller
   (`set_thread_state_c`, P1's `sts_all` with the caller's queue bits clear,
   `JAtZ.curBits`), then the receiver `Running` and the tail; the spec's
   outcome `sendIpc_callInactive_eq`.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `deadP_dfrCI`;
+each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
+
+(mmuAD gen 42b18) `wake_postCI` stated over `JAtZB` in place (post at `Z`); `JAtZ.wake_postCI` its corollary (witness
+`Z.vs`, `ext` by `JAtZ.ext_oobj` over `CnW`). P3/JAtZV3FaultRecvB's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointNoFault
@@ -258,7 +265,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a `DWFr` step and a change of no dead
 object** (`hkq`; ScSignalDonJ's `JAtZ.deadP_dfr` with the heap of the dead
 read at `σa`). -/
-theorem JAtZ.deadP_dfrCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
+theorem JAtZB.deadP_dfrCI (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
     {σa σ3 : Fl4Spec.State Unit} (F : DWFr r t σ σa) (hkq : ∀ q ∈ D, σ3.kheap q.bv = σa.kheap q.bv)
     (hidl : σ3.idleThread = σ.idleThread) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
@@ -360,12 +367,24 @@ theorem JAtZ.deadP_dfrCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t 
     · obtain ⟨-, o, xo, ho, hsc⟩ := F.scb q.bv x n _ n hx hk3 e
       exact absurd hd (J.ntfnSc_not_dead hx ho hsc)
 
-set_option maxHeartbeats 8000000 in
+/-- `JAtZB.deadP_dfrCI` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_dfrCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
+    {σa σ3 : Fl4Spec.State Unit} (F : DWFr r t σ σa) (hkq : ∀ q ∈ D, σ3.kheap q.bv = σa.kheap q.bv)
+    (hidl : σ3.idleThread = σ.idleThread) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
+    (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
+    (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3)
+    (ht : ∀ q ∈ D, q.bv ≠ t) :
+    ∀ q ∈ D, DeadP (L := L) H s3 q :=
+  Fl4Proofs.P3.JAtZB.deadP_dfrCI (J := J.toB) (F := F) (hkq := hkq) (hidl := hidl) (hS3 := hS3) (hI3 := hI3) (hw := hw) (k3 := k3) (hAS := hAS) (hY3 := hY3) (hYK := hYK) (ht := ht)
+
+set_option maxHeartbeats 4000000 in
 /-- **A wake without a donation, then the caller's `Inactive`, keeps `JAtZ`**
 (ScSignalDonJ's `JAtZ.wake_postD` for the frame `DWFr` up to `σa`, then
 `ciSt`: the caller `c`'s TCB to `Inactive`, the action maybe a reschedule;
 `c` not dead). -/
-theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t c : Fl4Spec.ObjRef}
+theorem JAtZB.wake_postCI (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t c : Fl4Spec.ObjRef}
     {s' : S} {σa : Fl4Spec.State Unit} {xc : Fl4Spec.Tcb} (hkc : σa.kheap c = some (.tcb xc))
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' (ciSt σa c xc))
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
@@ -380,7 +399,7 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
     (ht : ∀ q ∈ D, q.bv ≠ t) (hcD : ∀ q ∈ D, q.bv ≠ c) (htT : ∃ u ∈ Z.T, u.bv = t) :
-    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a (ciSt σa c xc) := by
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a (ciSt σa c xc) := by
   set σ' := ciSt σa c xc with hσ'
   have G := (ciSt_skD (σ := σa) (c := c) (x := xc))
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
@@ -451,12 +470,31 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       ciSt_nsc (F.nsc J.nsc), I3, hcur3, ciSt_own hkc (F.own htT J.own), ciSt_off (F.off J.off),
       hAI3, B3, ciSt_isorted hkc (F.isorted J.isorted), hrun3, hblk⟩
-  have hC0 := JCs.same J hF.1 (F.ksz.trans (ciSt_ksz hkc))
+  have hC0 := JCs.sameB J hF.1 (F.ksz.trans (ciSt_ksz hkc))
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch) (fun q ao h => by
+  exact J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch) (fun q ao h => by
       have h1 := F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
         (fun _ e => by cases e) (fun _ e => by cases e)
-      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
+      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD
+
+/-- `JAtZB.wake_postCI` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t c : Fl4Spec.ObjRef}
+    {s' : S} {σa : Fl4Spec.State Unit} {xc : Fl4Spec.Tcb} (hkc : σa.kheap c = some (.tcb xc))
+    (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' (ciSt σa c xc))
+    (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s))
+    (F : DWFr n t σ σa) (I3 : Inv (ciSt σa c xc)) (B3 : BlockedScActive (ciSt σa c xc))
+    (hAI3 : ActIdle (ciSt σa c xc))
+    (hcur3 : (ciSt σa c xc).schedulerAction = .chooseNewThread ∨ CurInv (ciSt σa c xc))
+    (hrun3 : CurRunM (ciSt σa c xc))
+    (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
+      Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
+    (ht : ∀ q ∈ D, q.bv ≠ t) (hcD : ∀ q ∈ D, q.bv ≠ c) (htT : ∃ u ∈ Z.T, u.bv = t) :
+    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a (ciSt σa c xc) :=
+  ⟨Z.vs, (Fl4Proofs.P3.JAtZB.wake_postCI (J := J.toB) (hkc := hkc) (hIR := hIR) (hF := hF) (hw := hw) (hblk := hblk) (hfoot := hfoot) (F := F) (I3 := I3) (B3 := B3) (hAI3 := hAI3) (hcur3 := hcur3) (hrun3 := hrun3) (hRR := hRR) (ht := ht) (hcD := hcD) (htT := htT)).toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun _ hb => J.cnW_nv hb))⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **A call to a waiting receiver at `J` where the caller gets no reply**

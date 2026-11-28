@@ -330,11 +330,12 @@ theorem resolve_in {OS : Set U64} {s : S} (hT : SlotTy st T Ω Sg H Rp Nt OS s) 
   · exact hc
 
 set_option maxHeartbeats 2000000 in
-/-- **The CNode operations' target lookup returns a slot of `OS`** from a `RootOK` root. -/
-theorem lookup_tgt_in {OS : Set U64} {s : S} (hT : SlotTy st T Ω Sg H Rp Nt OS s) (c : capability.Cap)
+/-- (gen 51) **The CNode operations' lookup (`lookupSlotForCNodeOp`, source / target / pivot) returns a slot of
+`OS`** from a `RootOK` root (gen 30's `lookup_tgt_in`'s proof, moved; that lemma is its `false` instance). -/
+theorem lookup_op_in {OS : Set U64} {s : S} (hT : SlotTy st T Ω Sg H Rp Nt OS s) (b0 : Bool) (c : capability.Cap)
     (hc : RootOK OS c) (i d : U64) :
-    cspace.lookup_target_slot st s c i d ⦃ r => ∀ x, r = .Ok x → x ∈ OS ⦄ := by
-  unfold cspace.lookup_target_slot cspace.lookup_slot_for_cnode_op
+    cspace.lookup_slot_for_cnode_op st s b0 c i d ⦃ r => ∀ x, r = .Ok x → x ∈ OS ⦄ := by
+  unfold cspace.lookup_slot_for_cnode_op
   refine WP.spec_bind (Pₘ := fun _ => True) (by cases c <;> simp [WP.spec_ok]) fun b _ => ?_
   split
   · split
@@ -350,6 +351,12 @@ theorem lookup_tgt_in {OS : Set U64} {s : S} (hT : SlotTy st T Ω Sg H Rp Nt OS 
     · dsimp only
       lf_err
   · lf_err
+
+/-- **The CNode operations' target lookup returns a slot of `OS`** from a `RootOK` root. -/
+theorem lookup_tgt_in {OS : Set U64} {s : S} (hT : SlotTy st T Ω Sg H Rp Nt OS s) (c : capability.Cap)
+    (hc : RootOK OS c) (i d : U64) :
+    cspace.lookup_target_slot st s c i d ⦃ r => ∀ x, r = .Ok x → x ∈ OS ⦄ :=
+  lookup_op_in hT false c hc i d
 
 /-! ## The CNode decode at `CNodeDelete` -/
 

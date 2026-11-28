@@ -6,4 +6,3 @@ import Fl4Proofs.P2.StFamC
 #print axioms Fl4Proofs.P2.E2EP.stC_glue
 #print axioms Fl4Proofs.P2.E2EP.startAt_stC
 #print axioms Fl4Proofs.P2.E2EP.startAt_UNC
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU16C

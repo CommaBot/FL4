@@ -5,6 +5,9 @@ and `JAtZ.fcov`, `bufCover_of_frameCover`) and `BufPlaced`
 (`JAtZ.bufPlacedJ`), the three facts JEntryGlob's ∀-state premises
 `ipcBufOK` / `bufCover` / `bufPlaced` gave (XTopJointFault's `XferHZ`):
 `JAtZ.xferH`.
+
+(mmuAD gen 42b18) `xferH` stated over `JAtZB` in place, `JAtZ.xferH` its corollary (P3/JAtZV3FaultRecvB's copy
+deleted).
 -/
 import Fl4Proofs.P3.BufInv
 import Fl4Proofs.P3.XTopJointData
@@ -27,9 +30,14 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 /-- **The IPC-buffer facts at a `JAtZ` state** (module docstring). -/
-theorem JAtZ.xferH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.xferH (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     Endp.IpcBufCapOK σ ∧ Endp.BufCover Z.T Z.B σ ∧ Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
   ⟨J.bok, bufCover_of_frameCover J.bok J.fcov, J.bufPlacedJ⟩
+
+/-- `JAtZB.xferH` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.xferH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    Endp.IpcBufCapOK σ ∧ Endp.BufCover Z.T Z.B σ ∧ Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
+  Fl4Proofs.P3.JAtZB.xferH (J := J.toB)
 
 end
 

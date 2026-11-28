@@ -221,22 +221,6 @@ def StartP3W11JV (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : Region
 
 variable {arI AR MR}
 
-/-- **FL4 end to end, W11's family and glue, PTE convention, jsweep's [J]s discharged** (st `nu` / `eu`; vt `OL` /
-`SL` / `eu`; vx `usr` / `eu`; module docstrings of E2EPW11J4–J7): `serializable_fl4_localW11PJ6` with
-`StartP3W11JV` starts. -/
-theorem serializable_fl4_localW11PJ7 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JV st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have h' := ExecWPJ.mono st (SF' := StartP3W11JU st ar hA hm hSt a0 arI AR MR)
-    (fun Ch K m hK hU c hs q i hsf => by
-      obtain ⟨q0, hW, e⟩ := hsf
-      exact ⟨q0, startP3W11U_of_V st ar hA hm hSt a0 hW, e⟩) h
-  exact serializable_fl4_localW11PJ6 st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h' hq
-
 end top
 
 end

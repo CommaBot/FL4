@@ -22,6 +22,11 @@ unmap or ASID assignment** (toward removing XTopJointVsCap's `JPostHyp`).
   caps; `VsSFr.mid` splits it into an `ArFr` and a `CnStep` step for the
   scheduler's invariants), as XTopJointFinVs's `finVsJb` and
   XTopJointRest's `jowes_slotOf`.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `cslotW_node`,
+`cslotW_obj`, `cslotW_val`, `cslot_other`, `tabNodeW`, `tabObjW`, `vsNodeWX`, `vsObjWX`, `vsW_alX`, `vsxNodeW`,
+`vsxNodeWX`, `vsxObjW`, `vsxObjWX`, `vsx_utcX`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its
+statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointTcbInstall
@@ -126,7 +131,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 /-- **A CNode slot lies in its CNode, an `other` object of `H`.** -/
-theorem JAtZ.cslot_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.cslot_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r) :
     H pc = some (.other (r + 5)) ∧ pc.val ≤ (cslotAddr (pc.bv, idx)).val ∧
       (cslotAddr (pc.bv, idx)).val + 32 ≤ pc.val + 2 ^ (r + 5) ∧ pc.val + 2 ^ (r + 5) ≤ 2 ^ 64 := by
@@ -146,8 +151,15 @@ theorem JAtZ.cslot_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     refine ⟨hJ.cnode q0 r hpc, by rw [hq2, hv]; omega, by rw [hq2, hv, e5]; omega, by rw [e5]; omega⟩
   · rw [hpc] at hp'; cases hp'
 
+/-- `JAtZB.cslot_other` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cslot_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r) :
+    H pc = some (.other (r + 5)) ∧ pc.val ≤ (cslotAddr (pc.bv, idx)).val ∧
+      (cslotAddr (pc.bv, idx)).val + 32 ≤ pc.val + 2 ^ (r + 5) ∧ pc.val + 2 ^ (r + 5) ≤ 2 ^ 64 :=
+  Fl4Proofs.P3.JAtZB.cslot_other (J := J.toB) (hpc := hpc) (hidx := hidx)
+
 /-- The invoked slot's cap words by value. -/
-theorem JAtZ.cslotW_val {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.cslotW_val {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
     {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64) :
     pc.val ≤ b.val ∧ b.val + 8 ≤ pc.val + 2 ^ (r + 5) ∧ (cslotAddr (pc.bv, idx)).val ≤ b.val ∧
@@ -158,9 +170,17 @@ theorem JAtZ.cslotW_val {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   · have h8 : (8#u64 : U64).val = 8 := by first | rfl | simp | decide
     rw [wordOf_val (by omega)]; omega
 
+/-- `JAtZB.cslotW_val` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cslotW_val {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64) :
+    pc.val ≤ b.val ∧ b.val + 8 ≤ pc.val + 2 ^ (r + 5) ∧ (cslotAddr (pc.bv, idx)).val ≤ b.val ∧
+      b.val + 8 ≤ (cslotAddr (pc.bv, idx)).val + 32 :=
+  Fl4Proofs.P3.JAtZB.cslotW_val (J := J.toB) (hpc := hpc) (hidx := hidx) (hb := hb)
+
 /-- **The invoked slot's words miss every object of `H` but the `other`
 ones.** -/
-theorem JAtZ.cslotW_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.cslotW_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
     {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64)
     {p : U64} {k : P1.HKind} (hp : H p = some k) (hk : ∀ z, k ≠ .other z) :
@@ -172,8 +192,16 @@ theorem JAtZ.cslotW_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   · right; omega
   · simp only [P1.HKind.bits] at h; left; omega
 
+/-- `JAtZB.cslotW_obj` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cslotW_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64)
+    {p : U64} {k : P1.HKind} (hp : H p = some k) (hk : ∀ z, k ≠ .other z) :
+    b.val + 8 ≤ p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.cslotW_obj (J := J.toB) (hpc := hpc) (hidx := hidx) (hb := hb) (hp := hp) (hk := hk)
+
 /-- **The invoked slot's words miss every core's node.** -/
-theorem JAtZ.cslotW_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.cslotW_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
     {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64)
     {c : U64} (hc : c ∈ Cs) : b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
@@ -182,6 +210,13 @@ theorem JAtZ.cslotW_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   rcases J.kern.hnd pc _ hH c hc with h | h
   · simp only [P1.HKind.bits] at h; left; omega
   · right; omega
+
+/-- `JAtZB.cslotW_node` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cslotW_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {b : U64} (hb : b = cslotAddr (pc.bv, idx) ∨ b = wordOf (cslotAddr (pc.bv, idx)) 8#u64)
+    {c : U64} (hc : c ∈ Cs) : b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.cslotW_node (J := J.toB) (hpc := hpc) (hidx := hidx) (hb := hb) (hc := hc)
 
 theorem JAtZ.cslotW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
@@ -222,7 +257,7 @@ theorem tabW_val {X : Set U64} {σ : Fl4Spec.State Unit} (hX : TabsArch X σ) {b
 /-- **An off-set table word misses every object of `H` but the `other`
 ones** (the table is an `other` object of `H`, `SpecCover.arch`,
 `HeapOK.disj`). -/
-theorem JAtZ.tabObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tabObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {p : U64} {k : P1.HKind}
     (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val := by
   obtain ⟨q, -, ao, hao, -, -, g1, g2, -⟩ := tabW_val hX hb
@@ -234,8 +269,14 @@ theorem JAtZ.tabObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   · simp only [P1.HKind.bits] at h
     left; omega
 
+/-- `JAtZB.tabObjW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tabObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.tabObjW (J := J.toB) (hX := hX) (hb := hb) (hp := hp) (hk := hk)
+
 /-- **An off-set table word misses every core's node.** -/
-theorem JAtZ.tabNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tabNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {c : U64} (hc : c ∈ Cs) :
     b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
   obtain ⟨q, -, ao, hao, -, -, g1, g2, -⟩ := tabW_val hX hb
@@ -246,6 +287,12 @@ theorem JAtZ.tabNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     left; omega
   · right; omega
 
+/-- `JAtZB.tabNodeW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tabNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.tabNodeW (J := J.toB) (hX := hX) (hb := hb) (hc := hc)
+
 theorem tabW_al {X : Set U64} {σ : Fl4Spec.State Unit} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) :
     P1.Aligned b := by
   obtain ⟨-, -, -, -, -, -, -, -, h⟩ := tabW_val hX hb
@@ -253,23 +300,41 @@ theorem tabW_al {X : Set U64} {σ : Fl4Spec.State Unit} (hX : TabsArch X σ) {b 
 
 /-- **A VSpace word or an off-set table word misses every object of `H` but
 the `other` ones.** -/
-theorem JAtZ.vsObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {b : U64}
     (hb : VsW Z (L.ksb s) b ∨ PtW X b) {p : U64} {k : P1.HKind}
     (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
   hb.elim (fun hb => J.vsObjW Ap hb hp hk) (fun hb => J.tabObjW hX hb hp hk)
 
-theorem JAtZ.vsNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.vsObjWX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {b : U64}
+    (hb : VsW Z (L.ksb s) b ∨ PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsObjWX (J := J.toB) (Ap := Ap) (hX := hX) (hb := hb) (hp := hp) (hk := hk)
+
+theorem JAtZB.vsNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) {c : U64} (hc : c ∈ Cs) :
     b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
   hb.elim (fun hb => J.vsNodeW hb hc) (fun hb => J.tabNodeW hX hb hc)
 
-theorem JAtZ.vsW_alX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.vsNodeWX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsNodeWX (J := J.toB) (hX := hX) (hb := hb) (hc := hc)
+
+theorem JAtZB.vsW_alX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) : P1.Aligned b :=
   hb.elim (fun hb => J.vsW_al hb) (fun hb => tabW_al hX hb)
 
+/-- `JAtZB.vsW_alX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsW_alX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) : P1.Aligned b :=
+  Fl4Proofs.P3.JAtZB.vsW_alX (J := J.toB) (hX := hX) (hb := hb)
+
 /-- **A word of `VsXW` misses every object of `H` but the `other` ones.** -/
-theorem JAtZ.vsxObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsxObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
     (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b) {p : U64} {k : P1.HKind}
     (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val := by
@@ -279,8 +344,15 @@ theorem JAtZ.vsxObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · left; omega
     · exact Or.inr e
 
+/-- `JAtZB.vsxObjW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsxObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
+    (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsxObjW (J := J.toB) (Ap := Ap) (hpc := hpc) (hidx := hidx) (hb := hb) (hp := hp) (hk := hk)
+
 /-- **A word of `VsXW` misses every core's node.** -/
-theorem JAtZ.vsxNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsxNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
     (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b) {c : U64} (hc : c ∈ Cs) :
     b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
@@ -288,19 +360,41 @@ theorem JAtZ.vsxNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   · exact J.vsNodeW hb hc
   · exact J.cslotW_node hpc hidx hb hc
 
+/-- `JAtZB.vsxNodeW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsxNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
+    (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsxNodeW (J := J.toB) (hpc := hpc) (hidx := hidx) (hb := hb) (hc := hc)
+
 /-- `VsXW` or an off-set table word misses every object of `H` but the `other` ones. -/
-theorem JAtZ.vsxObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsxObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool}
     (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r) {b : U64}
     (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {p : U64} {k : P1.HKind}
     (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
   hb.elim (fun hb => J.vsxObjW Ap hpc hidx hb hp hk) (fun hb => J.tabObjW hX hb hp hk)
 
-theorem JAtZ.vsxNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.vsxObjWX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsxObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool}
+    (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r) {b : U64}
+    (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsxObjWX (J := J.toB) (Ap := Ap) (hX := hX) (hpc := hpc) (hidx := hidx) (hb := hb) (hp := hp) (hk := hk)
+
+theorem JAtZB.vsxNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
     (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {c : U64}
     (hc : c ∈ Cs) : b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
   hb.elim (fun hb => J.vsxNodeW hpc hidx hb hc) (fun hb => J.tabNodeW hX hb hc)
+
+/-- `JAtZB.vsxNodeWX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsxNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
+    (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {c : U64}
+    (hc : c ∈ Cs) : b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.vsxNodeWX (J := J.toB) (hX := hX) (hpc := hpc) (hidx := hidx) (hb := hb) (hc := hc)
 
 theorem JAtZ.vsxW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
@@ -312,7 +406,7 @@ theorem JAtZ.vsxW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
 /-- **The untyped caps' facts after a VSpace map, unmap or assignment**
 (`vs_utc` with the invoked slot's words: a CNode slot misses every untyped
 cap's free part, `RegionFree`; the untyped caps kept, `hUt`). -/
-theorem JAtZ.vsx_utcX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsx_utcX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
     {X : Set U64} (hX : TabsArch X σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (fun b => VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b))
@@ -392,6 +486,21 @@ theorem JAtZ.vsx_utcX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     rw [hcdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `JAtZB.vsx_utcX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsx_utcX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {X : Set U64} (hX : TabsArch X σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (fun b => VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b))
+    (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
+    (hTN : ∀ i, σ.archState.x64AsidTable i = none → σ'.archState.x64AsidTable i = none)
+    (hUt : ∀ y, IsSlot Z.th y → isUt (capV (L.mem s') y) = true → capV (L.mem s') y = capV (L.mem s) y)
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.vsx_utcX (J := J.toB) (hpc := hpc) (hidx := hidx) (hX := hX) (hw := hw) (hVR1 := hVR1) (hTN := hTN) (hUt := hUt) (hcdt := hcdt) (horig := horig) (hgp := hgp) (hDbg := hDbg)
 
 /-- `vsx_utcX` without off-set table frames. -/
 theorem JAtZ.vsx_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

@@ -5,8 +5,8 @@ P3 (line mmuAD, gen 34): **message words at `JAtZV3`, appended or overwritten** 
 The spec state after the words `ms` is XTopJointFault's `jMrSt σ0 rcv x0 pb ms`; `mrUpd ms k v` is `ms` with word `k`
 replaced (`k < |ms|`) or `v` appended (`k = |ms|`).
 
-* `JAtZB.scAlign8B`, `JAtZB.bufPlacedB`: BufInv's `JAtZ.scAlign8` / `JAtZ.bufPlacedJ` at `JAtZB` (same proofs; only
-  `JAtZB` fields are read).
+* (mmuAD gen 42b18) the gen-34 copies `JAtZB.scAlign8B` / `JAtZB.bufPlacedB` are removed: BufInv's `scAlign8` /
+  `bufPlacedJ` are now stated over `JAtZB` in place (`JAtZB.scAlign8`, `JAtZB.bufPlacedJ`).
 * **`JAtZV3.mrReg`** (word `k < 4`, a register; gen 30's `JAtZV3.regWr`, gen 33's `v3_jMrSt_set_lt` for the
   overwrite), **`JAtZV3.mrBuf`** (word `4 ≤ k`, the receive buffer; gen 33's `JAtZV3.userWr` with
   `JAtZB.bufWordG`, `mrState_snoc_ge` / this gen's `v3_mrState_set_ge`), **`JAtZV3.mrNone`** (no buffer, `4 ≤ k`:
@@ -43,42 +43,6 @@ open Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V X : Set U64}
-
-/-- BufInv's `JAtZ.scAlign8` at `JAtZB`. -/
-theorem JAtZB.scAlign8B (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
-    ∀ sc ∈ Z.C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → sc.val % 8 = 0 := by
-  intro sc hsc x n hk
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have hq := (hJ.sc sc x n (J.c0 sc hsc) hk).2
-  have hal := J.kern.heap.align sc _ hq
-  simp only [P1.HKind.bits] at hal
-  have hd : 8 ∣ 2 ^ (n + Fl4Spec.minSchedContextBits) :=
-    Nat.pow_dvd_pow 2 (by simp only [Fl4Spec.minSchedContextBits]; omega : 3 ≤ n + Fl4Spec.minSchedContextBits)
-  rw [← Nat.mod_mod_of_dvd sc.val hd, hal]
-
-/-- BufInv's `JAtZ.bufPlacedJ` at `JAtZB`. -/
-theorem JAtZB.bufPlacedB (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
-    Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ := by
-  refine bufPlaced_of J.xtop J.ks J.ip J.scAlign8B fun wp hw => ?_
-  obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
-  have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
-  have hc64 := J.kern.csLt Z.c hcC
-  have hn0 : L.nodeBase s 0#u64 = (L.ksb s).val + 13568 := by rw [nodeBase_val]; simp
-  rw [hn0, nodeBase_val]
-  by_contra hne
-  have h1 : (L.ksb s).val + 13568 ≤ wp.1.val := by omega
-  have h2 : wp.1.val < (L.ksb s).val + 13568 + Z.c.val * 4288 := by omega
-  set k := (wp.1.val - ((L.ksb s).val + 13568)) / 4288 with hk
-  have hkc : k < Z.c.val := by
-    rw [hk, Nat.div_lt_iff_lt_mul (by norm_num)]; rw [Nat.mul_comm] at h2; omega
-  obtain ⟨c', hc'⟩ : ∃ c' : U64, c'.val = k := ⟨⟨BitVec.ofNat 64 k⟩, by
-    show (BitVec.ofNat 64 _).toNat = _; rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)⟩
-  have e := J.nodeB wp hw c' (by omega)
-  rw [nodeBase_val, hc'] at e
-  have hlo : k * 4288 ≤ wp.1.val - ((L.ksb s).val + 13568) := Nat.div_mul_le_self _ _
-  have hhi : wp.1.val - ((L.ksb s).val + 13568) < k * 4288 + 4288 := by
-    rw [hk]; exact Nat.lt_div_mul_add (by norm_num)
-  omega
 
 variable {σ0 : Fl4Spec.State Unit} {rcv : U64} {x0 : Fl4Spec.Tcb} {pb : Option Fl4Spec.ObjRef}
 
@@ -120,7 +84,7 @@ theorem JAtZV3.mrBuf {ms : List Fl4Spec.Word} {p : Fl4Spec.ObjRef}
   have hk' := jMrSt_rcv σ0 rcv.bv x0 (some p) ms
   obtain ⟨hAp, hObj⟩ := B.bufWordG B.bok hrT hk' (isR := true) hq i1.val (by omega) (b := Endp.fl4BufA rw i1)
     (by rw [fl4BufA_bv, hrw])
-  have J2 := J.userWr B.bufPlacedB hwB hAp hObj v
+  have J2 := J.userWr B.bufPlacedJ hwB hAp hObj v
   unfold mrUpd
   by_cases hlt : k < ms.length
   · rw [if_pos hlt]

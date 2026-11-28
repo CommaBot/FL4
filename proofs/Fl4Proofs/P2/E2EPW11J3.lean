@@ -98,50 +98,7 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The start fact, vmF's `lay` not asked, the armed program cut.** -/
-def StartP3W11JL (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
-    (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : Fl4IxW (S := S)) : Prop :=
-  ∃ q0, StartP3W11L st ar hA hm hSt a0 arI AR MR Ch K.toKLayoutV m hK.base hU.base c hs q0 i ∧
-    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
-
 variable {arI AR MR}
-
-/-- **`ExecWPJ.mono` with the current chain** (the start-fact map may use `SerExitW` of the current layout). -/
-theorem ExecWPJ.monoC {ι : Type} {LP : PathsP ι}
-    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-      Prop}
-    {P : LocPlat st arI AR MR}
-    (hSF : ∀ Ch K m hK hU c hs q i, (∃ σe, ChainOf (L := L) arI AR MR σe (KLayoutP.toKLayoutV K).toKLayout Ch) →
-      SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (hB : SerExitW P K0.toKLayoutV Ch0)
-    (h : ExecWPJ LP SF P s0 K0 Ch0 s K Ch) : ExecWPJ LP SF' P s0 K0 Ch0 s K Ch ∧ SerExitW P K.toKLayoutV Ch := by
-  induction h with
-  | refl => exact ⟨.refl, hB⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX⟩ := ih
-    refine ⟨.step hE hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩, ?_⟩
-    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-      exact ⟨i, hSF _ _ _ _ _ _ _ _ _ hX.chainOf hi⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-  | hw _ hH ih => exact ⟨.hw ih.1 hH, ih.2⟩
-
-/-- **FL4 end to end, W11's family and glue, rule 8 with the PTE set by convention, vmF's `lay` [J] discharged**
-(module docstring): `serializable_fl4_localW11PJ2` with `StartP3W11JL` starts. -/
-theorem serializable_fl4_localW11PJ3 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JL st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have h' := (ExecWPJ.monoC st (SF' := StartP3W11JC st ar hA hm hSt a0 arI AR MR)
-    (fun Ch K m hK hU c hs q i hC hsf => by
-      obtain ⟨q0, hW, e⟩ := hsf
-      exact ⟨q0, startP3W11_of_L st ar hA hm hSt a0 hC hW, e⟩) hB h).1
-  exact serializable_fl4_localW11PJ2 st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h' hq
 
 end top
 

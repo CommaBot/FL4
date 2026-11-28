@@ -31,6 +31,10 @@ toward `JDelParts`' `jFinAt_vs`, as XTopJointFinEp for endpoints).
   scheduler's invariants by `ArFr`.
 * `JAtZ.vs_ready`: the slot of a VSpace cap is ready: no object of `H` but
   the `other` ones starts in its frame.
+* (mmuAD gen 42b3) These do not read `JAtZ.ext`: `vsFr_other`, `vsFr_sc`, `vsFr_node`, `vobj_apart`, `vsObjW`,
+  `vsNodeW`, `vsKsW`, `vsW_al`, `vs_utc`, `kern_keepA` and `finVsJb` are stated over `JAtZ`'s `ext`-free part
+  `JAtZB` (P3/JointAt; `JAtZB.finVsJb` also exposes the footprint, `VsW` writes and `VKeep`), each `JAtZ` name
+  its corollary via `JAtZ.toB` with its statement unchanged (`JAtZ.finVsJb` rebuilds `ext` by `JExt.step`).
 -/
 import Fl4Proofs.P3.XTopJointFinVsSpec
 import Fl4Proofs.P3.XTopJointFinW
@@ -198,7 +202,7 @@ theorem vsFr_al {kb q : U64}
 
 /-- **A VSpace frame is an `other` object of `H` of at least a page**: a
 spec arch object (`VsRel.pool`, `PtRel`), so `H`'s (`SpecCover.arch`). -/
-theorem JAtZ.vsFr_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsFr_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {q : U64} (hq : VsFr Z q) : ∃ n, 12 ≤ n ∧ H q = some (.other n) := by
   have hF := J.xtop.fin
   have hk : ∃ ao, σ.kheap q.bv = some (.archObj ao) := by
@@ -212,9 +216,14 @@ theorem JAtZ.vsFr_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   obtain ⟨n, hn, hH⟩ := J.cover.arch _ ao hao
   exact ⟨n, hn, hH⟩
 
+/-- `JAtZB.vsFr_other` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsFr_other {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) : ∃ n, 12 ≤ n ∧ H q = some (.other n) :=
+  J.toB.vsFr_other hq
+
 /-- **A VSpace frame lies apart from every SC of `H`** (`JAtZ.vsFr_other`,
 `HeapOK.disj`). -/
-theorem JAtZ.vsFr_sc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsFr_sc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {q : U64} (hq : VsFr Z q) {p : U64} {z : Nat} (hp : H p = some (.sc z)) :
     q.val + 4096 ≤ p.val ∨ p.val + 2 ^ z ≤ q.val := by
   obtain ⟨n, hn, hH⟩ := J.vsFr_other hq
@@ -226,9 +235,15 @@ theorem JAtZ.vsFr_sc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   · simp only [P1.HKind.bits] at h
     exact Or.inl (by omega)
 
+/-- `JAtZB.vsFr_sc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsFr_sc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) {p : U64} {z : Nat} (hp : H p = some (.sc z)) :
+    q.val + 4096 ≤ p.val ∨ p.val + 2 ^ z ≤ q.val :=
+  J.toB.vsFr_sc hq hp
+
 /-- **A VSpace frame overlaps no core's node** (`JAtZ.vsFr_other`,
 `JKern.hnd`). -/
-theorem JAtZ.vsFr_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsFr_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {q : U64} (hq : VsFr Z q) {c : U64} (hc : c ∈ Cs) :
     q.val + 4096 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val := by
   obtain ⟨n, hn, hH⟩ := J.vsFr_other hq
@@ -238,10 +253,16 @@ theorem JAtZ.vsFr_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     exact Or.inl (by omega)
   · exact Or.inr h
 
+/-- `JAtZB.vsFr_node` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsFr_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {q : U64} (hq : VsFr Z q) {c : U64} (hc : c ∈ Cs) :
+    q.val + 4096 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val :=
+  J.toB.vsFr_node hq hc
+
 /-- **An address of the VSpace objects lies in no endpoint, notification,
 reply or SC of `Z.C`** (`TopPlaced.disj`: those are the other subsystems'
 objects). -/
-theorem JAtZ.vobj_apart {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vobj_apart {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {w : U64} (hv : VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) w) {p : U64} {k : P1.HKind} (hp : H p = some k)
     (hk : k = .ep ∨ k = .ntfn ∨ k = .reply ∨ ∃ z, k = .sc z ∧ p ∈ Z.C) :
     w.val < p.val ∨ p.val + 2 ^ k.bits ≤ w.val := by
@@ -265,8 +286,15 @@ theorem JAtZ.vobj_apart {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       unfold Sched.ScObj; exact ⟨g1, by simpa [P1.HKind.bits] using g2⟩
     exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨p, hpC, x, n, hkx, hso⟩))))))
 
+/-- `JAtZB.vobj_apart` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vobj_apart {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {w : U64} (hv : VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) w) {p : U64} {k : P1.HKind} (hp : H p = some k)
+    (hk : k = .ep ∨ k = .ntfn ∨ k = .reply ∨ ∃ z, k = .sc z ∧ p ∈ Z.C) :
+    w.val < p.val ∨ p.val + 2 ^ k.bits ≤ w.val :=
+  J.toB.vobj_apart hv hp hk
+
 /-- A VSpace word lies in no object of `H` but the `other` ones. -/
-theorem JAtZ.vsObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s) {b : U64} (hb : VsW Z (L.ksb s) b) {p : U64} {k : P1.HKind}
     (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val := by
   have hP := J.xtop.fin.1.2
@@ -298,8 +326,14 @@ theorem JAtZ.vsObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · rcases e2 with e | e <;> omega
   | other z => exact absurd rfl (hk z)
 
+/-- `JAtZB.vsObjW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {b : U64} (hb : VsW Z (L.ksb s) b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  J.toB.vsObjW Ap hb hp hk
+
 /-- A VSpace word lies in no core's node. -/
-theorem JAtZ.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : VsW Z (L.ksb s) b) {c : U64} (hc : c ∈ Cs) :
     b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
   have hS := J.xtop.fin.1
@@ -310,10 +344,16 @@ theorem JAtZ.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     have : c.val * 4288 + 4288 ≤ 64 * 4288 := by omega
     right; omega
 
+/-- `JAtZB.vsNodeW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : VsW Z (L.ksb s) b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  J.toB.vsNodeW hb hc
+
 /-- A VSpace word misses the IRQ node: it lies outside the typed heap's
 objects (`TopPlaced.po`/`.vo`), and the IRQ node's CTEs are objects of it
 (`IntLayout.node`). -/
-theorem JAtZ.vsKsW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vsKsW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : VsW Z (L.ksb s) b) : b.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ b.val := by
   have hP := J.xtop.fin.1.2
   have ho : OutsideObjects Z.th b := by
@@ -322,17 +362,27 @@ theorem JAtZ.vsKsW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
     · exact hP.vo b h
   exact J.intL.out_node ho.2
 
-theorem JAtZ.vsW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.vsKsW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsKsW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : VsW Z (L.ksb s) b) : b.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ b.val :=
+  J.toB.vsKsW hb
+
+theorem JAtZB.vsW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : VsW Z (L.ksb s) b) : P1.Aligned b := by
   have hS := J.xtop.fin.1
   unfold P1.Aligned
   rcases vsW_val hS.2.pt hS.2.vs hb with ⟨q, -, -, -, -, -, h⟩ | ⟨-, -, h⟩ <;> exact h
 
+/-- `JAtZB.vsW_al` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vsW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : VsW Z (L.ksb s) b) : P1.Aligned b :=
+  J.toB.vsW_al hb
+
 /-- **The untyped caps' facts after a VSpace finalisation**: the free parts
 zero (a table or pool word lies in a spec object, `SpecFree`; an ASID-table
 word in a free part is zero, so its entry is empty and stays empty, `hTN`,
 and the word stays zero, `VsRel.table` after), the rest as `finW_utc`. -/
-theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (VsW Z (L.ksb s)))
     (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
@@ -403,10 +453,24 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
 
+/-- `JAtZB.vs_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (VsW Z (L.ksb s)))
+    (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
+    (hTN : ∀ i, σ.archState.x64AsidTable i = none → σ'.archState.x64AsidTable i = none)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  J.toB.vs_utc hw hVR1 hTN hSS hcdt horig hgp hDbg
+
 /-- **`JKern` across an arch step** (`kern_keep` with the global PML4 kept a
 PML4 rather than every arch object kept). -/
-theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (F : ArFr σ σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
@@ -442,14 +506,23 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
     K.csLt, K.cs0, K.csN, K.tdx.frame F.plat⟩
   rw [hna, hDbg]; exact K.head
 
+/-- `JAtZB.kern_keepA` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
+    (hS' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ') (F : ArFr σ σ')
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    JKern (L := L) arI H Cs D Z.th s' σ' :=
+  J.toB.kern_keepA hks hcpu hS' F hDbg
+
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a native VSpace finalisation doing work** (module
 docstring; `vs_fin`'s caps: a VSpace-mapped frame, final or not, or a final
 table or pool cap): at the same sets, the dead set and P1's sets kept. From
 the slots' caps placed (`JAtZ.vsc`), `VsApart` at the state (`jVsApartHyp`)
 and `ArchRefines` [P]. -/
-theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
+theorem JAtZB.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
     (hfinP : ∀ p bb, c = .AsidPool p bb → ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl →
@@ -458,10 +531,11 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     objects.finalise_cap st arI s a c b false ⦃ r =>
       r.1.1 = finRem c b ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
         ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1 ∧
-        (∃ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D r.2.1 r.2.2 σ' ∧
+        (∃ E : Set U64, JAtZB (L := L) arI AR { Z with vx := E } H Cs Ac Lst D r.2.1 r.2.2 σ' ∧
           (E = Z.vx ∨ ∃ p bb, c = .AsidPool p bb)) ∧
         (Z.vx = ∅ → Vs.VsPend Z.th (L.mem r.2.1) (L.ksb r.2.1) (cslotAddr sl)) ∧
-        SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ⦄ := by
+        SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ∧
+        P1.WritesIn st s r.2.1 (VsW Z (L.ksb s)) ∧ VKeep (L := L) Z.th s r.2.1 ⦄ := by
   have hS := J.xtop.fin.1
   have hH : VsFinHyps st A arI Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1
       (FootSR st (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR) s (VsW Z (L.ksb s))) :=
@@ -612,14 +686,14 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
       J.vs_utc hW hVR1 hTN hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   -- (f4g) the `JAtZ` after at any exempt set `E` (the window's for an ASID pool cap)
-  have mk : ∀ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ →
+  have hVK : VKeep (L := L) Z.th s s1 := fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht))
+    (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega)
+  have mk : ∀ E : Set U64, JAtZB (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ →
       (E = ∅ → Vs.VsNamed Z.th (L.mem s1) (L.ksb s1)) →
-      JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s1 a1 σ1 := fun E JE hN =>
+      JAtZB (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s1 a1 σ1 := fun E JE hN =>
     JE.cs_frameK (hvn := hN) hkb ⟨hX1.fin, hX1.rel, hX1.ipc, hX1.esa⟩ F.kback F.ipcFr
-      (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same JE hSS F.ksz) (R E)
+      (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB JE hSS F.ksz) (R E)
       (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
-      (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht))
-        (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
       hSS hKd F.idle
   -- (f4g) `VsNamed` / `VsPend` after, from VsFin's `VsFinF`
   have hPt1 : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s1) σ1 := hX1.fin.2.2.1
@@ -659,7 +733,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     | _ => cases hvf
   by_cases hpool : ∃ p bb, c = .AsidPool p bb
   · exact ⟨h1, h2, h3, σ1, hm, ⟨{0#u64}, mk _ (J.vxSet fun h => absurd h vx0_ne) (fun h => absurd h vx0_ne),
-      Or.inr hpool⟩, hPd, hSS, hkb⟩
+      Or.inr hpool⟩, hPd, hSS, hkb, hW, hVK⟩
   · have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s1) (L.ksb s1) := by
       intro h; rw [hkb]
       have hN0 := J.carry.vsNamed h
@@ -680,7 +754,26 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
           J.xtop.fin.2.2.2.1 hcS hz htb
       | AsidPool p bb => exact absurd ⟨p, bb, rfl⟩ hpool
       | _ => cases hvf
-    exact ⟨h1, h2, h3, σ1, hm, ⟨Z.vx, mk _ J hvn, Or.inl rfl⟩, hPd, hSS, hkb⟩
+    exact ⟨h1, h2, h3, σ1, hm, ⟨Z.vx, mk _ J hvn, Or.inl rfl⟩, hPd, hSS, hkb, hW, hVK⟩
+
+/-- `JAtZB.finVsJb` at `JAtZ` (via `JAtZ.toB`; `JExt` after by `JExt.step`: the slots kept, `VKeep`). -/
+theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
+    {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hfinP : ∀ p bb, c = .AsidPool p bb → ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl →
+      Vs.VKey (capV (L.mem s) y) ≠ Vs.VKey c) (hvf : IsVsFin c)
+    (hac : ∃ ac, absCap c = .archObjectCap ac) (b : Bool) (hw : FinWork c b) :
+    objects.finalise_cap st arI s a c b false ⦃ r =>
+      r.1.1 = finRem c b ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
+        ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1 ∧
+        (∃ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D r.2.1 r.2.2 σ' ∧
+          (E = Z.vx ∨ ∃ p bb, c = .AsidPool p bb)) ∧
+        (Z.vx = ∅ → Vs.VsPend Z.th (L.mem r.2.1) (L.ksb r.2.1) (cslotAddr sl)) ∧
+        SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ⦄ := by
+  refine WP.spec_mono (J.toB.finVsJb hA Ap hDS hAs hc hfinP hvf hac b hw) ?_
+  rintro _ ⟨h1, h2, h3, σ', hm, ⟨E, JE, hE⟩, hPd, hSS, hkb, -, hv⟩
+  exact ⟨h1, h2, h3, σ', hm, ⟨E, JE.toJAtZ (J.ext.step (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) hv), hE⟩, hPd, hSS, hkb⟩
 
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
 at a table or pool cap). -/

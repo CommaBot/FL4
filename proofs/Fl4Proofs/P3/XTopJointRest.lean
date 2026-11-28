@@ -14,6 +14,8 @@ closure** (`JStepHyps`, XTopJointStep), in the SC family's pattern
   The dead stay dead (`JAtZ.deadP_sc_step`: `ScTKw`, `LK ∅` by
   `lkm_setThreadState`); the node-0 `DEBUG_TCBS` word kept (`set_thread_state_frame`);
   P1's `BlkOK` after (`set_thread_state.restart_ok`).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `inSlot_keeps` (as `inSlot_keepsB`); (gen 42b4) `ins_utcG`, `live_slotT`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.ScJointRest
@@ -244,9 +246,9 @@ theorem inSlot_keep {th : TypedHeap} {s s' : S} (hw : P1.WritesIn st s s' (InSlo
 /-- **The scheduler's words a slot step keeps** (from `SlotsApart`): the TCBs'
 `MCP`, `YIELD_TO` and IPC-buffer words, the SCs' `REPLY` words, the replies'
 links. -/
-theorem inSlot_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem inSlot_keepsB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) :
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) :
     (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
     (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
@@ -275,6 +277,16 @@ theorem inSlot_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
     · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
 
+
+/-- `inSlot_keepsB` at `JAtZ` (via `JAtZ.toB`). -/
+theorem inSlot_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) :=
+  inSlot_keepsB arI J.toB hw
 /-- A cap naming no endpoint, notification or reply is typed in any heap. -/
 theorem capTyped_of_tyObj {H : P1.Heap} {Rp Nt : Set U64} {c : capability.Cap} (h : tyObj c = false) :
     CapTyped H Rp Nt c := by
@@ -395,9 +407,9 @@ insert): the untyped caps are those before, their free parts miss every slot
 (`RegionFree`), and the new MDB slot misses every childless untyped region,
 its object staying in the region's restriction (`hlv`, the destination's
 liveness). -/
-theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {dsl : Fl4Spec.CslotPtr} (hAd : AbsSlot Z.th dsl)
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr dsl → capV (L.mem s') y = capV (L.mem s) y)
     (hnull : capAt (L.mem s) (cslotAddr dsl) = ok .Null)
@@ -473,6 +485,26 @@ theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     · subst e
       exact (hlv sl p sb fi dev hsl hcv hdF hnc).2
     · exact r1 sl' (by rw [← horig sl' e]; exact h)
+
+/-- `JAtZB.ins_utcG` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {dsl : Fl4Spec.CslotPtr} (hAd : AbsSlot Z.th dsl)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr dsl → capV (L.mem s') y = capV (L.mem s) y)
+    (hnull : capAt (L.mem s) (cslotAddr dsl) = ok .Null)
+    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr dsl) ≠ .Untyped p sb fi d)
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) (hcdt : CdtKeepOff (· = dsl) σ σ')
+    (horig : ∀ sl, sl ≠ dsl → σ'.isOriginalCap sl = σ.isOriginalCap sl)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hM' : MdbLinks Z.th (L.mem s') G')
+    (hlv : ∀ sl p sb fi dev, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev →
+      dev = false → (¬ ∃ x, σ.cdt x = some sl) →
+      ((cslotAddr dsl).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr dsl).val) ∧
+        AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) dsl) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi :=
+  J.toB.ins_utcG arI hAd hcap hnull hnu hw hcdt horig hgp hM' hlv
 
 /-- **A live CNode misses a childless untyped region** (`DestLive`: named by
 a CNode cap of the MDB, which `ut_free` puts outside, or in the kernel-state
@@ -569,9 +601,9 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
 /-- **A slot of a TCB named by a thread cap of a slot misses a childless
 untyped region**, and the TCB stays an object of the region's restriction
 (the thread cap in the MDB covers the TCB's 4 KiB, `ut_free`). -/
-theorem JAtZ.live_slotT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.live_slotT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
     (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev)
     (hnc : ¬ ∃ x, σ.cdt x = some sl) {t : U64} (ht : Z.th t = some .tcb) {n : Nat} (hn : n < tcbSlots)
     (hlive : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .Thread t) :
@@ -605,6 +637,18 @@ theorem JAtZ.live_slotT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   simp only [restrictTh]
   rw [if_neg (by omega)]
   exact ht
+
+/-- `JAtZB.live_slotT` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.live_slotT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev)
+    (hnc : ¬ ∃ x, σ.cdt x = some sl) {t : U64} (ht : Z.th t = some .tcb) {n : Nat} (hn : n < tcbSlots)
+    (hlive : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .Thread t) :
+    ((cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)).val < p.val ∨
+        p.val + 2 ^ sb.val ≤ (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)).val) ∧
+      AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) (t.bv, Fl4Spec.tcbCnodeIndex n) :=
+  J.toB.live_slotT arI hsl hcv hnc ht hn hlive
 
 set_option maxHeartbeats 4000000 in
 /-- **The untyped caps' facts after a CNode-only step** (a copy, mint,

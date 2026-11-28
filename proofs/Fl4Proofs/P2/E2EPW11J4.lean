@@ -262,28 +262,7 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The start fact with the shrunk records, the armed program cut.** -/
-def StartP3W11JS (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
-    (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : Fl4IxW (S := S)) : Prop :=
-  ∃ q0, StartP3W11S st ar hA hm hSt a0 arI AR MR Ch K.toKLayoutV m hK.base hU.base c hs q0 i ∧
-    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
-
 variable {arI AR MR}
-
-/-- **FL4 end to end, W11's family and glue, PTE convention, st `nu` / vt `OL` / `SL` / vx `usr` [J]s discharged**
-(module docstring): `serializable_fl4_localW11PJ3` with `StartP3W11JS` starts. -/
-theorem serializable_fl4_localW11PJ4 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JS st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have h' := ExecWPJ.mono st (SF' := StartP3W11JL st ar hA hm hSt a0 arI AR MR)
-    (fun Ch K m hK hU c hs q i hsf => by
-      obtain ⟨q0, hW, e⟩ := hsf
-      exact ⟨q0, startP3W11L_of_S st ar hA hm hSt a0 hW, e⟩) h
-  exact serializable_fl4_localW11PJ3 st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h' hq
 
 end top
 

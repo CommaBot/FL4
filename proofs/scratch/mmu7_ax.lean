@@ -17,4 +17,3 @@ open Fl4Proofs.P2.Serial Fl4Proofs.P2.E2E Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl
 #print axioms accIns_invR
 #print axioms insA_delR
 #print axioms insA_invR
-#print axioms serializable_fl4_localU3b

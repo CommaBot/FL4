@@ -36,6 +36,8 @@ loop (only a thread cap's finalisation, by `debug_remove`, changes them).
   finalisers (P1's QueueDbgKeep, at `J.blk`; the reply's `hdc` from
   `SchedRel.aff`/`.core`), the IRQ handler's (a notification finalisation
   then an empty).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `slotFrame_dbgKeep`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointPP
@@ -177,11 +179,17 @@ theorem JAtZ.finVcpuDbg (hK : ARKeep arI AR) {s : S} {a : A} {σ : Fl4Spec.State
 
 /-- **The deletion loop's slot edits keep the debug words** (a
 `SlotFrame2` step: swap, zombie write, empty). -/
-theorem JAtZ.slotFrame_dbgKeep {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hF : Vs.SlotFrame2 (L := L) Z.th s s') :
+theorem JAtZB.slotFrame_dbgKeep {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hF : Vs.SlotFrame2 (L := L) Z.th s s') :
     P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
   dbgKeep_of_writes J.blk (SlotFrame2.writesIn hF) fun _ hb => J.inSlot_notDbg (slotWd_range J.xtop.rel.1 hb)
 
+
+/-- `JAtZB.slotFrame_dbgKeep` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.slotFrame_dbgKeep {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hF : Vs.SlotFrame2 (L := L) Z.th s s') :
+    P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+  J.toB.slotFrame_dbgKeep hF
 /-- **The preemption point keeps the debug words** (P1's
 `preemption_point.pp`: `WORK_UNITS` and the current node's `CUR_TIME`,
 `CONSUMED`). -/

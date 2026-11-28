@@ -25,6 +25,9 @@ from `JAtZ` before to `JAt` after, against the spec's `specTail true`.
 * `JAtZ.replyTailJ`: `reply_words` (badge, message info; `mrS_setReg`) and
   `Running` (`JAtZ.runJ`), `JAt` at the spec's success tail with data
   (`specTail_data`). With XTopReply's `data_tail_core` by `WP.spec_and`.
+
+(mmuAD gen 42b18) `userWrJ` stated over `JAtZB` in place; `JAtZ.userWrJ` its corollary with new `JAtZB.ext_wr` (`ext`
+across one word written apart from every non-`other` object of `H`). P3/JAtZV3RegW's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
@@ -47,15 +50,29 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 theorem arFr_setUm (σ : Fl4Spec.State Unit) (um : Fl4Spec.Word → Fl4Spec.Word8) : ArFr σ (Endp.setUm σ um) :=
   ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
+/-- **`ext` across one word written** (mmuAD gen 42b18: the `ext`-rebuild of the single-word frames stated over
+`JAtZB`, `userWrJ` / `frameWrJ`): the slots kept (`hSS`, the caller's), every TCB's VCPU word kept (the word apart
+from every non-`other` object of `H`, a TCB of `Z.T` one, `zH`). -/
+theorem JAtZB.ext_wr (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (E : JExt (L := L) Z.th s) {w : U64}
+    (hal : P1.Aligned w) (v : U64) (hSS : SlotsSame Z.th (L.mem s) (L.mem (L.wr s w v)))
+    (hAp : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → w.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ w.val) :
+    JExt (L := L) Z.th (L.wr s w v) := by
+  refine E.ss hSS fun t ht => ?_
+  have hT := J.thT t ht
+  have hv := Sched.tVcpuA_val J.ip.e.tcb hT
+  refine (P1.writesIn_wr (s := s) (v := v) hal).mem_eq (Sched.tVcpuA_aligned J.ip.e.tcb hT) fun hb => ?_
+  rw [show tVcpuA t = w from hb] at hv
+  rcases hAp t .tcb (J.zH.1 t hT) (fun _ e => by cases e) with e | e <;> (try simp only [P1.HKind.bits, Nat.reducePow] at e) <;> omega
+
 open Fl4Proofs.P1 in
 set_option maxHeartbeats 16000000 in
-/-- **One IPC-buffer word written at `J`** (module docstring). -/
-theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- **One IPC-buffer word written at `JAtZB`** (XTopJointData's `JAtZ.userWrJ`, generated copy). -/
+theorem JAtZB.userWrJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hBP : BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ) {wp : U64 × Fl4Spec.Word} (hwB : wp ∈ Z.B)
     (hAp : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → wp.1.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ wp.1.val)
     (hObj : ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ wp.1.val ∧ wp.1.val < o.toNat + 2 ^ Fl4Spec.objBits ko)
     (v : U64) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s wp.1 v) a
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D (L.wr s wp.1 v) a
       (Endp.setUm σ (Endp.storeMem σ.machineState.underlyingMemory wp.2 v.bv)) := by
   set s1 := L.wr s wp.1 v with hs1
   set σ1 := Endp.setUm σ (Endp.storeMem σ.machineState.underlyingMemory wp.2 v.bv) with hσ1
@@ -222,8 +239,21 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
         (DXKeep.of_dbg hKd hTd), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.of_keep rfl fun _ _ _ => rfl)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.of_keep rfl fun _ _ _ => rfl)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
     hSS hKd F.idle
+
+open Fl4Proofs.P1 in
+/-- `JAtZB.userWrJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hBP : BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ) {wp : U64 × Fl4Spec.Word} (hwB : wp ∈ Z.B)
+    (hAp : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → wp.1.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ wp.1.val)
+    (hObj : ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ wp.1.val ∧ wp.1.val < o.toNat + 2 ^ Fl4Spec.objBits ko)
+    (v : U64) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s wp.1 v) a
+      (Endp.setUm σ (Endp.storeMem σ.machineState.underlyingMemory wp.2 v.bv)) :=
+  have hP := J.xtop.fin.1.2
+  have hal : P1.Aligned wp.1 := (hP.ep.balign wp hwB).1
+  (Fl4Proofs.P3.JAtZB.userWrJ (J := J.toB) (hBP := hBP) (hwB := hwB) (hAp := hAp) (hObj := hObj) (v := v)).toJAtZ (J.toB.ext_wr J.ext hal v (slotsSame_wr hP.pl s v hal fun _ hx => BufPlaced.slot hP hwB hx) hAp)
 
 set_option maxHeartbeats 8000000 in
 /-- **A word of a TCB's receive buffer at `J`** (`JAtZ.bufWordG` for the

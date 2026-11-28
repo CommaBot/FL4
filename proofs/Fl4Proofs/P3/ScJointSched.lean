@@ -11,6 +11,10 @@ and `CurInv` after.
   after; named premise `hSchedRest` (as the SC steps' `ScStepP1`): the rest of `JAtZ`
   at `schedule`'s post, given those (`schedule`'s frame: the timers,
   `awaken`, `choose_thread`, `switch_sched_context`, the arch switch).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `schedPreW`;
+each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.ScScheduleTop
 import Fl4Proofs.P3.JointAt
@@ -25,10 +29,16 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 /-- **`schedule`'s mid-entry precondition from `JAtZ`** and the domain scope. -/
+theorem JAtZB.schedPreW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) : SchedPreW Z.T Z.C σ :=
+  ⟨J.inv, J.cur, J.off, J.act, hd, J.own⟩
+
+/-- `JAtZB.schedPreW` at `JAtZ` (via `JAtZ.toB`). -/
 theorem JAtZ.schedPreW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) : SchedPreW Z.T Z.C σ :=
-  ⟨J.inv, J.cur, J.off, J.act, hd, J.own⟩
+  Fl4Proofs.P3.JAtZB.schedPreW (J := J.toB) (hd := hd)
 
 /-- The hypothesis on FL4's TCB timers keeping `SchedPreW` (`FireHyp` from a
 mid-entry state). Stated at every related state, it is not derivable from

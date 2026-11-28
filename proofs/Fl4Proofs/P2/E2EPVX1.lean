@@ -237,6 +237,12 @@ def NatEp (P : LocPlat st arI AR MR) (K : KLayoutP) (Ch : S → Prop) (s : Cfg U
   SerExitW P K.toKLayoutV Ch ∧
     ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x
 
+/-- **`NatEp` on the re-based platform** (gen 55): the native exit is `SerExitC P` for `P : LocPlatC`; `NatEp P` is
+`NatEpC P.toC` definitionally. -/
+def NatEpC (P : LocPlatC st arI AR MR) (K : KLayoutP) (Ch : S → Prop) (s : Cfg U64 U64 U64 U64) : Prop :=
+  SerExitC P K.toKLayoutV Ch ∧
+    ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x
+
 /-- **An `ExecVX` is an `ExecP`**; in a native epoch (`K.vcpus = ∅`) the chain and `ptesR` data hold
 (`execP_of_WPRG`'s induction, the VM exit making the invariant vacuous). The start step is abstracted as `hSF`, which
 receives the native data only when the epoch is native. -/
@@ -293,41 +299,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **The start facts with the VM-exit slot**: a native family's start fact `SFN` in a native epoch
-(`K.vcpus = ∅`), `VxStartV` for the VM-exit slot. -/
-def StartVX {ιN : Type}
-    (SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop)
-    (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : ιN ⊕ VxArg S → Prop
-  | .inl i => K.vcpus = ∅ ∧ SFN Ch K m hK hU c hs q i
-  | .inr j => VxStartV st ar hA hm K m hK hU c hs q j
-
-/-- **FL4 end to end with native and VM epochs, generic in the native family** (module docstring): every `ExecVX`
-over `PathsP.sum LN vxSlotPV` whose starts are `StartVX SFN` facts ran as some serial order of its completed entries,
-provided each native start fact gives its `StartAt` from the chain and the `ptesR` epoch data (`hSFN`, the form
-`serializable_fl4_localU1G`'s families satisfy). -/
-theorem serializable_fl4_localVX1G (P : LocPlat st arI AR MR) {ιN : Type} (LN : PathsP ιN)
-    {SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop}
-    (hSFN : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SFN Ch K s.mem hK hU c hs q i → StartAt (LN i K s.mem hK hU) c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX (PathsP.sum LN (vxSlotPV st ar hA hm)) (StartVX st ar hA hm SFN) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_VX P ?_ h0 hA0 hB hc0 hM0 h).1 hq
-  intro Ch K s hK hU c hs q i hN hsf
-  cases i with
-  | inl i =>
-    obtain ⟨nv, hsf⟩ := hsf
-    obtain ⟨hX, hE⟩ := hN nv
-    exact hSFN Ch K s hK hU c hs q i hX.chainOf hE hsf
-  | inr j => exact vxStartV_at st ar hA hm hsf
 
 end top
 

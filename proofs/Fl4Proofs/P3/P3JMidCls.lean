@@ -44,6 +44,9 @@ non-stable `JMidRecvHypS` [W] / `JMidLeavesHyp` [W] (XTopJointKEntry9M/10M), res
 `H` objects, the kernel-state block and nodes of `Cs`, as `recvIpcProjW`). Removed from the [J] content: the
 receive at a resumed mid state, and the dispatch skeleton of the mid class.
 
+(p3J gen 51) **`recvIpcFtB`**: `recvIpcFtE` generalised in place from `Entered` to P1's `CanBlock` of the current
+thread; `recvIpcFtE` is now its instance (statement unchanged).
+
 Named premises: `MidInvStFt` [J], `MidSpecAt` [J], `MidRecvSw` [J], `DispStabFootLm` [J] (above). No sorry. New module; no
 existing statement changed.
 -/
@@ -123,17 +126,15 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop}
 
 set_option maxHeartbeats 4000000 in
-/-- (p3J gen 32) **The endpoint receive's footprint at a `JAtZ` state** (`recvIpcFt_holds` at any `Z`, no `RR`). -/
-theorem recvIpcFtE (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
+/-- (p3J gen 51) **The endpoint receive's footprint at a `JAtZ` state where the current thread can block** (P1
+`CanBlock`; no `Entered`). `recvIpcFtE` is its instance. -/
+theorem recvIpcFtB (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
     {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hC : SInvCk.CKI σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) (blocking : Bool) (p b : U64) (sd g gr : Bool) (rc : capability.Cap)
+    (hC : SInvCk.CKI σ) {ct : U64} (hcb : P1.CanBlock st (P1.Heap.tcbs H) Ac s ct) (blocking : Bool) (p b : U64)
+    (sd g gr : Bool) (rc : capability.Cap)
     (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr)) (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc) :
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       P1.WritesIn st s r.1 (Mc.ProjW (L := L) H Cs s) ⦄ := by
-  obtain ⟨hcur, x, hk, hrn⟩ := J.curRunnable hni hct
-  have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  have hcb := J.canBlockCur hctT hcur hk hrn hni hnq
   obtain ⟨⟨Q0, R0, h0⟩, hB0, hX0, hS0, hSg0⟩ := J.blk
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   obtain ⟨y, hy, hcv⟩ := hHd
@@ -147,6 +148,19 @@ theorem recvIpcFtE (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs Ac : Se
     Q0 R0 h0 hB0 hX0 hS0 hSg0 hcb rfl hHe hcap (fun n hn => hn) (P1.BufK.refl s)) ?_
   rintro ⟨s', a'⟩ hW
   simpa only [WP.uncurry'_pair] using hW
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 32) **The endpoint receive's footprint at a `JAtZ` state** (`recvIpcFt_holds` at any `Z`, no `RR`). -/
+theorem recvIpcFtE (hA : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
+    {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hC : SInvCk.CKI σ) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) (blocking : Bool) (p b : U64) (sd g gr : Bool) (rc : capability.Cap)
+    (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr)) (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc) :
+    endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
+      P1.WritesIn st s r.1 (Mc.ProjW (L := L) H Cs s) ⦄ := by
+  obtain ⟨hcur, x, hk, hrn⟩ := J.curRunnable hni hct
+  exact recvIpcFtB hA J hC (J.canBlockCur (TopSR.cur_mem J.xtop.fin.1 hcur.symm) hcur hk hrn hni hnq) blocking p b sd g
+    gr rc hHd hHr
 
 set_option maxHeartbeats 8000000 in
 /-- (p3J gen 32) **The receive at a resumed mid state, stable, with its footprint** (module docstring). -/

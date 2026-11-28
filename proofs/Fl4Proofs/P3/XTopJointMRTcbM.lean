@@ -13,6 +13,16 @@ take `hWM : W kb s a σ G → MR a σ.machineState` and the start's
   `msF` (`mtk_setMcpriorityG4j`, `mtk_setPriorityG4j`,
   `mtk_schedContextUnbindTcb'`); `bind_tcb` keeps `MR` by
   `MKD.schedcontext_bind_tcb` (FL4) and `mtk_schedContextBindTcbG` (spec).
+(p3J gen 46) `top_of_instJMG` and the labels `tcb_set_timeoutJMG`, `tcb_set_spaceJMG`, `tcb_set_ipcJMG`,
+`tcb_configureJMG` take the preempted invariant `Wp` (`TcbInsWG`) and the exits `Xo` (start and Ok outcomes) /
+`Xp` (preempted outcome, with `WJP` for `TopPostDMX`'s relation facts) as parameters; `top_of_instJMM` and the
+`…JMM` labels keep their statements as the `WJPM` / `JAtM` / `JAtPreMV` instances (`TcbInsWM.jAtM`).
+`ssp_tailJMM` / `tcb_set_sched_paramsJMM` are unchanged (their post-install steps build `JAtM` directly).
+(p3J gen 47) `ssp_tailJMG` / `tcb_set_sched_paramsJMG`: the same with `Wp`, `Xo` / `Xp`, `MachPlat`'s `MR` frame as a
+parameter `hmf`, and a relation `Rf` between the fault handler's install state and the final state, with its step
+hypotheses for `set_mcp` / `set_priority` / `unbind_tcb` / `bind_tcb` (`hRm` / `hRp` / `hRu` / `hRb`, transitivity
+`hRt`) and the Ok exit `hfx`; `ssp_tailJMM` / `tcb_set_sched_paramsJMM` keep their statements as the `WJPM` /
+`JAtM` / `JAtPreMV` / `Rf := True` instances.
 -/
 import Fl4Proofs.P3.XTopJointMRTcb
 import Fl4Proofs.P3.XTopJointKEntry38
@@ -41,6 +51,47 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
+/-- (p3J gen 46) **`top_of_instJMM` with the preempted invariant `Wp` and the exits as parameters**: an Ok
+install's state (`W`) gives `Xo`, a preempted one's (`Wp`) gives `WJP` (for `TopPostDMX`'s relation facts) and
+`Xp`. -/
+theorem top_of_instJMG [VxE Z] {kb : U64} {W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop}
+    (hw : ∀ s a σ G, W s a σ G → WJR (L := L) arI AR Z H Cs kb s a σ G)
+    (hwx : ∀ s a σ G, W s a σ G → Xo s a σ)
+    (hwp : ∀ s a σ G, Wp s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    {σ σ1 : Fl4Spec.State Unit} {blk call don : Bool}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation} {t : U64} {ssl : Fl4Spec.CslotPtr} {flags : U64}
+    {fh tmh cr vr : capability.Cap × Fl4Spec.CslotPtr} {ptr : Fl4Spec.VSpaceRef}
+    {bfr : Option (capability.Cap × Fl4Spec.CslotPtr)} {s s1 : S}
+    {res : core.result.Result Unit error.Exc × S × A}
+    (hdec : DecOut m σ (tcInv t ssl flags fh tmh cr vr ptr bfr))
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (h : InstPostWP (L := L) W Wp Z.th t (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s1 σ1 res) :
+    TopPostDMXP (L := L) Xo Xp σ blk call don m s res := by
+  obtain ⟨σ', G', hc, hDS'⟩ := h
+  rcases hc with ⟨hr, hx, -, hW'⟩ | ⟨hr, hx, hW'⟩
+  · obtain ⟨V, Ac', Lst', D', J', -⟩ := hw _ _ _ _ hW'
+    have hX' := J'.xtop
+    refine Or.inr ⟨_, hdec, σ1, hst, tcRet (.ok (), σ'), tcCapsSpec_mem t ssl flags fh tmh cr vr ptr bfr hx,
+      ⟨Z.th, G', Or.inl ⟨hr, rfl⟩, hX'.rel.1, hDS'.1, hDS'.2.2, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ?_⟩
+    show if res.1 = .Err .Preempted then _ else _
+    rw [if_neg (by rw [hr]; exact fun e => by cases e)]
+    exact hwx _ _ _ _ hW'
+  · obtain ⟨⟨s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩, hPre⟩ := hwp _ _ _ _ hW'
+    refine Or.inr ⟨_, hdec, σ1, hst, tcRet (.error (), σ'), tcCapsSpec_mem t ssl flags fh tmh cr vr ptr bfr hx,
+      ⟨Z.th, G', Or.inr ⟨hr, rfl⟩, J0.xtop.rel.1, hDS'.1, hDS'.2.2, hDom, hMO⟩, ?_⟩
+    show if res.1 = .Err .Preempted then _ else _
+    rw [if_pos hr]
+    exact hPre
+
+/-- (p3J gen 46) The installs' Ok invariant gives `JAtM` (`TcbInsWM`'s `WJR` and `MR`). -/
+theorem TcbInsWM.jAtM [VxE Z] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
+    (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState) :
+    ∀ kb s a σ G, W kb s a σ G → JAtM (L := L) arI AR MR s a σ := fun kb s a σ G h => by
+  obtain ⟨V, Ac', Lst', D', J', -⟩ := (hHp.ins kb).wjr _ _ _ _ h
+  exact ⟨⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩, hWM _ _ _ _ _ h⟩
+
 /-- **An install run's outcome at `WJR`/`WJP` after the restart is a
 `TopPostDMXP` outcome at `JAt`/`JAtPre`** of the spec's ThreadControlCaps
 invocation (`XTopAt`'s `DomRel` and `MdbOKV` after an Ok run, `WJP`'s after
@@ -56,36 +107,21 @@ theorem top_of_instJMM [VxE Z] {kb : U64} {W : S → A → Fl4Spec.State Unit �
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
     (h : InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
       (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s1 σ1 res) :
-    TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res := by
-  obtain ⟨σ', G', hc, hDS'⟩ := h
-  rcases hc with ⟨hr, hx, -, hW'⟩ | ⟨hr, hx, hW'⟩
-  · obtain ⟨V, Ac', Lst', D', J', -⟩ := hw _ _ _ _ hW'
-    have hX' := J'.xtop
-    refine Or.inr ⟨_, hdec, σ1, hst, tcRet (.ok (), σ'), tcCapsSpec_mem t ssl flags fh tmh cr vr ptr bfr hx,
-      ⟨Z.th, G', Or.inl ⟨hr, rfl⟩, hX'.rel.1, hDS'.1, hDS'.2.2, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ?_⟩
-    show if res.1 = .Err .Preempted then _ else _
-    rw [if_neg (by rw [hr]; exact fun e => by cases e)]
-    exact ⟨⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩, hwm _ _ _ _ hW'⟩
-  · obtain ⟨⟨s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩, hPre⟩ := hW'
-    refine Or.inr ⟨_, hdec, σ1, hst, tcRet (.error (), σ'), tcCapsSpec_mem t ssl flags fh tmh cr vr ptr bfr hx,
-      ⟨Z.th, G', Or.inr ⟨hr, rfl⟩, J0.xtop.rel.1, hDS'.1, hDS'.2.2, hDom, hMO⟩, ?_⟩
-    show if res.1 = .Err .Preempted then _ else _
-    rw [if_pos hr]
-    exact hPre
+    TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res :=
+  top_of_instJMG arI hw (fun s a σ G h => by
+    obtain ⟨V, Ac', Lst', D', J', -⟩ := hw _ _ _ _ h
+    exact ⟨⟨_, H, Cs, Ac', Lst', D', J', inferInstance⟩, hwm _ _ _ _ h⟩) (fun _ _ _ _ h => h) hdec hst h
 
-
-
-set_option maxHeartbeats 8000000 in
-/-- **The SetTimeoutEndpoint label at `JAt`** (`JAtPre` if preempted), as
-TcbCtl's `tcb_set_timeout_refinesW`: the decode, the caller's restart
-(`JAtZ.restartWJR`), the timeout handler's install by `thread_control_capsJM`
-at the deletion loop's steps (`DelHypsWR` at `WJR`), `top_of_instJMM`. -/
-theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`tcb_set_timeoutJMM` with the preempted invariant `Wp` and the exits `Xo` (start, Ok) / `Xp` (preempted) as parameters** (`tcb_set_timeoutJMM` is the `WJPM` / `JAtM` / `JAtPreMV` instance). -/
+theorem tcb_set_timeoutJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
-    (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
-    (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
-    (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
+    (hX0 : Xo s ar σ) (hwx : ∀ kb s a σ G, W kb s a σ G → Xo s a σ)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTimeoutEndpoint)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -95,9 +131,9 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
     (args : List Fl4Spec.Data) (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetTimeoutEndpoint p
+    TcbOKXP (L := L) arI Xo Xp s ar σ fl4_abi.label.TCBSetTimeoutEndpoint p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl args ci ssl excaps buffer := by
-  have hJ0 : JAtM (L := L) arI AR MR s ar σ := ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩
+  have hJ0 : Xo s ar σ := hX0
   have hdec0 : specDec false slbl args ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetTimeoutEp (Z := Unit) (.threadCap p.bv) ssl excaps) := by
@@ -137,7 +173,7 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
     rfl
   by_cases hv : Fl4Spec.validFaultHandler (absCap (capV (L.mem s) x0))
   · rw [decide_eq_true hv]; simp only [↓reduceIte]
-    obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWM arI hni hsg hP0 hct hHp (hR ct hct)
+    obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWG arI hni hsg hP0 hct hHp (hR ct hct)
     rw [hrc]; simp only [bind_ok]
     have hxs : IsSlot Z.th x0 := by rw [hxe]; exact AbsSlot.isSlot ⟨ps, hps1, Or.inl hps⟩
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
@@ -159,7 +195,7 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
     have hc1 : capV (L.mem s1) x0 = capV (L.mem s) x0 := hS1.capV hxs
     have hU0 : (tcb.UPDATE_TIMEOUT &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 := by
       simp only [tcb.UPDATE_TIMEOUT, tcb.UPDATE_IPC_BUFFER]; decide
-    have hT' := thread_control_capsJM arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs tcb.UPDATE_TIMEOUT
+    have hT' := thread_control_capsJMp arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs tcb.UPDATE_TIMEOUT
       (.Null, (0, [])) (capV (L.mem s) x0, e.2) (.Null, (0, [])) (.Null, (0, [])) (fun h => (Eq.mp flags_T.1 h).elim)
       (fun _ => by
         show NewCapOK Z.th (L.mem s1) (capV (L.mem s) x0) e.2
@@ -168,7 +204,7 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
       (fun h => (Eq.mp flags_T.2.2.1 h).elim) (fun h => (Eq.mp flags_T.2.2.1 h).elim) (fun _ h => absurd rfl h)
       0#u64 0 (fun h => absurd hU0 h) .Null none (fun _ _ h => by cases h) (fun _ _ h => by cases h) (fun _ _ h => by cases h)
     simp only [cslot_zero, ← hxe] at hT'
-    exact WP.spec_mono hT' (fun res h => top_of_instJMM arI (hHp.ins _).wjr (hWM _) (DecOut.of_eq hdec) hst1 h)
+    exact WP.spec_mono hT' (fun res h => top_of_instJMG arI (hHp.ins _).wjr (hwx _) (hwp _) (DecOut.of_eq hdec) hst1 h)
   · rw [decide_eq_false hv]; simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
     refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
       Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
@@ -180,17 +216,39 @@ theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A →
       Fl4Spec.SEMonad Unit Unit)) rfl _) _
 
 
-set_option maxHeartbeats 16000000 in
-/-- **The SetSpace label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
-`tcb_set_space_refinesW`: the decode (the roots by `roots_rel`), the
-caller's restart (`JAtZ.restartWJR`), the fault handler's and the roots'
-installs by `thread_control_capsJM`, `top_of_instJMM`. -/
-theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+/-- **The SetTimeoutEndpoint label at `JAt`** (`JAtPre` if preempted), as
+TcbCtl's `tcb_set_timeout_refinesW`: the decode, the caller's restart
+(`JAtZ.restartWJR`), the timeout handler's install by `thread_control_capsJM`
+at the deletion loop's steps (`DelHypsWR` at `WJR`), `top_of_instJMM`. -/
+theorem tcb_set_timeoutJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
     (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
     (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTimeoutEndpoint)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (args : List Fl4Spec.Data) (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetTimeoutEndpoint p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl args ci ssl excaps buffer :=
+  tcb_set_timeoutJMG arI s ar σ J hni hsg hP0 (hHp.toG arI) ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩ (hHp.jAtM arI hWM) (fun _ _ _ _ _ h => h) hR p hp slbl hlbl length buf ct hct hstall call ssl hAs extra x0 x1 x2 hx0 excaps hX args blk don ci buffer
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`tcb_set_spaceJMM` with the preempted invariant `Wp` and the exits `Xo` (start, Ok) / `Xp` (preempted) as parameters** (`tcb_set_spaceJMM` is the `WJPM` / `JAtM` / `JAtPreMV` instance). -/
+theorem tcb_set_spaceJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
+    (hX0 : Xo s ar σ) (hwx : ∀ kb s a σ G, W kb s a σ G → Xo s a σ)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (p : U64) (hp : Z.th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSpace)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -205,9 +263,9 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
     (hnc : NcHyp (st := st) Z.th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetSpace p
+    TcbOKXP (L := L) arI Xo Xp s ar σ fl4_abi.label.TCBSetSpace p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
-  have hJ0 : JAtM (L := L) arI AR MR s ar σ := ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩
+  have hJ0 : Xo s ar σ := hX0
   have hP := J.xtop.rel.1
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
@@ -221,8 +279,8 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
   rw [decode_space_eq arI s ar p _ hstall, hdec0]
   have htr : args.length < 2 ∨ excaps.length < 3 →
       (ok ((.Err (.Sys .TruncatedMessage) : core.result.Result Unit error.Exc), s, ar) :
-        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR)
-        (JAtPreMV (L := L) arI AR MR) σ blk call don
+        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) Xo
+        Xp σ blk call don
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeSetSpace (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
@@ -300,7 +358,7 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     rw [run_bind_ok hcv] at hspec
     by_cases hv : Fl4Spec.validFaultHandler (absCap (capV (L.mem s) x0))
     · rw [decide_eq_true hv]; simp only [↓reduceIte, lift, bind_ok]
-      obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWM arI hni hsg hP0 hct hHp (hR ct hct)
+      obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWG arI hni hsg hP0 hct hHp (hR ct hct)
       rw [hrc]; simp only [bind_ok]
       have hxs : IsSlot Z.th x0 := by rw [hxe0]; exact AbsSlot.isSlot ⟨ps0, hps01, Or.inl hps0⟩
       have hc1 : capV (L.mem s1) x0 = capV (L.mem s) x0 := hS1.capV hxs
@@ -322,7 +380,7 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
         rfl
       have hU0 : ((tcb.UPDATE_SPACE ||| tcb.UPDATE_FAULT) &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 := by
         simp only [tcb.UPDATE_SPACE, tcb.UPDATE_FAULT, tcb.UPDATE_IPC_BUFFER]; decide
-      have hT' := thread_control_capsJM arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
+      have hT' := thread_control_capsJMp arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
         (tcb.UPDATE_SPACE ||| tcb.UPDATE_FAULT)
         (capV (L.mem s) x0, e0.2) (.Null, (0, [])) (cc, e1.2) (vc, e2.2)
         (fun _ => by
@@ -332,7 +390,7 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
         (fun h => (Eq.mp flags_SF.2.1 h).elim) (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1)
         (fun _ => vfh_ep hv) 0#u64 0 (fun h => absurd hU0 h) .Null none (fun _ _ h => by cases h) (fun _ _ h => by cases h) (fun _ _ h => by cases h)
       simp only [cslot_zero, ← hxe0, bufArg] at hT'
-      exact WP.spec_mono hT' (fun res h => top_of_instJMM arI (hHp.ins _).wjr (hWM _) (DecOut.of_eq hdec) hst1 h)
+      exact WP.spec_mono hT' (fun res h => top_of_instJMG arI (hHp.ins _).wjr (hwx _) (hwp _) (DecOut.of_eq hdec) hst1 h)
     · rw [decide_eq_false hv]; simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
       refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
         Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
@@ -350,18 +408,44 @@ theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     exact run_bind_error hcv _
 
 
-set_option maxHeartbeats 16000000 in
-/-- **The SetIPCBuffer label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
-`tcb_set_ipc_refinesW`: the decode (the buffer's frame cap derived and
-checked), the caller's restart (`JAtZ.restartWJR`), the buffer's install by
-`thread_control_capsJM` (`install_bufferJM`, the IPC-buffer word and the tail
-at `WJR` by `bufHypW_J`), `top_of_instJMM`. -/
-theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+/-- **The SetSpace label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
+`tcb_set_space_refinesW`: the decode (the roots by `roots_rel`), the
+caller's restart (`JAtZ.restartWJR`), the fault handler's and the roots'
+installs by `thread_control_capsJM`, `top_of_instJMM`. -/
+theorem tcb_set_spaceJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
     (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
     (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (p : U64) (hp : Z.th p = some .tcb)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSpace)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hnc : NcHyp (st := st) Z.th s σ x0 x1 x2)
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetSpace p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
+  tcb_set_spaceJMG arI s ar σ J hni hsg hP0 (hHp.toG arI) ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩ (hHp.jAtM arI hWM) (fun _ _ _ _ _ h => h) hR p hp slbl hlbl length buf ct hct args hlen hargs hstall call ssl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hX hnc blk don ci buffer
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`tcb_set_ipcJMM` with the preempted invariant `Wp` and the exits `Xo` (start, Ok) / `Xp` (preempted) as parameters** (`tcb_set_ipcJMM` is the `WJPM` / `JAtM` / `JAtPreMV` instance). -/
+theorem tcb_set_ipcJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
+    (hX0 : Xo s ar σ) (hwx : ∀ kb s a σ G, W kb s a σ G → Xo s a σ)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (p : U64) (hp : Z.th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetIPCBuffer)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -376,9 +460,9 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
       NoChildrenRel (st := st) s σ x0 sl)
     (hfnz : FrNZ Z.th (L.mem s))
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetIPCBuffer p
+    TcbOKXP (L := L) arI Xo Xp s ar σ fl4_abi.label.TCBSetIPCBuffer p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
-  have hJ0 : JAtM (L := L) arI AR MR s ar σ := ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩
+  have hJ0 : Xo s ar σ := hX0
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
@@ -410,7 +494,7 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
       rw [whenE_neg (by simpa using ha), retOk_bind, whenE_pos (by simp)]
       exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
         Fl4Spec.SEMonad Unit Unit)) rfl _
-  have htrS : (args = [] ∨ excaps = []) → TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ
+  have htrS : (args = [] ∨ excaps = []) → TopPostDMXP (L := L) Xo Xp σ
       blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetIpcBuffer (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s
         (.Err (.Sys .TruncatedMessage), s, ar) := fun h =>
@@ -456,7 +540,7 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
     rw [whenE_neg (by simp), retOk_bind, whenE_neg (by simpa using hne), retOk_bind, retOk_bind]
     rw [show (List.map UScalar.bv (y0 :: rest))[0]? = some y0.bv from rfl, the_some, retOk_bind, he, the_some]
     rfl
-  obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWM arI hni hsg hP0 hct hHp (hR ct hct)
+  obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWG arI hni hsg hP0 hct hHp (hR ct hct)
   have hxs : IsSlot Z.th (cslotAddr e2) := AbsSlot.isSlot ⟨ps, hps1, Or.inl hps⟩
   have hc1 : capV (L.mem s1) (cslotAddr e2) = capV (L.mem s) (cslotAddr e2) := hS1.capV hxs
   have hcwf := slot_wf hDS.1.1 hps hps1
@@ -479,13 +563,13 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
       rw [hspec, if_pos hy', retOk_bind]
       simp only [tcInv, optArg, flags_B, ↓reduceIte, frameOf]
       rfl
-    have hT' := thread_control_capsJM arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs tcb.UPDATE_IPC_BUFFER
+    have hT' := thread_control_capsJMp arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs tcb.UPDATE_IPC_BUFFER
       (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, [])) (fun h => (Eq.mp flags_B.1 h).elim)
       (fun h => (Eq.mp flags_B.2.1 h).elim) (fun h => (Eq.mp flags_B.2.2.1 h).elim)
       (fun h => (Eq.mp flags_B.2.2.1 h).elim) (fun _ h => absurd rfl h) y0 y0.bv hB
       (capV (L.mem s) (cslotAddr e2)) none (fun _ _ h => by cases h) (fun _ _ h => by cases h) (fun _ _ h => by cases h)
     simp only [cslot_zero, bufArg] at hT'
-    exact WP.spec_mono hT' (fun res h => top_of_instJMM arI (hHp.ins _).wjr (hWM _) (DecOut.of_eq hdec) hst1 h)
+    exact WP.spec_mono hT' (fun res h => top_of_instJMG arI (hHp.ins _).wjr (hwx _) (hwp _) (DecOut.of_eq hdec) hst1 h)
   -- a frame: derived and checked
   have hy' : ¬ y0.bv = 0 := fun h => hy (UScalar.eq_of_val_eq (by
     have := congrArg BitVec.toNat h; simpa using this))
@@ -545,7 +629,7 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
           rw [hspec, if_neg hy', run_bind_ok hin]
           simp only [tcInv, optArg, flags_B, ↓reduceIte, frameOf]
           rfl
-        have hT' := thread_control_capsJM arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
+        have hT' := thread_control_capsJMp arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
           tcb.UPDATE_IPC_BUFFER (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, [])) (.Null, (0, []))
           (fun h => (Eq.mp flags_B.1 h).elim) (fun h => (Eq.mp flags_B.2.1 h).elim)
           (fun h => (Eq.mp flags_B.2.2.1 h).elim) (fun h => (Eq.mp flags_B.2.2.1 h).elim) (fun _ h => absurd rfl h)
@@ -553,7 +637,7 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
           (fun c sl h => by cases h; exact ⟨⟨q, sz, rr, m, aa, va, rfl⟩, Vs.check_valid_ipc_buffer_al hrc'⟩)
           (fun _ _ _ => hfnz.of_same hS1)
         simp only [cslot_zero, bufArg] at hT'
-        exact WP.spec_mono hT' (fun res h => top_of_instJMM arI (hHp.ins _).wjr (hWM _) (DecOut.of_eq hdec) hst1 h)
+        exact WP.spec_mono hT' (fun res h => top_of_instJMG arI (hHp.ins _).wjr (hwx _) (hwp _) (DecOut.of_eq hdec) hst1 h)
       · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
           core.convert.FromSame.from, bind_tc_ok, bind_ok]
         refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨er', ?_, ErrRel.of_map hmer⟩, hJ0⟩)
@@ -563,18 +647,45 @@ theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
         exact run_bind_error ((run_bind_ok hr' _).trans (run_bind_error hck _)) _
 
 
-set_option maxHeartbeats 16000000 in
-/-- **The Configure label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
-`tcb_configure_refinesW`: the decode (the buffer by `buf_rel`, the roots by
-`roots_rel`), the caller's restart (`JAtZ.restartWJR`), the roots' and the
-buffer's installs by `thread_control_capsJM` (the buffer's word and tail at
-`WJR` by `bufHypW_J`), `top_of_instJMM`. -/
-theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+/-- **The SetIPCBuffer label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
+`tcb_set_ipc_refinesW`: the decode (the buffer's frame cap derived and
+checked), the caller's restart (`JAtZ.restartWJR`), the buffer's install by
+`thread_control_capsJM` (`install_bufferJM`, the IPC-buffer word and the tail
+at `WJR` by `bufHypW_J`), `top_of_instJMM`. -/
+theorem tcb_set_ipcJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
     (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
     (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (p : U64) (hp : Z.th p = some .tcb)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetIPCBuffer)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hnc : ∀ sl : Fl4Spec.CslotPtr, AbsSlot Z.th sl → x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
+      NoChildrenRel (st := st) s σ x0 sl)
+    (hfnz : FrNZ Z.th (L.mem s))
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetIPCBuffer p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
+  tcb_set_ipcJMG arI s ar σ J hni hsg hP0 (hHp.toG arI) ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩ (hHp.jAtM arI hWM) (fun _ _ _ _ _ h => h) hR p hp slbl hlbl length buf ct hct args hlen hargs hstall call ssl hAs extra x0 x1 x2 hx0 excaps hX hnc hfnz blk don ci buffer
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`tcb_configureJMM` with the preempted invariant `Wp` and the exits `Xo` (start, Ok) / `Xp` (preempted) as parameters** (`tcb_configureJMM` is the `WJPM` / `JAtM` / `JAtPreMV` instance). -/
+theorem tcb_configureJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
+    (hX0 : Xo s ar σ) (hwx : ∀ kb s a σ G, W kb s a σ G → Xo s a σ)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (p : U64) (hp : Z.th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbConfigure)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -590,9 +701,9 @@ theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     (hnc : NcHyp (st := st) Z.th s σ x0 x1 x2)
     (hfnz : FrNZ Z.th (L.mem s))
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBConfigure p
+    TcbOKXP (L := L) arI Xo Xp s ar σ fl4_abi.label.TCBConfigure p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
-  have hJ0 : JAtM (L := L) arI AR MR s ar σ := ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩
+  have hJ0 : Xo s ar σ := hX0
   have hP := J.xtop.rel.1
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
@@ -606,8 +717,8 @@ theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
   rw [decode_configure_eq arI s ar p _ hstall, hdec0]
   have htr : args.length < 3 ∨ excaps.length < 3 →
       (ok ((.Err (.Sys .TruncatedMessage) : core.result.Result Unit error.Exc), s, ar) :
-        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR)
-        (JAtPreMV (L := L) arI AR MR) σ blk call don
+        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) Xo
+        Xp σ blk call don
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeTcbConfigure (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
@@ -705,7 +816,7 @@ theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
   rcases hcase with ⟨cc, vc, rfl, hcv, hokc, hokv⟩ | ⟨e, e', rfl, hcv, herr⟩
   · simp only [lift, bind_ok]
     rw [run_bind_ok hcv] at hspec
-    obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWM arI hni hsg hP0 hct hHp (hR ct hct)
+    obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWG arI hni hsg hP0 hct hHp (hR ct hct)
     rw [hrc]; simp only [bind_ok]
     have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeTcbConfigure (Z := Unit) ((y0 :: y1 :: y2 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
@@ -716,14 +827,14 @@ theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
       rw [hspec]
       simp only [tcInv, optArg, flags_SB, ↓reduceIte]
       rfl
-    have hT' := thread_control_capsJM arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
+    have hT' := thread_control_capsJMp arI (hHp.ins (L.ksb s1)) (hHp.del (L.ksb s1)) s1 ar σ1 Z.G hDS1 hW1 p hp ssl hAs
       (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER) (.Null, (0, [])) (.Null, (0, [])) (cc, e0.2) (vc, e1.2)
       (fun h => (Eq.mp flags_SB.1 h).elim) (fun h => (Eq.mp flags_SB.2.1 h).elim)
       (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1) (fun _ h => absurd rfl h) y2 y2.bv
       (fun _ => (hHp.ins (L.ksb s1)).buf p hp y2) bc0 bfr (fun c sl h => (hbok c sl h).of_same hS1) hbfd
       (fun _ _ _ => hfnz.of_same hS1)
     simp only [cslot_zero] at hT'
-    exact WP.spec_mono hT' (fun res h => top_of_instJMM arI (hHp.ins _).wjr (hWM _) (DecOut.of_eq hdec) hst1 h)
+    exact WP.spec_mono hT' (fun res h => top_of_instJMG arI (hHp.ins _).wjr (hwx _) (hwp _) (DecOut.of_eq hdec) hst1 h)
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, bind_ok]
     refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨e', ?_, herr⟩, hJ0⟩)
@@ -732,23 +843,85 @@ theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     exact run_bind_error hcv _
 
 
-set_option maxHeartbeats 32000000 in
-/-- **SetSchedParams after its checks at `J`** (as XTopTcbSched's `ssp_tailX`):
-the caller's restart (`JAtZ.restartWJR`), the fault handler's install at the
-deletion loop's invariant (`install_fhOkJM`, `JAtPre` when preempted; the
-other slots' caps kept), then `set_mcp` (`JAtZ.mcpWrJ`), `set_priority`
-(`JAtZ.setPrioJS`, the current thread's facts by `JAtZ.prioCur` from
-`CurInv`) and the SC step: none, `unbind_tcb` (`JAtZ.unbindTcbJ`) or
-`bind_tcb` (`JAtZ.bindTcbJ`, the decode's checks carried: `SpecPost` by
-`specPost_restart`, `specPost_install`, `BindOK.after`; the SC and the
-release check by `install_sched`). -/
-theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+/-- **The Configure label at `JAt`** (`JAtPre` if preempted), as TcbCtl's
+`tcb_configure_refinesW`: the decode (the buffer by `buf_rel`, the roots by
+`roots_rel`), the caller's restart (`JAtZ.restartWJR`), the roots' and the
+buffer's installs by `thread_control_capsJM` (the buffer's word and tail at
+`WJR` by `bufHypW_J`), `top_of_instJMM`. -/
+theorem tcb_configureJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
     (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
     (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (p : U64) (hp : Z.th p = some .tcb)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbConfigure)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hnc : NcHyp (st := st) Z.th s σ x0 x1 x2)
+    (hfnz : FrNZ Z.th (L.mem s))
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBConfigure p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
+  tcb_configureJMG arI s ar σ J hni hsg hP0 (hHp.toG arI) ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩ (hHp.jAtM arI hWM) (fun _ _ _ _ _ h => h) hR p hp slbl hlbl length buf ct hct args hlen hargs hstall call ssl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hX hnc hfnz blk don ci buffer
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 47) **`ssp_tailJMM` with the preempted invariant `Wp`, the exits `Xo` / `Xp` and the post-install
+steps' relation `Rf` as parameters** (`hRm` / `hRp` / `hRu` / `hRb`: `set_mcp`, `set_priority`, `unbind_tcb`,
+`bind_tcb` relate their states by `Rf`; `hfx`: the final state's `Xo` from the install's `W`, the final `JAtZ`,
+`MR` and `Rf`; `hmf`: `MachPlat`'s `MR` frame). `ssp_tailJMM` is the `WJPM` / `JAtM` / `JAtPreMV` / `True`
+instance. -/
+theorem ssp_tailJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} {Rf : S → S → Prop}
+    (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
+    (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
+    (hmf : ∀ (a : A) (σ σ' : Fl4Spec.State Unit), MR a σ.machineState → MachF.msF σ' = MachF.msF σ →
+      MR a σ'.machineState) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hRt : ∀ s1 s2 s3 : S, Rf s1 s2 → Rf s2 s3 → Rf s1 s3)
+    (hRm : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' → ∀ t ∈ Z'.T, ∀ v : U64,
+        Rf s' (L.wr s' (mcpA t) v))
+    (hRp : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        (∀ u, σ'.schedulerAction ≠ .switchThread u) → ∀ t ∈ Z'.T, ∀ v : U64, v.val < 256 →
+        (σ'.curThread = t.bv → t.bv ∉ σ'.releaseQueue ∧ ∃ x scp y n, σ'.kheap t.bv = some (.tcb x) ∧
+          x.tcbSchedContext = some scp ∧ σ'.kheap scp = some (.schedContext y n) ∧ Fl4Spec.scActive y = true) →
+        (t = L.mem s' (L.nodeAt s' (L.cpu s') layout.node.CUR_THREAD) →
+          (L.mem s' (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s' (P1.scA t) ≠ 0#u64 ∧
+            L.mem s' (P1.scA t) ∈ Ac') →
+        sched.set_priority st s' t v ⦃ s'' => Rf s' s'' ⦄)
+    (hRu : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        ∀ (t i : U64) (x : Fl4Spec.Tcb), t ∈ Z'.T → i ∈ Z'.C → σ'.kheap t.bv = some (.tcb x) →
+        x.tcbSchedContext = some i.bv → (∀ u, σ'.schedulerAction = .switchThread u → u ≠ t.bv) →
+        t.bv ≠ σ'.idleThread → schedcontext.unbind_tcb st s' i ⦃ s'' => Rf s' s'' ⦄)
+    (hRb : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        ∀ (sc t : U64), sc ∈ Z'.C → t ∈ Z'.T → ∀ (y : Fl4Spec.SchedContext) (n : Nat),
+        σ'.kheap sc.bv = some (.schedContext y n) → y.scTcb = none → ∀ (xt : Fl4Spec.Tcb),
+        σ'.kheap t.bv = some (.tcb xt) → xt.tcbSchedContext = none →
+        (Fl4Spec.ipcQueuedThreadState xt.tcbState = true → Fl4Spec.scReleased σ'.curTime y = true) →
+        (∀ u, σ'.schedulerAction ≠ .switchThread u) → CurInv σ' → t.bv ≠ σ'.idleThread →
+        ∀ (xs ys sb : U64), IsSlot Z'.th xs → capAt (L.mem s') xs = ok (.Thread t) → IsSlot Z'.th ys →
+        capAt (L.mem s') ys = ok (.SchedContext sc sb) → sb.val < 64 → n + Fl4Spec.minSchedContextBits = sb.val →
+        schedcontext.bind_tcb st arI s' a' sc t ⦃ r => Rf s' r.1 ⦄)
+    (hfx : ∀ kb s2 a2 σ2 G2, W kb s2 a2 σ2 G2 → ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64) (s5 : S) (a5 : A) (σ5 : Fl4Spec.State Unit),
+        JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s5 a5 σ5 → MR a5 σ5.machineState → Rf s2 s5 →
+        Xo s5 a5 σ5)
     (p : U64) (hp : Z.th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl) (hpsl : capV (L.mem s) (cslotAddr ssl) = .Thread p)
     (x2 : U64) (e2 : Fl4Spec.Cap × Fl4Spec.CslotPtr)
@@ -769,10 +942,10 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
       tcb.thread_control_sched st arI s1 ar p (cslotAddr ssl) (capV (L.mem s) x2, x2) y0 y1 scv
         (if scf then (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT ||| tcb.SCHED_UPDATE_SC)
           else (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT))) ⦃ res =>
-      TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res ⦄ := by
+      TopPostDMXP (L := L) Xo Xp σ blk call don m s res ⦄ := by
   have hpT : p ∈ Z.T := J.thT p hp
   obtain ⟨hcur, xc, hkc, hrunc⟩ := J.curRunnable hni hct
-  obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWM arI hni hsg hP0 hct hHp (hR ct hct)
+  obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartWG arI hni hsg hP0 hct hHp (hR ct hct)
   obtain ⟨s1', σ1', xc', hrc', hst1', hkc', -, e1, -, hid1, hct1, -, -⟩ := J.restartJ hni hct
   have es : s1' = s1 := Result.ok_injective (hrc'.symm.trans hrc)
   have eσ : σ1' = σ1 :=
@@ -825,7 +998,7 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
   have hnf := vfh_not_frame hv
   have hok : NewCapOK Z.th (L.mem s1') (capV (L.mem s) x2) e2.2 := by
     rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hv)
-  have hI := install_fhOkJM arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots]) (by decide)
+  have hI := install_fhOkJMp arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots]) (by decide)
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs
     (capV (L.mem s) x2) e2.2 hok (fun _ => vfh_ep hv) hnoe
   rw [← hxe2] at hI
@@ -838,7 +1011,7 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
   · -- preempted: `JAtPre`
     simp only at hr; subst hr
     rw [← he2] at hx
-    obtain ⟨⟨s0', a0', σ0', ⟨V0, Ac0, Lst0, D0, J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩, hPre⟩ := hWp
+    obtain ⟨⟨s0', a0', σ0', ⟨V0, Ac0, Lst0, D0, J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩, hPre⟩ := hwp _ _ _ _ _ hWp
     refine (WP.spec_ok _).2 (Or.inr ⟨_, hdec, σ1', hst1, (.error (), σ2), ?_, ⟨Z.th, G2, Or.inr ⟨rfl, rfl⟩,
       J0.xtop.rel.1, hDS2.1, hDS2.2.2, hDom, hMO⟩, ?_⟩)
     · show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
@@ -872,6 +1045,7 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
   rw [set_mcp_eq, bind_ok]
   obtain ⟨V3, J3⟩ := J2.mcpWrJ hpT hk2 y0 (Fl4Spec.ucast 8 y0.bv)
     (by rw [Ipc.ucast8_specPrio, Sched.specPrio_toNat hy0])
+  have hRf3 : Rf s2 (L.wr s2 (mcpA p) y0) := hRm _ _ _ _ _ _ _ J2 p hpT y0
   set σa := Notif.updK σ2 p.bv (.tcb { x with tcbMcpriority := Fl4Spec.ucast 8 y0.bv }) with hσa
   have hSS3 := J2.mcp_slots hpT y0
   have ha : ((), σa) ∈ (Fl4Spec.setMcpriority (Z := Unit) p.bv (Fl4Spec.ucast 8 y0.bv) σ2).1 := by
@@ -883,11 +1057,12 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
     rw [hct2, hid2, hct1, hid1]; exact hni.1
   obtain ⟨hc3, hp3⟩ := J3.prioCur hneA hCa hpT
   -- `set_priority`
-  refine WP.spec_bind (J3.setPrioJS (fun u => hns2 u) hpT y1 hy1 hc3 hp3) ?_
-  rintro s4 ⟨σb, hmb, hPF, hSS4, V4, J4⟩
+  refine WP.spec_bind (WP.spec_and (J3.setPrioJS (fun u => hns2 u) hpT y1 hy1 hc3 hp3)
+    (hRp _ _ _ _ _ _ _ J3 (fun u => hns2 u) p hpT y1 hy1 hc3 hp3)) ?_
+  rintro s4 ⟨⟨σb, hmb, hPF, hSS4, V4, J4⟩, hRf4⟩
   have hb : ((), σb) ∈ (Fl4Spec.setPriority (Z := Unit) p.bv (Fl4Spec.ucast 8 y1.bv) σa).1 := by
     rw [hmb]; exact Set.mem_singleton _
-  have hMb : MR a1 σb.machineState := msF_mr hMP (hWM _ _ _ _ _ hW2)
+  have hMb : MR a1 σb.machineState := hmf _ _ _ (hWM _ _ _ _ _ hW2)
     ((congrArg Prod.fst (MachT.mtk_setPriorityG4j _ _ σa _ hb)).trans
       (congrArg Prod.fst (MachT.mtk_setMcpriorityG4j _ _ σ2 _ ha)))
   have hCb : Sched.CurInv σb := hPF.curInv hCa
@@ -908,17 +1083,17 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
     exact hpI (Eq.symm (by rw [ei]; apply P1.eq_of_bv; rw [← hs0.idleTh, ← e]))
   -- the outcome
   have fin : ∀ (s5 : S) (a5 : A) (σc : Fl4Spec.State Unit), ((), σc) ∈ (scStep p.bv sco σb).1 →
-      (∃ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s5 a5 σc ∧ VxE Z') →
-      MR a5 σc.machineState →
+      (∃ (G' : MdbGhost) (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR (Z.mv G' V') H Cs Ac' Lst' D' s5 a5 σc) →
+      MR a5 σc.machineState → Rf s2 s5 →
       (ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a5) :
         Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
-        TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res ⦄ := by
-    rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J', _⟩ hmr5
+        TopPostDMXP (L := L) Xo Xp σ blk call don m s res ⦄ := by
+    rintro s5 a5 σc hcc ⟨G', V', Ac', Lst', D', J'⟩ hmr5 hrf5
     rw [WP.spec_ok]
-    refine TopPostDMX.toPne (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩,
+    refine TopPostDMX.toPne (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z.th, G', Or.inl ⟨rfl, rfl⟩,
       J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-      ⟨⟨Z', H, Cs, Ac', Lst', D', J', inferInstance⟩, hmr5⟩⟩) (by simp)
+      hfx _ _ _ _ _ hW2 G' V' Ac' Lst' D' s5 a5 σc J' hmr5 hrf5⟩) (by simp)
     show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
       (some (Fl4Spec.ucast 8 y0.bv, q)) (some (Fl4Spec.ucast 8 y1.bv, q)) sco)).run σ1').1
     simp only [Fl4Spec.invokeTcb]
@@ -929,7 +1104,7 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
     have hsco : sco = none := h1.2 rfl
     subst hsco
     simp only [Bool.false_eq_true, ↓reduceIte]
-    exact fin s4 a1 σb (Set.mem_singleton _) ⟨_, _, _, _, J4, inferInstance⟩ hMb
+    exact fin s4 a1 σb (Set.mem_singleton _) ⟨G2, V4, _, _, _, J4⟩ hMb (hRt _ _ _ hRf3 hRf4)
   simp only [↓reduceIte]
   step with Sched.obj.Sc.is_null.spec' as ⟨bz, hbz⟩
   by_cases hs0 : scv = 0#u64
@@ -957,10 +1132,13 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
     step with Sched.obj.Sc.is_null.spec' as ⟨b1, hb1⟩
     rw [hb1, decide_eq_false hi40]
     simp only [Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (J4.unbindTcbJ hpT hi4C hkb (by rw [hxbsc, hi4c]) (fun u e => absurd e (hnsb u)) hidb) ?_
-    rintro s5 ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
-    refine fin s5 a1 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
-      (msF_mr hMP hMb (congrArg Prod.fst (MachT.mtk_schedContextUnbindTcb' _ σb ((), σc) (mem_of_single hsc))))
+    refine WP.spec_bind (WP.spec_and
+      (J4.unbindTcbJ hpT hi4C hkb (by rw [hxbsc, hi4c]) (fun u e => absurd e (hnsb u)) hidb)
+      (hRu _ _ _ _ _ _ _ J4 p i4 xb hpT hi4C hkb (by rw [hxbsc, hi4c]) (fun u e => absurd e (hnsb u)) hidb)) ?_
+    rintro s5 ⟨⟨σc, hsc, Ac5, Lst5, D5, J5⟩, hRf5⟩
+    refine fin s5 a1 σc ?_ ⟨G2, V4, Ac5, Lst5, D5, J5⟩
+      (hmf _ _ _ hMb (congrArg Prod.fst (MachT.mtk_schedContextUnbindTcb' _ σb ((), σc) (mem_of_single hsc))))
+      (hRt _ _ _ (hRt _ _ _ hRf3 hRf4) hRf5)
     show _ ∈ ((Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext p.bv >>= fun o =>
       Fl4Spec.NonDet.assertOpt o >>= fun c => Fl4Spec.schedContextUnbindTcb c) σb).1
     rw [nd_bind_one (Endp.getTcbObjRef_eq _ hkb), hxbsc]
@@ -1011,26 +1189,115 @@ theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spe
       rw [capAt_capV, hSS4.capV hxsS, hSS3.capV hxsS, hroot1 _ hxsS hSn hSe, hxsc]
     obtain ⟨hscvC, -, hsb, hssz, -⟩ := J4.scCtxCap arI hxsS hS4
     refine WP.spec_bind (WP.spec_and (J4.bindTcbJ hAT hAK hTA hscvC hpT hkbd hyd0 hkb hxb0 hrelb hnsb hCb hidb
-      hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)) (MKD.schedcontext_bind_tcb L.total hAT hKD hMb)) ?_
-    rintro ⟨s5, a5⟩ ⟨⟨σc, hsc, Ac5, Lst5, D5, J5⟩, hm5⟩
+      hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)) (WP.spec_and (MKD.schedcontext_bind_tcb L.total hAT hKD hMb)
+      (hRb _ _ _ _ _ _ _ J4 scv p hscvC hpT yd nd hkbd hyd0 xb hkb hxb0 hrelb hnsb hCb hidb _ _ sb
+        hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)))) ?_
+    rintro ⟨s5, a5⟩ ⟨⟨σc, hsc, Ac5, Lst5, D5, J5⟩, hm5, hRf5⟩
     try simp only [uncurry_apply_pair]
-    refine fin s5 a5 σc ?_ ⟨_, Ac5, Lst5, D5, J5, inferInstance⟩
-      (msF_mr hMP hm5 (congrArg Prod.fst (MachT.mtk_schedContextBindTcbG _ _ σb ((), σc) (mem_of_single hsc))))
+    refine fin s5 a5 σc ?_ ⟨G2, V4, Ac5, Lst5, D5, J5⟩
+      (hmf _ _ _ hm5 (congrArg Prod.fst (MachT.mtk_schedContextBindTcbG _ _ σb ((), σc) (mem_of_single hsc))))
+      (hRt _ _ _ (hRt _ _ _ hRf3 hRf4) hRf5)
     show _ ∈ (Fl4Spec.schedContextBindTcb (Z := Unit) scv.bv p.bv σb).1
     rw [hsc]; exact Set.mem_singleton _
 
-set_option maxHeartbeats 8000000 in
-/-- **The SetSchedParams label at `JAt`** (`JAtPre` if preempted; as
-XTopTcbSched's `tcb_set_sched_paramsX`): the decode (the authority's MCP by
-`JAtZ`'s `McpRel`, the SC checks by the scheduler and notification
-relations), then `ssp_tailJMM`. -/
-theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+
+/-- **SetSchedParams after its checks at `J`** (as XTopTcbSched's `ssp_tailX`):
+the caller's restart (`JAtZ.restartWJR`), the fault handler's install at the
+deletion loop's invariant (`install_fhOkJM`, `JAtPre` when preempted; the
+other slots' caps kept), then `set_mcp` (`JAtZ.mcpWrJ`), `set_priority`
+(`JAtZ.setPrioJS`, the current thread's facts by `JAtZ.prioCur` from
+`CurInv`) and the SC step: none, `unbind_tcb` (`JAtZ.unbindTcbJ`) or
+`bind_tcb` (`JAtZ.bindTcbJ`, the decode's checks carried: `SpecPost` by
+`specPost_restart`, `specPost_install`, `BindOK.after`; the SC and the
+release check by `install_sched`). -/
+theorem ssp_tailJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
     (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
-    (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hRs : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hR : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
+    (p : U64) (hp : Z.th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl) (hpsl : capV (L.mem s) (cslotAddr ssl) = .Thread p)
+    (x2 : U64) (e2 : Fl4Spec.Cap × Fl4Spec.CslotPtr)
+    (hxe2 : x2 = cslotAddr e2.2) (he21 : e2.1 = absCap (capV (L.mem s) x2)) (ps : U64)
+    (hps : Z.th ps = some (.cnode e2.2.2.length)) (hps1 : e2.2.1 = ps.bv)
+    (hv : Fl4Spec.validFaultHandler (absCap (capV (L.mem s) x2)))
+    (y0 y1 scv : U64) (hy0 : y0.val < 256) (hy1 : y1.val < 256) (scf : Bool) (q : Fl4Spec.ObjRef)
+    (sco : Option (Option Fl4Spec.ObjRef)) (h1 : sco = none ↔ scf = false) (h2 : sco = some none → scv = 0#u64)
+    (h3 : ∀ v, sco = some (some v) → v = scv.bv ∧ scv ≠ 0#u64)
+    (hD : ScDec σ p.bv sco) (hpI : p ≠ L.idleW s)
+    (hscs : scv ≠ 0#u64 → ∃ xs sb, IsSlot Z.th xs ∧ capV (L.mem s) xs = .SchedContext scv sb)
+    (m : Fl4Spec.SEMonad Unit Fl4Spec.Fl4Invocation)
+    (hdec : DecOut m σ (.invokeTCB (.threadControlSched p.bv ssl (some e2) (some (Fl4Spec.ucast 8 y0.bv, q))
+      (some (Fl4Spec.ucast 8 y1.bv, q)) sco)))
+    (blk call don : Bool) :
+    (do
+      let s1 ← tcb.restart_caller st s
+      tcb.thread_control_sched st arI s1 ar p (cslotAddr ssl) (capV (L.mem s) x2, x2) y0 y1 scv
+        (if scf then (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT ||| tcb.SCHED_UPDATE_SC)
+          else (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT))) ⦃ res =>
+      TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don m s res ⦄ :=
+  ssp_tailJMG arI s ar σ J hni hsg hP0 (Rf := fun _ _ => True) (hHp.toG arI) hWM
+    (fun _ _ _ h e => msF_mr hMP h e) hKD hR hAT hAK hTA (fun _ _ _ _ _ h => h) (fun _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J hna _ ht v hv hc hp => WP.spec_mono (J.setPrioJS hna ht v hv hc hp) fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J _ _ _ ht hi hk hsp hsa hid =>
+      WP.spec_mono (J.unbindTcbJ ht hi hk hsp hsa hid) fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J _ _ hsC ht _ _ hk hy0 _ hkt hxt0 hrel hnsw hC htid _ _ _ hxS hxc hyS hyc hsb hssz =>
+      WP.spec_mono (J.bindTcbJ hAT hAK hTA hsC ht hk hy0 hkt hxt0 hrel hnsw hC htid hxS hxc hyS hyc hsb hssz)
+        fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ J' hmr _ => ⟨⟨_, H, Cs, _, _, _, J', inferInstance⟩, hmr⟩)
+    p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps hps hps1 hv y0 y1 scv hy0 hy1 scf q sco h1 h2 h3 hD hpI hscs m hdec
+    blk call don
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 47) **`tcb_set_sched_paramsJMM` with the preempted invariant `Wp`, the exits `Xo` (start, Ok) / `Xp`
+(preempted) and the post-install steps' relation `Rf` as parameters** (as `ssp_tailJMG`; `tcb_set_sched_paramsJMM` is
+the `WJPM` / `JAtM` / `JAtPreMV` / `True` instance). -/
+theorem tcb_set_sched_paramsJMG [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    {Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Xo Xp : S → A → Fl4Spec.State Unit → Prop} {Rf : S → S → Prop}
+    (hHp : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz) (hX0 : Xo s ar σ)
+    (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
+    (hmf : ∀ (a : A) (σ σ' : Fl4Spec.State Unit), MR a σ.machineState → MachF.msF σ' = MachF.msF σ →
+      MR a σ'.machineState) (hKD : MRKeepD arI MR) (hRs : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
+    (hwp : ∀ kb s a σ G, Wp kb s a σ G → WJP (L := L) arI AR Z H Cs kb s a σ G ∧ Xp s a σ)
+    (hRt : ∀ s1 s2 s3 : S, Rf s1 s2 → Rf s2 s3 → Rf s1 s3)
+    (hRm : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' → ∀ t ∈ Z'.T, ∀ v : U64,
+        Rf s' (L.wr s' (mcpA t) v))
+    (hRp : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        (∀ u, σ'.schedulerAction ≠ .switchThread u) → ∀ t ∈ Z'.T, ∀ v : U64, v.val < 256 →
+        (σ'.curThread = t.bv → t.bv ∉ σ'.releaseQueue ∧ ∃ x scp y n, σ'.kheap t.bv = some (.tcb x) ∧
+          x.tcbSchedContext = some scp ∧ σ'.kheap scp = some (.schedContext y n) ∧ Fl4Spec.scActive y = true) →
+        (t = L.mem s' (L.nodeAt s' (L.cpu s') layout.node.CUR_THREAD) →
+          (L.mem s' (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧ L.mem s' (P1.scA t) ≠ 0#u64 ∧
+            L.mem s' (P1.scA t) ∈ Ac') →
+        sched.set_priority st s' t v ⦃ s'' => Rf s' s'' ⦄)
+    (hRu : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        ∀ (t i : U64) (x : Fl4Spec.Tcb), t ∈ Z'.T → i ∈ Z'.C → σ'.kheap t.bv = some (.tcb x) →
+        x.tcbSchedContext = some i.bv → (∀ u, σ'.schedulerAction = .switchThread u → u ≠ t.bv) →
+        t.bv ≠ σ'.idleThread → schedcontext.unbind_tcb st s' i ⦃ s'' => Rf s' s'' ⦄)
+    (hRb : ∀ (Z' : XSets) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A)
+      (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z' H Cs Ac' Lst' D' s' a' σ' →
+        ∀ (sc t : U64), sc ∈ Z'.C → t ∈ Z'.T → ∀ (y : Fl4Spec.SchedContext) (n : Nat),
+        σ'.kheap sc.bv = some (.schedContext y n) → y.scTcb = none → ∀ (xt : Fl4Spec.Tcb),
+        σ'.kheap t.bv = some (.tcb xt) → xt.tcbSchedContext = none →
+        (Fl4Spec.ipcQueuedThreadState xt.tcbState = true → Fl4Spec.scReleased σ'.curTime y = true) →
+        (∀ u, σ'.schedulerAction ≠ .switchThread u) → CurInv σ' → t.bv ≠ σ'.idleThread →
+        ∀ (xs ys sb : U64), IsSlot Z'.th xs → capAt (L.mem s') xs = ok (.Thread t) → IsSlot Z'.th ys →
+        capAt (L.mem s') ys = ok (.SchedContext sc sb) → sb.val < 64 → n + Fl4Spec.minSchedContextBits = sb.val →
+        schedcontext.bind_tcb st arI s' a' sc t ⦃ r => Rf s' r.1 ⦄)
+    (hfx : ∀ kb s2 a2 σ2 G2, W kb s2 a2 σ2 G2 → ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64) (s5 : S) (a5 : A) (σ5 : Fl4Spec.State Unit),
+        JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s5 a5 σ5 → MR a5 σ5.machineState → Rf s2 s5 →
+        Xo s5 a5 σ5)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1048,7 +1315,7 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
     (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
     (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
-    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetSchedParams p
+    TcbOKXP (L := L) arI Xo Xp s ar σ fl4_abi.label.TCBSetSchedParams p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
   have hS : SchedRel st Z.N Z.T Z.C Z.c s σ := J.xtop.fin.1.1.1
   have hR : Notif.NtfnStateRel Z.N Z.T (L.mem s) σ := J.xtop.fin.1.1.2.2.1
@@ -1056,7 +1323,7 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
   have hM := J.mcp
   have hC0 := J.c0
   have hcur : σ.curThread = ct.bv := (J.curEq hct).1
-  have hJ0 : JAtM (L := L) arI AR MR s ar σ := ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩
+  have hJ0 : Xo s ar σ := hX0
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetSchedParams (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
@@ -1068,7 +1335,7 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
   rw [decode_ssp_eq arI s ar p _ hstall, hdec0]
   have htr : args.length < 2 ∨ excaps.length < 3 →
       (ok ((.Err (.Sys .TruncatedMessage) : core.result.Result Unit error.Exc), s, ar) :
-        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don
+        Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) Xo Xp σ blk call don
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeSetSchedParams (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
@@ -1226,7 +1493,7 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
                 tcb.thread_control_sched st arI s1 ar p (cslotAddr ssl) (fh, x2) y0 y1 scv flags
               else do
                 let r7 ← error.invalid_cap Unit 3#u64
-                ok (r7, s, ar)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don
+                ok (r7, s, ar)) ⦃ res => TopPostDMXP (L := L) Xo Xp σ blk call don
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
@@ -1247,20 +1514,20 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
       by_cases hscf : (L.mem s (P1.scA p) != scv) = true
       · simp only [hscf, ↓reduceIte]
         have h1' : sco = none ↔ true = false := by rw [hs1, hscf]
-        have := ssp_tailJMM arI s ar σ J hni hsg hP0 hHp hmR hWM hMP hKD hRs hAT hAK hTA p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJMG arI s ar σ J hni hsg hP0 hHp hWM hmf hKD hRs hAT hAK hTA hwp hRt hRm hRp hRu hRb hfx p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 true q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [↓reduceIte] at this
         exact this
       · simp only [Bool.not_eq_true] at hscf
         simp only [hscf, Bool.false_eq_true, ↓reduceIte]
         have h1' : sco = none ↔ false = false := by rw [hs1, hscf]
-        have := ssp_tailJMM arI s ar σ J hni hsg hP0 hHp hmR hWM hMP hKD hRs hAT hAK hTA p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJMG arI s ar σ J hni hsg hP0 hHp hWM hmf hKD hRs hAT hAK hTA hwp hRt hRm hRp hRu hRb hfx p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 false q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [Bool.false_eq_true, ↓reduceIte] at this
         exact this
     · simp only [decide_eq_false hv, Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
       have hiv : ∀ (scf : Bool), (ok ((.Err (.Sys (.InvalidCapability 3#u64)) : core.result.Result Unit error.Exc), s, ar) :
-          Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don
+          Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) Xo Xp σ blk call don
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
@@ -1334,7 +1601,7 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
           (.schedContextCap ptr.bv (sz.val - Fl4Spec.minSchedContextBits))).run σ =
           ({(.error .illegalOperation, σ)}, False) →
         (ok ((.Err (.Sys .IllegalOperation) : core.result.Result Unit error.Exc), s, ar) :
-          Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don
+          Result (core.result.Result Unit error.Exc × S × A)) ⦃ res => TopPostDMXP (L := L) Xo Xp σ blk call don
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
@@ -1451,6 +1718,51 @@ theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → 
     rw [hspec1]
     exact run_bind_error (dus_other hkp ssl (by simp [absCap]) (by simp [absCap])) _
 
+
+
+/-- **The SetSchedParams label at `JAt`** (`JAtPre` if preempted; as
+XTopTcbSched's `tcb_set_sched_paramsX`): the decode (the authority's MCP by
+`JAtZ`'s `McpRel`, the SC checks by the scheduler and notification
+relations), then `ssp_tailJMM`. -/
+theorem tcb_set_sched_paramsJMM [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (hHp : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
+    (hmR : MR ar σ.machineState) (hWM : ∀ kb s a σ G, W kb s a σ G → MR a σ.machineState)
+    (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR) (hRs : RestartWJ (st := st) Z s ar σ (W (L.ksb s)))
+    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
+    (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hpI : p ≠ L.idleW s)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (hpsl : capV (L.mem s) (cslotAddr ssl) = .Thread p)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
+    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKXP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.TCBSetSchedParams p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
+  tcb_set_sched_paramsJMG arI s ar σ J hni hsg hP0 (Rf := fun _ _ => True) (hHp.toG arI)
+    ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hmR⟩ hWM
+    (fun _ _ _ h e => msF_mr hMP h e) hKD hRs hAT hAK hTA (fun _ _ _ _ _ h => h) (fun _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J hna _ ht v hv hc hp => WP.spec_mono (J.setPrioJS hna ht v hv hc hp) fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J _ _ _ ht hi hk hsp hsa hid =>
+      WP.spec_mono (J.unbindTcbJ ht hi hk hsp hsa hid) fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ J _ _ hsC ht _ _ hk hy0 _ hkt hxt0 hrel hnsw hC htid _ _ _ hxS hxc hyS hyc hsb hssz =>
+      WP.spec_mono (J.bindTcbJ hAT hAK hTA hsC ht hk hy0 hkt hxt0 hrel hnsw hC htid hxS hxc hyS hyc hsb hssz)
+        fun _ _ => trivial)
+    (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ J' hmr _ => ⟨⟨_, H, Cs, _, _, _, J', inferInstance⟩, hmr⟩)
+    p hp slbl hlbl length buf ct hct args hlen hargs hpI hstall call ssl hAs hpsl extra x0 x1 x2 hx0 hx1 hx2
+    excaps hXc hcapT hcapC blk don ci buffer
 
 end
 

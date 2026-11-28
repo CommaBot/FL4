@@ -17,6 +17,10 @@ whose receiver's bound notification (not active) lends it its SC (`LendM`):
 `JMidLeavesHyp5` [W] = `JMidLeavesHyp4` concluding `JRecvLeavesRN5` (same l4v
 counterpart and truth argument as sch15/16), `jMidLeavesHyp_of5`,
 `KDispHyps14M`, `.to13M`, NEW TOP `kernel_entryJ14M`.
+
+(p3J gen 53) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvRetM
 import Fl4Proofs.P3.XTopJointKEntry13M
@@ -66,6 +70,76 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 set_option maxHeartbeats 4000000 in
+/-- (p3J gen 53) **`jRecvIpcDoneM3` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `jRecvIpcDoneM3` is its instance at `RJR`). -/
+theorem jRecvIpcDoneM3Q (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
+    (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
+    (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x))
+    (hrc : (rc = .Null ∧ rc' = .nullCap) ∨
+      (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x)))
+    (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr))
+    (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc)
+    (hD : IpcDoneM3 (L := L) ct s σ p rc)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
+    endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
+  rcases hD with hD | hD
+  · exact jRecvIpcDoneM2Q hAT hmax htu J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD hPq
+  obtain ⟨xe, hke⟩ := hpE
+  obtain ⟨e, he, h⟩ := J.obj.ep _ xe hke
+  rw [Sched.bv_inj h] at he
+  have hI := J.xtop.irelK J.ks J.buf
+  suffices hRJ : endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ from hRJ
+  rcases hD with ⟨⟨-, ⟨xt, n0, xn, hkt, hbn, hkn, hna⟩, hns, hrr⟩, hL⟩ | ⟨hun, ⟨hcs, hL⟩ | hcr | ⟨hL, hcT⟩⟩
+  · obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
+    have hcB : Endp.CanBlock true xe := by
+      cases xe with
+      | idleEP => trivial
+      | recvEP q => rfl
+      | sendEP q => exact absurd rfl (hns _ hke q)
+    exact J.recvIpcRetJMQ ht hcur hni hnq hkt hn hbn hkn hna (hL.at hkt hbn hkn) he hke hcB hHd hHr hra b.bv
+      (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+  · obtain ⟨-, sd0, q, xs, hke', hks, hok⟩ := hcs
+    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
+    subst hsde
+    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
+    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hL xt hkt
+    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    exact J.recvSendRetJMQ ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd true g gr hra hok b.bv
+      (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+  · obtain ⟨-, hbn, sd0, q, xs, hke', hks, hok⟩ := hcr
+    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
+    subst hsde
+    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
+    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hbn xt hkt
+    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    by_cases hsn : xs.tcbSchedContext = none
+    · exact J.recvSendRetPJMQ hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
+        hHd hHr b.bv (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+    · exact J.recvSendRetPDJMQ hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
+        hHd hHr b.bv (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+  · obtain ⟨sd0, q, xs, hke', hks, hok⟩ := hcT
+    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
+    subst hsde
+    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
+    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hL xt hkt
+    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    exact J.recvSendRetTJMQ hAT hmax htu ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok
+      hHd hHr b.bv (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+
+set_option maxHeartbeats 4000000 in
 /-- **`IpcDoneM3`'s receives at a switch mid state** (module docstring). -/
 theorem jRecvIpcDoneM3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
@@ -81,57 +155,10 @@ theorem jRecvIpcDoneM3 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
     (hD : IpcDoneM3 (L := L) ct s σ p rc) :
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  rcases hD with hD | hD
-  · exact jRecvIpcDoneM2 hAT hmax htu J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD
-  obtain ⟨xe, hke⟩ := hpE
-  obtain ⟨e, he, h⟩ := J.obj.ep _ xe hke
-  rw [Sched.bv_inj h] at he
-  have hI := J.xtop.irelK J.ks J.buf
-  suffices hRJ : endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ from
-    WP.spec_mono hRJ fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
-  rcases hD with ⟨⟨-, ⟨xt, n0, xn, hkt, hbn, hkn, hna⟩, hns, hrr⟩, hL⟩ | ⟨hun, ⟨hcs, hL⟩ | hcr | ⟨hL, hcT⟩⟩
-  · obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
-    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
-    have hcB : Endp.CanBlock true xe := by
-      cases xe with
-      | idleEP => trivial
-      | recvEP q => rfl
-      | sendEP q => exact absurd rfl (hns _ hke q)
-    exact J.recvIpcRetJM ht hcur hni hnq hkt hn hbn hkn hna (hL.at hkt hbn hkn) he hke hcB hHd hHr hra b.bv
-      (rightsOf sd true g gr)
-  · obtain ⟨-, sd0, q, xs, hke', hks, hok⟩ := hcs
-    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
-    subst hsde
-    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
-    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
-    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hL xt hkt
-    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
-    exact J.recvSendRetJM ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd true g gr hra hok b.bv
-      (rightsOf sd true g gr)
-  · obtain ⟨-, hbn, sd0, q, xs, hke', hks, hok⟩ := hcr
-    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
-    subst hsde
-    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
-    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
-    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hbn xt hkt
-    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
-    by_cases hsn : xs.tcbSchedContext = none
-    · exact J.recvSendRetPJM hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
-        hHd hHr b.bv (rightsOf sd true g gr)
-    · exact J.recvSendRetPDJM hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
-        hHd hHr b.bv (rightsOf sd true g gr)
-  · obtain ⟨sd0, q, xs, hke', hks, hok⟩ := hcT
-    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
-    subst hsde
-    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
-    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
-    obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hL xt hkt
-    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
-    exact J.recvSendRetTJM hAT hmax htu ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok
-      hHd hHr b.bv (rightsOf sd true g gr)
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  jRecvIpcDoneM3Q (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmax htu J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

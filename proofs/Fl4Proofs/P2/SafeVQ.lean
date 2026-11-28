@@ -10,6 +10,9 @@
   (`PathAgree.interp_agree`; the plain run there is that guarded run, `interp_guard`).
 
 No premise. No existing statement changed.
+
+Gen 48 (in place, statements unchanged): `LocalPath.VQNar`, `safeVQ`'s run facts as one proposition, shared with
+`LocalPath.insAVQ` (P2/InsVQ).
 -/
 import Fl4Proofs.P2.ViewSafeGen
 import Fl4Proofs.P2.PathAgree
@@ -66,6 +69,16 @@ theorem LocalPath.safeVQ (P : LocalPath own cls ko User) (hL : MoveHeld own) (hO
   exact body_safeV hL hO hp O Sd hN P.total P.masks ⟨hpre, hQ⟩ hρ hV hN1 hN2 hKc hNW hO1 hO2 hNR hNWs
     (fun s0 r h1 h0 h2 h3 h4 => hNarA s0 r h1.1 h1.2 h0 h2 h3 h4)
     (fun s0 r h1 h0 h2 h3 h4 => hNarD s0 r h1.1 h1.2 h0 h2 h3 h4)
+
+/-- **`LocalPath.safeVQ`'s narrowed run facts** (`hNarA` / `hNarD` as one proposition, gen 48): slots state them once
+and hand them to both `safeVQ` and its `InsA` counterpart `LocalPath.insAVQ` (P2/InsVQ). -/
+def LocalPath.VQNar (P : LocalPath own cls ko User) (σ : P.S) (a : P.A) (ρv : U64 → U64)
+    (NR NWs : P.S → U64 → Prop) (Q : P.S → Prop) : Prop :=
+  (∀ s0 r, P.Pre s0 → Q s0 → P.L.cpu s0 = P.L.cpu σ → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) →
+      P.F P.ar P.st s0 a = ok r → P.Acc r.1 → P.F P.ar (guard P.st (NR s0) (NWs s0)) s0 a = ok r) ∧
+    (∀ s0 r, P.Pre s0 → Q s0 → P.L.cpu s0 = P.L.cpu σ → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) →
+      P.F P.ar P.st s0 a = ok r → ¬ P.Acc r.1 → ∀ s' r', @Alt _ P.st P.L (P.RS s0) cls ko User s0 s' →
+        P.F P.ar P.st s' a = ok r' → P.F P.ar (guard P.st (NR s0) (NWs s0)) s' a = ok r')
 
 end safe
 

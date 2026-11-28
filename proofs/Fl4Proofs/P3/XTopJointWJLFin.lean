@@ -14,6 +14,8 @@ P3 (DESIGN.md §9), CSpace: **the finalisations at `WJL`**, toward
   and `LiveJ` (`JAtZ.readyLive_noRef`, `LiveJ.liveOther_noRef`).
 * `jFinAtL_ep`: XTopJointDelR's `jFinAt_ep` at `WJL` (`JAtZ.finEpJ` from the
   dead set grown by the TCB zombies' TCBs, P1's `fin_endpoint.dbgKeep`).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `rdLO_noRef` (as `rdLO_noRefB`); each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointWJLPP
 import Fl4Proofs.P3.XTopJointFinVtJD
@@ -149,13 +151,22 @@ theorem wjl_keepX {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → Lis
     ⟨lst, J.dbgWF_keep J1 rfl rfl hDW hK⟩, hN.of_same (fun y hy => hSS.capV hy) horig⟩
 
 /-- **`RdLO` at a slot whose cap names no container** (module docstring). -/
+theorem rdLO_noRefB {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} {G : MdbGhost} {V : XVs}
+    (J : JAtZB (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H G s σ) {x : U64}
+    (hRd : EmptyReady (L := L) H G s x) (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x))
+    (hT : TcbReady (L := L) Z.th H G s x) :
+    RdLO (L := L) (A := A) Z.th H s a σ G x :=
+  ⟨⟨hRd, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn, hT⟩
+
+/-- `rdLO_noRefB` at `JAtZ` (via `JAtZ.toB`). -/
 theorem rdLO_noRef {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} {G : MdbGhost} {V : XVs}
     (J : JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H G s σ) {x : U64}
     (hRd : EmptyReady (L := L) H G s x) (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x))
     (hT : TcbReady (L := L) Z.th H G s x) :
     RdLO (L := L) (A := A) Z.th H s a σ G x :=
-  ⟨⟨hRd, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn, hT⟩
+  rdLO_noRefB arI J.toB hL hRd hn hT
 
 set_option maxHeartbeats 4000000 in
 /-- **A final endpoint cap's finalisation at `WJL`** (module docstring). -/

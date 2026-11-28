@@ -22,6 +22,10 @@ P3 (DESIGN.md §9), IPC: **`receive_ipc` from a waiting sender at `J`**
   and `Inv.scRef` across it; back to `JAtZ` by `JAtZ.bufRebaseX` and
   XTopJointRecvSendStep's `JAtZ.rsfrStep`; then `JAtZ.sendSwitchJ` for
   `possible_switch_to`; the spec's outcome EpRecvSend's `receiveIpc_send_eq`.
+
+(p3J gen 53) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSendStep
 import Fl4Proofs.P3.XTopJointSendRecv
@@ -436,10 +440,8 @@ theorem receive_ipc_preN {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 c3 
       simpa only [bind_tc_ok, bind_ok, Bind.bind] using key
 
 set_option maxHeartbeats 64000000 in
-/-- **`receive_ipc` from the head sender at `J`**, for any FL4 program `m`
-reducing to the endpoint-state switch (`hm`; `JAtZ.recvSendJ0`, and after
-`maybe_return_sched_context` XTopJointRecvSendRet's `JAtZ.recvSendRetJ`). -/
-theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- (p3J gen 53) **`JAtZ.recvSendJG` with its post as a parameter** (module docstring: `Pq` from every `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvSendJG` is its instance at `RJ`). -/
+theorem JAtZ.recvSendJGQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -461,10 +463,13 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z
             else if st1 = obj.EP_RECV then do
               let s3 ← endpoint.wait_for_sender st s t e blk rv
               ok (s3, a)
-            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e
@@ -753,7 +758,7 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z
       have hspec := receiveIpc_send_eqB b rights blk hsr hkt hbN hk hks hse hstd hcl e2' hA hks3 hfs
       refine WP.spec_bind (J5.sendSwitchJ hsT hk5 rfl hnr5 hact5 hti5 htc5) ?_
       rintro s7 ⟨σ7, h7, Lst7, J7⟩
-      refine (WP.spec_ok _).2 ⟨((), σ7), ?_, J7.xtop.relTop, _, _, _, _, _, _, J7, inferInstance⟩
+      refine (WP.spec_ok _).2 ⟨((), σ7), ?_, J7.xtop.relTop, hPq _ _ _ _ _ _ _ _ J7⟩
       rw [hspec, h7]; exact Set.mem_singleton _
 
   | true =>
@@ -770,7 +775,7 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z
       suffices H : (do
           let s4 ← sched.set_thread_state st s3 sd' sched.TS_INACTIVE
           ok (s4, a)) ⦃ r => ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-            RJ (L := L) arI AR r.1 r.2 z.2 ⦄ by
+            RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ by
         rcases hno with ⟨hg0, hgr0⟩ | hnull
         · simp only [hc, hcl, hg, hg0, hgr, hgr0, Bool.false_eq_true, ↓reduceIte]
           exact H
@@ -878,8 +883,42 @@ theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z
           (Notif.updK σ e.bv (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv))) = ({((), σ2)}, False) := by
         rw [← hbb, ← hg]; exact e2
       have hspec := receiveIpc_sendCall_eq b rights blk hsr hkt hbN hk hks hse hstd hnoS e2' hA hks3 (Or.inl hcl)
-      refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
+      refine (WP.spec_ok _).2 ⟨((), σ5), ?_, J5.xtop.relTop, hPq _ _ _ _ _ _ _ _ J5⟩
       rw [hspec]; exact Set.mem_singleton _
+
+set_option maxHeartbeats 64000000 in
+/-- **`receive_ipc` from the head sender at `J`**, for any FL4 program `m`
+reducing to the endpoint-state switch (`hm`; `JAtZ.recvSendJ0`, and after
+`maybe_return_sched_context` XTopJointRecvSendRet's `JAtZ.recvSendRetJ`). -/
+theorem JAtZ.recvSendJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
+    (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
+      σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
+      (blk = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)))
+    (hct : σ.curThread = t.bv)
+    {e sd : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
+    (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
+    {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcall : ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false ∨
+      ((dd.senderCanGrant = false ∧ dd.senderCanGrantReply = false) ∨ rc = .Null)) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {m : Result (S × A)} (hm : ∀ {P : S × A → Prop}, (do
+            let st1 ← obj.Ep.state st e s
+            if st1 = obj.EP_IDLE then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else if st1 = obj.EP_RECV then do
+              let s3 ← endpoint.wait_for_sender st s t e blk rv
+              ok (s3, a)
+            else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄ → m ⦃ P ⦄) :
+    m ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvSendJGQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    J ht hkt hrun hbN hct he hk hks hfs cb c1 c2 c3 c4 hrc hcall b rights hm (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 set_option maxHeartbeats 4000000 in
 /-- FL4's `receive_ipc` reduces to the endpoint-state switch when the

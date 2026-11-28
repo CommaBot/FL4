@@ -139,79 +139,7 @@ inductive YbAnch (H : Heap) : U64 → S → Prop
       YbMerge (L := L) H σ δ δ' σ' → YbAnch H c σ'
   | frame {c : U64} {σ σ' : S} : YbAnch H c σ → YbFrame (L := L) H σ σ' → YbAnch H c σ'
 
-/-- **The rely** (module docstring): another core's P3-covered run from a `YBW ∧ CYW` state, merged into a
-`YBW ∧ CYW` state of `c`, gives a `YBW ∧ CYW` state. Proved by `ybRely`. -/
-def YbRely (H : Heap) : Prop :=
-  ∀ σ δ δ' σ' : S, YBWH st H σ ∧ CYW st σ → YBWH st H δ ∧ CYW st δ → YbRun (L := L) arI AR MR H δ δ' →
-    YbMerge (L := L) H σ δ δ' σ' → YBWH st H σ' ∧ CYW st σ'
-
 variable {arI AR MR}
-
-/-- **A merge keeps the word facts** given `YBW` at the other core's exit `δ'` (module docstring). -/
-theorem ybMerge_keep {H : Heap} {σ δ δ' σ' : S} (h : YBWH st H σ ∧ CYW st σ) (hd : YBWH st H δ')
-    (hM : YbMerge (L := L) H σ δ δ' σ') : YBWH st H σ' ∧ CYW st σ' := by
-  obtain ⟨W, hT, hc⟩ := hM
-  refine ⟨?_, ?_⟩
-  · intro t ht h0 hb
-    obtain ⟨y1, y2, s1, s2, ag⟩ := hT t ht
-    by_cases wy : W (Fl4Proofs.P1.yieldA t)
-    · have e := y2 wy
-      have nb : ¬ YbBlk (L.mem δ' (Fl4Proofs.P3.Notif.tStA t)) := hd t ht (by rw [← e]; exact h0)
-      by_cases ws : W (Fl4Proofs.P3.Notif.tStA t)
-      · exact nb ((s2 ws).1 hb)
-      · obtain ⟨e1, e2⟩ := s1 ws
-        obtain ⟨-, ag2⟩ := ag (Or.inl wy)
-        have hb' : YbBlk (L.mem σ (Fl4Proofs.P3.Notif.tStA t)) := by
-          unfold YbBlk; rw [← e1]; exact hb
-        exact nb (by rw [e2]; exact ag2.1 hb')
-    · obtain ⟨e1, e2⟩ := y1 wy
-      by_cases ws : W (Fl4Proofs.P3.Notif.tStA t)
-      · obtain ⟨ag1, -⟩ := ag (Or.inr ws)
-        have h0' : L.mem δ' (Fl4Proofs.P1.yieldA t) ≠ 0#u64 := by rw [e2, ← ag1, ← e1]; exact h0
-        exact hd t ht h0' ((s2 ws).1 hb)
-      · have hb' : YbBlk (L.mem σ (Fl4Proofs.P3.Notif.tStA t)) := by
-          unfold YbBlk; rw [← (s1 ws).1]; exact hb
-        exact h.1 t ht (by rw [← e1]; exact h0) hb'
-  · unfold CYW; rw [hc]; exact h.2
-
-/-- **A frame change keeps the word facts.** -/
-theorem ybFrame_keep {H : Heap} {σ σ' : S} (h : YBWH st H σ ∧ CYW st σ) (hF : YbFrame (L := L) H σ σ') :
-    YBWH st H σ' ∧ CYW st σ' := by
-  obtain ⟨hT, hc⟩ := hF
-  refine ⟨?_, ?_⟩
-  · intro t ht h0 hb
-    obtain ⟨e1, e2⟩ := hT t ht
-    have hb' : YbBlk (L.mem σ (Fl4Proofs.P3.Notif.tStA t)) := by
-      unfold YbBlk; rw [← e2]; exact hb
-    exact h.1 t ht (by rw [← e1]; exact h0) hb'
-  · unfold CYW; rw [hc]; exact h.2
-
-/-- **A P3-covered run keeps the word facts** (`ybw_yBOut`). -/
-theorem ybRun_keep (hnd : Fl4Spec.numDomains = 1) {H : Heap} {σ σ' : S} (h : YBWH st H σ ∧ CYW st σ)
-    (hR : YbRun (L := L) arI AR MR H σ σ') : YBWH st H σ' ∧ CYW st σ' := by
-  obtain ⟨a, τ, hJ, ⟨Z0, Cs0, Ac0, Lst0, D0, J0⟩, a', τ', hO, ⟨Z, Cs, Ac, Lst, D, J⟩⟩ := hR
-  exact Fl4Proofs.P3.SInvR.G5.ybw_yBOut hnd hJ J0 h.1 h.2 hO J
-
-/-- **The rely is proved** (module docstring): the other core's run is P3-covered (`ybRun_keep`), and the merge keeps
-the word facts (`ybMerge_keep`). -/
-theorem ybRely (hnd : Fl4Spec.numDomains = 1) (H : Heap) : YbRely (L := L) arI AR MR H :=
-  fun _ _ _ _ h hδ hR hM => ybMerge_keep h (ybRun_keep hnd hδ hR).1 hM
-
-/-- **Every anchored state has `YBW ∧ CYW`** (`numDomains = 1` only). -/
-theorem YbAnch.ybw (hnd : Fl4Spec.numDomains = 1) {H : Heap} {c : U64} {σ : S}
-    (h : YbAnch (L := L) arI AR MR H c σ) : YBWH st H σ ∧ CYW st σ := by
-  induction h with
-  | exit hY hB =>
-    obtain ⟨Z, Cs, Ac, Lst, D, J⟩ := hB
-    exact Fl4Proofs.P3.SInvR.G5.JReachYB.ybw hY J
-  | run _ hR ih => exact ybRun_keep hnd ih hR
-  | env _ _ _ hR hM ih ihd => exact ybRely hnd _ _ _ _ _ ih ihd hR hM
-  | frame _ hF ih => exact ybFrame_keep ih hF
-
-/-- **`YBW` at an anchored state**, in V13's record form. -/
-theorem YbAnch.ybwK (hnd : Fl4Spec.numDomains = 1) {Kl : OwnMap.KLayout} {c : U64} {σ : S}
-    (h : YbAnch (L := L) arI AR MR Kl.heap c σ) : YBW st Kl σ :=
-  (h.ybw hnd).1
 
 /-- **Every step of a `loc_chain_all` chain with a `YBOut` outcome is a P3-covered run** (`JReachSt.atSt'`). -/
 theorem ybRun_of_jreachSt {Z : Fl4Proofs.P3.XSets} {H : Heap} {Cx : Set U64} {k : U64} {δ δ' : S} {a : A3}
@@ -299,21 +227,6 @@ structure SlEntV14 {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 
 
 variable {st ar}
 
-theorem VmFEntV14.toV13 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmFArg S} {K : KLayoutV} {s : S}
-    (E : VmFEntV14 st ar arI AR MR i K s) (yw : YBW st K.toKLayout s) : VmFEntV13 st ar arI AR MR i K s :=
-  ⟨E.nv, E.ix, E.hct, E.lk, yw, E.gl⟩
-
-theorem VmREntV14.toV13 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmRArg S} {Kl Kb : OwnMap.KLayout} {s : S}
-    (E : VmREntV14 st arI AR MR i Kl s) (yw : YBW st Kb s) : VmREntV13 st arI AR MR i Kl Kb s :=
-  ⟨E.ix, E.hct, yw, E.lk, E.nbc, E.fd⟩
-
-theorem SlEntV14.toV13 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : SlArg S} {K : OwnMap.KLayout} {s : S}
-    (E : SlEntV14 st ar arI AR MR i K s) (yw : YBW st K s) : SlEntV13 st ar arI AR MR i K s :=
-  ⟨E.ix, E.sg, E.hct, E.el, E.sc, E.nbc, E.acc, E.hlk, yw⟩
-
 end ent
 
 /-! ## The start facts with the anchor -/
@@ -324,65 +237,7 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The start facts of the W11 slots with the anchor** [P] (module docstring): `StartU2V13` with vmF's, vmR's and
-sl's start state asked `YbAnch` (**`anch` [J]**) of core `c` at the layout's heap in place of the records' `ybw`. -/
-def StartU2V14 (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : Fl4IxW (S := S) → Prop
-  | .vmF j => LkC j.Locks ∧ ((∀ s, KernDetS (L := L) (userV K.toKLayoutV).user j.Locks s) →
-      ∃ q0, (∃ _h : VmFPremB st j K.toKLayoutV, ∃ σ : S,
-        (Ch σ ∧ YbAnch (L := L) arI AR MR K.toKLayout.heap c σ ∧ VmFEntV14 st ar arI AR MR j K.toKLayoutV σ) ∧
-        ∀ h' : VmFPremA st ar j K.toKLayoutV,
-          GlueAt ((vmFSlotA st ar hA (masksWr_plain st)).liftAt j K.toKLayoutV m hK.base hU.base h')
-            (fun σ' : S => σ' = σ) c hs m q0) ∧
-        q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅)
-  | .vmR j => ∃ q0, (LkC j.Locks ∧ ∃ σ : S,
-      (Ch σ ∧ YbAnch (L := L) arI AR MR K.toKLayout.heap c σ ∧
-        VmREntV14 st arI AR MR j (userV K.toKLayoutV) σ) ∧
-      ∀ h : VmRPremA st j K.toKLayoutV,
-        GlueAt ((vmRSlotA st ar hA (masksWr_plain st)).liftAt j K.toKLayoutV m hK.base hU.base h)
-          (fun σ' : S => σ' = σ) c hs m q0) ∧
-      q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
-  | .sl j => ∃ q0, (LkC j.Locks ∧ ∃ σ : S,
-      (Ch σ ∧ YbAnch (L := L) arI AR MR K.toKLayout.heap c σ ∧
-        SlEntV14 st ar arI AR MR j K.toKLayoutV.toKLayout σ) ∧
-      ∀ h : (slSlotB st ar hA (masksWr_plain st) L.total a0).Prem j K.toKLayoutV m,
-        GlueAt ((slSlotB st ar hA (masksWr_plain st) L.total a0).liftAt j K.toKLayoutV m hK.base hU.base h)
-          (fun σ' : S => σ' = σ) c hs m q0) ∧
-      q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
-  | i => StartU2C st ar hA a0 arI AR MR Ch K m hK hU c hs q i
-
-/-- **V14's start facts** [P]: `StartV13` with `StartU2V14` on the W11 slots. -/
-def StartV14 (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S) → Prop
-  | .inl i => StartU2V14 st ar hA a0 arI AR MR Ch K m hK hU c hs q i
-  | .inr j => StartInvU3 st ar hA Ch K m hK hU c hs q j
-
 variable {arI AR MR}
-
-/-- **`StartV14` gives `StartV13`** (`YbAnch.ybwK`; no chain needed). -/
-theorem startV13_of_V14 (hnd : Fl4Spec.numDomains = 1) {Ch : S → Prop} {K : KLayoutP}
-    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (h : StartV14 st ar hA a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartV13 st ar hA a0 arI AR MR Ch K m hK hU c hs q i := by
-  rcases i with i | j
-  · cases i with
-    | vmF j =>
-      obtain ⟨hL, hG⟩ := h
-      refine ⟨hL, fun hk => ?_⟩
-      obtain ⟨q0, ⟨h1, σ, ⟨hCσ, hY, hE⟩, hG'⟩, e⟩ := hG hk
-      exact ⟨q0, ⟨h1, σ, ⟨hCσ, hE.toV13 (hY.ybwK hnd)⟩, hG'⟩, e⟩
-    | vmR j =>
-      obtain ⟨q0, ⟨hL, σ, ⟨hCσ, hY, hE⟩, hG⟩, e⟩ := h
-      exact ⟨q0, ⟨hL, σ, ⟨hCσ, hE.toV13 (hY.ybwK hnd)⟩, hG⟩, e⟩
-    | sl j =>
-      obtain ⟨q0, ⟨hL, σ, ⟨hCσ, hY, hE⟩, hG⟩, e⟩ := h
-      exact ⟨q0, ⟨hL, σ, ⟨hCσ, hE.toV13 (hY.ybwK hnd)⟩, hG⟩, e⟩
-    | io j => exact h
-    | st j => exact h
-    | irq j => exact h
-    | vq j => exact h
-  · exact h
 
 end start
 
@@ -392,22 +247,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with `ybw` replaced by the anchor** (module docstring): V13 with the start fact `StartV14`, whose
-vmF / vmR / sl start states are `YbAnch` states (`anch` [J]) instead of `YBW` states (`ybw` [J]); the rely for other
-cores' writes is proved (`ybRely`). The conclusion is about the physical memory. -/
-theorem serializable_fl4_localV14 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV14 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localV13 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV12_conv (fun _ _ _ _ _ _ _ _ _ _ hs => startV13_of_V14 st ar hA a0 P.nd hs) hB h).1 hq
 
 end top
 

@@ -105,11 +105,16 @@ inductive ExecWPR (LP : PathsP ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {v a x : U64} :
       ExecWPR LP SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecWPR LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
+/-- **`okP_R` over `LocPlatC`** (gen 54, in place). -/
+theorem okP_R_C {P : LocPlatC st arI AR MR} {K : KLayoutP} {Ch : S → Prop} {m : U64 → U64}
+    (hB : SerExitC P K.toKLayoutV Ch) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m) : RegionOKP K ∧ UserOKP K := by
+  have hok := serExitC_ok hB (vcpuLay_empty hc.1)
+  exact ⟨regionOKP_R hok.1 hc.2, userOKP_R hok.2 hc.2⟩
+
 /-- The convention and the exit ghost give the layout's `RegionOKP` / `UserOKP`. -/
 theorem okP_R {P : LocPlat st arI AR MR} {K : KLayoutP} {Ch : S → Prop} {m : U64 → U64}
-    (hB : SerExitW P K.toKLayoutV Ch) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m) : RegionOKP K ∧ UserOKP K := by
-  have hok := serExitW_ok hB (vcpuLay_empty hc.1)
-  exact ⟨regionOKP_R hok.1 hc.2, userOKP_R hok.2 hc.2⟩
+    (hB : SerExitW P K.toKLayoutV Ch) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m) : RegionOKP K ∧ UserOKP K :=
+  okP_R_C ((serExitW_iff_C P).1 hB) hc
 
 end exec
 
@@ -118,66 +123,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **An `ExecWPR` is an `ExecP`, with the epoch invariant** (module docstring). -/
-theorem execP_of_WPR (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JC st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch) :
-    ExecP (fl4LocW11J st ar hA hm hSt a0) s0 K0 s K ∧ SerExitW P K.toKLayoutV Ch ∧
-      ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  induction h with
-  | refl => exact ⟨.refl, hB, s0, hc0, fun _ _ => rfl⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    have hst : Fl4StepP (fl4LocW11J st ar hA hm hSt a0) s1 K1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨i, q0, hW, rfl⟩ := g.start p0 k W hph hK hU
-        obtain ⟨σ, a, hP, hc, hl, hμ, e⟩ := startAt_P3W11 st ar hA hm hSt a0 P hIoa hX.chainOf hW
-        have hk := pre_ksbW6 st ar hA hm hSt a0 i K1 s1.mem hK hU σ hP
-        obtain ⟨σe, hC, hσ⟩ := hX.lay
-        have hq := qPs_of_convR
-          (L' := ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K1.toKLayoutV s1.mem hK.base hU.base).L)
-          hCe.2 hCe.1 ⟨σe, hC.bun σe hσ⟩ hk1 hk (fun x hx hu => hμ x hx hu)
-        exact ⟨i, σ, a, ⟨hP, hq⟩, hc, hl, hμ,
-          startQPB_of st ar hA hm hSt a0 i K1 s1.mem hK hU c1 _ q0 σ a hP hc hl hμ e⟩
-      · have hP := okP_R (g.serX hs) (g.serC hs)
-        exact ⟨hP.1, hP.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, ?_, ?_⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-    · by_cases hs : SerStep s1 c1
-      · exact ⟨s1', g.serC hs, fun _ _ => rfl⟩
-      · obtain ⟨eK, -⟩ := g.keep hs
-        subst eK
-        obtain ⟨hr, -, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-        obtain ⟨-, hSI, -⟩ := xsafeRun_greach h0 hA0 hr
-        refine ⟨e1, hCe, fun x hx => ?_⟩
-        rw [← hk1 x hx]
-        exact step_gate_keep hM (allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨-, hK, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
-/-- **FL4 end to end, W11's family and glue, rule 8 with the PTE set by the reachability convention** (module
-docstring): the only PTE-side condition is the convention itself (`serC` and its boot instance `hc0`). -/
-theorem serializable_fl4_localW11PR (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JC st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  exact serializable_e2eP _ h0 hA0 hK0 hU0 hM0
-    (execP_of_WPR st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h).1 hq
 
 end top
 

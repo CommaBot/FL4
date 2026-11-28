@@ -27,6 +27,11 @@ the head word) are the retype's freshness facts, state hypotheses as in gen 15. 
 
 Named premises: `CapAgree ar a` [P], `VirtCodeAgree ar a` [P] (unchanged). No new premise. New file only; no
 existing statement changed.
+
+(mmuAD gen 42b17) `iter_createF` / `create_new_objects_vcpuF`: the creation half and the loop for any footprint `F`
+containing `init`'s words (window, head word, old VCPUs' `PREV` words); the loop is UntypedLoop's
+`create_new_objects_loopI`. `iter_create` / `create_new_objects_vcpu` (`F = CrW`) and VirtLoopSharp's `iter_createL` /
+`create_new_objects_vcpuL` (`F = CrL`) are one-line instances (statements unchanged).
 -/
 import Fl4Proofs.P3.VirtReplyKeep
 open Aeneas Aeneas.Std Result
@@ -245,11 +250,15 @@ theorem winZero_shift {m m' : U64 → U64} {A0 k win : Nat} (h : WinZero m A0 k 
 def CrW (V : Set U64) (B n : Nat) (hd : U64) (b : U64) : Prop :=
   (B ≤ b.val ∧ b.val < B + n * 32768) ∨ b = hd ∨ ∃ w ∈ V, w.val ≤ b.val ∧ b.val < w.val + 32768
 
-set_option maxHeartbeats 8000000 in
-/-- **The creation half of one iteration** (module docstring). -/
-theorem iter_create (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat} {hd k0 : U64}
+set_option maxHeartbeats 4000000 in
+/-- **The creation half of one iteration, any footprint containing `init`'s words** (mmuAD gen 42b17): `hMc` is
+asked only for writes inside `F`, any set containing the window, the head word and the old VCPUs' `PREV` words
+(`iter_create`: `CrW`; VirtLoopSharp's `iter_createL`: the sharp `CrL`). -/
+theorem iter_createF (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat} {hd k0 : U64}
     (R : RPl st V B n hd) (hhd : ∀ s : S, L.ksb s = k0 → P1.vHeadA st s = hd) (M : S → Nat → Prop)
-    (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' (CrW V B n hd) → M s' i)
+    (F : U64 → Prop) (hF : ∀ b, ((B ≤ b.val ∧ b.val < B + n * 32768) ∨ b = hd ∨
+      ∃ w ∈ V, b.val = w.val + 20496 ∧ w.val + 32768 ≤ 2 ^ 64) → F b)
+    (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' F → M s' i)
     {s : S} {i : Nat} (hi : i < n) (I : RInv st V th B n k0 M s i) (dev : Bool) :
     objects.create_arch_object st ar s a fl4_abi.consts.object.X86Vcpu (vI B i) dev ⦃ r =>
       r.1 = capability.Cap.Vcpu (vI B i) ∧ r.2.2 = a ∧
@@ -329,13 +338,27 @@ theorem iter_create (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAg
           omega
         · omega
     rwa [show B + i * 32768 + 32768 = B + (i + 1) * 32768 by ring] at this
-  · exact hMc s s2 i I.m (w.mono fun b hb => by
-      rcases hIL _ hb with h | e | ⟨h0, hh0, e, -⟩
+  · exact hMc s s2 i I.m (w.mono fun b hb => hF b (by
+      rcases hIL _ hb with h | e | ⟨h0, hh0, e, hf0⟩
       · left; omega
       · right; left; exact e
       · rcases R.memI hiN hh0 with ⟨hm, -⟩ | ⟨j', hj'', e'⟩
-        · right; right; exact ⟨h0, hm, by omega, by omega⟩
-        · left; omega)
+        · right; right; exact ⟨h0, hm, e, hf0⟩
+        · left; omega))
+
+/-- **The creation half of one iteration** (module docstring). -/
+theorem iter_create (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat} {hd k0 : U64}
+    (R : RPl st V B n hd) (hhd : ∀ s : S, L.ksb s = k0 → P1.vHeadA st s = hd) (M : S → Nat → Prop)
+    (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' (CrW V B n hd) → M s' i)
+    {s : S} {i : Nat} (hi : i < n) (I : RInv st V th B n k0 M s i) (dev : Bool) :
+    objects.create_arch_object st ar s a fl4_abi.consts.object.X86Vcpu (vI B i) dev ⦃ r =>
+      r.1 = capability.Cap.Vcpu (vI B i) ∧ r.2.2 = a ∧
+        RInv st V th B n k0 (fun s' _ => M s' i) r.2.1 (i + 1) ⦄ :=
+  iter_createF hA hc hk R hhd M (CrW V B n hd) (fun b h => by
+    rcases h with h | h | ⟨w, hw, e, -⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr ⟨w, hw, by omega, by omega⟩)) hMc hi I dev
 
 /-- **The `insert_new_cap` half of one iteration** (module docstring). -/
 theorem iter_ins {B n : Nat} {hd k0 : U64} (R : RPl st V B n hd) (hhd : ∀ s : S, L.ksb s = k0 → P1.vHeadA st s = hd)
@@ -372,11 +395,15 @@ theorem iter_ins {B n : Nat} {hd k0 : U64} (R : RPl st V B n hd) (hhd : ∀ s : 
 theorem object_size_vcpu (us : U64) : objects.object_size fl4_abi.consts.object.X86Vcpu us = ok (some 15#u64) := by
   unfold objects.object_size; rw [if_pos rfl]; simp [fl4_abi.consts.bits.VCPU]
 
+set_option maxHeartbeats 4000000 in
 set_option maxHeartbeats 8000000 in
-/-- **`create_new_objects` over `n` VCPUs** (module docstring). -/
-theorem create_new_objects_vcpu (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat}
+/-- **`create_new_objects` over `n` VCPUs, any footprint containing `init`'s words** (mmuAD gen 42b17; as
+`iter_createF`): the loop is UntypedLoop's `create_new_objects_loopI` with `RInv` as its invariant. -/
+theorem create_new_objects_vcpuF (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat}
     {hd : U64} (R : RPl st V B n hd) {s : S} (hhd : ∀ s' : S, L.ksb s' = L.ksb s → P1.vHeadA st s' = hd)
-    (M : S → Nat → Prop) (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' (CrW V B n hd) → M s' i)
+    (M : S → Nat → Prop) (F : U64 → Prop) (hF : ∀ b, ((B ≤ b.val ∧ b.val < B + n * 32768) ∨ b = hd ∨
+      ∃ w ∈ V, b.val = w.val + 20496 ∧ w.val + 32768 ≤ 2 ^ 64) → F b)
+    (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' F → M s' i)
     {FW : U64 → Prop} (hFW : ∀ b, FW b → (b.val + 8 ≤ B ∨ B + n * 32768 ≤ b.val) ∧ b ≠ hd ∧
       ∀ w ∈ V, b.val + 8 ≤ w.val ∨ w.val + 32768 ≤ b.val)
     (parent dest off : U64) (hIns : ∀ iw : U64, iw.val < n → ∀ s2, M s2 iw.val →
@@ -394,53 +421,45 @@ theorem create_new_objects_vcpu (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk 
       ext w; simp only [VsI, Set.mem_setOf_eq]
       exact ⟨fun h => h.elim id fun ⟨j, hj, _⟩ => absurd hj (Nat.not_lt_zero _), Or.inl⟩
     rw [e]; exact Vl
-  unfold objects.create_new_objects
-  rw [object_size_vcpu]
-  simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have h63 : (15#u64 &&& 63#u64).val = 15 := by decide
-  refine loop.spec_decr_nat (measure := fun x => n - x.2.2.val)
-    (inv := fun x => x.2.1 = a ∧ x.2.2.val ≤ n ∧ RInv st V th B n (L.ksb s) M x.1 x.2.2.val) _ _ _ ?_
-    ⟨rfl, by simp, I0⟩
-  rintro ⟨s1, a1, i⟩ ⟨ha, hin, I⟩
-  simp only at ha hin I ⊢
-  subst ha
-  unfold objects.create_new_objects_loop.body
-  by_cases hit : i < nW
-  · rw [if_pos hit]
-    have hit' : i.val < n := by rw [← hnW]; exact hit
-    simp only [lift, bind_ok]
-    obtain ⟨i2, hi2, hv2, -⟩ := spec_exists (UScalar.ShiftLeft_spec i (15#u64 &&& 63#u64) _
-      (by rw [h63]; simp [UScalarTy.U64_numBits_eq]) rfl)
-    rw [hi2]; simp only [bind_ok]
-    have hi2v : i2.val = i.val * 32768 := by
-      rw [hv2, h63, Nat.shiftLeft_eq]
-      simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-    have hi3 : core.num.U64.wrapping_add base i2 = vI B i.val := by
-      have e : (core.num.U64.wrapping_add base i2).val = B + i.val * 32768 := by
-        have hlt : B + i.val * 32768 < 2 ^ 64 := lt_of_le_of_lt (by omega) hbf
-        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hi2v]
-        omega
-      exact u64_ofNat_eq _ _ e
-    rw [hi3, create_object_vcpu]
-    refine WP.spec_bind (iter_create hA hc hk R (fun s' e => hhd s' e) M hMc hit' I dev) fun r hr => ?_
-    obtain ⟨cap, s2, a2⟩ := r
-    obtain ⟨e1, e2, I'⟩ := hr
-    simp only at e1 e2 I' ⊢
-    subst e1 e2
-    obtain ⟨sl, hsl, hsle⟩ := spec_exists (slot_index_spec dest (core.num.U64.wrapping_add off i))
-    rw [hsl]; simp only [bind_ok]
-    subst hsle
-    refine WP.spec_bind (hIns i hit' s2 I'.m) fun s3 h3 => ?_
-    step as ⟨i5, hi5⟩
-    have hi5' : i5.val = i.val + 1 := by omega
-    refine ⟨by omega, ?_, by omega⟩
-    rw [hi5']
-    exact iter_ins R (fun s' e => hhd s' e) M hFW hit' I' h3.1 h3.2
-  · rw [if_neg hit, WP.spec_ok]
-    have : i.val = n := by have : ¬ i.val < nW.val := hit; omega
-    rw [this] at I
-    exact ⟨rfl, I.vl, I.rel, I.m⟩
+  have hvI : ∀ i, (⟨BitVec.ofNat 64 (base.val + i * 2 ^ 15)⟩ : U64) = vI B i := fun i => by
+    rw [hbase]; unfold vI; norm_num
+  refine WP.spec_mono (create_new_objects_loopI ar a s fl4_abi.consts.object.X86Vcpu parent dest off nW base us dev
+    15#u64 15 rfl (object_size_vcpu us) (by norm_num) (by rw [hnW, hbase]; omega)
+    (fun s1 i => RInv st V th B n (L.ksb s) M s1 i)
+    (fun s2 c i => c = capability.Cap.Vcpu (vI B i) ∧ RInv st V th B n (L.ksb s) (fun s' _ => M s' i) s2 (i + 1))
+    (fun s1 i hi I => by
+      rw [hvI, create_object_vcpu]
+      exact WP.spec_mono (iter_createF hA hc hk R (fun s' e => hhd s' e) M F hF hMc (by rw [← hnW]; exact hi) I dev)
+        fun r ⟨e1, e2, I'⟩ => ⟨e2, e1, I'⟩)
+    (fun s2 c iw hi ⟨hc, I'⟩ => by
+      subst hc
+      have hi' : iw.val < n := by rw [← hnW]; exact hi
+      exact WP.spec_mono (hIns iw hi' s2 I'.m) fun s3 h3 => iter_ins R (fun s' e => hhd s' e) M hFW hi' I' h3.1 h3.2)
+    I0) ?_
+  rintro res ⟨h1, I⟩
+  rw [hnW] at I
+  exact ⟨h1, I.vl, I.rel, I.m⟩
+
+/-- **`create_new_objects` over `n` VCPUs** (module docstring). -/
+theorem create_new_objects_vcpu (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat}
+    {hd : U64} (R : RPl st V B n hd) {s : S} (hhd : ∀ s' : S, L.ksb s' = L.ksb s → P1.vHeadA st s' = hd)
+    (M : S → Nat → Prop) (hMc : ∀ s s' i, M s i → P1.WritesIn st s s' (CrW V B n hd) → M s' i)
+    {FW : U64 → Prop} (hFW : ∀ b, FW b → (b.val + 8 ≤ B ∨ B + n * 32768 ≤ b.val) ∧ b ≠ hd ∧
+      ∀ w ∈ V, b.val + 8 ≤ w.val ∨ w.val + 32768 ≤ b.val)
+    (parent dest off : U64) (hIns : ∀ iw : U64, iw.val < n → ∀ s2, M s2 iw.val →
+      cdt.insert_new_cap st s2 parent (slotAddr dest.bv (core.num.U64.wrapping_add off iw).bv)
+        (capability.Cap.Vcpu (vI B iw.val)) ⦃ s3 => M s3 (iw.val + 1) ∧ P1.WritesIn st s2 s3 FW ⦄)
+    (Vl : VList st V th s) (hwz : WinZero (L.mem s) B 32768 n False) (hM0 : M s 0)
+    (nW base us : U64) (hnW : nW.val = n) (hbase : base.val = B) (dev : Bool) :
+    objects.create_new_objects st ar s a fl4_abi.consts.object.X86Vcpu parent dest off nW base us dev ⦃ res =>
+      res.2 = a ∧ VList st (VsI V B n) th res.1 ∧ (∀ j, j < n → VRelInit (memW st res.1) (vI B j).bv) ∧
+        M res.1 n ⦄ :=
+  create_new_objects_vcpuF hA hc hk R hhd M (CrW V B n hd) (fun b h => by
+    rcases h with h | h | ⟨w, hw, e, -⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr ⟨w, hw, by omega, by omega⟩)) hMc hFW parent dest off hIns Vl hwz hM0 nW base us hnW
+    hbase dev
 
 end
 

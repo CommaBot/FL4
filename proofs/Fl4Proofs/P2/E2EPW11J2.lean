@@ -149,60 +149,7 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The W11 start fact, the armed program cut** (module docstring): `StartP3W11` [P] for some annotation `q0`, the
-armed program its PTE-cut relabelling. -/
-def StartP3W11JC (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
-    (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : Fl4IxW (S := S)) : Prop :=
-  ∃ q0, StartP3W11 st ar hA hm hSt a0 arI AR MR Ch K.toKLayoutV m hK.base hU.base c hs q0 i ∧
-    q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅
-
 variable {arI AR MR}
-
-/-- **The relabelled annotation is the cut body at every start state** (`StartQPB` discharged). -/
-theorem startQPB_of (i : Fl4IxW (S := S)) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K)
-    (c : U64) (hs : U64 → Prop) (q0 : SP) :
-    StartQPB ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base)
-      (fl4LocW11J st ar hA hm hSt a0 i K m hK hU) rfl rfl c hs m q0
-      (cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅) := by
-  intro σ a _ hc _ _ e
-  show _ = (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx m) _ (allW11J st ar hA hm hSt a0 i K m hK hU)).body σ a
-  refine Eq.trans ?_ (body_cutLiftP hK hU (fun x hx => ko_pte hK hx m) _
-    (allW11J st ar hA hm hSt a0 i K m hK hU) σ a).symm
-  change _ = cutP _ _ _ _
-    (((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base).L.cpu σ)
-    (((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base).body σ a) ∅
-  rw [hc, ← e]
-
-/-- **`ExecWPJ` is monotone in the start fact.** -/
-theorem ExecWPJ.mono {ι : Type} {LP : PathsP ι}
-    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-      Prop}
-    (hSF : ∀ Ch K m hK hU c hs q i, SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPJ LP SF P s0 K0 Ch0 s K Ch) : ExecWPJ LP SF' P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩
-    obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-    exact ⟨i, hSF _ _ _ _ _ _ _ _ _ hi⟩
-  | hw _ hH ih => exact .hw ih hH
-
-/-- **FL4 end to end, W11's family and glue, rule 8 with the PTE set by convention, W11's start fact** (module
-docstring): `serializable_fl4_localW11PJ` with the start fact `StartP3W11JC` (`StartP3W11` [P], armed program the
-relabelled annotation); `StartQPB` gone. -/
-theorem serializable_fl4_localW11PJ2 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JC st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hm' : ExecWPJ (fl4LocW11J st ar hA hm hSt a0) (StartP3W11JB st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch := by
-    refine ExecWPJ.mono st (fun Ch K m hK hU c hs q i hsf => ?_) h
-    obtain ⟨q0, hW, rfl⟩ := hsf
-    exact ⟨q0, hW, startQPB_of st ar hA hm hSt a0 i K m hK hU c hs q0⟩
-  exact serializable_fl4_localW11PJ st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 hm' hq
 
 end top
 

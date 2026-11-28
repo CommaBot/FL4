@@ -168,24 +168,6 @@ def vtSlotW : SlotN (VtArg S) where
 def fl4LQW (D : Dflt) : PathsV (VxArg S ⊕ VtArg S) :=
   PathsV.sum ((vxSlot st ar hA hm).fam D) ((vtSlotW st ar hA hm).fam D)
 
-/-- **FL4's eight local paths, newest slots** (module docstring). -/
-def fl4LocW : Fl4Loc (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) (VxArg S ⊕ VtArg S) where
-  vmF := vmFSlot st ar hA hm
-  vmR := vmRSlot st ar hA hm
-  io := ioSlot st ar hA hm
-  st := stSlotK st ar hA hm
-  irq := irqSlotK st ar hA hm
-  sl := slSlotK st ar hA hSt hm a0
-  vq := fl4LQW st ar hA hm (fl4Dflt st ar hm)
-
-/-- **FL4 end to end with rule 7 over its eight local paths, newest slots** (`serializable_fl4_local`'s statement
-over `fl4LocW`). -/
-theorem serializable_fl4_localW {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
-    (h : ExecV ((fl4LocW st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
-
 end fam
 
 end

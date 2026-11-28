@@ -11,6 +11,10 @@ state in place of its bundles (`XTopAt`, `ScExtra`, `UtP3Ok`), through
 * `UtJOk`: P1's `P3Ok` for the untyped retype as `JAt` at the decode's start
   with the invoked slot's facts; `RegionUnrefJ`: `RegionUnref` over `JAtZ`;
   `utRetypeP3_ofJ`: P1's `UtRetypeP3` at `UtJOk` (`utRetypeP3_gen`).
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `curEq`, `curRunnable`; the `JAtZ` names are one-line corollaries via
+`JAtZ.toB`, statements unchanged.
 -/
 import Fl4Proofs.P3.JointAt
 import Fl4Proofs.P3.ScUtRetypeDev
@@ -26,28 +30,43 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- The current thread of a `JAtZ` state: the node's `CUR_THREAD` word, the
 spec's, a TCB. -/
-theorem JAtZ.curEq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.curEq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
     σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
-  have hct' : ct = nodeW st s Z.c layout.node.CUR_THREAD := by
+  have hct' : ct = Sched.nodeW st s Z.c layout.node.CUR_THREAD := by
     have h := sched.cur_thread.spec' (L := L) s
     rw [hct, WP.spec_ok, hc.cur] at h; exact h
   have hcur : σ.curThread = ct.bv := by rw [hs.curThread, hct']
   obtain ⟨-, x, hk⟩ := J.xtop.curTcb hcur
   exact ⟨hcur, x, hk⟩
 
+/-- `JAtZB.curEq` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.curEq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
+    σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) :=
+  Fl4Proofs.P3.JAtZB.curEq (J := J.toB) (hct := hct)
+
 /-- The current thread of a `JAtZ` state at a system call (not the idle
 thread): `curEq`, and the TCB runnable (`CurRunW.run`). -/
-theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) :
     σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) ∧ Fl4Spec.runnable x.tcbState = true := by
   obtain ⟨hcur, x, hk⟩ := J.curEq hct
   exact ⟨hcur, x, hk, J.curRun.run hni x (by rw [hcur]; exact hk)⟩
+
+/-- `JAtZB.curRunnable` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.curRunnable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) :
+    σ.curThread = ct.bv ∧ ∃ x, σ.kheap ct.bv = some (.tcb x) ∧ Fl4Spec.runnable x.tcbState = true :=
+  Fl4Proofs.P3.JAtZB.curRunnable (J := J.toB) (hni := hni) (hct := hct)
 
 /-- **The SchedControl cap on `JAt`** (`decode_invocation_sched_controlXT`). -/
 theorem decode_invocation_sched_controlJAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

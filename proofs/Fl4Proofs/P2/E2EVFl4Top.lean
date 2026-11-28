@@ -83,6 +83,9 @@ named glue premises (as `serializable_fl4_localW3`).
 
 The `Pre`s change for vmR (`VmRRPreJ`: `SlJAt` + `VmRPre` at the layout's heap sets + `RdTab` + `VmFoundC`, the
 start obligation of `rr_localPathJ`); the others are the old slots' `Pre`s.
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `serializable_fl4_localP3WV`,
+`serializable_fl4_localP3W`.
 -/
 import Fl4Proofs.P2.E2EVFl4W3
 import Fl4Proofs.P2.E2EVFl4P3
@@ -294,13 +297,6 @@ def fl4LocP3W : Fl4Loc (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlA
   sl := slSlotP3 st ar hA hSt hm a0
   vq := fl4LQP3 st ar hA hm (fl4Dflt st ar hm)
 
-/-- **`fl4LocP3W` over `ExecV`** (the `Fl4StepV.ser` [J] / `start` [P] form, as `serializable_fl4_localW2`). -/
-theorem serializable_fl4_localP3WV {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
-    (h : ExecV ((fl4LocP3W st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
-
 /-! ## The start fact of `fl4LocP3W` (famw gen 2's `GlueAt` form) -/
 
 /-- **The start fact of `fl4LocP3W`** (module docstring): per index, the slot's record and `GlueAt` [P] of the slot's
@@ -391,22 +387,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hSt : P0.StoreTotal st) (hm : E2E.MasksWr st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with rule 7 over its eight local paths: the newest slots at P3 scope, glue premises named**
-(module docstring: premise table and diff vs `serializable_fl4_localW`): every execution `ExecW` of FL4 (famw gen 2:
-`Fl4StepV.ser` / `start` derived from `SerExitW` [P], `VcpuLay` [J], `ExitGhostV` [P] and per start `GlueAt` [P]
-with the slot record) whose starts are `StartP3W` facts of `fl4LocP3W`'s paths, from a boot layout with no VCPU, at a
-state with no local path in progress, ran exactly as some serial order of its completed entries. The VM paths are
-vacuous at this scope (no thread is bound to a VCPU at a P3 state). -/
-theorem serializable_fl4_localP3W (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3W st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) (StartP3W st ar hA hSt hm a0) P s0 K0 Ch0
-      s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_W (fun _ _ _ _ _ _ _ _ _ hCh hi => startAt_P3W st ar hA hSt hm a0 hCh hi) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3WV st ar hA hSt hm a0 h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

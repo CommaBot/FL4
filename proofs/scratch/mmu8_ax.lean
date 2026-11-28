@@ -15,7 +15,4 @@ open Fl4Proofs.P2.Serial Fl4Proofs.P2.E2E Fl4Proofs.P2.E2EP Fl4Proofs.P2.PathObl
 #print axioms adEq_np
 #print axioms execU3b_aRunD
 #print axioms serializable_U3c_of
-#print axioms serializable_fl4_localU3c_of
 #print axioms run_apl
-#print axioms serializable_fl4_localU3b
-#print axioms serializable_fl4_localU1P

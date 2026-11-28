@@ -15,6 +15,9 @@ to a woken receiver).
   pending (it stays pending, `possibleSwitchTo_cn`), `CurOwnW` and `OffOK` by
   `Calm` (`possibleSwitchTo_calm`), `CurRunM` (no resumption made,
   `possibleSwitchTo_nr`), the dead kept (`deadP_sc_stepQ`).
+
+(mmuAD gen 42b18) `switchJ` stated over `JAtZB` in place; `JAtZ.switchJ` its corollary with `possible_switch_to_sfoot`
+(`ext` by `JAtZ.ext_tfoot`). P3/JAtZBSched's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointRunI
 import Fl4Proofs.P3.XTopJointRestart
@@ -58,10 +61,10 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- **`possible_switch_to` at `J`** (module docstring). -/
-theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZB.switchJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (hti : t.bv ≠ σ.idleThread) (htc : t.bv ≠ σ.curThread) (hs : Fl4Spec.schedulable t.bv σ = true) :
     sched.possible_switch_to st s t ⦃ s' => ∃ σ', Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D s' a σ' ⦄ := by
+      ∃ Lst' : U64 → List U64, JAtZB (L := L) arI AR Z H Cs Ac Lst' D s' a σ' ⦄ := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
@@ -125,6 +128,15 @@ theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
   exact ⟨σ', he, Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2) hKd subset_rfl)
     (J.sc_kern hwT hK hF hX' hDbg fun _ h => h) (J.sc_utc hwT hK hDbg) hN' hI' hcur hown hoff hAI hbsa hcr hblk hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD⟩
+
+/-- `JAtZB.switchJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.switchJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (hti : t.bv ≠ σ.idleThread) (htc : t.bv ≠ σ.curThread) (hs : Fl4Spec.schedulable t.bv σ = true) :
+    sched.possible_switch_to st s t ⦃ s' => ∃ σ', Fl4Spec.possibleSwitchTo (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+      ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D s' a σ' ⦄ :=
+  WP.spec_mono (WP.spec_and (Fl4Proofs.P3.JAtZB.switchJ (J := J.toB) (ht := ht) (hti := hti) (htc := htc) (hs := hs)) (possible_switch_to_sfoot J.xtop.fin.1.1.2.2.1 J.xtop.fin.1.1.1 J.inv.actReady ht))
+    fun _ ⟨⟨σ', he, Lst', B⟩, hw⟩ =>
+      ⟨σ', he, Lst', B.toJAtZ (J.ext_tfoot (WritesIn.tfoot_of_kfoot (WritesIn.kfoot_of_sfoot hw)))⟩
 
 end
 

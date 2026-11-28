@@ -277,8 +277,8 @@ def StartP3W11 (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOK
 
 variable {arI AR MR}
 
-/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W11`**, given the current chain. -/
-theorem startAt_P3W11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **`startAt_P3W11` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
+theorem startAt_P3W11_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
     {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
     {i : Fl4IxW (S := S)} (h : StartP3W11 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
@@ -286,14 +286,22 @@ theorem startAt_P3W11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoap
   cases i with
   | vmR j =>
     obtain ⟨h, hG⟩ := h
-    exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .vmR j)
+    exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .vmR j)
       ⟨h, hG.mono fun σ he _ => ⟨he.1, he.2.toJ10 st ar hA⟩⟩
-  | vmF j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .vmF j) h
-  | io j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .io j) h
-  | st j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .st j) h
-  | irq j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .irq j) h
-  | sl j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .sl j) h
-  | vq j => exact startAt_P3W10 st ar hA hm hSt a0 P hIoa hC (i := .vq j) h
+  | vmF j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .vmF j) h
+  | io j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .io j) h
+  | st j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .st j) h
+  | irq j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .irq j) h
+  | sl j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .sl j) h
+  | vq j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .vq j) h
+
+/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W11`**, given the current chain. -/
+theorem startAt_P3W11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
+    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
+    {i : Fl4IxW (S := S)} (h : StartP3W11 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
+    StartAt ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q :=
+  startAt_P3W11_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
 
 end start
 

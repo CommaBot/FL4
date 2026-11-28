@@ -36,6 +36,10 @@ Narrowing honesty: the `inv` / `mid` fields are `DispStabFootL` restricted (impl
 implied by `DispStabFootL` (it speaks of a sub-call of the dispatch), it implies the receive class of it. The
 remaining [J] content is exactly: the invoking class, the mid class, and the endpoint receive.
 
+(p3J gen 51) **`handle_recvJStL`**: `handle_recvJSt`'s shell generalised in place (no `Entered`, the notification
+and cap-fault leaves named at `RecvRelSF` as the endpoint leaf); `handle_recvJSt` is now its instance (statement
+unchanged).
+
 Named premises: `RecvIpcStFt` [J], `DispStabFootLv` [J] (above). No sorry. New module; no existing statement
 changed.
 -/
@@ -94,6 +98,55 @@ theorem jStab_toR {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JStab (L := L) 
   exact ⟨G, V, Ac, Lst, D, J.toR⟩
 
 set_option maxHeartbeats 8000000 in
+/-- (p3J gen 51) **`handle_recv` at a dispatch state, stable, with its footprint, all three leaves named** (the
+shell of `handle_recvJSt` without `Entered`: the notification leaf `hSig` and the cap-fault leaf `hFlt` at
+`RecvRelSF` are hypotheses like the endpoint leaf `hIpc`; the registers, the lookup, the looked-up caps' objects and
+the bound TCB are read from `J` alone). `handle_recvJSt` is its instance. -/
+theorem handle_recvJStL (hAT : P0.ArchTotal arI) {V : XVs} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s a σ) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) (blocking canReply : Bool)
+    (hIpc : RecvIpcLeafSF (L := L) arI AR Z H Cs ct blocking s a σ)
+    (hSig : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
+      JHeld (L := L) Z.th s (.Notification p b w rd) →
+      notification.receive_signal st arI s a ct p blocking ⦃ r =>
+        ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac blocking σ).1,
+          RecvRelSF (L := L) arI AR Z H Cs s r.1 r.2 z.2 ⦄)
+    (hFlt : ∀ cptr lf lf', LookupFaultRel lf lf' →
+      faults.handle_fault st arI s a ct (.Cap cptr true lf) ⦃ r =>
+        ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv
+          (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) true lf') σ).1,
+          RecvRelSF (L := L) arI AR Z H Cs s r.1 r.2 z.2 ⦄) :
+    syscall.handle_recv st arI s a blocking canReply ⦃ r =>
+      ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) blocking canReply σ).1,
+        RecvRelSF (L := L) arI AR Z H Cs s r.1 r.2 z.2 ⦄ := by
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨htcb, xs, hks⟩ := J.xtop.curTcb hcur
+  have hctT : ct ∈ (Z.mv Z.G V).T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
+  have hI := J.xtop.irelK J.ks J.buf
+  have hxs := hI.1.toE.at_tcb hctT hks
+  have hR := J.xtop.rel.2.1.1
+  have hV := J.xtop.rel.2.1.2.1
+  refine handle_recv_refinesH (RecvRelSF (L := L) arI AR Z H Cs s) (JHeld (L := L) Z.th s) s a σ blocking canReply
+    ct hct hcur hks
+    (by rw [← regIdx_cap]; exact hxs.regs _) (by rw [← regIdx_reply]; exact hxs.regs _)
+    (fun cptr => lookup_cap_refines Z.th s σ hR hV ct htcb cptr)
+    (fun cptr => WP.spec_mono (lookup_cap_held Z.th s σ hR hV ct htcb cptr) fun r hr c hc => ⟨?_, hr c hc⟩)
+    ⟨hIpc, hSig, recv_bound_leaf hI.1 J.obj, hFlt⟩
+  obtain ⟨y, hy, hcv⟩ := hr c hc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  cases c with
+  | Endpoint p b x1 x2 x3 x4 =>
+    obtain ⟨xe, hke, -⟩ := hI.1.ep p (J.hset.1 p ((hJ.typed _ hy).1 p b x1 x2 x3 x4 hcv))
+    exact ⟨xe, hke⟩
+  | Reply p g =>
+    obtain ⟨xr, hkr, -⟩ := hI.1.reply p (J.hset.2.2 p ((hJ.typed _ hy).2.2 p g hcv))
+    exact ⟨xr, hkr⟩
+  | Notification p b w r =>
+    obtain ⟨xn, hkn, -⟩ := hI.1.ntfn p (J.capN ⟨y, b, w, r, hy, hcv⟩).1
+    exact ⟨xn, hkn⟩
+  | _ => trivial
+
+set_option maxHeartbeats 8000000 in
 /-- (p3J gen 30) **`handle_recv` at a dispatch state, stable, with its footprint, the endpoint leaf named**
 (module docstring). -/
 theorem handle_recvJSt (hAT : P0.ArchTotal arI) {V : XVs} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -106,12 +159,7 @@ theorem handle_recvJSt (hAT : P0.ArchTotal arI) {V : XVs} (s : S) (a : A) (σ : 
       ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) blocking canReply σ).1,
         RecvRelSF (L := L) arI AR Z H Cs s r.1 r.2 z.2 ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
-  obtain ⟨htcb, xs, hks⟩ := J.xtop.curTcb hcur
   have hctT : ct ∈ (Z.mv Z.G V).T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  have hI := J.xtop.irelK J.ks J.buf
-  have hxs := hI.1.toE.at_tcb hctT hks
-  have hR := J.xtop.rel.2.1.1
-  have hV := J.xtop.rel.2.1.2.1
   have hSig := jRecvSigStFt hAT J hctT hcur hni hnq blocking
   have hFlt : ∀ cptr lf lf', LookupFaultRel lf lf' →
       faults.handle_fault st arI s a ct (.Cap cptr true lf) ⦃ r =>
@@ -126,27 +174,9 @@ theorem handle_recvJSt (hAT : P0.ArchTotal arI) {V : XVs} (s : S) (a : A) (σ : 
     refine WP.spec_mono (WP.spec_and h1 h2) ?_
     rintro r ⟨⟨z, hz, hr1, hr2⟩, hW⟩
     exact ⟨z, hz, hr1, jStab_toR (JStab.mv hr2), hW⟩
-  refine handle_recv_refinesH (RecvRelSF (L := L) arI AR Z H Cs s) (JHeld (L := L) Z.th s) s a σ blocking canReply
-    ct hct hcur hks
-    (by rw [← regIdx_cap]; exact hxs.regs _) (by rw [← regIdx_reply]; exact hxs.regs _)
-    (fun cptr => lookup_cap_refines Z.th s σ hR hV ct htcb cptr)
-    (fun cptr => WP.spec_mono (lookup_cap_held Z.th s σ hR hV ct htcb cptr) fun r hr c hc => ⟨?_, hr c hc⟩)
-    ⟨hIpc, fun p b w rd ac hcr hex hHd => WP.spec_mono (hSig p b w rd ac hcr hex hHd)
-      (fun r ⟨⟨z, hz, hr1, hr2⟩, hW⟩ => ⟨z, hz, hr1, jStab_toR (JStab.mv hr2), hW⟩),
-     recv_bound_leaf hI.1 J.obj, hFlt⟩
-  obtain ⟨y, hy, hcv⟩ := hr c hc
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  cases c with
-  | Endpoint p b x1 x2 x3 x4 =>
-    obtain ⟨xe, hke, -⟩ := hI.1.ep p (J.hset.1 p ((hJ.typed _ hy).1 p b x1 x2 x3 x4 hcv))
-    exact ⟨xe, hke⟩
-  | Reply p g =>
-    obtain ⟨xr, hkr, -⟩ := hI.1.reply p (J.hset.2.2 p ((hJ.typed _ hy).2.2 p g hcv))
-    exact ⟨xr, hkr⟩
-  | Notification p b w r =>
-    obtain ⟨xn, hkn, -⟩ := hI.1.ntfn p (J.capN ⟨y, b, w, r, hy, hcv⟩).1
-    exact ⟨xn, hkn⟩
-  | _ => trivial
+  exact handle_recvJStL hAT s a σ J hct blocking canReply hIpc
+    (fun p b w rd ac hcr hex hHd => WP.spec_mono (hSig p b w rd ac hcr hex hHd)
+      (fun r ⟨⟨z, hz, hr1, hr2⟩, hW⟩ => ⟨z, hz, hr1, jStab_toR (JStab.mv hr2), hW⟩)) hFlt
 
 set_option maxHeartbeats 4000000 in
 /-- (p3J gen 30) **`dispatch_syscall` for the receiving syscalls at a dispatch state, stable, with its

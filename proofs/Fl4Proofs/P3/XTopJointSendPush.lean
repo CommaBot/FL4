@@ -21,6 +21,9 @@ and blocks the caller on it; no SC moves, so the call stacks stay.
   (`reply_push_iG`, P1's `reply_push.ipc`/`reply_push.nd`), the receiver
   `Running`, `JAtZ` by `wake_postGR` at `pushSt`, the tail; the spec's outcome
   `sendIpc_call_eq`.
+
+(mmuAD gen 42b18) `wake_postGR` stated over `JAtZB` in place (post at `Z`); `JAtZ.wake_postGR` its corollary (witness
+`Z.vs`, `ext` by `JAtZ.ext_oobj` over `CnW`). P3/JAtZV3FaultRecvB's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointSendDon
 import Fl4Proofs.P3.EpCall
@@ -470,12 +473,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-set_option maxHeartbeats 8000000 in
+set_option maxHeartbeats 4000000 in
 /-- **`JAtZ.wake_postG` with the replies' facts given back** (a free reply
 after was free before, `hfree1`; a reply bound to a receive-blocked thread
 after was one before, `hrb1`) instead of the replies kept: the step may bind
 a free reply, as `reply_push` does. -/
-theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
+theorem JAtZB.wake_postGR (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
     {s' : S} {σa σ' : Fl4Spec.State Unit}
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
@@ -500,7 +503,7 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
     (ht : ∀ q ∈ D, q.bv ≠ t) :
-    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' := by
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a σ' := by
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hIR hAR hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig)
     (F.ksub.trans hks1) hF.2
@@ -569,11 +572,40 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
         (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       hnsc3, I3, hcur3, hown3, hoff3, hAI3, B3, hiso3, hrun3, hblk⟩
-  have hC0 := JCs.same J hF.1 (F.ksz.trans hkz1)
+  have hC0 := JCs.sameB J hF.1 (F.ksz.trans hkz1)
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch)
+  exact J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch)
     (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
+        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD
+
+/-- `JAtZB.wake_postGR` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
+    {s' : S} {σa σ' : Fl4Spec.State Unit}
+    (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s))
+    (F : DWFr n t σ σa) (G : SkD σa σ') (hks1 : KSub σa σ') (hsz1 : SzKeep σa σ') (hyk1 : YKeep σa σ')
+    (hmk1 : McpKeep σa σ')
+    (hbk1 : ∀ p x, σa.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer)
+    (hrb1 : ∀ d ∈ Z.R, RecvB σ' d → RecvB σa d) (hkz1 : KSz σa σ') (hkb1 : KBack σa σ') (hfk1 : IpcFrKeep σa σ')
+    (hck1 : (∀ q y n, σa.kheap q = some (.schedContext y n) → ∃ y', σ'.kheap q = some (.schedContext y' n) ∧
+      y'.scReplies = y.scReplies) ∧
+      (∀ q x, σa.kheap q = some (.reply x) → ∃ x', σ'.kheap q = some (.reply x') ∧ x'.replySc = x.replySc) ∧
+      (∀ p x n, σ'.kheap p = some (.schedContext x n) → ∃ x0, σa.kheap p = some (.schedContext x0 n)))
+    (hfree1 : ∀ d ∈ Z.R, Free σ' d → Free σa d)
+    (hao1 : ∀ q ao, σa.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao))
+    (hkq : ∀ q ∈ D, σ'.kheap q.bv = σa.kheap q.bv)
+    (I3 : Inv σ') (B3 : BlockedScActive σ') (hAI3 : ActIdle σ')
+    (hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') (hrun3 : CurRunM σ')
+    (hown3 : CurOwnW Z.T Z.C σ') (hoff3 : OffOK σ') (hnsc3 : NSC Z.N Z.C σ') (hiso3 : IpcSorted σ')
+    (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
+      Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
+    (ht : ∀ q ∈ D, q.bv ≠ t) :
+    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' :=
+  ⟨Z.vs, (Fl4Proofs.P3.JAtZB.wake_postGR (J := J.toB) (hIR := hIR) (hF := hF) (hw := hw) (hblk := hblk) (hfoot := hfoot) (F := F) (G := G) (hks1 := hks1) (hsz1 := hsz1) (hyk1 := hyk1) (hmk1 := hmk1) (hbk1 := hbk1) (hrb1 := hrb1) (hkz1 := hkz1) (hkb1 := hkb1) (hfk1 := hfk1) (hck1 := hck1) (hfree1 := hfree1) (hao1 := hao1) (hkq := hkq) (I3 := I3) (B3 := B3) (hAI3 := hAI3) (hcur3 := hcur3) (hrun3 := hrun3) (hown3 := hown3) (hoff3 := hoff3) (hnsc3 := hnsc3) (hiso3 := hiso3) (hRR := hRR) (ht := ht)).toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun _ hb => J.cnW_nv hb))⟩
 
 
 

@@ -187,40 +187,6 @@ section slot
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
 
-/-- **delPte's share of `hIns`**, from its accepted-run walk fact. -/
-theorem insA_delQ (j : InvArg S) {K : KLayoutP} {E : U64 → U64} {s : Cfg U64 U64 U64 U64}
-    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} (hM : MapsP K s)
-    (hAcc : ∀ h : DelPtePrem st j K, AccIns (delPtePath st ar hA hm j K s.mem hK hU h) (PWE K E))
-    (h : StartAt (delPteSlot st ar hA hm j K s.mem hK hU) c hs s.mem q) :
-    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs s.mem q := by
-  by_cases hp : DelPtePrem st j K
-  · rw [delPteSlot_pos st ar hA hm hp] at h
-    rw [hM.own, hM.cls, hM.ko]
-    exact LocalPath.insAQ _ adEq_equiv (moveHeldP hK) (ownDepP hK hU) (pwe_own hK) (fun x hx => pwe_ko hK _ hx)
-      (fun x hx => pwe_user hU hx) (hAcc hp) (delPte_dec st ar hA hm j hK hU hp) h
-  · unfold delPteSlot at h
-    rw [dif_neg hp] at h
-    obtain ⟨σ, a, hpre, -⟩ := h
-    exact (hpre : False).elim
-
-/-- **CNodeDelete's (no PTE lock) share of `hIns`**, from its accepted-run walk fact. -/
-theorem insA_invQ (j : InvArg S) {K : KLayoutP} {E : U64 → U64} {s : Cfg U64 U64 U64 U64}
-    {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} (hM : MapsP K s)
-    (hAcc : ∀ h : InvPremW st j K.toKLayoutV s.mem,
-      AccIns (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx s.mem) _ (invAvU st ar hA hm j K s.mem hK hU h))
-        (PWE K E))
-    (h : StartAt (invSlotU st ar hA hm j K s.mem hK hU) c hs s.mem q) :
-    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs s.mem q := by
-  by_cases hp : InvPremW st j K.toKLayoutV s.mem
-  · rw [invSlotU_pos st ar hA hm hp] at h
-    rw [hM.own, hM.cls, hM.ko]
-    exact LocalPath.insAQ _ adEq_equiv (moveHeldP hK) (ownDepP hK hU) (pwe_own hK) (fun x hx => pwe_ko hK _ hx)
-      (fun x hx => pwe_user hU hx) (hAcc hp) (inv_dec st ar hA hm j hK hU hp) h
-  · unfold invSlotU at h
-    rw [dif_neg hp] at h
-    obtain ⟨σ, a, hpre, -⟩ := h
-    exact (hpre : False).elim
-
 end slot
 
 /-! ## 5. The top, reduced to the accepted-run walk facts -/
@@ -229,33 +195,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with the page walker's A/D writes, over U2's family, given only the two walk facts**:
-`serializable_fl4_localU3b_ofDI` with `hDel` / `hInv` replaced by `hDelA` / `hInvA` — accepted runs of delPte and
-of CNodeDelete (no PTE lock) from their entry states read paging words of the epoch only `ADEq`-insensitively and
-store only non-present values into them (`AccIns`). Premises: U2's (`P`, [P] `hIoa`, `h0`, `hA0`, `hB`, `hc0`, `hM0`,
-the execution, `hq`) and [P] `MmuAD` (in `ExecU3b`); `hDelA` / `hInvA` are hypotheses of this reduction. -/
-theorem serializable_fl4_localU3b_ofAcc (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (hDelA : ∀ (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K)
-      (j : InvArg S), (∃ σe, SlJAt (L := L) K.toKLayout σe) → EpochJ K E s → MapsP K s →
-      ∀ h : DelPtePrem st j K, AccIns (delPtePath st ar hA (masksWr_plain st) j K s.mem hK hU h) (PWE K E))
-    (hInvA : ∀ (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K)
-      (j : InvArg S), (∃ σe, SlJAt (L := L) K.toKLayout σe) → EpochJ K E s → MapsP K s →
-      ∀ h : InvPremW st j K.toKLayoutV s.mem,
-        AccIns (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx s.mem) _
-          (invAvU st ar hA (masksWr_plain st) j K s.mem hK hU h)) (PWE K E))
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecU3b (famU2 st ar hA a0) (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU3b_ofDI st ar hA a0 P hIoa
-    (fun K E s hK hU c hs q j hb J hM hP =>
-      insA_delQ st ar hA (masksWr_plain st) j hM (hDelA K E s hK hU j hb J hM) hP)
-    (fun K E s hK hU c hs q j hb J hM hP =>
-      insA_invQ st ar hA (masksWr_plain st) j hM (hInvA K E s hK hU j hb J hM) hP)
-    h0 hA0 hB hc0 hM0 h hq
 
 end top
 

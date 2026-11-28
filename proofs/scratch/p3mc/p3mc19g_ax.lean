@@ -6,5 +6,3 @@ import Fl4Proofs.P2.E2EPU18
 #print axioms Fl4Proofs.P2.E2EP.st_walk_v
 #print axioms Fl4Proofs.P2.E2EP.st_k0_safeC
 #print axioms Fl4Proofs.P2.E2EP.st_annV_h
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU18
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localU17of18

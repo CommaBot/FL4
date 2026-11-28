@@ -35,6 +35,10 @@ ScFireJ), by the notification's state.
 * `signalJHyp_of`: `SignalJHyp` from `SignalRestJHyp`, `RecvReplyHyp`,
   `MIN_BUDGET` and P1's `ArchTotal`; `jat_scheduleS`: `jat_scheduleF` with
   it.
+
+(mmuAD gen 42b18) `signal_badge_post` stated over `JAtZB` in place (post at `Z`); `JAtZ.signal_badge_post` its
+corollary (witness `Z.vs`, `ext` by `JAtZ.ext_oobj` over the `NWrite` footprint, `NWrite.finW`). P3/JAtZBSigPost's
+copy deleted.
 -/
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.IpcSignalWake
@@ -59,8 +63,8 @@ set_option maxHeartbeats 8000000 in
 /-- **A badge-only signal keeps `JAtZ`** (module docstring): the spec's
 outcome `updK σ n (.notification y)`, `y` the notification with a non-waiting
 object (it was non-waiting), FL4's side `SingleRelI` at that outcome. -/
-theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N)
+theorem JAtZB.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N)
     {x y : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     (hxw : ∀ l, x.ntfnObj ≠ .waitingNtfn l) (hyw : ∀ l, y.ntfnObj ≠ .waitingNtfn l)
     (hyb : y.ntfnBoundTcb = x.ntfnBoundTcb) (hys : y.ntfnSc = x.ntfnSc)
@@ -69,8 +73,8 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
     {s' : S} (hrel : SingleRelI (st := st) Z.N Z.T Z.E Z.R Z.B s σ spec s')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s') :
-    ∃ (σ' : Fl4Spec.State Unit) (V' : XVs), spec = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
-      JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' := by
+    ∃ σ' : Fl4Spec.State Unit, spec = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a σ' := by
   obtain ⟨σ3, hsp, hIR3, hNS, hW, -⟩ := hrel
   have e3 : σ3 = updK σ n.bv (.notification y) := by
     have h1 := (Prod.mk.inj (hsp.symm.trans hspec)).1
@@ -141,10 +145,30 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
       J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
-  have hC0 := JCs.same J hSS F.ksz
+  have hC0 := JCs.sameB J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
+  exact ⟨σ3, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
     hKd F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
+
+/-- `JAtZB.signal_badge_post` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N)
+    {x y : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
+    (hxw : ∀ l, x.ntfnObj ≠ .waitingNtfn l) (hyw : ∀ l, y.ntfnObj ≠ .waitingNtfn l)
+    (hyb : y.ntfnBoundTcb = x.ntfnBoundTcb) (hys : y.ntfnSc = x.ntfnSc)
+    {spec : Set (Unit × Fl4Spec.State Unit) × Prop}
+    (hspec : spec = ({((), updK σ n.bv (.notification y))}, False))
+    {s' : S} (hrel : SingleRelI (st := st) Z.N Z.T Z.E Z.R Z.B s σ spec s')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s') :
+    ∃ (σ' : Fl4Spec.State Unit) (V' : XVs), spec = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' :=
+  by
+    obtain ⟨σ', h1, h2, B⟩ := Fl4Proofs.P3.JAtZB.signal_badge_post (J := J.toB) (hn := hn) (hk := hk) (hxw := hxw) (hyw := hyw) (hyb := hyb) (hys := hys) (hspec := hspec) (hrel := hrel) (hblk := hblk)
+    obtain ⟨-, -, -, -, hW, -⟩ := hrel
+    have hS := J.xtop.fin.1.1.1
+    have hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) := hW.mono fun _ hb => NWrite.finW hS.placed.tcb hb
+    exact ⟨σ', Z.vs, h1, h2, B.toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.FinW.oobj hS hb) (fun _ hb => Ipc.FinW.nv hS hb))⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **A waking signal keeps `JAtZ`** (module docstring): FL4's side on `IRel`

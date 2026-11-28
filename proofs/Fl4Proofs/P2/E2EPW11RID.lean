@@ -28,7 +28,7 @@ Premises of `serializable_fl4_localW11PRID`: `serializable_fl4_localW11PR`'s (`P
 `hc0`, `hM0`, the execution `h`, `hq`); the new slot's start obligation is `DelPteStart` (`DelPtePrem.lk` [P],
 `GlueAt` [P] with `InvQFP`). No new [J] / [W]; no existing statement or file changed.
 -/
-import Fl4Proofs.P2.E2EPW11RI
+import Fl4Proofs.P2.E2EPW11R
 import Fl4Proofs.P2.InvDelPteOnceP
 import Fl4Proofs.P2.InvDelPtePlanLt
 import Fl4Proofs.P2.E2EVFl4WIS
@@ -111,19 +111,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- (invj gen 8) **FL4 end to end over the invocation-index family with the Delete PTE-arm slot** (module
-docstring): `serializable_fl4_localW11PRI` at `LQ := delPteSlot`, `SFQ := DelPteStart`. -/
-theorem serializable_fl4_localW11PRID (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11J st ar hA hm hSt a0) (delPteSlot st ar hA hm))
-      (StartW11RI st ar hA hm hSt a0 arI AR MR (DelPteStart st ar hA hm)) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localW11PRI st ar hA hm hSt a0 P hIoa (delPteSlot st ar hA hm)
-    (fun _ _ _ _ _ _ _ _ _ hC hEp hS => delPteStart_at st ar hA hm hC hEp hS) h0 hA0 hB hc0 hM0 h hq
 
 end top
 

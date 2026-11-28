@@ -35,6 +35,10 @@ donee:
   donating or not: the badge write at `J` (`regWrJ`), then `wake_postD`
   (ScSignalDonJ) from there with the frame `NFr` (idle) then `DWFr`.
 * `jRecvSigHypDN`: every `receive_signal` at a `MidN` state (no `¬ SigDon`).
+
+(p3J gen 53) Each notification-receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSigN
 import Fl4Proofs.P3.ScSignalDonJ
@@ -283,19 +287,21 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 32000000 in
-/-- **Receiving from an active notification at a `MidN` state, donating or
-not** (module docstring). -/
-theorem JAtZ.recvSigDonJN (hAT : P0.ArchTotal arI)
+/-- (p3J gen 53) **`JAtZ.recvSigDonJN` with its post as a parameter** (module docstring: `Pq` from every `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvSigDonJN` is its instance at `RJ`). -/
+theorem JAtZ.recvSigDonJNQ (hAT : P0.ArchTotal arI)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
     (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
     {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
-    (blk : Bool) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) :
+    (blk : Bool) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     notification.receive_signal st arI s a t n blk ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) t.bv (.notificationCap n.bv cb cr) blk σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb t ht
   have hsc0 : xt.tcbSchedContext = none := hni.2.2.2 xt (by rw [hcur]; exact hkt)
@@ -432,7 +438,51 @@ theorem JAtZ.recvSigDonJN (hAT : P0.ArchTotal arI)
   have hsT : specRecvTail t.bv n.bv σ2 = specUnblock t.bv σd := by
     unfold specRecvTail; rw [nd_bind_one hd]; rfl
   rw [hspec, hsT, hu]
-  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
+  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, hPq _ _ _ _ _ _ _ _ J'⟩
+
+set_option maxHeartbeats 32000000 in
+/-- **Receiving from an active notification at a `MidN` state, donating or
+not** (module docstring). -/
+theorem JAtZ.recvSigDonJN (hAT : P0.ArchTotal arI)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
+    {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
+    (blk : Bool) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights) :
+    notification.receive_signal st arI s a t n blk ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) t.bv (.notificationCap n.bv cb cr) blk σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvSigDonJNQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmb J ht hcur hni hnq hn hk hact blk cb cr (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 53) **`jRecvSigHypDN` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `jRecvSigHypDN` is its instance at `RJR`). -/
+theorem jRecvSigHypDNQ (hAT : P0.ArchTotal arI)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidN σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
+    (hex : ∃ x, σ.kheap p.bv = some (.notification x)) (hHd : JHeld (L := L) Z.th s (.Notification p b w rd))
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
+    notification.receive_signal st arI s a ct p true ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
+  by_cases hdon : SigDon σ p.bv
+  · obtain ⟨x, hk⟩ := hex
+    have hac : ac = absCap (.Notification p b w rd) := hcr.abs
+    subst hac
+    obtain ⟨n, hn, h⟩ := J.obj.ntfn _ x hk
+    rw [Sched.bv_inj h] at hn
+    obtain ⟨x', hk', ⟨b0, hact⟩, -⟩ := hdon
+    rw [hk] at hk'; cases hk'
+    exact J.recvSigDonJNQ hAT hmb ht hcur hni hnq hn hk hact true b.bv (rightsOf w rd false false)
+      (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+  · exact jRecvSigHypN_ofQ hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd hdon hPq
 
 set_option maxHeartbeats 4000000 in
 /-- **Every notification receive at a `MidN` state** (module docstring):
@@ -445,18 +495,10 @@ theorem jRecvSigHypDN (hAT : P0.ArchTotal arI)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
     (hex : ∃ x, σ.kheap p.bv = some (.notification x)) (hHd : JHeld (L := L) Z.th s (.Notification p b w rd)) :
     notification.receive_signal st arI s a ct p true ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  by_cases hdon : SigDon σ p.bv
-  · obtain ⟨x, hk⟩ := hex
-    have hac : ac = absCap (.Notification p b w rd) := hcr.abs
-    subst hac
-    obtain ⟨n, hn, h⟩ := J.obj.ntfn _ x hk
-    rw [Sched.bv_inj h] at hn
-    obtain ⟨x', hk', ⟨b0, hact⟩, -⟩ := hdon
-    rw [hk] at hk'; cases hk'
-    exact WP.spec_mono (J.recvSigDonJN hAT hmb ht hcur hni hnq hn hk hact true b.bv (rightsOf w rd false false))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
-  · exact jRecvSigHypN_of hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd hdon
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  jRecvSigHypDNQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmb J ht hcur hni hsw hnq p b w rd ac hcr hex hHd (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 
