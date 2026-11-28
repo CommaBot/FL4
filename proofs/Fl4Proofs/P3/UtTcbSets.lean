@@ -18,8 +18,8 @@ variable {AR : A' → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : S
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **The set and heap fields at `T ∪ Tn`** (module docstring). -/
-theorem JAtZ.addSetsT {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addSetsT` over `JAtZB` (mmuAD gen 42b25, in place; `JAtZ.addSetsT` is its corollary). -/
+theorem JAtZB.addSetsT {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat}
     (hfree : RegionFree Z.th lo hi)
     (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
@@ -152,6 +152,31 @@ theorem JAtZ.addSetsT {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   · rcases hout_back hout hc with ⟨-, hK⟩ | h
     · cases hK
     · exact J.hscC c z h
+
+
+/-- **The set and heap fields at `T ∪ Tn`** (module docstring). -/
+theorem JAtZ.addSetsT {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat}
+    (hfree : RegionFree Z.th lo hi)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w (some .tcb)) {Tn : Set U64}
+    (hTw : ∀ t ∈ Tn, P1.TcbAddr t ∧ lo ≤ t.val ∧ t.val + 4096 ≤ hi ∧ NewAt A k w t)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs', ko = .cnode r cs') ∨ (∃ t ∈ Tn, t.bv = o ∧ ∃ d, ko = .tcb (Fl4Spec.defaultTcb d)))
+    {Z' : XSets} (hT : Z'.T = Z.T ∪ Tn) (hR : Z'.R = Z.R) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E) (hN : Z'.N = Z.N) :
+    KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  JAtZB.addSetsT J.toB hks hfree hspec hB harch hlo hhi hk1 hout hTw hback hT hR hC hBB hE hN
 
 end
 

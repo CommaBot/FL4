@@ -414,18 +414,19 @@ theorem RetExp.capAfter {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
 state `s` (typed heap `th`, MDB ghost `G`, P1 heap `H`, spec state `σ`) to `s'` (`th'`, `G'`, `H'`, `σ'`), for the
 source slot `xs`, type number `nt` (spec type `t`), size parameter `us`, `w` objects at `rb`, device flag `dev`:
 `k` bytes apart (`2 ^ zOf`), `rb` aligned to `k`, the caps `cj = capsOf` (UntypedLoop's `cjOf` on the native types,
-`Vcpu` / `Ept` caps on 14..18), the cap `cj j` in the window slot `dslot j` (a CNode slot of `th`), FL4's writes only
-slot words of `th` (`Sched.SlotWd`); the typed heap after (`ThX`), the MDB step (`MdbStep`), what the retype did to
+`Vcpu` / `Ept` caps on 14..18), the cap `cj j` in the window slot `dslot j` (a CNode slot of `th`), FL4's writes inside the body's footprint `W`
+(gen 42b25: a parameter; `Sched.SlotWd th` for the slot-only bodies, `RetWdW` / `RetWdT` for the PML4 / TCB
+bodies); the typed heap after (`ThX`), the MDB step (`MdbStep`), what the retype did to
 the caps and the tree (`RetExp`), the slot caps after (`RetExp.capAfter`), P1's heap after (`HOut`: the window's
 `newKind` objects), the spec's heap after (the window's `defaultObject`s added, none for untypeds, then CNodes
 changed: `SpecAdd`, `CnK`, `KeepC`), the window inside the source's free part, and (RAM) zero at `s`. What the VT-x
 growth after a retype (`VcpuCore` / `EptCore`) reads. -/
 def RetWin (th th' : TypedHeap) (G G' : MdbGhost) (H H' : P1.Heap) (σ σ' : Fl4Spec.State Unit) (s s' : S)
-    (xs : U64) (nt : Nat) (t : Fl4Spec.ApiObjectType) (us : Nat) (rb : Fl4Spec.ObjRef) (w : Nat) (dev : Bool) :
+    (W : U64 → Prop) (xs : U64) (nt : Nat) (t : Fl4Spec.ApiObjectType) (us : Nat) (rb : Fl4Spec.ObjRef) (w : Nat) (dev : Bool) :
     Prop :=
   ∃ (k : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap), k = 2 ^ zOf nt us ∧ rb.toNat % k = 0 ∧
     (∃ uu : U64, uu.val = us ∧ cj = capsOf nt uu dev rb.toNat k) ∧ (∀ j, j < w → capV (L.mem s') (dslot j) = cj j) ∧
-    DslotC th dslot w ∧ P1.WritesIn st s s' (Sched.SlotWd th) ∧
+    DslotC th dslot w ∧ P1.WritesIn st s s' W ∧
     ThX th th' rb.toNat k w nt us ∧ MdbStep (L.mem s) G (L.mem s') G' ∧
     RetExp th th' (L.mem s) (L.mem s') G G' rb.toNat k w dslot cj xs ∧
     (∀ y, IsSlot th' y → capV (L.mem s') y ≠ .Null → (∃ j, j < w ∧ y = dslot j) ∨
@@ -441,10 +442,10 @@ def RetWin (th th' : TypedHeap) (G G' : MdbGhost) (H H' : P1.Heap) (σ σ' : Fl4
 /-- `RetWin` from a retype body's facts (the window caps' slots from `RetExp.newc`, the slot caps after by
 `RetExp.capAfter`). -/
 theorem RetWin.intro {th th' : TypedHeap} {G G' : MdbGhost} {H H' : P1.Heap} {σ σB σ' : Fl4Spec.State Unit}
-    {s s' : S} {xs : U64} {nt : Nat} {t : Fl4Spec.ApiObjectType} {us : Nat} {rb : Fl4Spec.ObjRef} {w : Nat}
-    {dev : Bool} {k : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+    {s s' : S} {W : U64 → Prop} {xs : U64} {nt : Nat} {t : Fl4Spec.ApiObjectType} {us : Nat} {rb : Fl4Spec.ObjRef}
+    {w : Nat} {dev : Bool} {k : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
     (hk : k = 2 ^ zOf nt us) (hAk : rb.toNat % k = 0) (hcj : ∃ uu : U64, uu.val = us ∧ cj = capsOf nt uu dev rb.toNat k)
-    (hdsC : DslotC th dslot w) (hw : P1.WritesIn st s s' (Sched.SlotWd th)) (hThX : ThX th th' rb.toNat k w nt us)
+    (hdsC : DslotC th dslot w) (hw : P1.WritesIn st s s' W) (hThX : ThX th th' rb.toNat k w nt us)
     (hSt : MdbStep (L.mem s) G (L.mem s') G') (hE : RetExp th th' (L.mem s) (L.mem s') G G' rb.toNat k w dslot cj xs)
     (hM : MdbLinks th (L.mem s) G) (hM' : MdbLinks th' (L.mem s') G')
     (hout : HOut H H' rb.toNat (rb.toNat + w * k) rb.toNat k w (newKind nt us))
@@ -452,9 +453,27 @@ theorem RetWin.intro {th th' : TypedHeap} {G G' : MdbGhost} {H H' : P1.Heap} {σ
       (fun _ => Fl4Spec.defaultObject t dev us σ.curDomain)) (hcnk : CnK σB σ') (hkc : KeepC σB σ')
     {p sb fi : U64} (hsrc : capV (L.mem s) xs = .Untyped p sb fi dev) (h1 : p.val + fi.val ≤ rb.toNat)
     (h2 : rb.toNat + w * k ≤ p.val + 2 ^ sb.val) (hz : dev = false → ZeroRegion (L.mem s) rb.toNat (rb.toNat + w * k)) :
-    RetWin (L := L) th th' G G' H H' σ σ' s s' xs nt t us rb w dev :=
+    RetWin (L := L) th th' G G' H H' σ σ' s s' W xs nt t us rb w dev :=
   ⟨k, dslot, cj, hk, hAk, hcj, hE.newc, hdsC, hw, hThX, hSt, hE, hE.capAfter hM hM', hout, ⟨σB, hA, hcnk, hkc⟩,
     ⟨p, sb, fi, hsrc, h1, h2⟩, hz⟩
+
+/-- **The window's words** `[lo, hi)` (mmuAD gen 42b25: the PML4 / TCB bodies write into the window). -/
+def WinWd (lo hi : Nat) (b : U64) : Prop := lo ≤ b.val ∧ b.val < hi
+
+/-- **The debug-list words a TCB retype writes** (mmuAD gen 42b25; `objects::debug_append`, objects.rs l. 418): core
+0's `DEBUG_TCBS` node word, and the old head's `DEBUG_PREV` word when the list was not empty (at the entry state). -/
+def DebugWd (s : S) (b : U64) : Prop :=
+  b = L.nodeAt s 0#u64 layout.node.DEBUG_TCBS ∨
+    (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 ∧
+      b = P1.dpA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))
+
+/-- **The PML4 body's footprint** (mmuAD gen 42b25): slot words and the window `[lo, hi)` (`copy_global_mappings`,
+x86_64/objects.rs l. 68, writes each new PML4's kernel half). -/
+def RetWdW (th : TypedHeap) (lo hi : Nat) (b : U64) : Prop := Sched.SlotWd th b ∨ WinWd lo hi b
+
+/-- **The TCB body's footprint** (mmuAD gen 42b25): slot words, the window (the new TCBs' creation words) and the
+debug-list words (`DebugWd`). -/
+def RetWdT (th : TypedHeap) (s : S) (lo hi : Nat) (b : U64) : Prop := RetWdW th lo hi b ∨ DebugWd (L := L) s b
 
 variable (arI) in
 /-- **`UtBodyPost` with `JAtZB` after** (mmuAD gen 42b21; moved here from UtEpRet in gen 42b24): the outcome of a
@@ -465,10 +484,12 @@ the typed heap `th` at the entry state `s` (when it held there) to the new state
 slots), so that the VT-x growth after the retype needs nothing more from the body. Gen 42b24: the spec's outcome is
 FL4's untyped invocation with `vcpu::init` (`fl4InvokeUntypedV`, the ported one for every type but the VCPU, P3/VirtR7
 `fl4InvokeUntypedV_run`); `RetWin` relates the state after to the entry's `th`, `G`, `H`, `σ`; `X` holds of the
-sets, heap and SC set after (the device bodies' `DevApart` / `DevFreeT`; `fun _ _ _ _ _ => True` otherwise). -/
+sets, heap and SC set after (the device bodies' `DevApart` / `DevFreeT`; `fun _ _ _ _ _ => True` otherwise). Gen
+42b25: `W lo hi` is the body's write footprint for the window `[lo, hi)` (`RetWin`'s `W`: `fun _ _ => Sched.SlotWd
+th` for the slot-only bodies, `RetWdW th` for the PML4 body, `RetWdT th s` for the TCB body). -/
 def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (G : MdbGhost) (H : P1.Heap) (s : S)
     (σ : Fl4Spec.State Unit) (nt : Nat) (X : XSets → P1.Heap → Set U64 → S → Fl4Spec.State Unit → Prop)
-    (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+    (W : Nat → Nat → U64 → Prop) (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ', (Fl4Spec.fl4InvokeUntypedV (Z := Unit) inv).run σ = ({(.ok (), σ')}, False) ∧
     res.1 = .Ok () ∧
     (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
@@ -477,13 +498,15 @@ def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (G : MdbGhost
       JAtZB (L := L) arI AR Z' H' Cs' Ac' Lst' D' res.2.1 res.2.2 σ' ∧ VxE Z' ∧ X Z' H' Cs' res.2.1 σ' ∧
       (nt ≤ 13 → JExt (L := L) th s → JExt (L := L) Z'.th res.2.1) ∧
       ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
-        RetWin (L := L) th Z'.th G Z'.G H H' σ σ' s res.2.1 (cslotAddr src) nt t us rb slots.length dev
+        RetWin (L := L) th Z'.th G Z'.G H H' σ σ' s res.2.1 (W rb.toNat (rb.toNat + slots.length * 2 ^ zOf nt us))
+          (cslotAddr src) nt t us rb slots.length dev
 
 /-- `UtBodyPostB` of a native type (not the VCPU) with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`;
 the spec's run by `fl4InvokeUntypedV_run`). -/
 theorem UtBodyPostB.toPost {th : TypedHeap} {G : MdbGhost} {H : P1.Heap} {s : S} {σ : Fl4Spec.State Unit} {nt : Nat}
-    {X : XSets → P1.Heap → Set U64 → S → Fl4Spec.State Unit → Prop} {inv : Fl4Spec.UntypedInvocation}
-    {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th G H s σ nt X inv res)
+    {X : XSets → P1.Heap → Set U64 → S → Fl4Spec.State Unit → Prop} {W : Nat → Nat → U64 → Prop}
+    {inv : Fl4Spec.UntypedInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    (h : UtBodyPostB (L := L) arI AR th G H s σ nt X W inv res)
     (hn : nt ≤ 13) (hv : ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
       t ≠ .archObject .vcpuObj)
     (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
@@ -506,7 +529,7 @@ theorem JAtZB.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (fun _ _ => Sched.SlotWd Z.th) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO

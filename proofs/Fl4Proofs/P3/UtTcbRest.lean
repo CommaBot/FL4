@@ -81,10 +81,10 @@ theorem Sched.SlotsApart.addT {th : TypedHeap} {N T C R W : Set U64} {c : U64} {
   obtain ⟨h1, h2⟩ := h a ha
   exact ⟨fun t ht => ht.elim (h1 t) (hW a ha t), h2⟩
 
-/-- **`inSlotW_keeps` with a TCB's `DEBUG_PREV` word among the writes**. -/
-theorem inSlotTW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `inSlotTW_keeps` over `JAtZB` (mmuAD gen 42b25, in place; `inSlotTW_keeps` is its corollary). -/
+theorem inSlotTW_keepsB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop}
     (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
     (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val ∨ b.val = t.val + 3584)
     (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
@@ -128,7 +128,52 @@ theorem inSlotTW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
     · rcases hWR _ h r hr with e | e <;> omega
 
+/-- **`inSlotW_keeps` with a TCB's `DEBUG_PREV` word among the writes**. -/
+theorem inSlotTW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop}
+    (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val ∨ b.val = t.val + 3584)
+    (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
+      b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
+    (hWR : ∀ b, Win b → ∀ r ∈ Z.R, b.val < r.val ∨ r.val + 32 ≤ b.val) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) :=
+  inSlotTW_keepsB J.toB hw hWT hWC hWR
+
+
 set_option maxHeartbeats 2000000 in
+/-- `uaRestT` over `JAtZB` (mmuAD gen 42b25, in place; `JAtZ.uaRestT` is its corollary). -/
+theorem JAtZB.uaRestT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop}
+    (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val ∨ b.val = t.val + 3584)
+    (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
+      b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
+    (hWR : ∀ b, Win b → ∀ r ∈ Z.R, b.val < r.val ∨ r.val + 32 ≤ b.val)
+    {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop} {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject}
+    (hA : SpecAdd σ σB W o) (hi : IdleNewT W o) (hcn : CnK σB σ') {Nn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv)
+    (hcW : ¬ W σ.curThread) :
+    CallRel (L.mem s') Z.R Z.C σ' Lst ∧ RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ' ∧ RFree (L.mem s') Z.R Z.C σ' Lst ∧
+    RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
+    BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
+    (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
+  have hC := CnStep.of_cnK hcn
+  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlotTW_keepsB J hw hWT hWC hWR
+  have ck := uaCKeepT hA hi hC
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uaddT hA hi hC k4,
+    J.yld.frame k2 (uaYKeepT hA hi hC), J.mcp.frame k1 (uaMcpKeepT hA hC), J.buf.frame kb (uaBufKeepT hA hC),
+    (J.nsc.uaddT hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
+    CurInvW.cn (CurInvW.uaddT J.cur hA hi) hC, (J.own.uaddT hA hi).cn hC.toHStep, (J.off.uaddT hA hi).cn hC.toHStep,
+    (J.act.uaddT hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
+    (J.isorted.uaddT hA hi).cn hC.toHStep, (J.curRun.uaddT hA hi hcW).cn hC.toHStep (Or.inr hC.act)⟩
+
+
 /-- **`JAtZ.uaRestW` for a retype's fresh objects with default TCBs**
 (module docstring), at the old sets; the current thread not a new object. -/
 theorem JAtZ.uaRestT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -146,17 +191,8 @@ theorem JAtZ.uaRestT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
     BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
     (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
-    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
-  have hC := CnStep.of_cnK hcn
-  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlotTW_keeps J hw hWT hWC hWR
-  have ck := uaCKeepT hA hi hC
-  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
-  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uaddT hA hi hC k4,
-    J.yld.frame k2 (uaYKeepT hA hi hC), J.mcp.frame k1 (uaMcpKeepT hA hC), J.buf.frame kb (uaBufKeepT hA hC),
-    (J.nsc.uaddT hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
-    CurInvW.cn (CurInvW.uaddT J.cur hA hi) hC, (J.own.uaddT hA hi).cn hC.toHStep, (J.off.uaddT hA hi).cn hC.toHStep,
-    (J.act.uaddT hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
-    (J.isorted.uaddT hA hi).cn hC.toHStep, (J.curRun.uaddT hA hi hcW).cn hC.toHStep (Or.inr hC.act)⟩
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' :=
+  JAtZB.uaRestT J.toB hw hWT hWC hWR hA hi hcn hWn hcW
 
 end
 

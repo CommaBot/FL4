@@ -241,10 +241,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
   {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **LiveFrame's `LiveDN.wstepR` with the debug walk's thread caps after
-given** (module docstring): the kernel-state base kept in place of `DbgKeep`. -/
-theorem LiveDN.wstepRD {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+/-- `LiveDN.wstepRD` over `JAtZB` (mmuAD gen 42b25, in place; `LiveDN.wstepRD` is its corollary). -/
+theorem LiveDN.wstepRDB {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     {G' : MdbGhost} {s' : S}
     {σ' : Fl4Spec.State Unit} (hM' : MdbLinks Z.th (L.mem s') G')
     {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
@@ -344,6 +343,32 @@ theorem LiveDN.wstepRD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · rw [hN sl hA h0] at ho'; cases ho'
       · exact absurd hm hsW
 
+/-- **LiveFrame's `LiveDN.wstepR` with the debug walk's thread caps after
+given** (module docstring): the kernel-state base kept in place of `DbgKeep`. -/
+theorem LiveDN.wstepRD {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    {G' : MdbGhost} {s' : S}
+    {σ' : Fl4Spec.State Unit} (hM' : MdbLinks Z.th (L.mem s') G')
+    {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
+    (hks : L.ksb s' = L.ksb s)
+    (hdbg : ∀ n, dbgNth (L.mem s') n (dbgHead (L := L) s') ≠ 0#u64 →
+      (dbgNth (L.mem s') n (dbgHead (L := L) s')).bv ≠ σ'.idleThread →
+      ∃ y ∈ G'.chains.flatten, capV (L.mem s') y = .Thread (dbgNth (L.mem s') n (dbgHead (L := L) s')))
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧
+      DestCap Z.th (L.mem s) p)
+    (hcW : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → LSim (capV (L.mem s') y) (capV (L.mem s) y))
+    (hoW : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W)
+    (hNO : ∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false)
+    (hZ : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n)
+    (hK2 : ∀ y0, IsSlot Z.th y0 → capV (L.mem s) y0 ≠ .Null →
+      ∃ y, IsSlot Z.th y ∧ capV (L.mem s') y ≠ .Null ∧ shape (capV (L.mem s') y) = shape (capV (L.mem s) y0)) :
+    LiveDN (L := L) Z.th H' Cs G' s' σ' :=
+  LiveDN.wstepRDB J.toB hLv hM' hDW' hdead hks hdbg W hW hcW hoW hNO hZ hK2
+
+
 end
 
 section
@@ -352,9 +377,8 @@ variable {AR : A' → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : S
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **UtRetLive's `JAtZ.ret_liveN` with `DbgWF` and the debug walk's thread
-caps after given** (the TCB retype appends to the debug list). -/
-theorem JAtZ.ret_liveND {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `ret_liveND` over `JAtZB` (mmuAD gen 42b25, in place; `JAtZ.ret_liveND` is its corollary). -/
+theorem JAtZB.ret_liveND {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A'} {σ' : Fl4Spec.State Unit} {D' : Set U64}
     {th' : TypedHeap} (hX' : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = th')
     (hold : ∀ q k, Z.th q = some k → th' q = some k) (hNE : NewEmpty Z.th th' (L.mem s') σ')
@@ -410,7 +434,7 @@ theorem JAtZ.ret_liveND {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     · obtain ⟨d, hd, rfl⟩ := eW; exact absurd h ((hWc d hd).2 p zt n)
     · push_neg at eW
       exact ⟨y, hy, by rw [← hcapK y hy ex eW]; exact h⟩
-  have hLv := LiveDN.wstepRD J ⟨hL, ⟨lst, hDW⟩, hN⟩ hM' hDW' hdead hks hdbg W hW
+  have hLv := LiveDN.wstepRDB J ⟨hL, ⟨lst, hDW⟩, hN⟩ hM' hDW' hdead hks hdbg W hW
     (fun y hy hne => by
       by_cases ex : y = xs
       · rw [ex, hs0, hs1]; exact LSim.of_shape rfl
@@ -432,6 +456,32 @@ theorem JAtZ.ret_liveND {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   rw [hth]
   exact ⟨hLv.extendE hold hNE, fun p hp => hnew p (ZTcb.of_zombies hZf (ZTcb.of_extendE hold hNE hp))⟩
 
+
+
+/-- **UtRetLive's `JAtZ.ret_liveN` with `DbgWF` and the debug walk's thread
+caps after given** (the TCB retype appends to the debug list). -/
+theorem JAtZ.ret_liveND {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A'} {σ' : Fl4Spec.State Unit} {D' : Set U64}
+    {th' : TypedHeap} (hX' : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = th')
+    (hold : ∀ q k, Z.th q = some k → th' q = some k) (hNE : NewEmpty Z.th th' (L.mem s') σ')
+    (hks : L.ksb s' = L.ksb s) (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
+    (hdbg : ∀ n, dbgNth (L.mem s') n (dbgHead (L := L) s') ≠ 0#u64 →
+      (dbgNth (L.mem s') n (dbgHead (L := L) s')).bv ≠ σ'.idleThread →
+      ∃ y ∈ Z'.G.chains.flatten, capV (L.mem s') y = .Thread (dbgNth (L.mem s') n (dbgHead (L := L) s')))
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
+    (hnew : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D')
+    {Aw k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G Z'.G Aw k w dslot cj xs)
+    (hcjZ : ∀ j, j < w → ∀ p zt n, cj j ≠ .Zombie p zt n)
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧ DestCap Z.th (L.mem s) p)
+    (hxs : IsSlot Z.th xs)
+    (hcapK : ∀ y, IsSlot Z.th y → y ≠ xs → (∀ d ∈ W, y ≠ cslotAddr d) → capV (L.mem s') y = capV (L.mem s) y)
+    (hWn : ∀ d ∈ W, capV (L.mem s) (cslotAddr d) = .Null)
+    {src : Fl4Spec.CslotPtr} (hcdt : ∀ d ∈ W, σ'.cdt d = some src)
+    (horgK : ∀ sl, sl ∉ W → σ'.isOriginalCap sl = σ.isOriginalCap sl) :
+    LiveDN (L := L) Z'.th H' Cs Z'.G s' σ' ∧ ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D' :=
+  JAtZB.ret_liveND J.toB hX' hth hold hNE hks hDW' hdbg hdead hnew hE hcjZ W hW hxs hcapK hWn hcdt horgK
 
 end
 

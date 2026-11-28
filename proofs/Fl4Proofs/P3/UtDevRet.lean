@@ -162,8 +162,9 @@ def DevX (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.State Un
 /-- A device body's `UtBodyPostB` (`DevX` after) with `JExt` at the entry is `UtBodyPostD` (as
 `UtBodyPostB.toPost`). -/
 theorem UtBodyPostB.toPostD {th : TypedHeap} {G : MdbGhost} {H : P1.Heap} {s : S} {σ : Fl4Spec.State Unit}
-    {nt : Nat} {inv : Fl4Spec.UntypedInvocation} {res : core.result.Result Unit error.Exc × S × A}
-    (h : UtBodyPostB (L := L) arI AR th G H s σ nt (DevX (L := L)) inv res) (hn : nt ≤ 13)
+    {nt : Nat} {W : Nat → Nat → U64 → Prop} {inv : Fl4Spec.UntypedInvocation}
+    {res : core.result.Result Unit error.Exc × S × A}
+    (h : UtBodyPostB (L := L) arI AR th G H s σ nt (DevX (L := L)) W inv res) (hn : nt ≤ 13)
     (hv : ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev → t ≠ .archObject .vcpuObj)
     (E : JExt (L := L) th s) : UtBodyPostD (L := L) arI AR σ inv res := by
   obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hvx, ⟨hDA, hDF⟩, hx, -⟩ := h
@@ -190,7 +191,7 @@ theorem JAtZB.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win true ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (DevX (L := L)) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (DevX (L := L)) (fun _ _ => Sched.SlotWd Z.th) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
         res ⦄ := by
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
