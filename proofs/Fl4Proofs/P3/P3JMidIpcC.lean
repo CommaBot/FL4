@@ -139,55 +139,6 @@ theorem kernel_entry_runMcWKR_sysLzz [Fl4Proofs.P1.PlainStore st] (hARI : ARIfac
   kernel_entry_runMcWKR_sysLzy hARI hA hnd hM hIp hKD hPAi hIA hT hmax htu hRef hSX hDR hFpu hFW hR
     (dispStabFootLzx_disch hA hnd hT hmax htu)
 
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 54) **The new top gives the previous one** (`_sysLzy` = `_sysLzz` plus the now-proved `hLzx`). -/
-theorem kernel_entry_runMcWKR_sysLzy_of_Lzz [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
-    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcWKR (L := L) arI AR MR s a σ)
-    (_hLzx : DispStabFootLzx (L := L) arI AR MR s a σ) :
-    ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-      (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-      syscall.handle_syscall st arI s a n ⦃ r =>
-        ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-          RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
-  kernel_entry_runMcWKR_sysLzz hARI hA hnd hM hIp hKD hPAi hIA hT hmax htu hRef hSX hDR hFpu hFW hR
-
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 54) **The previous top gives the new one** (`hLzx` by `dispStabFootLzx_disch`). -/
-theorem kernel_entry_runMcWKR_sysLzz_of_Lzy [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
-    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet)
-    (hLzy : ∀ {s : S} {a : A} {σ : Fl4Spec.State Unit}, RunMcWKR (L := L) arI AR MR s a σ →
-      DispStabFootLzx (L := L) arI AR MR s a σ →
-      ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-        (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-          JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-        syscall.handle_syscall st arI s a n ⦃ r =>
-          ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-            RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcWKR (L := L) arI AR MR s a σ) :
-    ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-      (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-      syscall.handle_syscall st arI s a n ⦃ r =>
-        ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-          RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
-  hLzy hR (dispStabFootLzx_disch hA hnd hT hmax htu)
-
 end
 
 end

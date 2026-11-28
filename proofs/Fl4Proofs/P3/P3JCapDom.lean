@@ -52,10 +52,6 @@ theorem restCap_of {cp : capability.Cap} (hK : SInvCk.KW (absCap cp)) (hR : ¬ I
     (hP : ¬ IsEpCap cp) (hD : cp ≠ .Domain) : IsRestCap cp := by
   cases cp <;> simp_all [SInvCk.KW, absCap, IsReplyCap, IsEasyCap, IsEpCap, IsRestCap]
 
-theorem restCap_not {cp : capability.Cap} (h : IsRestCap cp) :
-    ¬ IsReplyCap cp ∧ ¬ IsEasyCap cp ∧ ¬ IsEpCap cp := by
-  cases cp <;> simp_all [IsReplyCap, IsEasyCap, IsEpCap, IsRestCap]
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets} {H : P1.Heap}
@@ -166,23 +162,6 @@ theorem midDecRest_of_dom (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
       a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs
       ⟨hW.1, restCap_of hW.1 hW.2.1 hW.2.2.1 hW.2.2.2 hD⟩
 
-/-- (p3J gen 36) **gen 35's `invDecRest` from the Domain leaf and the four left** (module docstring). -/
-theorem invDecRest_of_dom (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
-    (hMT : MachPlat arI MR) (hKD : MRKeepD arI MR) [VxE Z] {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64}
-    {call bl don : Bool} (hX : SInvX σ) (hni : σ.curThread ≠ σ.idleThread)
-    (h : InvDecStW (L := L) arI AR MR (fun cp => SInvCk.KW (absCap cp) ∧ IsRestCap cp) Z H Cs s a σ n call bl don) :
-    InvDecStW (L := L) arI AR MR
-      (fun cp => SInvCk.KW (absCap cp) ∧ ¬ IsReplyCap cp ∧ ¬ IsEasyCap cp ∧ ¬ IsEpCap cp) Z H Cs s a σ n
-      call bl don := by
-  intro σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs hW
-  by_cases hD : cp = .Domain
-  · exact invDecDom_of hA hnd hARI hMT hKD hX hni σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn
-      info mi buf buffer r2 er argsU a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs ⟨hW.1, hD⟩
-  · exact h σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-      a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs
-      ⟨hW.1, restCap_of hW.1 hW.2.1 hW.2.2.1 hW.2.2.2 hD⟩
-
 end
 
 end
@@ -193,85 +172,5 @@ namespace Fl4Proofs.P3.Mc
 open fl4_core Classical Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P2.Wit
 open Fl4Proofs.P3.JBoot Fl4Proofs.P3.SInvR.G5 Fl4Proofs.P3.Vs Fl4Proofs.P3.JBootQ
 open Fl4Proofs.P3.SInvR.G4
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
-
-/-- (p3J gen 36) **`DispStabFootLo` [J]**: `DispStabFootLj` with `invDecRest` / `midDecRest` restricted to the CNode,
-Thread, IrqHandler and SchedContext caps (module docstring). -/
-structure DispStabFootLo (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop where
-  /-- `DispStabFootLj.invDecRest` for the caps `IsRestCap`. -/
-  invDecRest : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (call bl don : Bool),
-        σ.curThread ≠ σ.idleThread → InvSys n call bl don → SysFlag (L := L) s →
-        SysK6 (L := L) arI AR Z H Cs s a σ n (invSysOf call bl) →
-        InvDecStW (L := L) arI AR MR (fun cp => SInvCk.KW (absCap cp) ∧ IsRestCap cp) Z H Cs s a σ n call bl don
-  /-- `DispStabFootLj.midDecRest` for the caps `IsRestCap`. -/
-  midDecRest : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidDecStW (L := L) arI AR MR (fun cp => SInvCk.KW (absCap cp) ∧ IsRestCap cp) Z H Cs s a σ n c
-  /-- `DispStabFootLj.midSpec`, verbatim. -/
-  midSpec : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidSpecAt σ
-  /-- `DispStabFootLj.midRecvSw`, verbatim. -/
-  midRecvSw : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidRecvSw (L := L) arI AR MR Z H Cs s a σ n c
-
-variable {arI AR MR}
-
-/-- (p3J gen 36) **`DispStabFootLo → DispStabFootLj`** (module docstring). -/
-theorem dispStabFootLj_of_Lo (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hM : MachPlatF arI MR) (hIp : IpiF arI MR) (hKD : MRKeepD arI MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : DispStabFootLo (L := L) arI AR MR s a σ) :
-    DispStabFootLj (L := L) arI AR MR s a σ where
-  invDecRest := fun hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6 => by
-    have := hV
-    obtain ⟨⟨⟨⟨⟨hJ17, -⟩, -⟩, -⟩, -⟩, -⟩ := hR.1.1
-    obtain ⟨_, _, _, _, _, _, -, hX, -, -, -, -, -, -, -⟩ := jreach_invU3 hnd hJ17.1
-    exact invDecRest_of_dom hA hnd hARI (MachPlatF.toT hM hIp) hKD hX hct
-      (h.invDecRest hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6)
-  midDecRest := fun hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6 => by
-    have := hV
-    obtain ⟨⟨⟨⟨⟨hJ17, -⟩, -⟩, -⟩, -⟩, -⟩ := hR.1.1
-    obtain ⟨_, _, _, _, _, _, -, hX, -, -, -, -, -, -, -⟩ := jreach_invU3 hnd hJ17.1
-    exact midDecRest_of_dom hA hnd hARI (MachPlatF.toT hM hIp) hKD hX hct
-      (h.midDecRest hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6)
-  midSpec := h.midSpec
-  midRecvSw := h.midRecvSw
-
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 36) **The native syscall entry, `RunMcWKR` to `RunMcWKR`, with `DispStabFootLo` only** (`hLo` [J];
-module docstring). -/
-theorem kernel_entry_runMcWKR_sysLo [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcWKR (L := L) arI AR MR s a σ)
-    (hLo : DispStabFootLo (L := L) arI AR MR s a σ) :
-    ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-      (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-      syscall.handle_syscall st arI s a n ⦃ r =>
-        ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-          RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
-  kernel_entry_runMcWKR_sysLj hARI hA hnd hM hIp hKD hPAi hT hmax htu hRef hSX hDR hFpu hFW hR
-    (dispStabFootLj_of_Lo hARI hA hnd hM hIp hKD hLo)
-
-end
 
 end Fl4Proofs.P3.Mc

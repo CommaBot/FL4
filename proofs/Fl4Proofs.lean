@@ -2691,7 +2691,6 @@ import Fl4Proofs.P3.P3JInvCls
 import Fl4Proofs.P3.P3JInvLeaf
 import Fl4Proofs.P3.P3JStepFt
 import Fl4Proofs.P3.P3JCapDom
-import Fl4Proofs.P3.P3JCapDomW
 import Fl4Proofs.P3.P3JNtfnFt
 import Fl4Proofs.P3.P3JCapIrq
 import Fl4Proofs.P3.P3JCapIrqTop
@@ -2787,7 +2786,6 @@ import Fl4Proofs.P3.P3JThSsp
 import Fl4Proofs.P3.P3JThIns
 import Fl4Proofs.P3.P3JCnDelSt
 import Fl4Proofs.P3.P3JSspSt
-import Fl4Proofs.P3.P3JEptScope
 import Fl4Proofs.P3.P3JMidSpec
 import Fl4Proofs.P3.P3JLookFlat
 import Fl4Proofs.P3.P3JMidRecvSh

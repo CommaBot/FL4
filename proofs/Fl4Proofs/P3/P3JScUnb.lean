@@ -170,11 +170,6 @@ def IsRestCap5 : capability.Cap → U64 → Prop
   | .SchedContext .., l => l = fl4_abi.label.SchedContextYieldTo
   | _, _ => False
 
-theorem restCap4_of5 {cp : capability.Cap} {l : U64} (h : IsRestCap5 cp l) : IsRestCap4 cp l := by
-  cases cp
-  case SchedContext p sb => exact Or.inr h
-  all_goals first | trivial | exact False.elim h
-
 theorem restCap5_of {cp : capability.Cap} {l : U64} (h : IsRestCap4 cp l)
     (hS : ¬ ∃ p sb, cp = .SchedContext p sb ∧ l = fl4_abi.label.SchedContextUnbind) : IsRestCap5 cp l := by
   cases cp
@@ -267,46 +262,6 @@ theorem midDecRest4_of_scU (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1
   · exact h σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct rg sr cr hct hn info mi buf buffer r2 er argsU
       a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs ⟨hW.1, restCap5_of hW.2 hS⟩
 
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 38) **`InvDecStWL` at `KW ∧ IsRestCap4` from the Unbind leaf** (module
-docstring). -/
-theorem invDecRest4_of_scU (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
-    (hMT : MachPlat arI MR) (hKD : MRKeepD arI MR) (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) [VxE Z] {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} {n : I64} {call bl don : Bool} (hX : SInvX σ) (hni : σ.curThread ≠ σ.idleThread)
-    (h : InvDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap5 cp l) Z H Cs s a σ n
-      call bl don) :
-    InvDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap4 cp l) Z H Cs s a σ n call bl don := by
-  intro σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs hW
-  by_cases hS : ∃ p sb, cp = .SchedContext p sb ∧ info.label = fl4_abi.label.SchedContextUnbind
-  · obtain ⟨p, sb, rfl, hu⟩ := hS
-    have hy : info.label ≠ fl4_abi.label.SchedContextYieldTo := lbl_ne hu (by simp)
-    obtain ⟨hnib, -⟩ := dispEnteredSg hnd hX hni hBA
-    exact decScStY hA hARI hMT hKD hT hmax htu J hnib hMb hct a1 a2 a3 a4 a5 a6 sl hsl hc he hexs hy _ _ _ _ _ _
-  · exact h σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-      a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs ⟨hW.1, restCap5_of hW.2 hS⟩
-
-/-- (p3J gen 38) `MidDecStWL` at `KW ∧ IsRestCap4` gives it at `KW ∧ IsRestCap5` (antitone). -/
-theorem midDecStWL_of_4 {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : MidDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap4 cp l) Z H Cs s a σ n c) :
-    MidDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap5 cp l) Z H Cs s a σ n c := by
-  intro σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct rg sr cr hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs hW
-  exact h σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct rg sr cr hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs ⟨hW.1, restCap4_of5 hW.2⟩
-
-/-- (p3J gen 38) `InvDecStWL` at `KW ∧ IsRestCap4` gives it at `KW ∧ IsRestCap5` (antitone). -/
-theorem invDecStWL_of_4 {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {call bl don : Bool}
-    (h : InvDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap4 cp l) Z H Cs s a σ n call bl don) :
-    InvDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap5 cp l) Z H Cs s a σ n
-      call bl don := by
-  intro σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs hW
-  exact h σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs ⟨hW.1, restCap4_of5 hW.2⟩
-
 end
 
 end
@@ -317,98 +272,5 @@ namespace Fl4Proofs.P3.Mc
 open fl4_core Classical Fl4Spec Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Sched Fl4Proofs.P2.Wit
 open Fl4Proofs.P3.JBoot Fl4Proofs.P3.SInvR.G5 Fl4Proofs.P3.Vs Fl4Proofs.P3.JBootQ
 open Fl4Proofs.P3.SInvR.G4
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
-
-/-- (p3J gen 38) **`DispStabFootLu` [J]**: `DispStabFootLt` with `invDecRest` / `midDecRest` restricted to the
-CNode and Thread caps and the SchedContext caps invoked with YieldTo (module docstring). -/
-structure DispStabFootLu (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop where
-  /-- `DispStabFootLt.invDecRest` at `KW ∧ IsRestCap5`. -/
-  invDecRest : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (call bl don : Bool),
-        σ.curThread ≠ σ.idleThread → InvSys n call bl don → SysFlag (L := L) s →
-        SysK6 (L := L) arI AR Z H Cs s a σ n (invSysOf call bl) →
-        InvDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap5 cp l) Z H Cs s a σ n
-          call bl don
-  /-- `DispStabFootLt.midDecRest` at `KW ∧ IsRestCap5`. -/
-  midDecRest : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidDecStWL (L := L) arI AR MR (fun cp l => SInvCk.KW (absCap cp) ∧ IsRestCap5 cp l) Z H Cs s a σ n c
-  /-- `DispStabFootLt.midSpec`, verbatim. -/
-  midSpec : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidSpecAt σ
-  /-- `DispStabFootLt.midRecvSw`, verbatim. -/
-  midRecvSw : RunMcWKR (L := L) arI AR MR s a σ →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VxE Z → ∀ (n : I64) (c : Fl4Spec.Syscall),
-        σ.curThread ≠ σ.idleThread → MidSys n c → SysFlag (L := L) s → SysK6 (L := L) arI AR Z H Cs s a σ n c →
-        MidRecvSw (L := L) arI AR MR Z H Cs s a σ n c
-
-variable {arI AR MR}
-
-/-- (p3J gen 38) **`DispStabFootLu → DispStabFootLt`** given the tops' platform facts (module docstring). -/
-theorem dispStabFootLt_of_Lu (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR) (hKD : MRKeepD arI MR)
-    (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : DispStabFootLu (L := L) arI AR MR s a σ) :
-    DispStabFootLt (L := L) arI AR MR s a σ where
-  invDecRest := fun hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6 => by
-    obtain ⟨⟨⟨⟨⟨hJ17, -⟩, -⟩, -⟩, -⟩, -⟩ := hR.1.1
-    obtain ⟨_, _, _, _, _, _, -, hX, -, -, -, -, -, -, -⟩ := jreach_invU3 hnd hJ17.1
-    haveI := hV
-    exact invDecRest4_of_scU hA hnd hARI (MachPlatF.toT hM hIp) hKD hT hmax htu hX hct
-      (h.invDecRest hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6)
-  midDecRest := fun hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6 => by
-    obtain ⟨⟨⟨⟨⟨hJ17, -⟩, -⟩, -⟩, -⟩, -⟩ := hR.1.1
-    obtain ⟨_, _, _, _, _, _, -, hX, -, -, -, -, -, -, -⟩ := jreach_invU3 hnd hJ17.1
-    haveI := hV
-    exact midDecRest4_of_scU hA hnd hARI (MachPlatF.toT hM hIp) hKD hT hmax htu hX hct
-      (h.midDecRest hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6)
-  midSpec := h.midSpec
-  midRecvSw := h.midRecvSw
-
-/-- (p3J gen 38) **`DispStabFootLt → DispStabFootLu`** (the honesty claim: `DispStabFootLu` is implied). -/
-theorem dispStabFootLu_of_Lt {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (h : DispStabFootLt (L := L) arI AR MR s a σ) : DispStabFootLu (L := L) arI AR MR s a σ where
-  invDecRest := fun hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6 =>
-    invDecStWL_of_4 (h.invDecRest hR Z H Cs Ac Lst D J hV n call bl don hct hi hfl hk6)
-  midDecRest := fun hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6 =>
-    midDecStWL_of_4 (h.midDecRest hR Z H Cs Ac Lst D J hV n c hct hm hfl hk6)
-  midSpec := h.midSpec
-  midRecvSw := h.midRecvSw
-
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 38) **The native syscall entry, `RunMcWKR` to `RunMcWKR`, with `DispStabFootLu` only** (`hLu` [J];
-module docstring). -/
-theorem kernel_entry_runMcWKR_sysLu [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcWKR (L := L) arI AR MR s a σ)
-    (hLu : DispStabFootLu (L := L) arI AR MR s a σ) :
-    ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-      (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-      syscall.handle_syscall st arI s a n ⦃ r =>
-        ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-          RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
-  kernel_entry_runMcWKR_sysLt hARI hA hnd hM hIp hKD hPAi hT hmax htu hRef hSX hDR hFpu hFW hR
-    (dispStabFootLt_of_Lu hARI hA hnd hM hIp hKD hT hmax htu hLu)
-
-end
 
 end Fl4Proofs.P3.Mc

@@ -523,55 +523,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
 
-/-- (p3J gen 50) **`KNo88L` [S]: label 88 out of scope at the invoked slot only** (module docstring): at every
-dispatch state of an entry, if the current thread's message label is 88 (`TCBSetEPTRoot`), the slot the spec's
-`lookupCapAndSlot` returns for the CAP register (`LookAt`) does not hold a Thread cap. Defined for the comparison
-with `KNo88`; the new top `kernel_entry_runMcWKR_sysLzy` does not need it (the entry's `SysK6` covers the case). -/
-def KNo88L (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ σb, BudgetAt σ σb true → ∀ (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-    ∀ (ct : U64) (info : msginfo.MessageInfo), sched.cur_thread st s' = ok ct → msg.msg_info st s' ct = ok info →
-      info.label = fl4_abi.label.TCBSetEPTRoot →
-      ∀ (sl : Fl4Spec.CslotPtr) (p : U64), (∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)) →
-        capAt (L.mem s') (cslotAddr sl) = ok (.Thread p) →
-        ¬ LookAt ct (L.mem s' (Endp.regA ct layout.reg.CAP)) σb sl (.Thread p)
-
 variable {arI AR MR}
-
-/-- (p3J gen 50) **`KNo88 → KNo88L`** (the converse fails: `KNo88L` speaks only of the looked-up slot). -/
-theorem kNo88L_of_kNo88 {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : KNo88 (L := L) arI AR s a σ) :
-    KNo88L (L := L) arI AR s a σ :=
-  fun Z H Cs Ac Lst D J σb hBA s' a' hKF ct info hct hinfo hl sl p hsl hc _ =>
-    h Z H Cs Ac Lst D J σb hBA s' a' hKF ct info hct hinfo hl sl p hsl hc
-
-/-- (p3J gen 50) **`KNo88L` is not vacuous**: a state whose current message label at every dispatch state is not
-88 satisfies it. -/
-theorem kNo88L_of_label {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (h : ∀ σb, BudgetAt σ σb true → ∀ (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-      ∀ (ct : U64) (info : msginfo.MessageInfo), sched.cur_thread st s' = ok ct →
-        msg.msg_info st s' ct = ok info → info.label ≠ fl4_abi.label.TCBSetEPTRoot) :
-    KNo88L (L := L) arI AR s a σ :=
-  fun _ _ _ _ _ _ _ σb hBA s' a' hKF ct info hct hinfo hl _ _ _ _ _ => h σb hBA s' a' hKF ct info hct hinfo hl
-
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 50) **`InvDecStL` from `KNo88L`** instead of the entry's `SysK6` (the 88 case vacuous). -/
-theorem invDecStL_of_no88L [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hMT : MachPlat arI MR) (hKD : MRKeepD arI MR) (hIP : IrqPlatA arI AR)
-    (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hPA : PPPlatA arI AR)
-    {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
-    [VxE Z] {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {call bl don : Bool} (hX : SInvX σ)
-    (hni : σ.curThread ≠ σ.idleThread) (hIB : SpecIrqB σ) (J0 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : KNo88L (L := L) arI AR s a σ) :
-    InvDecStL (L := L) arI AR MR Z H Cs s a σ n call bl don := by
-  intro σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb hRRb ct hct hn info mi buf buffer r2 er argsU
-    a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs hLk
-  by_cases h88 : ∃ p, cp = .Thread p ∧ info.label = fl4_abi.label.TCBSetEPTRoot
-  · obtain ⟨p, rfl, hl⟩ := h88
-    exact absurd hLk (hN Z H Cs Ac Lst D J0 σb hBA s' a' hKF ct info hct a1 hl sl p hsl hc)
-  · exact invDecFlat hARI hA hnd hMT hKD hIP hT hmax htu hPA hX hni hIB σb hBA V' Ac' Lst' D' s' a' hKF J hMb hCb
-      hRRb ct hct hn info mi buf buffer r2 er argsU a1 a2 a3 a4 a5 a6 a7 sl cp e exs hsl hc hget he hexs h88
 
 set_option maxHeartbeats 4000000 in
 /-- (p3J gen 50) **`DispStabFootLzx` gives `DispStabFootLn`** with the globals (the assembly; module docstring). -/
@@ -624,28 +576,6 @@ theorem kernel_entry_runMcWKR_sysLzy [Fl4Proofs.P1.PlainStore st] (hARI : ARIfac
           RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
   kernel_entry_runMcWKR_sysLn hARI hA hnd hM hIp hKD hPAi hT hmax htu hRef hSX hDR hFpu hFW hR
     (dispStabFootLn_of_Lzx hARI hA hnd hM hIp hKD hPAi hIA hT hmax htu hLzx)
-
-set_option maxHeartbeats 4000000 in
-/-- (p3J gen 50) **The new top gives the previous one** (`_sysLzx` = `_sysLzy` plus the dropped `hNo : KNo88`). -/
-theorem kernel_entry_runMcWKR_sysLzx_of_Lzy [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
-    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcWKR (L := L) arI AR MR s a σ)
-    (_hNo : KNo88 (L := L) arI AR s a σ)
-    (hLzx : DispStabFootLzx (L := L) arI AR MR s a σ) :
-    ∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c → SysFlag (L := L) s →
-      (∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SysK6 (L := L) arI AR Z H Cs s a σ n c) →
-      syscall.handle_syscall st arI s a n ⦃ r =>
-        ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-          RunMcWKR (L := L) arI AR MR r.1 r.2 σ' ⦄ :=
-  kernel_entry_runMcWKR_sysLzy hARI hA hnd hM hIp hKD hPAi hIA hT hmax htu hRef hSX hDR hFpu hFW hR hLzx
 
 end
 
