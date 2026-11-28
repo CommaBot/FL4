@@ -9,8 +9,13 @@ SetPriority / SetMCPriority reach `tcb.thread_control_sched` with flags
 without `SCHED_UPDATE_FAULT`, so its install branch is never taken
 (`MKD.tcb_thread_control_sched_nf`). `MKD.decode_thread_nonins`: FL4's
 `decode_invocation` of a Thread cap at such a label keeps `MR`.
+
+(mmuAD gen 42b20) `MKD.objects_create_new_objects_loop` is an instance of P3/CreateLoopB's
+`create_new_objects_loopB` (proof only, statement unchanged; import of P3.CreateLoopB added, which brings no `step`
+lemma: P3/UntypedLoop's chain would, and its `LawfulStore` side goals break `mkd_walk`).
 -/
 import Fl4Proofs.P3.MachKeepG4d
+import Fl4Proofs.P3.CreateLoopB
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -132,14 +137,10 @@ set_option maxHeartbeats 4000000 in
 theorem MKD.objects_create_new_objects_loop {s : S} {a : A} {t : Std.U64} {parent : obj.Slot} {dest_cnode dest_offset
     dest_length base user_size : Std.U64} {device : Bool} {size i : Std.U64} (h : AR a c₀) :
     objects.create_new_objects_loop st arI s a t parent dest_cnode dest_offset dest_length base user_size device size i
-      ⦃ r => AR r.2 c₀ ⦄ := by
-  unfold objects.create_new_objects_loop
-  apply loop.spec_decr_nat (measure := fun x => dest_length.val - x.2.2.val) (inv := fun x => AR x.2.1 c₀)
-  · rintro ⟨s1, a1, i1⟩ h1
-    dsimp only at h1
-    unfold objects.create_new_objects_loop.body
-    mkd_walk
-  · exact h
+      ⦃ r => AR r.2 c₀ ⦄ :=
+  create_new_objects_loopB arI a s t parent dest_cnode dest_offset dest_length base user_size device size i
+    (fun _ a1 _ => AR a1 c₀) (fun _ a2 _ _ => AR a2 c₀)
+    (fun _ _ _ _ h1 => MKD.objects_create_object hS hA hK h1) (fun _ _ _ _ _ h2 _ _ => by mkd_walk) h
 
 set_option maxHeartbeats 4000000 in
 theorem MKD.objects_create_new_objects {s : S} {a : A} {t : Std.U64} {parent : obj.Slot} {dest_cnode dest_offset

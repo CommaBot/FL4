@@ -201,39 +201,11 @@ theorem create_new_objects_ksb {A' : Type} (arI : machine.Arch A') (ar : A') (s 
   unfold objects.create_new_objects
   rw [object_size_eq nt us hn14 hus]
   simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have h63 : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val = zOf nt.val us.val := by
-    have : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val =
-        (⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64).val % 64 := by
-      simp only [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 6
-    rw [this]
-    show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat % 64 = _
-    simp; omega
-  refine loop.spec_decr_nat (measure := fun x => win.val - x.2.2.val)
-    (inv := fun x => x.2.2.val ≤ win.val ∧ L.ksb x.1 = L.ksb s) _ _ _ ?_ ?_
-  · rintro ⟨s1, a1, i⟩ ⟨hiw, hk⟩
-    simp only at hiw hk ⊢
-    unfold objects.create_new_objects_loop.body
-    by_cases hit : i < win
-    · rw [if_pos hit]
-      have hit' : i.val < win.val := hit
-      simp only [lift, bind_ok]
-      obtain ⟨i2, hi2, -, -⟩ := spec_exists (UScalar.ShiftLeft_spec i
-        ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64) _
-        (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
-      rw [hi2]; simp only [bind_ok]
-      rw [create_object_eq arI s1 a1 nt _ us dev hn]
-      simp only [bind_ok, uncurry_apply_pair]
-      rw [spec_eq_ok (slot_index_spec dest _)]
-      simp only [bind_ok]
-      obtain ⟨s3, h3, k3⟩ := spec_exists (insert_new_cap_ksb (L := L) s1 parent
-        (slotAddr dest.bv (core.num.U64.wrapping_add off i).bv) (newCapOf nt.val (core.num.U64.wrapping_add base i2) us dev))
-      rw [h3]; simp only [bind_ok]
-      step as ⟨i5, hi5⟩
-      refine ⟨by omega, by rw [k3, hk], by omega⟩
-    · rw [if_neg hit, WP.spec_ok]
-      exact hk
-  · exact ⟨by simp, rfl⟩
+  refine WP.spec_mono (create_new_objects_loopG arI ar s nt parent dest off win base us dev _ 0#u64
+    (fun s1 _ _ => L.ksb s1 = L.ksb s) (fun s2 _ _ _ => L.ksb s2 = L.ksb s)
+    (fun s1 a1 _ _ hk => by rw [create_object_eq arI s1 a1 nt _ us dev hn]; exact (WP.spec_ok _).2 hk)
+    (fun s2 _ c _ _ hk => WP.spec_mono (insert_new_cap_ksb (L := L) s2 parent _ c) fun _ h => h.trans hk) rfl)
+    fun _ h => h
 
 end
 

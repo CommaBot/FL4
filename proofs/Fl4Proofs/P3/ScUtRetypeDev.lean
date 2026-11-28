@@ -62,61 +62,32 @@ theorem create_dev_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     objects.create_new_objects st arI s ar nt src dest off win base us true ⦃ res =>
       WFrame (L := L) s res.1 (SlotSpan th) ⦄ := by
   have hn14 : nt.val < 14 := by omega
-  have hz : zOf nt.val us.val < 64 := by
-    rcases hn with h | ⟨h1, h2⟩
-    · rw [show zOf nt.val us.val = us.val by simp [zOf, h]]; exact hus
-    · unfold zOf; split_ifs <;> omega
   unfold objects.create_new_objects
   rw [object_size_eq nt us hn14 hus]
   simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have h63 : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val = zOf nt.val us.val := by
-    have : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val =
-        (⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64).val % 64 := by
-      simp only [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 6
-    rw [this]
-    show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat % 64 = _
-    simp; omega
-  refine loop.spec_decr_nat (measure := fun x => win.val - x.2.2.val)
-    (inv := fun x => x.2.2.val ≤ win.val ∧ WFrame (L := L) s x.1 (SlotSpan th) ∧
-      (nextOf (L.mem x.1) src = 0#u64 ∨ IsSlot th (nextOf (L.mem x.1) src))) _ _ _ ?_ ?_
-  · rintro ⟨s1, a1, i⟩ ⟨hiw, hW, hx⟩
-    simp only at hiw hW hx ⊢
-    unfold objects.create_new_objects_loop.body
-    by_cases hit : i < win
-    · rw [if_pos hit]
-      have hit' : i.val < win.val := hit
-      simp only [lift, bind_ok]
-      obtain ⟨i2, hi2, -, -⟩ := spec_exists (UScalar.ShiftLeft_spec i
-        ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64) _
-        (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
-      rw [hi2]; simp only [bind_ok]
-      rw [create_object_eq arI s1 a1 nt _ us true (by omega)]
-      simp only [bind_ok, uncurry_apply_pair]
-      have hi4 : (core.num.U64.wrapping_add off i).bv = BitVec.ofNat 64 (off.val + i.val) := by
-        rw [bv_eq_ofNat]; congr 1
-        have : off.val + i.val < 2 ^ 64 := by
-          have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show r ≤ 64 by omega); omega
-        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-      rw [show obj.Slot.index dest (core.num.U64.wrapping_add off i) =
-        ok (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val))) by
-          rw [spec_eq_ok (slot_index_spec dest _), hi4]]
-      simp only [bind_ok]
-      have hds : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val))) :=
-        ⟨dest, off.val + i.val, Or.inl ⟨r, hdest, by omega⟩, rfl⟩
-      refine WP.spec_bind (WP.spec_and (insert_new_frame hP s1 _ _ _ hs hds hx)
-        (WP.spec_and (insert_new_cap_kc s1 _ _ _) (insert_new_next hP s1 _ _ _ hs hds))) fun s3 ⟨hfr, hk, hn3⟩ => ?_
-      have hW3 : WFrame (L := L) s s3 (SlotSpan th) := hW.trans ⟨hk.1, hk.2, fun w hw hnp => hfr w hw (fun a ha hin => by
-        refine hnp ⟨a, ?_, hin.1, hin.2⟩
-        rcases ha with e | e | ⟨h0, e⟩
-        · rw [e]; exact hs
-        · rw [e]; exact hds
-        · rw [e]; exact hx.resolve_left h0)⟩
-      step as ⟨i5, hi5⟩
-      exact ⟨by omega, hW3, Or.inr (by rw [hn3]; exact hds), by omega⟩
-    · rw [if_neg hit, WP.spec_ok]
-      exact hW
-  · exact ⟨by simp, WFrame.refl s _, hnx⟩
+  let I : S → A' → Nat → Prop := fun s1 _ _ => WFrame (L := L) s s1 (SlotSpan th) ∧
+    (nextOf (L.mem s1) src = 0#u64 ∨ IsSlot th (nextOf (L.mem s1) src))
+  refine WP.spec_mono (create_new_objects_loopG arI ar s nt src dest off win base us true _ 0#u64 I
+    (fun s2 a2 _ i => I s2 a2 i)
+    (fun s1 a1 _ _ hI => by rw [create_object_eq arI s1 a1 nt _ us true (by omega)]; exact (WP.spec_ok _).2 hI)
+    ?_ ⟨WFrame.refl s _, hnx⟩) fun _ h => h.1
+  rintro s1 a1 c i hit' ⟨hW, hx⟩
+  have hi4 : (core.num.U64.wrapping_add off i).bv = BitVec.ofNat 64 (off.val + i.val) := by
+    rw [bv_eq_ofNat]; congr 1
+    have : off.val + i.val < 2 ^ 64 := by
+      have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show r ≤ 64 by omega); omega
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
+  rw [hi4]
+  have hds : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val))) :=
+    ⟨dest, off.val + i.val, Or.inl ⟨r, hdest, by omega⟩, rfl⟩
+  refine WP.spec_mono (WP.spec_and (insert_new_frame hP s1 _ _ _ hs hds hx)
+    (WP.spec_and (insert_new_cap_kc s1 _ _ _) (insert_new_next hP s1 _ _ _ hs hds))) fun s3 ⟨hfr, hk, hn3⟩ => ?_
+  refine ⟨hW.trans ⟨hk.1, hk.2, fun w hw hnp => hfr w hw (fun a ha hin => by
+    refine hnp ⟨a, ?_, hin.1, hin.2⟩
+    rcases ha with e | e | ⟨h0, e⟩
+    · rw [e]; exact hs
+    · rw [e]; exact hds
+    · rw [e]; exact hx.resolve_left h0)⟩, Or.inr (by rw [hn3]; exact hds)⟩
 
 /-- **The creation from a device untyped, without a reset** (from `sR`, the
 cap at `slot` a device untyped of some free index, its next link null or a

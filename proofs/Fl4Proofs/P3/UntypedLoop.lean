@@ -17,9 +17,17 @@ the TCB.
 (`create_object`'s result in a predicate `Q`, then `insert_new_cap` back to the invariant `I` at `i + 1`); the native
 `create_loop_rel` is its instance (proof only, statement unchanged); VirtRetypeLoop's VCPU loop and EptRetype's EPT
 loop are the other instances.
+
+(mmuAD gen 42b20) **`create_new_objects_loopG`**: the inner loop `create_new_objects_loop` from any index `i0`, for
+any `size` word, with no address bound (the object address is `base + i·2^z` mod `2^64`) and an invariant over the
+arch state: P3/CreateLoopB's `create_new_objects_loopB` with the slot as `slotAddr`. `create_new_objects_loopI` is
+its corollary (statement unchanged); UntypedExp's `create_new_objects_ksb` and ScUtRetypeDev's `create_dev_frame`
+are its instances, MachKeepG4j's `MKD.objects_create_new_objects_loop` is `loopB`'s (proofs only, statements
+unchanged).
 -/
 import Fl4Proofs.P3.UntypedMdb
 import Fl4Proofs.P3.RetypeFresh
+import Fl4Proofs.P3.CreateLoopB
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -912,6 +920,35 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
         · exact Or.inl (Or.inr ⟨j, by omega, hy1, hy2⟩)
 
 end
+
+section
+variable {S : Type} {st : machine.Store S}
+
+/-- **`create_new_objects`' inner loop from any index, any object size, over the arch state** (mmuAD gen 42b20, the
+generalisation of `create_new_objects_loopI`): from `I s ar i0`, if `create_object` of the `i`-th object (at `base +
+i·2^z` mod `2^64`, `z` the low six bits of `size`: no address bound asked) goes from `I` to `Q` (state, arch state,
+the returned cap, `i`), and `insert_new_cap` of that cap into the `i`-th window slot from `Q` to `I … (i + 1)`, the
+loop ends in `I` at `max win i0` (the arch state carried by `I`/`Q`, which `create_object` may change). No
+`LawfulStore` asked. P3/CreateLoopB's `create_new_objects_loopB` with the slot as `slotAddr`. -/
+theorem create_new_objects_loopG {A' : Type} (arI : machine.Arch A') (ar : A') (s : S)
+    (nt parent dest off win base us : U64) (dev : Bool) (size i0 : U64)
+    (I : S → A' → Nat → Prop) (Q : S → A' → capability.Cap → Nat → Prop)
+    (hco : ∀ (s1 : S) (a1 : A') (i : Nat), i < win.val → I s1 a1 i →
+      objects.create_object st arI s1 a1 nt ⟨BitVec.ofNat 64 (base.val + i * 2 ^ (size &&& 63#u64).val)⟩ us dev
+        ⦃ r => Q r.2.1 r.2.2 r.1 i ⦄)
+    (hins : ∀ (s2 : S) (a2 : A') (c : capability.Cap) (iw : U64), iw.val < win.val → Q s2 a2 c iw.val →
+      cdt.insert_new_cap st s2 parent (slotAddr dest.bv (core.num.U64.wrapping_add off iw).bv) c ⦃ s3 =>
+        I s3 a2 (iw.val + 1) ⦄)
+    (h0 : I s ar i0.val) :
+    objects.create_new_objects_loop st arI s ar nt parent dest off win base us dev size i0 ⦃ res =>
+      I res.1 res.2 (max win.val i0.val) ⦄ :=
+  create_new_objects_loopB arI ar s nt parent dest off win base us dev size i0 I Q hco
+    (fun s2 a2 c iw hi hQ sl hsl => by
+      rw [spec_eq_ok (slot_index_spec dest _)] at hsl
+      obtain rfl := eq_of_ok_eq hsl
+      exact hins s2 a2 c iw hi hQ) h0
+
+end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
@@ -937,52 +974,21 @@ theorem create_new_objects_loopI {A' : Type} (arI : machine.Arch A') (ar : A') (
   unfold objects.create_new_objects
   rw [hsz]
   simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have hk1 : 1 ≤ 2 ^ z := Nat.one_le_two_pow
   have h63 : (zU &&& 63#u64).val = z := by
     have : (zU &&& 63#u64).val = zU.val % 64 := by
       simp only [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 6
     rw [this, hzU]; omega
-  refine loop.spec_decr_nat (measure := fun x => win.val - x.2.2.val)
-    (inv := fun x => x.2.1 = ar ∧ x.2.2.val ≤ win.val ∧ I x.1 x.2.2.val) _ _ _ ?_ ⟨rfl, by simp, h0⟩
-  rintro ⟨s1, a1, i⟩ ⟨ha, hiw, hI⟩
-  simp only at ha hiw hI ⊢
-  subst ha
-  unfold objects.create_new_objects_loop.body
-  by_cases hit : i < win
-  · rw [if_pos hit]
-    have hit' : i.val < win.val := hit
-    simp only [lift, bind_ok]
-    have hik : (i.val + 1) * 2 ^ z ≤ win.val * 2 ^ z := Nat.mul_le_mul_right _ hit'
-    rw [Nat.add_mul, Nat.one_mul] at hik
-    obtain ⟨i2, hi2, hv2, -⟩ := spec_exists (UScalar.ShiftLeft_spec i (zU &&& 63#u64) _
-      (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
-    rw [hi2]; simp only [bind_ok]
-    have hi2v : i2.val = i.val * 2 ^ z := by
-      rw [hv2, h63, Nat.shiftLeft_eq]
-      simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-    have hi3 : core.num.U64.wrapping_add base i2 = ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ z)⟩ := by
-      apply u64_ofNat_eq
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hi2v]; omega
-    rw [hi3]
-    refine WP.spec_bind (hco s1 i.val hit' hI) fun r hr => ?_
-    obtain ⟨c, s2, a2⟩ := r
-    obtain ⟨e2, hQ⟩ := hr
-    simp only at e2 hQ ⊢
-    subst e2
-    obtain ⟨sl, hsl, hsle⟩ := spec_exists (slot_index_spec dest (core.num.U64.wrapping_add off i))
-    rw [hsl]; simp only [bind_ok]
-    subst hsle
-    refine WP.spec_bind (hins s2 c i hit' hQ) fun s3 h3 => ?_
-    step as ⟨i5, hi5⟩
-    have hi5' : i5.val = i.val + 1 := by omega
-    refine ⟨by omega, ?_, by omega⟩
-    rw [hi5']
-    exact h3
-  · rw [if_neg hit, WP.spec_ok]
-    have : i.val = win.val := by have : ¬ i.val < win.val := hit; omega
-    rw [this] at hI
-    exact ⟨rfl, hI⟩
+  refine WP.spec_mono (create_new_objects_loopG arI ar s nt parent dest off win base us dev zU 0#u64
+    (fun s1 a1 i => a1 = ar ∧ I s1 i) (fun s2 a2 c i => a2 = ar ∧ Q s2 c i) ?_ ?_ ⟨rfl, h0⟩) ?_
+  · rintro s1 a1 i hi ⟨rfl, hI⟩
+    rw [h63]
+    exact hco s1 i hi hI
+  · rintro s2 a2 c iw hi ⟨rfl, hQ⟩
+    exact WP.spec_mono (hins s2 c iw hi hQ) fun s3 h3 => ⟨rfl, h3⟩
+  · rintro ⟨s', a'⟩ ⟨h1, h2⟩
+    have : max win.val (0#u64 : U64).val = win.val := by simp
+    rw [this] at h2
+    exact ⟨h1, h2⟩
 
 /-- **`create_new_objects`** (types 0, 2..6): from the loop invariant at 0,
 the invariant at `win` (all new caps inserted), the arch state unchanged. -/
