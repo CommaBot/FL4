@@ -9,12 +9,13 @@ per node (`crates/fl4-core/src/boot.rs:639-642`), so on any boot with two or mor
 (`Z.c = 0`, K4) fails on every core but 0 as soon as an untyped cap exists anywhere: the invocation half of
 U35's syscall clause was vacuous on SMP. `jPathAtMU30_schedControl` states the forcing.
 
-**Change**: `KDispHypsKVU36` = `KDispHypsKVU35` (collapse A, J: P3JLook's `JPathAtMU35`, `JPathAtMU30` with one more
-hypothesis `LookAt ct cptr σ sl c`, is written back into `JPathAtMU30` itself, so the two records now have the same
-fields; `KDispHypsKVU36.toU35`). `LookAt`: `sl` / `c` are the slot and cap the spec's `lookupCapAndSlot`
-returns for the invoked `cptr` (with `capAt … (cslotAddr sl) = ok c`, FL4's read of the same slot;
-`lookup_slot_refines` relates FL4's `cspace.lookup_slot` to it). The top `kernel_entry_reachU36` and its
-predecessors U34 / U35 / U38 are removed (collapse A, J: no user once U40 runs on the base U33).
+**Change**: the narrowed record is `KDispHypsKVU35` itself (collapse A, J: P3JLook's `JPathAtMU35`, `JPathAtMU30`
+with one more hypothesis `LookAt ct cptr σ sl c`, is written back into `JPathAtMU30`, so U36's record had
+`KDispHypsKVU35`'s fields exactly; p3J gen 58 merged it into `KDispHypsKVU35`). `LookAt`: `sl` / `c` are the slot
+and cap the spec's `lookupCapAndSlot` returns for the invoked `cptr` (with `capAt … (cslotAddr sl) = ok c`, FL4's
+read of the same slot; `lookup_slot_refines` relates FL4's `cspace.lookup_slot` to it). The top
+`kernel_entry_reachU36` and its predecessors U34 / U35 / U38 are removed (collapse A, J: no user once U40 runs on
+the base U33).
 
 **Non-vacuity of the narrowing** (K1): `lookAt_unique` (one invoked slot per entry),
 `lookAt_other` (no other slot satisfies `LookAt`), `JPathAtMU30.of_invoked` (the narrowed premise follows
@@ -32,7 +33,7 @@ only for the invoked cap:
   `IllegalOperation`.
 * K3 / D2: `UntypedRetype` of an object type 14..18 with `virtualization() == 0`: FL4 `InvalidArgument 0`
   (`crates/fl4-core/src/untyped.rs:43`), the ported retype proceeds (Fl4Spec/Ext/VirtP3x §1).
-At such entries `KDispHypsKVU36` / `JDecMRLK … VtxK …` are false and the clause says nothing.
+At such entries `KDispHypsKVU35` / `JDecMRLK … VtxK …` are false and the clause says nothing.
 
 Named premises still open (inherited, unchanged): [P] `JEntryAtR7V` (`ioapics`, `pins`, `map`, `mapr`);
 `JPathAtMU30`'s leaves ([P]/[S] SchedControl `cpu = Z.c`, untyped `fan`, `core0`, `rcb` [P], `vtx` [scope],
@@ -70,18 +71,6 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **`KDispHypsKVU35` with `JPathAtMU30`** (the path premise at the invoked slot only). -/
-structure KDispHypsKVU36 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
-    (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
-  /-- [P]/[J] as `KDispHypsKVU35.inv`, the path premise at the invoked slot (`JPathAtMU30`). -/
-  inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryAtR7V arI AR Z s a σ ∧
-    JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
-  /-- [P]/[J] as `KDispHypsKVU35.mid`, the path premise at the invoked slot (`JPathAtMU30`). -/
-  mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryAtR7V arI AR Z s a σ ∧
-    JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))
-
 variable {arI}
 
 /-- **`JPathAtMU30` from its instance at the invoked slot alone** (non-vacuity of the narrowing): only the
@@ -100,13 +89,6 @@ theorem JPathAtMU30.of_invoked {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H 
   intro info mi buf buffer r2 er argsU _ _ _ _ _ _ _ sl c e exs _ h9 _ _ _ h13 hL
   obtain ⟨rfl, -⟩ := lookAt_unique h0 hL
   exact hI info mi buf buffer r2 er argsU c e exs h9 hL h13
-
-/-- `KDispHypsKVU36` is `KDispHypsKVU35` (the same fields, `JPathAtMU30` narrowed in place). -/
-theorem KDispHypsKVU36.toU35 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
-    {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : KDispHypsKVU36 (L := L) arI AR Z H Cs D s a σ n c) :
-    KDispHypsKVU35 (L := L) arI AR Z H Cs D s a σ n c :=
-  KDispHypsKVU35.mk h.inv h.mid
 
 end
 

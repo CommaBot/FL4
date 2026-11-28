@@ -118,14 +118,14 @@ structure KNoVtx (s : S) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscal
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
     NoVtxAt (L := L) s σ ct (L.mem s (regA ct rg))
 
-/-- **`KDispHypsKVU36` with `JPathAtMU37`** (no VT-x leaf). -/
+/-- **`KDispHypsKVU35` with `JPathAtMU37`** (no VT-x leaf). -/
 structure KDispHypsKVU37 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
-  /-- [P]/[J] as `KDispHypsKVU36.inv`, without the VT-x leaves. -/
+  /-- [P]/[J] as `KDispHypsKVU35.inv`, without the VT-x leaves. -/
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
     JEntryAtR7V arI AR Z s a σ ∧
     JPathAtMU37 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
-  /-- [P]/[J] as `KDispHypsKVU36.mid`, without the VT-x leaves. -/
+  /-- [P]/[J] as `KDispHypsKVU35.mid`, without the VT-x leaves. -/
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
     JEntryAtR7V arI AR Z s a σ ∧
     JPathAtMU37 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))

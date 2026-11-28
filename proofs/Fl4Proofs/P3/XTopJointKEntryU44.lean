@@ -141,7 +141,7 @@ theorem JPathMEU44.toU30 (hC : KCfgFL4) {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
   all_goals exact trivial
 
 /-- **`JPathAtMU44` gives `JPathAtMU30`** under `KCfgFL4`. -/
-theorem JPathAtMU44.toU35 (hC : KCfgFL4) {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64}
+theorem JPathAtMU44.toU30 (hC : KCfgFL4) {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64}
     {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
     (h : JPathAtMU44 (L := L) arI AR Z s ar σ ct ic bl cd fp cptr) :
     JPathAtMU30 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr :=
@@ -153,8 +153,8 @@ theorem KDispHypsKVU44.toU39 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
     (h : KDispHypsKVU44 (L := L) arI AR Z H Cs D s a σ n c) (hC : KCfgFL4) :
     KDispHypsKVU39 (L := L) arI AR Z H Cs D s a σ n c :=
-  ⟨fun ct call bl don hct hi => (h.inv ct call bl don hct hi).toU35 hC,
-   fun ct rg sr cr hct hm => (h.mid ct rg sr cr hct hm).toU35 hC⟩
+  ⟨fun ct call bl don hct hi => (h.inv ct call bl don hct hi).toU30 hC,
+   fun ct rg sr cr hct hm => (h.mid ct rg sr cr hct hm).toU30 hC⟩
 
 end
 

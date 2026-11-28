@@ -7,7 +7,7 @@ one top with irqfix3's boot-state fix and p3J's narrowings (U35 … U39).
 * **Proof**: as irqfix3's `kernel_entry_reachU36I` (from U33, start `JReachU17`; `IrqCapBound` and the decode
   premise's `IrqAckU` from `IrqCarry`), from `kernel_entry_reachU33` (on the narrowed path premises: collapse A, J
   wrote P3JGen's narrowing back into `JPathAtMU30`), the syscall clause's `KDispHypsKVU39` brought to
-  `KDispHypsKVU32` by U39 → U38 (`IoaMap`) → U36 (`IoaRel` at the dispatch state) → U35 (`toU35`) → U32 (`hA`).
+  `KDispHypsKVU32` by U39 → U38 (`IoaMap`) → U35 (`IoaRel` at the dispatch state) → U32 (`hA`).
   Exits: `IrqCarry` and
   `IoaRel` kept by every spec step (`SInvIB.kentry_irqCarry`, `EvOut.irqCarry`; `SInvIox.kentry_ioxV`,
   `EvOut.ioaRel`).
@@ -140,7 +140,7 @@ theorem kernel_entry_reachU40 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
   · intro n c hct hn hfl hK hDL hFin
     refine WP.spec_mono (hSys n c hct hn hfl
       (fun σb hb V' Ac' Lst' D' s' a' hF J' =>
-        (((hK σb hb V' Ac' Lst' D' s' a' hF J').toU38 hMap).toU36 (BudgetAt.ioaRel hR0 hb)).toU35.toU32 hA)
+        (((hK σb hb V' Ac' Lst' D' s' a' hF J').toU38 hMap).toU35 (BudgetAt.ioaRel hR0 hb)).toU32 hA)
       (fun σb hb V' Ac' Lst' D' s' a' hF J' ct' hct' =>
         ⟨hDL σb hb V' Ac' Lst' D' s' a' hF J' ct' hct',
           irqAckU_of_capBound hM J' (SInvIB.IrqCarry.capBound (vih_disp hnd hk hb hh) (BudgetAt.irqCarry hm hB hb))⟩)

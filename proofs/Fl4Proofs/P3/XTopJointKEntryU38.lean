@@ -11,11 +11,11 @@ P3 (line p3J, gen 4): **`kernel_entry_reachU38`** = `kernel_entry_reachU36` with
   `ioapic::count()` / `ioapic::pins(i)` are fixed at boot from the ACPI MADT; the spec's are set once by
   `init_arch_state`). It reads the spec state only through `ioxV` (`IoaRel.frame`), so it is kept.
 * `JReachU38 := JReachU34 ∧ IoaRel arI σ`. `JEntryAtR7W` = `JEntryAtR7V` without `ioapics` and `pins`;
-  `KDispHypsKVU38` = `KDispHypsKVU36` on `JEntryAtR7W`; `KDispHypsKVU38.toU36` (from `IoaRel` at the
+  `KDispHypsKVU38` = `KDispHypsKVU35` on `JEntryAtR7W`; `KDispHypsKVU38.toU35` (from `IoaRel` at the
   dispatch state, `BudgetAt.ioaRel`).
 
 **Premise diff U36 → U38**: `hJ : JReachU34` ↦ `hJ : JReachU38` (the start condition `IoaRel`); in the
-syscall clause `KDispHypsKVU36 …` ↦ `KDispHypsKVU38 …` (`ioapics`, `pins` removed in `inv` and `mid`).
+syscall clause `KDispHypsKVU35 …` ↦ `KDispHypsKVU38 …` (`ioapics`, `pins` removed in `inv` and `mid`).
 Conclusion: U36's with every exit's `JReachU34` ↦ `JReachU38`. Everything else verbatim. [W] 0.
 
 **`kernel_entry_reachU36_of38`**: U36's statement with one more hypothesis, `hIR : IoaRel arI σ`, at the
@@ -61,14 +61,14 @@ structure JEntryAtR7W (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
     ¬ p >= np → ¬ l > 1#u64 → ¬ po > 1#u64 → ¬ h >= 65536#u64 →
     ∃ a', arI.ioapic_map_remapped a i p l po v h = ok (true, a')
 
-/-- **`KDispHypsKVU36` with `JEntryAtR7W`.** -/
+/-- **`KDispHypsKVU35` with `JEntryAtR7W`.** -/
 structure KDispHypsKVU38 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
-  /-- [P]/[J] as `KDispHypsKVU36.inv` without `ioapics` / `pins`. -/
+  /-- [P]/[J] as `KDispHypsKVU35.inv` without `ioapics` / `pins`. -/
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
     JEntryAtR7W arI AR Z s a σ ∧
     JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
-  /-- [P]/[J] as `KDispHypsKVU36.mid` without `ioapics` / `pins`. -/
+  /-- [P]/[J] as `KDispHypsKVU35.mid` without `ioapics` / `pins`. -/
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
     JEntryAtR7W arI AR Z s a σ ∧
     JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))
@@ -92,11 +92,11 @@ theorem JEntryAtR7W.toV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a
   subst e
   exact hp ar i hi
 
-/-- **`KDispHypsKVU38` gives `KDispHypsKVU36`** under `IoaRel`. -/
-theorem KDispHypsKVU38.toU36 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
+/-- **`KDispHypsKVU38` gives `KDispHypsKVU35`** under `IoaRel` (`toU36`, into U36's record, before p3J gen 58). -/
+theorem KDispHypsKVU38.toU35 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
     {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
     (h : KDispHypsKVU38 (L := L) arI AR Z H Cs D s a σ n c) (hI : IoaRel arI σ) :
-    KDispHypsKVU36 (L := L) arI AR Z H Cs D s a σ n c :=
+    KDispHypsKVU35 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => ⟨(h.inv ct call bl don hct hi).1.toV hI, (h.inv ct call bl don hct hi).2⟩,
    fun ct rg sr cr hct hm => ⟨(h.mid ct rg sr cr hct hm).1.toV hI, (h.mid ct rg sr cr hct hm).2⟩⟩
 
