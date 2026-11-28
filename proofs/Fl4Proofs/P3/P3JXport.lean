@@ -7,7 +7,7 @@ Names: `Fl4Proofs.X` ↦ `Fl4ProofsJ.X`, `Fl4ProofsN.X` ↦ `Fl4ProofsJN.X`, `Fl
 private name `p` ↦ `Fl4ProofsJ.priv ++ p`. Otherwise IrqFixXport verbatim: every copy goes through
 `addDecl` (the kernel re-checks it): no axiom, no trusted step.
 -/
-import Fl4Proofs.P3.StallNarrowGen
+import Fl4Proofs.P3.IrqFixXport
 import Fl4Proofs.P3.P3JLook
 open Lean Meta Elab Command
 

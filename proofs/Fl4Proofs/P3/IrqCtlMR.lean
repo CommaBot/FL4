@@ -791,7 +791,7 @@ theorem irq_ioapic_refinesM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (
   -- the handle is 0
   rw [if_neg (by scalar_tac)]
   -- the IOAPIC (#42: routed, `ArchIrqRel.map`), `set_thread_state Restart`, then `invoke_irq_control`
-  obtain ⟨a1, hmap⟩ := hAR.map ar y2 y3 y4 y5 z2
+  obtain ⟨a1, hmap⟩ := hAR.map ar nA y2 y3 y4 y5 z2 p hnum hia hp hpin hlv hpo
   have hRa1 : MR a1 σ.machineState := by
     have h := hIoa.map ar y2 y3 y4 y5 z2 σ.machineState hR0
     rw [hmap, WP.spec_ok] at h; exact h
@@ -1036,7 +1036,7 @@ theorem irq_remap_refinesM (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (�
   rw [if_neg hh, whenE_neg (by rw [GE.ge, BitVec.le_def]; show ¬ (65536 : BitVec 64).toNat ≤ y7.val; simp; scalar_tac)]
   refine CPostM.congr (run_bind_ok (m := (Fl4Spec.NonDetE.returnOk () : Fl4Spec.SEMonad Unit Unit)) rfl _) ?_
   -- the IOAPIC (#42: routed, `ArchIrqRel.mapr`), `set_thread_state Restart`, then `invoke_irq_control`
-  obtain ⟨a1, hmap⟩ := hAR.mapr ar y2 y3 y4 y5 z2 y7
+  obtain ⟨a1, hmap⟩ := hAR.mapr ar nA y2 y3 y4 y5 z2 y7 p hnum hia hp hpin hlv hpo hh
   have hRa1 : MR a1 σ.machineState := by
     have h := hIoa.mapr ar y2 y3 y4 y5 z2 y7 σ.machineState hR0
     rw [hmap, WP.spec_ok] at h; exact h

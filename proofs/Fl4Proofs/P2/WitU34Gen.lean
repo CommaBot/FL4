@@ -7,8 +7,8 @@ every hypothesis of `serializable_fl4_localU2`, and U2's conclusion about it), h
 P3 tops of `kernel_entry_reachU17V`'s lineage included (cone ≈ 98k constants, 236 mention the replaced records,
 137 copied here, 88 reused from irqfix / JBoot5GenB).
 Maps: irqfix's `specD` (records `MachPlat` ↦ `MachPlatT`, `IrqPlatA` ↦ `IrqPlatK`; definitions `MaskMR` ↦
-`MaskMRF`, `JDecMRLK` ↦ `JDecMRLKQ`, `JDecMRL2` ↦ `JDecMRL2Q`; irqfix's hand re-proofs), plus JBoot5CtlQ's two
-IOAPIC decodes and JBoot5C's `jDecMRL_ofQ0`, `jDecMRL2_ofTQ0`, `jDecMRLK_ofUQ0` in place of the un-narrowed
+`MaskMRF`, `JDecMRLK` ↦ `JDecMRLKQ`, `JDecMRL2` ↦ `JDecMRL2Q`; irqfix's hand re-proofs, the two IOAPIC decodes
+included since collapse A, I), plus JBoot5C's `jDecMRL_ofQ0`, `jDecMRL2_ofTQ0`, `jDecMRLK_ofUQ0` in place of the un-narrowed
 originals this cone uses. Every other constant of the cone mentioning these ↦ its `Fl4ProofsQ` copy, e.g.
 `Fl4ProofsQ.P2.PathObl.LocPlat` (= `LocPlat` with `mach : MachPlatT`, `ia : IrqPlatK`),
 `Fl4ProofsQ.P2.Wit.wit_U2_io`, `Fl4ProofsQ.P2.Wit.wit_exec_io`.
@@ -27,11 +27,11 @@ def decQ0 : List (Name × Name) :=
    (``Fl4Proofs.P3.jDecMRL2_ofT, ``Fl4Proofs.P3.jDecMRL2_ofTQ0),
    (``Fl4Proofs.P3.jDecMRLK_ofU, ``Fl4Proofs.P3.jDecMRLK_ofUQ0)]
 
-/-- irqfix's run-D maps with `ctlQ0` and `decQ0`. -/
+/-- irqfix's run-D maps with `decQ0`. -/
 def specM : Spec where
   recMap := specD.recMap
   defMap := specD.defMap
-  constMap := specD.constMap ++ ctlQ0 ++ decQ0
+  constMap := specD.constMap ++ decQ0
 
 end Fl4Proofs.P3.JBoot5
 

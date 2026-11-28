@@ -2108,10 +2108,7 @@ import Fl4Proofs.P2.GlueFrame
 import Fl4Proofs.P2.GlueCross
 import Fl4Proofs.P3.XTopJointKEntryU30
 import Fl4Proofs.P3.StallFinding
-import Fl4Proofs.P3.StallNarrowGen
 import Fl4Proofs.P3.XTopJointKEntryU31
-import Fl4Proofs.P3.ArchIrqNarrow
-import Fl4Proofs.P3.ArchIrqNarrowGen
 import Fl4Proofs.P3.XTopJointKEntryU32
 import Fl4Proofs.P2.MmuADWalk
 import Fl4Proofs.P2.E2EPU3
@@ -2255,7 +2252,6 @@ import Fl4Proofs.P2.MmuADPmD
 import Fl4Proofs.P2.MmuADPmR
 import Fl4Proofs.P2.E2EPU3j
 import Fl4Proofs.P3.JBoot1U34
-import Fl4Proofs.P3.JBoot5CtlQ
 import Fl4Proofs.P3.JBoot5GenB
 import Fl4Proofs.P3.JBoot5C
 import Fl4Proofs.P2.WitU34Gen

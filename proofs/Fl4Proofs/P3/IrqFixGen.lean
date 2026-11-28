@@ -22,9 +22,9 @@ def specD : Spec where
   constMap := specB.constMap ++
     [(``Fl4Proofs.P3.afterInv_of_mcsIMN, ``Fl4Proofs.P3.afterInv_of_mcsIMNQ),
      (``Fl4Proofs.P3.afterInv_of_mcsIMNM, ``Fl4Proofs.P3.afterInv_of_mcsIMNMQ),
-     (`Fl4ProofsI.P3.jDecMRL_of, ``Fl4Proofs.P3.jDecMRL_ofQ),
-     (`Fl4ProofsI.P3.jDecMRL2_ofT, ``Fl4Proofs.P3.jDecMRL2_ofTQ),
-     (`Fl4ProofsI.P3.jDecMRLK_ofU, ``Fl4Proofs.P3.jDecMRLK_ofUQ),
+     (``Fl4Proofs.P3.jDecMRL_of, ``Fl4Proofs.P3.jDecMRL_ofQ),
+     (``Fl4Proofs.P3.jDecMRL2_ofT, ``Fl4Proofs.P3.jDecMRL2_ofTQ),
+     (``Fl4Proofs.P3.jDecMRLK_ofU, ``Fl4Proofs.P3.jDecMRLK_ofUQ),
      (``Fl4Proofs.P3.jVtxHypMU_of, ``Fl4Proofs.P3.jVtxHypMU_ofQ)]
 
 end Fl4Proofs.P3.IrqFix

@@ -180,7 +180,7 @@ IO port cap by `XCapP.mr` (FL4 `MKD.decode_ioport` under `MRKeepIo`, spec
 the rest by `JDecMRL2`. -/
 theorem jDecMRL_ofQ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hNs : NativeScope σ) (hM : MachPlatT arI MR)
     (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR)
@@ -190,7 +190,7 @@ theorem jDecMRL_ofQ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.
     excaps buffer hXO hXN hLb hA5 hN
   obtain ⟨hlo, hNat⟩ := hcl
   have hA := hG.tot
-  have hX0 := Fl4ProofsI.P3.decOK_JMU arI s ar σ J hG hE ct hct lbl length blk call don fp buf extra slbl argsU hlen hargs
+  have hX0 := decOK_JMU arI s ar σ J hG hE ct hct lbl length blk call don fp buf extra slbl argsU hlen hargs
     hbuf hl ci sl hsl c hc excaps buffer hXO hXN hLb hA5 hN hPD hR hVT hVI hNs
   have hAs : AbsSlot Z.th sl := by
     obtain ⟨p', hp, hth⟩ := hsl; exact ⟨p', hp, Or.inl hth⟩
@@ -213,7 +213,7 @@ theorem jDecMRL_ofQ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.
     try simp only at hp0 hth0
     subst hp0
     obtain ⟨hcur, -⟩ := J.curEq hct
-    exact (Fl4ProofsQI.P3.decode_invocation_irq_controlXSM arI Z.th s ar σ Z.G J.intL hE.handlers lbl lbl.bv (irqControl_label lbl)
+    exact (Fl4ProofsQ.P3.decode_invocation_irq_controlXSM arI Z.th s ar σ Z.G J.intL hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs hcur J.kern.act J.act2 extra _ (exAt_idx0 extra) excaps
       hex hth0 rfl hc nA hnum hnA (maskIrq_total arI hA) hE.archIrq rfl rfl J.xtop (J.curRun.run hE.ni) _
       ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
@@ -227,22 +227,22 @@ set_option maxHeartbeats 4000000 in
 /-- `jDecMRL2_ofT` (its transported copy) carrying `IrqAckU`. -/
 theorem jDecMRL2_ofTQ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hM : MachPlatT arI MR) (hKD : MRKeepD arI MR)
     (hR3 : JDecMRLKQ (L := L) arI LoudT AR MR Z H Cs D s ar σ ct) :
     JDecMRL2Q (L := L) arI AR MR Z H Cs D s ar σ ct :=
-  ⟨Fl4ProofsQI.P3.jDecMRL2_ofT arI s ar σ J hG hE ct hct hM hKD hR3.1, hR3.2⟩
+  ⟨Fl4ProofsQ.P3.jDecMRL2_ofT arI s ar σ J hG hE ct hct hM hKD hR3.1, hR3.2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- `jDecMRLK_ofU` (its transported copy) carrying `IrqAckU`. -/
 theorem jDecMRLK_ofUQ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hM : MachPlatT arI MR) (hKD : MRKeepD arI MR)
     (hVx : JDecMRLKQ (L := L) arI VtxK AR MR Z H Cs D s ar σ ct)
     (hUR : JUtResetHyp (L := L) arI AR MR Z H Cs D s ar σ ct) :
     JDecMRLKQ (L := L) arI LoudT AR MR Z H Cs D s ar σ ct :=
-  ⟨Fl4ProofsQI.P3.jDecMRLK_ofU arI s ar σ J hG hE ct hct hM hKD hVx.1 hUR, hVx.2⟩
+  ⟨Fl4ProofsQ.P3.jDecMRLK_ofU arI s ar σ J hG hE ct hct hM hKD hVx.1 hUR, hVx.2⟩
 
 end
 

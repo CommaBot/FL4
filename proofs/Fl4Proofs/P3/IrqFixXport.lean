@@ -17,9 +17,29 @@ the records renamed; it reads `Fl4Proofs.…` and `Fl4ProofsN.…`. U32's cone a
 Names: `Fl4Proofs.X` ↦ `Fl4ProofsQ.X`, `Fl4ProofsN.X` ↦ `Fl4ProofsQN.X`, `Fl4ProofsI.X` ↦
 `Fl4ProofsQI.X`, a private name `p` ↦ `Fl4ProofsQ.priv ++ p`; a record's constants follow its renaming
 by prefix. Every copy goes through `addDecl` (the kernel re-checks it): no axiom, no trusted step.
+
+Collapse A (N, I): the `Fl4ProofsN` / `Fl4ProofsI` layers are written back into the base records, so no
+constant of those families exists any more and their branches below never fire; StallNarrowGen is gone and
+its `depsOf` (used here, by P3JXport and by P3KXport) lives in this module under its old name.
 -/
-import Fl4Proofs.P3.StallNarrowGen
+import Fl4Proofs.P3.XTopJointKEntryU30
 open Lean Meta Elab Command
+
+namespace Fl4Proofs.P3.StallNarrow
+
+/-- The constants a constant's type, value and (for an inductive) constructors use. -/
+def depsOf (env : Environment) (n : Name) : Array Name :=
+  match env.find? n with
+  | none => #[]
+  | some ci =>
+    let v := match ci.value? (allowOpaque := true) with | some v => v.getUsedConstants | none => #[]
+    let k := match ci with
+      | .inductInfo ii => ii.ctors.toArray.flatMap (fun c => match env.find? c with
+          | some cc => cc.type.getUsedConstants | none => #[])
+      | _ => #[]
+    ci.type.getUsedConstants ++ v ++ k
+
+end Fl4Proofs.P3.StallNarrow
 
 namespace Fl4Proofs.P3.IrqFix
 

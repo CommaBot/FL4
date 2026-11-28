@@ -9,16 +9,17 @@ P3 (p3P gen 2, item 3): **`kernel_entry_reachU32`** = `kernel_entry_reachU31` wi
   with it every entry record of U29 / U30 / U31, is false at every state: the syscall clause was
   vacuous for FL4's own platform. FL4's decode (`interrupt.rs` `map_ioapic`) range-checks first.
 * **Premise change:** `KDispHypsKVU32` = `KDispHypsKVU31` with `JEntryAtR7S` replaced by
-  `JEntryAtR7T`, whose `archIrq` is `ArchIrqRelN` (ArchIrqNarrow): `map` / `mapr` only for an
+  `JEntryAtR7T`, whose `archIrq` is the in-range `ArchIrqRel` (formerly ArchIrqNarrow's `ArchIrqRelN`;
+  collapse A, I wrote it back into `ArchIrqRel`, so the two records now agree): `map` / `mapr` only for an
   IOAPIC below `num_ioapics`, a pin below `ioapic_pins`, level / polarity ≤ 1 (handle < 2^16).
   What stays [P] is the routing outcome in range (the boot core's x2APIC ID fits the
   compatibility entry, `ArchIrqRel`'s docstring, FL4 #42). Every other premise and the
   conclusion are U31's verbatim. [J] 0, [W] 0, no new [P].
-* **Proof:** ArchIrqNarrowGen's kernel-checked transport of U31's proof
-  (`Fl4ProofsI.P3.SInvR.G5.kernel_entry_reachU31`, the four routing consumers re-proved as
-  `irq_ioapic_refinesN`, `irq_remap_refinesN`, `irq_ioapic_refinesMN`, `irq_remap_refinesMN`).
+* **Proof:** U31 itself (collapse A, I: ArchIrqNarrowGen's former `Fl4ProofsI` transport of U31's proof is
+  written back; the four routing consumers `irq_ioapic_refines`, `irq_remap_refines`, `irq_ioapic_refinesM`,
+  `irq_remap_refinesM` are proved on the in-range `ArchIrqRel`).
 -/
-import Fl4Proofs.P3.ArchIrqNarrowGen
+import Fl4Proofs.P3.XTopJointKEntryU31
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5
@@ -30,13 +31,13 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **`JEntryAtR7S` with `archIrq : ArchIrqRelN`** (routing asked only in range). -/
+/-- **`JEntryAtR7S` with `archIrq : ArchIrqRel`** (routing asked only in range). -/
 structure JEntryAtR7T (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) :
     Prop where
   /-- [P] `JEntryAt.ioapics`. -/
   ioapics : ∃ nA, arI.num_ioapics ar = ok nA ∧ nA.bv = σ.archState.x64NumIoapics
-  /-- [P] `ArchIrqRelN` (ArchIrqNarrow). -/
-  archIrq : ArchIrqRelN arI ar σ
+  /-- [P] `ArchIrqRel` (in range). -/
+  archIrq : ArchIrqRel arI ar σ
 
 /-- **`KDispHypsKVU31` with `JEntryAtR7T`.** -/
 structure KDispHypsKVU32 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
@@ -50,16 +51,16 @@ structure KDispHypsKVU32 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
 
 variable {arI}
 
-/-- **`KDispHypsKVU32` is the transported `KDispHypsKVU31`.** -/
+/-- **`KDispHypsKVU32` gives `KDispHypsKVU31`.** -/
 theorem KDispHypsKVU32.toI {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64}
     {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
     (h : KDispHypsKVU32 (L := L) arI AR Z H Cs D s a σ n c) :
-    Fl4ProofsI.P3.SInvR.G5.KDispHypsKVU31 (L := L) arI AR Z H Cs D s a σ n c :=
-  Fl4ProofsI.P3.SInvR.G5.KDispHypsKVU31.mk
+    KDispHypsKVU31 (L := L) arI AR Z H Cs D s a σ n c :=
+  KDispHypsKVU31.mk
     (fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi
-      ⟨Fl4ProofsI.P3.SInvR.G5.JEntryAtR7S.mk e.ioapics e.archIrq, p⟩)
+      ⟨JEntryAtR7S.mk e.ioapics e.archIrq, p⟩)
     (fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm
-      ⟨Fl4ProofsI.P3.SInvR.G5.JEntryAtR7S.mk e.ioapics e.archIrq, p⟩)
+      ⟨JEntryAtR7S.mk e.ioapics e.archIrq, p⟩)
 
 end
 
@@ -67,7 +68,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
 
-/-- **`kernel_entry_reachU31` with `ArchIrqRelN`** (module docstring). -/
+/-- **`kernel_entry_reachU31` with `JEntryAtR7T`** (module docstring). -/
 theorem kernel_entry_reachU32 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
@@ -128,7 +129,7 @@ theorem kernel_entry_reachU32 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ JReachU17 (L := L) arI AR MR r.1 r.2 σ' ⦄)  := by
   obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    Fl4ProofsI.P3.SInvR.G5.kernel_entry_reachU31 arI AR MR hARI hA hnd hM hKD hIo hIoa hPAi hIA hT hmax htu hRef
+    kernel_entry_reachU31 arI AR MR hARI hA hnd hM hKD hIo hIoa hPAi hIA hT hmax htu hRef
       hPI hSX hDR hJ
   exact ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg,
     fun n c hct hn hfl hK hDL hFin => hSys n c hct hn hfl (fun σb hb V' Ac' Lst' D' s' a' hF J' =>
