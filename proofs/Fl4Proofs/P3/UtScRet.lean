@@ -35,6 +35,7 @@ import Fl4Proofs.P3.UtReplyAdd
 import Fl4Proofs.P3.UtScAdd
 import Fl4Proofs.P3.UtBodyJ
 import Fl4Proofs.P3.UtRetLive
+import Fl4Proofs.P3.VirtR7
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -321,6 +322,111 @@ theorem utRetPostJ_of_body {σ σ1 : Fl4Spec.State Unit} {blk call don : Bool} {
   refine ⟨σ1, hst1, (.ok [], σ'), perf_ut_mem blk call don hrun, ⟨th', G', Or.inl ⟨hok, rfl⟩, hrel⟩, ?_⟩
   rw [if_neg (by rw [hok]; simp)]
   exact hJ
+
+/-- **The slot caps after a retype** (mmuAD gen 42b24): a slot of the typed heap after with a cap is a window slot,
+or an old slot whose cap is kept or (the source `xs`) is the same untyped region with a new free index (`RetExp`'s
+`gmem`, `keep`, `utk`, `usrc` through the MDB's members before and after). -/
+theorem RetExp.capAfter {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {A k w : Nat}
+    {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (hE : RetExp th th' m m' G G' A k w dslot cj xs) (hM : MdbLinks th m G) (hM' : MdbLinks th' m' G')
+    (y : U64) (hy : IsSlot th' y) (hn : capV m' y ≠ .Null) :
+    (∃ j, j < w ∧ y = dslot j) ∨ (IsSlot th y ∧ (capV m' y = capV m y ∨
+      (y = xs ∧ ∃ p sb fi fi' d, capV m y = .Untyped p sb fi d ∧ capV m' y = .Untyped p sb fi' d))) := by
+  have hmem' : y ∈ G'.chains.flatten := (hM'.members y).2 ⟨hy, _, capAt_capV m' y, hn⟩
+  rcases hE.gmem y hmem' with hy0 | h
+  · right
+    refine ⟨((hM.members y).1 hy0).1, ?_⟩
+    cases hu : isUt (capV m y)
+    · exact Or.inl (hE.keep y hy0 hu).2
+    · by_cases hx : y = xs
+      · subst hx
+        obtain ⟨-, p0, sb0, fi0, fi1, d0, h0, h1, -⟩ := hE.usrc
+        exact Or.inr ⟨rfl, p0, sb0, fi0, fi1, d0, h0, h1⟩
+      · obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h5⟩ := hE.usrc
+        exact Or.inl (h5 y hy0 hu hx)
+  · exact Or.inl h
+
+/-- **The window a retype body wrote** (mmuAD gen 42b22; gen 42b24: the relations to the entry state), from the entry
+state `s` (typed heap `th`, MDB ghost `G`, P1 heap `H`, spec state `σ`) to `s'` (`th'`, `G'`, `H'`, `σ'`), for the
+source slot `xs`, type number `nt` (spec type `t`), size parameter `us`, `w` objects at `rb`, device flag `dev`:
+`k` bytes apart (`2 ^ zOf`), `rb` aligned to `k`, the caps `cj = capsOf` (UntypedLoop's `cjOf` on the native types,
+`Vcpu` / `Ept` caps on 14..18), the cap `cj j` in the window slot `dslot j` (a CNode slot of `th`), FL4's writes only
+slot words of `th` (`Sched.SlotWd`); the typed heap after (`ThX`), the MDB step (`MdbStep`), what the retype did to
+the caps and the tree (`RetExp`), the slot caps after (`RetExp.capAfter`), P1's heap after (`HOut`: the window's
+`newKind` objects), the spec's heap after (the window's `defaultObject`s added, none for untypeds, then CNodes
+changed: `SpecAdd`, `CnK`, `KeepC`), the window inside the source's free part, and (RAM) zero at `s`. What the VT-x
+growth after a retype (`VcpuCore` / `EptCore`) reads. -/
+def RetWin (th th' : TypedHeap) (G G' : MdbGhost) (H H' : P1.Heap) (σ σ' : Fl4Spec.State Unit) (s s' : S)
+    (xs : U64) (nt : Nat) (t : Fl4Spec.ApiObjectType) (us : Nat) (rb : Fl4Spec.ObjRef) (w : Nat) (dev : Bool) :
+    Prop :=
+  ∃ (k : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap), k = 2 ^ zOf nt us ∧ rb.toNat % k = 0 ∧
+    (∃ uu : U64, uu.val = us ∧ cj = capsOf nt uu dev rb.toNat k) ∧ (∀ j, j < w → capV (L.mem s') (dslot j) = cj j) ∧
+    DslotC th dslot w ∧ P1.WritesIn st s s' (Sched.SlotWd th) ∧
+    ThX th th' rb.toNat k w nt us ∧ MdbStep (L.mem s) G (L.mem s') G' ∧
+    RetExp th th' (L.mem s) (L.mem s') G G' rb.toNat k w dslot cj xs ∧
+    (∀ y, IsSlot th' y → capV (L.mem s') y ≠ .Null → (∃ j, j < w ∧ y = dslot j) ∨
+      (IsSlot th y ∧ (capV (L.mem s') y = capV (L.mem s) y ∨
+        (y = xs ∧ ∃ p sb fi fi' d, capV (L.mem s) y = .Untyped p sb fi d ∧ capV (L.mem s') y = .Untyped p sb fi' d)))) ∧
+    HOut H H' rb.toNat (rb.toNat + w * k) rb.toNat k w (newKind nt us) ∧
+    (∃ σB, SpecAdd σ σB (fun q => q ∈ regionPtrs rb w k ∧ t ≠ .untyped)
+        (fun _ => Fl4Spec.defaultObject t dev us σ.curDomain) ∧ CnK σB σ' ∧ KeepC σB σ') ∧
+    (∃ p sb fi : U64, capV (L.mem s) xs = .Untyped p sb fi dev ∧ p.val + fi.val ≤ rb.toNat ∧
+      rb.toNat + w * k ≤ p.val + 2 ^ sb.val) ∧
+    (dev = false → ZeroRegion (L.mem s) rb.toNat (rb.toNat + w * k))
+
+/-- `RetWin` from a retype body's facts (the window caps' slots from `RetExp.newc`, the slot caps after by
+`RetExp.capAfter`). -/
+theorem RetWin.intro {th th' : TypedHeap} {G G' : MdbGhost} {H H' : P1.Heap} {σ σB σ' : Fl4Spec.State Unit}
+    {s s' : S} {xs : U64} {nt : Nat} {t : Fl4Spec.ApiObjectType} {us : Nat} {rb : Fl4Spec.ObjRef} {w : Nat}
+    {dev : Bool} {k : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+    (hk : k = 2 ^ zOf nt us) (hAk : rb.toNat % k = 0) (hcj : ∃ uu : U64, uu.val = us ∧ cj = capsOf nt uu dev rb.toNat k)
+    (hdsC : DslotC th dslot w) (hw : P1.WritesIn st s s' (Sched.SlotWd th)) (hThX : ThX th th' rb.toNat k w nt us)
+    (hSt : MdbStep (L.mem s) G (L.mem s') G') (hE : RetExp th th' (L.mem s) (L.mem s') G G' rb.toNat k w dslot cj xs)
+    (hM : MdbLinks th (L.mem s) G) (hM' : MdbLinks th' (L.mem s') G')
+    (hout : HOut H H' rb.toNat (rb.toNat + w * k) rb.toNat k w (newKind nt us))
+    (hA : SpecAdd σ σB (fun q => q ∈ regionPtrs rb w k ∧ t ≠ .untyped)
+      (fun _ => Fl4Spec.defaultObject t dev us σ.curDomain)) (hcnk : CnK σB σ') (hkc : KeepC σB σ')
+    {p sb fi : U64} (hsrc : capV (L.mem s) xs = .Untyped p sb fi dev) (h1 : p.val + fi.val ≤ rb.toNat)
+    (h2 : rb.toNat + w * k ≤ p.val + 2 ^ sb.val) (hz : dev = false → ZeroRegion (L.mem s) rb.toNat (rb.toNat + w * k)) :
+    RetWin (L := L) th th' G G' H H' σ σ' s s' xs nt t us rb w dev :=
+  ⟨k, dslot, cj, hk, hAk, hcj, hE.newc, hdsC, hw, hThX, hSt, hE, hE.capAfter hM hM', hout, ⟨σB, hA, hcnk, hkc⟩,
+    ⟨p, sb, fi, hsrc, h1, h2⟩, hz⟩
+
+variable (arI) in
+/-- **`UtBodyPost` with `JAtZB` after** (mmuAD gen 42b21; moved here from UtEpRet in gen 42b24): the outcome of a
+retype body as `UtBodyPost`, with the joint invariant after without `JExt` (`JAtZB`, `VxE`), and `JExt` carried from
+the typed heap `th` at the entry state `s` (when it held there) to the new state. `UtBodyPostB.toPost`: with
+`JExt th s`, `UtBodyPost`. Gen 42b22: the carry only for a native type number `nt ≤ 13` (a retype writing `Vcpu` /
+`Ept` caps breaks `JExt.nat`), and the window the body wrote (`RetWin`, for the invocation's source, base, size and
+slots), so that the VT-x growth after the retype needs nothing more from the body. Gen 42b24: the spec's outcome is
+FL4's untyped invocation with `vcpu::init` (`fl4InvokeUntypedV`, the ported one for every type but the VCPU, P3/VirtR7
+`fl4InvokeUntypedV_run`); `RetWin` relates the state after to the entry's `th`, `G`, `H`, `σ`; `X` holds of the
+sets, heap and SC set after (the device bodies' `DevApart` / `DevFreeT`; `fun _ _ _ _ _ => True` otherwise). -/
+def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (G : MdbGhost) (H : P1.Heap) (s : S)
+    (σ : Fl4Spec.State Unit) (nt : Nat) (X : XSets → P1.Heap → Set U64 → S → Fl4Spec.State Unit → Prop)
+    (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  ∃ σ', (Fl4Spec.fl4InvokeUntypedV (Z := Unit) inv).run σ = ({(.ok (), σ')}, False) ∧
+    res.1 = .Ok () ∧
+    (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
+      DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
+    ∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZB (L := L) arI AR Z' H' Cs' Ac' Lst' D' res.2.1 res.2.2 σ' ∧ VxE Z' ∧ X Z' H' Cs' res.2.1 σ' ∧
+      (nt ≤ 13 → JExt (L := L) th s → JExt (L := L) Z'.th res.2.1) ∧
+      ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
+        RetWin (L := L) th Z'.th G Z'.G H H' σ σ' s res.2.1 (cslotAddr src) nt t us rb slots.length dev
+
+/-- `UtBodyPostB` of a native type (not the VCPU) with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`;
+the spec's run by `fl4InvokeUntypedV_run`). -/
+theorem UtBodyPostB.toPost {th : TypedHeap} {G : MdbGhost} {H : P1.Heap} {s : S} {σ : Fl4Spec.State Unit} {nt : Nat}
+    {X : XSets → P1.Heap → Set U64 → S → Fl4Spec.State Unit → Prop} {inv : Fl4Spec.UntypedInvocation}
+    {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th G H s σ nt X inv res)
+    (hn : nt ≤ 13) (hv : ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
+      t ≠ .archObject .vcpuObj)
+    (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
+  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hvx, -, hx, -⟩ := h
+  obtain ⟨src, rs, pb, rb, t, us, slots, dev⟩ := inv
+  rw [VirtR7.fl4InvokeUntypedV_run _ _ _ _ _ _ _ _ (hv _ _ _ _ _ _ _ _ rfl)] at hrun
+  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx hn E), hvx⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **The body of `JAtZ.utScJ`: the retype of SCs without a reset from a
