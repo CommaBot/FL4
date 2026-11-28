@@ -185,11 +185,24 @@ theorem Endp.IpcBufCapOK.specAdd {σ σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjR
     obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md hf hR
     exact ⟨h1, h2, fun k hk => inUserFrame_keep (fun _ _ hp => hA.kold hp) (h3 k hk), h4, h5⟩
 
+/-- **The window a retype body wrote** (mmuAD gen 42b22), from the entry state `s` to `s'`, for type number `nt`,
+size parameter `us`, `w` objects at `A`: `k` bytes apart (`2 ^ zOf`), `A` aligned to `k`, the caps `cj = capsOf`
+(UntypedLoop's `cjOf` on the native types, `Vcpu` / `Ept` caps on 14..18), the cap `cj j` in the window slot
+`dslot j` (a CNode slot of `th`), and FL4's writes only slot words of `th` (`Sched.SlotWd`). What the VT-x growth
+after a retype (`VcpuCore` / `EptCore`) reads. -/
+def RetWin (th : TypedHeap) (s s' : S) (nt us A w : Nat) : Prop :=
+  ∃ (k : Nat) (dslot : Nat → U64) (cj : Nat → capability.Cap), k = 2 ^ zOf nt us ∧ A % k = 0 ∧
+    (∃ uu : U64, uu.val = us ∧ cj = capsOf nt uu false A k) ∧ (∀ j, j < w → capV (L.mem s') (dslot j) = cj j) ∧
+    DslotC th dslot w ∧ P1.WritesIn st s s' (Sched.SlotWd th)
+
 variable (arI) in
 /-- **`UtBodyPost` with `JAtZB` after** (mmuAD gen 42b21): the outcome of a retype body as `UtBodyPost`, with the
 joint invariant after without `JExt` (`JAtZB`, `VxE`), and `JExt` carried from the typed heap `th` at the entry
-state `s` (when it held there) to the new state. `UtBodyPostB.toPost`: with `JExt th s`, `UtBodyPost`. -/
-def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
+state `s` (when it held there) to the new state. `UtBodyPostB.toPost`: with `JExt th s`, `UtBodyPost`.
+Gen 42b22: the carry only for a native type number `nt ≤ 13` (a retype writing `Vcpu` / `Ept` caps breaks
+`JExt.nat`), and the window the body wrote (`RetWin`, for the invocation's base, size and slots), so that the VT-x
+growth after the retype needs nothing more from the body. -/
+def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (nt : Nat)
     (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ', (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ = ({(.ok (), σ')}, False) ∧
     res.1 = .Ok () ∧
@@ -197,14 +210,17 @@ def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ :
       DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
     ∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZB (L := L) arI AR Z' H' Cs' Ac' Lst' D' res.2.1 res.2.2 σ' ∧ VxE Z' ∧
-      (JExt (L := L) th s → JExt (L := L) Z'.th res.2.1)
+      (nt ≤ 13 → JExt (L := L) th s → JExt (L := L) Z'.th res.2.1) ∧
+      ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
+        RetWin (L := L) th s res.2.1 nt us rb.toNat slots.length
 
-/-- `UtBodyPostB` with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`). -/
-theorem UtBodyPostB.toPost {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {inv : Fl4Spec.UntypedInvocation}
-    {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th s σ inv res)
-    (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
-  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hv, hx⟩ := h
-  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx E), hv⟩
+/-- `UtBodyPostB` of a native type with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`). -/
+theorem UtBodyPostB.toPost {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {nt : Nat}
+    {inv : Fl4Spec.UntypedInvocation}
+    {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th s σ nt inv res)
+    (hn : nt ≤ 13) (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
+  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hv, hx, -⟩ := h
+  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx hn E), hv⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `utEpBodyJ` over `JAtZB` (mmuAD gen 42b21, in place; `JAtZ.utEpBodyJ` is its corollary): the post
@@ -223,7 +239,7 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
     (hZ0 : UtFreeZ σ (p.val + fi.val) (p.val + 2 ^ sb.val)) (hKN : UtNodesAt (L.ksb s) p sb) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th s σ (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th s σ nt.val (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -233,6 +249,7 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   have hc2 : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
   have hty := hctx.ty
+  have hnt14 : nt.val < 14 := by rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [h]
   have ht : t = .endpointObject ∨ t = .notificationObject ∨ t = .replyObject ∨ t = .archObject .pdptObj ∨
       t = .archObject .pageTableObj ∨ t = .archObject .pageDirectoryObj ∨ t = .archObject .hugePageObj ∨
       t = .archObject .smallPageObj ∨ t = .archObject .largePageObj := by
@@ -259,9 +276,10 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
   have hRPN := RetPostB.toNB hRP
   obtain ⟨hok, har, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
     hE, hbr, hRFu⟩ := hRP
-  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
+  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, huu, hcj⟩, hdsC,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
+  rw [capsOf_native (n := n0) (by rw [objTypeOf_inj hn0 hty]; exact Or.inl hnt14)] at hcj
   have hsR : sR = s ∧ thR = Z.th := by
     rcases hor with ⟨h1, h2, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
     · exact ⟨h1, h2⟩
@@ -1261,9 +1279,13 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance, fun hx =>
+    refine ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance, fun _ hx =>
       ⟨hx.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _),
-        hx.vkeep (J.vkeep_slot hwI)⟩⟩
+        hx.vkeep (J.vkeep_slot hwI)⟩, fun _ _ _ _ _ _ _ _ he => ?_⟩
+    cases he
+    exact ⟨_, dslot, cj, rfl, by rw [← eA]; exact hAk,
+      ⟨uu, huu, by rw [hcj, objTypeOf_inj hn0 hty, capsOf_native (n := nt.val) (Or.inl hnt14), eA]⟩,
+      fun j hj => hE.newc j (by rwa [hlen] at hj), by rw [hlen]; exact hdsC, hw⟩
 
 /-- **The body of `JAtZ.utEpJ`: the retype without a reset from a `JAtZ`
 state** (handoff/utj.md Round 13): FL4's `untyped::retype` with `reset = false`
@@ -1290,7 +1312,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ :=
-  WP.spec_mono (JAtZB.utEpBodyJ J.toB hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU hZ0 hKN) fun _ h => h.toPost J.ext
+  WP.spec_mono (JAtZB.utEpBodyJ J.toB hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU hZ0 hKN) fun _ h => h.toPost (by rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [h]) J.ext
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of endpoints, notifications, replies, VSpace

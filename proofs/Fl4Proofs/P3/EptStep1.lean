@@ -62,6 +62,7 @@ written 0); `VmEptState.hwWr` takes `h0` (the walker writes A/D only into a pres
 No named premise. New file only; root import after `P3.EptCore`.
 -/
 import Fl4Proofs.P3.EptCore
+import Fl4Proofs.P3.CreateLoopE
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -71,11 +72,7 @@ noncomputable section
 
 /-! ## (a) `RngOne` covers `Ept` caps -/
 
-theorem physF_ept (p l a v : U64) (m : Bool) : physF (.Ept p l m a v) = true := ok_inj (phys_eq _).symm
-
 theorem key_ept (p l a v : U64) (m : Bool) : VirtRngOne.RngKey (.Ept p l m a v) := ⟨physF_ept p l a v m, rfl, rfl⟩
-
-theorem ptrF_ept (p l a v : U64) (m : Bool) : ptrF (.Ept p l m a v) = p := ok_inj (ptr_eq _).symm
 
 theorem sizeF_ept (p l a v p' l' a' v' : U64) (m m' : Bool) : sizeF (.Ept p l m a v) = sizeF (.Ept p' l' m' a' v') := by
   have h : objects.cap_size_bits (.Ept p l m a v) = objects.cap_size_bits (.Ept p' l' m' a' v') := rfl

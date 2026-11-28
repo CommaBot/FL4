@@ -194,7 +194,7 @@ theorem retype_body_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   refine ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt', hFin, hks, _, _, _, dslot, cj, hE,
     ⟨Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s, th, _, _,
       Or.inl ⟨rfl, rfl, rfl, rfl, fun h => by cases h⟩, le_rfl, le_rfl, hthx.2, fun a h => h,
-      ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC, hWf.mono fun v hv => Or.inl (Or.inl ⟨htT, hv⟩),
+      ⟨nt.val, ht, hthx, us, rfl, hcjE.trans (capsOf_native (by omega) _ _ _ _).symm⟩, hdsC, hWf.mono fun v hv => Or.inl (Or.inl ⟨htT, hv⟩),
       fun _ w hw e1 e2 => ((winZero_of_frame hWf hzA hsl ?_ ?_) w hw e1 e2).imp id (fun ⟨_, hj⟩ => ⟨htT, hj⟩),
       fun _ => hhead.imp id (fun h => h.1)⟩,
      fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
@@ -324,6 +324,7 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
+  rw [capsOf_native (n := n0) (by rw [objTypeOf_inj hn0 hty, hnt]; decide)] at hcj
   have hsR : sR = s ∧ thR = Z.th := by
     rcases hor with ⟨h1, h2, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
     · exact ⟨h1, h2⟩

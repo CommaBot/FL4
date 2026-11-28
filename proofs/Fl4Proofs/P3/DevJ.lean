@@ -118,7 +118,7 @@ theorem retype_bodyD {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHe
   exact ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt', hFin, hks, _, _, _, dslot, cj, hE,
     ⟨Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s, th, _, _,
       Or.inl ⟨rfl, rfl, rfl, rfl, fun h => by cases h⟩, le_rfl, le_rfl, hthx.2, fun a h => h,
-      ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC, hWf.mono fun v hv => Or.inl (Or.inr hv),
+      ⟨nt.val, ht, hthx, us, rfl, hcjE.trans (capsOf_native (by omega) _ _ _ _).symm⟩, hdsC, hWf.mono fun v hv => Or.inl (Or.inr hv),
       fun hZ => winZero_of_slots hWf (hzA hZ.1) hsl _, fun hT => absurd (objTypeOf_tcb (hT ▸ ht)) hn1⟩,
      fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
 

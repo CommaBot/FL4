@@ -54,24 +54,8 @@ theorem retype_noreset_eq14 {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (
         let s1 ← obj.Slot.set_cap st slot s
           (.Untyped p sb (core.num.U64.wrapping_sub (core.num.U64.wrapping_add base total) p) dev')
         let (s2, a2) ← objects.create_new_objects st arI s1 ar nt slot dest off win base us dev
-        ok (.Ok (), s2, a2)) := by
-  have h63 : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val = zOf nt.val us.val := by
-    have : ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64).val =
-        (⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64).val % 64 := by
-      simp only [UScalar.val_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 6
-    rw [this]
-    show (BitVec.ofNat 64 (zOf nt.val us.val)).toNat % 64 = _
-    simp; omega
-  obtain ⟨total, htot, htb⟩ : ∃ total, (win <<< ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64)) =
-      ok total ∧ total.bv = win.bv <<< zOf nt.val us.val := by
-    have := spec_exists (UScalar.ShiftLeft_spec win ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64) _
-      (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
-    obtain ⟨v, hv, -, hb⟩ := this
-    exact ⟨v, hv, by rw [hb, h63]⟩
-  refine ⟨total, htb, ?_⟩
-  unfold untyped.retype
-  simp only [Bool.false_eq_true, ↓reduceIte, object_size_vcpu nt us hn, lift, bind_ok,
-    core.option.Option.unwrap_or, htot, slot_cap_eq, hcap]
+        ok (.Ok (), s2, a2)) :=
+  retype_noreset_eqS arI s ar slot base nt us dest off win dev (object_size_vcpu nt us hn) hz p sb fi dev' hcap
 
 end
 

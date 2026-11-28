@@ -45,7 +45,7 @@ def RetFrameB {A' : Type} (arI : machine.Arch A') (ar : A')
           x ∈ G.chains.flatten ∧ (∀ y, ¬ Mdb.Desc G.par y x) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧
           thR = restrictTh th lo hi ∧ RB) ∧
        lo ≤ A ∧ A + win * k ≤ hi ∧ RegionFree thR lo hi ∧
-       (∀ a, IsSlot thR a → IsSlot th a) ∧ (∃ n0, tK n0 ∧ ThX thR th' A k win n0 us ∧ ∃ uu : U64, uu.val = us ∧ cj = cjOf n0 uu dv A k) ∧ DslotC th dslot win ∧
+       (∀ a, IsSlot thR a → IsSlot th a) ∧ (∃ n0, tK n0 ∧ ThX thR th' A k win n0 us ∧ ∃ uu : U64, uu.val = us ∧ cj = capsOf n0 uu dv A k) ∧ DslotC th dslot win ∧
        WFrame (L := L) sR res.2.1 (fun v => ((T ∧ TcbLoopW thR A win (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)
          (L.mem sR (L.nodeAt sR 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan thR v) ∨
          (pml4 ∧ A ≤ v.val ∧ v.val < A + win * k)) ∧
@@ -132,6 +132,7 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
   · rw [hok] at e; cases e
   have e0 := objTypeOf_inj hn0 hnT
   subst n0
+  rw [capsOf_native (n := n) (by omega)] at hcjE
   have hk1 := hE.k1
   -- the dropped region is uncovered
   have hunc : ∀ a b, a < b → Covered (L.mem s) G a b → b ≤ lo ∨ hi ≤ a := by
@@ -751,7 +752,7 @@ theorem RetPostB.toNB {A' : Type} {th : TypedHeap} {m : U64 → U64} {G : MdbGho
 
 /-- **The retype without a reset from any state** (`retype_full` as
 `RetPostB`): `retype_cont_all` after the restart, for a RAM untyped and the
-types 0, 2..7, 9..13. -/
+types 0, 2..7, 9..13, and (mmuAD gen 42b22, `retype_fullC`) the EPT types 15..18. -/
 theorem retype_body {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -767,7 +768,8 @@ theorem retype_body {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
     (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat)
     (ht : objTypeOf nt.val = some t)
-    (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hus : us.val < 64) (hz47 : zOf nt.val us.val ≤ 47)
+    (hn : (nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) ∨ (15 ≤ nt.val ∧ nt.val ≤ 18)) (hus : us.val < 64)
+    (hz47 : zOf nt.val us.val ≤ 47)
     (hsc : nt.val = 5 → 7 ≤ us.val) (hct0 : nt.val = 4 → us.val ≠ 0)
     (hdest : th dest = some (.cnode r)) (hr : r < 64)
     (hwin : off.val + win.val ≤ 2 ^ r) (hw1 : 1 ≤ win.val)
@@ -792,7 +794,7 @@ theorem retype_body {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
   have hzA : ZeroRegion (L.mem s) (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat
       ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val) :=
     fun w hw h1 h2 => hzero w hw (by omega) (by omega)
-  refine WP.spec_mono (retype_full (L := L) arI ar th s σ G hR hV hP hM hC hI hU horig hpp hidx hcap hpal hpfit
+  refine WP.spec_mono (retype_fullC (L := L) arI ar th s σ G hR hV hP hM hC hI hU horig hpp hidx hcap hpal hpfit
     hfi (CanonR.of_high hhigh) (fun _ => hhigh) nt us t ht hn hus hz47 hsc hct0 hdest hr off win hwin hw1 hmem hempty hfree (fun _ => hzero)
     (fun h => by cases h) bitsApi hb) ?_
   rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, A, k, w,
@@ -868,7 +870,7 @@ theorem retype_body_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   exact ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt', hFin, hks, _, _, _, dslot, cj, hE,
     ⟨Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s, th, _, _,
       Or.inl ⟨rfl, rfl, rfl, rfl, fun h => by cases h⟩, le_rfl, le_rfl, hthx.2, fun a h => h,
-      ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
+      ⟨nt.val, ht, hthx, us, rfl, hcjE.trans (capsOf_native (by omega) _ _ _ _).symm⟩, hdsC,
       hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h.1, h.2.1⟩),
       fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩,
      fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩

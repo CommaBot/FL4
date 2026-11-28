@@ -166,10 +166,12 @@ theorem retype_free_index (aligned ptr win total sb : U64) (dev : Bool) (z : Nat
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- **`retype` without a reset**, in closed form: the untyped cap at `slot`
-gets the free index `base + (win << z) - ptr`, then `create_new_objects`. -/
-theorem retype_noreset_eq {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (slot base nt us dest off win : U64)
-    (dev : Bool) (hn : nt.val < 14) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
+/-- **`retype` without a reset**, in closed form, for any type whose `object_size` is `zOf` (mmuAD gen 42b22:
+`retype_noreset_eq`'s proof with its `object_size` as the hypothesis `hos`; `retype_noreset_eq` and VirtRetVcpuPre's
+`retype_noreset_eq14` are its instances, the EPT types through `object_size_ept`). -/
+theorem retype_noreset_eqS {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (slot base nt us dest off win : U64)
+    (dev : Bool) (hos : objects.object_size nt us = ok (some ⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩))
+    (hz : zOf nt.val us.val < 64)
     (p sb fi : U64) (dev' : Bool) (hcap : capAt (L.mem s) slot = ok (.Untyped p sb fi dev')) :
     ∃ total : U64, total.bv = win.bv <<< zOf nt.val us.val ∧
       untyped.retype st arI s ar slot false base nt us dest off win dev = (do
@@ -192,8 +194,21 @@ theorem retype_noreset_eq {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (sl
     exact ⟨v, hv, by rw [hb, h63]⟩
   refine ⟨total, htb, ?_⟩
   unfold untyped.retype
-  simp only [Bool.false_eq_true, ↓reduceIte, object_size_eq nt us hn hus, lift, bind_ok,
+  simp only [Bool.false_eq_true, ↓reduceIte, hos, lift, bind_ok,
     core.option.Option.unwrap_or, htot, slot_cap_eq, hcap]
+
+/-- **`retype` without a reset**, in closed form: the untyped cap at `slot`
+gets the free index `base + (win << z) - ptr`, then `create_new_objects`. -/
+theorem retype_noreset_eq {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (slot base nt us dest off win : U64)
+    (dev : Bool) (hn : nt.val < 14) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
+    (p sb fi : U64) (dev' : Bool) (hcap : capAt (L.mem s) slot = ok (.Untyped p sb fi dev')) :
+    ∃ total : U64, total.bv = win.bv <<< zOf nt.val us.val ∧
+      untyped.retype st arI s ar slot false base nt us dest off win dev = (do
+        let s1 ← obj.Slot.set_cap st slot s
+          (.Untyped p sb (core.num.U64.wrapping_sub (core.num.U64.wrapping_add base total) p) dev')
+        let (s2, a2) ← objects.create_new_objects st arI s1 ar nt slot dest off win base us dev
+        ok (.Ok (), s2, a2)) :=
+  retype_noreset_eqS arI s ar slot base nt us dest off win dev (object_size_eq nt us hn hus) hz p sb fi dev' hcap
 
 /-- **The untyped cap update of a retype refines the spec's** `set_cap
 (UntypedCap dev base bits (unat (free_ref - base)))` at the source slot (a

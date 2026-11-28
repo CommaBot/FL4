@@ -212,6 +212,7 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
+  rw [capsOf_native (n := n0) (by rw [objTypeOf_inj hn0 hty, hnt]; decide)] at hcj
   have hsR : sR = s ∧ thR = Z.th := by
     rcases hor with ⟨h1, h2, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
     · exact ⟨h1, h2⟩

@@ -29,6 +29,7 @@ are the retype's placement / freshness facts, state hypotheses as in `loop_step`
 import Fl4Proofs.P3.VirtLoopC
 import Fl4Proofs.P3.VirtRetypeLoop
 import Fl4Proofs.P3.VirtInsCpu
+import Fl4Proofs.P3.CreateLoopE
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.VirtLoopFrame
@@ -40,62 +41,6 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
-
-/-! ## One loop step with its footprint -/
-
-/-- An aligned word inside a slot of `th`. -/
-def SlotW (th : TypedHeap) (b : U64) : Prop := P1.Aligned b ∧ ∃ y, IsSlot th y ∧ y.val ≤ b.val ∧ b.val < y.val + 32
-
-/-- **`loop_stepC` with `insert_new_cap`'s footprint** (module docstring). -/
-theorem loop_stepC_frame (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat}
-    (hpp : th' pp = some (.cnode rs))
-    {idx : List Bool} (hidx : idx.length = rs) {p sb fi : U64} {d : Bool}
-    (hsb : sb.val < 64) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
-    (σ1 : Fl4Spec.State Unit) {dest : U64} {r : Nat} (hdest : th' dest = some (.cnode r)) (hr : r ≤ 64)
-    (t : Fl4Spec.ApiObjectType) (bits : Nat) (dev : Bool) (cj : Nat → capability.Cap)
-    (off win A k : Nat) (hk1 : 1 ≤ k) (hwin : off + win ≤ 2 ^ r)
-    (hfit : A + win * k ≤ 2 ^ 64)
-    (hpA : p.val ≤ A) (hAp : A + win * k ≤ p.val + 2 ^ sb.val)
-    (hcbF : ∀ i, i < win → baseF (cj i) = A + i * k) (hctF : ∀ i, i < win → topF (cj i) = A + i * k + k - 1)
-    (hcuF : ∀ i, i < win → isUt (cj i) = false)
-    (hcaF : ∀ i, i < win → CapRel (cj i) (Fl4Spec.defaultCap t (BitVec.ofNat 64 (A + i * k)) bits dev))
-    (hceF : ∀ i, i < win → EncWf (cj i)) (hcnF : ∀ i, i < win → NewKindV (cj i))
-    (hcpF : ∀ i, i < win → physF (cj i) = true)
-    (hnewcv : ∀ i, i < win → CapValid th' (cj i))
-    (zlo zhi : Nat) (hzs : ∀ a, IsSlot th' a → a.val + 32 ≤ zlo ∨ zhi ≤ a.val)
-    (G0 : MdbGhost) (m0 : U64 → U64)
-    (hsrcd : ∀ j, j < win → cslotAddr (pp.bv, idx) ≠ slotAddr dest.bv (BitVec.ofNat 64 (off + j)))
-    (s : S) (i : Nat) (hi : i < win)
-    (hinv : LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
-      (Fl4Spec.createCap (Z := Unit) t bits (pp.bv, idx) dev)
-      ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win k))
-      A k win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0 cj s i) :
-    cdt.insert_new_cap st s (cslotAddr (pp.bv, idx)) (slotAddr dest.bv (BitVec.ofNat 64 (off + i))) (cj i) ⦃ s' =>
-    LoopInv (L := L) th' (pp.bv, idx) (.Untyped p sb fi d) σ1
-      (Fl4Spec.createCap (Z := Unit) t bits (pp.bv, idx) dev)
-      ((windowSlots dest r off win).zip (regionPtrs (BitVec.ofNat 64 A) win k))
-      A k win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0 cj s' (i + 1) ∧
-    P1.WritesIn st s s' (SlotW th') ⦄ := by
-  have hAs : AbsSlot th' (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
-  have hs : IsSlot th' (cslotAddr (pp.bv, idx)) := hAs.isSlot
-  have hd : IsSlot th' (slotAddr dest.bv (BitVec.ofNat 64 (off + i))) := ⟨dest, off + i, Or.inl ⟨r, hdest, by omega⟩, rfl⟩
-  have hnx0 : nextOf (L.mem s) (cslotAddr (pp.bv, idx)) = 0#u64 ∨
-      IsSlot th' (nextOf (L.mem s) (cslotAddr (pp.bv, idx))) := by
-    obtain ⟨σi, Gi, -, -, -, hM, -, -, hsrc, -⟩ := hinv
-    have hsm : cslotAddr (pp.bv, idx) ∈ Gi.chains.flatten := (hM.members _).2 ⟨hs, _, hsrc, by simp⟩
-    rcases hM.next_mem hsm with h | ⟨h, -⟩
-    · exact Or.inl h
-    · exact Or.inr ((hM.members _).1 h).1
-  refine WP.spec_mono (spec_and2 (spec_and2 (loop_stepC th' hP' hpp hidx hsb hpfit σ1 hdest hr t bits dev cj off win
-    A k hk1 hwin hfit hpA hAp hcbF hctF hcuF hcaF hceF hcnF hcpF hnewcv zlo zhi hzs G0 m0 hsrcd s i hi hinv)
-    (insert_new_frame hP' s (cj i) _ _ hs hd hnx0))
-    (spec_and2 (insert_new_cap_ksb s _ _ _) (insert_new_cap_cpu s _ _ _))) ?_
-  rintro s' ⟨⟨h1, hfr⟩, hk, hc⟩
-  refine ⟨h1, hk, hc, fun b hb hn => hfr b hb fun a ha hin => hn ⟨hb, a, ?_, hin⟩⟩
-  rcases ha with rfl | rfl | ⟨hz, rfl⟩
-  · exact hs
-  · exact hd
-  · exact hnx0.resolve_left hz
 
 /-! ## `LoopInv` across writes off the slots -/
 
