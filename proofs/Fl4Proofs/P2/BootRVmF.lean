@@ -94,15 +94,18 @@ theorem namedM_R {r : U64} : ¬ NamedM memR kbB r := by
   rw [Vs.atA_val (by rw [kbB_val]; norm_num) hh, kbB_val]
   exact wordR_zero_of (by omega)
 
-theorem ptesR_R (O : LocPlatM.OpaqueH) : ptesR (KR O) memR = ∅ := by
+/-- (p3J gen 61) No leaf PTE is reachable in `memR` at every layout with kernel base `kbB`. -/
+theorem ptesR_memR_of {K : KLayoutP} (hK : K.ksb = kbB) : ptesR K memR = ∅ := by
   ext e
   constructor
   · intro he
     obtain ⟨⟨r, hr, -⟩, -⟩ := he
-    rw [KR_ksb] at hr
+    rw [hK] at hr
     exact (namedM_R hr).elim
   · intro he
     exact False.elim he
+
+theorem ptesR_R (O : LocPlatM.OpaqueH) : ptesR (KR O) memR = ∅ := ptesR_memR_of (KR_ksb O)
 
 /-- **`hc0` at the second boot layout and memory.** -/
 theorem hc0_R (O : LocPlatM.OpaqueH) : (KR O).vcpus = ∅ ∧ (KR O).ptes = ptesR (KR O) memR :=

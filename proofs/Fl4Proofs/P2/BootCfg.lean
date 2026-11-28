@@ -58,16 +58,19 @@ theorem namedM_B {r : U64} : ¬ NamedM memB kbB r := by
   rw [Vs.atA_val (by rw [kbB_val]; norm_num) hh, kbB_val]
   exact wordB_zero_of (by omega)
 
-/-- **No leaf PTE is reachable in `memB`** (for every choice of `chainC`). -/
-theorem ptesR_B (O : LocPlatM.OpaqueH) : ptesR (KB O) memB = ∅ := by
+/-- (p3J gen 61) **No leaf PTE is reachable in `memB`** at every layout with kernel base `kbB`. -/
+theorem ptesR_memB_of {K : KLayoutP} (hK : K.ksb = kbB) : ptesR K memB = ∅ := by
   ext e
   constructor
   · intro he
     obtain ⟨⟨r, hr, -⟩, -⟩ := he
-    rw [KB_ksb] at hr
+    rw [hK] at hr
     exact (namedM_B hr).elim
   · intro he
     exact False.elim he
+
+/-- **No leaf PTE is reachable in `memB`** (for every choice of `chainC`). -/
+theorem ptesR_B (O : LocPlatM.OpaqueH) : ptesR (KB O) memB = ∅ := ptesR_memB_of (KB_ksb O)
 
 /-- **`hc0` at the boot layout and memory.** -/
 theorem hc0_B (O : LocPlatM.OpaqueH) : (KB O).vcpus = ∅ ∧ (KB O).ptes = ptesR (KB O) memB :=
@@ -174,13 +177,17 @@ theorem noArm_idle {s' : Cfg U64 U64 U64 U64} {c : U64} (h : s'.ph c = .idle) :
 theorem noSt_idle {s : Cfg U64 U64 U64 U64} {c : U64} (h : s.ph c = .idle) :
     ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W := fun p0 k W h' => by rw [h] at h'; cases h'
 
-/-- A step keeping the layout and chain at a configuration with memory `m` and rule 8's ghosts: every field of
-`Fl4StepV15` from the phases at `c`. -/
-theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
+variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
+  {MR : A3 → Fl4Spec.MachineState → Prop} {PG : LocPlat bst arI AR MR}
+
+/-- (p3J gen 61: over any platform record `PG`; `stepW_keep` below is its `archT` instance) A step keeping the
+layout and chain at a configuration with memory `m` and rule 8's ghosts: every field of `Fl4StepV15` from the
+phases at `c`. -/
+theorem stepW_keepG (hB : ∀ e, SerExitW PG K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
     {s s' : Cfg U64 U64 U64 U64} {c : U64}
     (harm : ∀ p, s'.ph c = .arm p → PureGlue p)
     (hst : ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W) (hm : s'.mem = m) (hM : MapsP K s') :
-    Fl4StepV15 cfg P s K Ch0 c s' K Ch0 where
+    Fl4StepV15 cfg PG s K Ch0 c s' K Ch0 where
   arm := harm
   start p0 k W h := absurd h (hst p0 k W)
   serX _ := hB
@@ -188,29 +195,50 @@ theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuO
   serG _ := hM
   keep _ := ⟨rfl, rfl⟩
 
+/-- (p3J gen 61) `execE` at any platform record `PG`. -/
+theorem execEG {s0 s s' : Cfg U64 U64 U64 U64} {E : U64 → U64} (he : ExecV15 cfg PG s0 K Ch0 s K Ch0 E)
+    (hS : Step s 0#u64 s') (g : Fl4StepV15 cfg PG s K Ch0 0#u64 s' K Ch0) :
+    ∃ E', ExecV15 cfg PG s0 K Ch0 s' K Ch0 E' :=
+  ⟨_, .step he hS g⟩
+
+/-- (p3J gen 61) **The seven-step execution** (module docstring) at any platform record `PG`, for any layout /
+chain satisfying `hB` and `hc0` (`exec_cfg` below is its `archT` instance). -/
+theorem exec_cfgG (hB : ∀ e, SerExitW PG K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m) :
+    ∃ E, ExecV15 cfg PG (cfg0 K m) K Ch0 (cfg7 K m) K Ch0 E := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := cfg_steps K m
+  obtain ⟨_, e1⟩ := execEG (cfg := cfg) (PG := PG) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
+    (stepW_keepG hB hc (fun p h => by rw [cfg1_ph0] at h; cases h; exact .done) (noSt_idle (cfg0_ph K m _)) rfl
+      (mapsP_cfg1 K m))
+  obtain ⟨_, e2⟩ := execEG e1 h2 (stepW_keepG hB hc (fun p h => by rw [cfg2_ph0] at h; cases h)
+      (fun p0 k W h => by rw [cfg1_ph0] at h; cases h) rfl (mapsP_cfg2 K m))
+  obtain ⟨_, e3⟩ := execEG e2 h3 (stepW_keepG hB hc (noArm_idle (cfg3_ph0 K m))
+      (fun p0 k W h => by rw [cfg2_ph0] at h; cases h) rfl (mapsP_cfg3 K m))
+  obtain ⟨_, e4⟩ := execEG e3 h4 (stepW_keepG hB hc (fun p h => by rw [cfg4_ph0] at h; cases h)
+      (noSt_idle (cfg3_ph0 K m)) rfl (mapsP_cfg4 K m))
+  obtain ⟨_, e5⟩ := execEG e4 h5 (stepW_keepG hB hc (fun p h => by rw [cfg5_ph0] at h; cases h)
+      (fun p0 k W h => by rw [cfg4_ph0] at h; cases h) rfl (mapsP_cfg5 K m))
+  obtain ⟨_, e6⟩ := execEG e5 h6 (stepW_keepG hB hc (fun p h => by rw [cfg6_ph0] at h; cases h)
+      (fun p0 k W h => by rw [cfg5_ph0] at h; cases h) rfl (mapsP_cfg6 K m))
+  exact execEG e6 h7 (stepW_keepG hB hc (noArm_idle (cfg7_ph0 K m))
+      (fun p0 k W h => by rw [cfg6_ph0] at h; cases h) rfl (mapsP_cfg7 K m))
+
+/-- A step keeping the layout and chain at a configuration with memory `m` and rule 8's ghosts: every field of
+`Fl4StepV15` from the phases at `c`. -/
+theorem stepW_keep (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
+    {s s' : Cfg U64 U64 U64 U64} {c : U64}
+    (harm : ∀ p, s'.ph c = .arm p → PureGlue p)
+    (hst : ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W) (hm : s'.mem = m) (hM : MapsP K s') :
+    Fl4StepV15 cfg P s K Ch0 c s' K Ch0 :=
+  stepW_keepG hB hc harm hst hm hM
+
 theorem execE {s0 s s' : Cfg U64 U64 U64 U64} {E : U64 → U64} (he : ExecV15 cfg P s0 K Ch0 s K Ch0 E)
     (hS : Step s 0#u64 s') (g : Fl4StepV15 cfg P s K Ch0 0#u64 s' K Ch0) : ∃ E', ExecV15 cfg P s0 K Ch0 s' K Ch0 E' :=
-  ⟨_, .step he hS g⟩
+  execEG he hS g
 
 /-- **The seven-step execution** (module docstring), for any layout / chain satisfying `hB` and `hc0`. -/
 theorem exec_cfg (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m) :
-    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (cfg7 K m) K Ch0 E := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := cfg_steps K m
-  obtain ⟨_, e1⟩ := execE (cfg := cfg) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
-    (stepW_keep hB hc (fun p h => by rw [cfg1_ph0] at h; cases h; exact .done) (noSt_idle (cfg0_ph K m _)) rfl
-      (mapsP_cfg1 K m))
-  obtain ⟨_, e2⟩ := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [cfg2_ph0] at h; cases h)
-      (fun p0 k W h => by rw [cfg1_ph0] at h; cases h) rfl (mapsP_cfg2 K m))
-  obtain ⟨_, e3⟩ := execE e2 h3 (stepW_keep hB hc (noArm_idle (cfg3_ph0 K m))
-      (fun p0 k W h => by rw [cfg2_ph0] at h; cases h) rfl (mapsP_cfg3 K m))
-  obtain ⟨_, e4⟩ := execE e3 h4 (stepW_keep hB hc (fun p h => by rw [cfg4_ph0] at h; cases h)
-      (noSt_idle (cfg3_ph0 K m)) rfl (mapsP_cfg4 K m))
-  obtain ⟨_, e5⟩ := execE e4 h5 (stepW_keep hB hc (fun p h => by rw [cfg5_ph0] at h; cases h)
-      (fun p0 k W h => by rw [cfg4_ph0] at h; cases h) rfl (mapsP_cfg5 K m))
-  obtain ⟨_, e6⟩ := execE e5 h6 (stepW_keep hB hc (fun p h => by rw [cfg6_ph0] at h; cases h)
-      (fun p0 k W h => by rw [cfg5_ph0] at h; cases h) rfl (mapsP_cfg6 K m))
-  exact execE e6 h7 (stepW_keep hB hc (noArm_idle (cfg7_ph0 K m))
-      (fun p0 k W h => by rw [cfg6_ph0] at h; cases h) rfl (mapsP_cfg7 K m))
+    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (cfg7 K m) K Ch0 E :=
+  exec_cfgG hB hc
 
 end exec
 
