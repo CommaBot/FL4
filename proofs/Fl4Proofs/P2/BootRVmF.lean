@@ -16,7 +16,8 @@ the start configurations of gen 37 hold no lock, so that index cannot start. Her
   `LkC`, and given `KernDetS`, `VmFPremB` (`nv`, `bun`, `kd`), the record at `σ = sR`, and for every
   `h' : VmFPremA` the `GlueAt` of the lifted VM-fault body at `sR` — the program is `q0R` (the body at `h'`, by
   proof irrelevance one program for every `h'`).
-* The execution: `kR` (`annV` of the PTE cut of `q0R`), `g3R` (the `.start` step's `Fl4StepWPRV12` fields),
+* The execution: `kR` (`annV` of the PTE cut of `q0R`), `g3R` (the `.start` step's `Fl4StepV15` fields
+  at the native configuration, gen 56),
   **`execStartV13_R`** (arm → enter → `.start` of the vmF path from `cfg0 (KR O) memR`), `stFree_kR`,
   **`runEndV13_R`** (the whole body run, `run_loc`, then leave), **`topV13_R`**: `serializable_fl4_localV13`
   applied to it, `Run (.start (kR O a)) memR s.mem`. **The start fact used carries `ybw` [J] and `NonIdle` [P],
@@ -278,8 +279,7 @@ theorem kR_eq (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP 
 
 /-- **The `.start` step's fields** at the vmF index. -/
 theorem g3R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    Fl4StepWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-      (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+    Fl4StepV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
       (LocPlatM.locPlat_archT O bs_ext)
       (dfg2 (KR O) memR (kR O a)) (KR O) (fun _ => ChR O) 0#u64 (dfg3 (KR O) memR (kR O a)) (KR O)
       (fun _ => ChR O) where
@@ -291,8 +291,6 @@ theorem g3R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
     subst e2
     refine ⟨memR, ⟨fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩, .inl (.vmF (jR O)), k0R O a hK hU, ?_,
       Or.inr (kR_eq O a hK hU)⟩
-    show StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR (ChR O) (KR O)
-      (CoreView.view (KR O).toKLayout 0#u64 memR) hK hU 0#u64 _ _ _
     rw [view_R O]
     exact startVmF_R O a0 a hK hU _ (dfg2_lk _ _ _)
   serX _ := fun _ => serExitW_R O
@@ -302,10 +300,9 @@ theorem g3R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
 
 /-- **V13: an execution from the second boot start whose last step is the `.start` of the vmF path.** -/
 theorem execStartV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-      (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+    ∃ E, ExecV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
       (LocPlatM.locPlat_archT O bs_ext) (cfg0 (KR O) memR) (KR O) (fun _ => ChR O) (dfg3 (KR O) memR (kR O a))
-      (KR O) (fun _ => ChR O) :=
+      (KR O) (fun _ => ChR O) E :=
   exec_start (fun _ => serExitW_R O) (hc0_R O) (g3R O a0 a)
 
 /-- **The armed vmF body has no `.start` node.** -/
@@ -321,26 +318,13 @@ theorem stFree_kR (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : StFree (kR
 
 /-- **V13: the vmF start, its whole body, and the leave.** -/
 theorem runEndV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (cfg0 (KR O) memR) (KR O) (fun _ => ChR O) s (KR O) (fun _ => ChR O) ∧
-      NoLoc s ∧ s.log = [.start (kR O a)] :=
-  runEnd (stFree_kR O a) (execStartV13_R O a0 a)
-
-/-- **V13 applied to an execution whose start carries `ybw` [J] and `NonIdle` [P]** (module docstring). -/
-theorem topV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (cfg0 (KR O) memR) (KR O) (fun _ => ChR O) s (KR O) (fun _ => ChR O) ∧
-      NoLoc s ∧ s.log = [.start (kR O a)] ∧ Run (.start (kR O a)) memR s.mem := by
-  obtain ⟨s, he, hq, hl⟩ := runEndV13_R O a0 a
-  have hr := serializable_fl4_localV13 bst LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext)
-    LocPlatM.mrKeepIoapic_archT (cfg_init _ _) (cfg_armInv _ _) (fun _ => serExitW_R O) (hc0_R O)
-    (mapsP_cfg0 _ _) he hq
-  rw [hl] at hr
-  exact ⟨s, he, hq, hl, runAll_one hr⟩
+    ∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+        (LocPlatM.locPlat_archT O bs_ext) (cfg0 (KR O) memR) (KR O) (fun _ => ChR O) s (KR O) (fun _ => ChR O) E ∧
+      NoLoc s ∧ s.log = [.start (kR O a)] := by
+  obtain ⟨E, he⟩ := execStartV13_R O a0 a
+  obtain ⟨s, he', hq, hl⟩ := runEnd (stFree_kR O a) he
+  exact ⟨s, E, he', hq, hl⟩
 
 end
 

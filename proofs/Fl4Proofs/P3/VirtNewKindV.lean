@@ -18,6 +18,14 @@ widens the kind:
   `insert_new_full` verbatim with `hnk : NewKindV c` and the three `srB_*V` lemmas (mechanical copy; the other
   lemmas of the block do not mention the kind).
 
+Gen 42b8 (line mmuAD, the EPT retype seam): `NewKindV` widened in place to the retype's EPT caps
+(`∨ ∃ p l a v m, c = .Ept p l m a v`; FL4 `same_region_as` treats `Ept p l` as the same object iff the same pointer
+and level, objects.rs l. 124; `create_object` makes `Ept base level false 0 0`, x86_64/objects.rs l. 46-50), with
+`srB_ept_left` / `srB_ept_right` and `NewKindV.ept`; only proofs gained an `Ept` arm (`ne_null`, the five `srB_*V`,
+`refs_newKindV`), every statement is byte-identical. `NewKindV` occurs only as a hypothesis (here, `InsNCtxV.hnk`,
+`loop_stepC`, `loop_stepC_frame`), so the widening strengthens those theorems: `loop_stepC` / `loop_stepC_frame` now
+apply to EPT objects.
+
 No named premise. New file only; no existing statement changed.
 -/
 import Fl4Proofs.P3.UntypedLoop
@@ -30,16 +38,20 @@ noncomputable section
 set_option linter.unusedSimpArgs false
 
 /-- The caps a retype inserts, VT-x VCPU caps included (module docstring). -/
-def NewKindV (c : capability.Cap) : Prop := NewKind c ∨ ∃ p, c = .Vcpu p
+def NewKindV (c : capability.Cap) : Prop := NewKind c ∨ (∃ p, c = .Vcpu p) ∨ ∃ p l a v, ∃ m : Bool, c = .Ept p l m a v
 
 theorem NewKindV.of_nk {c : capability.Cap} (h : NewKind c) : NewKindV c := Or.inl h
 
-theorem NewKindV.vcpu (p : U64) : NewKindV (.Vcpu p) := Or.inr ⟨p, rfl⟩
+theorem NewKindV.vcpu (p : U64) : NewKindV (.Vcpu p) := Or.inr (Or.inl ⟨p, rfl⟩)
+
+/-- (gen 42b8) The retype's EPT caps. -/
+theorem NewKindV.ept (p l a v : U64) (m : Bool) : NewKindV (.Ept p l m a v) := Or.inr (Or.inr ⟨p, l, a, v, m, rfl⟩)
 
 theorem NewKindV.ne_null {c : capability.Cap} (h : NewKindV c) : c ≠ .Null := by
   rintro rfl
-  rcases h with h | ⟨p, h⟩
+  rcases h with h | ⟨p, h⟩ | ⟨p, l, a, v, m, h⟩
   · simp [NewKind] at h
+  · cases h
   · cases h
 
 theorem srB_vcpu_left {p : U64} {v : capability.Cap} (h : srB (.Vcpu p) v = true) : shape v = shape (.Vcpu p) := by
@@ -55,49 +67,96 @@ theorem srB_vcpu_right {u : capability.Cap} {p : U64} (hu : isUt u = false) (h :
   cases u <;> simp [isUt] at hu <;> simp [objects.same_region_as] at h' <;> (try split_ifs at h' with e1) <;>
     simp_all [shape] <;> exact UScalar.eq_of_val_eq h'
 
+/-- (gen 42b8) FL4's `same_region_as` of an `Ept` cap: the same table and level (objects.rs l. 124). -/
+theorem srB_ept_left {p l a v : U64} {m : Bool} {w : capability.Cap} (h : srB (.Ept p l m a v) w = true) :
+    shape w = shape (.Ept p l m a v) := by
+  have h' := srB_eq (.Ept p l m a v) w
+  rw [h] at h'
+  cases w
+  all_goals first
+    | (simp [objects.same_region_as] at h'; done)
+    | skip
+  rename_i q l' m' a' v'
+  by_cases e1 : q = p
+  · by_cases e2 : l' = l
+    · subst e1; subst e2; rfl
+    · simp [objects.same_region_as, e1, e2] at h'
+  · simp [objects.same_region_as, e1] at h'
+
+theorem srB_ept_right {u : capability.Cap} {p l a v : U64} {m : Bool} (hu : isUt u = false)
+    (h : srB u (.Ept p l m a v) = true) : shape (.Ept p l m a v) = shape u := by
+  have h' := srB_eq u (.Ept p l m a v)
+  rw [h] at h'
+  cases u
+  all_goals first
+    | (simp [isUt] at hu; done)
+    | (simp [objects.same_region_as] at h'; done)
+    | skip
+  rename_i q l' m' a' v'
+  by_cases e1 : p = q
+  · by_cases e2 : l = l'
+    · subst e1; subst e2; rfl
+    · simp [objects.same_region_as, e1, e2] at h'
+  · simp [objects.same_region_as, e1] at h'
+
 theorem srB_nk_leftV {c v : capability.Cap} (hk : NewKindV c) (hu : isUt c = false) (hf : isFr c = false)
     (h : srB c v = true) : shape v = shape c := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact srB_nk_left hk hu hf h
   · exact srB_vcpu_left h
+  · exact srB_ept_left h
 
 theorem srB_nk_rightV {u c : capability.Cap} (hk : NewKindV c) (hc : isUt c = false) (hf : isFr c = false)
     (hu : isUt u = false) (h : srB u c = true) : shape c = shape u := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact srB_nk_right hk hc hf hu h
   · exact srB_vcpu_right hu h
+  · exact srB_ept_right hu h
 
 theorem physF_vcpu (p : U64) : physF (.Vcpu p) = true := ok_inj (phys_eq _).symm
 
 theorem srB_new_leftV {c v : capability.Cap} (hk : NewKindV c) (hu : isUt c = false) (hcr : baseF c ≤ topF c)
     (h : srB c v = true) :
     physF v = true ∧ isUt v = false ∧ baseF c ≤ baseF v ∧ topF v ≤ topF c ∧ baseF v ≤ topF v := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact srB_new_left hk hu hcr h
   · have e := srB_vcpu_left h
     obtain ⟨hb, ht, hp⟩ := range_of_shape e
     refine ⟨by rw [hp]; exact physF_vcpu p, by rw [isUt_of_shape e]; exact hu, by omega, by omega, by omega⟩
+  · have e := srB_ept_left h
+    obtain ⟨hb, ht, hp⟩ := range_of_shape e
+    refine ⟨by rw [hp]; exact ok_inj (phys_eq _).symm, by rw [isUt_of_shape e]; exact hu, by omega, by omega,
+      by omega⟩
 
 theorem srB_new_rightV {u c : capability.Cap} (hk : NewKindV c) (hc : isUt c = false) (hu : isUt u = false)
     (h : srB u c = true) : physF u = true ∧ baseF u ≤ baseF c ∧ topF c ≤ topF u := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact srB_new_right hk hc hu h
   · have e := srB_vcpu_right hu h
     obtain ⟨hb, ht, hp⟩ := range_of_shape e
     exact ⟨by rw [← hp]; exact physF_vcpu p, by omega, by omega⟩
+  · have e := srB_ept_right hu h
+    obtain ⟨hb, ht, hp⟩ := range_of_shape e
+    exact ⟨by rw [← hp]; exact ok_inj (phys_eq _).symm, by omega, by omega⟩
 
 theorem srB_self_nkV {c : capability.Cap} (hk : NewKindV c) (hp : physF c = true) (hr : baseF c ≤ topF c) :
     srB c c = true := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact srB_self_nk hk hp hr
   · have h' := srB_eq (.Vcpu p) (.Vcpu p)
+    simp [objects.same_region_as] at h'
+    exact h'
+  · have h' := srB_eq (.Ept p l m a v) (.Ept p l m a v)
     simp [objects.same_region_as] at h'
     exact h'
 
 theorem refs_newKindV {c : capability.Cap} (hk : NewKindV c) {r : Fl4Spec.GenObjRef}
     (h : r ∈ Fl4Spec.genObjRefs (absCap c)) : ∃ q, r = .objRef q := by
-  rcases hk with hk | ⟨p, rfl⟩
+  rcases hk with hk | ⟨p, rfl⟩ | ⟨p, l, a, v, m, rfl⟩
   · exact refs_newKind hk h
+  · simp [Fl4Spec.genObjRefs, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt, Fl4Spec.archGenRefs,
+      Fl4Spec.archCapSetMap, Fl4Spec.archGenObjRefs, Fl4Spec.aobjRef, absCap] at h
+    exact ⟨_, h⟩
   · simp [Fl4Spec.genObjRefs, Fl4Spec.objRefs, Fl4Spec.capIrqs, Fl4Spec.capIrqOpt, Fl4Spec.archGenRefs,
       Fl4Spec.archCapSetMap, Fl4Spec.archGenObjRefs, Fl4Spec.aobjRef, absCap] at h
     exact ⟨_, h⟩

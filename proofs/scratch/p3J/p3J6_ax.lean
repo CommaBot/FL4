@@ -9,5 +9,4 @@ import Fl4Proofs.P3.JBootU40
 #print axioms Fl4Proofs.P3.JBoot.u40_w0I1
 #print axioms Fl4Proofs.P3.JBoot.warI1_fInitIpi_start
 #print axioms Fl4Proofs.P3.JBoot.jReachU40_fInitIpi
-#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU39
 #print axioms Fl4Proofs.P3.JBoot.u39_w0I1

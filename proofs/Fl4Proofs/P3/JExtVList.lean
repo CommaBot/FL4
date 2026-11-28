@@ -19,6 +19,10 @@ P3 (line mmuAD, gen 23): **the VCPU list invariant `VList`** — the kernel-glob
 * `VList.empty`: `V = ∅` from a zero head word.
 
 No [P] / [W] / [S] premise; no existing statement changed.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `finPlV`; each
+`JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.JExtVFin
 open Aeneas Aeneas.Std Result
@@ -423,9 +427,14 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V X : Set U64}
 
 /-- **`JAtZ.finPl` over `VList`**: no list [J] left. -/
-theorem JAtZ.finPlV (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
+theorem JAtZB.finPlV (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
     (Vl : VList st V Z.th s) {v : U64} (hv : v ∈ V) : FinPl st V Z.th (fun _ => BufU Z σ) s v :=
   J.finPl Jv hv Vl.hL Vl.hP Vl.hd
+
+/-- `JAtZB.finPlV` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finPlV (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
+    (Vl : VList st V Z.th s) {v : U64} (hv : v ∈ V) : FinPl st V Z.th (fun _ => BufU Z σ) s v :=
+  Fl4Proofs.P3.JAtZB.finPlV (J := J.toB) (Jv := Jv) (Vl := Vl) (hv := hv)
 
 /-- **`vcpu_finalise_jv_lay` over `VList`**: `hL`, `hP`, `hhd` removed. -/
 theorem vcpu_finalise_jv_vl (hA : P0.ArchTotal ar) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

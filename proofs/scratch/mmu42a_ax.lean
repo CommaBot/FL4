@@ -1,0 +1,21 @@
+import Fl4Proofs.P3.JAtZV3SigTail
+#print axioms Fl4Proofs.P3.sigVmSporF
+#print axioms Fl4Proofs.P3.sigVmRestF
+#print axioms Fl4Proofs.P3.sigVmTailF_eq
+#print axioms Fl4Proofs.P3.sigVmSporS
+#print axioms Fl4Proofs.P3.sigVmRestS
+#print axioms Fl4Proofs.P3.sigVmTailS_eq
+#print axioms Fl4Proofs.P3.stl_getScActive
+#print axioms Fl4Proofs.P3.stl_gnor
+#print axioms Fl4Proofs.P3.stl_gsor
+#print axioms Fl4Proofs.P3.stl_spor_none
+#print axioms Fl4Proofs.P3.stl_spor_some
+#print axioms Fl4Proofs.P3.stl_mds_some
+#print axioms Fl4Proofs.P3.stl_mds_nn
+#print axioms Fl4Proofs.P3.stl_mds_bound
+#print axioms Fl4Proofs.P3.JAtZB.unblockJR
+#print axioms Fl4Proofs.P3.JAtZV3.sigSporJ
+#print axioms Fl4Proofs.P3.JAtZV3.sigRestJ
+#print axioms Fl4Proofs.P3.SigVmDonJ3
+#print axioms Fl4Proofs.P3.sigVmTailJ3_of
+#print axioms Fl4Proofs.P3.JAtZV3.signalVmJ2

@@ -32,6 +32,9 @@ caller's restart (the data page is not the caller's TCB) and the arch's
 `fpu_flush`. Until fpu1 (KENTRY-PLAN) it also asked the range to miss the
 CNodes, FL4's VSpace tables and ASID pools and the kernel-global data; those
 were needed only for frame words outside `B`, which `FrameCover` rules out.
+
+(mmuAD gen 42b18) `frameWrJ` stated over `JAtZB` in place; `JAtZ.frameWrJ` its corollary (`ext` by XTopJointData's
+`JAtZB.ext_wr`). P3/JAtZBWr's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.BufFr
@@ -94,12 +97,12 @@ open Fl4Proofs.P1 in
 set_option maxHeartbeats 16000000 in
 /-- **A frame word that is not an IPC-buffer word, written at `J`** (module
 docstring; the spec state kept). -/
-theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64}
+theorem JAtZB.frameWrJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64}
     (hu : UserW (L := L) Z s σ w) (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w)
     (hAp : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → w.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ w.val)
     (hObj : ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ w.val ∧ w.val < o.toNat + 2 ^ Fl4Spec.objBits ko)
     (hks : w.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ w.val) (v : U64) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
   set s1 := L.wr s w v with hs1
   have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
@@ -267,8 +270,20 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc) (DXKeep.of_dbg hKd hTd), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.refl _)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX1 hkb hSS (Vs.ArchShr.refl _)) hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
     hSS hKd F.idle
+
+open Fl4Proofs.P1 in
+/-- `JAtZB.frameWrJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64}
+    (hu : UserW (L := L) Z s σ w) (hnB : ∀ wp ∈ Z.B, wp.1 ≠ w)
+    (hAp : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → w.val + 8 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ w.val)
+    (hObj : ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ w.val ∧ w.val < o.toNat + 2 ^ Fl4Spec.objBits ko)
+    (hks : w.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ w.val) (v : U64) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ :=
+  have hP := J.xtop.fin.1.2
+  (Fl4Proofs.P3.JAtZB.frameWrJ (J := J.toB) (hu := hu) (hnB := hnB) (hAp := hAp) (hObj := hObj) (hks := hks) (v := v)).toJAtZ (J.toB.ext_wr J.ext hu.al v (slotsSame_wr hP.pl s v hu.al fun _ hx ⟨h1, h2⟩ =>
+    hu.vobj (vobj_of_slot hP.pl Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) hx h1 h2)) hAp)
 
 /-- **A frame word written at `J`** (`JAtZ.userWrJ` for an IPC-buffer word,
 `JAtZ.frameWrJ` for another), the spec's machine state some `ms`. -/

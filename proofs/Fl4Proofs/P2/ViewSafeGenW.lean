@@ -16,6 +16,9 @@ write) restricts the owner fact to the writes the runs actually do:
 
 `VW := fun _ _ => True` gives back `body_safeV`'s hypotheses (P2/SafeVQW's `safeVQ_of_W`). No premise: every fact
 about the path is a hypothesis. No existing statement changed.
+
+Gen 48 (in place, statements unchanged): `body_runVW`, `body_safeVW`'s run certificate, split out of its proof and
+shared with `body_insAVW` (P2/InsVQ).
 -/
 import Fl4Proofs.P2.ViewSafeGen
 open Aeneas Aeneas.Std Result
@@ -240,11 +243,12 @@ variable {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → 
   {p : SProg X} {Acc : X → Prop} {Locks : S → U64 → Prop} {Pre : S → Prop}
   {RS WS DS : S → U64 → Prop}
 
-/-- **`body_safeV` with value-checked writes** (module docstring): `hO2W` only for writes passing `VW`, and the runs
-`hNarA` / `hNarD` speak of also pass `VW` at every write (`hVA` / `hVD`). As `body_safeV`: `N`: words where `ρv` and `ρ` agree in value and owner; `Kc`: words where the path's class
-owner `ko` is the target's `kt`; `NW`: the words the runs may write; `DD`: words whose owner the words off
-`{ρv ≠ ρ}` do not fix. -/
-theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
+/-- **`body_safeVW`'s run certificate** (split out of `body_safeVW`'s proof, gen 48): under `body_safeVW`'s
+hypotheses, the read invariant and, at every admissible `ν`, the check memory with its `AltRun` together with the
+store run that certifies it (a start state `s0` of the view, the run state `s` an alternative of it, the run's read
+and write sets, `Once`, and the agreement of `s` with `ν` on the words it reads). `body_safeVW` keeps the first two;
+the `InsA` certificate (P2/InsVQ) also uses the run. -/
+theorem body_runVW (hL : MoveHeld own) (hO : OwnDep own User)
     (hp : IsProgOn (F ar) ar st (AltOf st Pre RS cls ko User) p)
     (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS)
     (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS)
@@ -271,8 +275,19 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
     (hVD : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r →
       ¬ Acc r.1 → ∀ s' r', Alt st (RS s0) cls ko User s0 s' → F ar st s' a = ok r' →
         F ar (mguard st VW) s' a = ok r') :
-    Safe own cls kt (L.cpu σ) (Locks σ) μ
-      (tr (RS σ) User cls ko (L.cpu σ) (L.ksb σ) (masksOf st σ) ar p ∅ a) := by
+    RInv own (L.cpu σ) (Locks σ) (RpOf (fun x => RS σ x ∧ N x) User
+        (fun x => ¬ User x ∧ (WS σ x ∨ DS σ x) ∧ N x)) (fun x => ¬ User x ∧ (WS σ x ∨ DS σ x) ∧ N x) μ ∧
+    ∀ ν, Adm own cls kt (L.cpu σ) (Locks σ) μ (fun _ => none) ν →
+      ∃ (κ : U64 → U64) (s0 s : S) (Rr Wr : U64 → Prop), Diff own (L.cpu σ) (Locks σ) μ κ ∧
+        AltRun own cls kt (L.cpu σ) (Locks σ) (RpOf (fun x => RS σ x ∧ N x) User
+          (fun x => ¬ User x ∧ (WS σ x ∨ DS σ x) ∧ N x)) (fun x => ¬ User x ∧ (WS σ x ∨ DS σ x) ∧ N x) ∅
+          (tr (RS σ) User cls ko (L.cpu σ) (L.ksb σ) (masksOf st σ) ar p ∅ a) ν κ ∧
+        Pre s0 ∧ L.cpu s0 = L.cpu σ ∧ (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) ∧
+        Alt st (RS s0) cls ko User s0 s ∧ st.frame_masks s = ok (masksOf st σ) ∧ L.ksb s = L.ksb σ ∧
+        L.cpu s = L.cpu σ ∧ (∀ x, Wr x → Aligned x) ∧ Within st ar (fun b => Aligned b ∧ Rr b) Wr p s a ∧
+        Once st ar (RS σ) User ∅ ∅ p s a ∧
+        (∀ x ∈ reads (tr (RS σ) User cls ko (L.cpu σ) (L.ksb σ) (masksOf st σ) ar p ∅ a) ν, Aligned x → Rr x →
+          (¬ User x ∨ x ∉ (∅ : Set U64)) → L.mem s x = ν x) := by
   have e0 : own (L.mem σ) = own ρv := hO _ _ hρ
   have hDN : ∀ x, N x → ¬ (ρv x ≠ ρ x) := fun x hx h => h (hN1 x hx)
   have hO1' : ∀ m m' : U64 → U64, (∀ x, Aligned x → ¬ User x → ¬ (ρv x ≠ ρ x) → m x = m' x) →
@@ -298,9 +313,7 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
       · have h' : own ρ x = .gate := by rw [← hN2 x hn, ← e0]; exact h
         rw [hV.1 x (Or.inr h')]; exact Or.inr h'
     · exact Or.inl (hH x hx)
-  refine Fl4Proofs.P2.Serial.safe_of_runs hL (Rp := RpOf (fun x => RS σ x ∧ N x) User Hp) (Hp := Hp) _ ∅ μ
-    (fun _ => none) ⟨fun ν hν => ?_, fun y u hu => (by cases hu), fun y u hu => (by cases hu),
-      fun y u hu => (by cases hu), hRI⟩
+  refine ⟨hRI, fun ν hν => ?_⟩
   have hνR : ∀ x, ¬ User x → RS σ x → N x → ν x = μ x :=
     fun x hu hr hn => hν.1 x (hRI.2 x (Or.inl ⟨hu, hr, hn⟩))
   have hρR : ∀ x, ¬ User x → RS σ x → N x → ρ x = μ x :=
@@ -334,11 +347,6 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
   obtain ⟨ru, hru⟩ := hT σu a
   by_cases hacc : Acc ru.1
   · -- accepted at `σu`
-    refine ⟨fun x => if Aligned x ∧ ¬ User x then ρ x else μ x, fun y hy hpo => hy ?_, ?_⟩
-    · show (if Aligned y ∧ ¬ User y then ρ y else μ y) = μ y
-      split_ifs
-      · exact hV.2.1 y hpo
-      · rfl
     have gu : AltOf st Pre RS cls ko User σu := AltOf.pre uP
     have hW := O.acc σu a ru uP hru hacc
     rw [hp _ (Narrow.guard _ _ _) σu gu a] at hW
@@ -360,6 +368,19 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
       Within.mono (fun b h => ⟨h.1.1, h.1.2, by have := hNR σu b h.2; rw [uR] at this; exact this⟩)
         (fun b h => ⟨h.1.2, hNWs σu b h.2⟩) p σu a
         (within_and p σu a (within_and p σu a hA hW) hNa)
+    have hrd : ∀ x ∈ reads q ν, Aligned x → (RS σ x ∧ (N x ∧ (RS σ x ∨ Kc x))) →
+        (¬ User x ∨ x ∉ (∅ : Set U64)) → L.mem σu x = ν x := by
+      intro x hx hxa hxr _
+      by_cases hu : User x
+      · rw [uM x hxa, if_pos ((hul x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
+      · rw [uMk x hxa hu]; exact (hRN x hu hxr.1 hxr.2.1).symm
+    refine ⟨fun x => if Aligned x ∧ ¬ User x then ρ x else μ x, σu, σu, fun b => RS σ b ∧ (N b ∧ (RS σ b ∨ Kc b)),
+      fun x => WS σ x ∧ NW x, fun y hy hpo => hy ?_, ?_, uP, uc, uMk, Alt.refl σu, um.trans hmσ, ub, uc,
+      fun x hx => O.aligned σ x hpre (Or.inl hx.1), hWi, hO1, hrd⟩
+    · show (if Aligned y ∧ ¬ User y then ρ y else μ y) = μ y
+      split_ifs
+      · exact hV.2.1 y hpo
+      · rfl
     rw [← hq]
     refine simNW (L := L) hmk (Rr := fun b => RS σ b ∧ (N b ∧ (RS σ b ∨ Kc b))) (Wr := fun x => WS σ x ∧ NW x)
       (D := fun x => ρv x ≠ ρ x) (DD := DD) ?_ (fun x h => ⟨h.2.1, Or.inl h.1⟩) hDN hKc hO1'
@@ -368,15 +389,10 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
       hWi hM hMV hO1 (fun x hx => absurd hx (Set.notMem_empty x)) subset_rfl
       (um.trans hmσ) ub uc (fun x hx hu hd => by
         show (if Aligned x ∧ ¬ User x then ρ x else μ x) = _
-        rw [if_pos ⟨hx, hu⟩, uMk x hx hu]; exact (not_not.mp hd).symm) ?_
-    · intro x hx
-      have hn := hNW x hx.2
-      exact ⟨O.aligned σ x hpre (Or.inl hx.1), fun hu => ⟨hu, Or.inl hx.1, hn.1⟩, hn⟩
-    · rw [hq]
-      intro x hx hxa hxr _
-      by_cases hu : User x
-      · rw [uM x hxa, if_pos ((hul x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
-      · rw [uMk x hxa hu]; exact (hRN x hu hxr.1 hxr.2.1).symm
+        rw [if_pos ⟨hx, hu⟩, uMk x hx hu]; exact (not_not.mp hd).symm) (by rw [hq]; exact hrd)
+    intro x hx
+    have hn := hNW x hx.2
+    exact ⟨O.aligned σ x hpre (Or.inl hx.1), fun hu => ⟨hu, Or.inl hx.1, hn.1⟩, hn⟩
   · -- declined at `σu`
     have hAlt : Alt st (RS σu) cls ko User σu σν := by
       refine ⟨kc, kb, km, fun x hx => ?_, fun x hx hu hko => ?_⟩
@@ -424,8 +440,23 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
       Within.mono (fun b h => ⟨h.1.1, by have := hNR σu b h.2; rw [uR] at this; exact this⟩)
         (fun b h => ⟨h.1.2, hNWs σu b h.2⟩) p σν a
         (within_and p σν a (within_and p σν a hA hW) hNd)
+    have hrd : ∀ x ∈ reads q ν, Aligned x → (N x ∧ (RS σ x ∨ Kc x)) →
+        (¬ User x ∨ x ∉ (∅ : Set U64)) → L.mem σν x = ν x := by
+      intro x hx hxa hxr _
+      rw [kM x hxa]
+      by_cases hu : User x
+      · rw [if_neg (fun h => ((hkl x).mp h).2 hu), uM x hxa,
+          if_pos ((hul x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
+      · rw [if_pos ((hkl x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
+        show (if N x ∧ Kc x then ν x else ρv x) = ν x
+        split_ifs with hn
+        · rfl
+        · have hr : RS σ x := hxr.2.resolve_right fun hk => hn ⟨hxr.1, hk⟩
+          exact (hRN x hu hr hxr.1).symm
     refine ⟨fun x => if Aligned x ∧ ¬ User x then (if ρv x ≠ ρ x then ρ x else L.mem σν x) else μ x,
-      fun y hy hpo => ?_, ?_⟩
+      σu, σν, fun b => N b ∧ (RS σ b ∨ Kc b), fun x => DS σ x ∧ NW x,
+      fun y hy hpo => ?_, ?_, uP, uc, uMk, hAlt, km.trans (um.trans hmσ), kb.trans ub, kc.trans uc,
+      fun x hx => O.aligned σ x hpre (Or.inr hx.1), hWi, hO1, hrd⟩
     · apply hy
       beta_reduce
       split_ifs with h hd
@@ -443,22 +474,51 @@ theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
         (D := fun x => ρv x ≠ ρ x) (DD := DD) ?_ (fun x h => h) hDN hKc hO1'
         (fun q h => hO2V q h.2) p σν a ∅ ∅ ∅ ν _ hWi hM hMV hO1 (fun x hx => absurd hx (Set.notMem_empty x))
         subset_rfl (km.trans (um.trans hmσ)) (kb.trans ub) (kc.trans uc)
-        (fun x hx hu hd => by rw [if_pos ⟨hx, hu⟩, if_neg hd]) ?_
-      · intro x hx
-        have hn := hNW x hx.2
-        exact ⟨O.aligned σ x hpre (Or.inr hx.1), fun hu => ⟨hu, Or.inr hx.1, hn.1⟩, hn⟩
-      · rw [hq]
-        intro x hx hxa hxr _
-        rw [kM x hxa]
-        by_cases hu : User x
-        · rw [if_neg (fun h => ((hkl x).mp h).2 hu), uM x hxa,
-            if_pos ((hul x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
-        · rw [if_pos ((hkl x).mpr ⟨⟨hx, hxa⟩, hu⟩)]
-          show (if N x ∧ Kc x then ν x else ρv x) = ν x
-          split_ifs with hn
-          · rfl
-          · have hr : RS σ x := hxr.2.resolve_right fun hk => hn ⟨hxr.1, hk⟩
-            exact (hRN x hu hr hxr.1).symm
+        (fun x hx hu hd => by rw [if_pos ⟨hx, hu⟩, if_neg hd]) (by rw [hq]; exact hrd)
+      intro x hx
+      have hn := hNW x hx.2
+      exact ⟨O.aligned σ x hpre (Or.inr hx.1), fun hu => ⟨hu, Or.inr hx.1, hn.1⟩, hn⟩
+
+
+/-- **`body_safeV` with value-checked writes** (module docstring): `hO2W` only for writes passing `VW`, and the runs
+`hNarA` / `hNarD` speak of also pass `VW` at every write (`hVA` / `hVD`). As `body_safeV`: `N`: words where `ρv` and `ρ` agree in value and owner; `Kc`: words where the path's class
+owner `ko` is the target's `kt`; `NW`: the words the runs may write; `DD`: words whose owner the words off
+`{ρv ≠ ρ}` do not fix. -/
+theorem body_safeVW (hL : MoveHeld own) (hO : OwnDep own User)
+    (hp : IsProgOn (F ar) ar st (AltOf st Pre RS cls ko User) p)
+    (O : PathObl st (F ar) Acc own cls ko User Locks Pre RS WS DS)
+    (Sd : PathSide st (F ar) cls ko User Locks Pre RS WS DS)
+    (hN : ReadOnce st ar p cls ko User Pre RS) (hT : ∀ s a, ∃ r, F ar st s a = ok r)
+    (hmk : MasksWr st) {σ : S} {a : A} (hpre : Pre σ) {ρv ρ μ : U64 → U64}
+    (hρ : ∀ x, Aligned x → ¬ User x → L.mem σ x = ρv x)
+    (hV : VEq own cls kt (L.cpu σ) (Locks σ) ρ μ)
+    {N Kc NW DD : U64 → Prop}
+    (hN1 : ∀ x, N x → ρv x = ρ x) (hN2 : ∀ x, N x → own ρv x = own ρ x) (hKc : ∀ x, Kc x → ko x = kt x)
+    (hNW : ∀ x, NW x → N x ∧ Kc x)
+    (hO1 : ∀ m m' : U64 → U64, (∀ x, Aligned x → ¬ User x → ρv x = ρ x → m x = m' x) →
+      ∀ y, ¬ DD y → own m y = own m' y)
+    {VW : S → S → Prop}
+    (hO2W : ∀ q, NW q → ∀ (s : S) v (m : U64 → U64), VW s (L.wr s q v) →
+      (∀ x, Aligned x → ¬ User x → ρv x = ρ x → m x = L.mem s x) → ∀ y, DD y → own (Function.update m q v) y = own m y)
+    {NR NWs : S → U64 → Prop} (hNR : ∀ s0 b, NR s0 b → N b ∧ (RS s0 b ∨ Kc b)) (hNWs : ∀ s0 b, NWs s0 b → NW b)
+    (hNarA : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r → Acc r.1 →
+      F ar (guard st (NR s0) (NWs s0)) s0 a = ok r)
+    (hNarD : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r →
+      ¬ Acc r.1 → ∀ s' r', Alt st (RS s0) cls ko User s0 s' → F ar st s' a = ok r' →
+        F ar (guard st (NR s0) (NWs s0)) s' a = ok r')
+    (hVA : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r → Acc r.1 →
+      F ar (mguard st VW) s0 a = ok r)
+    (hVD : ∀ s0 r, Pre s0 → L.cpu s0 = L.cpu σ → (∀ x, Aligned x → ¬ User x → L.mem s0 x = ρv x) → F ar st s0 a = ok r →
+      ¬ Acc r.1 → ∀ s' r', Alt st (RS s0) cls ko User s0 s' → F ar st s' a = ok r' →
+        F ar (mguard st VW) s' a = ok r') :
+    Safe own cls kt (L.cpu σ) (Locks σ) μ
+      (tr (RS σ) User cls ko (L.cpu σ) (L.ksb σ) (masksOf st σ) ar p ∅ a) := by
+  obtain ⟨hRI, hrun⟩ := body_runVW hL hO hp O Sd hN hT hmk hpre hρ hV hN1 hN2 hKc hNW hO1 hO2W hNR hNWs hNarA hNarD
+    hVA hVD
+  refine Fl4Proofs.P2.Serial.safe_of_runs hL _ ∅ μ (fun _ => none) ⟨fun ν hν => ?_, fun y u hu => (by cases hu),
+    fun y u hu => (by cases hu), fun y u hu => (by cases hu), hRI⟩
+  obtain ⟨κ, -, -, -, -, h1, h2, -⟩ := hrun ν hν
+  exact ⟨κ, h1, h2⟩
 
 end body
 

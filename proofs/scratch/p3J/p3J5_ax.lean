@@ -1,5 +1,4 @@
 import Fl4Proofs.P3.JBootIoa
-#print axioms Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU39
 #print axioms Fl4Proofs.P3.SInvR.G5.KDispHypsKVU39.toU38
 #print axioms Fl4Proofs.P3.SInvR.G5.KDispHypsKVU38.toU39
 #print axioms Fl4Proofs.P3.SInvR.G5.IoaMap.of_entry

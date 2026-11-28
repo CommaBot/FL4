@@ -20,6 +20,10 @@ two are one step here).
   owner of the current SC while time is consumed would have, by `OffOK`, a
   ready and sufficient head, i.e. a released SC (`hnrel`); the rest as
   `JAtZ.runIJ`.
+
+(mmuAD gen 42b18) P3/JAtZBRunPostV's `JAtZB.runPostJV` (the post with the `TFoot` footprint and the spec heap) moved
+here as the in-place generalisation of `runPostJ`; `JAtZB.runPostJ` and `JAtZ.runPostJ` are its corollaries (`ext` by
+`JAtZ.ext_tfoot`). The copies in P3/JAtZBRunPost / JAtZBRunPostV deleted.
 -/
 import Fl4Proofs.P3.XTopJointSwitch
 open Aeneas Aeneas.Std Result
@@ -95,8 +99,9 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 set_option maxHeartbeats 32000000 in
-/-- **`Running`, then `postpone`, at `J`** (module docstring). -/
-theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+/-- **`Running`, then `postpone`, at `J`, the post also naming the footprint and the spec heap** (P3/JAtZBRunPost's
+`JAtZB.runPostJ`, proof verbatim; module docstring). -/
+theorem JAtZB.runPostJV (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
     (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
     {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n))
@@ -109,7 +114,9 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
         (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
       sched.postpone st s6 sc ⦃ s7 => ∃ σ7, Fl4Spec.postpone (Z := Unit) sc.bv
           (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) = ({((), σ7)}, False) ∧
-        ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D s7 a σ7 ⦄ ⦄ := by
+        P1.WritesIn st s s7 (TFoot st Z.T Z.N Z.C Z.c s σ) ∧
+        σ7.kheap t.bv = some (.tcb { x with tcbState := .running }) ∧ (∀ p, p ≠ t.bv → σ7.kheap p = σ.kheap p) ∧
+        ∃ Lst' : U64 → List U64, JAtZB (L := L) arI AR Z H Cs Ac Lst' D s7 a σ7 ⦄ ⦄ := by
   have hP0 := J.ip
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
@@ -382,13 +389,49 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   have hdead : ∀ q ∈ D, DeadP (L := L) H s7 q := fun q hq =>
     J.deadP_sc_stepQ hX7 hW7 hK7 (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hlk hfk hAI.1 hY' ((hYK6.trans (YKeep.of_kheap hke)).dk q.bv) (fun h => h) (J.jcov.dead q hq)
-  exact ⟨Lst', J.sc_frame hW7 hK7 hX7 hCR' hRF' hY' hM' (J.sc_buf hW7 hK7) hRP' (J.sc_apart hW7 hK7)
+  exact ⟨hW7, hk7, hkp7, Lst', J.sc_frame hW7 hK7 hX7 hCR' hRF' hY' hM' (J.sc_buf hW7 hK7) hRP' (J.sc_apart hW7 hK7)
     (J.sc_jpl hW7 hK7 (J.idleW_keep hX7.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW7 hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX7.fin.1.1.1 hfk.2.1 hfk.2.2) hKd subset_rfl)
     (J.sc_kern hW7 hK7 hfk hX7 hDbg fun _ h => h)
     (J.sc_utc hW7 hK7 hDbg) hNSC hI7 hcur7 hown7 hoff hAI (BlockedScActive.tkw J.bsa hK7 fun p y1 n1 hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk7] at hp; cases hp
       · rw [hkp7 _ e] at hp; exact ⟨y1, hp, ha, fun _ h => h, id⟩) hcr7 hblk hKd (J.idleW_keep hX7.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
+
+/-- `JAtZB.runPostJV` without the footprint and spec-heap facts. -/
+theorem JAtZB.runPostJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
+    (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
+    {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n))
+    (hya : Fl4Spec.scActive y = true)
+    (hnrel : ¬ (Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true ∧
+      Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true)) :
+    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 =>
+      XTopAt (L := L) AR Z s6 a (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
+      IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s6
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
+      sched.postpone st s6 sc ⦃ s7 => ∃ σ7, Fl4Spec.postpone (Z := Unit) sc.bv
+          (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) = ({((), σ7)}, False) ∧
+        ∃ Lst' : U64 → List U64, JAtZB (L := L) arI AR Z H Cs Ac Lst' D s7 a σ7 ⦄ ⦄ :=
+  WP.spec_mono (J.runPostJV ht htD hk hrs htc hsc hxsc hky hya hnrel) fun _ ⟨hX, hI, h⟩ =>
+    ⟨hX, hI, WP.spec_mono h fun _ ⟨σ7, he, _, _, _, Lst', B⟩ => ⟨σ7, he, Lst', B⟩⟩
+
+/-- `JAtZB.runPostJV` at `JAtZ` (via `JAtZ.toB`; `ext` across the `TFoot` footprint). -/
+theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .inactive)
+    (htc : t.bv ≠ σ.curThread) {sc : U64} (hsc : sc ∈ Z.C) (hxsc : x.tcbSchedContext = some sc.bv)
+    {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n))
+    (hya : Fl4Spec.scActive y = true)
+    (hnrel : ¬ (Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true ∧
+      Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true)) :
+    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 =>
+      XTopAt (L := L) AR Z s6 a (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
+      IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s6
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
+      sched.postpone st s6 sc ⦃ s7 => ∃ σ7, Fl4Spec.postpone (Z := Unit) sc.bv
+          (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) = ({((), σ7)}, False) ∧
+        ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D s7 a σ7 ⦄ ⦄ :=
+  WP.spec_mono (J.toB.runPostJV ht htD hk hrs htc hsc hxsc hky hya hnrel) fun _ ⟨hX, hI, h⟩ =>
+    ⟨hX, hI, WP.spec_mono h fun _ ⟨σ7, he, hw, _, _, Lst', B⟩ => ⟨σ7, he, Lst', B.toJAtZ (J.ext_tfoot hw)⟩⟩
 
 end
 

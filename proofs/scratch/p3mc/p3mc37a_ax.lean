@@ -30,12 +30,6 @@ import Fl4Proofs.P2.BootStart
 #print axioms Fl4Proofs.P2.BootSt.kB
 #print axioms Fl4Proofs.P2.BootSt.kB_eq
 #print axioms Fl4Proofs.P2.BootSt.g3_gen
-#print axioms Fl4Proofs.P2.BootSt.execStartV12_B
 #print axioms Fl4Proofs.P2.BootSt.execStartV13_B
-#print axioms Fl4Proofs.P2.BootSt.startReachedV12_B
-#print axioms Fl4Proofs.P2.BootSt.startReachedV13_B
 #print axioms Fl4Proofs.P2.BootSt.nonIdle_false_B
 #print axioms Fl4Proofs.P2.BootSt.ybw_B
-#print axioms Fl4Proofs.P2.BootSt.execWPRV12_vcpus
-#print axioms Fl4Proofs.P2.BootSt.hwStepP_false
-#print axioms Fl4Proofs.P2.BootSt.hw_dead

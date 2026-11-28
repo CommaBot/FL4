@@ -8,6 +8,12 @@ and XTopJointLiveIns so that XTopJointStep's `stepClosed_jat` can build the
 `refsObj_objRefs`, and `LiveDN.wstepX` (XTopJointLiveStep's `LiveDN.wstep`
 with the `XTopAt` after and the dead TCB zombies after in place of a `JAtZ`
 after).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `slot_node`, `inSlot_notDbg`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `notDbg_tw`,
+`nwrite_notDbg`, `zD_diffE`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the
+`JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJoint
 import Fl4Proofs.P3.ScJointFrame
@@ -151,12 +157,17 @@ theorem JAtZ.zD_diffN (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64
 
 /-- **The TCB zombies' TCBs stay in the dead set without an endpoint** (a
 TCB zombie's object is a TCB, `JAtZ.ztcb_tcb`). -/
-theorem JAtZ.zD_diffE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.E) :
+theorem JAtZB.zD_diffE (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.E) :
     ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D \ {n} := fun p hp =>
   ⟨J.zD p hp, fun e => by
     have h1 : H p = some .tcb := J.zH.1 p (J.thT p (J.ztcb_tcb hp))
     rw [Set.mem_singleton_iff.1 e, J.zH.2.1 n hn] at h1
     cases h1⟩
+
+/-- `JAtZB.zD_diffE` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.zD_diffE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.E) :
+    ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D \ {n} :=
+  Fl4Proofs.P3.JAtZB.zD_diffE (J := J.toB) (hn := hn)
 
 /-- **Writes avoiding the debug words keep them.** -/
 theorem dbgKeep_of_writes {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set U64} {Zb : U64 → Nat}
@@ -165,7 +176,7 @@ theorem dbgKeep_of_writes {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set 
   ⟨hw.1, fun b hb => hw.mem_eq (P1.dbgW_aligned h hb) fun h' => hB b h' hb⟩
 
 /-- **A word outside the TCBs and off the nodes' head words is no debug word.** -/
-theorem JAtZ.notDbg' {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.notDbg' {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
     (hnode : ∀ c ∈ Cs, b.val ≠ L.nodeBase s c + 88) :
     ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
@@ -187,16 +198,30 @@ theorem JAtZ.notDbg' {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     rw [e, P1.nodeAt_val (hq.nodes c hc) (by simp [P1.debug_val]), P1.debug_val] at h1
     exact h1 rfl
 
+/-- `JAtZB.notDbg'` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.notDbg' {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
+    (hnode : ∀ c ∈ Cs, b.val ≠ L.nodeBase s c + 88) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  J.toB.notDbg' hobj hnode
+
 /-- **A word outside the TCBs and the nodes is no debug word.** -/
-theorem JAtZ.notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
     (hnode : ∀ c ∈ Cs, b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val) :
     ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
   J.notDbg' hobj fun c hc => by rcases hnode c hc with h | h <;> omega
 
+/-- `JAtZB.notDbg` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
+    (hnode : ∀ c ∈ Cs, b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  J.toB.notDbg hobj hnode
+
 /-- A slot lies apart from every core's node (its object, an object of `H`,
 does: `JKern.hnd`). -/
-theorem JAtZ.slot_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.slot_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {x : U64} (hx : IsSlot Z.th x) {c : U64} (hc : c ∈ Cs) :
     x.val + 32 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ x.val := by
   obtain ⟨p, i, hpi, rfl⟩ := hx
@@ -214,9 +239,15 @@ theorem JAtZ.slot_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     rw [hv]
     omega
 
+
+/-- `JAtZB.slot_node` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.slot_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x : U64} (hx : IsSlot Z.th x) {c : U64} (hc : c ∈ Cs) :
+    x.val + 32 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ x.val :=
+  J.toB.slot_node hx hc
 /-- **A slot word is no debug word** (the TCBs' slots below their offset
 256, `SlotsApart`; the slots apart from the nodes, `JAtZ.slot_node`). -/
-theorem JAtZ.inSlot_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.inSlot_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : InSlot Z.th b) : ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
   obtain ⟨x, hx, h1, h2⟩ := hb
   obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
@@ -237,9 +268,14 @@ theorem JAtZ.inSlot_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     rw [e, P1.nodeAt_val (hq.nodes c hc) (by simp [P1.debug_val]), P1.debug_val] at h1 h2
     omega
 
+
+/-- `JAtZB.inSlot_notDbg` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.inSlot_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : InSlot Z.th b) : ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  J.toB.inSlot_notDbg hb
 /-- **A word apart from the TCBs' debug links and the nodes' debug heads is no
 debug word** (the links at TCB offsets 3576 and 3584). -/
-theorem JAtZ.notDbg_tw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.notDbg_tw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (htcb : ∀ y ∈ Z.T, ∀ (w : U64) (K : Nat), w.val = y.val + K → 3576 ≤ K → K < 4096 → b ≠ w)
     (hnode : ∀ c ∈ Cs, b ≠ L.nodeAt s c layout.node.DEBUG_TCBS) :
     ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
@@ -257,6 +293,13 @@ theorem JAtZ.notDbg_tw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       (by norm_num) (by norm_num) e
   · exact hnode c hc e
 
+/-- `JAtZB.notDbg_tw` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.notDbg_tw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (htcb : ∀ y ∈ Z.T, ∀ (w : U64) (K : Nat), w.val = y.val + K → 3576 ≤ K → K < 4096 → b ≠ w)
+    (hnode : ∀ c ∈ Cs, b ≠ L.nodeAt s c layout.node.DEBUG_TCBS) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  Fl4Proofs.P3.JAtZB.notDbg_tw (J := J.toB) (htcb := htcb) (hnode := hnode)
+
 /-- Two TCB words at different offsets differ (the TCBs 4096-aligned). -/
 theorem tcbOff_ne {T : Set U64} (hT : P1.TcbPlaced T) {t u b w : U64} (ht : t ∈ T) (hu : u ∈ T) {K K' : Nat}
     (hb : b.val = t.val + K) (hw : w.val = u.val + K') (hK : K < 4096) (hK' : K' < 4096) (hne : K ≠ K') :
@@ -270,8 +313,8 @@ theorem tcbOff_ne {T : Set U64} (hT : P1.TcbPlaced T) {t u b w : U64} (ht : t �
     omega
 
 /-- **A notification step's word (`NWrite`) is no debug word.** -/
-theorem JAtZ.nwrite_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : Notif.NWrite Z.N Z.T b) :
+theorem JAtZB.nwrite_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : Notif.NWrite Z.N Z.T b) :
     ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
   have hT : P1.TcbPlaced Z.T := J.ip.e.tcb
   have hH := J.kern.heap
@@ -302,6 +345,12 @@ theorem JAtZ.nwrite_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit}
       rw [← e] at hnv
       have hd88 : layout.node.DEBUG_TCBS.val = 88 := P1.debug_val
       rcases hv with e' | e' | e' | e' | e' | e' <;> omega
+
+/-- `JAtZB.nwrite_notDbg` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.nwrite_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : Notif.NWrite Z.N Z.T b) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  Fl4Proofs.P3.JAtZB.nwrite_notDbg (J := J.toB) (hb := hb)
 
 /-! ### The debug-word exclusions from P1's `BlkOK` alone (for `JAtZR` and the like) -/
 

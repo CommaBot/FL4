@@ -6,16 +6,9 @@ import Fl4Proofs.P2.E2EPV13
 #print axioms Fl4Proofs.P2.E2EP.VmREntV13
 #print axioms Fl4Proofs.P2.E2EP.SlEntV13
 #print axioms Fl4Proofs.P2.E2EP.VmFEntV13.toJ14
-#print axioms Fl4Proofs.P2.E2EP.VmFEntV13.ofJ14
 #print axioms Fl4Proofs.P2.E2EP.VmREntV13.toU
-#print axioms Fl4Proofs.P2.E2EP.VmREntV13.ofU
 #print axioms Fl4Proofs.P2.E2EP.SlEntV13.toU
-#print axioms Fl4Proofs.P2.E2EP.SlEntV13.ofU
 #print axioms Fl4Proofs.P2.E2EP.StartU2V13
 #print axioms Fl4Proofs.P2.E2EP.StartV13
 #print axioms Fl4Proofs.P2.E2EP.startV2C_of_V13
-#print axioms Fl4Proofs.P2.E2EP.startV13_of_V2C
-#print axioms Fl4Proofs.P2.E2EP.execWPRV12_conv
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localV13
-#print axioms Fl4Proofs.P2.E2EP.serializable_fl4_localV12ofV13
 #print axioms Fl4Proofs.P2.E2EP.ybw_of_bun

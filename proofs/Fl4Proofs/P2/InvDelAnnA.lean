@@ -21,6 +21,12 @@ CNodeDelete program is `Safe` at **every** CNodeDelete view start:
 
 No named premise (`hCs`, `hlk` are the start record's `InvPremW.hCs` / `InvPremW.lk` [P]). New module; no existing
 statement changes.
+
+**Gen 51 (line p3mc), in-place split, every existing statement byte-identical up to `:=`**: `inv_del_annA` (16M) is
+re-proved from pieces of ≤ 4M heartbeats — `DelStInv` (the invariant of the checked writes), **`del_stepOK`** (the
+checked writes are in `DelWd`, pass `StepOK`, keep `DelStInv`) and **`del_hgoX`** (the run oracle, plus the user-word
+variant `σ'` of the start it runs at: again a view start, agreeing with the oracle state on the read set, the kernel
+base, the core and the masks, its run inside `DelRd` / `DelWd`). P2/InsV15Del uses `del_hgoX` for the `InsA` twin.
 -/
 import Fl4Proofs.P2.InvDelAnn
 import Fl4Proofs.P2.InvDelGdA
@@ -318,33 +324,34 @@ theorem inv_del_gdA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU
   exact ⟨r, (hpR (gd st Rd Pw) (Narrow.gd _ _ _) σ ⟨σ, ⟨⟨hJ, hq⟩, hqu⟩, Alt.refl σ⟩ a).symm.trans hgσ0,
     (hpR st (Narrow.self st) σ ⟨σ, ⟨⟨hJ, hq⟩, hqu⟩, Alt.refl σ⟩ a).symm.trans hr0⟩
 
-set_option maxHeartbeats 16000000 in
-/-- **U9's armed CNodeDelete program is `Safe` at every CNodeDelete view start** (module docstring). -/
-theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
+/-- (gen 51, split out of `inv_del_annA` in place) **The invariant the CNodeDelete run's checked writes keep.** -/
+abbrev DelStInv (K : KLayoutP) (c : U64) (ρ : U64 → U64) (Locks : S → U64 → Prop) (σ x : S) : Prop :=
+  L.mem x (fld (L.curW σ) oAFFINITY) = c ∧ ¬ OwnMap.QueuedState (L.mem x (fld (L.curW σ) oSTATE)) ∧
+    ∀ q, q ∈ K.slots → ¬ TcbSlot K.toKLayout q → (IoRS (st := st) K.toKLayout Locks σ q ∧ SR K c ρ q) →
+      NullOrFrame (L.mem σ q) → NullOrFrame (L.mem x q)
+
+set_option maxHeartbeats 4000000 in
+/-- (gen 51, split out of `inv_del_annA` in place) **The CNodeDelete run's checked writes are in its write set, pass
+`StepOK` and keep `DelStInv`.** -/
+theorem del_stepOK {K : KLayoutP} (hK : RegionOKP K) (nv : K.vcpus = ∅)
     {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
     (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {number : I64} {σ : S} {a : A}
-    (hCs : ∀ c ∈ Cs, c.val < 64)
-    (hlk : ∀ (K' : OwnMap.KLayout) (s : S) (b v : U64), SlJAt (L := L) K' s → b ∈ K'.user → Aligned b →
-      Locks (L.wr s b v) = Locks s)
+    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {σ : S}
     (hJ : SlJAt (L := L) K.toKLayout σ)
-    (hq : InvQF st Cs Ω Sg Ac Locks p K.toKLayout (view K.toKLayout c ρ) σ) (hqu : QU st K σ)
-    (hc : L.cpu σ = c) (hl : Locks σ = hs)
+    (hq : InvQF st Cs Ω Sg Ac Locks p K.toKLayout (view K.toKLayout c ρ) σ)
     (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
-    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
-      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
-        (tr (fun x => InvCMRS (st := st) K.toKLayout Locks σ x ∧ ¬ x ∈ K.ptes) (· ∈ K.user)
-          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
-          (R.invBodyG number p) ∅ a)) := by
-
+    (∀ x q v, DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ) (IoWS (st := st) K.toKLayout Locks σ)
+        (L.curW σ) (L.mem σ) (Locks σ) x q v → DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ) q) ∧
+    ∀ (x : S) (q v : U64) (x' : S), DelStInv (st := st) K c ρ Locks σ x →
+      DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ) (IoWS (st := st) K.toKLayout Locks σ)
+        (L.curW σ) (L.mem σ) (Locks σ) x q v → st.write x q v = ok x' →
+      PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user) c hs (L.mem x)
+        (L.mem x') ∧ DelStInv (st := st) K c ρ Locks σ x' := by
   have hX := hJ.regionOKX
   have hK0 := hJ.regionOK
   have hUO := hJ.userOK
-  have hLA := hJ.ioLayA
   obtain ⟨Ac', B⟩ := bunIx_of hJ
   have hI := B.bxi
-  have hL := B.stLay
-  have hP := stPre_ofS B.ac
   have h0 := hI.1.choose_spec.choose_spec
   have hT : TcbPlaced K.toKLayout.heap.tcbs := h0.tcbs
   have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
@@ -353,124 +360,11 @@ theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (h
   have hcur : ρ (fld (L.curW σ) oAFFINITY) = c := vx_cur_home hJ hmm
   have PE := hq.1.1.1
   have hL8 : Slot8 K.toKLayout := fun q hq => PE.lay.slot8 q hq
-  have hQ := hqu.1
-  have ct0 : L.curW σ ≠ 0#u64 := fun e => (hT _ hcT).ne0 (by rw [e]; rfl)
-  -- homes (as P2/IrqWhAnn)
-  have hO := hI.2.2.1.1
-  have scHome : ∀ p, p ∈ Heap.scs K.toKLayout.heap → L.mem σ (scTcbA p) ≠ 0#u64 → ρ (fld p 16#u64) = c := by
-    intro p hp hp0
-    obtain ⟨hP', hz⟩ := hO.sc _ hp
-    obtain ⟨h8, h128, hfit⟩ := sc_lo hP' hz
-    have hv : (scTcbA p).val = p.val + 24 := by
-      unfold scTcbA; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    have hr : region K.toKLayout (scTcbA p) = .sc p :=
-      hX.scW p _ (st_scH (K := K) hp) _ ⟨by omega, by omega⟩
-    have ha : Aligned (scTcbA p) := by unfold Aligned; rw [hv]; omega
-    have hku : scTcbA p ∉ K.user := hL.nu_sc hp ⟨by omega, by omega⟩
-    exact CoreView.view_sctcb_home (K := K.toKLayout) hr (by omega) (by rw [← hmm _ ha hku]; exact hp0)
-  have hcsc0 : L.cscW σ ≠ 0#u64 := by
-    intro e
-    obtain ⟨z, hz'⟩ := hP.csc
-    rw [e] at hz'
-    have hz2 : K.toKLayout.heap 0#u64 = some (.sc z) := hz'
-    rw [slJAt_heap0 hJ] at hz2
-    cases hz2
-  have hne : L.mem σ (scA (L.curW σ)) ≠ 0#u64 := by rw [hP.sct]; exact hcsc0
-  obtain ⟨hcs1, htcb1, -⟩ := hI.2.2.1.2.2.bound _ h0.curT hne
-  have hcs : L.cscW σ ∈ Heap.scs K.toKLayout.heap := by rw [← hP.sct]; exact hcs1
-  have cscHome : ρ (fld (L.cscW σ) 16#u64) = c := by
-    rw [← hP.sct]
-    exact scHome _ hcs1 (fun e => ct0 (htcb1.symm.trans e))
-  have rhHome : ∀ (h00 : L.mem σ (rhA (L := L) σ) ≠ 0#u64),
-      ρ (fld (L.mem σ (rhA (L := L) σ)) oAFFINITY) = c ∧
-        ρ (fld (L.mem σ (scA (L.mem σ (rhA (L := L) σ)))) 16#u64) = c := by
-    intro h00
-    obtain ⟨⟨Q, Rq, hq'⟩, hb, ⟨-, -, hX'⟩, -, -⟩ := id hI
-    obtain ⟨hTr, -, -⟩ := bxi_rh hI h00
-    have hne' : L.mem σ (scA (L.mem σ (rhA (L := L) σ))) ≠ 0#u64 := by
-      intro e0
-      have hfl := hb.r _ hTr
-      have hrel := hq'.release _ hq'.cur
-      have hd : L.mem σ (rhA (L := L) σ) = (Rq (L.cpu σ)).headD 0#u64 := hrel.head
-      have hmR : L.mem σ (rhA (L := L) σ) ∈ Rq (L.cpu σ) := by
-        cases hl' : Rq (L.cpu σ) with
-        | nil => rw [hl'] at hd; exact absurd hd h00
-        | cons r rs => rw [hl'] at hd; rw [hd]; simp
-      exact hfl ((hq'.released _ hTr).2 (by rw [hq'.inR _ hq'.cur _ hmR]; exact hmR)) e0
-    obtain ⟨hcs', htcb, -⟩ := hX'.bound _ hTr hne'
-    refine ⟨?_, scHome _ hcs' (fun e => h00 (htcb.symm.trans e))⟩
-    have hrH : K.toKLayout.heap (L.mem σ (rhA (L := L) σ)) = some .tcb := hTr
-    obtain ⟨hr, hv, ha⟩ := hX.tcbW _ hrH 3464#u64 (by simp) (by simp) (by simp)
-    have hu : scA (L.mem σ (rhA (L := L) σ)) ∉ K.user := hL.nu_tcb hTr (k := 3464#u64) (by simp) (by simp)
-    refine CoreView.view_tzero_home hr (by rw [hv]; simp [TZero]) ?_
-    rw [← hmm _ ha hu]; exact hne'
-  have armρ : L.mem σ (tmA (L := L) σ) ≠ 0#u64 → ρ (fld (L.mem σ (tmA (L := L) σ)) oTIMER_DEADLINE) ≠ 0#u64 := by
-    intro hne'
-    obtain ⟨tmT, arm⟩ := tmin_facts (BXI.blk hI) h0.cur hne'
-    have tH : K.toKLayout.heap (L.mem σ (tmA (L := L) σ)) = some .tcb := tmT
-    obtain ⟨hr0, hv0, hal⟩ := hX.tcbW _ tH 3528#u64 (by simp) (by simp) (by simp)
-    have hr : region K.toKLayout (tdA (L.mem σ (tmA (L := L) σ))) = .tcb (L.mem σ (tmA (L := L) σ)) := hr0
-    have hv : (tdA (L.mem σ (tmA (L := L) σ))).val - (L.mem σ (tmA (L := L) σ)).val = (3528#u64).val := hv0
-    have hu : tdA (L.mem σ (tmA (L := L) σ)) ∉ K.user := hL.nu_tcb tmT (k := 3528#u64) (by simp) (by simp)
-    have e1 := hmm (tdA (L.mem σ (tmA (L := L) σ))) hal hu
-    have e2 : view K.toKLayout c ρ (tdA (L.mem σ (tmA (L := L) σ))) = ρ (tdA (L.mem σ (tmA (L := L) σ))) :=
-      CoreView.view_timer_keep hr (by rw [hv]; simp) (by rw [hv]; simp)
-    intro e
-    exact arm.1 (by rw [e1, e2]; exact e)
-  -- the word classes are `SR`
-  have srN : ∀ o : U64, o.val < 4288 → SR K c ρ (L.nodeAt σ (L.cpu σ) o) := fun o ho => by
-    have hr : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node (L.cpu σ) := hL.nd o ho
-    have hr' : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node c := by rw [hr, hc]
-    exact sr_nf hK (by rw [hr']; intro h; cases h) (nf_node hr')
   have srT : ∀ k : U64, 192 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
       SR K c ρ (core.num.U64.wrapping_add (L.curW σ) k) := fun k h1 h2 h3 =>
     sr_tcb hK hX htH hcur (o := k) h1 h2 h3
-  have srW : ∀ b, SlotW K.toKLayout b → SR K c ρ b := fun b ⟨q, hq', hin⟩ => by
-    have hr := PE.lay.slotw q hq' b hin
-    exact sr_nf hK (by rw [hr]; intro h; cases h) (nf_slot hr)
-  have sW0 : ∀ q, q ∈ K.slots → SlotW K.toKLayout q := fun q hq' => by
-    have := slotW_of hL8 hq' (o := 0#u64) (by simp); rwa [wadd_zero (hL8 q hq').2] at this
-  have srC : ∀ b, InSC (L.cscW σ) (K.toKLayout.heap.scBits (L.cscW σ)) b → SR K c ρ b := fun b hb =>
-    (srw_sc hK hX (st_scH (K := K) hcs) cscHome hb).1
-  let G : U64 → Prop := SR K c ρ
-  have Gc : GCl st K.toKLayout K.toKLayout.heap.scBits G σ :=
-    { n := srN
-      t := fun k h1 h2 h3 => srT k (by omega) h2 h3
-      r := fun r hr => by
-        obtain ⟨o, ho, e⟩ := regA_eq' (t := L.curW σ) hr
-        rw [e]; exact srT o (by omega) (by omega) (by omega)
-      sl := fun q hq' => ⟨srW _ (sW0 q hq'), srW _ (slotW_of hL8 hq' (o := 8#u64) (by simp))⟩
-      sc := fun b _ hb => srC b hb
-      ks := by
-        rintro o (rfl | rfl)
-        · exact ⟨vn_of_nf hK (nf_none hL.dom), hQ.ksw (by simp [layout.ks.CUR_DOMAIN])⟩
-        · exact ⟨vn_of_nf hK (nf_none hL.dtm), hQ.ksw (by simp [layout.ks.DOMAIN_TIME])⟩
-      td := fun hne' => by
-        obtain ⟨tmT, -⟩ := tmin_facts (BXI.blk hI) h0.cur hne'
-        exact sr_timer hK hX (show K.toKLayout.heap _ = some .tcb from tmT) (o := 3528#u64) (by simp) (by simp)
-          (by simp) (armρ hne')
-      rs := fun hne' => by
-        obtain ⟨r1, -, -, r4, -⟩ := rel_facts hI hne'
-        obtain ⟨-, hsc', ha'⟩ := bxi_rh PE.bxi hne'
-        obtain ⟨hWf, -⟩ := bxi_scin PE.bxi hsc' ha'
-        refine ⟨sr_tcb hK hX (show K.toKLayout.heap _ = some .tcb from r1) (rhHome hne').1 (o := 3464#u64)
-          (by simp) (by simp) (by simp), ?_⟩
-        have hSA : ScAcc G (fun _ => True) (L.mem σ (scA (L.mem σ (rhA (L := L) σ))))
-            (K.toKLayout.heap.scBits (L.mem σ (scA (L.mem σ (rhA (L := L) σ))))) :=
-          ⟨fun b _ hb => (srw_sc hK hX (st_scH (K := K) r4) (rhHome hne').2 hb).1, fun _ _ _ => trivial, trivial⟩
-        exact hSA.head hWf }
-  -- the read sets
   let Rd : U64 → Prop := fun b => IoRS (st := st) K.toKLayout Locks σ b ∧ SR K c ρ b
-  let Ro : U64 → Prop := fun q => (InvCMRS (st := st) K.toKLayout Locks σ q ∧ ¬ q ∈ K.ptes) ∧ VO K c ρ q
-  have hR0 : ∀ q, Rd q → Ro q ∧ ¬ q ∈ K.user := fun q hq' =>
-    ⟨⟨⟨ioRS_cm hq'.1, hq'.2.2⟩, hq'.2.1.2⟩, hq'.1.2.1⟩
   have hal : ∀ b, Rd b → Aligned b := fun b hb => hb.1.1
-  have kvR : ∀ b, Rd b → L.mem σ b = ρ b := fun b hb =>
-    (hmm b hb.1.1 hb.1.2.1).trans hb.2.1.1
-  let Ru : U64 → Prop := PathObl.UserW K.toKLayout
-  let RdU : U64 → Prop := DelRd K c ρ (IoRS (st := st) K.toKLayout Locks σ)
-  have hRal : ∀ b, RdU b → Aligned b := fun b h => h.elim (fun h => h.1.1) (fun h => h.1)
-  -- the write sets
   let Wd : U64 → Prop := DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ)
   let Pw : S → U64 → U64 → Prop := DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ)
     (IoWS (st := st) K.toKLayout Locks σ) (L.curW σ) (L.mem σ) (Locks σ)
@@ -496,12 +390,6 @@ theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (h
     have hpo : PO c hs (ownP K μ (fld (L.curW σ) oAFFINITY)) := by
       right; rw [ownP_eq_own nv hpA]; exact OwnMap.own_aff_gate hK0 htH μ
     rw [← hV.2.1 _ hpo]; exact hcur
-  have affC : L.mem σ (fld (L.curW σ) oAFFINITY) = c := by
-    have hu : fld (L.curW σ) oAFFINITY ∉ K.user := hL.nu_tcb hcT (k := 3520#u64) (by simp) (by simp)
-    have ha : Aligned (fld (L.curW σ) oAFFINITY) := field_aligned ht' (by simp [OwnMap.oAFF_val])
-      (by simp [OwnMap.oAFF_val])
-    rw [hmm _ ha hu]
-    exact CoreView.view_aff hK0 htH c ρ
   have aA : Aligned (fld (L.curW σ) oAFFINITY) := field_aligned ht' (by simp [OwnMap.oAFF_val])
     (by simp [OwnMap.oAFF_val])
   have aS : Aligned (fld (L.curW σ) oSTATE) := by rw [← OwnMap.stA_fld]; exact field_aligned ht' (by simp) (by simp)
@@ -514,9 +402,7 @@ theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (h
     rw [e, hK0.slot _ hq'] at h1; exact OwnMap.Region.noConfusion h1
   have eS' : core.num.U64.wrapping_add (L.curW σ) layout.tcb.STATE = fld (L.curW σ) oSTATE := by
     rw [← OwnMap.stA_fld]; rfl
-  let Inv : S → Prop := fun x => L.mem x (fld (L.curW σ) oAFFINITY) = c ∧
-    ¬ OwnMap.QueuedState (L.mem x (fld (L.curW σ) oSTATE)) ∧
-    ∀ q, q ∈ K.slots → ¬ TcbSlot K.toKLayout q → Rd q → NullOrFrame (L.mem σ q) → NullOrFrame (L.mem x q)
+  let Inv : S → Prop := DelStInv (st := st) K c ρ Locks σ
   have hStep : ∀ (x : S) (q v : U64) (x' : S), Inv x → Pw x q v → st.write x q v = ok x' →
       PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user) c hs (L.mem x)
         (L.mem x') ∧ Inv x' := by
@@ -561,6 +447,177 @@ theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (h
         have dq : OwnMap.DecW K.toKLayout q' := Or.inr (Or.inl hq')
         rw [OwnMap.mem_wr_upd ha (hal q' hRd'), Function.update_of_ne (fun h => hnd (by rw [← h]; exact dq))]
         exact i3 q' hq' hT' hRd' hn'
+  exact ⟨hPW, hStep⟩
+
+set_option maxHeartbeats 4000000 in
+/-- (gen 51, split out of `inv_del_annA` in place) **`inv_del_annA`'s run oracle, with the user-word variant of the
+start it runs at**: every state `s` carrying `ρ` on the kernel reads runs on the guard of the read set and the write
+set, with `StepOK` per write and `Once`; and it agrees on the read set, the kernel base, the core and the masks with
+the state `σ'` = `σ` with `s`'s user words, which is again a view start and whose run stays in the read / write sets
+(the data gen 51's `InsT` transfer, `E2E.insT_agree`, needs). -/
+theorem del_hgoX (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
+    {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
+    (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
+    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {number : I64} {σ : S} {a : A}
+    (hCs : ∀ c ∈ Cs, c.val < 64)
+    (hlk : ∀ (K' : OwnMap.KLayout) (s : S) (b v : U64), SlJAt (L := L) K' s → b ∈ K'.user → Aligned b →
+      Locks (L.wr s b v) = Locks s)
+    (hJ : SlJAt (L := L) K.toKLayout σ)
+    (hq : InvQF st Cs Ω Sg Ac Locks p K.toKLayout (view K.toKLayout c ρ) σ) (hqu : QU st K σ)
+    (hc : L.cpu σ = c)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
+    ∀ s : S, L.cpu s = L.cpu σ → L.ksb s = L.ksb σ →
+      (∀ b, (IoRS (st := st) K.toKLayout Locks σ b ∧ SR K c ρ b) → L.mem s b = ρ b) →
+      ∃ r, interp (guard st (fun b => (IoRS (st := st) K.toKLayout Locks σ b ∧ SR K c ρ b) ∨
+          PathObl.UserW K.toKLayout b) (DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ))) ar
+          (R.invBodyG number p) s a = ok r ∧
+        WithinM st ar (fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ)
+          (· ∈ K.user) c hs (L.mem x) (L.mem y)) (R.invBodyG number p) s a ∧
+        Once st ar (fun q => (InvCMRS (st := st) K.toKLayout Locks σ q ∧ ¬ q ∈ K.ptes) ∧ VO K c ρ q) (· ∈ K.user)
+          ∅ ∅ (R.invBodyG number p) s a ∧
+        ∃ σ' : S, SlJAt (L := L) K.toKLayout σ' ∧
+          InvQF st Cs Ω Sg Ac Locks p K.toKLayout (view K.toKLayout c ρ) σ' ∧ QU st K σ' ∧
+          (∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x) ∧
+          L.ksb s = L.ksb σ' ∧ L.cpu s = L.cpu σ' ∧ st.frame_masks s = st.frame_masks σ' ∧
+          (∀ b, DelRd K c ρ (IoRS (st := st) K.toKLayout Locks σ) b → L.mem s b = L.mem σ' b) ∧
+          Within st ar (DelRd K c ρ (IoRS (st := st) K.toKLayout Locks σ))
+            (DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ)) (R.invBodyG number p) σ' a := by
+  have hX := hJ.regionOKX
+  have hK0 := hJ.regionOK
+  have hUO := hJ.userOK
+  obtain ⟨Ac', B⟩ := bunIx_of hJ
+  have hI := B.bxi
+  have hL := B.stLay
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced K.toKLayout.heap.tcbs := h0.tcbs
+  have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
+  have htH : K.toKLayout.heap (L.curW σ) = some .tcb := hcT
+  have ht' := hT _ hcT
+  have hcur : ρ (fld (L.curW σ) oAFFINITY) = c := vx_cur_home hJ hmm
+  have PE := hq.1.1.1
+  have srT : ∀ k : U64, 192 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
+      SR K c ρ (core.num.U64.wrapping_add (L.curW σ) k) := fun k h1 h2 h3 =>
+    sr_tcb hK hX htH hcur (o := k) h1 h2 h3
+  obtain ⟨hPW, hStep⟩ := del_stepOK (Locks := Locks) hK nv hV hJ hq hmm
+  -- the read sets
+  let Rd : U64 → Prop := fun b => IoRS (st := st) K.toKLayout Locks σ b ∧ SR K c ρ b
+  let Ro : U64 → Prop := fun q => (InvCMRS (st := st) K.toKLayout Locks σ q ∧ ¬ q ∈ K.ptes) ∧ VO K c ρ q
+  have hR0 : ∀ q, Rd q → Ro q ∧ ¬ q ∈ K.user := fun q hq' =>
+    ⟨⟨⟨ioRS_cm hq'.1, hq'.2.2⟩, hq'.2.1.2⟩, hq'.1.2.1⟩
+  have kvR : ∀ b, Rd b → L.mem σ b = ρ b := fun b hb =>
+    (hmm b hb.1.1 hb.1.2.1).trans hb.2.1.1
+  let Ru : U64 → Prop := PathObl.UserW K.toKLayout
+  let RdU : U64 → Prop := DelRd K c ρ (IoRS (st := st) K.toKLayout Locks σ)
+  have hRal : ∀ b, RdU b → Aligned b := fun b h => h.elim (fun h => h.1.1) (fun h => h.1)
+  -- the write sets
+  let Wd : U64 → Prop := DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ)
+  let Pw : S → U64 → U64 → Prop := DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ)
+    (IoWS (st := st) K.toKLayout Locks σ) (L.curW σ) (L.mem σ) (Locks σ)
+  have hWal : ∀ b, Wd b → Aligned b := fun b h => h.elim (fun h => h.1.1) (fun h => h.1)
+  have hPal : ∀ x q v, Pw x q v → Aligned q := fun x q v h => hWal q (hPW x q v h)
+  have affC : L.mem σ (fld (L.curW σ) oAFFINITY) = c := by
+    have hu : fld (L.curW σ) oAFFINITY ∉ K.user := hL.nu_tcb hcT (k := 3520#u64) (by simp) (by simp)
+    have ha : Aligned (fld (L.curW σ) oAFFINITY) := field_aligned ht' (by simp [OwnMap.oAFF_val])
+      (by simp [OwnMap.oAFF_val])
+    rw [hmm _ ha hu]
+    exact CoreView.view_aff hK0 htH c ρ
+  -- the aligned user words
+  have hfin : Set.Finite {x : U64 | Aligned x ∧ x ∈ K.user} := Set.toFinite _
+  obtain ⟨ul, hul⟩ : ∃ l : List U64, ∀ x, x ∈ l ↔ Aligned x ∧ x ∈ K.user :=
+    ⟨hfin.toFinset.toList, fun x => by simp⟩
+  have slNU : ∀ q, q ∈ K.slots → Aligned q ∧ q ∉ K.user := fun q hq' => OwnMap.decW_ok hUO (Or.inr (Or.inl hq'))
+  -- every state carrying `ρ` on the kernel reads runs as a view start with its user words
+  intro s hcs' hks hag
+  have hagR : ∀ b, Rd b → L.mem s b = L.mem σ b := fun b hb => (hag b hb).trans (kvR b hb).symm
+  obtain ⟨σ', hσ'⟩ : ∃ x, x = E2E.wrs st (L.mem s) ul σ := ⟨_, rfl⟩
+  obtain ⟨c1, c2, c3⟩ := E2E.wrs_const st (ν := L.mem s) (masksWr_plain st) ul σ
+  have hM := E2E.wrs_mem st (ν := L.mem s) ul σ (fun x hx => ((hul x).mp hx).1)
+  obtain ⟨hJ', hq', hqu', eL, eRS, eWS, eCur⟩ := wrsU_facts (f := L.mem s) hCs hlk ul σ
+    (fun x hx => (hul x).mp hx) hJ hq hqu
+  rw [← hσ'] at c1 c2 c3 hM hJ' hq' hqu' eL eRS eWS eCur
+  have hmm' : ∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x := fun x hx hu => by
+    rw [hM x hx, if_neg (fun h => hu ((hul x).mp h).2)]; exact hmm x hx hu
+  obtain ⟨r', hg', hs'⟩ := inv_del_gdA ar hA hK hU (number := number) (a := a) hJ' hq' hqu' (c1.trans hc) hmm'
+  have eP : DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ') (IoWS (st := st) K.toKLayout Locks σ')
+      (L.curW σ') (L.mem σ') (Locks σ') = Pw := by
+    rw [eRS, eWS, eCur, eL]
+    exact delPw_mem fun q hq' => by
+      rw [hM q (slNU q hq').1, if_neg (fun h => (slNU q hq').2 ((hul q).mp h).2)]
+  rw [eP, eRS] at hg'
+  have hagU : ∀ b, RdU b → L.mem s b = L.mem σ' b := by
+    rintro b (hb | hb)
+    · rw [hagR b hb, hM b hb.1.1, if_neg (fun h => hb.1.2.1 ((hul b).mp h).2)]
+    · rw [hM b hb.1, if_pos ((hul b).mpr hb)]
+  have hmk' : st.frame_masks s = st.frame_masks σ' := by
+    rw [PlainStore.frame_masks_eq, PlainStore.frame_masks_eq]
+  obtain ⟨x0, s0', a0'⟩ := r'
+  obtain ⟨s1', hs1⟩ := interp_agree_gd (st := st) (masksWr_plain st) hRal hPal (fun _ _ _ _ _ h => h)
+    (R.invBodyG number p) (inv_noZero number p) σ' s a x0 s0' a0' (hks.trans c2.symm) (hcs'.trans c1.symm)
+    hmk' hagU hg'
+  have hgs := interp_gd_guard (R' := RdU) (W := Wd) (fun q h => h) hPW _ s a _ hs1
+  -- `StepOK` per write
+  have hI0 : DelStInv (st := st) K c ρ Locks σ s := by
+    have rA : Rd (fld (L.curW σ) oAFFINITY) :=
+      ⟨PE.gate (Locks := Locks) (off := 3520#u64) PE.cT (by simp) (by simp) (by simp) (by simp [GateField]),
+        srT 3520#u64 (by simp) (by simp) (by simp)⟩
+    have rS : Rd (fld (L.curW σ) oSTATE) := by
+      rw [← OwnMap.stA_fld]
+      refine ⟨PE.stw.1, ?_⟩
+      rw [Fl4Proofs.P1.stA_eq]; exact srT 3328#u64 (by simp) (by simp) (by simp)
+    refine ⟨(hagR _ rA).trans affC, ?_, fun q hq' hT' hRd hn => by rw [hagR q hRd]; exact hn⟩
+    rw [hagR _ rS, ← OwnMap.stA_fld]
+    exact nq_run PE.run
+  have hm := interp_gd (R := RdU) (P := Pw)
+    (Q := fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user) c hs
+      (L.mem x) (L.mem y)) (I := DelStInv (st := st) K c ρ Locks σ) hStep _ s a _ hI0 hs1
+  -- `Once`: the path's `ReadOnce` at `σ'`, carried to `s`, narrowed
+  have hO1 : Once st ar (InvCMRS (st := st) K.toKLayout Locks σ') (· ∈ K.user) ∅ ∅ (R.invBodyG number p) σ' a :=
+    (inv_pathDelE (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number p
+    (masksWr_plain st) hCs hlk K.toKLayout (view K.toKLayout c ρ) hK.base.base hU.base.base).once σ' σ' a _
+    ⟨hJ', hq'⟩ (Alt.refl (L := L) σ') hs'
+  have eCM : InvCMRS (st := st) K.toKLayout Locks σ' = InvCMRS (st := st) K.toKLayout Locks σ := by
+    funext x; unfold InvCMRS; rw [eRS]
+  have hO1' : Once st ar (InvCMRS (st := st) K.toKLayout Locks σ) (· ∈ K.user) ∅ ∅ (R.invBodyG number p) σ' a := by
+    have h' := hO1
+    rw [eCM] at h'
+    exact h'
+  have hgσ' := interp_gd_guard (R' := RdU) (W := Wd) (fun q h => h) hPW _ σ' a _ hg'
+  have hO2 := once_agreeJ (masksWr_plain st) (Rd := InvCMRS (st := st) K.toKLayout Locks σ) (User := (· ∈ K.user))
+    hRal hWal (R.invBodyG number p) (inv_noZero number p) σ' s a _ ∅ ∅ (hks.trans c2.symm) (hcs'.trans c1.symm)
+    hmk' hagU hgσ' hO1'
+  have hO3 := once_downR (R := Rd) (Ro := Ro) (R' := InvCMRS (st := st) K.toKLayout Locks σ) (U := Ru) (W := Wd)
+    (User := (· ∈ K.user)) (fun q h => (hR0 q h).2) (fun q h => (hR0 q h).1) (fun q h => h.1.1) (fun q h => h.2)
+    (R.invBodyG number p) (inv_noZero number p) ∅ ∅ s a _ hgs hO2
+  exact ⟨_, hgs, (interp_mguard _ s a _ hm).2, hO3, σ', hJ', hq', hqu', hmm', hks.trans c2.symm,
+    hcs'.trans c1.symm, hmk', hagU, (interp_guard _ σ' a _ hgσ').2⟩
+
+set_option maxHeartbeats 16000000 in
+/-- **U9's armed CNodeDelete program is `Safe` at every CNodeDelete view start** (module docstring). -/
+theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
+    {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
+    (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
+    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {number : I64} {σ : S} {a : A}
+    (hCs : ∀ c ∈ Cs, c.val < 64)
+    (hlk : ∀ (K' : OwnMap.KLayout) (s : S) (b v : U64), SlJAt (L := L) K' s → b ∈ K'.user → Aligned b →
+      Locks (L.wr s b v) = Locks s)
+    (hJ : SlJAt (L := L) K.toKLayout σ)
+    (hq : InvQF st Cs Ω Sg Ac Locks p K.toKLayout (view K.toKLayout c ρ) σ) (hqu : QU st K σ)
+    (hc : L.cpu σ = c) (hl : Locks σ = hs)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
+    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
+      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
+        (tr (fun x => InvCMRS (st := st) K.toKLayout Locks σ x ∧ ¬ x ∈ K.ptes) (· ∈ K.user)
+          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
+          (R.invBodyG number p) ∅ a)) := by
+  have hgoX := del_hgoX ar hA hK hU nv hV (number := number) (a := a) hCs hlk hJ hq hqu hc hmm
+  -- the read sets
+  let Rd : U64 → Prop := fun b => IoRS (st := st) K.toKLayout Locks σ b ∧ SR K c ρ b
+  let Ro : U64 → Prop := fun q => (InvCMRS (st := st) K.toKLayout Locks σ q ∧ ¬ q ∈ K.ptes) ∧ VO K c ρ q
+  have hR0 : ∀ q, Rd q → Ro q ∧ ¬ q ∈ K.user := fun q hq' =>
+    ⟨⟨⟨ioRS_cm hq'.1, hq'.2.2⟩, hq'.2.1.2⟩, hq'.1.2.1⟩
+  have hal : ∀ b, Rd b → Aligned b := fun b hb => hb.1.1
+  let Ru : U64 → Prop := PathObl.UserW K.toKLayout
+  let Wd : U64 → Prop := DelWd K c ρ (IoWS (st := st) K.toKLayout Locks σ)
   -- ownership of the read and written words at the physical memory
   have eown : ownP K (L.mem σ) = ownP K (view K.toKLayout c ρ) :=
     ownDepP hK hU _ _ fun x hx hu => hmm x hx hu
@@ -582,79 +639,15 @@ theorem inv_del_annA (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (h
     rw [eown, hx.2] at h1
     rw [hV.1 x h1]
     exact h1
-  -- the aligned user words
-  have hfin : Set.Finite {x : U64 | Aligned x ∧ x ∈ K.user} := Set.toFinite _
-  obtain ⟨ul, hul⟩ : ∃ l : List U64, ∀ x, x ∈ l ↔ Aligned x ∧ x ∈ K.user :=
-    ⟨hfin.toFinset.toList, fun x => by simp⟩
-  have slNU : ∀ q, q ∈ K.slots → Aligned q ∧ q ∉ K.user := fun q hq' => OwnMap.decW_ok hUO (Or.inr (Or.inl hq'))
-  -- every state carrying `ρ` on the kernel reads runs as a view start with its user words
+  -- every state carrying `ρ` on the kernel reads runs as a view start with its user words (`del_hgoX`)
   have hgo : ∀ s : S, L.cpu s = L.cpu σ → L.ksb s = L.ksb σ → (∀ b, Rd b → L.mem s b = ρ b) →
       ∃ r, interp (guard st (fun b => Rd b ∨ Ru b) Wd) ar (R.invBodyG number p) s a = ok r ∧
         WithinM st ar (fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ)
           (· ∈ K.user) c hs (L.mem x) (L.mem y)) (R.invBodyG number p) s a ∧
         Once st ar Ro (· ∈ K.user) ∅ ∅ (R.invBodyG number p) s a := by
     intro s hcs' hks hag
-    have hagR : ∀ b, Rd b → L.mem s b = L.mem σ b := fun b hb => (hag b hb).trans (kvR b hb).symm
-    obtain ⟨σ', hσ'⟩ : ∃ x, x = E2E.wrs st (L.mem s) ul σ := ⟨_, rfl⟩
-    obtain ⟨c1, c2, c3⟩ := E2E.wrs_const st (ν := L.mem s) (masksWr_plain st) ul σ
-    have hM := E2E.wrs_mem st (ν := L.mem s) ul σ (fun x hx => ((hul x).mp hx).1)
-    obtain ⟨hJ', hq', hqu', eL, eRS, eWS, eCur⟩ := wrsU_facts (f := L.mem s) hCs hlk ul σ
-      (fun x hx => (hul x).mp hx) hJ hq hqu
-    rw [← hσ'] at c1 c2 c3 hM hJ' hq' hqu' eL eRS eWS eCur
-    have hmm' : ∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x := fun x hx hu => by
-      rw [hM x hx, if_neg (fun h => hu ((hul x).mp h).2)]; exact hmm x hx hu
-    obtain ⟨r', hg', hs'⟩ := inv_del_gdA ar hA hK hU (number := number) (a := a) hJ' hq' hqu' (c1.trans hc) hmm'
-    have eP : DelPw (S := S) K c ρ (IoRS (st := st) K.toKLayout Locks σ') (IoWS (st := st) K.toKLayout Locks σ')
-        (L.curW σ') (L.mem σ') (Locks σ') = Pw := by
-      rw [eRS, eWS, eCur, eL]
-      exact delPw_mem fun q hq' => by
-        rw [hM q (slNU q hq').1, if_neg (fun h => (slNU q hq').2 ((hul q).mp h).2)]
-    rw [eP, eRS] at hg'
-    have hagU : ∀ b, RdU b → L.mem s b = L.mem σ' b := by
-      rintro b (hb | hb)
-      · rw [hagR b hb, hM b hb.1.1, if_neg (fun h => hb.1.2.1 ((hul b).mp h).2)]
-      · rw [hM b hb.1, if_pos ((hul b).mpr hb)]
-    have hmk' : st.frame_masks s = st.frame_masks σ' := by
-      rw [PlainStore.frame_masks_eq, PlainStore.frame_masks_eq]
-    obtain ⟨x0, s0', a0'⟩ := r'
-    obtain ⟨s1', hs1⟩ := interp_agree_gd (st := st) (masksWr_plain st) hRal hPal (fun _ _ _ _ _ h => h)
-      (R.invBodyG number p) (inv_noZero number p) σ' s a x0 s0' a0' (hks.trans c2.symm) (hcs'.trans c1.symm)
-      hmk' hagU hg'
-    have hgs := interp_gd_guard (R' := RdU) (W := Wd) (fun q h => h) hPW _ s a _ hs1
-    -- `StepOK` per write
-    have hI0 : Inv s := by
-      have rA : Rd (fld (L.curW σ) oAFFINITY) :=
-        ⟨PE.gate (Locks := Locks) (off := 3520#u64) PE.cT (by simp) (by simp) (by simp) (by simp [GateField]),
-          srT 3520#u64 (by simp) (by simp) (by simp)⟩
-      have rS : Rd (fld (L.curW σ) oSTATE) := by
-        rw [← OwnMap.stA_fld]
-        refine ⟨PE.stw.1, ?_⟩
-        rw [Fl4Proofs.P1.stA_eq]; exact srT 3328#u64 (by simp) (by simp) (by simp)
-      refine ⟨(hagR _ rA).trans affC, ?_, fun q hq' hT' hRd hn => by rw [hagR q hRd]; exact hn⟩
-      rw [hagR _ rS, ← OwnMap.stA_fld]
-      exact nq_run PE.run
-    have hm := interp_gd (R := RdU) (P := Pw)
-      (Q := fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user) c hs
-        (L.mem x) (L.mem y)) (I := Inv) hStep _ s a _ hI0 hs1
-    -- `Once`: the path's `ReadOnce` at `σ'`, carried to `s`, narrowed
-    have hO1 : Once st ar (InvCMRS (st := st) K.toKLayout Locks σ') (· ∈ K.user) ∅ ∅ (R.invBodyG number p) σ' a :=
-      (inv_pathDelE (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number p
-      (masksWr_plain st) hCs hlk K.toKLayout (view K.toKLayout c ρ) hK.base.base hU.base.base).once σ' σ' a _
-      ⟨hJ', hq'⟩ (Alt.refl (L := L) σ') hs'
-    have eCM : InvCMRS (st := st) K.toKLayout Locks σ' = InvCMRS (st := st) K.toKLayout Locks σ := by
-      funext x; unfold InvCMRS; rw [eRS]
-    have hO1' : Once st ar (InvCMRS (st := st) K.toKLayout Locks σ) (· ∈ K.user) ∅ ∅ (R.invBodyG number p) σ' a := by
-      have h' := hO1
-      rw [eCM] at h'
-      exact h'
-    have hgσ' := interp_gd_guard (R' := RdU) (W := Wd) (fun q h => h) hPW _ σ' a _ hg'
-    have hO2 := once_agreeJ (masksWr_plain st) (Rd := InvCMRS (st := st) K.toKLayout Locks σ) (User := (· ∈ K.user))
-      hRal hWal (R.invBodyG number p) (inv_noZero number p) σ' s a _ ∅ ∅ (hks.trans c2.symm) (hcs'.trans c1.symm)
-      hmk' hagU hgσ' hO1'
-    have hO3 := once_downR (R := Rd) (Ro := Ro) (R' := InvCMRS (st := st) K.toKLayout Locks σ) (U := Ru) (W := Wd)
-      (User := (· ∈ K.user)) (fun q h => (hR0 q h).2) (fun q h => (hR0 q h).1) (fun q h => h.1.1) (fun q h => h.2)
-      (R.invBodyG number p) (inv_noZero number p) ∅ ∅ s a _ hgs hO2
-    exact ⟨_, hgs, (interp_mguard _ s a _ hm).2, hO3⟩
+    obtain ⟨r, h1, h2, h3, -⟩ := hgoX s hcs' hks hag
+    exact ⟨r, h1, h2, h3⟩
   have h := PathObl.safe_tr_wrU (own := ownP K) (cls := OwnMap.cls K.toKLayout) (kt := OwnMap.ko K.toKLayout μ)
     (User := (· ∈ K.user)) ar (moveHeldP hK) (ownDepP hK hU) (masksWr_plain st) (a := a)
     (R.invBodyG number p) hc (Ro := Ro) (Rd := Rd) (Ru := Ru) (Wd := Wd) hal hR0 (fun b h => h.1)

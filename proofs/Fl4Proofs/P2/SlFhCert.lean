@@ -20,7 +20,8 @@ state `s` carrying `ν` on the tree's reads and `ρ` elsewhere. `s` agrees with 
   (`guard_dec`, `DestDec` / `UDec` with their homed parts void);
 * **`slfh_once`**: `Once` for any read set holding `Rd` and `d`'s `AFFINITY` (`sl_pre_once`, `fault_away_once`,
   `rr_away_once`);
-* **`sl_fh_safe`**: the function-level certificate.
+* **`sl_fh_safe`**: the function-level certificate; gen 49 (in place, its statement unchanged): **`slfh_run`**, the
+  run from one store state, split out of its proof (shared with its `InsA` twin, P2/InsV15FhS).
 
 No premise: every fact is a hypothesis. No existing statement changed.
 -/
@@ -264,6 +265,59 @@ theorem slfh_once (hA : P0.ArchTotal ar) {Ro User : U64 → Prop}
     exact ⟨Or.inr rfl, slfh_off ar hA F D G lv hoff LP'⟩
 
 set_option maxHeartbeats 4000000 in
+/-- **The sl body's run from one store state whose decided thread is another core's** (split out of `sl_fh_safe`'s
+proof in place, gen 49): at a state `s` agreeing with `σ` on `Rd` (core and kernel base included) and seeing the
+decided thread's `AFFINITY` off its core, the run declines on `guard st (Rd ∪ SlFhW d) (SlDS σ)`, its writes pass
+`StepOK`, and it reads each racy word once. -/
+theorem slfh_run {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → U64}
+    {kt : U64 → ClsOwner U64} {User : U64 → Prop} (hA : P0.ArchTotal ar) {c : U64} {hs : U64 → Prop}
+    (F : SlOF (st := st) ar K Locks m0 n found Cs Ω Sg Ac σ) {Ro : U64 → Prop}
+    (D : SlFhR (st := st) ar found Rd σ a) (hR0 : ∀ q, Rd q → Ro q ∧ ¬ User q)
+    (lv : SlLive st found.1 σ)
+    (hgo : Ro (affA (slThr st found.1 σ)) ∧ ¬ User (affA (slThr st found.1 σ)))
+    (hDU : ∀ q, SlDS (L := L) σ q → ¬ User q)
+    (hSO : ∀ (z : S) b v, SlDS (L := L) σ b → StepOK own cls kt User c hs (L.mem z) (L.mem (L.wr z b v)))
+    (G : Ag st Rd σ s) (hoff : L.mem s (affA (slThr st found.1 σ)) ≠ L.cpu σ) :
+    ∃ r, interp (guard st (fun b => Rd b ∨ SlFhW (slThr st found.1 σ) b) (SlDS (L := L) σ)) ar
+        (R.syscall.handle_syscall_local n found) s a = ok r ∧
+      WithinM st ar (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))
+        (R.syscall.handle_syscall_local n found) s a ∧
+      Once st ar Ro User ∅ ∅ (R.syscall.handle_syscall_local n found) s a := by
+  have hp : ∀ (mm : machine.Store S) (x : S) (a : A),
+      syscall.handle_syscall_local mm ar x a n found = interp mm ar (R.syscall.handle_syscall_local n found) x a :=
+    fun mm x a => congrFun (congrFun (sl_isProg S n found A ar mm) x) a
+  let R'' : U64 → Prop := fun b => Rd b ∨ SlFhW (slThr st found.1 σ) b
+  obtain ⟨r, hr⟩ := sl_total (st := st) L.total hA n found s a
+  have hn : r.1 ≠ true := by
+    obtain ⟨b0, z, c0⟩ := r
+    intro hb
+    change b0 = true at hb
+    subst hb
+    exact slfh_not_acc ar hA F D G lv hoff hr
+  have hg : syscall.handle_syscall_local (PathObl.guard st R'' (SlDS (L := L) σ)) ar s a n found = ok r :=
+    slfh_dec ar hA (R := R'') (W := SlDS (L := L) σ) F D G lv hoff (fun b hb => hb) (fun b hb => hb) hr hn
+  rw [hp] at hg
+  have hW := (interp_guard _ s a r hg).2
+  have hM : syscall.handle_syscall_local
+      (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) ar s a n found = ok r := by
+    haveI iR : GRd (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) st (fun _ => True) :=
+      { read := fun _ _ => rfl, read_pair := fun _ _ _ => rfl, ks_base := rfl, cur_cpu := rfl, frame_masks := rfl }
+    haveI iW : GWr (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) st
+        (SlDS (L := L) σ) :=
+      { write := fun {b} hb y v => by
+          rw [L.write_eq]
+          exact mguard_write (L.write_eq y b v) (hSO y b v hb)
+        ks_base := rfl, cur_cpu := rfl, frame_masks := rfl }
+    exact slfh_dec ar hA (R := fun _ => True) (W := SlDS (L := L) σ) F D G lv hoff (fun _ _ => trivial)
+      (fun b hb => hb) hr hn
+  rw [hp] at hM
+  have hWM := (interp_mguard _ s a r hM).2
+  have hr' : interp st ar (R.syscall.handle_syscall_local n found) s a = ok r := by rw [← hp]; exact hr
+  have hOnce := slfh_once ar hA (Ro := Ro) (User := User) F D G lv hoff
+    (fun q hq => hq.elim (hR0 q) (fun e => by subst e; exact hgo)) hDU hr'
+  exact ⟨r, hg, hWM, hOnce⟩
+
+set_option maxHeartbeats 4000000 in
 /-- **The sl body is `Safe` at an entry whose decided thread is another core's** (module docstring). -/
 theorem sl_fh_safe {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → U64}
     {kt : U64 → ClsOwner U64} {User : U64 → Prop} (hL : MoveHeld own) (hO : OwnDep own User) (hmk : MasksWr st)
@@ -314,34 +368,8 @@ theorem sl_fh_safe {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 �
   have hoff : L.mem s (affA (slThr st found.1 σ)) ≠ L.cpu σ := by
     rw [hmem (affA (slThr st found.1 σ)) (aD 3520#u64 (by simp) (by simp) (by simp)), eR _ hgo.1 hgo.2, hc]
     exact hρd
-  obtain ⟨r, hr⟩ := sl_total (st := st) L.total hA n found s a
-  have hn : r.1 ≠ true := by
-    obtain ⟨b0, z, c0⟩ := r
-    intro hb
-    change b0 = true at hb
-    subst hb
-    exact slfh_not_acc ar hA F D G lv hoff hr
-  have hg : syscall.handle_syscall_local (PathObl.guard st R'' (SlDS (L := L) σ)) ar s a n found = ok r :=
-    slfh_dec ar hA (R := R'') (W := SlDS (L := L) σ) F D G lv hoff (fun b hb => hb) (fun b hb => hb) hr hn
-  rw [hp] at hg
+  obtain ⟨r, hg, hWM, hOnce⟩ := slfh_run ar hA F D hR0 lv hgo hDU hSO G hoff
   have hW := (interp_guard _ s a r hg).2
-  have hM : syscall.handle_syscall_local
-      (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) ar s a n found = ok r := by
-    haveI iR : GRd (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) st (fun _ => True) :=
-      { read := fun _ _ => rfl, read_pair := fun _ _ _ => rfl, ks_base := rfl, cur_cpu := rfl, frame_masks := rfl }
-    haveI iW : GWr (mguard st (fun x z => StepOK own cls kt User c hs (L.mem x) (L.mem z))) st
-        (SlDS (L := L) σ) :=
-      { write := fun {b} hb y v => by
-          rw [L.write_eq]
-          exact mguard_write (L.write_eq y b v) (hSO y b v hb)
-        ks_base := rfl, cur_cpu := rfl, frame_masks := rfl }
-    exact slfh_dec ar hA (R := fun _ => True) (W := SlDS (L := L) σ) F D G lv hoff (fun _ _ => trivial)
-      (fun b hb => hb) hr hn
-  rw [hp] at hM
-  have hWM := (interp_mguard _ s a r hM).2
-  have hr' : interp st ar (R.syscall.handle_syscall_local n found) s a = ok r := by rw [← hp]; exact hr
-  have hOnce := slfh_once ar hA (Ro := Ro) (User := User) F D G lv hoff
-    (fun q hq => hq.elim (hR0 q) (fun e => by subst e; exact hgo)) hDU hr'
   refine ⟨s, SlDS (L := L) σ, sc.trans hc, sk, sm.trans (masksOf_eq st σ),
     Within.mono (fun b hb => hR''al b hb) (fun b hb => hb) _ s a hW, hWM, hOnce,
     fun x hx => ⟨(SlDS.ws F.P.preG hx).1, fun _ => hx⟩,

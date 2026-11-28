@@ -140,54 +140,6 @@ def StartVX10 {ιN : Type}
   | .inl i => StartVX9 st ar hA hm hSt a0 SFN Ch K m hK hU c hs q i
   | .inr j => DelPteStartX st ar hA hm K m hK hU c hs q j
 
-/-- **FL4 end to end, gen 10, generic in the native family** (`serializable_fl4_localVX9G` with `delPteSlotVX`
-added). -/
-theorem serializable_fl4_localVX10G (P : LocPlat st arI AR MR) {ιN : Type} (LN : PathsP ιN)
-    {SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop}
-    (hSFN : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SFN Ch K s.mem hK hU c hs q i → StartAt (LN i K s.mem hK hU) c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum (PathsP.sum
-        (PathsP.sum LN
-        (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm)) (ioSlotPX st ar hA hm)) (stSlotPX st ar hA hm))
-        (irqSlotPX st ar hA hm)) (slSlotPX st ar hA hm hSt a0)) (invSlotVX st ar hA hm)) (cmSlotVX st ar hA hm))
-        (delPteSlotVX st ar hA hm))
-      (StartVX10 st ar hA hm hSt a0 SFN) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  have hX := (execVX_of_VX4 hc0.1 h).1
-  refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_VX P ?_ h0 hA0 hB hc0 hM0 hX).1 hq
-  intro Ch K s hK hU c hs q i hN hsf
-  obtain ⟨hV, hsf⟩ := hsf
-  rcases i with ((((((((i | j) | j) | j) | j) | j) | j) | j) | j) | j
-  · have hsf' : K.vcpus = ∅ ∧ SFN Ch K s.mem hK hU c hs q i := hsf
-    obtain ⟨nv, hsf'⟩ := hsf'
-    obtain ⟨hX, hE⟩ := hN nv
-    exact hSFN Ch K s hK hU c hs q i hX.chainOf hE hsf'
-  · have hsf' : VxStartV2 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact vxStartV_at st ar hA hm (vxStartV_of_V2 (hV (vxStartV2_ne hsf')).b hsf')
-  · have hsf' : VtStartV4 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact vtStartV2_at (hV hsf'.1).b (vtStartV2_of_V4 (hV hsf'.1).b hsf')
-  · have hsf' : IoStartX5 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact ioStartX_at (hV hsf'.1) (ioStartX_of_X5 (hV hsf'.1) hsf')
-  · have hsf' : StStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact stStartX_at (hV hsf'.1) hsf'
-  · have hsf' : IrqStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact irqStartX_at (hV hsf'.1) hsf'
-  · have hsf' : SlStartX st ar hA hm hSt a0 K s.mem hK hU c hs q j := hsf
-    exact slStartX_at (hV hsf'.1) hsf'
-  · have hsf' : InvStartX9 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact invStartX_at (hV hsf'.1) (invStartX_of9 (hV hsf'.1) hsf')
-  · have hsf' : CMStartX9 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact cmStartX_at (hV hsf'.1) (cmStartX_of9 (hV hsf'.1) hsf')
-  · have hsf' : DelPteStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact delPteStartX_at (hV hsf'.1) hsf'
-
 end top
 
 end

@@ -10,6 +10,8 @@ whose dead set grows by the notification when its last cap goes.
 * `JAtZ.deadP_slot`: the dead stay dead across a CNode-only slot step.
 * `jowes_slotD`: `jowes_slotOf` with the dead set and the untyped caps' facts
   after given (the dead set may grow).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `deadP_slot`, `del_utc`, `slot2FrO`, `jowes_slotDF` / `jowes_slotD` (as `jowes_slotDFB` / `jowes_slotDB`); each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.XTopDelOne
@@ -48,14 +50,14 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- **The dead stay dead across a CNode-only slot step** (`deadP_hstep` at
 the sets `Z.mv G' V'`). -/
-theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
     (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
   have hC := CnStep.of_cnK hcn
-  obtain ⟨-, k2, -, k3, -⟩ := inSlot_keeps arI J hw
+  obtain ⟨-, k2, -, k3, -⟩ := inSlot_keepsB arI J hw
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
   exact J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => let ⟨y, hy, hc⟩ := hC.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
@@ -65,12 +67,21 @@ theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (fun hqC => k3 q hqC)
     (fun z hz _ K h8 hK => J.inSlot_scKeep hw hz h8 hK) hC.idle (J.act.cn hC).1 (J.yld.frame k2 yk) (yk.dk q.bv) hd
 
+
+/-- `JAtZB.deadP_slot` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
+  J.toB.deadP_slot hX' hcn hkc hw hd
 set_option maxHeartbeats 4000000 in
 /-- **A CNode-only slot step's `JCs` and `JRest`** (`jowes_slotOf` with the
 dead set `D'` and its `JCovD`, and the untyped caps' facts after, given). -/
-theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem jowes_slotDFB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
     (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
@@ -85,7 +96,7 @@ theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
     JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' := by
   have hC := CnStep.of_cnK hcn
-  obtain ⟨k1, k2, kb', k3, k4⟩ := inSlot_keeps arI J hw
+  obtain ⟨k1, k2, kb', k3, k4⟩ := inSlot_keepsB arI J hw
   have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, hC.sc.2 hq, rfl⟩, fun q x hq => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq,
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
@@ -119,8 +130,53 @@ theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
 
+
+/-- `jowes_slotDFB` at `JAtZ` (via `JAtZ.toB`). -/
+theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
+    (hTK : TypedKept Z.th (L.mem s) (L.mem s'))
+    (hfh : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
+      ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbf : ∀ t, Z.th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
+    (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
+    {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
+    JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' :=
+  jowes_slotDFB J.toB hX' hcn hkc hw hFI hMO hkz hTK hfh hbf hDl hUK hjc horig hutc
 set_option maxHeartbeats 4000000 in
 /-- `jowes_slotDF` with the TCBs' fault-handler slots kept or emptied. -/
+theorem jowes_slotDB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
+    (hTK : TypedKept Z.th (L.mem s) (L.mem s'))
+    (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
+      capV (L.mem s') (slotOf t 3) = .Null)
+    (hT2 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2) ∨
+      capV (L.mem s') (slotOf t 2) = .Null)
+    (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
+    {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
+    JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  refine jowes_slotDFB J hX' hcn hkc hw hFI hMO hkz hTK (fun t ht => ?_) (hJ.bfsT hT2) hDl hUK hjc horig hutc
+  rcases hT3 t ht with e | e
+  · rw [capAt_capV, capAt_capV] at e
+    rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact hJ.fh t ht
+  · left; rw [cslot_tcb3]; exact e
+
+
+/-- `jowes_slotDB` at `JAtZ` (via `JAtZ.toB`). -/
 theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
@@ -137,14 +193,8 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
     (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
-    JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' := by
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  refine jowes_slotDF J hX' hcn hkc hw hFI hMO hkz hTK (fun t ht => ?_) (hJ.bfsT hT2) hDl hUK hjc horig hutc
-  rcases hT3 t ht with e | e
-  · rw [capAt_capV, capAt_capV] at e
-    rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact hJ.fh t ht
-  · left; rw [cslot_tcb3]; exact e
-
+    JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' :=
+  jowes_slotDB J.toB hX' hcn hkc hw hFI hMO hkz hTK hT3 hT2 hDl hUK hjc horig hutc
 /-- **What a deletion cannot re-establish of an untyped cap** [J]: an untyped
 cap left childless by the deletion (the deleted cap its only child, itself
 childless) has no MDB slot in its region and no original cap in its region
@@ -166,9 +216,9 @@ set_option maxHeartbeats 4000000 in
 the caps other than the emptied slot's kept, its cap null after; a
 childless untyped cap after was childless before, or is the deleted cap's
 parent left childless (`DelUtFact`, named). -/
-theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {sl : Fl4Spec.CslotPtr}
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
     (hnull : capV (L.mem s') (cslotAddr sl) = .Null)
@@ -247,11 +297,29 @@ theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       exact ⟨fun sl' h => r1 sl' (horig sl' h), by rw [hna, hDbg]; exact r3⟩
     · exact (hUt u p sb fi dev hu hcap0 g1 g2 g3 hdv).2 hf0
 
+
+/-- `JAtZB.del_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {sl : Fl4Spec.CslotPtr}
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
+    (hnull : capV (L.mem s') (cslotAddr sl) = .Null)
+    (hw : P1.WritesIn st s s' (InSlot Z.th))
+    (hcdt : σ'.cdt = Function.update (fun x => if σ.cdt x = some sl then σ.cdt sl else σ.cdt x) sl none)
+    (horig : ∀ sl', σ'.isOriginalCap sl' = true → σ.isOriginalCap sl' = true)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4) (hM' : MdbLinks Z.th (L.mem s') G')
+    (hUt : ∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
+      σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
+      DelUtFact (L := L) Z.th s' σ' up usb ufi udev) :
+    ∀ u p sb fi dev, AbsSlot Z.th u → capAt (L.mem s') (cslotAddr u) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' u p sb fi :=
+  J.toB.del_utc hcap hnull hw hcdt horig hgp hM' hUt
 /-- **`IpcFrKeep` across a one-slot clear** (`KeepCT`, the slot `x` emptied,
 the other slots kept: each TCB's buffer slot kept or emptied, `slot2Fr`). -/
-theorem JAtZ.slot2FrO {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.slot2FrO {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
     (hkc : KeepCT σ σ') (hR' : StateRel Z.th mem' σ') {x : U64} (hnull : capV mem' x = .Null)
     (hoth : ∀ y, IsSlot Z.th y → y ≠ x → capV mem' y = capV (L.mem s) y) : IpcFrKeep σ σ' :=
   J.slot2Fr hkc hR' fun q hq => by
@@ -263,6 +331,14 @@ theorem JAtZ.slot2FrO {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     · right; rw [e]; exact hnull
     · left; rw [← he2, capAt_capV, capAt_capV, hoth _ hAq.isSlot (by rw [he2]; exact e)]
 
+
+/-- `JAtZB.slot2FrO` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.slot2FrO {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
+    (hkc : KeepCT σ σ') (hR' : StateRel Z.th mem' σ') {x : U64} (hnull : capV mem' x = .Null)
+    (hoth : ∀ y, IsSlot Z.th y → y ≠ x → capV mem' y = capV (L.mem s) y) : IpcFrKeep σ σ' :=
+  J.toB.slot2FrO hkc hR' hnull hoth
 theorem KBack.trans' {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : KBack σ1 σ2) (h2 : KBack σ2 σ3) : KBack σ1 σ3 := by
   intro o ko3 h3
   obtain ⟨ko2, h2', a1, a2, a3, a4, a5, a6⟩ := h2 o ko3 h3

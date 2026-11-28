@@ -62,6 +62,8 @@ facts of the arguments (`irq.lt`, `vt.Nt`), `VmFoundC` (clause 10's fl4-sync inp
 Net: [W] 2 → 0 (sl `ro`, vt `ro`); [J] trades as listed (vt `tu` [J] is the one new [J] that is not a narrowing of
 an old one: `VtmU` at every `VtPre` state, true at bundle states, `E2EVFl4W5`'s docstring); [P] −2 (`vlk` of vx /
 vt) +1 (vx `hv`) and vmF's `lk` / `gl` [P] made explicit out of the old whole-`Pre` [J].
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `serializable_fl4_localP3W6V`.
 -/
 import Fl4Proofs.P2.E2EVFl4W5
 import Fl4Proofs.P2.SlOnceR3
@@ -167,14 +169,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-omit [Fl4Proofs.P1.PlainStore st] in
-/-- **`fl4LocP3W6` over `ExecV`.** -/
-theorem serializable_fl4_localP3W6V {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
-    (h : ExecV ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
 
 end top
 

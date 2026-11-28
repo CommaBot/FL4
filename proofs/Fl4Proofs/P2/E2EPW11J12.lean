@@ -320,20 +320,6 @@ variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **FL4 end to end, W11's glue, the reply-link premises as fl4-sync's check** (module docstring):
-`serializable_fl4_localW11PJ11` with `StartD` starts. sl's `hrz` and vmR's `nb` (kernel-state claims, false at some
-reachable states) are replaced by `SlNbC` / `VmNbC` [P], fl4-sync's no-neighbour check at the entry state. -/
-theorem serializable_fl4_localW11PJ12 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesCanon st K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPJ (fl4LocW11JA st ar hA hm hSt a0) (StartD st ar hA hm hSt a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have h' := ExecWPJ.mono st (SF' := StartC st ar hA hm hSt a0 arI AR MR)
-    (fun _ _ _ _ _ _ _ _ _ hsf => startC_of_D st ar hA hm hSt a0 hsf) h
-  exact serializable_fl4_localW11PJ11 st ar hA hm hSt a0 P hIoa h0 hA0 hB hc0 hM0 h' hq
-
 end top
 
 /-! ## Satisfiability at a chain state -/

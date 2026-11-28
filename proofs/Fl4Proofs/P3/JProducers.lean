@@ -23,6 +23,10 @@ The consumers of `NtfnFinPre` .. `ScFinPreX` (`xFinNtfn_of` etc.) quantify
 over every `XTopAt` state of the typed heap (the `XFinHyps` [W] shape), not
 over `JAtZ` states, so these producers discharge them only once the
 finalisation premises are re-scoped to the states the deletion loop carries.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `slotE`; each
+`JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.IpcCancelAllIpc
@@ -62,11 +66,17 @@ theorem JAtZ.slotN (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Sp
   J.capN ⟨cslotAddr sl, b, w, r, hA.isSlot, capV_of_capAt hc⟩
 
 /-- An endpoint cap in a slot names one of the endpoints (`CapTyped`, `hset`). -/
-theorem JAtZ.slotE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+theorem JAtZB.slotE (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hA : AbsSlot Z.th sl) {e b : U64} {x1 x2 x3 x4 : Bool}
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint e b x1 x2 x3 x4)) : e ∈ Z.E := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   exact J.hset.1 e ((hJ.typed _ hA.isSlot).1 e b x1 x2 x3 x4 (capV_of_capAt hc))
+
+/-- `JAtZB.slotE` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.slotE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+    (hA : AbsSlot Z.th sl) {e b : U64} {x1 x2 x3 x4 : Bool}
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint e b x1 x2 x3 x4)) : e ∈ Z.E :=
+  Fl4Proofs.P3.JAtZB.slotE (J := J.toB) (hA := hA) (hc := hc)
 
 /-- A reply cap in a slot names one of the replies (`CapTyped`, `hset`). -/
 theorem JAtZ.slotR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}

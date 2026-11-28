@@ -97,22 +97,11 @@ structure VmREntJ14 {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3
   /-- `loc_chain_all` clause 10's fl4-sync input `hfd`. -/
   fd : VmFoundC st i.rptr i.ep s
 
-theorem VmREntJ14.toJ11 (hA : P0.ArchTotal ar) {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmRArg S} {Kl Kb : OwnMap.KLayout} {s : S}
-    (E : VmREntJ14 st arI AR MR i Kl Kb s) : VmREntJ11 st ar arI AR MR i Kl s :=
-  VmREntJ13.toJ11 st ar hA ⟨E.ix, E.hct, E.lk, E.nb, E.fd⟩ E.yb
-
 /-- **sl's start entry facts**: `SlQY` (W6's `SlQ` without `SlPreB.hy0f` / `hy0r`) and `yb` [J] (a clause-7 bundle
 at the start state whose spec state carries YieldBlock, as `VmFEntJ14.yb`). -/
 def SlQYB (ar : machine.Arch A) (Locks : S → U64 → Prop) (n : I64) (found : U64 × U64)
     (Cs Ω Sg Ac : Set U64) (K : OwnMap.KLayout) (m : U64 → U64) (s : S) : Prop :=
   SlQY st ar Locks n found Cs Ω Sg Ac K m s ∧ SlJAtYB st K s
-
-theorem SlQYB.toQ (hA : P0.ArchTotal ar) {Locks : S → U64 → Prop} {n : I64} {found : U64 × U64}
-    {Cs Ω Sg Ac : Set U64} {Kl : OwnMap.KLayout} {m : U64 → U64} {s : S}
-    (h : SlQYB st ar Locks n found Cs Ω Sg Ac Kl m s) :
-    Fl4Proofs.P2.PathObl.SlQ st ar Locks n found Cs Ω Sg Ac Kl m s :=
-  SlQY.toQ st ar hA h.2 h.1
 
 end ent
 
@@ -137,30 +126,6 @@ def StartP3W14 (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOK
 
 variable {arI AR MR}
 
-/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W14`**, given the current chain. -/
-theorem startAt_P3W14 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartP3W14 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q := by
-  cases i with
-  | vmF j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vmF j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1, he.2.toJ12 st ar⟩⟩
-  | vmR j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vmR j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1, he.2.toJ11 st ar hA⟩⟩
-  | io j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .io j) h
-  | st j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .st j) h
-  | irq j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .irq j) h
-  | sl j =>
-    obtain ⟨h, hG⟩ := h
-    exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .sl j)
-      ⟨h, hG.mono fun σ he _ => ⟨he.1, he.2.toQ st ar hA⟩⟩
-  | vq j => exact startAt_P3W12 st ar hA hm hSt a0 P hIoa hC (i := .vq j) h
-
 end start
 
 section top
@@ -168,19 +133,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end at P3 scope over W6's family, the four `YIELD_TO` [J]s replaced by one** (module docstring):
-`serializable_fl4_localW12`'s statement (same `SerExitW`, `ExecW`, `Ch σ` starts) with `StartP3W14` starts. -/
-theorem serializable_fl4_localW14 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3W14 st ar hA hm hSt a0 arI AR MR)
-      P s0 K0 Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_WC (fun _ _ _ _ _ _ _ _ _ hC hi => startAt_P3W14 st ar hA hm hSt a0 P hIoa hC hi) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localP3W6V st ar hA hm hSt a0 h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

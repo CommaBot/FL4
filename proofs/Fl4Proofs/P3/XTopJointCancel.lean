@@ -19,6 +19,10 @@ from `JAtZ` before to `JAtZ` after, with no named premise.
   is not dead; a dead endpoint or notification holds nobody, so is kept).
 * `JAtZ.kfrStep`: the assembly (ScSignalBoundJ's `wake_postB` for `KFr`: the
   replies are kept, so `RFree` and `CallRel` carry over directly).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `notDead`; each
+`JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.ScSignalBoundJ
 import Fl4Proofs.P3.IpcCancelF
@@ -161,7 +165,7 @@ theorem JAtZ.kfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : Fl4S
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
 
 /-- A blocked thread (state code not `Inactive`) is not dead. -/
-theorem JAtZ.notDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZB.notDead (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (h0 : tsCode x.tcbState ≠ 0) :
     ∀ q ∈ D, q.bv ≠ t.bv := by
   intro q hq eq
@@ -173,6 +177,12 @@ theorem JAtZ.notDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
   rw [d1] at h3
   unfold sched.TS_INACTIVE at h3
   exact h0 (by rw [← h3]; rfl)
+
+/-- `JAtZB.notDead` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.notDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (h0 : tsCode x.tcbState ≠ 0) :
+    ∀ q ∈ D, q.bv ≠ t.bv :=
+  Fl4Proofs.P3.JAtZB.notDead (J := J.toB) (ht := ht) (hk := hk) (h0 := h0)
 
 /-- What every `cancel_ipc` at `J` reads of P1: `BlkOK` after and the
 footprint `KW`. -/

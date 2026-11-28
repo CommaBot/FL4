@@ -243,81 +243,6 @@ inductive ExecWPRV9 (LP : PathsP ι) (NoV : ι → Prop)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {v a x : U64} :
       ExecWPRV9 LP NoV SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecWPRV9 LP NoV SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- **Every U8 execution is a U9 one** (armed program the start's body). -/
-theorem execWPRV9_of_WPRV8 {LP : PathsP ι} {NoV : ι → Prop}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV8 LP NoV SF P s0 K0 Ch0 s K Ch) : ExecWPRV9 LP NoV SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩
-    obtain ⟨ρ, hV, i, hi, hvs⟩ := g.start p0 k W hph hK hU
-    exact ⟨ρ, hV, i, k, hi, Or.inl ⟨rfl, hvs⟩⟩
-  | hw _ hH ih => exact .hw ih hH
-
-/-- **An `ExecWPRV9` is an `ExecPV9`** (`execPV_of_WPRV8`; the starts without `NoV` get `VSafe` from `hVS`, and
-`VSafe9` from it). -/
-theorem execPV9_of_WPRV9 {LP : PathsP ι} {NoV : ι → Prop}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) → EpochPteN K s.mem →
-      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    (hVS : ∀ (s : Cfg U64 U64 U64 U64) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOKP K) c k ρ i, MapsP K s →
-      VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem → ¬ NoV i → VSafe LP s K c k hK hU ρ i)
-    (P : LocPlat st arI AR MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecWPRV9 LP NoV SF P s0 K0 Ch0 s K Ch) :
-    ExecPV9 LP s0 K0 s K ∧ (∀ e, SerExitW P K.toKLayoutV (Ch e)) ∧
-      ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  induction h with
-  | refl => exact ⟨.refl, hB, s0, hc0, fun _ _ => rfl⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨H1, hR, -, -, hM⟩ := exec_safeRunPV9 h0 hA0 hK0 hU0 hM0 hE
-    have hst : Fl4StepPV9 LP s1 K1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨ρ, hV, i, k0, hi, hvs⟩ := g.start p0 k W hph hK hU
-        have hρg : ∀ x, GateW K1 x → ρ x = e1.mem x := fun x hx =>
-          (hV.2.1 x (by rw [hM.own, hx s1.mem]; exact Or.inr rfl)).trans (hk1 x hx)
-        have hEv : EpochPteN K1 (CoreView.view K1.toKLayout c1 ρ) :=
-          epochPteN_view c1 (epochPteN_of ⟨e1, hCe, hρg⟩)
-        have hA := hSF (Ch1 c1) _ { s1 with mem := CoreView.view K1.toKLayout c1 ρ } _ _ _ _ _ i
-          (hX c1).chainOf hEv hi
-        refine ⟨ρ, hV, i, k0, hA, ?_⟩
-        rcases hvs with ⟨hk, hvs⟩ | ⟨hk, hvs⟩
-        · refine Or.inl ⟨hk, ?_⟩
-          by_cases hn : NoV i
-          · exact hvs hn
-          · exact hVS s1 K1 hK hU c1 k0 ρ i hM hV hn
-        · refine Or.inr ⟨hk, ?_⟩
-          by_cases hn : NoV i
-          · exact hvs hn
-          · exact vSafe9_of_vSafe (hVS s1 K1 hK hU c1 k0 ρ i hM hV hn)
-      · have hP := okP_R (g.serX hs 0#u64) (g.serC hs)
-        exact ⟨hP.1, hP.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, ?_, ?_⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-    · by_cases hs : SerStep s1 c1
-      · exact ⟨s1', g.serC hs, fun _ _ => rfl⟩
-      · obtain ⟨eK, -⟩ := g.keep hs
-        subst eK
-        obtain ⟨-, -, -, hSI, -⟩ := xsafeRunH_inv h0 hA0 hR
-        refine ⟨e1, hCe, fun x hx => ?_⟩
-        rw [← hk1 x hx]
-        exact step_gate_keep hM (Fl4Proofs.P2.Serial.allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨H1, -, hK, -, hM⟩ := exec_safeRunPV9 h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
 end exec
 
 /-! ## U9 -/
@@ -326,45 +251,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end, U8 with the armed body optionally re-annotated** (module docstring). The conclusion is about
-the physical memory. `VSafe` / `VSafe9` [J] stay for the non-io slots. -/
-theorem serializable_fl4_localU9 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV9 (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_WPRV9 ?_ ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  · intro Ch K s hK hU c hs q i hC hE hsf
-    have nv : K.vcpus = ∅ := by
-      obtain ⟨_, ⟨nv, _⟩, _⟩ := hE
-      exact nv
-    rcases i with i | ((j | j) | j)
-    · exact startAt_UN st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE (startU_of_U2 st ar hA a0 hC nv hsf)
-    · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · intro s K hK hU c k ρ i hM hV hn
-    exact vSafe_io st ar hA a0 hM hV (not_not.mp hn)
-
-/-- **U8 follows from U9** (every U8 execution is a U9 one). -/
-theorem serializable_fl4_localU8of9 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV8 (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU9 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0 (execWPRV9_of_WPRV8 h) hq
 
 end top
 

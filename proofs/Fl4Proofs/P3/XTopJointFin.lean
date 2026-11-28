@@ -15,6 +15,10 @@ at the sets `Z.mv Z.G V'` (the slots kept, the VSpace sets fresh).
   scheduler fields from `finNtfn_spec` (IpcFinNtfnInv), the dead dead
   (`deadP_keep`), the untyped caps' facts (`finW_utc`), core 0's debug word
   (P1's `KW`, `kw_dbg`), P1's `BlkOK` (`fin_cap_ntfn.slots`).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `deadP_nfr`,
+`ntfn_link`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies
+of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJointFinW
 import Fl4Proofs.P3.IpcFinNtfnInv
@@ -82,9 +86,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- **A notification's SC is bound back to it** (P1's `ObjsOK.nsc` through
 the notification and SC relations). -/
-theorem JAtZ.ntfn_link {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.ntfn_link {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
     ∀ xn q, σ.kheap n.bv = some (.notification xn) → xn.ntfnSc = some q →
       ∃ y m, σ.kheap q = some (.schedContext y m) ∧ y.scNtfn = some n.bv := by
   intro xn q hk hq
@@ -103,6 +107,14 @@ theorem JAtZ.ntfn_link {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hback' : L.mem s (scNtfnA (L.mem s (nScA n))) = n := hback
   have hn0 : n ≠ 0#u64 := fun e => by have := J.zH.2.2.2 n hn; rw [e, J.kern.h0] at this; cases this
   rw [hback', Sched.optRef_ne hn0]
+
+/-- `JAtZB.ntfn_link` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ntfn_link {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+    ∀ xn q, σ.kheap n.bv = some (.notification xn) → xn.ntfnSc = some q →
+      ∃ y m, σ.kheap q = some (.schedContext y m) ∧ y.scNtfn = some n.bv :=
+  Fl4Proofs.P3.JAtZB.ntfn_link (J := J.toB) (hn := hn)
 
 set_option maxHeartbeats 4000000 in
 /-- **A final notification cap's finalisation on `IRel`** (the three steps
@@ -139,9 +151,9 @@ set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a step with the spec frame `NFr`** and the
 footprint `FinW` (`deadP_keep`'s facts: a dead TCB's state and null bound
 notification kept, a dead notification not waiting and unbound). -/
-theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {qq : Bool} {r : Fl4Spec.ObjRef} {s3 : S}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {qq : Bool} {r : Fl4Spec.ObjRef} {s3 : S}
     {σ3 : Fl4Spec.State Unit} (F : Sched.NFr qq r σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
@@ -196,6 +208,18 @@ theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   · -- an SC: its thread kept, its notification kept or cut
     obtain ⟨rf, nt, hk3, -, hn⟩ := F.scF hx
     exact ⟨_, hk3, Or.inl rfl, hn⟩
+
+/-- `JAtZB.deadP_nfr` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {qq : Bool} {r : Fl4Spec.ObjRef} {s3 : S}
+    {σ3 : Fl4Spec.State Unit} (F : Sched.NFr qq r σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
+    (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
+    (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
+    ∀ q ∈ D, DeadP (L := L) H s3 q :=
+  Fl4Proofs.P3.JAtZB.deadP_nfr (J := J.toB) (F := F) (hS3 := hS3) (hI3 := hI3) (hw := hw) (k3 := k3) (hAS := hAS) (hY3 := hY3) (hYK := hYK)
 
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a final notification cap's finalisation** (module

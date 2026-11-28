@@ -9,7 +9,7 @@ step relation, as x86's P3 carries `JPlaced.typed` over the typed heap's slots (
 
 * `OSOK OS`: the ghost `OS` is a set of cap-slot base addresses (the slots of live CNodes, the seven slots of
   each TCB, the IRQ node's slots), each a `W7.SlotW` slot (its four words `W7.CapW`), not wrapping, pairwise
-  disjoint (32 bytes each). State-independent.
+  disjoint (32 bytes each), none at address 0 (`nz`, gen 49). State-independent.
 * `SlotOK OS s x` (one slot): its cap decodes to a cap typed for deletion with the **A64 IRQ bound true on GIC**
   (`W7.R.A5.I.DelCapOK`, IRQ `< 5376`) whose CNode / Zombie slots lie in `OS` (`CapIn`); its `PREV` word is `0`
   or a slot of `OS`; its `NEXT` word's 48-bit pointer (`sext48`) is `0` or a slot of `OS`.
@@ -194,6 +194,10 @@ structure OSOK (T Ω Sg : Set U64) (OS : Set U64) : Prop where
   slot : ∀ x ∈ OS, W7.SlotW T Ω Sg x
   fit : ∀ x ∈ OS, x.val + 32 ≤ 2 ^ 64
   disj : ∀ x ∈ OS, ∀ y ∈ OS, x ≠ y → x.val + 32 ≤ y.val ∨ y.val + 32 ≤ x.val
+  /-- (gen 49, Architect ruling) No slot at address 0: kernel objects lie in the kernel window
+  `PPTR_BASE + paddr` (crates/fl4-core/src/arch/aarch64/layout.rs:5), and `Slot::is_null` / `is_final_capability`
+  read a 0 link as "none" (obj.rs:297–299, cdt.rs:163–174). Established at boot and by retype (where `OS` grows). -/
+  nz : ∀ x ∈ OS, x ≠ 0#u64
 
 /-- The deletion's step relation with the slot typing: `Cur0R` and `SlotTy`. -/
 def J (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
@@ -554,7 +558,8 @@ theorem J.witness {s0 s : S} (h : Cur0R st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) {t 
   have hO : OSOK T Ω Sg {t} :=
     ⟨fun x e => by rw [Set.mem_singleton_iff.1 e]; exact hW, fun x e => by
       rw [Set.mem_singleton_iff.1 e]; exact le_trans (Nat.add_le_add_left (by norm_num) _) hpl.fits,
-     fun x ex y ey hne => absurd ((Set.mem_singleton_iff.1 ex).trans (Set.mem_singleton_iff.1 ey).symm) hne⟩
+     fun x ex y ey hne => absurd ((Set.mem_singleton_iff.1 ex).trans (Set.mem_singleton_iff.1 ey).symm) hne,
+     fun x e h0 => hpl.ne0 (by rw [← Set.mem_singleton_iff.1 e, h0]; first | rfl | simp)⟩
   have htO : t ∈ ({t} : Set U64) := Set.mem_singleton t
   have a0 := hO.al0 htO
   have a8 := hO.al htO (k := 8#u64) (by simp) (by simp)

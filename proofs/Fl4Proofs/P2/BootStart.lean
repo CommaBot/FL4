@@ -2,7 +2,7 @@
 # P2 (line p3mc, gen 37): **an execution from the boot that runs a `.start` marker**, the start fact proved
 
 Gen 36 (`P2/BootCfg`) gave every premise of V12 / V13 at one concrete instance, but its execution never reached a
-`.start` marker, so the step field `start` [P] of `Fl4StepWPRV12` (hence `StartV2C` / `StartV13`) was never
+`.start` marker, so the step field `start` [P] (hence `StartV2C` / `StartV13`) was never
 exercised. This module runs one.
 
 * **The path**: the timer interrupt (`irq`, `fl4-sync` `local_timer_irq`, `crates/fl4-sync/src/lib.rs` l.632–662,
@@ -23,15 +23,14 @@ exercised. This module runs one.
   the boot chain `ChB O`, lock set `∅`, for the program `k0B` = the PTE cut of the lifted irq path's body
   `(pathB O hK hU).body sB a` (the extracted `handle_timer_irq_local` at the store state `sB` and Arch state `a`):
   `GlueAt` with `σ = sB` (`Ch sB`, core 0, no lock, memory = `memB` on every word).
-* **The execution** (`exec_start`, `execStartV12_B`, `execStartV13_B`): from `s0B O`, core 0 arms the glue
+* **The execution** (`exec_start`, `execStartV13_B`; gen 56: an `ExecV15` of the native configuration, until gen
+  55 an `ExecWPRV12`, with `execStartV12_B` for V12's start fact, now retired): from `s0B O`,
+  core 0 arms the glue
   `.start kB` (`PureGlue.start`), enters, and takes the `.start` step to `.loc (.start kB) kB ∅` (`dfg3_ph0`). `kB`
   is the re-annotated body `annV … k0B` (gen 29's narrowing: irq is not an io index, so the armed program is
   `annV k0`; `kB_eq`). The `start` field of that step is proved (`g3_gen`) from `startIrq_B` with `ρ := memB`
-  (`VEq` reflexive) — not vacuously: the hypothesis `s.ph 0 = .loc p0 (.start k) W` holds.
-* **`startReachedV12_B`** / **`startReachedV13_B`**: every premise of the V12 / V13 tops except `hq` (`NoLoc`), with
-  an execution whose last step is a `.start` step of a real path. `hq` is not met: the body `kB` is still to run
-  (running the extracted timer-IRQ body step by step on the concrete memory is not attempted), so the tops are not
-  applied to this execution.
+  (`VEq` reflexive) — not vacuously: the hypothesis `s.ph 0 = .loc p0 (.start k) W` holds. P2/BootRun runs the
+  body to the end; gen 56 retired `startReachedV12_B` / `startReachedV13_B` (V12 / V13's premises up to `hq`).
 
 ## The vmF / vmR / sl starts (the clauses carrying `yb` / `ybw` [J]) at the boot memory
 * **`nonIdle_false_B`**: `NonIdle` [P] (a field of `VmFEntJ14` / `VmREntU` / `SlEntU` and of V13's `VmFEntV13` /
@@ -43,12 +42,9 @@ exercised. This module runs one.
   TCBs are 4 KiB-aligned and no nonzero word of `memB` sits at offset 3472).
 * `anch` is not part of `StartV13` (it is V14's anchored start, P2/E2EVFl4W14); nothing here exhibits it.
 
-## No VCPU in any `ExecWPRV12` (proved)
-* **`execWPRV12_vcpus`**: along every `ExecWPRV12` the layout's VCPU set stays empty when it starts empty (`serC`
-  at serial steps, `keep` otherwise, unchanged at hardware steps); `hc0` makes it empty at the start.
-* **`hwStepP_false`**: at a layout without VCPU no `HwStepP` exists (`frame` + `kern` + `chg` force a changed word
-  in some VCPU). **`hw_dead`**: the `hw` constructor of `ExecWPRV12` never fires under the tops' `hc0`. So a
-  witness with a VCPU step is impossible for V12 / V13 as stated, at every start state, not only at `σB`.
+## No VCPU
+Gen 56 retired `execWPRV12_vcpus` / `hwStepP_false` / `hw_dead` with `ExecWPRV12`: their V15 forms are
+`execV15_vcpus`, `hwStepP_noVcpu`, `hwV15_dead` (P2/E2EPV15Base).
 
 No premise added. No existing statement changed except the root import list.
 -/
@@ -203,19 +199,19 @@ theorem dfg2_lk : (fun _ : U64 => False) = fun l => (dfg2 K m k).lk l = some 0#u
 end gen
 
 section exec
-variable {ι : Type} {LP : PathsP ι} {NoV : ι → Prop}
-  {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+variable {ι : Type} {cfg : ExecCfg BS ι}
   {P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR} {K : KLayoutP} {Ch0 : U64 → BS → Prop} {m : U64 → U64}
 
 /-- **The three-step execution to a `.start` step**, given the `start` step's fields `g3`. -/
-theorem exec_start {k : SP} (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m)
-    (g3 : Fl4StepWPRV12 LP NoV SF P (dfg2 K m k) K Ch0 0#u64 (dfg3 K m k) K Ch0) :
-    ExecWPRV12 LP NoV SF P (cfg0 K m) K Ch0 (dfg3 K m k) K Ch0 := by
+theorem exec_start {k : SP} (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e))
+    (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
+    (g3 : Fl4StepV15 cfg P (dfg2 K m k) K Ch0 0#u64 (dfg3 K m k) K Ch0) :
+    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (dfg3 K m k) K Ch0 E := by
   obtain ⟨h1, h2, h3⟩ := dfg_steps K m k
-  have e1 := execE (LP := LP) (NoV := NoV) (SF := SF) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
+  obtain ⟨_, e1⟩ := execE (cfg := cfg) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
     (stepW_keep hB hc (fun p h => by rw [dfg1_ph0] at h; cases h; exact .start k) (noSt_idle (cfg0_ph K m _)) rfl
       (mapsP_dfg1 K m k))
-  have e2 := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [dfg2_ph0] at h; cases h)
+  obtain ⟨_, e2⟩ := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [dfg2_ph0] at h; cases h)
       (fun p0 k' W h => by rw [dfg1_ph0] at h; cases h) rfl (mapsP_dfg2 K m k))
   exact execE e2 h3 g3
 
@@ -238,14 +234,14 @@ theorem kB_eq (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP 
   rw [dif_pos ⟨hK, hU⟩]
   rfl
 
-/-- **The `.start` step's fields** for any start fact holding at the irq index (module docstring). -/
-theorem g3_gen (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState)
-    {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → IxB →
-      Prop}
+/-- **The `.start` step's fields** for any configuration whose start fact holds at the irq index (module
+docstring) and whose VCPU convention holds at the boot layout. -/
+theorem g3_gen (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) {cfg : ExecCfg BS IxB}
     (hSF : ∀ (hK : RegionOKP (KB O)) (hU : UserOKP (KB O)),
-      SF (ChB O) (KB O) memB hK hU 0#u64 (fun l => (dfg2 (KB O) memB (kB O a)).lk l = some 0#u64)
-        (k0B O a hK hU) (.inl (.irq jB))) :
-    Fl4StepWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i) SF (LocPlatM.locPlat_archT O bs_ext)
+      cfg.SF (ChB O) (KB O) memB hK hU 0#u64 (fun l => (dfg2 (KB O) memB (kB O a)).lk l = some 0#u64)
+        (k0B O a hK hU) (.inl (.irq jB)))
+    (hv : cfg.VcpuOK (KB O) memB) :
+    Fl4StepV15 cfg (LocPlatM.locPlat_archT O bs_ext)
       (dfg2 (KB O) memB (kB O a)) (KB O) (fun _ => ChB O) 0#u64 (dfg3 (KB O) memB (kB O a)) (KB O)
       (fun _ => ChB O) where
   arm p h := by rw [dfg3_ph0] at h; cases h
@@ -256,58 +252,23 @@ theorem g3_gen (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState)
     subst e2
     refine ⟨memB, ⟨fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩, .inl (.irq jB), k0B O a hK hU, ?_,
       Or.inr (kB_eq O a hK hU)⟩
-    show SF (ChB O) (KB O) (CoreView.view (KB O).toKLayout 0#u64 memB) hK hU 0#u64 _ _ _
+    show cfg.SF (ChB O) (KB O) (CoreView.view (KB O).toKLayout 0#u64 memB) hK hU 0#u64 _ _ _
     rw [view_B O]
     exact hSF hK hU
   serX _ := fun _ => serExitW_B O
-  serC _ := hc0_B O
+  serC _ := ⟨hv, (hc0_B O).2⟩
   serG _ := mapsP_dfg3 _ _ _
   keep _ := ⟨rfl, rfl⟩
 
-/-- **V12: an execution from the boot whose last step is the `.start` of the timer-IRQ path.** -/
-theorem execStartV12_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-      (StartV2C bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-      (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) (dfg3 (KB O) memB (kB O a)) (KB O)
-      (fun _ => ChB O) :=
-  exec_start (fun _ => serExitW_B O) (hc0_B O)
-    (g3_gen O a0 a fun hK hU => startIrq_B O a0 a hK hU _ (dfg2_lk _ _ _))
-
-/-- **V13: the same execution with V13's start fact.** -/
+/-- **The native V15 configuration (V13's family and start fact): an execution from the boot whose last step is
+the `.start` of the timer-IRQ path.** -/
 theorem execStartV13_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-      (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+    ∃ E, ExecV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
       (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) (dfg3 (KB O) memB (kB O a)) (KB O)
-      (fun _ => ChB O) :=
+      (fun _ => ChB O) E :=
   exec_start (fun _ => serExitW_B O) (hc0_B O)
-    (g3_gen O a0 a fun hK hU => startIrqV13_B O a0 a hK hU _ (dfg2_lk _ _ _))
-
-/-- **Every premise of V12 except `hq`, with a `.start` step run** (module docstring): the end configuration has
-core 0 in the started body. -/
-theorem startReachedV12_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    ∃ (P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR) (s0 s : Cfg U64 U64 U64 U64) (K0 K : KLayoutP)
-      (Ch0 Ch : U64 → BS → Prop) (k : SP),
-      MRKeepIoapic LocPlatM.archT modelMR ∧ Init s0 ∧ ArmInv s0 ∧ (∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) ∧
-      (K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem) ∧ MapsP K0 s0 ∧
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV2C bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR) P s0 K0 Ch0
-        s K Ch ∧
-      s.ph 0#u64 = .loc (.start k) k ∅ :=
-  ⟨_, s0B O, _, KB O, KB O, fun _ => ChB O, fun _ => ChB O, kB O a0, LocPlatM.mrKeepIoapic_archT, init_B O,
-    armInv_B O, fun _ => serExitW_B O, hc0_B O, mapsP_B O, execStartV12_B O a0 a0, dfg3_ph0 _ _ _⟩
-
-/-- **Every premise of V13 except `hq`, with a `.start` step run.** -/
-theorem startReachedV13_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState) :
-    ∃ (P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR) (s0 s : Cfg U64 U64 U64 U64) (K0 K : KLayoutP)
-      (Ch0 Ch : U64 → BS → Prop) (k : SP),
-      MRKeepIoapic LocPlatM.archT modelMR ∧ Init s0 ∧ ArmInv s0 ∧ (∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) ∧
-      (K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem) ∧ MapsP K0 s0 ∧
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR) P s0 K0 Ch0
-        s K Ch ∧
-      s.ph 0#u64 = .loc (.start k) k ∅ :=
-  ⟨_, s0B O, _, KB O, KB O, fun _ => ChB O, fun _ => ChB O, kB O a0, LocPlatM.mrKeepIoapic_archT, init_B O,
-    armInv_B O, fun _ => serExitW_B O, hc0_B O, mapsP_B O, execStartV13_B O a0 a0, dfg3_ph0 _ _ _⟩
+    (g3_gen O a (cfg := ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART
+      modelMR) (fun hK hU => startIrqV13_B O a0 a hK hU _ (dfg2_lk _ _ _)) (hc0_B O).1)
 
 /-! ## The vmF / vmR / sl clauses at the boot memory -/
 
@@ -330,45 +291,6 @@ theorem ybw_B (O : LocPlatM.OpaqueH) : YBW bst (KB O).toKLayout sB := by
   rw [hv]
   have := hta.align
   exact wordB_zero_of (by omega)
-
-/-! ## No VCPU along any `ExecWPRV12` -/
-
-section vcpu
-variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
-variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-variable {ι : Type}
-
-/-- **The VCPU set stays empty along an `ExecWPRV12`.** -/
-theorem execWPRV12_vcpus {LP : PathsP ι} {NoV : ι → Prop}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch) (h0 : K0.vcpus = ∅) : K.vcpus = ∅ := by
-  induction h with
-  | refl => exact h0
-  | @step s s' K K' Ch Ch' c _ _ g ih =>
-    by_cases hs : SerStep s c
-    · exact (g.serC hs).1
-    · rw [(g.keep hs).1]; exact ih
-  | hw _ _ ih => exact ih
-
-/-- **No hardware step at a layout without VCPU.** -/
-theorem hwStepP_false {K : KLayoutP} (hv : K.vcpus = ∅) {s : Cfg U64 U64 U64 U64} {v a x : U64} :
-    ¬ HwStepP K s v a x := by
-  intro H
-  rcases H.frame a (by simpa using H.chg) with h | ⟨⟨hv', -⟩, -⟩
-  · exact H.kern h
-  · have : v ∈ (∅ : Set U64) := hv ▸ hv'
-    exact this
-
-/-- **The `hw` constructor never fires under `hc0`** (module docstring). -/
-theorem hw_dead {LP : PathsP ι} {NoV : ι → Prop}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    {v a x : U64} : ¬ HwStepP K s v a x :=
-  hwStepP_false (execWPRV12_vcpus h hc0.1)
-
-end vcpu
 
 end
 end Fl4Proofs.P2.BootSt

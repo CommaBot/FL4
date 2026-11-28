@@ -344,24 +344,6 @@ def stSlotW2 : SlotU (StArg S) :=
 def irqSlotW2 : SlotU (IrqArg S) :=
   (irqSlotK st ar hA hm).pullK (IrqPremK2 st) (fun hK hU h => h.toK st ar hA hm hK hU)
 
-/-- **FL4's eight local paths, `fl4LocW` with the `io` / `st` / `irq` slots swapped** (module docstring). -/
-def fl4LocW2 : Fl4Loc (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) (VxArg S ⊕ VtArg S) where
-  vmF := vmFSlot st ar hA hm
-  vmR := vmRSlot st ar hA hm
-  io := ioSlotW2 st ar hA hm
-  st := stSlotW2 st ar hA hm
-  irq := irqSlotW2 st ar hA hm
-  sl := slSlotK st ar hA hSt hm a0
-  vq := fl4LQW st ar hA hm (fl4Dflt st ar hm)
-
-/-- **FL4 end to end with rule 7 over its eight local paths, `ReadOnce` of io / st / irq proved**
-(`serializable_fl4_local`'s statement over `fl4LocW2`; premise table in the module docstring). -/
-theorem serializable_fl4_localW2 {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    (h0 : Init s0) (hA0 : ArmInv s0) (hK0 : RegionOKV K0) (hU0 : UserOKV K0) (hM0 : MapsV K0 s0)
-    (h : ExecV ((fl4LocW2 st ar hA hSt hm a0).paths (fl4Dflt st ar hm)) s0 K0 s K) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localG _ _ h0 hA0 hK0 hU0 hM0 h hq
-
 end fam
 
 end

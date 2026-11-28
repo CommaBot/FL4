@@ -48,6 +48,10 @@ No premise is introduced here: every theorem's hypotheses are `JAtZ` (P3's prove
 (the existing VCPU placement record; for `V = ∅` it is `JVm.empty`). In VM epochs `JAtZ` is not a proved
 invariant (its `ext : JExt` fails, P3/JExtV.lean), so there these derivations need the `JVLay` record itself,
 whose fields are all non-`ext` facts; no VM-epoch joint invariant exists yet. No existing statement changed.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `detAtB`,
+`detPl`, `hact`, `hct`, `jvLay`, `jwPl`, `nodePl`, `nodeW`, `thH`, `thrCap`, `tw_nBC`; each `JAtZ` name is a one-line
+corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.JExtVStepsB
 import Fl4Proofs.P3.JVm
@@ -286,7 +290,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V : Set U64}
 
 /-- A typed-heap object is an `H` object of the same size. -/
-theorem JAtZ.thH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.thH (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     ∀ p k, Z.th p = some k → ∃ hk, H p = some hk ∧ 2 ^ hk.bits = objSize k := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   intro p k hp
@@ -294,8 +298,13 @@ theorem JAtZ.thH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   · exact ⟨_, (hJ.tcb p).1 hp, by simp [P1.HKind.bits, objSize]⟩
   · exact ⟨_, hJ.cnode p r hp, by simp only [P1.HKind.bits, objSize]; rw [pow_add]; ring⟩
 
+/-- `JAtZB.thH` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.thH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    ∀ p k, Z.th p = some k → ∃ hk, H p = some hk ∧ 2 ^ hk.bits = objSize k :=
+  Fl4Proofs.P3.JAtZB.thH (J := J.toB)
+
 /-- **The layout record at a joint state** (module docstring). -/
-theorem JAtZ.jvLay (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.jvLay (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     JVLay V Z.th (BufU Z σ) := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hH := J.kern.heap
@@ -341,13 +350,28 @@ theorem JAtZ.jvLay (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (
       rw [eb] at e; omega
     · right; omega
 
+/-- `JAtZB.jvLay` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.jvLay (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    JVLay V Z.th (BufU Z σ) :=
+  Fl4Proofs.P3.JAtZB.jvLay (J := J.toB) (Jv := Jv)
+
 /-- **`JWPl` at a joint state.** -/
-theorem JAtZ.jwPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.jwPl (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     JWPl V Z.th := (J.jvLay Jv).jwPl
 
+/-- `JAtZB.jwPl` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.jwPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    JWPl V Z.th :=
+  Fl4Proofs.P3.JAtZB.jwPl (J := J.toB) (Jv := Jv)
+
 /-- **`DetPl` at a joint state**, at the IPC-buffer words `BufU Z σ`. -/
-theorem JAtZ.detPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.detPl (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     DetPl V Z.th (fun _ => BufU Z σ) := (J.jvLay Jv).detPl
+
+/-- `JAtZB.detPl` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.detPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    DetPl V Z.th (fun _ => BufU Z σ) :=
+  Fl4Proofs.P3.JAtZB.detPl (J := J.toB) (Jv := Jv)
 
 /-- Native `JWPl` (`V = ∅`). -/
 theorem JAtZ.jwPl0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JWPl ∅ Z.th :=
@@ -358,7 +382,7 @@ theorem JAtZ.detPl0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : DetPl �
   J.detPl (V := ∅) JVm.empty
 
 /-- The current core's node is placed (`JKern`'s `ksbAl` / `nodeFit` / `hnd`). -/
-theorem JAtZ.nodePl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.nodePl (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     P1.NodePlaced st (P1.Heap.tcbs H) s (L.cpu s) where
   align := by unfold P1.LawfulStore.nodeBase; have := J.kern.ksbAl; omega
   fits := by unfold P1.LawfulStore.nodeBase; have := J.kern.nodeFit; omega
@@ -366,8 +390,13 @@ theorem JAtZ.nodePl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     have := J.kern.hnd t .tcb ht (L.cpu s) J.kern.cpuCs
     simpa [P1.HKind.bits] using this
 
+/-- `JAtZB.nodePl` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.nodePl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    P1.NodePlaced st (P1.Heap.tcbs H) s (L.cpu s) :=
+  Fl4Proofs.P3.JAtZB.nodePl (J := J.toB)
+
 /-- A word of the current core's node is none of `JW` / `SW`. -/
-theorem JAtZ.nodeW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {b : U64}
+theorem JAtZB.nodeW (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {b : U64}
     (h1 : L.nodeBase s (L.cpu s) ≤ b.val) (h2 : b.val < L.nodeBase s (L.cpu s) + 4288) :
     ¬ JW V Z.th b ∧ ¬ SW Z.th b := by
   have h15 : (2 : Nat) ^ 15 = 32768 := by norm_num
@@ -379,9 +408,15 @@ theorem JAtZ.nodeW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (
     rcases J.kern.hnd v _ (Jv.heap v hv) (L.cpu s) J.kern.cpuCs with e | e <;>
       (try simp only [P1.HKind.bits, h15] at e) <;> omega
 
+/-- `JAtZB.nodeW` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.nodeW (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {b : U64}
+    (h1 : L.nodeBase s (L.cpu s) ≤ b.val) (h2 : b.val < L.nodeBase s (L.cpu s) + 4288) :
+    ¬ JW V Z.th b ∧ ¬ SW Z.th b :=
+  Fl4Proofs.P3.JAtZB.nodeW (J := J.toB) (Jv := Jv) (h1 := h1) (h2 := h2)
+
 /-- A TCB word at an offset outside the register range, other than the VCPU / state words, is no binding word
 and no detach word `CW` (what the IPC-buffer lookup's three words need). -/
-theorem JAtZ.tw_nBC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {t : U64}
+theorem JAtZB.tw_nBC (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {t : U64}
     (ht : Z.th t = some .tcb) {w : U64} {K : Nat} (hw : w.val = t.val + K) (hK : K < 4096)
     (hK2 : K < 256 ∨ 3328 < K) (hK3 : K ≠ 3664) (hK8 : K % 8 = 0) :
     P1.Aligned w ∧ ¬ (BW V Z.th w ∨ CW st V Z.th (fun _ => BufU Z σ) s w) := by
@@ -431,10 +466,17 @@ theorem JAtZ.tw_nBC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm 
   · rw [e, lay_svm_val (Ly.vfit v hv).2] at hw
     rcases Ly.vap v hv t .tcb ht with e' | e' <;> (try rw [show objSize ObjKind.tcb = 4096 from rfl] at e') <;> omega
 
+/-- `JAtZB.tw_nBC` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tw_nBC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {t : U64}
+    (ht : Z.th t = some .tcb) {w : U64} {K : Nat} (hw : w.val = t.val + K) (hK : K < 4096)
+    (hK2 : K < 256 ∨ 3328 < K) (hK3 : K ≠ 3664) (hK8 : K % 8 = 0) :
+    P1.Aligned w ∧ ¬ (BW V Z.th w ∨ CW st V Z.th (fun _ => BufU Z σ) s w) :=
+  Fl4Proofs.P3.JAtZB.tw_nBC (J := J.toB) (Jv := Jv) (ht := ht) (hw := hw) (hK := hK) (hK2 := hK2) (hK3 := hK3) (hK8 := hK8)
+
 /-- **`DetAtB` at a joint state** (P3/JExtVStepsB): the node placed (`JAtZ.nodePl`), its IPI / action words
 outside the extension (`JAtZ.nodeW`), and the buffer lookup kept along binding / `CW` writes (it reads only the
 TCB's `IPC_BUFFER` word and buffer-slot words, `P1.lookup_ipc_buffer_same`), landing in `BufU` (`JAtZ.bufOK`). -/
-theorem JAtZ.detAtB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.detAtB (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     DetAtB st V Z.th (fun _ => BufU Z σ) s where
   node := ⟨_, J.nodePl⟩
   nd b hb := by
@@ -462,17 +504,31 @@ theorem JAtZ.detAtB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm 
     rw [P1.lookup_ipc_buffer_same hI]
     exact J.bufOK ((hJ.tcb t).1 ht)
 
+/-- `JAtZB.detAtB` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.detAtB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    DetAtB st V Z.th (fun _ => BufU Z σ) s :=
+  Fl4Proofs.P3.JAtZB.detAtB (J := J.toB) (Jv := Jv)
+
 /-- `sts_jv`'s `hact` at a joint state. -/
-theorem JAtZ.hact (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.hact (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     P1.Aligned (actA st s) ∧ ¬ JW V Z.th (actA st s) ∧ ¬ SW Z.th (actA st s) :=
   ⟨(J.detAtB Jv).actA_al, ((J.detAtB Jv).nd _ (Or.inr rfl)).1, ((J.detAtB Jv).nd _ (Or.inr rfl)).2⟩
 
+/-- `JAtZB.hact` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hact (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    P1.Aligned (actA st s) ∧ ¬ JW V Z.th (actA st s) ∧ ¬ SW Z.th (actA st s) :=
+  Fl4Proofs.P3.JAtZB.hact (J := J.toB) (Jv := Jv)
+
 /-- `vcpu_decode_settcb_jv`'s `hct` at a joint state (`JKern.curT`). -/
-theorem JAtZ.hct (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Z.th (L.mem s (curA st s)) = some .tcb :=
+theorem JAtZB.hct (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) : Z.th (L.mem s (curA st s)) = some .tcb :=
   J.kern.curT
 
+/-- `JAtZB.hct` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hct (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Z.th (L.mem s (curA st s)) = some .tcb :=
+  Fl4Proofs.P3.JAtZB.hct (J := J.toB)
+
 /-- The `Thread` half of `hex` at a joint state: a slot's `Thread` cap names a TCB (`SlotsValid`). -/
-theorem JAtZ.thrCap (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x) :
+theorem JAtZB.thrCap (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x) :
     ∀ p, capV (L.mem s) x = .Thread p → Z.th p = some .tcb := by
   intro p hp
   have hV := J.xtop.rel.2.1.2.1
@@ -482,6 +538,11 @@ theorem JAtZ.thrCap (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} 
     · exact hV.cnode q r hq i hi _ (capAt_capV _ _)
     · exact hV.tcb q hq i hi _ (capAt_capV _ _)
   rw [hp] at hc; exact hc
+
+/-- `JAtZB.thrCap` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.thrCap (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x) :
+    ∀ p, capV (L.mem s) x = .Thread p → Z.th p = some .tcb :=
+  Fl4Proofs.P3.JAtZB.thrCap (J := J.toB) (hx := hx)
 
 end
 

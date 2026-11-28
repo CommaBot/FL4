@@ -14,6 +14,13 @@ after FL4's `schedule`, `SchTailHyps`):
   (`bsa_schedule`); the rest (`SchTailHyps`) given.
 * `jat_scheduleT`: `jat_schedule` with `hSchedRest` replaced by `JAtZ`
   after the timers (`hfireJ`) and `SchTailHyps` after `schedule`.
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `sch_csc`, `sch_kern`; the `JAtZ` names are one-line corollaries via `JAtZ.toB`,
+statements unchanged.
+
+(mmuAD gen 42b18) `sch_tail` stated over `JAtZB` in place; `JAtZ.sch_tail` its corollary (`ext` by ScJointFrame's
+`JAtZ.ext_tfoot` over its `KFoot`). P3/JAtZBSchedR's copy deleted.
 -/
 import Fl4Proofs.P3.ScJointSchFrame
 import Fl4Proofs.P3.ScJointStep
@@ -37,9 +44,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 word's heap object (`hcscH`), the node-0
 `DEBUG_TCBS` word kept and apart from the new thread's state word (`hDbg`,
 `hdw`) given. -/
-theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
@@ -51,8 +58,8 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have ecw : L.curW s' = nodeW st s' Z.c layout.node.CUR_THREAD := by
-    unfold P1.LawfulStore.curW nodeW; rw [hc'.cur]
+  have ecw : L.curW s' = Sched.nodeW st s' Z.c layout.node.CUR_THREAD := by
+    unfold P1.LawfulStore.curW Sched.nodeW; rw [hc'.cur]
   have hcT : L.curW s' ∈ Z.T := ecw ▸ hc'.curT
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   have hT := hK.toTK
@@ -66,18 +73,29 @@ theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0, K.csN, K.tdx.frame hK.huge⟩
   rw [hna, hDbg]; exact K.head
 
+/-- `JAtZB.sch_kern` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ')
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
+    (hdw : (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val)
+    (hcscH : H (L.cscW s') ≠ none) : JKern (L := L) arI H Cs D Z.th s' σ' :=
+  Fl4Proofs.P3.JAtZB.sch_kern (J := J.toB) (hw := hw) (hK := hK) (hS' := hS') (hDbg := hDbg) (hdw := hdw) (hcscH := hcscH)
+
 /-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,
 `JPlaced`) and not dead (bound to the current thread, `CurInv`: its `TCB`
 word is not 0, as a dead SC's is). -/
-theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hI' : Inv σ') (hC' : CurInv σ')
     (hdead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q) : H (L.cscW s') ≠ none ∧ L.cscW s' ∉ D := by
   obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
-  have ecs : L.cscW s' = nodeW st s' Z.c layout.node.CUR_SC := by
-    unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA nodeW; rw [hc'.cur]
+  have ecs : L.cscW s' = Sched.nodeW st s' Z.c layout.node.CUR_SC := by
+    unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA Sched.nodeW; rw [hc'.cur]
   have hcv0 : σ'.curSc = (L.cscW s').bv := by rw [ecs]; exact hs'.curSc
   obtain ⟨x, n, hx⟩ := hC'.sc
   have hobj0 := J.obj.tkw hK.toTK
@@ -95,6 +113,15 @@ theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have h1 := hR.tcb
   rw [hown x n hx, show scW c 24#u64 = P1.scTcbA c from scW_tcb c, d, optRef_zero] at h1
   cases h1
+
+/-- `JAtZB.sch_csc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hI' : Inv σ') (hC' : CurInv σ')
+    (hdead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q) : H (L.cscW s') ≠ none ∧ L.cscW s' ∉ D :=
+  Fl4Proofs.P3.JAtZB.sch_csc (J := J.toB) (hw := hw) (hK := hK) (hS' := hS') (hI' := hI') (hC' := hC') (hdead := hdead)
 
 /-- **The facts after FL4's `schedule` the tail does not derive** (module
 docstring): the VSpace current-thread relation and the arch CR3 (the arch
@@ -115,16 +142,16 @@ structure SchTailHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap
 set_option maxHeartbeats 2000000 in
 /-- **`JAtZ` after FL4's `schedule`** from `JAtZ` after the TCB timers
 (module docstring). -/
-theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
     (hsc : Fl4Spec.schedule (Z := Unit) σ = ({((), σ')}, False))
     (hw : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ))
     (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hR' : NtfnStateRel Z.N Z.T (L.mem s') σ') (hN' : NSC Z.N Z.C σ')
     (hI' : Inv σ') (hC' : CurInv σ') (hA' : ActIdle σ') (hcr : CurRunW σ') (hoff : Sched.OffOK σ')
     (hbsa : Sched.BlockedScActive σ')
     (hT : SchTailHyps (L := L) AR Z H Cs D s s' a' σ' Ac') :
-    ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a' σ' := by
+    ∃ Lst' : U64 → List U64, JAtZB (L := L) arI AR Z H Cs Ac' Lst' D s' a' σ' := by
   have hSch : SchS σ σ' := schs_schedule.of_eq hsc
   have hK : SchStep (fun _ => False) σ σ' := hSch.1
   have hKc : ∀ ct : Fl4Spec.ObjRef, SchStep (fun p => p = ct) σ σ' := fun ct =>
@@ -144,6 +171,19 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK
     (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
       (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2).1 J.zD⟩
+
+/-- `JAtZB.sch_tail` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    (hsc : Fl4Spec.schedule (Z := Unit) σ = ({((), σ')}, False))
+    (hw : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ))
+    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hR' : NtfnStateRel Z.N Z.T (L.mem s') σ') (hN' : NSC Z.N Z.C σ')
+    (hI' : Inv σ') (hC' : CurInv σ') (hA' : ActIdle σ') (hcr : CurRunW σ') (hoff : Sched.OffOK σ')
+    (hbsa : Sched.BlockedScActive σ')
+    (hT : SchTailHyps (L := L) AR Z H Cs D s s' a' σ' Ac') :
+    ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a' σ' :=
+  (Fl4Proofs.P3.JAtZB.sch_tail (J := J.toB) (hsc := hsc) (hw := hw) (hS' := hS') (hR' := hR') (hN' := hN') (hI' := hI') (hC' := hC') (hA' := hA') (hcr := hcr) (hoff := hoff) (hbsa := hbsa) (hT := hT)).imp fun _ B => B.toJAtZ (J.ext_tfoot (WritesIn.tfoot_of_kfoot hw))
 
 /-- **The entry tail on `JAt`** with `hSchedRest` discharged (module
 docstring): `JAtZ` after the TCB timers (`hfireJ`, with `FireHypW`'s

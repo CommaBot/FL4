@@ -15,6 +15,9 @@ TCB zombies' TCBs dead, `EmptyReadyX`).
   (not at `x`), its slots from its count on unused as before; TCB zombies'
   TCBs dead by the dead set.
 * `DbgWF` (`slotFrame_dbgKeep`), `NullOrig` (`NullOrig.empty`).
+
+(mmuAD gen 42b3) `JAtZB.emptyL`: `emptyHypJL`'s step over `JAtZB` (no `ext`, no `WJR` extras); `emptyHypJL` (statement
+unchanged) is it plus `ext` (`JExt.step`), `NoSwitch`, `SpecGlob`, `PPR0`.
 -/
 import Fl4Proofs.P3.XTopJointWJL
 open Aeneas Aeneas.Std Result
@@ -114,19 +117,30 @@ theorem WJL.x {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A
   ⟨Z.vx, h⟩
 
 set_option maxHeartbeats 4000000 in
-/-- **Emptying a ready slot keeps `WJL`** (module docstring). -/
-theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
-    (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    EmptyHypWR (L := L) (WJL (L := L) arI AR Z H Cs kb) (WJLx (L := L) arI AR Z H Cs kb)
-      (RdLX (L := L) (A := A) th H Z.vx) th := by
-  intro s s' a σ σ' G G' sl hW hRdLO hD1 hD2 hF hes hA hxn hx0 hoth hmS
+/-- **Emptying a ready slot at `JAtZB`** (module docstring; gen 42b3: `emptyHypJL`'s step over `JAtZ`'s `ext`-free
+part `JAtZB`, the loop's `WJR` extras and `ext` left to `emptyHypJL`): the base at the new ghost, the kernel-state
+base, the VSpace slots' transfer, `LiveJ`, `DbgWF` and `NullOrig` after. -/
+theorem JAtZB.emptyL [Fl4Proofs.P1.PlainStore st] {Z : XSets} {H : P1.Heap} {Cs : Set U64} {E0 : Set U64}
+    {V : XVs} {Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s s' : S} {a : A} {σ σ' : Fl4Spec.State Unit}
+    {G G' : MdbGhost} {sl : Fl4Spec.CslotPtr}
+    (Jx : JAtZB (L := L) arI AR ({ Z with vx := E0 }.mv G V) H Cs Ac Lst D s a σ)
+    (hL : LiveJ (L := L) Z.th H G s σ) (hDW : DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s))
+    (hN : NullOrig Z.th (L.mem s) σ) (hRdLO : RdLX (L := L) (A := A) Z.th H Z.vx s a σ G (cslotAddr sl))
+    (hD1 : DState (L := L) Z.th s σ G) (hD2 : DState (L := L) Z.th s' σ' G') (hF : Vs.SlotFrame2 (L := L) Z.th s s')
+    (hes : ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1) (hA : AbsSlot Z.th sl)
+    (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null) (hx0 : capV (L.mem s') (cslotAddr sl) = .Null)
+    (hoth : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
+    (hmS : MdbStep (L.mem s) G (L.mem s') G') :
+    ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZB (L := L) arI AR (Z.mv G' V) H Cs Ac' Lst' D' s' a σ' ∧ L.ksb s' = L.ksb s ∧
+      Vs.VsSlotsT Z.th (L.mem s) (L.mem s') ∧ LiveJ (L := L) Z.th H G' s' σ' ∧
+      DbgWF (P1.Heap.tcbs H) Cs (L.mem s') (dbgHd (L := L) s') ∧ NullOrig Z.th (L.mem s') σ' := by
   obtain ⟨⟨⟨hRd, hRL⟩, hLO, hTR⟩, hPd⟩ := hRdLO
-  subst hth
-  obtain ⟨E0, ⟨V, Ac, Lst, D, Jx, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ := hW
+  obtain ⟨lst, hDW⟩ := hDW
   -- (f4g) the window's exempt set made `{0}` (so `vsNamed` is vacuous through the edit), `Z.vx`
   -- restored after with `VsNamed` from `VsPend` (`Vs.VsNamed.ofPendShr`)
   set Zu : XSets := { Z with vx := {0#u64} } with hZu
-  have J : JAtZ (L := L) arI AR (Zu.mv G V) H Cs Ac Lst D s a σ := Jx.vxSet (fun h => absurd h vx0_ne)
+  have J : JAtZB (L := L) arI AR (Zu.mv G V) H Cs Ac Lst D s a σ := Jx.vxSet (fun h => absurd h vx0_ne)
   have hP := J.xtop.rel.1
   set E : Set U64 := ZTcb (L := L) Z.th s with hE
   have J0 := J.addDeadSet (E := E) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
@@ -138,8 +152,8 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     · exact (hqD (Or.inr (h q hq hHq))).elim
     · exact Sched.DeadX.of_ne hHq
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
-  obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Zu.mv G V) kb s s' a σ σ' G G'
-    ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, hkb⟩ hD1 hD2 hF hnk hmS
+  obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Zu.mv G V) (L.ksb s) s s' a σ σ' G G'
+    ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, rfl⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hfk2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧ _ := by
     by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
     · exact J0.emptyJRD hA hcn hxn hRd hrx hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
@@ -156,7 +170,6 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) (fun y _ e _ _ => by rw [e, hx0]; trivial) (fun y _ e _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
-  have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
   -- the slots in use after
   set x := cslotAddr sl with hx
   have hob : σ'.isOriginalCap = Function.update σ.isOriginalCap sl false := hcs.2
@@ -223,7 +236,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     have hyx : y ≠ x := fun h => by rw [h, hx0] at hz'; cases hz'
     have hw : capV (L.mem s) y = .Zombie p zt' n' := by rw [← hoth y hy hyx]; exact hz'
     exact hDD (Or.inr ⟨y, hy, zt', n', hw, hzt⟩)
-  have J' := J0.cs_frameB (hvn := fun h => absurd h vx0_ne) hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
+  have J' := J0.cs_frameB (hvn := fun h => absurd h vx0_ne) hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT)
     ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
     (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J0.ut (utKept_ins hoth fun p0 sb0 fi0 d0 h => by rw [hx0] at h; cases h))
     (J0.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hks (ArchFwd.of_objCn hnk.2)) (ArchFwd.of_objCn hnk.2)
@@ -235,9 +248,26 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     exact Vs.VsNamed.ofPendShr (hPd hvx) J0.vsc J0.xtop.fin.2.1 J0.xtop.fin.2.2.1 J0.xtop.fin.2.2.2.1 hR'
       hXb.fin.2.2.1 (Vs.ArchShr.of_objCn hnk.2 (by have e := congrArg Fl4Spec.AbstractState.archState hnk.1; exact e))
       (fun y hy hyx => hoth y hy hyx) (by rw [hx0]; rfl)
-  have J'' : JAtZ (L := L) arI AR (Z.mv G' V) H Cs Ac' Lst' D' s' a σ' := J'.vxSet hvn'
-  exact ⟨⟨V, Ac', Lst', D', J'', hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg,
-    hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
+  have J'' : JAtZB (L := L) arI AR (Z.mv G' V) H Cs Ac' Lst' D' s' a σ' := J'.vxSet hvn'
+  exact ⟨Ac', Lst', D', J'', hks, hvT, hL', ⟨lst, hDW'⟩, hN'⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **Emptying a ready slot keeps `WJL`** (module docstring). -/
+theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
+    (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
+    EmptyHypWR (L := L) (WJL (L := L) arI AR Z H Cs kb) (WJLx (L := L) arI AR Z H Cs kb)
+      (RdLX (L := L) (A := A) th H Z.vx) th := by
+  intro s s' a σ σ' G G' sl hW hRdLO hD1 hD2 hF hes hA hxn hx0 hoth hmS
+  subst hth
+  obtain ⟨E0, ⟨V, Ac, Lst, D, Jx, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
+  obtain ⟨Ac', Lst', D', B', hks, hvT, hL', hDW', hN'⟩ :=
+    JAtZB.emptyL arI Jx.toB hL hDW hN hRdLO hD1 hD2 hF hes hA hxn hx0 hoth hmS
+  have hnk := emptySlot_null_nkn _ σ ((), σ') hes
+  have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
+  have hext : JExt (L := L) Z.th s' :=
+    Jx.ext.step hvT (Jx.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range Jx.xtop.rel.1 hb))
+  exact ⟨⟨V, Ac', Lst', D', B'.toJAtZ hext, hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg,
+    hpp⟩, hL', hDW', hN'⟩
 
 end
 

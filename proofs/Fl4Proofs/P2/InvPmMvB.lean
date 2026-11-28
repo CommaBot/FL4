@@ -9,8 +9,11 @@
 * **`pmAccG2`**: `pmAccG` with `hWs` replaced by `SWr` for `RESTART` / `RUNNING`, the `CAP0` write for Frame / Null
   words (`nof_enc_framePm`), `W` at `CAP1`, and `W` at the PTE words (non-decision words under `PWs`).
   (`pmFinG` needs no write-set hypothesis beyond `IoWr` and `SWr RUNNING`, so it applies to `gd` as it is.)
+* **`pmAccG2C`** (gen-45 p3mc, moved here from P2/InvPmGdV): `pmAccG2` with the `IoRS (ptU K) s` reads asked only
+  where a word class `G` holds (at the words the block reads) and the leaf read / written only when locked;
+  `pmAccG2` is its one-line instance at `G := fun _ => True` (statement unchanged).
 
-No named premise. New module; no existing statement changes.
+No named premise. New module; gen 45 re-proves `pmAccG2` as a corollary (statement unchanged).
 -/
 import Fl4Proofs.P2.InvPmMvA
 open Aeneas Aeneas.Std Result
@@ -62,19 +65,27 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayoutP} {μ : U64 → U64}
 variable {A : Type} {ar : machine.Arch A}
 
-/-- **`pmAccG` for stores that check the `STATE` write per value and the slot's `CAP0` write per word** (module
-docstring). -/
-theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S} {a1 : A}
-    {buf length : U64} {cap : capability.Cap} {y : (core.result.Result Unit error.Exc) × S × A}
-    {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+set_option maxHeartbeats 2000000 in
+/-- **`pmAccG2` cut by a word class `G`** (module docstring): reads of `IoRS (ptU K) s` words asked only where `G`
+holds, the leaf read and written only when locked (gen-45 p3mc; `pmAccG2` is its instance at `G := True`). -/
+theorem pmAccG2C (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S}
+    {a1 : A} {buf length : U64} {cap : capability.Cap} {y : (core.result.Result Unit error.Exc) × S × A}
+    {R W G : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
     (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s)
-    (hR : ∀ b, IoRS (st := st) K.ptU Locks s b → R b) (hRu : ∀ b, UserW K.toKLayout b → R b)
-    (hRe : ∀ b, PmRS st K Locks s b → R b)
+    (hR : ∀ b, IoRS (st := st) K.ptU Locks s b → G b → R b) (hRu : ∀ b, UserW K.toKLayout b → R b)
+    (hRe : ∀ b, b ∈ K.ptes → Locks s b → PmRS st K Locks s b → R b)
     (hW : IoWr st W K.heap.scBits s)
     (hsw : ∀ v, v = sched.TS_RESTART ∨ v = sched.TS_RUNNING → SWr gS st (L.curW s) v)
     (hc0 : ∀ x v, OwnMap.NullOrFrame v → gS.write x p.slot v = st.write x p.slot v)
     (hW8 : W (core.num.U64.wrapping_add p.slot 8#u64))
-    (hWu : ∀ b, UserW K.toKLayout b → W b) (hWe : ∀ b, b ∈ K.ptes → W b)
+    (hWu : ∀ b, UserW K.toKLayout b → W b) (hWe : ∀ b, b ∈ K.ptes → Locks s b → W b)
+    (hGn : ∀ o : U64, o.val < 4288 → G (L.nodeAt s (L.cpu s) o))
+    (hGr : ∀ r : U64, r.val < 384 → G (regA (L.curW s) r))
+    (hGs : ∀ q ∈ K.slots, G q ∧ G (core.num.U64.wrapping_add q 8#u64))
+    (hGv : ∀ b, VsW K.toKLayout b → b ∉ K.ptes → G b)
+    (hGst : G (stA (L.curW s))) (hGsc : G (scA (L.curW s))) (hGiq : G (inqA (L.curW s)))
+    (hGm : G (maxA (L.cscW s))) (hGi : G (core.num.U64.wrapping_add (L.curW s) 3512#u64))
+    (hGf : G (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES))
     (emi : msg.msg_info st s (L.curW s) = ok info) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
     (hcap : obj.Slot.cap st p.slot s2 = ok cap)
     (hy : syscall.decode_invocation st ar s2 a1 info.label length p.slot cap true true true false buf p.extra =
@@ -87,16 +98,10 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
   obtain ⟨⟨hJ, hq, hG⟩, -, -⟩ := hE
   have Pb := hq.1.1.1
   have P := Pb.ptU hG
-  -- the decode's first reads and its walk on `gS` (a store reading `IoRS (ptU K) s` as `st`)
-  haveI hIo : GRd gS st (IoRS (st := st) K.ptU Locks s) :=
-    { read := fun hy s => GRd.read (g := gS) (hR _ hy) s
-      read_pair := fun hy h8 s => GRd.read_pair (g := gS) (hR _ hy) (hR _ h8) s
-      ks_base := gst_ks_base
-      cur_cpu := gst_cur_cpu
-      frame_masks := gst_frame_masks }
-  obtain ⟨-, -, hargs, x0', root', rasid', hx0', hcxg, hcx', -⟩ := pm_decRd (gS := gS) hA hE0 C
-  have hWk := pm_decWalk (gS := gS) hA hE0 C (root := root) (rasid := rasid) hu
-  clear hIo
+  -- the decode's first reads and its walk on `gS`, cut by `G`
+  obtain ⟨-, -, hargs, x0', root', rasid', hx0', hcxg, hcx', -⟩ :=
+    pm_decRdC (gS := gS) hA hE0 C hR hGn hGr hGs
+  have hWk := pm_decWalkC (gS := gS) hA hE0 C hR hGv (root := root) (rasid := rasid) hu
   rw [hx0] at hx0'
   have ex0 : x0' = x0 := by have := ok_inj_ff hx0'; simpa using this.symm
   subst ex0
@@ -120,10 +125,11 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
   have tk : ∀ k : U64, k.val < 4096 → k.val % 8 = 0 → k.val ≠ 392 →
       L.mem s2 (core.num.U64.wrapping_add (L.curW s) k) = L.mem s (core.num.U64.wrapping_add (L.curW s) k) :=
     fun k h1 h2 h3 => w0.2.2 _ (field_aligned P.tA h1 h2) (preW_tcb P.tA P.np P.cT h1 h3)
-  -- the node, the caller's words (cmAcc8's)
+  -- the node, the caller's words
   have hctR : R (L.nodeAt s2 (L.cpu s2) layout.node.CUR_THREAD) := by
     rw [I.cp, nodeAt_of_ksb I.k]
-    exact hR _ (P.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1
+    exact hR _ (P.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD])
+      (by simp [layout.node.CUR_THREAD])).1 (hGn _ (by simp [layout.node.CUR_THREAD]))
   have hN : ∀ x : S, (∀ o, L.nodeAt x (L.cpu x) o = L.nodeAt s (L.cpu s) o) → NodeSt (L := L) R W x := by
     have n0 : IoRS (st := st) K.ptU Locks s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) :=
       (P.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1
@@ -133,8 +139,8 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
       hW.nd _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
     intro x hn
     refine ⟨?_, ?_, ?_⟩
-    · rw [hn]; exact hR _ n0
-    · rw [hn]; exact hR _ n1
+    · rw [hn]; exact hR _ n0 (hGn _ (by simp [layout.node.CUR_THREAD]))
+    · rw [hn]; exact hR _ n1 (hGn _ (by simp [layout.node.SCHED_ACTION]))
     · rw [hn]; exact n1w
   have hnd2 : ∀ o, L.nodeAt s2 (L.cpu s2) o = L.nodeAt s (L.cpu s) o := fun o => by
     rw [I.cp, nodeAt_of_ksb I.k]
@@ -154,14 +160,13 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
   have hK0 := SchedOK.of_sw I.F (by rw [hct]; exact Hf.sc) (by rw [hct]; exact Hf.nr)
   rw [hct] at hK0
   have hK : SchedOK (L := L) s2 (L.curW s) := hK0
-  have hmx2 : IoRS (st := st) K.ptU Locks s
-      (maxA (L.mem (L.wr s2 (stA (L.curW s)) sched.TS_RESTART) (scA (L.curW s)))) := by
+  have emx : L.mem (L.wr s2 (stA (L.curW s)) sched.TS_RESTART) (scA (L.curW s)) = L.mem s2 (scA (L.curW s)) := by
     have kw := (KeepA.refl ha2 hrun).wr hK (b := stA (L.curW s)) (v := sched.TS_RESTART) (Or.inr rfl)
       (fun _ => Or.inl rfl)
-    have e : L.mem (L.wr s2 (stA (L.curW s)) sched.TS_RESTART) (scA (L.curW s)) = L.mem s2 (scA (L.curW s)) :=
-      kw.mem (field_aligned P.tA (by simp) (by simp)) (iotw_field P.tA (by simp) (by simp))
-    rw [e, hsc2]
-    exact hmxR
+    exact kw.mem (field_aligned P.tA (by simp) (by simp)) (iotw_field P.tA (by simp) (by simp))
+  have hmx2 : R (maxA (L.mem (L.wr s2 (stA (L.curW s)) sched.TS_RESTART) (scA (L.curW s)))) := by
+    rw [emx, hsc2]
+    exact hR _ hmxR hGm
   -- the layout `KSUPm (ptU K)`
   have hn2 : ∀ o : U64, o.val < 4288 → ¬ UserW (KSUPm K.ptU) (L.nodeAt s2 (L.cpu s2) o) := fun o ho => by
     rw [I.cp, nodeAt_of_ksb I.k]; exact not_usuPm (P.node_notUser ho) (P.node_notSlot ho)
@@ -199,7 +204,7 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
   have hout := post_of_ok (dpm_run ar hA hc2 hx0 hg0 hg1 hg2 hcx2 hcv2 hpe2') hy
   -- the decode on `gS`
   have hFt : R (core.num.U64.wrapping_add (L.ksb s2) layout.ks.FEATURES) := by
-    rw [I.k]; exact hR _ (P.ksw (by simp [layout.ks.FEATURES]) (by simp [layout.ks.FEATURES]))
+    rw [I.k]; exact hR _ (P.ksw (by simp [layout.ks.FEATURES]) (by simp [layout.ks.FEATURES])) hGf
   have hnT : ¬ TcbSlot K.ptU p.slot := notTcbSlot_of hO
   have hnf := nof_of_frame_slot hcs
   have hscF : ∀ y, obj.Slot.set_cap gS p.slot y (.Frame fp .Small rt false true false rasid
@@ -214,8 +219,8 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
   have hst : sched.set_thread_state gS s2 (L.curW s2) sched.TS_RESTART =
       sched.set_thread_state st s2 (L.curW s2) sched.TS_RESTART := by
     rw [hct]
-    exact sched.set_thread_state.guardV (gS := gS) s2 (L.curW s) _ (hN s2 hnd2) (hsw _ (Or.inl rfl)) (hR _ rst.1)
-      (hR _ rsc) (hR _ hmx2) (hR _ riq)
+    exact sched.set_thread_state.guardV (gS := gS) s2 (L.curW s) _ (hN s2 hnd2) (hsw _ (Or.inl rfl))
+      (hR _ rst.1 hGst) (hR _ rsc hGsc) hmx2 (hR _ riq hGiq)
   have hpeg : vspace.page_entry_slot gS s2 root (L.mem s2 (regA (L.curW s2) layout.reg.R10)) .Small =
       ok (.Ok e) := by rw [hct, hWk.2 hf]; exact hpe2
   have hNr : (0#u64 : U64) < msg.N_MSG_REGISTERS ∧ (1#u64 : U64) < msg.N_MSG_REGISTERS ∧
@@ -225,7 +230,8 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
       ((hargs _ hNr.2.1 buf).trans hg1) hg1 ((hargs _ hNr.2.2 buf).trans hg2) hg2 (hcxg.trans hcx2) hcx2
       hWk.1 hpeg hpe2' (fun f => vspace.frame_address.guardK ar s2 a1 f) (vspace.make_user_page.guardF s2 hFt)
       (vspace.huge_pages.guardF s2 hFt) hst hscF
-      (fun y a' as' va' d => funext fun dd => vspace.write_mapping.guard ar y a' e as' va' d dd (hRe _ hRS) (hWe _ hpt))]
+      (fun y a' as' va' d => funext fun dd =>
+        vspace.write_mapping.guard ar y a' e as' va' d dd (hRe _ hpt hle hRS) (hWe _ hpt hle))]
     exact hy
   · intro z hz
     rw [hct] at hout
@@ -236,8 +242,8 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
       have kx := pmDecKeep ar hA hK O ha2 hrun hL hsl heU hout rfl
       simp only at kx hz ⊢
       have Fx := kx.sched hK O
-      refine invRep.guard_okS (gS := gS) (hR _ rst.1) (hsw _ (Or.inr rfl)) (hR _ rsc) (hR _ riq) (hW.reg _ rB384)
-        (hW.reg _ rM384) ?_ hz
+      refine invRep.guard_okS (gS := gS) (hR _ rst.1 hGst) (hsw _ (Or.inr rfl)) (hR _ rsc hGsc)
+        (hR _ riq hGiq) (hW.reg _ rB384) (hW.reg _ rM384) ?_ hz
       intro s5 es5
       have k5 : KeepA (L := L) x (L.curW s) s5 := by
         unfold msg.reply_success_empty at es5
@@ -254,7 +260,7 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
       have e6 : L.mem (L.wr s5 (stA (L.curW s)) sched.TS_RUNNING) (scA (L.curW s)) =
           L.mem s2 (scA (L.curW s)) :=
         k6.tcbF hK O (k := 3464#u64) (by simp) (by simp) (by simp)
-      rw [e6, hsc2]; exact hR _ hmxR
+      rw [e6, hsc2]; exact hR _ hmxR hGm
     | Err er =>
       have hx : x = s2 := by
         rcases hout with ⟨hx, -⟩ | ⟨h, -⟩
@@ -266,7 +272,7 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
       obtain ⟨hb1, hb2⟩ := P.lay.tslot _ (P.hT _ P.cT) _ bsl hbsl (by simp [layout.tcb.SLOT_BUFFER])
       have hbs := P.slot (Locks := Locks) hb1 (Or.inl hb2)
       have hI : R (core.num.U64.wrapping_add (L.curW s) 3512#u64) :=
-        hR _ (P.gate (off := 3512#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField]))
+        hR _ (P.gate (off := 3512#u64) P.cT (by simp) (by simp) (by simp) (by simp [GateField])) hGi
       have hlb : msg.lookup_ipc_buffer st s2 true (L.curW s) = msg.lookup_ipc_buffer st s true (L.curW s) :=
         lookup_buf_keep P.tA true tk
       have hbuf0 := invBufJ8_of hJ
@@ -274,9 +280,32 @@ theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageIn
         intro b eb
         rw [hlb] at eb
         exact ⟨fun h0 i hi => hWu _ (hbuf0 b eb h0 i hi), fun h0 i hi => hRu _ (hbuf0 b eb h0 i hi)⟩
-      rw [invRep.guard_errPm (gS := gS) er (fun e1 => PathObl.syscall.reply_error.guard (gS := gS) s2 (L.curW s) e1 hbsl hI
-        (hR _ hbs.1) (hR _ hbs.2) (fun r hr => hW.reg r hr) hbw)]
+      rw [invRep.guard_errPm (gS := gS) er (fun e1 => PathObl.syscall.reply_error.guard (gS := gS) s2 (L.curW s) e1
+        hbsl hI (hR _ hbs.1 (hGs _ hb1).1) (hR _ hbs.2 (hGs _ hb1).2) (fun r hr => hW.reg r hr) hbw)]
       exact hz
+
+/-- **`pmAccG` for stores that check the `STATE` write per value and the slot's `CAP0` write per word** (module
+docstring): `pmAccG2C` at `G := True`. -/
+theorem pmAccG2 (hA : P0.ArchTotal ar) {s : S} {a : A} {info : msginfo.MessageInfo} {nx : U64} {s1 s2 : S} {a1 : A}
+    {buf length : U64} {cap : capability.Cap} {y : (core.result.Result Unit error.Exc) × S × A}
+    {R W : U64 → Prop} {gS : machine.Store S} [GRd gS st R] [GWr gS st W]
+    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s)
+    (hR : ∀ b, IoRS (st := st) K.ptU Locks s b → R b) (hRu : ∀ b, UserW K.toKLayout b → R b)
+    (hRe : ∀ b, PmRS st K Locks s b → R b)
+    (hW : IoWr st W K.heap.scBits s)
+    (hsw : ∀ v, v = sched.TS_RESTART ∨ v = sched.TS_RUNNING → SWr gS st (L.curW s) v)
+    (hc0 : ∀ x v, OwnMap.NullOrFrame v → gS.write x p.slot v = st.write x p.slot v)
+    (hW8 : W (core.num.U64.wrapping_add p.slot 8#u64))
+    (hWu : ∀ b, UserW K.toKLayout b → W b) (hWe : ∀ b, b ∈ K.ptes → W b)
+    (emi : msg.msg_info st s (L.curW s) = ok info) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
+    (hcap : obj.Slot.cap st p.slot s2 = ok cap)
+    (hy : syscall.decode_invocation st ar s2 a1 info.label length p.slot cap true true true false buf p.extra =
+      ok y) :
+    syscall.decode_invocation gS ar s2 a1 info.label length p.slot cap true true true false buf p.extra = ok y ∧
+    ∀ z, invRep st (L.curW s) y.2.1 y.2.2 y.1 = ok z → invRep gS (L.curW s) y.2.1 y.2.2 y.1 = ok z :=
+  pmAccG2C (G := fun _ => True) hA hE (fun b h _ => hR b h) hRu (fun b _ _ h => hRe b h) hW hsw hc0 hW8 hWu
+    (fun b h _ => hWe b h) (fun _ _ => trivial) (fun _ _ => trivial) (fun _ _ => ⟨trivial, trivial⟩)
+    (fun _ _ _ => trivial) trivial trivial trivial trivial trivial trivial emi C hcap hy
 
 end acc
 

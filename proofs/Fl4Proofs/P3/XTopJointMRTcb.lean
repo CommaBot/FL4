@@ -10,6 +10,11 @@ deletion loop's preempted invariant `WJPM` (XTopJointMRDel: `WJP` and
 only in the preempted invariant (`TcbInsWM.del : DelHypsWRZ (W kb) (WJPM ..)`)
 and in `top_of_instJM`'s / `ssp_tailJM`'s preempted branch, which reads
 `JAtPreMV` off `WJPM`.
+
+(p3J gen 46) The installs are stated once with the preempted invariant a parameter `Wp` (`install_tcb_capJMp`,
+`install_okJMp`, `install_bufferJMp`, `thread_control_capsJMp`, `install_fhJMp`, `install_fhOkJMp`;
+`TcbInsWG` = `TcbInsWM` with `Wp`, `TcbInsWM.toG`, `JAtZ.restartWG`); every existing name keeps its statement and
+is the `WJPM` instance (a one-line corollary).
 -/
 import Fl4Proofs.P3.XTopJointTcbSsp
 import Fl4Proofs.P3.XTopJointMRDel
@@ -24,13 +29,11 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
-set_option maxHeartbeats 16000000 in
-/-- **`tcb::install_tcb_cap` at `J`** (module docstring): from the
-deletion loop's invariant `WJR` at the base sets `Z`, `WJR` after an Ok
-install, `WJP` after a preempted one. -/
-theorem install_tcb_capJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`install_tcb_capJM` with the preempted invariant a parameter `Wp`** (`install_tcb_capJM` is the `WJPM` instance). -/
+theorem install_tcb_capJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
-    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
     (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
@@ -47,7 +50,7 @@ theorem install_tcb_capJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
     (hkr0 : Vs.VKey nc ≠ none → nc = srcC0 ∧ ¬ Vs.TabUn nc)
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
-      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+      InstPostWP (L := L) W Wp Z.th t
         (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ⦄ := by
   obtain ⟨V0, Ac0, Lst0, D0, J0, -, -, -⟩ := hI.wjr _ _ _ _ hW
   have hP : Placed Z.th := J0.xtop.rel.1
@@ -149,6 +152,52 @@ theorem install_tcb_capJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
         bind_ok, bind_tc_ok, WP.spec_ok]
       exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem, hW1⟩, hDS1⟩
 
+/-- **`tcb::install_tcb_cap` at `J`** (module docstring): from the
+deletion loop's invariant `WJR` at the base sets `Z`, `WJR` after an Ok
+install, `WJP` after a preempted one. -/
+theorem install_tcb_capJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (nc : capability.Cap) (hwf : CapWf nc) (hcv : CapValid Z.th nc) (he : EncWf nc)
+    (hfw : isFrame nc = true → Fl4Spec.sameObjectAs (absCap nc) (absCap nc))
+    {ps : U64} {rs : Nat} (hps : Z.th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    {srcC0 : capability.Cap} (hsrc0 : capV (L.mem s0) (cslotAddr (ps.bv, idxs)) = srcC0)
+    (hsh : shape nc = shape srcC0) (hbd : badgeF nc = badgeF srcC0 ∨ badgeF srcC0 = 0#u64)
+    (hkey : okey nc = okey srcC0)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
+    (htu : Vs.TabUn nc → Vs.TabUn srcC0) (hnat : Vs.NativeCap srcC0 → Vs.NativeCap nc)
+    (hkr0 : Vs.VKey nc ≠ none → nc = srcC0 ∧ ¬ Vs.TabUn nc)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
+      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ⦄ :=
+  install_tcb_capJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls hsrc0 hsh hbd hkey hv htu hnat hkr0 hep
+
+/-- (p3J gen 46) **`install_okJM` with the preempted invariant a parameter `Wp`** (`install_okJM` is the `WJPM` instance). -/
+theorem install_okJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (nc : capability.Cap) (sl : Fl4Spec.CslotPtr) (hok : NewCapOK Z.th (L.mem s0) nc sl)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr sl) ⦃ res =>
+      InstPostWP (L := L) W Wp Z.th t
+        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ⦄ := by
+  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat, hkr0⟩ := hok
+  obtain ⟨sa, idxs⟩ := sl
+  simp only at h1s hls; subst h1s
+  exact install_tcb_capJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
+    hsh hbd hkey hvk htu hnat hkr0 hep
+
 /-- `install_tcb_capJM` with the new cap's conditions as `NewCapOK`. -/
 theorem install_okJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
@@ -162,21 +211,14 @@ theorem install_okJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr sl) ⦃ res =>
       InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
-        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ⦄ := by
-  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat, hkr0⟩ := hok
-  obtain ⟨sa, idxs⟩ := sl
-  simp only at h1s hls; subst h1s
-  exact install_tcb_capJM arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
-    hsh hbd hkey hvk htu hnat hkr0 hep
+        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ⦄ :=
+  install_okJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc sl hok hep
 
-set_option maxHeartbeats 16000000 in
-/-- **`tcb::install_buffer` at `J`** (as TcbCaps' `install_buffer_refinesW`):
-the delete of the buffer slot by `delete_fullWR` (`WJP` when preempted), the
-IPC buffer's word and the scheduler at `WJR` (`BufHypW`), the frame cap's
-checks and insert by `check_insert`, the insert by `JAtZ.insTJ`. -/
-theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`install_bufferJM` with the preempted invariant a parameter `Wp`** (`install_bufferJM` is the `WJPM` instance). -/
+theorem install_bufferJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
-    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G) (t : U64) (ht : Z.th t = some .tcb)
     (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
@@ -187,7 +229,7 @@ theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
     (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK Z.th (L.mem s0) c sl)
     (hbfd : ∀ c sl, bfr = some (c, sl) → BufFrOK ptr c) (hfnz : ∀ c sl, bfr = some (c, sl) → FrNZ Z.th (L.mem s0)) :
     tcb.install_buffer st arI s a t (cslotAddr ssl) addr (bufArg bc0 bfr) ⦃ res =>
-      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+      InstPostWP (L := L) W Wp Z.th t
         (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
   obtain ⟨V0, Ac0, Lst0, D0, J0, -, -, -⟩ := hI.wjr _ _ _ _ hW
   have hP : Placed Z.th := J0.xtop.rel.1
@@ -209,7 +251,7 @@ theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
             let s5 ← sched.reschedule_required st s4
             ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a1)
           else ok (core.result.Result.Ok (), s4, a1)) ⦃ res =>
-        InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+        InstPostWP (L := L) W Wp Z.th t
           (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
     intro s1 a1 σ1 G1 hDS1 hW1 hnull hcz hmem
     apply WP.spec_bind (hBuf.ipc s1 a1 σ1 G1 hDS1 hW1 hnull)
@@ -338,7 +380,94 @@ theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
         bind_ok, bind_tc_ok, WP.spec_ok]
       exact ⟨σ1, G1, Or.inr ⟨rfl, mem_bindE_err hmem, hW1⟩, hDS1⟩
 
-set_option maxHeartbeats 16000000 in
+/-- **`tcb::install_buffer` at `J`** (as TcbCaps' `install_buffer_refinesW`):
+the delete of the buffer slot by `delete_fullWR` (`WJP` when preempted), the
+IPC buffer's word and the scheduler at `WJR` (`BufHypW`), the frame cap's
+checks and insert by `check_insert`, the insert by `JAtZ.insTJ`. -/
+theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G) (t : U64) (ht : Z.th t = some .tcb)
+    (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (addr : U64) (ptr : Fl4Spec.VSpaceRef)
+    (hBuf : BufHypW (L := L) W Z.th t addr ptr)
+    (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
+    (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK Z.th (L.mem s0) c sl)
+    (hbfd : ∀ c sl, bfr = some (c, sl) → BufFrOK ptr c) (hfnz : ∀ c sl, bfr = some (c, sl) → FrNZ Z.th (L.mem s0)) :
+    tcb.install_buffer st arI s a t (cslotAddr ssl) addr (bufArg bc0 bfr) ⦃ res =>
+      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+        (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ :=
+  install_bufferJMp arI hI hH s0 s a σ G hDS hW t ht hcz0 ssl hAs addr ptr hBuf bc0 bfr hbfr hbfd hfnz
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`thread_control_capsJM` with the preempted invariant a parameter `Wp`** (`thread_control_capsJM` is the `WJPM` instance). -/
+theorem thread_control_capsJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : Z.th t = some .tcb) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl) (flags : U64)
+    (fh tmh cr vr : capability.Cap × Fl4Spec.CslotPtr)
+    (hfh : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → NewCapOK Z.th (L.mem s) fh.1 fh.2)
+    (htmh : (flags &&& tcb.UPDATE_TIMEOUT) ≠ 0#u64 → NewCapOK Z.th (L.mem s) tmh.1 tmh.2)
+    (hcr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK Z.th (L.mem s) cr.1 cr.2)
+    (hvr : (flags &&& tcb.UPDATE_SPACE) ≠ 0#u64 → NewCapOK Z.th (L.mem s) vr.1 vr.2)
+    (hfhE : (flags &&& tcb.UPDATE_FAULT) ≠ 0#u64 → fh.1 ≠ .Null →
+      ∃ e b x1 x2 x3 x4, fh.1 = .Endpoint e b x1 x2 x3 x4)
+    (addr : U64) (ptr : Fl4Spec.VSpaceRef)
+    (hBuf : (flags &&& tcb.UPDATE_IPC_BUFFER) ≠ 0#u64 → BufHypW (L := L) W Z.th t addr ptr)
+    (bc0 : capability.Cap) (bfr : Option (capability.Cap × Fl4Spec.CslotPtr))
+    (hbfr : ∀ c sl, bfr = some (c, sl) → NewCapOK Z.th (L.mem s) c sl)
+    (hbfd : ∀ c sl, bfr = some (c, sl) → BufFrOK ptr c) (hfnz : ∀ c sl, bfr = some (c, sl) → FrNZ Z.th (L.mem s)) :
+    tcb.thread_control_caps st arI s a t (cslotAddr ssl) (fh.1, cslotAddr fh.2) (tmh.1, cslotAddr tmh.2)
+      (cr.1, cslotAddr cr.2) (vr.1, cslotAddr vr.2) addr (bufArg bc0 bfr) flags ⦃ res =>
+      InstPostWP (L := L) W Wp Z.th t
+        (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ := by
+  have r0 : InstFr Z.th t (L.mem s) (L.mem s) := InstFr.refl _ _ _
+  have i3 : (layout.tcb.SLOT_FAULT_HANDLER).val = 3 := by simp [layout.tcb.SLOT_FAULT_HANDLER]
+  have i4 : (layout.tcb.SLOT_TIMEOUT_HANDLER).val = 4 := by simp [layout.tcb.SLOT_TIMEOUT_HANDLER]
+  have i0 : (layout.tcb.SLOT_CTABLE).val = 0 := by simp [layout.tcb.SLOT_CTABLE]
+  have i1 : (layout.tcb.SLOT_VTABLE).val = 1 := by simp [layout.tcb.SLOT_VTABLE]
+  unfold tcb.thread_control_caps tcCapsSpec
+  by_cases hF : (flags &&& tcb.UPDATE_FAULT) = 0#u64 <;>
+  by_cases hT : (flags &&& tcb.UPDATE_TIMEOUT) = 0#u64 <;>
+  by_cases hS : (flags &&& tcb.UPDATE_SPACE) = 0#u64 <;>
+  by_cases hU : (flags &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 <;>
+  simp only [lift, bind_ok, hF, hT, hS, hU, bne_iff_ne, ne_eq, not_false_eq_true, not_true_eq_false, ↓reduceIte,
+    optArg, installTcbCap_none, installTcbFrameCap_none] <;>
+  -- the fault handler
+  (first
+    | with_reducible refine inst_skipWP ?_
+    | refine inst_seqWP (install_okJMp arI hI hH s s a σ G hDS hW t ht 3 (by decide) (by decide) _ i3 r0 ssl hAs
+        _ _ (hfh hF) (fun _ => hfhE hF)) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the timeout handler
+  (first
+    | with_reducible refine inst_skipWP ?_
+    | refine inst_seqWP (install_okJMp arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 4
+        (by decide) (by decide) _ i4 (by first | assumption | exact r0) ssl hAs _ _ (htmh hT) (fun h => absurd h (by decide)))
+        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the CSpace root
+  (first
+    | with_reducible refine inst_skipWP ?_
+    | refine inst_seqWP (install_okJMp arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 0
+        (by decide) (by decide) _ i0 (by first | assumption | exact r0) ssl hAs _ _ (hcr hS) (fun h => absurd h (by decide)))
+        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the VSpace root
+  (first
+    | with_reducible refine inst_skipWP ?_
+    | refine inst_seqWP (install_okJMp arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 1
+        (by decide) (by decide) _ i1 (by first | assumption | exact r0) ssl hAs _ _ (hvr hS) (fun h => absurd h (by decide)))
+        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  -- the IPC buffer
+  (first
+    | with_reducible refine inst_skipWP ?_
+    | refine inst_seqWP (install_bufferJMp arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht
+        (by first | assumption | exact r0) ssl hAs addr ptr (hBuf hU) bc0 bfr hbfr hbfd hfnz)
+        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
+  exact inst_doneWP ‹DState _ _ _ _› (by first | assumption | exact hW) (by first | assumption | exact r0)
+
 /-- **ThreadControl's cap installs at `J`**, as TcbCaps'
 `thread_control_caps_refinesW` with `install_okJM` and `install_bufferJM`: `WJR` after an Ok run,
 `WJP` after a preempted one. -/
@@ -363,49 +492,8 @@ theorem thread_control_capsJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S →
     tcb.thread_control_caps st arI s a t (cslotAddr ssl) (fh.1, cslotAddr fh.2) (tmh.1, cslotAddr tmh.2)
       (cr.1, cslotAddr cr.2) (vr.1, cslotAddr vr.2) addr (bufArg bc0 bfr) flags ⦃ res =>
       InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
-        (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ := by
-  have r0 : InstFr Z.th t (L.mem s) (L.mem s) := InstFr.refl _ _ _
-  have i3 : (layout.tcb.SLOT_FAULT_HANDLER).val = 3 := by simp [layout.tcb.SLOT_FAULT_HANDLER]
-  have i4 : (layout.tcb.SLOT_TIMEOUT_HANDLER).val = 4 := by simp [layout.tcb.SLOT_TIMEOUT_HANDLER]
-  have i0 : (layout.tcb.SLOT_CTABLE).val = 0 := by simp [layout.tcb.SLOT_CTABLE]
-  have i1 : (layout.tcb.SLOT_VTABLE).val = 1 := by simp [layout.tcb.SLOT_VTABLE]
-  unfold tcb.thread_control_caps tcCapsSpec
-  by_cases hF : (flags &&& tcb.UPDATE_FAULT) = 0#u64 <;>
-  by_cases hT : (flags &&& tcb.UPDATE_TIMEOUT) = 0#u64 <;>
-  by_cases hS : (flags &&& tcb.UPDATE_SPACE) = 0#u64 <;>
-  by_cases hU : (flags &&& tcb.UPDATE_IPC_BUFFER) = 0#u64 <;>
-  simp only [lift, bind_ok, hF, hT, hS, hU, bne_iff_ne, ne_eq, not_false_eq_true, not_true_eq_false, ↓reduceIte,
-    optArg, installTcbCap_none, installTcbFrameCap_none] <;>
-  -- the fault handler
-  (first
-    | with_reducible refine inst_skipWP ?_
-    | refine inst_seqWP (install_okJM arI hI hH s s a σ G hDS hW t ht 3 (by decide) (by decide) _ i3 r0 ssl hAs
-        _ _ (hfh hF) (fun _ => hfhE hF)) (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the timeout handler
-  (first
-    | with_reducible refine inst_skipWP ?_
-    | refine inst_seqWP (install_okJM arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 4
-        (by decide) (by decide) _ i4 (by first | assumption | exact r0) ssl hAs _ _ (htmh hT) (fun h => absurd h (by decide)))
-        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the CSpace root
-  (first
-    | with_reducible refine inst_skipWP ?_
-    | refine inst_seqWP (install_okJM arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 0
-        (by decide) (by decide) _ i0 (by first | assumption | exact r0) ssl hAs _ _ (hcr hS) (fun h => absurd h (by decide)))
-        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the VSpace root
-  (first
-    | with_reducible refine inst_skipWP ?_
-    | refine inst_seqWP (install_okJM arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht 1
-        (by decide) (by decide) _ i1 (by first | assumption | exact r0) ssl hAs _ _ (hvr hS) (fun h => absurd h (by decide)))
-        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  -- the IPC buffer
-  (first
-    | with_reducible refine inst_skipWP ?_
-    | refine inst_seqWP (install_bufferJM arI hI hH s _ _ _ _ ‹DState _ _ _ _› (by first | assumption | exact hW) t ht
-        (by first | assumption | exact r0) ssl hAs addr ptr (hBuf hU) bc0 bfr hbfr hbfd hfnz)
-        (fun s1 a1 σ1 G1 hDS1 _ hcz1 hmo1 => ?_)) <;>
-  exact inst_doneWP ‹DState _ _ _ _› (by first | assumption | exact hW) (by first | assumption | exact r0)
+        (tcCapsSpec t ssl flags fh tmh cr vr ptr bfr) s σ res ⦄ :=
+  thread_control_capsJMp arI hI hH s a σ G hDS hW t ht ssl hAs flags fh tmh cr vr hfh htmh hcr hvr hfhE addr ptr hBuf bc0 bfr hbfr hbfd hfnz
 
 /-- **An install run's outcome at `WJR`/`WJP` after the restart is a
 `TopPostDMXP` outcome at `JAt`/`JAtPre`** of the spec's ThreadControlCaps
@@ -439,16 +527,11 @@ theorem top_of_instJM [VxE Z] {kb : U64} {W : S → A → Fl4Spec.State Unit →
     exact hPre
 
 
-set_option maxHeartbeats 16000000 in
-/-- **`tcb::install_tcb_cap` at `J` with the slots' frame** (`install_tcb_capJM`;
-the old cap null or an endpoint cap, `NullOrEp`: an Ok install changes no
-other slot's cap, by P1's `cdt.delete.ep` with `empty_capV_frame` and the
-insert's frame) (module docstring): from the
-deletion loop's invariant `WJR` at the base sets `Z`, `WJR` after an Ok
-install, `WJP` after a preempted one. -/
-theorem install_fhJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 46) **`install_fhJM` with the preempted invariant a parameter `Wp`** (`install_fhJM` is the `WJPM` instance). -/
+theorem install_fhJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
-    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
     (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
@@ -466,7 +549,7 @@ theorem install_fhJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4)
     (hnoe : P1.NullOrEp H (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
-      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+      InstPostWP (L := L) W Wp Z.th t
         (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ∧
       (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
         capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ := by
@@ -580,6 +663,61 @@ theorem install_fhJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl
 
 
 
+/-- **`tcb::install_tcb_cap` at `J` with the slots' frame** (`install_tcb_capJM`;
+the old cap null or an endpoint cap, `NullOrEp`: an Ok install changes no
+other slot's cap, by P1's `cdt.delete.ep` with `empty_capV_frame` and the
+insert's frame) (module docstring): from the
+deletion loop's invariant `WJR` at the base sets `Z`, `WJR` after an Ok
+install, `WJP` after a preempted one. -/
+theorem install_fhJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (nc : capability.Cap) (hwf : CapWf nc) (hcv : CapValid Z.th nc) (he : EncWf nc)
+    (hfw : isFrame nc = true → Fl4Spec.sameObjectAs (absCap nc) (absCap nc))
+    {ps : U64} {rs : Nat} (hps : Z.th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    {srcC0 : capability.Cap} (hsrc0 : capV (L.mem s0) (cslotAddr (ps.bv, idxs)) = srcC0)
+    (hsh : shape nc = shape srcC0) (hbd : badgeF nc = badgeF srcC0 ∨ badgeF srcC0 = 0#u64)
+    (hkey : okey nc = okey srcC0)
+    (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
+    (htu : Vs.TabUn nc → Vs.TabUn srcC0) (hnat : Vs.NativeCap srcC0 → Vs.NativeCap nc)
+    (hkr0 : Vs.VKey nc ≠ none → nc = srcC0 ∧ ¬ Vs.TabUn nc)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4)
+    (hnoe : P1.NullOrEp H (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
+      InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
+        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, (ps.bv, idxs)))) s0 σ res ∧
+      (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
+        capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ :=
+  install_fhJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls hsrc0 hsh hbd hkey hv htu hnat hkr0 hep hnoe
+
+/-- (p3J gen 46) **`install_fhOkJM` with the preempted invariant a parameter `Wp`** (`install_fhOkJM` is the `WJPM` instance). -/
+theorem install_fhOkJMp [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
+    (hH : DelHypsWRZx (L := L) arI W Wp Rd Rz Z.th)
+    (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
+    (hW : W s a σ G)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
+    (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
+    (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
+    (nc : capability.Cap) (sl : Fl4Spec.CslotPtr) (hok : NewCapOK Z.th (L.mem s0) nc sl)
+    (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4)
+    (hnoe : P1.NullOrEp H (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
+    tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr sl) ⦃ res =>
+      InstPostWP (L := L) W Wp Z.th t
+        (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ∧
+      (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
+        capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ := by
+  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat, hkr0⟩ := hok
+  obtain ⟨sa, idxs⟩ := sl
+  simp only at h1s hls; subst h1s
+  exact install_fhJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
+    hsh hbd hkey hvk htu hnat hkr0 hep hnoe
+
 /-- `install_fhJM` with the new cap's conditions as `NewCapOK` (as `install_okJM`). -/
 theorem install_fhOkJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (hI : InsWJ (L := L) arI AR Z H Cs kb W)
@@ -596,12 +734,8 @@ theorem install_fhOkJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → 
       InstPostWP (L := L) W (WJPM (L := L) arI AR MR Z H Cs kb) Z.th t
         (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ∧
       (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
-        capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ := by
-  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu, hnat, hkr0⟩ := hok
-  obtain ⟨sa, idxs⟩ := sl
-  simp only at h1s hls; subst h1s
-  exact install_fhJM arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
-    hsh hbd hkey hvk htu hnat hkr0 hep hnoe
+        capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ :=
+  install_fhOkJMp arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc sl hok hep hnoe
 
 end
 
@@ -618,12 +752,24 @@ structure TcbInsWM (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.Machine
   ins : ∀ kb, InsWJ (L := L) arI AR Z H Cs kb (W kb)
   del : ∀ kb, DelHypsWRZx (L := L) arI (W kb) (WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz Z.th
 
-/-- **The caller's restart at the installs' invariant**: `JAtZ.restartWJR`
-with `W` after it (`RestartWJ`), at the kernel-state base after. -/
-theorem JAtZ.restartWM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+/-- (p3J gen 46) **`TcbInsWM` with the preempted invariant a parameter `Wp`** (`TcbInsWM.toG`). -/
+structure TcbInsWG (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (W Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) : Prop where
+  ins : ∀ kb, InsWJ (L := L) arI AR Z H Cs kb (W kb)
+  del : ∀ kb, DelHypsWRZx (L := L) arI (W kb) (Wp kb) Rd Rz Z.th
+
+/-- (p3J gen 46) `TcbInsWM` is `TcbInsWG` at `Wp := WJPM`. -/
+theorem TcbInsWM.toG {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+    {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} (h : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz) :
+    TcbInsWG (L := L) arI AR Z H Cs W (fun kb => WJPM (L := L) arI AR MR Z H Cs kb) Rd Rz :=
+  ⟨h.ins, h.del⟩
+
+/-- (p3J gen 46) **`JAtZ.restartWM` at `TcbInsWG`** (it reads only the inserts' `WJR`). -/
+theorem JAtZ.restartWG {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
-    (hI : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
+    {W Wp : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
+    (hI : TcbInsWG (L := L) arI AR Z H Cs W Wp Rd Rz)
     (hR : ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → W (L.ksb s) s1 ar σ1 Z.G) :
     ∃ s1 σ1, tcb.restart_caller st s = ok s1 ∧
@@ -639,6 +785,20 @@ theorem JAtZ.restartWM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hW := hR s1' σ1' hs1' hst1
   obtain ⟨-, -, -, -, -, hkb, -⟩ := (hI.ins _).wjr _ _ _ _ hW
   exact ⟨s1', σ1', hrc, hst1, hDS1, by rw [hkb]; exact hW, hS1⟩
+
+/-- **The caller's restart at the installs' invariant**: `JAtZ.restartWJR`
+with `W` after it (`RestartWJ`), at the kernel-state base after. -/
+theorem JAtZ.restartWM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+    (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {W : U64 → S → A → Fl4Spec.State Unit → MdbGhost → Prop} {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
+    (hI : TcbInsWM (L := L) arI AR MR Z H Cs W Rd Rz)
+    (hR : ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → W (L.ksb s) s1 ar σ1 Z.G) :
+    ∃ s1 σ1, tcb.restart_caller st s = ok s1 ∧
+      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+      DState (L := L) Z.th s1 σ1 Z.G ∧ W (L.ksb s1) s1 ar σ1 Z.G ∧
+      SlotsSame Z.th (L.mem s) (L.mem s1) :=
+  J.restartWG arI hni hsg hP0 hct (hI.toG arI) hR
 
 set_option maxHeartbeats 8000000 in
 /-- **The SetTimeoutEndpoint label at `JAt`** (`JAtPre` if preempted), as

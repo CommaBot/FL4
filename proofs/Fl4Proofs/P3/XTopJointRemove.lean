@@ -29,6 +29,10 @@ final reply cap's finalisation).
   `Inactive` after, and every SC bound to it after active (IpcRemove's
   `remove_act`, from `BlockedScActive` before) (for the reply's rest,
   XTopJointIpcJ); `replyRemoveJ` is it without them (`JReplyRemoveHyp`).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `rmW_irq`,
+`rmW_keeps`, `rmW_ntd`, `rmW_nv`, `rmW_of`, `rmW_scOut`, `rmW_utc`, `rmX_tcb`; each `JAtZ` name is a one-line
+corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.IpcRemoveSpecJ
@@ -233,7 +237,7 @@ theorem RmW.oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, h1, h2⟩))))
   · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hk, ho⟩))))))
 
-theorem JAtZ.rmW_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.rmW_of (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (fun b => KFoot st Z.T Z.N Z.C Z.c s σ b ∨ CallW Z.R Z.C b)) :
     P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ) := by
   have hS := J.xtop.fin.1.1.1
@@ -252,8 +256,14 @@ theorem JAtZ.rmW_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
   · have := rTcbA_val (J.rp.align r hr)
     exact Or.inr (Or.inl ⟨r, hr, by omega, by omega⟩)
 
+/-- `JAtZB.rmW_of` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (fun b => KFoot st Z.T Z.N Z.C Z.c s σ b ∨ CallW Z.R Z.C b)) :
+    P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ) :=
+  Fl4Proofs.P3.JAtZB.rmW_of (J := J.toB) (hw := hw)
+
 /-- An `RmX` word lies in no TCB. -/
-theorem JAtZ.rmX_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h : RmX Z.R Z.C σ b) :
+theorem JAtZB.rmX_tcb (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h : RmX Z.R Z.C σ b) :
     ∀ y ∈ Z.T, b.val < y.val ∨ y.val + 4096 ≤ b.val := by
   intro y hy
   rcases h with ⟨r, hr, h1, h2⟩ | ⟨sc, hsc, x, n, hk, ho⟩
@@ -266,8 +276,13 @@ theorem JAtZ.rmX_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     omega
   · exact (J.xtop.fin.1.1.1.scOut sc hsc x n hk b ho).2.2.1 y hy
 
+/-- `JAtZB.rmX_tcb` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmX_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h : RmX Z.R Z.C σ b) :
+    ∀ y ∈ Z.T, b.val < y.val ∨ y.val + 4096 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.rmX_tcb (J := J.toB) (h := h)
+
 /-- **An `RmW` word is no TCB's VCPU word** (KENTRY-PLAN g2b). -/
-theorem JAtZ.rmW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+theorem JAtZB.rmW_nv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (hb : RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
   have hS := J.xtop.fin.1.1.1
   intro t ht
@@ -278,8 +293,13 @@ theorem JAtZ.rmW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     have hv : (tVcpuA t).val = t.val + 3664 := tfield_val (hc.tcbs t ht) (K := 3664#u64) (by simp)
     have := J.rmX_tcb hx t ht; omega
 
+/-- `JAtZB.rmW_nv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t :=
+  Fl4Proofs.P3.JAtZB.rmW_nv (J := J.toB) (hb := hb)
+
 /-- **An `RmW` word is no TCB's deadline word** (KENTRY-PLAN jc6e). -/
-theorem JAtZ.rmW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+theorem JAtZB.rmW_ntd (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     (hb : RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
   have hS := J.xtop.fin.1.1.1
   intro t ht
@@ -290,8 +310,13 @@ theorem JAtZ.rmW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     have hv : (P1.tdA t).val = t.val + 3528 := tfield_val (hc.tcbs t ht) (K := 3528#u64) (by simp)
     have := J.rmX_tcb hx t ht; omega
 
+/-- `JAtZB.rmW_ntd` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t :=
+  Fl4Proofs.P3.JAtZB.rmW_ntd (J := J.toB) (hb := hb)
+
 /-- **The frame words an `RmW` step keeps** (`cnW_keeps`). -/
-theorem JAtZ.rmW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.rmW_keeps (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) :
     (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) := by
@@ -319,9 +344,16 @@ theorem JAtZ.rmW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
     · exact ((tsw _ hb).1 t ht).2.2 (tIpcBufA_val (hT t ht))
     · exact tcbX t ht _ (Or.inr (Or.inr (tIpcBufA_val (hT t ht)))) hb
 
+/-- `JAtZB.rmW_keeps` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) :=
+  Fl4Proofs.P3.JAtZB.rmW_keeps (J := J.toB) (hw := hw)
+
 /-- **The header words of `H`'s SCs outside `Z.C` are kept** by an `RmW`
 step. -/
-theorem JAtZ.rmW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.rmW_scOut (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) {q : U64} {z : Nat}
     (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
     L.mem s' (scW q K) = L.mem s (scW q K) := by
@@ -374,8 +406,15 @@ theorem JAtZ.rmW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
       omega
     · exact scC sc hsc x n hk _ ho rfl
 
+/-- `JAtZB.rmW_scOut` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) {q : U64} {z : Nat}
+    (hq : H q = some (.sc z)) (hqC : q ∉ Z.C) {K : U64} (hK8 : K.val % 8 = 0) (hK : K.val < 128) :
+    L.mem s' (scW q K) = L.mem s (scW q K) :=
+  Fl4Proofs.P3.JAtZB.rmW_scOut (J := J.toB) (hw := hw) (hq := hq) (hqC := hqC) (hK8 := hK8) (hK := hK)
+
 /-- **The IRQ node's caps are kept** by an `RmW` step. -/
-theorem JAtZ.rmW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+theorem JAtZB.rmW_irq (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) (i : U64) (hi : i.val < 128) :
     capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) := by
   have hS := J.xtop.fin.1.1.1
@@ -392,9 +431,15 @@ theorem JAtZ.rmW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     · have := hJ.ks r _ (J.zH.2.2.1 r hr) (fun _ e => by cases e); simp only [P1.HKind.bits] at this; omega
     · have := (hS.scOut sc hsc x n hk b ho).2.2.2; omega
 
+/-- `JAtZB.rmW_irq` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_irq (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) (i : U64) (hi : i.val < 128) :
+    capV (L.mem s') (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
+  Fl4Proofs.P3.JAtZB.rmW_irq (J := J.toB) (hw := hw) (i := i) (hi := hi)
+
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after an `RmW` step** (`cnW_utc`). -/
-theorem JAtZ.rmW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.rmW_utc (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ))
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
@@ -454,6 +499,17 @@ theorem JAtZ.rmW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
     rw [hcdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `JAtZB.rmW_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.rmW_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ))
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (harch : σ'.archState = σ.archState)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.rmW_utc (J := J.toB) (hw := hw) (hSS := hSS) (hcdt := hcdt) (horig := horig) (harch := harch) (hDbg := hDbg)
 
 /-! ## The call stacks of `JAtZ` -/
 

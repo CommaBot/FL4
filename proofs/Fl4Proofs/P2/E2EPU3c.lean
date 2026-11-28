@@ -144,36 +144,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- The U2 family (`serializable_fl4_localU3`'s). -/
-abbrev famU2 :=
-  PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-    (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-      (cmSlotU st ar hA (masksWr_plain st)))
-
-/-- **FL4 end to end with A/D writes to every paging word of the epoch, given the per-slot `hIns`**:
-`serializable_fl4_localU3`'s premises over `ExecU3b`; `hIns` is the open per-slot obligation (module docstring). -/
-theorem serializable_fl4_localU3b_of (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (hIns : ∀ (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K)
-      (c : U64) (hs : U64 → Prop) (q : SP) i, EpochJ K E s → MapsP K s →
-      StartAt (famU2 st ar hA a0 i K s.mem hK hU) c hs s.mem q →
-      InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecU3b (famU2 st ar hA a0) (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_U3b_of ?_ hIns P h0 hA0 hB hc0 hM0 h hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  have nv : K.vcpus = ∅ := by
-    obtain ⟨_, ⟨nv, _⟩, _⟩ := hE
-    exact nv
-  rcases i with i | ((j | j) | j)
-  · exact startAt_U st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE (startU_of_U2 st ar hA a0 hC nv hsf)
-  · exact delPteStart_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact invStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact cmStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-
 end top
 
 end

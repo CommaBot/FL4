@@ -24,6 +24,9 @@ start, for the old chain members), `hTW` (every TCB of `th'` a `TcbAddr`, off th
 VCPU word not the head word and inside no slot). Named premises: `CapAgree ar a` [P], `VirtCodeAgree ar a` [P]
 (unchanged, from `create_new_objects_vcpu`'s per-object step). No new premise. New file only; no existing statement
 changed.
+
+(mmuAD gen 42b17) `iter_createL` / `create_new_objects_vcpuL` are now one-line instances of VirtRetypeLoop's
+`iter_createF` / `create_new_objects_vcpuF` at `F = CrL` (statements unchanged; the re-proved copies are gone).
 -/
 import Fl4Proofs.P3.VirtLoopInv0
 open Aeneas Aeneas.Std Result
@@ -49,7 +52,6 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {ar : machine.Arch A} {a : A}
 variable {V : Set U64} {th : TypedHeap}
 
-set_option maxHeartbeats 8000000 in
 /-- **The creation half of one iteration** (module docstring). -/
 theorem iter_createL (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat} {hd k0 : U64}
     (R : RPl st V B n hd) (hhd : ∀ s : S, L.ksb s = k0 → P1.vHeadA st s = hd) (M : S → Nat → Prop)
@@ -57,91 +59,9 @@ theorem iter_createL (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeA
     {s : S} {i : Nat} (hi : i < n) (I : VirtRetypeLoop.RInv st V th B n k0 M s i) (dev : Bool) :
     objects.create_arch_object st ar s a fl4_abi.consts.object.X86Vcpu (vI B i) dev ⦃ r =>
       r.1 = capability.Cap.Vcpu (vI B i) ∧ r.2.2 = a ∧
-        VirtRetypeLoop.RInv st V th B n k0 (fun s' _ => M s' i) r.2.1 (i + 1) ⦄ := by
-  have hiN : i ≤ n := Nat.le_of_lt hi
-  have ev := R.vIv hi
-  have hv := R.vIfit hi
-  have hb0 := R.b0
-  have hbw := R.hw
-  have eh : P1.vHeadA st s = hd := hhd s I.ksb
-  have hv0 : vI B i ≠ 0#u64 := fun e => by
-    have := congrArg UScalar.val e; rw [ev] at this; simp at this; omega
-  have hvV : vI B i ∉ VsI V B i := by
-    rintro (h | ⟨j, hj, e⟩)
-    · have := R.vw _ h; omega
-    · have := congrArg UScalar.val e; rw [ev, R.vIv (by omega)] at this; omega
-  have hvI : vI B i ∈ VsI V B (i + 1) := Or.inr ⟨i, by omega, rfl⟩
-  have hap : ∀ w ∈ VsI V B i, w.val + 32768 ≤ (vI B i).val ∨ (vI B i).val + 32768 ≤ w.val := by
-    intro w hw
-    have hw' : w ∈ VsI V B (i + 1) := by rw [← vsI_succ]; exact Set.mem_insert_of_mem _ hw
-    have hne : w ≠ vI B i := fun e => hvV (e ▸ hw)
-    exact R.apI hi w hw' _ hvI hne
-  have hhv : ∀ w, w ∈ insert (vI B i) (VsI V B i) →
-      (P1.vHeadA st s).val < w.val ∨ w.val + 32768 ≤ (P1.vHeadA st s).val := by
-    intro w hw; rw [vsI_succ] at hw; rw [eh]; exact R.hdI hi w hw
-  have hin : B + i * 32768 ≤ (vI B i).val ∧ (vI B i).val + 32768 ≤ B + i * 32768 + (n - i) * 32768 := by
-    rw [ev]; omega
-  have hko : vTcbA (vI B i) ≠ P1.vHeadA st s := by
-    intro e; have := congrArg UScalar.val e; rw [lay_vTcb_val hv.2, eh, ev] at this; omega
-  refine WP.spec_mono (create_vcpu_listR hA hc hk I.vl (R.fitI hiN) (R.apI hiN) hv hv0 hvV hap hhv I.win hin hko
-    dev) ?_
-  rintro ⟨cap, s2, a2⟩ ⟨e1, e2, w, Vl', hrel⟩
-  simp only at e1 e2 w Vl' hrel ⊢
-  refine ⟨e1, e2, ?_⟩
-  have hk2 : L.ksb s2 = k0 := w.1.trans I.ksb
-  -- `InitL`'s words: in the new object, the head word, or the old head's `PREV` word
-  have hIL : ∀ b, InitL st s (vI B i) b → (B + i * 32768 ≤ b.val ∧ b.val < B + (i + 1) * 32768) ∨ b = hd ∨
-      ∃ h0 ∈ VsI V B i, b.val = h0.val + 20496 ∧ h0.val + 32768 ≤ 2 ^ 64 := by
-    rintro b (h | e | e | ⟨hn, e⟩)
-    · have := vwl_val hv h; rw [ev] at this; left; omega
-    · have := congrArg UScalar.val e; rw [lay_next_val hv.2, ev] at this; left; omega
-    · right; left; rw [e, eh]
-    · right; right
-      have hw := I.vl.head hn
-      have hf := (R.fitI hiN) _ hw
-      exact ⟨_, hw, by rw [e, lay_prev_val hf.2], hf.2⟩
-  refine ⟨hk2, vsI_succ V B i ▸ Vl', fun j hj => ?_, ?_, ?_⟩
-  · by_cases hji : j = i
-    · subst hji; exact hrel
-    have hj' : j < i := by omega
-    have hvj := R.vIfit (j := j) (by omega)
-    have evj := R.vIv (j := j) (by omega)
-    refine VRelInit.congrAL (fun o h1 h2 h3 h4 => ?_) (I.rel j hj')
-    have ho := size_nat h1
-    have hl := links_nat ⟨h3, h4⟩
-    have hval := vo_val hvj ho
-    have hal : P1.Aligned (⟨(vI B j).bv + o⟩ : U64) := by unfold P1.Aligned; rw [hval]; have := hvj.1; omega
-    unfold memW
-    rw [w.mem_eq hal ?_]
-    intro hb
-    rcases hIL _ hb with h | e | ⟨h0, hh0, e, -⟩
-    · rw [hval, evj] at h; omega
-    · have := congrArg UScalar.val e; rw [hval, evj] at this; omega
-    · rw [hval, evj] at e
-      rcases R.memI hiN hh0 with ⟨-, h'⟩ | ⟨j', hj'', e'⟩
-      · omega
-      · omega
-  · have e1 : n - i = n - (i + 1) + 1 := by omega
-    have hw0 := I.win
-    rw [e1] at hw0
-    have := winZero_shift hw0 rfl fun x hx g1 g2 => w.mem_eq hx fun hb => by
-      rcases hIL _ hb with h | e | ⟨h0, hh0, e, -⟩
-      · omega
-      · rw [e] at g1 g2; omega
-      · rcases R.memI hiN hh0 with ⟨-, h'⟩ | ⟨j', hj'', e'⟩
-        · have : (n - (i + 1) + 1) * 32768 = (n - i) * 32768 := by rw [← e1]
-          omega
-        · omega
-    rwa [show B + i * 32768 + 32768 = B + (i + 1) * 32768 by ring] at this
-  · exact hMc s s2 i I.m (w.mono fun b hb => by
-      rcases hIL _ hb with h | e | ⟨h0, hh0, e, hf0⟩
-      · left; omega
-      · right; left; exact e
-      · rcases R.memI hiN hh0 with ⟨hm, -⟩ | ⟨j', hj'', e'⟩
-        · right; right; exact ⟨h0, hm, e, hf0⟩
-        · left; omega)
+        VirtRetypeLoop.RInv st V th B n k0 (fun s' _ => M s' i) r.2.1 (i + 1) ⦄ :=
+  iter_createF hA hc hk R hhd M (CrL V B n hd) (fun _ h => h) hMc hi I dev
 
-set_option maxHeartbeats 8000000 in
 /-- **`create_new_objects` over `n` VCPUs** (module docstring). -/
 theorem create_new_objects_vcpuL (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk : VirtCodeAgree ar a) {B n : Nat}
     {hd : U64} (R : RPl st V B n hd) {s : S} (hhd : ∀ s' : S, L.ksb s' = L.ksb s → P1.vHeadA st s' = hd)
@@ -155,61 +75,9 @@ theorem create_new_objects_vcpuL (hA : P0.ArchTotal ar) (hc : CapAgree ar a) (hk
     (nW base us : U64) (hnW : nW.val = n) (hbase : base.val = B) (dev : Bool) :
     objects.create_new_objects st ar s a fl4_abi.consts.object.X86Vcpu parent dest off nW base us dev ⦃ res =>
       res.2 = a ∧ VList st (VsI V B n) th res.1 ∧ (∀ j, j < n → VRelInit (memW st res.1) (vI B j).bv) ∧
-        M res.1 n ⦄ := by
-  have hbf := R.bfit
-  have I0 : VirtRetypeLoop.RInv st V th B n (L.ksb s) M s 0 := by
-    refine ⟨rfl, ?_, fun j hj => absurd hj (Nat.not_lt_zero _), by simpa using hwz, hM0⟩
-    have e : VsI V B 0 = V := by
-      ext w; simp only [VsI, Set.mem_setOf_eq]
-      exact ⟨fun h => h.elim id fun ⟨j, hj, _⟩ => absurd hj (Nat.not_lt_zero _), Or.inl⟩
-    rw [e]; exact Vl
-  unfold objects.create_new_objects
-  rw [object_size_vcpu]
-  simp only [bind_ok]
-  unfold objects.create_new_objects_loop
-  have h63 : (15#u64 &&& 63#u64).val = 15 := by decide
-  refine loop.spec_decr_nat (measure := fun x => n - x.2.2.val)
-    (inv := fun x => x.2.1 = a ∧ x.2.2.val ≤ n ∧ VirtRetypeLoop.RInv st V th B n (L.ksb s) M x.1 x.2.2.val) _ _ _ ?_
-    ⟨rfl, by simp, I0⟩
-  rintro ⟨s1, a1, i⟩ ⟨ha, hin, I⟩
-  simp only at ha hin I ⊢
-  subst ha
-  unfold objects.create_new_objects_loop.body
-  by_cases hit : i < nW
-  · rw [if_pos hit]
-    have hit' : i.val < n := by rw [← hnW]; exact hit
-    simp only [lift, bind_ok]
-    obtain ⟨i2, hi2, hv2, -⟩ := spec_exists (UScalar.ShiftLeft_spec i (15#u64 &&& 63#u64) _
-      (by rw [h63]; simp [UScalarTy.U64_numBits_eq]) rfl)
-    rw [hi2]; simp only [bind_ok]
-    have hi2v : i2.val = i.val * 32768 := by
-      rw [hv2, h63, Nat.shiftLeft_eq]
-      simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
-    have hi3 : core.num.U64.wrapping_add base i2 = vI B i.val := by
-      have e : (core.num.U64.wrapping_add base i2).val = B + i.val * 32768 := by
-        have hlt : B + i.val * 32768 < 2 ^ 64 := lt_of_le_of_lt (by omega) hbf
-        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hi2v]
-        omega
-      exact u64_ofNat_eq _ _ e
-    rw [hi3, create_object_vcpu]
-    refine WP.spec_bind (iter_createL hA hc hk R (fun s' e => hhd s' e) M hMc hit' I dev) fun r hr => ?_
-    obtain ⟨cap, s2, a2⟩ := r
-    obtain ⟨e1, e2, I'⟩ := hr
-    simp only at e1 e2 I' ⊢
-    subst e1 e2
-    obtain ⟨sl, hsl, hsle⟩ := spec_exists (slot_index_spec dest (core.num.U64.wrapping_add off i))
-    rw [hsl]; simp only [bind_ok]
-    subst hsle
-    refine WP.spec_bind (hIns i hit' s2 I'.m) fun s3 h3 => ?_
-    step as ⟨i5, hi5⟩
-    have hi5' : i5.val = i.val + 1 := by omega
-    refine ⟨by omega, ?_, by omega⟩
-    rw [hi5']
-    exact iter_ins R (fun s' e => hhd s' e) M hFW hit' I' h3.1 h3.2
-  · rw [if_neg hit, WP.spec_ok]
-    have : i.val = n := by have : ¬ i.val < nW.val := hit; omega
-    rw [this] at I
-    exact ⟨rfl, I.vl, I.rel, I.m⟩
+        M res.1 n ⦄ :=
+  create_new_objects_vcpuF hA hc hk R hhd M (CrL V B n hd) (fun _ h => h) hMc hFW parent dest off hIns Vl hwz hM0 nW
+    base us hnW hbase dev
 
 end
 

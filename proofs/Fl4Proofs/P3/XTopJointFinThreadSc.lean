@@ -22,6 +22,10 @@ step of a final thread cap's `unbind_from_sc`; toward XTopJointFinThread's
   the link-cutting step `lkm_schedContextUnbindTcb`), P1's
   `unbind_tcb.blk` (`BlkOK`, footprint `KW`: the node-0 `DEBUG_TCBS` word
   kept, `JAtZ.kw_dbg`).
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `words_of_spec`; the `JAtZ` names are one-line corollaries via `JAtZ.toB`,
+statements unchanged.
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -253,15 +257,15 @@ theorem JAtZ.spec_of_words (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
   · apply hid; rw [ei]; apply P1.eq_of_bv; rw [← hs.idleTh, ← e]
 
 /-- The converse of `JAtZ.spec_of_words` for a TCB of the set. -/
-theorem JAtZ.words_of_spec (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZB.words_of_spec (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
     L.actionW s ≠ t ∧ L.idleW s ≠ t := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  have ea : L.actionW s = nodeW st s Z.c layout.node.SCHED_ACTION := by
-    unfold P1.LawfulStore.actionW nodeW; rw [hc.cur]
-  have ei : L.idleW s = nodeW st s Z.c layout.node.IDLE_THREAD := by
-    unfold P1.LawfulStore.idleW nodeW; rw [hc.cur]
+  have ea : L.actionW s = Sched.nodeW st s Z.c layout.node.SCHED_ACTION := by
+    unfold P1.LawfulStore.actionW Sched.nodeW; rw [hc.cur]
+  have ei : L.idleW s = Sched.nodeW st s Z.c layout.node.IDLE_THREAD := by
+    unfold P1.LawfulStore.idleW Sched.nodeW; rw [hc.cur]
   have ta := hc.tcbs t ht
   refine ⟨fun e => ?_, fun e => ?_⟩
   · have h := hS.act
@@ -281,6 +285,12 @@ theorem JAtZ.words_of_spec (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
       rw [ha] at h
       exact hsa u ha h.2.2.symm
   · apply hid; rw [hs.idleTh, ← ei, e]
+
+/-- `JAtZB.words_of_spec` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.words_of_spec (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
+    L.actionW s ≠ t ∧ L.idleW s ≠ t :=
+  Fl4Proofs.P3.JAtZB.words_of_spec (J := J.toB) (ht := ht) (hsa := hsa) (hid := hid)
 
 set_option maxHeartbeats 8000000 in
 /-- **`unbind_tcb` of a thread's SC at `J`** (module docstring), for a

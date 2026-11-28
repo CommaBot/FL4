@@ -46,6 +46,10 @@ built on it.
 * Labels: SetTimeoutEndpoint (`tcb_set_timeoutJ`), SetSpace (`tcb_set_spaceJ`),
   SetIPCBuffer (`tcb_set_ipcJ`), Configure (`tcb_configureJ`);
   `xcapP_of_tcb` lifts a label's `TcbOKXP` to the Thread cap's `XCapP`.
+
+(mmuAD gen 42b4) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`:
+`LiveDN.insTX` (as `LiveDN.insTXB`) and `insTJ` (`JAtZB.insTJ`; `JAtZ.insTJ` rebuilds `ext` by `JExt.step`), with
+their statements unchanged.
 -/
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.XTopJointTcbSched
@@ -67,9 +71,9 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 /-- **An insert into an empty TCB slot keeps `LiveDN`** (XTopJointWJLIns's `LiveDN.insT` with the `XTopAt` after in place of a `JAtZ` after;
 KENTRY-PLAN g2i). -/
-theorem LiveDN.insTX {G : MdbGhost} {V : XVs} {Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+theorem LiveDN.insTXB {G : MdbGhost} {V : XVs} {Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hDS : DState (L := L) Z.th s σ G)
+    (J : JAtZB (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hDS : DState (L := L) Z.th s σ G)
     (hLv : LiveDN (L := L) Z.th H Cs G s σ)
     {G' : MdbGhost} {V' : XVs} {s' : S}
     {σ' : Fl4Spec.State Unit}
@@ -183,12 +187,33 @@ theorem LiveDN.insTX {G : MdbGhost} {V : XVs} {Ac : Set U64} {Lst : U64 → List
   rw [horig sl hne]
   exact hN sl hA (by rw [← hcap _ hA.isSlot hsx]; exact h)
 
+/-- `LiveDN.insTXB` at `JAtZ` (via `JAtZ.toB`). -/
+theorem LiveDN.insTX {G : MdbGhost} {V : XVs} {Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hDS : DState (L := L) Z.th s σ G)
+    (hLv : LiveDN (L := L) Z.th H Cs G s σ)
+    {G' : MdbGhost} {V' : XVs} {s' : S}
+    {σ' : Fl4Spec.State Unit}
+    (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a σ') (hDS' : DState (L := L) Z.th s' σ' G')
+    {t : U64} (ht : Z.th t = some .tcb) {n : Nat} (hn : n < tcbSlots) {c : Fl4Spec.Cap} {src : Fl4Spec.CslotPtr}
+    (hci : Fl4Spec.capInsert (Z := Unit) c src (t.bv, Fl4Spec.tcbCnodeIndex n) σ = ({((), σ')}, False))
+    (hwS : P1.WritesIn st s s' (Sched.SlotWd Z.th))
+    (hnull : capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = .Null)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
+      capV (L.mem s') y = capV (L.mem s) y)
+    (hnn : capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) ≠ .Null)
+    (hsh : ∃ y0, IsSlot Z.th y0 ∧
+      shape (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))) = shape (capV (L.mem s) y0))
+    (hlive : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .Thread t) :
+    LiveDN (L := L) Z.th H Cs G' s' σ' :=
+  LiveDN.insTXB J.toB hDS hLv hX' hDS' ht hn hci hwS hnull hcap hnn hsh hlive
 
-set_option maxHeartbeats 16000000 in
+
+set_option maxHeartbeats 4000000 in
 /-- **An insertion into an empty TCB slot keeps `JAtZ`** (module
 docstring). -/
-theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : Nat} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : Nat} {σ' : Fl4Spec.State Unit}
     (hok : n = 2 → Endp.IpcBufCapOK σ') {t : U64} (ht : Z.th t = some .tcb)
     (hn : n < tcbSlots) {c : Fl4Spec.Cap} {src : Fl4Spec.CslotPtr} {s' : S}
     {G' : MdbGhost}
@@ -217,7 +242,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = capV (L.mem s) y0) ∧
       ¬ Vs.TabUn (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-      JAtZ (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' s' a σ' := by
+      JAtZB (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' s' a σ' := by
   have hX := J.xtop
   have hP := hX.rel.1
   have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) c src (t.bv, Fl4Spec.tcbCnodeIndex n) σ).1 := by
@@ -287,7 +312,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hjc := J.jcov_cover hw.1 hM' hCK hUK (fun q hq => J.deadP_slot hX1 hcn hkc hw (J.jcov.dead q hq))
     (J.idleW_keep hX1.fin.1.1.1 (CnStep.of_cnK hcn).idle (CnStep.of_cnK hcn).isc)
     (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw))
-  obtain ⟨hJC, R⟩ := jowes_slotDF J hX1 hcn hkc hw hFI' hMO hkz hTK hfh' hbs' hDl' hUK hjc horig hutc
+  obtain ⟨hJC, R⟩ := jowes_slotDFB J hX1 hcn hkc hw hFI' hMO hkz hTK hfh' hbs' hDl' hUK hjc horig hutc
   have hpgb : ∀ q vms, σ'.kheap q = some (.archObj (.dataPage false vms)) →
       σ.kheap q = some (.archObj (.dataPage false vms)) := fun q vms h => by
     rcases hkc q with e | ⟨_, _, _, _, h1⟩ | ⟨_, _, _, h1, _⟩
@@ -318,7 +343,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
       rw [← he2, capAt_capV, capAt_capV, hcap _ hAq.isSlot hne]
   have hDS : DState (L := L) Z.th s σ Z.G := ⟨J.xtop.rel.2.1, J.del, J.xtop.rel.2.2.1⟩
-  have hLv' := LiveDN.insTX (G := Z.G) (V := Z.vs) J hDS J.live hX1 ⟨hCR', hDl', hFI'⟩ ht hn hci hwS hnull hcap hnn hsh hlive
+  have hLv' := LiveDN.insTXB (G := Z.G) (V := Z.vs) J hDS J.live hX1 ⟨hCR', hDl', hFI'⟩ ht hn hci hwS hnull hcap hnn hsh hlive
   have hzD : ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D := fun p hp => J.zD p (ZTcb.of_zombies (fun y hy p zt k hz => by
     by_cases e : y = cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)
     · obtain ⟨y0, hy0, hsh0⟩ := hsh
@@ -327,8 +352,49 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · exact ⟨y, hy, by rw [← hcap y hy e]; exact hz⟩) hp)
   exact ⟨Ac, Lst, D, J.cs_frameV (hvn := J.vsShr hX1 hw.1
       (Vs.vsKeep_copy hcap (by rw [hnull]; rfl) (fun hk => (hkr hk).1) (fun hu => (hkr (Vs.tabUn_key hu)).2 hu))
-      (Vs.ArchShr.of_objCn hcn.2 (by have e := congrArg Fl4Spec.AbstractState.archState hcn.1; exact e))) hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
-    hLv' hzD (J.carry.of_objCn hkc) (devFrom_kept J.mdbL hM' J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkc)) (ArchFwd.of_objCn hkc)⟩
+      (Vs.ArchShr.of_objCn hcn.2 (by have e := congrArg Fl4Spec.AbstractState.archState hcn.1; exact e))) hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT)
+    hLv' hzD (J.carry.of_objCn hkc) (devFrom_kept J.xtop.rel.2.1.2.2.1 hM' J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkc)) (ArchFwd.of_objCn hkc)⟩
+
+/-- `JAtZB.insTJ` at `JAtZ` (via `JAtZ.toB`; `JExt` after by `JExt.step`). -/
+theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : Nat} {σ' : Fl4Spec.State Unit}
+    (hok : n = 2 → Endp.IpcBufCapOK σ') {t : U64} (ht : Z.th t = some .tcb)
+    (hn : n < tcbSlots) {c : Fl4Spec.Cap} {src : Fl4Spec.CslotPtr} {s' : S}
+    {G' : MdbGhost}
+    (hci : Fl4Spec.capInsert (Z := Unit) c src (t.bv, Fl4Spec.tcbCnodeIndex n) σ = ({((), σ')}, False))
+    (hDS' : DState (L := L) Z.th s' σ' G') (hSt : MdbStep (L.mem s) Z.G (L.mem s') G')
+    (hwS : P1.WritesIn st s s' (Sched.SlotWd Z.th))
+    (hnull : capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = .Null)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
+      capV (L.mem s') y = capV (L.mem s) y)
+    (hnu : isUt (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))) = false)
+    (hnn : capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) ≠ .Null)
+    (hsh : ∃ y0, IsSlot Z.th y0 ∧
+      shape (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))) = shape (capV (L.mem s) y0))
+    (hfh : n = 3 → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = .Null ∨
+      ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbs : n = 2 → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (hlive : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .Thread t)
+    (hvt : ∀ P L4 L3 L2 L1 : Set U64, Vs.VsSlotsW Z.th P L4 L3 L2 L1 (L.mem s) →
+      Vs.VCapW P L4 L3 L2 L1 (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (hft : ∀ U : Nat → Prop, Vs.FrSlots Z.th U (L.mem s) →
+      Vs.FrIn U (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (hnt : Vs.VsNat Z.th (L.mem s) → Vs.NativeCap (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (htt : ∀ R, Vs.TabSlots Z.th R (L.mem s) → Vs.TabR R (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (hkr : Vs.VKey (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))) ≠ none →
+      (∃ y0, IsSlot Z.th y0 ∧ y0 ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) ∧
+        capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) = capV (L.mem s) y0) ∧
+      ¬ Vs.TabUn (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
+    ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZ (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' s' a σ' := by
+  obtain ⟨Ac', Lst', D', B'⟩ := J.toB.insTJ hok ht hn hci hDS' hSt hwS hnull hcap hnu hnn hsh hfh hbs hlive hvt hft
+    hnt htt hkr
+  have hw : P1.WritesIn st s s' (InSlot Z.th) := hwS.mono fun b hb => slotWd_range J.xtop.rel.1 hb
+  have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
+    Vs.VsSlotsT.of_some (· = cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) (fun y hy hn => hcap y hy hn)
+      (fun y _ e => by subst e; exact hvt) (fun y _ e => by subst e; exact hft) (fun y _ e => by subst e; exact hnt)
+      fun y _ e => by subst e; exact htt
+  exact ⟨Ac', Lst', D', B'.toJAtZ (J.ext.step hvT (J.vkeep_slot hw))⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`IpcBufCapOK` after SetIPCBuffer/Configure's frame insert** (decision 2

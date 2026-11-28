@@ -21,6 +21,9 @@ P3JMcFltQ).
   `finFootJ_holds` (`CKI` of the event's outcome: `ck_handleEvent_other`). No `KFinEv` (`hFin`) needed.
 * `brU_projW`, `brV_projW`: the user / VM-fault branches by `faultProjW`; **`jEvRef_userFt`**, **`jEvRef_vmfFt`**.
 
+(p3J gen 51) **`faultProjWB`**: `faultProjW` generalised in place from `Entered` to P1's `CanBlock` of the current
+thread; `faultProjW` is now its instance (statement unchanged).
+
 No premise beyond the stated hypotheses (all already globals of the clause tops); no sorry. New module; no existing
 statement changed.
 -/
@@ -92,15 +95,16 @@ theorem noBufCap_cki (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hC : SIn
   cases c <;> first | exact True.intro | (exfalso; simp [absCap, SInvCk.KW] at hk)
 
 set_option maxHeartbeats 4000000 in
-/-- **`handle_fault` of the current thread writes only `ProjW`** at a `CKI` `JAtZ` state (module docstring). -/
-theorem faultProjW (hA : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hC : SInvCk.CKI σ) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) (f : error.Fault) :
+/-- (p3J gen 51) **`handle_fault` of the current thread writes only `ProjW`** at a `CKI` `JAtZ` state where the
+current thread can block (P1 `CanBlock`; no `Entered`: at a mid state with a pending switch or reschedule it comes
+from `canBlockCurM` / `canBlockCurMC` / `canBlockCurG`). `faultProjW` is its instance. -/
+theorem faultProjWB (hA : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hC : SInvCk.CKI σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (hcb : P1.CanBlock st (P1.Heap.tcbs H) Ac s ct) (f : error.Fault) :
     faults.handle_fault st arI s a ct f ⦃ r => P1.WritesIn st s r.1 (ProjW (L := L) H Cs s) ⦄ := by
-  obtain ⟨hcur, x, hk, hrn⟩ := J.curRunnable hni hct
+  obtain ⟨hcur, -⟩ := J.curEq hct
   have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
   have htcb : Z.th ct = some .tcb := J.thTcb hctT
-  have hcb := J.canBlockCur hctT hcur hk hrn hni hnq
   have hblk := J.blk
   obtain ⟨Q, R, hq⟩ := hblk.1
   have hcap : obj.Tcb.slot ct layout.tcb.SLOT_FAULT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c =>
@@ -119,6 +123,15 @@ theorem faultProjW (hA : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac L
   rintro ⟨s', a'⟩ hF
   try simp only [WP.uncurry'_pair] at hF
   exact (Fl4Proofs.P1.WritesA.w hF).mono fun b hb => ipcWN_projW J.kern.heap hq.nodes hb
+
+set_option maxHeartbeats 4000000 in
+/-- **`handle_fault` of the current thread writes only `ProjW`** at a `CKI` `JAtZ` state (module docstring). -/
+theorem faultProjW (hA : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hC : SInvCk.CKI σ) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) (f : error.Fault) :
+    faults.handle_fault st arI s a ct f ⦃ r => P1.WritesIn st s r.1 (ProjW (L := L) H Cs s) ⦄ := by
+  obtain ⟨hcur, x, hk, hrn⟩ := J.curRunnable hni hct
+  exact faultProjWB hA J hC hct (J.canBlockCur (TopSR.cur_mem J.xtop.fin.1 hcur.symm) hcur hk hrn hni hnq) f
 
 set_option maxHeartbeats 4000000 in
 /-- **On a round-robin run `budget_ok` writes only `ProjW`** (module docstring). -/

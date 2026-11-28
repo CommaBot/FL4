@@ -375,57 +375,6 @@ inductive ExecWPRV (LP : PathsP ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {v a x : U64} :
       ExecWPRV LP SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecWPRV LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- **An `ExecWPRV` is an `ExecPV`, with the epoch invariant** (`execPR_of_WPRRG` with one chain per core: the
-start's `SF` at `c`'s view gives `StartAt` at the view by `hSF`, its PTE witness by `VPte` from the epoch's). -/
-theorem execPV_of_WPRVG {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    (P : LocPlat st arI AR MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecWPRV LP SF P s0 K0 Ch0 s K Ch) :
-    ExecPV LP s0 K0 s K ∧ (∀ e, SerExitW P K.toKLayoutV (Ch e)) ∧
-      ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  induction h with
-  | refl => exact ⟨.refl, hB, s0, hc0, fun _ _ => rfl⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨H1, hR, -, -, hM⟩ := exec_safeRunPV h0 hA0 hK0 hU0 hM0 hE
-    have hst : Fl4StepPV LP s1 K1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨ρ, hV, i, hi, hvp, hvs⟩ := g.start p0 k W hph hK hU
-        have hρg : ∀ x, GateW K1 x → ρ x = e1.mem x := fun x hx =>
-          (hV.2.1 x (by rw [hM.own, hx s1.mem]; exact Or.inr rfl)).trans (hk1 x hx)
-        have hEv : EpochPte K1 (CoreView.view K1.toKLayout c1 ρ) := hvp ⟨e1, hCe, hρg⟩
-        have hA := hSF (Ch1 c1) _ { s1 with mem := CoreView.view K1.toKLayout c1 ρ } _ _ _ _ _ i
-          (hX c1).chainOf hEv hi
-        exact ⟨ρ, hV, i, hA, hvs⟩
-      · have hP := okP_R (g.serX hs 0#u64) (g.serC hs)
-        exact ⟨hP.1, hP.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, ?_, ?_⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-    · by_cases hs : SerStep s1 c1
-      · exact ⟨s1', g.serC hs, fun _ _ => rfl⟩
-      · obtain ⟨eK, -⟩ := g.keep hs
-        subst eK
-        obtain ⟨-, -, -, hSI, -⟩ := xsafeRunH_inv h0 hA0 hR
-        refine ⟨e1, hCe, fun x hx => ?_⟩
-        rw [← hk1 x hx]
-        exact step_gate_keep hM (Fl4Proofs.P2.Serial.allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨H1, -, hK, -, hM⟩ := exec_safeRunPV h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
 /-! ## Coverage: single-core-homed U5 executions are U6 executions -/
 
 /-- **A homed start** (module docstring): U5's start fact with a witness `ρ` homed on the starting core. -/
@@ -466,33 +415,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with every slot, one P3 chain per core, each start fact at the starting core's view** (module
-docstring). It is `serializable_fl4_localU5` with `start` asked of `Ch c` at `CoreView.view K c ρ` (with `VPte` [P]
-and `VSafe` [J]) and one exit chain per core (`serX`, `hB`). The conclusion is about the physical memory. It covers
-every homed U5 execution (`execWPRV_of_WPRRHo`), and it admits starts of two cores in one epoch
-(`CoreView.u6_two_cores`). -/
-theorem serializable_fl4_localU6 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV (PathsP.sum (fl4LocW11JA st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (StartV2 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV _ h0 hA0 hK0 hU0 hM0 (execPV_of_WPRVG ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  have nv : K.vcpus = ∅ := by
-    obtain ⟨_, ⟨nv, _⟩, _⟩ := hE
-    exact nv
-  rcases i with i | ((j | j) | j)
-  · exact startAt_U st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE (startU_of_U2 st ar hA a0 hC nv hsf)
-  · exact delPteStart_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact invStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · exact cmStartU2_at st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
 
 end top
 

@@ -21,6 +21,10 @@ receive_signal_corres / handle_fault_corres inside handle_recv_corres under
 scheduler_act_sane; every case left is a case of sch15's `JMidLeavesHyp`,
 true in reachable states), `jMidLeavesHyp_of4`, `KDispHyps13M`, `.to12M`,
 NEW TOP `kernel_entryJ13M` = `kernel_entryJ12M` with `KDispHyps13M`.
+
+(p3J gen 53) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSendPM
 import Fl4Proofs.P3.XTopJointKEntry12M
@@ -62,8 +66,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 set_option maxHeartbeats 4000000 in
-/-- **`IpcDoneM2`'s receives at a switch mid state** (module docstring). -/
-theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+/-- (p3J gen 53) **`jRecvIpcDoneM2` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `jRecvIpcDoneM2` is its instance at `RJR`). -/
+theorem jRecvIpcDoneM2Q (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
     (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
@@ -74,12 +78,15 @@ theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x)))
     (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr))
     (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc)
-    (hD : IpcDoneM2 (L := L) ct s σ p rc) :
+    (hD : IpcDoneM2 (L := L) ct s σ p rc)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   rcases hD with hD | ⟨hun, hcp | hcT⟩
-  · exact jRecvIpcDoneM hAT J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD
+  · exact jRecvIpcDoneMQ hAT J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD hPq
   all_goals
     obtain ⟨xe, hke⟩ := hpE
     obtain ⟨e, he, h⟩ := J.obj.ep _ xe hke
@@ -99,15 +106,34 @@ theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
       · exact absurd h1 hok.1
       · exact (J.rp.align rv hr).2.1
     obtain ⟨-, hcovR⟩ := J.recvCov_of he hHd hHr hra
-    exact WP.spec_mono (J.recvSendP0XM hAT ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks b sd true g gr hra
-      (hcovR hrv0) hok b.bv (rightsOf sd true g gr)) fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ =>
-        ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
+    exact J.recvSendP0XMQ hAT ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks b sd true g gr hra
+      (hcovR hrv0) hok b.bv (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
   · obtain ⟨hbn, sd0, q, xs, hke', hks, hok⟩ := hcT
     obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
     subst hsde
-    exact WP.spec_mono (J.recvSendT0XM hAT hmax htu ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks
-      b sd true g gr hra (J.recvCov_of he hHd hHr hra).2 hok b.bv (rightsOf sd true g gr))
-      fun r ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J', _⟩ => ⟨z, hz, hR, Z', H', Cs', Ac', Lst', D', J'.toR, inferInstance⟩
+    exact J.recvSendT0XMQ hAT hmax htu ht hkt hrun (hbn xt hkt) hcur hni.1 hnq hA he hke' hks
+      b sd true g gr hra (J.recvCov_of he hHd hHr hra).2 hok b.bv (rightsOf sd true g gr) (fun _ _ _ _ _ _ _ _ J' => hPq _ _ _ _ _ _ _ _ J'.toR)
+
+set_option maxHeartbeats 4000000 in
+/-- **`IpcDoneM2`'s receives at a switch mid state** (module docstring). -/
+theorem jRecvIpcDoneM2 (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64}
+    (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
+    (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x))
+    (hrc : (rc = .Null ∧ rc' = .nullCap) ∨
+      (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x)))
+    (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr))
+    (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc)
+    (hD : IpcDoneM2 (L := L) ct s σ p rc) :
+    endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  jRecvIpcDoneM2Q (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmax htu J ht hcur hni hsw hnq p b sd g gr rc rc' hpE hrc hHd hHr hD (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

@@ -287,8 +287,8 @@ def StartU (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K)
 
 variable {arI AR MR}
 
-/-- **`StartU` gives `StartD`** at a state of the current chain (`run` by `chain_run`). -/
-theorem startD_of_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **`startD_of_U` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
+theorem startD_of_U_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
     {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
     {i : Fl4IxW (S := S)} (h : StartU st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
@@ -297,20 +297,28 @@ theorem startD_of_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic
   cases i with
   | vmF j =>
     obtain ⟨q0, ⟨h1, σ, ⟨hCσ, hE⟩, hG⟩, e⟩ := h
-    exact ⟨q0, ⟨h1, σ, ⟨hCσ, (hE.toJ12 st ar).toJ10 st ar hA (chain_run P hIoa hC' hCσ hE.hct)⟩, hG⟩, e⟩
+    exact ⟨q0, ⟨h1, σ, ⟨hCσ, (hE.toJ12 st ar).toJ10 st ar hA (hRun hC' hCσ hE.hct)⟩, hG⟩, e⟩
   | vmR j =>
     obtain ⟨q0, ⟨h1, hG⟩, e⟩ := h
     exact ⟨q0, ⟨h1, hG.mono fun σ he _ => ⟨he.1, he.2.toJ12 hA⟩⟩, e⟩
   | sl j =>
     obtain ⟨q0, ⟨h1, hG⟩, e⟩ := h
-    exact ⟨q0, ⟨h1, hG.mono fun σ he _ => ⟨he.1, he.2.toJ12 hA (chain_run P hIoa hC' he.1 he.2.hct)⟩⟩, e⟩
+    exact ⟨q0, ⟨h1, hG.mono fun σ he _ => ⟨he.1, he.2.toJ12 hA (hRun hC' he.1 he.2.hct)⟩⟩, e⟩
   | io j => exact h
   | st j => exact h
   | irq j => exact h
   | vq j => exact h
 
-/-- **`StartC` gives a start of `fl4LocA`'s `ownV` path** (`startAt_C` stopped before the PTE cut). -/
-theorem startAtV_C (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+/-- **`StartU` gives `StartD`** at a state of the current chain (`run` by `chain_run`). -/
+theorem startD_of_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
+    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
+    {i : Fl4IxW (S := S)} (h : StartU st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
+    StartD st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i :=
+  startD_of_U_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
+
+/-- **`startAtV_C` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
+theorem startAtV_C_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
     {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
     {i : Fl4IxW (S := S)} (h : StartC st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
@@ -322,30 +330,56 @@ theorem startAtV_C (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic 
   cases i with
   | sl j =>
     obtain ⟨q0, ⟨h, hG⟩, e⟩ := h
-    refine startAtV_A st ar hA hm hSt a0 P hIoa hC0 (m := m) (hK := hK) (hU := hU) (i := .sl j)
+    refine startAtV_A_C st ar hA hm hSt a0 hRun hC0 (m := m) (hK := hK) (hU := hU) (i := .sl j)
       ⟨q0, ⟨h, hG.mono fun σ he hμ => ⟨he.1, ?_⟩⟩, e⟩
     have hJ := ChainOf.bun hC' σ he.1
-    refine he.2.toQ hA (chain_run P hIoa hC' he.1 he.2.hct) fun d hd => ?_
+    refine he.2.toQ hA (hRun hC' he.1 he.2.hct) fun d hd => ?_
     obtain ⟨h1, h2⟩ := hJ.userOK.tcb d hd oAFFINITY (Or.inl rfl)
     exact (hμ _ h1 h2).symm
   | vmF j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .vmF j) h)
   | vmR j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .vmR j) h)
   | io j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .io j) h)
   | st j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .st j) h)
   | irq j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .irq j) h)
   | vq j =>
-    exact startAtV_A st ar hA hm hSt a0 P hIoa hC0 (hK := hK) (hU := hU)
+    exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .vq j) h)
+
+/-- **`StartC` gives a start of `fl4LocA`'s `ownV` path** (`startAt_C` stopped before the PTE cut). -/
+theorem startAtV_C (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
+    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
+    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
+    {i : Fl4IxW (S := S)} (h : StartC st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
+    ∃ q0, StartAt ((fl4LocA st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base)
+      c hs m q0 ∧
+      q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅ :=
+  startAtV_C_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
+
+/-- **`startAt_U` on the re-based platform** (gen 55, in place: `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
+theorem startAt_U_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
+    {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
+    {q : SP} {i : Fl4IxW (S := S)}
+    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
+    (hE : ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x)
+    (h : StartU st ar hA hm hSt a0 arI AR MR Ch K s.mem hK hU c hs q i) :
+    StartAt (fl4LocW11JA st ar hA hm hSt a0 i K s.mem hK hU) c hs s.mem q := by
+  obtain ⟨q0, hS, rfl⟩ := startAtV_C_C st ar hA hm hSt a0 hRun hC
+    (startC_of_D st ar hA hm hSt a0 (startD_of_U_C st ar hA hm hSt a0 hRun hC h))
+  obtain ⟨σe, hC'⟩ := hC
+  have hσe : Ch σe := by
+    obtain ⟨_, _, _, _, _, _, _, _, h'⟩ := hC'
+    exact h'
+  exact startAt_cutAR st ar hA hm hSt a0 i K s hK hU hS ⟨σe, ChainOf.bun hC' σe hσe⟩ hE
 
 /-- **`StartU` gives `StartAt` of `fl4LocW11JA`**, given the current chain and the epoch data of `execP_of_WPRG`. -/
 theorem startAt_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
@@ -354,14 +388,8 @@ theorem startAt_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic a
     (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
     (hE : ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x)
     (h : StartU st ar hA hm hSt a0 arI AR MR Ch K s.mem hK hU c hs q i) :
-    StartAt (fl4LocW11JA st ar hA hm hSt a0 i K s.mem hK hU) c hs s.mem q := by
-  obtain ⟨q0, hS, rfl⟩ := startAtV_C st ar hA hm hSt a0 P hIoa hC
-    (startC_of_D st ar hA hm hSt a0 (startD_of_U st ar hA hm hSt a0 P hIoa hC h))
-  obtain ⟨σe, hC'⟩ := hC
-  have hσe : Ch σe := by
-    obtain ⟨_, _, _, _, _, _, _, _, h'⟩ := hC'
-    exact h'
-  exact startAt_cutAR st ar hA hm hSt a0 i K s hK hU hS ⟨σe, ChainOf.bun hC' σe hσe⟩ hE
+    StartAt (fl4LocW11JA st ar hA hm hSt a0 i K s.mem hK hU) c hs s.mem q :=
+  startAt_U_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC hE h
 
 end start
 
@@ -382,30 +410,6 @@ def StartU1 {κ : Type}
   | .inr j => SFQ Ch K m hK hU c hs q j
 
 variable {arI AR MR}
-
-/-- **FL4 end to end over `fl4LocW11JA` and any family of `ownP` summands** (module docstring): every `ExecWPR`
-over `PathsP.sum (fl4LocW11JA …) LQ` whose starts are `StartU1 SFQ` facts ran as some serial order of its completed
-entries, provided each summand's start fact gives its `StartAt` (`hSFQ`, given the chain and the epoch data). -/
-theorem serializable_fl4_localU1G (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {κ : Type} (LQ : PathsP κ)
-    {SFQ : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → κ → Prop}
-    (hSFQ : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q j,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SFQ Ch K s.mem hK hU c hs q j → StartAt (LQ j K s.mem hK hU) c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPR (PathsP.sum (fl4LocW11JA st ar hA hm hSt a0) LQ) (StartU1 st ar hA hm hSt a0 arI AR MR SFQ) P
-      s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_WPRG ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  intro Ch K s hK hU c hs q i hC hE hsf
-  cases i with
-  | inl i => exact startAt_U st ar hA hm hSt a0 P hIoa hC hE hsf
-  | inr j => exact hSFQ Ch K s hK hU c hs q j hC hE hsf
 
 end top
 

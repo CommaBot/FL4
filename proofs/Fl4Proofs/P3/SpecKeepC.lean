@@ -5,6 +5,8 @@ fields kept, `CnK`'s `abs0`): the invariants read no CNode, so they are kept
 (`NSC`, `Inv`, `CurInv`, `OffOK`, `ActIdle`, `BlockedScActive`, `ScLinkHyp`,
 `CurOwn`, `CurRun`). For the slot steps of `JAtZ`'s closure (an insertion, a
 CNode-only step).
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `slot2Fr`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointStep
 open Aeneas Aeneas.Std Result
@@ -267,9 +269,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 /-- **`IpcFrKeep` of a CSpace step** (`KeepCT`) from `J`: each TCB's FL4
 buffer slot kept or emptied (`IpcFrKeep.of_slot2`). -/
-theorem JAtZ.slot2Fr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.slot2Fr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
     (hkc : KeepCT σ σ') (hR' : StateRel Z.th mem' σ')
     (h2 : ∀ q, Z.th q = some .tcb → capAt mem' (slotOf q 2) = capAt (L.mem s) (slotOf q 2) ∨
       capV mem' (slotOf q 2) = .Null) : IpcFrKeep σ σ' := by
@@ -283,6 +285,15 @@ theorem JAtZ.slot2Fr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · rw [hx] at h1; cases h1
     · exact J.thOfTcb h1
 
+
+/-- `JAtZB.slot2Fr` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.slot2Fr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
+    (hkc : KeepCT σ σ') (hR' : StateRel Z.th mem' σ')
+    (h2 : ∀ q, Z.th q = some .tcb → capAt mem' (slotOf q 2) = capAt (L.mem s) (slotOf q 2) ∨
+      capV mem' (slotOf q 2) = .Null) : IpcFrKeep σ σ' :=
+  J.toB.slot2Fr hkc hR' h2
 end
 
 end

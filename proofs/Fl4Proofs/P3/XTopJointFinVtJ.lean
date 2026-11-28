@@ -36,6 +36,8 @@ EPT or a VCPU cap keeps the state; FL4's writes land in VT-x words.
   `vspace::delete_asid` clears the guest-tagged ASID pool entry, as the
   spec's `arch_finalise_cap` of a mapped level-0 `EPTCap` does by
   `deleteAsid`.
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `cobj`, `ept_obj`, `ept_ne0`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointFinVtOps
 import Fl4Proofs.P3.XTopJointFinFrIo
@@ -146,27 +148,45 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
   {D : Set U64}
 
 /-- A slot's EPT or frame cap's objects (`JPlaced.cobj`). -/
-theorem JAtZ.cobj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.cobj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {x : U64} (hx : IsSlot Z.th x) : Sched.CapObjH H (Sched.idleScW (L := L) s) (capV (L.mem s) x) := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl; exact hJ.cobj x hx
 
+
+/-- `JAtZB.cobj` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.cobj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x : U64} (hx : IsSlot Z.th x) : Sched.CapObjH H (Sched.idleScW (L := L) s) (capV (L.mem s) x) :=
+  J.toB.cobj hx
 /-- **An EPT cap's range holds no object of `H` but `other` ones** (l4v
 `valid_cap` with `pspace_distinct`; `JPlaced.cobj`). -/
-theorem JAtZ.ept_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.ept_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
     ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
       q.val + 2 ^ k.bits ≤ baseF (.Ept p lv m asid va) ∨ topF (.Ept p lv m asid va) < q.val := by
   have h := J.cobj hx; rw [hcv] at h; exact h.2
 
+
+/-- `JAtZB.ept_obj` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ept_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
+    ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
+      q.val + 2 ^ k.bits ≤ baseF (.Ept p lv m asid va) ∨ topF (.Ept p lv m asid va) < q.val :=
+  J.toB.ept_obj hx hcv
 /-- **An EPT cap names a non-null table** (l4v `valid_cap`: no object at 0;
 `JPlaced.cobj`, `H` holding nothing at 0). -/
-theorem JAtZ.ept_ne0 {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.ept_ne0 {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
     p ≠ 0#u64 := by
   have h := J.cobj hx; rw [hcv] at h
   obtain ⟨⟨n, hH, -⟩, -⟩ := h
   rintro rfl; rw [J.kern.h0] at hH; cases hH
 
+
+/-- `JAtZB.ept_ne0` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ept_ne0 {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x p lv asid va : U64} {m : Bool} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = .Ept p lv m asid va) :
+    p ≠ 0#u64 :=
+  J.toB.ept_ne0 hx hcv
 set_option maxHeartbeats 4000000 in
 /-- **The VT-x work of a finalisation at `J`** (module docstring), final or
 not, from `ArchRefines` [P], `ARKeep` [P] and `JVtHyps` [J]. -/

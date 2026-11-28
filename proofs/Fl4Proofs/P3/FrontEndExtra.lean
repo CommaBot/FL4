@@ -13,6 +13,10 @@ P3 (issue #16, front end): **the invocation's extra caps and label at `J`**.
 * `ExtraOK.rel1`, `.rel2`, `.relS`, `.xc`: `ExtraOK` gives the decodes'
   extra-slot relations (`ExtraRel`, `ExtraRel2`, `ExtraSRel`, `XcRel`), so
   XTopJointEntry's paths no longer ask them.
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `argsJ`, `extraJ`, `frontJ`; the `JAtZ` names are one-line corollaries via
+`JAtZ.toB`, statements unchanged.
 -/
 import Fl4Proofs.P3.XTopJointGrant
 import Fl4Proofs.P3.TcbCtl
@@ -227,7 +231,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The front end at `J`**: the label words agree, and when both lookups
 of the extra caps succeed, FL4's extra-slot array is the spec's extra caps
 (`ExtraOK`). -/
-theorem JAtZ.frontJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZB.frontJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
@@ -285,11 +289,28 @@ theorem JAtZ.frontJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   subst e2
   exact hok
 
+/-- `JAtZB.frontJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.frontJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
+    {mi : Fl4Spec.MessageInfo} (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
+    {buf : U64} (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
+    {buffer : Option Fl4Spec.ObjRef}
+    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
+    {r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault}
+    (hr2 : ipc.lookup_extra_caps st s ct buf info = ok r2)
+    {er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))}
+    (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False)) :
+    info.label.bv = mi.miLabel ∧
+    ∀ e exs, r2 = .Ok e → er = .ok exs → ExtraOK Z.th (L.mem s) e exs :=
+  Fl4Proofs.P3.JAtZB.frontJ (J := J.toB) (hOK := hOK) (hBC := hBC) (hct := hct) (hinfo := hinfo) (hmi := hmi) (hbuf := hbuf) (hbuffer := hbuffer) (hr2 := hr2) (her := her)
+
 set_option maxHeartbeats 4000000 in
 /-- **The extra caps' lookups at `J`**: FL4's and the spec's both succeed, or
 both fault with the same cap fault (`CapFaultCorr`, IpcGrant's
 `lookup_extra_rel`). -/
-theorem JAtZ.extraJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZB.extraJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
@@ -343,12 +364,28 @@ theorem JAtZ.extraJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     obtain ⟨f', hc, hf⟩ := hlk
     exact Or.inr ⟨f, f', rfl, huniq (congrArg Prod.fst (her.symm.trans hc)), hf⟩
 
+/-- `JAtZB.extraJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.extraJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
+    {mi : Fl4Spec.MessageInfo} (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
+    {buf : U64} (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
+    {buffer : Option Fl4Spec.ObjRef}
+    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
+    {r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault}
+    (hr2 : ipc.lookup_extra_caps st s ct buf info = ok r2)
+    {er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))}
+    (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False)) :
+    (∃ e exs, r2 = .Ok e ∧ er = .ok exs) ∨ (∃ f f', r2 = .Err f ∧ er = .error f' ∧ Endp.CapFaultCorr f f') :=
+  Fl4Proofs.P3.JAtZB.extraJ (J := J.toB) (hOK := hOK) (hBC := hBC) (hct := hct) (hinfo := hinfo) (hmi := hmi) (hbuf := hbuf) (hbuffer := hbuffer) (hr2 := hr2) (her := her)
+
 
 set_option maxHeartbeats 4000000 in
 /-- **The argument words at `J`**: the spec's `getMrs` words are FL4's
 `syscall_arg`s, as many as `msgLen`, and the first five arguments are
 `fl4GetMr`'s (`ArgRel`, also past the message length). -/
-theorem JAtZ.argsJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+theorem JAtZB.argsJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
     {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
@@ -442,6 +479,22 @@ theorem JAtZ.argsJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   · obtain ⟨y, hy, hyv⟩ := hrel i (by omega)
     refine ⟨y, hy, ?_⟩
     rw [fl4GetMr_eq hks _ hal i.val (by omega), hyv]
+
+/-- `JAtZB.argsJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.argsJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
+    {mi : Fl4Spec.MessageInfo} (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
+    {buf : U64} (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
+    {buffer : Option Fl4Spec.ObjRef}
+    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
+    {argsU : List U64}
+    (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False)) :
+    (msgLen info buf).val = argsU.length ∧
+    (∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x) ∧
+    ArgRel (st := st) s σ ct buf buffer 5 :=
+  Fl4Proofs.P3.JAtZB.argsJ (J := J.toB) (hOK := hOK) (hBC := hBC) (hct := hct) (hinfo := hinfo) (hmi := hmi) (hbuf := hbuf) (hbuffer := hbuffer) (hmrs := hmrs)
 
 end
 

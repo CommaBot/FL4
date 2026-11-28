@@ -19,6 +19,13 @@ to no thread).
   notification signalled in `schedule`'s prelude): the woken thread then owns
   it (`CurOwnT`, `CurOwnW`'s owner), not postponed while time is consumed
   (`OffOK`: the head refill ready and sufficient).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `deadP_dfr`,
+`not_dead_of_st`, `ntfnSc_not_dead`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement
+unchanged (the `JAtZB` copies of gens 24-39 deleted).
+
+(mmuAD gen 42b18) `wake_postD` stated over `JAtZB` in place (post at `Z`); `JAtZ.wake_postD` its corollary (witness
+`Z.vs`, `ext` by `JAtZ.ext_oobj` over `CnW`). P3/JAtZV3SigDon's copy deleted.
 -/
 import Fl4Proofs.P3.ScSignalBoundJ
 import Fl4Proofs.P3.IpcSignalDon
@@ -41,7 +48,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- A notification's SC is not dead (bound back to the notification,
 `JAtZ.ntfn_link`; a dead SC's notification word is `0`). -/
-theorem JAtZ.ntfnSc_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q : U64} {y : Fl4Spec.SchedContext}
+theorem JAtZB.ntfnSc_not_dead (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {q : U64} {y : Fl4Spec.SchedContext}
     {k : Nat} (hq : σ.kheap q.bv = some (.schedContext y k)) {o : Fl4Spec.ObjRef} {xo : Fl4Spec.Notification}
     (ho : σ.kheap o = some (.notification xo)) (hsc : xo.ntfnSc = some q.bv) : ¬ DeadP (L := L) H s q := by
   intro hd
@@ -64,11 +71,17 @@ theorem JAtZ.ntfnSc_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {
   rw [show L.mem s (scNtfnA c') = 0#u64 from d3, optRef_zero, hyn] at h1
   cases h1
 
+/-- `JAtZB.ntfnSc_not_dead` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.ntfnSc_not_dead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q : U64} {y : Fl4Spec.SchedContext}
+    {k : Nat} (hq : σ.kheap q.bv = some (.schedContext y k)) {o : Fl4Spec.ObjRef} {xo : Fl4Spec.Notification}
+    (ho : σ.kheap o = some (.notification xo)) (hsc : xo.ntfnSc = some q.bv) : ¬ DeadP (L := L) H s q :=
+  Fl4Proofs.P3.JAtZB.ntfnSc_not_dead (J := J.toB) (hq := hq) (ho := ho) (hsc := hsc)
+
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a `DWFr` step** with the footprint `CnW`
 (`deadP_cfr`; `t` was blocked, so not dead; an SC whose thread changes is a
 notification's SC, so not dead). -/
-theorem JAtZ.deadP_dfr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
+theorem JAtZB.deadP_dfr (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
     {σ3 : Fl4Spec.State Unit} (F : DWFr r t σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
@@ -164,10 +177,21 @@ theorem JAtZ.deadP_dfr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : 
     · obtain ⟨-, o, xo, ho, hsc⟩ := F.scb q.bv x n _ n hx hk3 e
       exact absurd hd (J.ntfnSc_not_dead hx ho hsc)
 
+/-- `JAtZB.deadP_dfr` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_dfr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : Fl4Spec.ObjRef} {s3 : S}
+    {σ3 : Fl4Spec.State Unit} (F : DWFr r t σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
+    (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
+    (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3)
+    (ht : ∀ q ∈ D, q.bv ≠ t) :
+    ∀ q ∈ D, DeadP (L := L) H s3 q :=
+  Fl4Proofs.P3.JAtZB.deadP_dfr (J := J.toB) (F := F) (hS3 := hS3) (hI3 := hI3) (hw := hw) (k3 := k3) (hAS := hAS) (hY3 := hY3) (hYK := hYK) (ht := ht)
+
 set_option maxHeartbeats 8000000 in
-/-- **A wake with or without a donation keeps `JAtZ`** (`wake_postB` in the
-frame `DWFr`). -/
-theorem JAtZ.wake_postD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
+/-- **A wake with or without a donation keeps `JAtZB`** (`wake_postB` in the
+frame `DWFr`; P3/ScSignalDonJ's `JAtZ.wake_postD` with the post `JAtZB Z`, module docstring). -/
+theorem JAtZB.wake_postD (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
     {s' : S} {σ' : Fl4Spec.State Unit}
     (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
@@ -180,7 +204,7 @@ theorem JAtZ.wake_postD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
     (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
     (ht : ∀ q ∈ D, q.bv ≠ t) (htT : ∃ u ∈ Z.T, u.bv = t) :
-    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' := by
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a σ' := by
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hIR hAR hF.1 F.sk.cdt F.sk.orig F.ksub hF.2
   have hks : L.ksb s' = L.ksb s := hF.2
@@ -219,13 +243,30 @@ theorem JAtZ.wake_postD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
         (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own htT J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
-  have hC0 := JCs.same J hF.1 F.ksz
+  have hC0 := JCs.sameB J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
+  exact J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD
+
+/-- `JAtZB.wake_postD` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.wake_postD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
+    {s' : S} {σ' : Fl4Spec.State Unit}
+    (hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hF : IFrame (L := L) Z.th s s') (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s))
+    (F : DWFr n t σ σ') (I3 : Inv σ') (B3 : BlockedScActive σ') (hAI3 : ActIdle σ')
+    (hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') (hrun3 : CurRunM σ')
+    (hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t →
+      Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64)
+    (ht : ∀ q ∈ D, q.bv ≠ t) (htT : ∃ u ∈ Z.T, u.bv = t) :
+    ∃ V' : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D s' a σ' :=
+  ⟨Z.vs, (Fl4Proofs.P3.JAtZB.wake_postD (J := J.toB) (hIR := hIR) (hF := hF) (hw := hw) (hblk := hblk) (hfoot := hfoot) (F := F) (I3 := I3) (B3 := B3) (hAI3 := hAI3) (hcur3 := hcur3) (hrun3 := hrun3) (hRR := hRR) (ht := ht) (htT := htT)).toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun _ hb => J.cnW_nv hb))⟩
 
 /-- A thread in a state other than `inactive` is not dead. -/
-theorem JAtZ.not_dead_of_st (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (htT : t ∈ Z.T)
+theorem JAtZB.not_dead_of_st (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (htT : t ∈ Z.T)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hst : tsCode xt.tcbState ≠ 0) :
     ∀ q ∈ D, q.bv ≠ t.bv := by
   intro q hq eq
@@ -238,6 +279,12 @@ theorem JAtZ.not_dead_of_st (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t
   rw [d1] at h3
   unfold sched.TS_INACTIVE at h3
   exact hst (by rw [← h3]; rfl)
+
+/-- `JAtZB.not_dead_of_st` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.not_dead_of_st (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (htT : t ∈ Z.T)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hst : tsCode xt.tcbState ≠ 0) :
+    ∀ q ∈ D, q.bv ≠ t.bv :=
+  Fl4Proofs.P3.JAtZB.not_dead_of_st (J := J.toB) (htT := htT) (hkt := hkt) (hst := hst)
 
 set_option maxHeartbeats 8000000 in
 /-- **A waiting notification signalled, donating or not, keeps `JAtZ`**

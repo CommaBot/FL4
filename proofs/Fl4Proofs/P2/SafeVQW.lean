@@ -10,6 +10,9 @@
   `safeVQW` generalises `safeVQ`.
 
 No premise. No existing statement changed.
+
+Gen 48 (in place, statements unchanged): `LocalPath.VQNarW`, `safeVQW`'s run facts as one proposition, shared with
+`LocalPath.insAVQW` (P2/InsVQ).
 -/
 import Fl4Proofs.P2.ViewSafeGenW
 import Fl4Proofs.P2.SafeVQ
@@ -77,6 +80,17 @@ theorem LocalPath.safeVQW (P : LocalPath own cls ko User) (hL : MoveHeld own) (h
     (fun s0 r h1 h0 h2 h3 h4 => hNarD s0 r h1.1 h1.2 h0 h2 h3 h4)
     (fun s0 r h1 h0 h2 h3 h4 => hVA s0 r h1.1 h1.2 h0 h2 h3 h4)
     (fun s0 r h1 h0 h2 h3 h4 => hVD s0 r h1.1 h1.2 h0 h2 h3 h4)
+
+/-- **`LocalPath.safeVQW`'s run facts** (`hNarA` / `hNarD` / `hVA` / `hVD` as one proposition, gen 48): slots state
+them once and hand them to both `safeVQW` and `LocalPath.insAVQW` (P2/InsVQ). -/
+def LocalPath.VQNarW (P : LocalPath own cls ko User) (σ : P.S) (a : P.A) (ρv : U64 → U64)
+    (NR NWs : P.S → U64 → Prop) (VW : P.S → P.S → Prop) (Q : P.S → Prop) : Prop :=
+  P.VQNar σ a ρv NR NWs Q ∧
+    (∀ s0 r, P.Pre s0 → Q s0 → P.L.cpu s0 = P.L.cpu σ → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) →
+      P.F P.ar P.st s0 a = ok r → P.Acc r.1 → P.F P.ar (mguard P.st VW) s0 a = ok r) ∧
+    (∀ s0 r, P.Pre s0 → Q s0 → P.L.cpu s0 = P.L.cpu σ → (∀ x, Aligned x → ¬ User x → P.L.mem s0 x = ρv x) →
+      P.F P.ar P.st s0 a = ok r → ¬ P.Acc r.1 → ∀ s' r', @Alt _ P.st P.L (P.RS s0) cls ko User s0 s' →
+        P.F P.ar P.st s' a = ok r' → P.F P.ar (mguard P.st VW) s' a = ok r')
 
 end safe
 

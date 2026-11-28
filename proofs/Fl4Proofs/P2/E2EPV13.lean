@@ -77,7 +77,7 @@ serial exit tied to its P3 exit), which no existing premise provides.
 
 No existing statement changed except the root import list.
 -/
-import Fl4Proofs.P2.E2EPV12
+import Fl4Proofs.P2.E2EPV11
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2EP
@@ -219,30 +219,15 @@ theorem VmFEntV13.toJ14 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec
     (E : VmFEntV13 st ar arI AR MR i K s) (hJ : SlJAt (L := L) K.toKLayout s) : VmFEntJ14 st ar arI AR MR i K s :=
   ⟨E.nv, E.ix, E.hct, E.lk, yb_of_ybw hJ E.ybw, E.gl⟩
 
-theorem VmFEntV13.ofJ14 {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmFArg S} {K : KLayoutV} {s : S}
-    (E : VmFEntJ14 st ar arI AR MR i K s) : VmFEntV13 st ar arI AR MR i K s :=
-  ⟨E.nv, E.ix, E.hct, E.lk, ybw_of_yb E.yb, E.gl⟩
-
 theorem VmREntV13.toU {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
     {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmRArg S} {Kl Kb : OwnMap.KLayout} {s : S}
     (E : VmREntV13 st arI AR MR i Kl Kb s) (hJ : SlJAt (L := L) Kb s) : VmREntU st arI AR MR i Kl Kb s :=
   ⟨E.ix, E.hct, yb_of_ybw hJ E.ybw, E.lk, E.nbc, E.fd⟩
 
-theorem VmREntV13.ofU {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : VmRArg S} {Kl Kb : OwnMap.KLayout} {s : S}
-    (E : VmREntU st arI AR MR i Kl Kb s) : VmREntV13 st arI AR MR i Kl Kb s :=
-  ⟨E.ix, E.hct, ybw_of_yb E.yb, E.lk, E.nbc, E.fd⟩
-
 theorem SlEntV13.toU {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
     {MR : A3 → Fl4Spec.MachineState → Prop} {i : SlArg S} {K : OwnMap.KLayout} {s : S}
     (E : SlEntV13 st ar arI AR MR i K s) (hJ : SlJAt (L := L) K s) : SlEntU st ar arI AR MR i K s :=
   ⟨E.ix, E.sg, E.hct, E.el, E.sc, E.nbc, E.acc, E.hlk, yb_of_ybw hJ E.ybw⟩
-
-theorem SlEntV13.ofU {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} {i : SlArg S} {K : OwnMap.KLayout} {s : S}
-    (E : SlEntU st ar arI AR MR i K s) : SlEntV13 st ar arI AR MR i K s :=
-  ⟨E.ix, E.sg, E.hct, E.el, E.sc, E.nbc, E.acc, E.hlk, ybw_of_yb E.yb⟩
 
 end ent
 
@@ -312,31 +297,6 @@ theorem startV2C_of_V13 {Ch : S → Prop} {K : KLayoutP} (hC : ∃ σe, ChainOf 
     | vq j => exact h
   · exact h
 
-/-- **`StartV2C` gives `StartV13`** (`ybw_of_yb`; no chain needed): V13's start fact asks no more than V12's. -/
-theorem startV13_of_V2C {Ch : S → Prop} {K : KLayoutP}
-    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (h : StartV2C st ar hA a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartV13 st ar hA a0 arI AR MR Ch K m hK hU c hs q i := by
-  rcases i with i | j
-  · cases i with
-    | vmF j =>
-      obtain ⟨hL, hG⟩ := h
-      refine ⟨hL, fun hk => ?_⟩
-      obtain ⟨q0, ⟨h1, σ, ⟨hCσ, hE⟩, hG'⟩, e⟩ := hG hk
-      exact ⟨q0, ⟨h1, σ, ⟨hCσ, VmFEntV13.ofJ14 hE⟩, hG'⟩, e⟩
-    | vmR j =>
-      obtain ⟨q0, ⟨hL, σ, ⟨hCσ, hE⟩, hG⟩, e⟩ := h
-      exact ⟨q0, ⟨hL, σ, ⟨hCσ, VmREntV13.ofU hE⟩, hG⟩, e⟩
-    | sl j =>
-      obtain ⟨q0, ⟨hL, σ, ⟨hCσ, hE⟩, hG⟩, e⟩ := h
-      exact ⟨q0, ⟨hL, σ, ⟨hCσ, SlEntV13.ofU hE⟩, hG⟩, e⟩
-    | io j => exact h
-    | st j => exact h
-    | irq j => exact h
-    | vq j => exact h
-  · exact h
-
 end start
 
 /-! ## Changing the start fact along an execution -/
@@ -346,31 +306,6 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 variable {ι : Type}
 
-/-- **An `ExecWPRV12` with start fact `SF` is one with `SF'`** when `SF` gives `SF'` at every layout whose chain is
-a serial exit's; every chain of the execution is one (`hB`, `serX`, `keep`), which is returned too. -/
-theorem execWPRV12_conv {LP : PathsP ι} {NoV : ι → Prop}
-    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-      Prop}
-    (hF : ∀ Ch K m hK hU c hs q i, (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e))
-    (h : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch) :
-    ExecWPRV12 LP NoV SF' P s0 K0 Ch0 s K Ch ∧ ∀ e, SerExitW P K.toKLayoutV (Ch e) := by
-  induction h with
-  | refl => exact ⟨.refl, hB⟩
-  | @step s1 s2 K1 K2 Ch1 Ch2 c _ hS g ih =>
-    obtain ⟨ih1, ih2⟩ := ih
-    refine ⟨.step ih1 hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩, ?_⟩
-    · obtain ⟨ρ, hV, i, k0, hi, hvs⟩ := g.start p0 k W hph hK hU
-      exact ⟨ρ, hV, i, k0, hF _ _ _ _ _ _ _ _ _ (ih2 c).chainOf hi, hvs⟩
-    · by_cases hss : SerStep s1 c
-      · exact g.serX hss
-      · obtain ⟨e1, e2⟩ := g.keep hss
-        rw [e1, e2]
-        exact ih2
-  | hw _ hH ih => exact ⟨.hw ih.1 hH, ih.2⟩
-
 end exec
 
 /-! ## V13 -/
@@ -379,35 +314,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with `yb` narrowed to `ybw`** (module docstring): V12 with the start fact `StartV13`. The
-conclusion is about the physical memory. -/
-theorem serializable_fl4_localV13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV13 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localV12 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV12_conv (fun _ _ _ _ _ _ _ _ _ hC hs => startV2C_of_V13 st ar hA a0 hC hs) hB h).1 hq
-
-/-- **V12's statement from V13** (V13's start fact is implied by V12's, `startV13_of_V2C`). -/
-theorem serializable_fl4_localV12ofV13 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localV13 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV12_conv (fun _ _ _ _ _ _ _ _ _ _ hs => startV13_of_V2C st ar hA a0 hs) hB h).1 hq
 
 end top
 

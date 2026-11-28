@@ -14,6 +14,10 @@ receive with a reply linked to another thread at a `MidC` state.**
 * `jRecvIpcLinkC`: XTopJointKEntry15M's `jRecvIpcLinkM` with `MidC` for
   `MidE` (`MidC` at the state after the cancel by `cancelLink_curInv`) and
   `jRecvIpcUC` for `jRecvIpcUM`.
+
+(p3J gen 54) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointKEntry21M
 open Aeneas Aeneas.Std Result
@@ -73,9 +77,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **`receive_ipc` at `J` with a reply linked to another thread at a
-`MidC` state** (module docstring). -/
-theorem jRecvIpcLinkC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
+/-- (p3J gen 54) **`jRecvIpcLinkC` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `jRecvIpcLinkC` is its instance at `RJR`). -/
+theorem jRecvIpcLinkCQ (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -83,10 +86,13 @@ theorem jRecvIpcLinkC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = co
     (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x)) (hcr : CapRel (.Reply q g') rc')
     {xr : Fl4Spec.Reply} (hkr : σ.kheap q.bv = some (.reply xr))
     (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr))
-    (hHr : JHeld (L := L) Z.th s (.Reply q g')) (hi0 : L.mem s (rTcbA q) ≠ 0#u64) :
+    (hHr : JHeld (L := L) Z.th s (.Reply q g')) (hi0 : L.mem s (rTcbA q) ≠ 0#u64)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true (.Reply q g') ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hR := (J.xtop.irelK J.ks J.buf).1.toE
   obtain ⟨q0, hq, hqe⟩ := J.obj.reply _ xr hkr
   rw [Sched.bv_inj hqe] at hq
@@ -133,10 +139,29 @@ theorem jRecvIpcLinkC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = co
     exact hni.run x0 (by rw [hcur]; exact hk0)
   have hC' : CurInv σ' := cancelLink_curInv J.sv hki hsti hne hm hni.2.2.2
   have hE' : MidC σ' := ⟨by rw [hct', hid']; exact hni.1, hrun', by rw [hact']; exact hni.2.2.1, hC'⟩
-  exact jRecvIpcUC (Z := Z.mv Z.G V) hAT hmax htu J' ht (hct'.trans hcur) hE' hE'.nr
+  exact jRecvIpcUCQ (Z := Z.mv Z.G V) hAT hmax htu J' ht (hct'.trans hcur) hE' hE'.nr
     (by rw [hct', hrq']; exact hnq) p b sd g gr (.Reply q g') _ ⟨xe', hke'⟩
     (Or.inr ⟨hcr, q, g', rfl, xr', hkr'⟩) (jHeld_of_same hSS hHd) (fun _ _ _ => jHeld_of_same hSS hHr)
-    (Or.inr ⟨q, g', rfl, h0'⟩)
+    (Or.inr ⟨q, g', rfl, h0'⟩) hPq
+
+set_option maxHeartbeats 4000000 in
+/-- **`receive_ipc` at `J` with a reply linked to another thread at a
+`MidC` state** (module docstring). -/
+theorem jRecvIpcLinkC (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv) {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {ct : U64} (ht : ct ∈ Z.T)
+    (hcur : σ.curThread = ct.bv) (hni : MidC σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (p b : U64) (sd g gr : Bool) (q : U64) (g' : Bool) (rc' : Fl4Spec.Cap)
+    (hpE : ∃ x, σ.kheap p.bv = some (.endpoint x)) (hcr : CapRel (.Reply q g') rc')
+    {xr : Fl4Spec.Reply} (hkr : σ.kheap q.bv = some (.reply xr))
+    (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr))
+    (hHr : JHeld (L := L) Z.th s (.Reply q g')) (hi0 : L.mem s (rTcbA q) ≠ 0#u64) :
+    endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true (.Reply q g') ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  jRecvIpcLinkCQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmax htu J ht hcur hni hnq p b sd g gr q g' rc' hpE hcr hkr hHd hHr hi0 (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

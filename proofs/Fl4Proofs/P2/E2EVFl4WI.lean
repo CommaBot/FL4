@@ -114,19 +114,6 @@ section fam
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 
-/-- **`fl4LocP3W6` with the frame-cap invocation path** beside `vq` (module docstring). -/
-def fl4LocP3WI :
-    Fl4Loc (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) ((VxArg S ⊕ VtArg S) ⊕ InvArg S) where
-  vmF := vmFSlot st ar hA hm
-  vmR := vmRSlotP3 st ar hA hm
-  io := ioSlotP3W st ar hA hm
-  st := stSlotP3W st ar hA hm
-  irq := irqSlotP3W st ar hA hm
-  sl := slSlotP3W6 st ar hA hm hSt a0
-  vq := PathsV.sum (fl4LQP3W5 st ar hA hm (fl4Dflt st ar hm)) ((invSlotW st ar hA hm).lift (fl4Dflt st ar hm))
-
-abbrev Fl4IxWI := Fl4Ix (VmFArg S) (VmRArg S) (IoArg S) (StArg S) (IrqArg S) (SlArg S) ((VxArg S ⊕ VtArg S) ⊕ InvArg S)
-
 end fam
 
 /-! ## The start fact and the top -/
@@ -137,45 +124,7 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
 
-/-- **The start fact of `fl4LocP3WI`**: W9's for the old indices; for the frame-cap invocation index the slot's record
-and `GlueAt` [P] with the entry fact `InvQF` (module docstring). -/
-def StartP3WI (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : Fl4IxWI (S := S) → Prop
-  | .vmF j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.vmF j)
-  | .vmR j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.vmR j)
-  | .io j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.io j)
-  | .st j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.st j)
-  | .irq j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.irq j)
-  | .sl j => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.sl j)
-  | .vq (.inl j) => StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q (.vq j)
-  | .vq (.inr j) => ∃ h : InvPremW st j K m, GlueAt ((invSlotW st ar hA hm).liftAt j K m hK hU h)
-      (fun σ : S => Ch σ ∧ InvQF st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout m σ) c hs m q
-
 variable {arI AR MR}
-
-/-- **`StartAt` of `fl4LocP3WI`'s family from `StartP3WI`**, given the current chain. -/
-theorem startAt_P3WI (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxWI (S := S)} (h : StartP3WI st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocP3WI st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q := by
-  cases i with
-  | vmF j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .vmF j) h
-  | vmR j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .vmR j) h
-  | io j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .io j) h
-  | st j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .st j) h
-  | irq j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .irq j) h
-  | sl j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .sl j) h
-  | vq j =>
-    cases j with
-    | inl j => exact startAt_P3W9 st ar hA hm hSt a0 P hIoa hC (i := .vq j) h
-    | inr j =>
-      obtain ⟨σe, hC⟩ := hC
-      have hCh := ChainOf.bun hC
-      obtain ⟨h, hG⟩ := h
-      show StartAt ((invSlotW st ar hA hm).lift (fl4Dflt st ar hm) j K m hK hU) c hs m q
-      rw [SlotC.lift_eq _ _ h]
-      exact hG.startAt fun σ he _ => ⟨hCh σ he.1, he.2⟩
 
 end start
 
@@ -184,19 +133,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- (invj gen 2) **FL4 end to end at P3 scope with the frame-cap invocation path** (module docstring):
-`serializable_fl4_localW9`'s statement over `fl4LocP3WI` / `StartP3WI`. -/
-theorem serializable_fl4_localWI (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV}
-    {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0) (hB : SerExitW P K0 Ch0) (nv0 : K0.vcpus = ∅)
-    (hM0 : MapsV K0 s0)
-    (h : ExecW ((fl4LocP3WI st ar hA hm hSt a0).paths (fl4Dflt st ar hm)) (StartP3WI st ar hA hm hSt a0 arI AR MR) P
-      s0 K0 Ch0 s K Ch) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hE := (execV_of_WC (fun _ _ _ _ _ _ _ _ _ hC hi => startAt_P3WI st ar hA hm hSt a0 P hIoa hC hi) hB h).1
-  have hok := serExitW_ok hB (vcpuLay_empty nv0)
-  exact serializable_fl4_localG _ _ h0 hA0 hok.1 hok.2 hM0 hE hq
 
 end top
 

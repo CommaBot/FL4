@@ -6,6 +6,8 @@ P3 (line mmuAD, gen 26): **a spec VCPU-object step at `JAtZV`, and the binding h
   replaced by objects of the same `aaType`, every other component kept) with FL4's store kept, given `XTopAt`
   after.
 * **`arFr_vcpu`**: replacing a spec VCPU object by another VCPU object is an `ArFr` step.
+  (Gen 42b11: generalised in place to `arFr_arch`, any arch object by one of the same `aaType`; `arFr_vcpu` its
+  corollary, statement unchanged.)
 * **`JAtZV.vcpuSpec`**: from `JAtZV V X`, the spec step `updK σ p (archObj (vcpu vs'))` for `p ∈ V` (the spec side
   of `vcpuDetach` / `associateVcpuTcb` / `setVcpu` / `vcpuUpdate`: VirtVcpu, VirtState) keeps `JAtZV V X` with
   FL4's store unchanged, given **`hX` [J]: `XTopAt` at the updated spec state**. `JVm` by `JVm.step` (same
@@ -22,6 +24,9 @@ sets; no such lemma exists (the existing ones cover tables and pools in the sets
 `fields` half of the VCPU relation (VMX/SVM field layout ↔ `VcpuState.fields`).
 
 Named premises: `hX` [J] of `JAtZV.vcpuSpec`. No existing statement changed.
+
+(mmuAD gen 42b18) Removed (the originals are stated over `JAtZB` in place, the `JAtZ` names their corollaries with
+`ext` rebuilt): P3/XTopJointFpu `arFrS`.
 -/
 import Fl4Proofs.P3.JAtZBRun
 import Fl4Proofs.P3.XTopJointFpu
@@ -38,64 +43,23 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V X : Set U64}
 
 section
-open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
-
-set_option maxHeartbeats 8000000 in
-/-- **`JAtZ` across an `ArFr` spec step with FL4's store kept** (XTopJointFinVs's
-`finVsJb` with no word written): `XTopAt` after given (at any arch state). -/
-theorem JAtZB.arFrS (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {σ' : Fl4Spec.State Unit}
-    (F : ArFr σ σ') (hX : XTopAt (L := L) AR Z s a' σ') :
-    JAtZB (L := L) arI AR Z H Cs Ac Lst D s a' σ' := by
-  have hSS : SlotsSame Z.th (L.mem s) (L.mem s) := SlotsSame.refl _ _
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) ∧ L.mem s (flagsA t) = L.mem s (flagsA t) := fun _ _ => ⟨rfl, rfl⟩
-  have k2 : ∀ t ∈ Z.T, L.mem s (P1.yieldA t) = L.mem s (P1.yieldA t) := fun _ _ => rfl
-  have kb : ∀ t ∈ Z.T, L.mem s (tIpcBufA t) = L.mem s (tIpcBufA t) := fun _ _ => rfl
-  have k3 : ∀ q ∈ Z.C, L.mem s (P1.scReplyA q) = L.mem s (P1.scReplyA q) := fun _ _ => rfl
-  have k4 : ∀ r ∈ Z.R, L.mem s (P1.rPrevA r) = L.mem s (P1.rPrevA r) ∧
-      L.mem s (P1.rNextA r) = L.mem s (P1.rNextA r) := fun _ _ => ⟨rfl, rfl⟩
-  have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, F.sc.2 hq, rfl⟩,
-    fun q x hq => ⟨x, (F.look (fun _ e => by cases e)).2 hq, rfl, rfl⟩, fun p x n hp => ⟨x, F.sc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩,
-    fun p x n hp => ⟨x, F.sc.2 hp, rfl⟩, fun p y n hp => ⟨y, F.sc.1 hp, rfl⟩⟩
-  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ rfl ck
-  have hRF' := RFree.carry J.rfree J.call k4 ck
-  have hRR' := J.rrecv.frame k4 F.khrb
-  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s σ' :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) rfl (fun _ _ => rfl) rfl⟩
-  have hkern := J.kern_keepA rfl rfl hX.fin.1.1.1 F rfl
-  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
-      Sched.UtCapP3 (L := L) arI Z.th s σ' Z.G sl p sb fi := by
-    intro sl p sb fi dev hsl hcap hdv
-    have U := J.utc sl p sb fi dev hsl hcap hdv
-    refine ⟨U.pal, U.pfit, U.fiLe, U.high, U.actZ, U.free, U.zero, U.sb4, U.nostr, U.nsFree,
-      fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), ?_, U.dwReg, fun g => by rw [F.gpml4]; exact U.gReg g⟩
-    intro g h0 hf0
-    rw [F.cdt] at h0
-    obtain ⟨r1, r3⟩ := U.rst g h0 hf0
-    exact ⟨fun sl' h => r1 sl' (by rw [← F.orig]; exact h), r3⟩
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s σ' :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
-      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame rfl F.szKeep, hjpl, J.jcov, hkern, hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F,
-      J.own.ar F, J.off.ar F, J.act.ar F, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, J.blk⟩
-  exact J.cs_frameK (hvn := J.carry.vsNamed) rfl hX F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
-    hSS (P1.DbgKeep.refl s) F.idle
-
-end
-
-section
 open fl4_core Classical
+
+/-- **An arch object replaced by one of the same `aaType` is an `ArFr` step** (mmuAD gen 42b11: `arFr_vcpu`
+generalised in place, for the EPT table map's `storeGuestEntry`; `arFr_vcpu` is its corollary). -/
+theorem arFr_arch {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {ao : Fl4Spec.ArchKernelObj}
+    (hk : σ.kheap p = some (.archObj ao)) (ao' : Fl4Spec.ArchKernelObj) (ht : Fl4Spec.aaType ao' = Fl4Spec.aaType ao) :
+    ArFr σ (Notif.updK σ p (.archObj ao')) := by
+  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  by_cases e : q = p
+  · subst e
+    exact Or.inr ⟨ao, ao', hk, by simp [Notif.updK], ht⟩
+  · exact Or.inl (by simp [Notif.updK, e])
 
 /-- **A VCPU object replaced by a VCPU object is an `ArFr` step.** -/
 theorem arFr_vcpu {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {vs : Fl4Spec.VcpuState}
     (hk : σ.kheap p = some (.archObj (.vcpu vs))) (vs' : Fl4Spec.VcpuState) :
-    ArFr σ (Notif.updK σ p (.archObj (.vcpu vs'))) := by
-  refine ⟨fun q => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-  by_cases e : q = p
-  · subst e
-    exact Or.inr ⟨.vcpu vs, .vcpu vs', hk, by simp [Notif.updK], rfl⟩
-  · exact Or.inl (by simp [Notif.updK, e])
+    ArFr σ (Notif.updK σ p (.archObj (.vcpu vs'))) := arFr_arch hk _ rfl
 
 /-- **A spec VCPU-object step at `JAtZV`** (module docstring); `hX` [J]: `XTopAt` at the updated spec state. -/
 theorem JAtZV.vcpuSpec (J : JAtZV (L := L) arI V X AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ V)

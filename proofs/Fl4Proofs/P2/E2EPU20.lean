@@ -29,6 +29,10 @@ moves. So the certificate runs at real values (as U17 / U19), split on `ρ (AFFI
 * Open: `VSafe9` [J] at irq (route (a)) and invocation starts; `VSafe` [J] unchanged.
 
 No existing statement changed except the root import list.
+
+Gen 47 (line p3mc): `vt_fh_annV` split in place into `vt_fh_W` (the read-set facts) and `vt_fh_go` (the run), with
+`vt_fh_reg` (the words' region tags) new, and `vt_annV`'s glue into `vt_start_data`; shared with P2/InsV15Vt's `InsA`
+proofs; statements unchanged.
 -/
 import Fl4Proofs.P2.E2EPU19
 open Aeneas Aeneas.Std Result
@@ -244,24 +248,19 @@ def VtRd (K : KLayoutP) (c : U64) (ρ : U64 → U64) (irq : U64) (σ : S) (b : U
   (L.mem σ (boundA (L.curW σ)) ≠ 0#u64 ∧
     b = core.num.U64.wrapping_add (L.mem σ (boundA (L.curW σ))) layout.ntfn.TAIL_STATE)
 
-set_option maxHeartbeats 8000000 in
-/-- **U9's armed vt program is `Safe` at a view start** (module docstring). -/
-theorem vt_fh_annV (hA : P0.ArchTotal ar) (hmk : E2E.MasksWr st) {K : KLayoutP} (hK : RegionOKP K)
-    (hU : UserOKP K) {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
-    (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
-    {lk : S → U64 → Prop} {irq n : U64} {pl : localtimer.TimerIrqPlan} {σ : S} {a : A}
+set_option maxHeartbeats 4000000 in
+/-- **Every word a vt run reads at a view start is in the read set off the PTE words, keeps its owner under the view
+and is no user word** (`vt_fh_annV`'s `W`, gen 47 split; also used by P2/InsV15Vt). -/
+theorem vt_fh_W {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64} {lk : S → U64 → Prop} {irq : U64} {σ : S}
     (hJ : SlJAt (L := L) K.toKLayout σ) (hq : QPs K st σ)
     (hiq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
       Aligned (core.num.U64.wrapping_add (L.ksb σ) i) ∧
         region K.toKLayout (core.num.U64.wrapping_add (L.ksb σ) i) = .none ∧
         ¬ ∃ w, InVcpu K.toKLayoutV w (core.num.U64.wrapping_add (L.ksb σ) i))
-    (hc : L.cpu σ = c) (hl : lk σ = hs)
+    (hc : L.cpu σ = c)
     (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
-    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
-      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
-        (tr (fun x => VexitRS K.toKLayoutV st lk σ x ∧ ¬ x ∈ K.ptes) (· ∈ K.user)
-          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
-          (R.localvm.handle_vm_timer_irq_local irq pl n) ∅ a)) := by
+    ∀ b, VtRd (L := L) K c ρ irq σ b → ((VexitRS K.toKLayoutV st lk σ b ∧ ¬ b ∈ K.ptes) ∧ VO K c ρ b) ∧
+      b ∉ K.user := by
   have hX := hJ.regionOKX
   have hK0 := hJ.regionOK
   obtain ⟨hk, -⟩ := hJ.kc
@@ -432,17 +431,135 @@ theorem vt_fh_annV (hA : P0.ArchTotal ar) (hmk : E2E.MasksWr st) {K : KLayoutP} 
     · exact gRo _ (cG 3664#u64 (by simp) (by simp) (by simp)
         (gateR _ _ hcT (by simp) (by simp) (by simp [GateField])))
     · exact gRo _ (ntG _ hcT hcur hb0).1
-  have hal : ∀ b, VtRd (L := L) K c ρ irq σ b → Aligned b := fun b hb => (W b hb).1.1.1.1
-  have eown : ownP K (L.mem σ) = ownP K (view K.toKLayout c ρ) :=
-    ownDepP hK hU _ _ fun x hx hu => hmm x hx hu
-  have hRPO : ∀ x, x ∉ K.user → Ro x → PO c hs (ownP K μ x) := by
-    intro x hu hx
-    have h1 : PO c hs (ownP K (L.mem σ) x) := by
-      rw [ownP_off hx.1.2, ← hc, ← hl]
-      exact po_of_rperm (hx.1.1.2.resolve_left hu)
-    rw [eown, hx.2] at h1
-    rw [hV.1 x h1]
-    exact h1
+  exact W
+
+set_option maxHeartbeats 4000000 in
+/-- **The vt run exists on every store answering its read set, at every state carrying `ρ` there** (`vt_fh_annV`'s
+`hgo`, gen 47 split; also used by P2/InsV15Vt). -/
+theorem vt_fh_go (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64} {lk : S → U64 → Prop} {irq : U64} {σ : S}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hq : QPs K st σ)
+    (hiq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
+      Aligned (core.num.U64.wrapping_add (L.ksb σ) i) ∧
+        region K.toKLayout (core.num.U64.wrapping_add (L.ksb σ) i) = .none ∧
+        ¬ ∃ w, InVcpu K.toKLayoutV w (core.num.U64.wrapping_add (L.ksb σ) i))
+    (hc : L.cpu σ = c)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) {n : U64} {pl : localtimer.TimerIrqPlan} {a : A} :
+    ∀ s : S, L.cpu s = L.cpu σ → L.ksb s = L.ksb σ →
+      (∀ b, VtRd (L := L) K c ρ irq σ b → L.mem s b = ρ b) →
+      ∀ (gS : machine.Store S) (Rg : U64 → Prop), GRd gS st Rg → (∀ b, VtRd (L := L) K c ρ irq σ b → Rg b) →
+        ∃ r, interp gS ar (R.localvm.handle_vm_timer_irq_local irq pl n) s a = ok r := by
+  have hX := hJ.regionOKX
+  have hK0 := hJ.regionOK
+  obtain ⟨hk, -⟩ := hJ.kc
+  obtain ⟨Ac, B⟩ := bunIx_of hJ
+  have hI := B.bxi
+  have hL := B.stLay
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced K.toKLayout.heap.tcbs := h0.tcbs
+  have hN : NodePlaced st K.toKLayout.heap.tcbs σ (L.cpu σ) := h0.nodes _ h0.cur
+  have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
+  have hcur := vx_cur_home hJ hmm
+  let Rs : U64 → Prop := fun x => VexitRS K.toKLayoutV st lk σ x ∧ ¬ x ∈ K.ptes
+  have rsOf : ∀ x, Aligned x → region K.toKLayout x ≠ .none →
+      PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) x → Rs x := fun x ha hr h =>
+    ⟨⟨ha, Or.inr (rpermV_of_own (fun ⟨w, hw⟩ => hr (hK.base.none w x hw)) h)⟩, fun hp => hr (hK.none _ hp)⟩
+  -- the good words: in the read set, kept by the view (value and owner), no user word
+  let G : U64 → Prop := fun x => Rs x ∧ SR K c ρ x ∧ x ∉ K.user
+  have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → G (L.nodeAt σ (L.cpu σ) o) := by
+    intro o ho h8
+    have hr : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node (L.cpu σ) := hL.nd o ho
+    have hr' : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node c := by rw [hr, hc]
+    exact ⟨rsOf _ (nodeAt_aligned hN ho h8) (by rw [hr]; intro h; cases h)
+        (Or.inl (held_core (hL.own_node _ ho))),
+      sr_nf hK (by rw [hr']; intro h; cases h) (nf_node hr'), hL.nu_node ho⟩
+  -- a thread's `AFFINITY` at the view is the core
+  have affC : ∀ t, t ∈ K.toKLayout.heap.tcbs → L.mem σ (affA t) = L.cpu σ := fun t ht => by
+    have hu : affA t ∉ K.user := hL.nu_tcb ht (k := 3520#u64) (by simp) (by simp)
+    have ha : Aligned (affA t) := field_aligned (hT _ ht) (by simp) (by simp)
+    rw [hmm _ ha hu, hc]
+    exact CoreView.view_aff hK0 ht c ρ
+  have ownT : ∀ t k, t ∈ K.toKLayout.heap.tcbs → 256 ≤ k.val → k.val < 4096 →
+      OwnMap.own K.toKLayout (L.mem σ) (core.num.U64.wrapping_add t k) = tcbOwner (L.mem σ) t k.val :=
+    fun t k ht h1 h2 => by
+      have e := hL.own_tcb hT (L.mem σ) ht (k := k) h1 h2
+      unfold fld at e
+      exact e
+  have homeR : ∀ t k, t ∈ K.toKLayout.heap.tcbs → 256 ≤ k.val → k.val < 4096 → ¬ GateField k.val →
+      ¬ TimerField k.val → ¬ GField k.val →
+      PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) (core.num.U64.wrapping_add t k) :=
+    fun t k ht h1 h2 g1 g2 g3 => by
+      refine Or.inl (held_core ?_)
+      rw [ownT t k ht h1 h2, tcbOwner, if_neg g1, if_neg g2, if_neg g3]
+      exact congrArg Owner.core (affC t ht)
+  have gateR : ∀ t k, t ∈ K.toKLayout.heap.tcbs → 256 ≤ k.val → k.val < 4096 → GateField k.val →
+      PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) (core.num.U64.wrapping_add t k) :=
+    fun t k ht h1 h2 g => Or.inr (by unfold PathObl.GateOnly; rw [ownT t k ht h1 h2, tcbOwner, if_pos g])
+  have tG : ∀ t k, t ∈ K.toKLayout.heap.tcbs → ρ (fld t oAFFINITY) = c → 256 ≤ k.val → k.val < 4096 →
+      k.val % 8 = 0 →
+      PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) (core.num.U64.wrapping_add t k) →
+      G (core.num.U64.wrapping_add t k) := fun t k ht hh h1 h2 h3 hp => by
+    have htH : K.toKLayout.heap t = some .tcb := ht
+    obtain ⟨r, -, ha⟩ := hX.tcbW t htH k (by omega) h2 h3
+    exact ⟨rsOf _ ha (by rw [r]; intro h; cases h) hp, sr_tcb hK hX htH hh (o := k) (by omega) h2 h3,
+      hL.nu_tcb ht h1 h2⟩
+  -- a homed thread's bound notification
+  have ntG : ∀ t, t ∈ K.toKLayout.heap.tcbs → ρ (fld t oAFFINITY) = c → L.mem σ (boundA t) ≠ 0#u64 →
+      G (core.num.U64.wrapping_add (L.mem σ (boundA t)) layout.ntfn.TAIL_STATE) ∧
+        G (core.num.U64.wrapping_add (L.mem σ (boundA t)) layout.ntfn.BOUND_TCB) := by
+    intro t ht hh hb
+    have hNt : L.mem σ (boundA t) ∈ K.toKLayout.heap.ntfns := hI.2.2.1.2.2.bnd _ ht hb
+    have hbt := hI.2.2.1.2.2.bs.tb _ ht hb
+    generalize hpq : L.mem σ (boundA t) = p at hNt hbt ⊢
+    have hpH : K.toKLayout.heap p = some .ntfn := hNt
+    obtain ⟨r24, -, a24⟩ := hX.ntW _ hpH 24#u64 (by simp) (by simp)
+    have r24' : region K.toKLayout (fld p 24#u64) = .ntfn p := r24
+    have eA : fld p 24#u64 = ntfnBtA p := by
+      unfold fld ntfnBtA layout.ntfn.BOUND_TCB
+      rfl
+    have hbσ : L.mem σ (fld p 24#u64) = t := by rw [eA]; exact hbt
+    have hbρ : ρ (fld p 24#u64) = t := by
+      have e1 : view K.toKLayout c ρ (fld p 24#u64) = ρ (fld p 24#u64) := view_ntfn r24'
+      have e2 : L.mem σ (fld p 24#u64) = view K.toKLayout c ρ (fld p 24#u64) :=
+        hmm (fld p 24#u64) a24 (hL.nu (by rw [r24']; intro h; cases h))
+      rw [← e1, ← e2]; exact hbσ
+    have hnf : ∀ b, region K.toKLayout b = .ntfn p → CoreView.NotForeign K.toKLayout c ρ b := fun b hr =>
+      nf_ntfn hr (fun _ => by rw [hbρ]; exact hh)
+    have one : ∀ k : U64, k.val < 64 → k.val % 8 = 0 →
+        PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) (core.num.U64.wrapping_add p k) →
+        G (core.num.U64.wrapping_add p k) := fun k h1 h2 hp => by
+      obtain ⟨r, -, ha⟩ := hX.ntW _ hpH k h1 h2
+      exact ⟨rsOf _ ha (by rw [r]; intro h; cases h) hp, sr_nf hK (by rw [r]; intro h; cases h) (hnf _ r),
+        hL.nu (by rw [r]; intro h; cases h)⟩
+    have ownN : ∀ k : U64, k.val < 64 → k.val % 8 = 0 →
+        OwnMap.own K.toKLayout (L.mem σ) (core.num.U64.wrapping_add p k) = ntfnOwner K.toKLayout (L.mem σ) p k.val :=
+      fun k h1 h2 => by
+        obtain ⟨r, v, -⟩ := hX.ntW _ hpH k h1 h2
+        simp only [OwnMap.own, r, v]
+    have htT : K.toKLayout.heap t = some .tcb := ht
+    refine ⟨one _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]) (Or.inl (held_core ?_)),
+      one _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]) (Or.inr ?_)⟩
+    · have hv : layout.ntfn.TAIL_STATE.val = 8 := by simp [layout.ntfn.TAIL_STATE]
+      rw [ownN _ (by simp [layout.ntfn.TAIL_STATE]) (by simp [layout.ntfn.TAIL_STATE]), hv, ntfnOwner,
+        if_neg (by omega), hbσ, if_pos htT]
+      exact congrArg Owner.core (affC t ht)
+    · have hv : layout.ntfn.BOUND_TCB.val = 24 := by simp [layout.ntfn.BOUND_TCB]
+      unfold PathObl.GateOnly
+      rw [ownN _ (by simp [layout.ntfn.BOUND_TCB]) (by simp [layout.ntfn.BOUND_TCB]), hv, ntfnOwner, if_pos rfl]
+  -- the IRQ word
+  have iG : ∀ i, irq.val < 128 → interrupt.state_off irq = ok i → G (core.num.U64.wrapping_add (L.ksb σ) i) := by
+    intro i hlt hi
+    obtain ⟨ha, hr, hnv⟩ := hiq hlt i hi
+    have hpt := hq.ksw (state_off_lt hlt hi)
+    refine ⟨⟨⟨ha, Or.inr (rpermV_of_own hnv (Or.inr (by unfold PathObl.GateOnly; simp only [OwnMap.own, hr])))⟩,
+      hpt⟩, ⟨vn_of_nf hK (nf_none hr), hpt⟩, fun hu => hJ.userKs hu (state_off_lt hlt hi) (by rw [hk])⟩
+  -- the current thread's words
+  have cG : ∀ k : U64, 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
+      PathObl.RPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) (core.num.U64.wrapping_add (L.curW σ) k) →
+      G (core.num.U64.wrapping_add (L.curW σ) k) := fun k h1 h2 h3 hp => tG _ k hcT hcur h1 h2 h3 hp
+  -- the earliest thread
+  set tm := L.mem σ (L.nodeAt σ (L.cpu σ) layout.node.TIMER_MIN) with htm
+  have tmT : tm ≠ 0#u64 → tm ∈ K.toKLayout.heap.tcbs := fun hne =>
+    (tmin_facts (BXI.blk hI) h0.cur hne).1
   have kv : ∀ b, G b → ρ b = L.mem σ b := fun b hb => hb.2.1.1.1.symm.trans (hmm b hb.1.1.1 hb.2.2).symm
   have hp : ∀ (mm : machine.Store S) (x : S) (a : A),
       localvm.handle_vm_timer_irq_local mm ar x a irq pl n =
@@ -531,6 +648,93 @@ theorem vt_fh_annV (hA : P0.ArchTotal ar) (hmk : E2E.MasksWr st) {K : KLayoutP} 
       (by rw [eCT, kvs _ r7 gS6]; exact vOf_zero hJ)
       hr
     exact ⟨r, by rw [← hp]; exact hrun.1⟩
+  exact hgo
+
+set_option maxHeartbeats 4000000 in
+/-- **Every word a vt run reads at a view start is region-tagged or a kernel-static word** (gen 47; used by
+P2/InsV15Vt to keep the read set off the epoch's paging words). -/
+theorem vt_fh_reg {K : KLayoutP} {c : U64} {ρ : U64 → U64} {irq : U64} {σ : S}
+    (hJ : SlJAt (L := L) K.toKLayout σ) :
+    ∀ b, VtRd (L := L) K c ρ irq σ b →
+      region K.toKLayout b ≠ .none ∨ ∃ o : U64, o.val < 13568 ∧ b = core.num.U64.wrapping_add K.ksb o := by
+  have hX := hJ.regionOKX
+  obtain ⟨_, B⟩ := bunIx_of hJ
+  have hI := B.bxi
+  have hL := B.stLay
+  have h0 := hI.1.choose_spec.choose_spec
+  have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
+  have tR : ∀ t k, t ∈ K.toKLayout.heap.tcbs → 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 →
+      region K.toKLayout (core.num.U64.wrapping_add t k) ≠ .none := fun t k ht h1 h2 h3 => by
+    have htH : K.toKLayout.heap t = some .tcb := ht
+    obtain ⟨r, -, -⟩ := hX.tcbW t htH k (by omega) h2 h3
+    rw [r]; intro h; cases h
+  have nR : ∀ o : U64, o.val < 4288 → region K.toKLayout (L.nodeAt σ (L.cpu σ) o) ≠ .none := fun o ho => by
+    rw [hL.nd o ho]; intro h; cases h
+  have ntR : ∀ t, t ∈ K.toKLayout.heap.tcbs → L.mem σ (boundA t) ≠ 0#u64 →
+      region K.toKLayout (core.num.U64.wrapping_add (L.mem σ (boundA t)) layout.ntfn.TAIL_STATE) ≠ .none ∧
+      region K.toKLayout (core.num.U64.wrapping_add (L.mem σ (boundA t)) layout.ntfn.BOUND_TCB) ≠ .none := by
+    intro t ht hb
+    have hNt : L.mem σ (boundA t) ∈ K.toKLayout.heap.ntfns := hI.2.2.1.2.2.bnd _ ht hb
+    have hpH : K.toKLayout.heap (L.mem σ (boundA t)) = some .ntfn := hNt
+    obtain ⟨r1, -, -⟩ := hX.ntW _ hpH layout.ntfn.TAIL_STATE (by simp [layout.ntfn.TAIL_STATE])
+      (by simp [layout.ntfn.TAIL_STATE])
+    obtain ⟨r2, -, -⟩ := hX.ntW _ hpH layout.ntfn.BOUND_TCB (by simp [layout.ntfn.BOUND_TCB])
+      (by simp [layout.ntfn.BOUND_TCB])
+    exact ⟨(by rw [r1]; intro h; cases h), (by rw [r2]; intro h; cases h)⟩
+  have tmT : L.mem σ (L.nodeAt σ (L.cpu σ) layout.node.TIMER_MIN) ≠ 0#u64 →
+      L.mem σ (L.nodeAt σ (L.cpu σ) layout.node.TIMER_MIN) ∈ K.toKLayout.heap.tcbs := fun hne =>
+    (tmin_facts (BXI.blk hI) h0.cur hne).1
+  intro b hb
+  rcases hb with ⟨hlt, i, hi, rfl⟩ | rfl | ⟨hne, rfl⟩ | ⟨hne, -, hb⟩ | hb | rfl | rfl | ⟨hb0, rfl⟩
+  · exact Or.inr ⟨i, state_off_lt hlt hi, by rw [slJAt_ksb hJ]⟩
+  · exact Or.inl (nR _ (by simp [layout.node.TIMER_MIN]))
+  · exact Or.inl (tR _ 3520#u64 (tmT hne) (by simp) (by simp) (by simp))
+  · rcases hb with ⟨k, hk', rfl⟩ | ⟨hb0, rfl | rfl⟩
+    · rcases hk' with e | e | e | e | e <;>
+        exact Or.inl (tR _ k (tmT hne) (by omega) (by omega) (by omega))
+    · exact Or.inl (ntR _ (tmT hne) hb0).1
+    · exact Or.inl (ntR _ (tmT hne) hb0).2
+  · rcases hb with rfl | rfl | rfl
+    · exact Or.inl (nR _ (by rw [curth_val]; omega))
+    · exact Or.inl (nR _ (by simp [layout.node.CUR_SC]))
+    · exact Or.inl (tR _ 3328#u64 hcT (by simp) (by simp) (by simp))
+  · exact Or.inl (tR _ 3368#u64 hcT (by simp) (by simp) (by simp))
+  · exact Or.inl (tR _ 3664#u64 hcT (by simp) (by simp) (by simp))
+  · exact Or.inl (ntR _ hcT hb0).1
+
+set_option maxHeartbeats 8000000 in
+/-- **U9's armed vt program is `Safe` at a view start** (module docstring). -/
+theorem vt_fh_annV (hA : P0.ArchTotal ar) (hmk : E2E.MasksWr st) {K : KLayoutP} (hK : RegionOKP K)
+    (hU : UserOKP K) {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
+    (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
+    {lk : S → U64 → Prop} {irq n : U64} {pl : localtimer.TimerIrqPlan} {σ : S} {a : A}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hq : QPs K st σ)
+    (hiq : irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
+      Aligned (core.num.U64.wrapping_add (L.ksb σ) i) ∧
+        region K.toKLayout (core.num.U64.wrapping_add (L.ksb σ) i) = .none ∧
+        ¬ ∃ w, InVcpu K.toKLayoutV w (core.num.U64.wrapping_add (L.ksb σ) i))
+    (hc : L.cpu σ = c) (hl : lk σ = hs)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
+    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
+      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
+        (tr (fun x => VexitRS K.toKLayoutV st lk σ x ∧ ¬ x ∈ K.ptes) (· ∈ K.user)
+          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
+          (R.localvm.handle_vm_timer_irq_local irq pl n) ∅ a)) := by
+  let Rs : U64 → Prop := fun x => VexitRS K.toKLayoutV st lk σ x ∧ ¬ x ∈ K.ptes
+  let Ro : U64 → Prop := fun q => Rs q ∧ VO K c ρ q
+  have W : ∀ b, VtRd (L := L) K c ρ irq σ b → Ro b ∧ b ∉ K.user := vt_fh_W (lk := lk) hK hJ hq hiq hc hmm
+  have hal : ∀ b, VtRd (L := L) K c ρ irq σ b → Aligned b := fun b hb => (W b hb).1.1.1.1
+  have eown : ownP K (L.mem σ) = ownP K (view K.toKLayout c ρ) :=
+    ownDepP hK hU _ _ fun x hx hu => hmm x hx hu
+  have hRPO : ∀ x, x ∉ K.user → Ro x → PO c hs (ownP K μ x) := by
+    intro x hu hx
+    have h1 : PO c hs (ownP K (L.mem σ) x) := by
+      rw [ownP_off hx.1.2, ← hc, ← hl]
+      exact po_of_rperm (hx.1.1.2.resolve_left hu)
+    rw [eown, hx.2] at h1
+    rw [hV.1 x h1]
+    exact h1
+  have hgo := vt_fh_go ar hA (lk := lk) hK hJ hq hiq hc hmm (n := n) (pl := pl) (a := a)
   have h := PathObl.safe_tr_dec (own := ownP K) (cls := OwnMap.cls K.toKLayout) (kt := OwnMap.ko K.toKLayout μ)
     (User := (· ∈ K.user)) ar (moveHeldP hK) (ownDepP hK hU) hmk (a := a)
     (R.localvm.handle_vm_timer_irq_local irq pl n) (vtimer_noZero irq pl n) hc (Ro := Ro)
@@ -555,16 +759,28 @@ def U20At (K : KLayoutP) (c : U64) (hs : U64 → Prop) (ρ : U64 → U64) (k0 : 
     (i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)) : Prop :=
   U19At (S := S) K c hs ρ k0 i ∨ VtAt (S := S) K c hs ρ k0 i
 
-set_option maxHeartbeats 8000000 in
-/-- **U9's re-annotated body is `Safe` at every vt start** (module docstring). -/
-theorem vt_annV {Ch : S → Prop}
+set_option maxHeartbeats 4000000 in
+/-- **What a vt start gives** (`vt_annV`'s glue, gen 47 split; also used by P2/InsV15Vt): the glue state `σ'` (a P3
+bundle state of `c`'s view with `QPs`, core `c`, locks `hs`, the IRQ word's facts) and the armed body, the cut of the
+translated vt tree; `EpochPteN` of the view is asked only under the start's no-VCPU fact. -/
+theorem vt_start_data {Ch : S → Prop}
     {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
     {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (hE : EpochPteN K (CoreView.view K.toKLayout c ρ))
+    (hE : K.vcpus = ∅ → EpochPteN K (CoreView.view K.toKLayout c ρ))
     (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
     (hf : VtAt (S := S) K c (fun l => s.lk l = some c) ρ k i) :
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) := by
+    ∃ (σ' : S) (a : A) (lk : S → U64 → Prop) (irq n : U64) (pl : localtimer.TimerIrqPlan),
+      SlJAt (L := L) K.toKLayout σ' ∧ QPs K st σ' ∧
+      (irq.val < 128 → ∀ i, interrupt.state_off irq = ok i →
+        Aligned (core.num.U64.wrapping_add (L.ksb σ') i) ∧
+          region K.toKLayout (core.num.U64.wrapping_add (L.ksb σ') i) = .none ∧
+          ¬ ∃ w, InVcpu K.toKLayoutV w (core.num.U64.wrapping_add (L.ksb σ') i)) ∧
+      L.cpu σ' = c ∧ lk σ' = (fun l => s.lk l = some c) ∧
+      (∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x) ∧
+      k = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c
+        (tr (VexitRS K.toKLayoutV st lk σ') (· ∈ K.user) (OwnMap.cls K.toKLayout)
+          (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
+          (R.localvm.handle_vm_timer_irq_local irq pl n) ∅ a) ∅ := by
   rcases i with ((j | j | j | j | j | j | j) | j)
   · exact False.elim hf
   · exact False.elim hf
@@ -585,66 +801,34 @@ theorem vt_annV {Ch : S → Prop}
       have hl' : j.lk σ' = (fun l => s.lk l = some c) := hl
       have hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x := hμ
       have hq : QPs K st σ' := by
-        obtain ⟨s1, ⟨nv, he⟩, hkeep⟩ := hE
+        obtain ⟨s1, ⟨nv, he⟩, hkeep⟩ := hE h1.nv
         exact qPs_of_convRN (S' := S) (st' := st) (L' := L) (L := L) (σ := σ') he nv ⟨σ', hJ⟩ hkeep hJ.kc.1 hmm
-      unfold annV
-      rw [hM.own, hM.cls, hM.ko] at hV ⊢
-      have h := vt_fh_annV ar hA (masksWr_plain st) hK hU hV (lk := j.lk) (n := j.n) (pl := j.pl) (a := a)
-        hJ hq (fun hlt i hi => hP.iq hlt i hi) hc' hl' hmm
-      rw [tr_cut (VexitRS K.toKLayoutV st j.lk σ') (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout)
-        (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
-        (R.localvm.handle_vm_timer_irq_local j.irq j.pl j.n) ∅ a] at h
-      convert h using 3
+      refine ⟨σ', a, j.lk, j.irq, j.n, j.pl, hJ, hq, fun hlt i hi => hP.iq hlt i hi, hc', hl', hmm, ?_⟩
       unfold LocalPath.body
       rw [hc]
       all_goals rfl
   · exact False.elim hf
 
-/-- **FL4 end to end with vq's `VSafe9` discharged** (module docstring), over U18's family. The conclusion is about
-the physical memory. -/
-theorem serializable_fl4_localU20 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U20At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_WPRV10S ?_ ?_ ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  · intro Ch K s hK hU c hs q i hC hE hsf
-    rcases i with i | ((j | j) | j)
-    · exact startAt_UNC st ar hA a0 P hIoa hC hE hsf
-    · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · intro s K hK hU c k ρ i hM hV hn
-    exact vSafe_ioC st ar hA a0 hM hV (not_not.mp hn)
-  · intro Ch s K hK hU c k ρ i hC hE hsf hM hV hf
-    rcases hf with ((((((hf | hf) | hf) | hf) | hf) | hf) | hf)
-    · exact vmF_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact vmR_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact sl_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact st_annV_fh st ar hA a0 hC hE hsf hM hV hf
-    · exact st_annV_h st ar hA a0 hC hE hsf hM hV hf
-    · exact vx_annV st ar hA a0 hsf hM hV hf
-    · exact vt_annV st ar hA a0 hE hsf hM hV hf
-
-/-- **U19's statement follows from U20** (every U19 execution is a U20 one). -/
-theorem serializable_fl4_localU19of20 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U19At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU20 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV10_mono (fun _ _ _ _ _ _ hf => Or.inl hf) h) hq
+set_option maxHeartbeats 8000000 in
+/-- **U9's re-annotated body is `Safe` at every vt start** (module docstring). -/
+theorem vt_annV {Ch : S → Prop}
+    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
+    {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
+    (hE : EpochPteN K (CoreView.view K.toKLayout c ρ))
+    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
+    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
+    (hf : VtAt (S := S) K c (fun l => s.lk l = some c) ρ k i) :
+    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) := by
+  obtain ⟨σ', a, lk, irq, n, pl, hJ, hq, hiq, hc', hl', hmm, rfl⟩ :=
+    vt_start_data st ar hA a0 (fun _ => hE) hsf hf
+  unfold annV
+  rw [hM.own, hM.cls, hM.ko] at hV ⊢
+  have h := vt_fh_annV ar hA (masksWr_plain st) hK hU hV (lk := lk) (n := n) (pl := pl) (a := a) hJ hq hiq hc' hl'
+    hmm
+  rw [tr_cut (VexitRS K.toKLayoutV st lk σ') (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout)
+    (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
+    (R.localvm.handle_vm_timer_irq_local irq pl n) ∅ a] at h
+  exact h
 
 end all
 

@@ -28,6 +28,9 @@ Mint, PTE delete: all). So the exempt predicate is no premise at all, and the ch
   `u28At_all`).** Nothing added.
 
 No existing statement changed except the root import list.
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `Fl4StepWPRV11`, `ExecWPRV11`,
+`execWPRV10_of_11`, `serializable_fl4_localV11`.
 -/
 import Fl4Proofs.P2.E2EPU28
 open Aeneas Aeneas.Std Result
@@ -50,75 +53,6 @@ section exec
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 variable {ι : Type}
-
-/-- **A step of FL4 as in U10, without `VSafe9`** (module docstring). -/
-structure Fl4StepWPRV11 (LP : PathsP ι) (NoV : ι → Prop)
-    (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
-    (P : LocPlat st arI AR MR) (s : Cfg U64 U64 U64 U64) (K : KLayoutP) (Ch : U64 → S → Prop) (c : U64)
-    (s' : Cfg U64 U64 U64 U64) (K' : KLayoutP) (Ch' : U64 → S → Prop) : Prop where
-  /-- [P] an armed program is pure glue. -/
-  arm : ∀ p, s'.ph c = .arm p → PureGlue p
-  /-- [P] the glue's start fact at `c`'s view for the body `k0`; the armed program is `k0` with `VSafe` [J] for
-  paths with `NoV`, or its re-annotation (nothing asked). -/
-  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ (hK : RegionOKP K) (hU : UserOKP K),
-    ∃ ρ : U64 → U64, VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem ∧
-      ∃ i k0, SF (Ch c) K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k0 i ∧
-        ((k = k0 ∧ (NoV i → VSafe LP s K c k0 hK hU ρ i)) ∨ k = annV s K c ρ k0)
-  /-- [P] the serial exit's ghost choice, one P3 chain per core. -/
-  serX : SerStep s c → ∀ e, SerExitW P K'.toKLayoutV (Ch' e)
-  /-- The glue's layout convention at the serial exit. -/
-  serC : SerStep s c → K'.vcpus = ∅ ∧ K'.ptes = ptesR K' s'.mem
-  /-- [P] the exit ghost with rule 8. -/
-  serG : SerStep s c → MapsP K' s'
-  /-- Layout and chains change only at serial steps. -/
-  keep : ¬ SerStep s c → K' = K ∧ Ch' = Ch
-
-inductive ExecWPRV11 (LP : PathsP ι) (NoV : ι → Prop)
-    (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
-    (P : LocPlat st arI AR MR) (s0 : Cfg U64 U64 U64 U64) (K0 : KLayoutP) (Ch0 : U64 → S → Prop) :
-    Cfg U64 U64 U64 U64 → KLayoutP → (U64 → S → Prop) → Prop
-  | refl : ExecWPRV11 LP NoV SF P s0 K0 Ch0 s0 K0 Ch0
-  | step {s s' : Cfg U64 U64 U64 U64} {K K' : KLayoutP} {Ch Ch' : U64 → S → Prop} {c : U64} :
-      ExecWPRV11 LP NoV SF P s0 K0 Ch0 s K Ch → Step s c s' → Fl4StepWPRV11 LP NoV SF P s K Ch c s' K' Ch' →
-      ExecWPRV11 LP NoV SF P s0 K0 Ch0 s' K' Ch'
-  | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {v a x : U64} :
-      ExecWPRV11 LP NoV SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x →
-      ExecWPRV11 LP NoV SF P s0 K0 Ch0 (hwCfg s a x) K Ch
-
-/-- **An `ExecWPRV11` is an `ExecWPRV10` for any exempt predicate holding at every `NoV` start.** -/
-theorem execWPRV10_of_11 {LP : PathsP ι} {NoV : ι → Prop}
-    {FH : KLayoutP → U64 → (U64 → Prop) → (U64 → U64) → SP → ι → Prop}
-    (hFH : ∀ K c hs ρ k i, NoV i → FH K c hs ρ k i)
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV11 LP NoV SF P s0 K0 Ch0 s K Ch) : ExecWPRV10 LP NoV FH SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩
-    obtain ⟨ρ, hV, i, k0, hi, hvs⟩ := g.start p0 k W hph hK hU
-    refine ⟨ρ, hV, i, k0, hi, ?_⟩
-    rcases hvs with h1 | hk
-    · exact Or.inl h1
-    · exact Or.inr ⟨hk, fun hn hnf => absurd (hFH _ _ _ _ _ _ hn) hnf⟩
-  | hw _ hH ih => exact .hw ih hH
-
-/-- **Every `ExecWPRV10` is an `ExecWPRV11`** (its `VSafe9` obligations dropped). -/
-theorem execWPRV11_of_10 {LP : PathsP ι} {NoV : ι → Prop}
-    {FH : KLayoutP → U64 → (U64 → Prop) → (U64 → U64) → SP → ι → Prop}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV10 LP NoV FH SF P s0 K0 Ch0 s K Ch) : ExecWPRV11 LP NoV SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩
-    obtain ⟨ρ, hV, i, k0, hi, hvs⟩ := g.start p0 k W hph hK hU
-    refine ⟨ρ, hV, i, k0, hi, ?_⟩
-    rcases hvs with h1 | ⟨hk, -⟩
-    · exact Or.inl h1
-    · exact Or.inr hk
-  | hw _ hH ih => exact .hw ih hH
 
 end exec
 
@@ -158,34 +92,6 @@ section top
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end without `VSafe9`** (module docstring), over U18's family with the invocation summands. The
-conclusion is about the physical memory. -/
-theorem serializable_fl4_localV11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV11 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU28 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV10_of_11 (FH := U28At (S := S)) (fun K c hs ρ k i hn => u28At_all K c hs ρ k i hn) h) hq
-
-/-- **U28's statement follows from the top without `VSafe9`** (every U28 execution is an `ExecWPRV11`). -/
-theorem serializable_fl4_localU28ofV11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U28At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localV11 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0 (execWPRV11_of_10 h) hq
 
 end top
 

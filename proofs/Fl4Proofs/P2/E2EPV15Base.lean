@@ -16,23 +16,26 @@ mmuAD line's A/D serialization theory (`SerialAD` / `SerialADR` / `SerialADP`, `
   epoch memory `E`, memory `m`, word `a := x` (`False` without A/D; mmuAD's instance is `MmuAD (PWE K E) m a x`).
 
 ## `ExecV15 cfg`
-One inductive, per-core `CoreView.view` start facts and one P3 chain per core exactly as `ExecWPRV12`, plus the epoch
+One inductive, per-core `CoreView.view` start facts and one P3 chain per core exactly as V13's execution, plus the epoch
 memory `E` (the memory at the last serial step, as mmuAD's `ExecVX4e`) and an `ad` constructor for `cfg.AdStep`.
-Steps: `Fl4StepV15` = `Fl4StepWPRV12` with `serC` reading `cfg.VcpuOK`.
+Steps: `Fl4StepV15` = V13's step with `serC` reading `cfg.VcpuOK`.
 
 ## Proved
-* **`execWPRV12_of_V15`**: with no A/D step (`NoAd cfg`) and `VcpuOK ⊆ {vcpus = ∅}`, an `ExecV15 cfg` is an
-  `ExecWPRV12 cfg.Fam cfg.NoV cfg.SF`; **`execV15_of_WPRV12`**: conversely when `{vcpus = ∅} ⊆ VcpuOK`;
-  **`execV15_native_iff`**: for the native configuration the two executions coincide (`∃ E`).
 * **`SlotOblV15 cfg`**: the per-slot obligations at the CoreView (the native analogue of mmuAD's `InsA`): the
   start fact gives `StartAt` at the physical memory (`sf`), `VSafe` at the starts arming the plain body (`vs`), the
-  re-annotated body `Safe` at the others (`fh`) — `execPV9_of_WPRV10S`'s three hypotheses.
-* **`serializable_fl4_V15_exact`**: `SlotOblV15 cfg`, `NoAd cfg`, `VcpuOK ⊆ {vcpus = ∅}` ⇒ `RunAll s.log s0.mem
-  s.mem`; **`serializable_fl4_V15_perm`**: the same with the permuted conclusion (`ℓ = s.log`) — the form mmuAD's
-  AD tops have; its A/D content (PageMap slots with `InsAP`) needs `SerialADP`, not on this branch.
+  re-annotated body `Safe` at the others (`fh`).
+* **`execPV9_of_V15C`** (gen 56): with `SlotOblV15 cfg`, no A/D step (`NoAd cfg`) and `VcpuOK ⊆ {vcpus = ∅}`, an
+  `ExecV15C cfg P` over the re-based platform (`P : LocPlatC`) is U9's `ExecPV9 cfg.Fam`, the exits keeping
+  `SerExitC` and the layout convention. Until gen 55 this went `ExecV15 → ExecWPRV12 → 11 → 10` and
+  `execPV9_of_WPRV10S`; those executions are retired.
+* **`serializable_fl4_V15_exact_C`** / **`serializable_fl4_V15_perm_C`** (gen 56): `SlotOblV15 cfg`, `NoAd cfg`,
+  `VcpuOK ⊆ {vcpus = ∅}`, `P : LocPlatC`, an `ExecV15C` ⇒ `RunAll s.log s0.mem s.mem` (resp. with `ℓ = s.log`).
+  **`serializable_fl4_V15_exact`** / **`serializable_fl4_V15_perm`** (statements unchanged; `P : LocPlat`, an
+  `ExecV15`) are their one-line corollaries at `P.toC`, `ExecV15.toC`. The A/D content (PageMap slots with
+  `InsAP`) needs `SerialADP`, not on this branch.
 * Native instance **`ExecCfg.native`** (`Fam := fl4LocV13`, `NoV := ¬ IoIx`, `SF := StartV13`, `VcpuOK := vcpus =
-  ∅`, `AdStep := False`): **`serializable_fl4_V15_native`** (from V13) and **`serializable_fl4_localV13ofV15`**
-  (V13's exact statement from the native top): V13 is recovered losslessly.
+  ∅`, `AdStep := False`), `native_noAd`, `native_vcpuNone`. Gen 56 retired `execV15_native_iff`,
+  `serializable_fl4_V15_native` and `serializable_fl4_localV13ofV15` with `ExecWPRV12` (handoff §61).
 * `execV15_vcpus`, **`hwV15_dead`**: `hw_dead` as a derived lemma (no `HwStepP` step at a VCPU-free layout).
 
 No premise. No existing statement changed except the root import list.
@@ -80,12 +83,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 variable {ι : Type}
 
-/-- **A step of FL4 under `cfg`**: `Fl4StepWPRV12`'s fields, the serial exit's layout convention `cfg.VcpuOK`. -/
+/-- **A step of FL4 under `cfg`**: V13's step fields, the serial exit's layout convention `cfg.VcpuOK`. -/
 structure Fl4StepV15 (cfg : ExecCfg S ι) (P : LocPlat st arI AR MR) (s : Cfg U64 U64 U64 U64) (K : KLayoutP)
     (Ch : U64 → S → Prop) (c : U64) (s' : Cfg U64 U64 U64 U64) (K' : KLayoutP) (Ch' : U64 → S → Prop) : Prop where
   /-- [P] an armed program is pure glue. -/
   arm : ∀ p, s'.ph c = .arm p → PureGlue p
-  /-- [P] the glue's start fact at `c`'s view (as `Fl4StepWPRV12.start`). -/
+  /-- [P] the glue's start fact at `c`'s view. -/
   start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ (hK : RegionOKP K) (hU : UserOKP K),
     ∃ ρ : U64 → U64, VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem ∧
       ∃ i k0, cfg.SF (Ch c) K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k0 i ∧
@@ -111,30 +114,42 @@ inductive ExecV15 (cfg : ExecCfg S ι) (P : LocPlat st arI AR MR) (s0 : Cfg U64 
   | ad {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {E : U64 → U64} {a x : U64} :
       ExecV15 cfg P s0 K0 Ch0 s K Ch E → cfg.AdStep K E s.mem a x → ExecV15 cfg P s0 K0 Ch0 (hwCfg s a x) K Ch E
 
-/-- **Without A/D steps and with no VCPU, an `ExecV15` is an `ExecWPRV12`.** -/
-theorem execWPRV12_of_V15 {cfg : ExecCfg S ι} (hAd : cfg.NoAd) (hV : cfg.VcpuNone) {P : LocPlat st arI AR MR}
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64}
-    (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) : ExecWPRV12 cfg.Fam cfg.NoV cfg.SF P s0 K0 Ch0 s K Ch := by
+/-- **`Fl4StepV15` on the re-based platform** (gen 54): the serial exit's ghost choice is `SerExitC P` for
+`P : LocPlatC`; every other field is `Fl4StepV15`'s. -/
+structure Fl4StepV15C (cfg : ExecCfg S ι) (P : LocPlatC st arI AR MR) (s : Cfg U64 U64 U64 U64) (K : KLayoutP)
+    (Ch : U64 → S → Prop) (c : U64) (s' : Cfg U64 U64 U64 U64) (K' : KLayoutP) (Ch' : U64 → S → Prop) : Prop where
+  arm : ∀ p, s'.ph c = .arm p → PureGlue p
+  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ (hK : RegionOKP K) (hU : UserOKP K),
+    ∃ ρ : U64 → U64, VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem ∧
+      ∃ i k0, cfg.SF (Ch c) K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k0 i ∧
+        ((k = k0 ∧ ¬ cfg.NoV i) ∨ k = annV s K c ρ k0)
+  serX : SerStep s c → ∀ e, SerExitC P K'.toKLayoutV (Ch' e)
+  serC : SerStep s c → cfg.VcpuOK K' s'.mem ∧ K'.ptes = ptesR K' s'.mem
+  serG : SerStep s c → MapsP K' s'
+  keep : ¬ SerStep s c → K' = K ∧ Ch' = Ch
+
+/-- **`ExecV15` on the re-based platform** (gen 54): the same constructors over `Fl4StepV15C`. -/
+inductive ExecV15C (cfg : ExecCfg S ι) (P : LocPlatC st arI AR MR) (s0 : Cfg U64 U64 U64 U64) (K0 : KLayoutP)
+    (Ch0 : U64 → S → Prop) : Cfg U64 U64 U64 U64 → KLayoutP → (U64 → S → Prop) → (U64 → U64) → Prop
+  | refl : ExecV15C cfg P s0 K0 Ch0 s0 K0 Ch0 s0.mem
+  | step {s s' : Cfg U64 U64 U64 U64} {K K' : KLayoutP} {Ch Ch' : U64 → S → Prop} {c : U64} {E : U64 → U64} :
+      ExecV15C cfg P s0 K0 Ch0 s K Ch E → Step s c s' → Fl4StepV15C cfg P s K Ch c s' K' Ch' →
+      ExecV15C cfg P s0 K0 Ch0 s' K' Ch' (if SerStep s c then s'.mem else E)
+  | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {E : U64 → U64} {v a x : U64} :
+      ExecV15C cfg P s0 K0 Ch0 s K Ch E → cfg.HwStep K s v a x → ExecV15C cfg P s0 K0 Ch0 (hwCfg s a x) K Ch E
+  | ad {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : U64 → S → Prop} {E : U64 → U64} {a x : U64} :
+      ExecV15C cfg P s0 K0 Ch0 s K Ch E → cfg.AdStep K E s.mem a x → ExecV15C cfg P s0 K0 Ch0 (hwCfg s a x) K Ch E
+
+/-- **Every `ExecV15` over the base platform is an `ExecV15C` over `P.toC`** (`SerExitW P = SerExitC P.toC`
+definitionally). -/
+theorem ExecV15.toC {cfg : ExecCfg S ι} {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
+    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) :
+    ExecV15C cfg P.toC s0 K0 Ch0 s K Ch E := by
   induction h with
   | refl => exact .refl
-  | step _ hS g ih =>
-    exact .step ih hS ⟨g.arm, g.start, g.serX, fun hs => ⟨hV _ _ (g.serC hs).1, (g.serC hs).2⟩, g.serG, g.keep⟩
+  | step _ hS g ih => exact .step ih hS ⟨g.arm, g.start, g.serX, g.serC, g.serG, g.keep⟩
   | hw _ hH ih => exact .hw ih hH
-  | ad _ hA _ => exact absurd hA (hAd _ _ _ _ _)
-
-/-- **An `ExecWPRV12` is an `ExecV15`** whenever `vcpus = ∅` meets the configuration's VCPU convention. -/
-theorem execV15_of_WPRV12 {cfg : ExecCfg S ι} (hV : ∀ K m, K.vcpus = ∅ → cfg.VcpuOK K m)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop}
-    (h : ExecWPRV12 cfg.Fam cfg.NoV cfg.SF P s0 K0 Ch0 s K Ch) : ∃ E, ExecV15 cfg P s0 K0 Ch0 s K Ch E := by
-  induction h with
-  | refl => exact ⟨_, .refl⟩
-  | step _ hS g ih =>
-    obtain ⟨E, ih⟩ := ih
-    exact ⟨_, .step ih hS ⟨g.arm, g.start, g.serX, fun hs => ⟨hV _ _ (g.serC hs).1, (g.serC hs).2⟩, g.serG,
-      g.keep⟩⟩
-  | hw _ hH ih =>
-    obtain ⟨E, ih⟩ := ih
-    exact ⟨E, .hw ih hH⟩
+  | ad _ hA ih => exact .ad ih hA
 
 /-- **The VCPU set stays empty along an `ExecV15` whose convention has no VCPU.** -/
 theorem execV15_vcpus {cfg : ExecCfg S ι} (hV : cfg.VcpuNone) {P : LocPlat st arI AR MR}
@@ -167,7 +182,7 @@ theorem hwV15_dead {cfg : ExecCfg S ι} (hV : cfg.VcpuNone) {P : LocPlat st arI 
 
 /-! ## The per-slot obligations and the two tops -/
 
-/-- **The per-slot obligations at the CoreView** (module docstring; `execPV9_of_WPRV10S`'s hypotheses). -/
+/-- **The per-slot obligations at the CoreView** (module docstring; `execPV9_of_V15C`'s hypotheses). -/
 structure SlotOblV15 (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop)
     (cfg : ExecCfg S ι) : Prop where
   /-- The start fact gives `StartAt` at the physical memory. -/
@@ -184,20 +199,90 @@ structure SlotOblV15 (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop) 
     VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem → cfg.NoV i →
     Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k)
 
+/-- **An `ExecV15C` with no A/D step and no VCPU is U9's execution `ExecPV9` of its family** (gen 56: directly,
+not through `ExecWPRV12 → 11 → 10`): each start step's start fact gives `StartAt` at the view (`O.sf`), the plain
+body `VSafe` (`O.vs`), the re-annotated one `Safe` (`O.fh`) or `VSafe9` (`O.vs`); the serial exits keep the chains
+and the layout convention; between them the gate words keep the last exit's values. -/
+theorem execPV9_of_V15C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg) (hAd : cfg.NoAd)
+    (hV : cfg.VcpuNone) (P : LocPlatC st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
+    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
+    (hB : ∀ e, SerExitC P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecV15C cfg P s0 K0 Ch0 s K Ch E) :
+    ExecPV9 cfg.Fam s0 K0 s K ∧ (∀ e, SerExitC P K.toKLayoutV (Ch e)) ∧
+      ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
+  obtain ⟨hK0, hU0⟩ := okP_R_C (hB 0#u64) hc0
+  induction h with
+  | refl => exact ⟨.refl, hB, s0, hc0, fun _ _ => rfl⟩
+  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ _ hS g ih =>
+    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
+    obtain ⟨H1, hR, -, -, hM⟩ := exec_safeRunPV9 h0 hA0 hK0 hU0 hM0 hE
+    have hst : Fl4StepPV9 cfg.Fam s1 K1 c1 s1' K1' := by
+      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
+      · obtain ⟨ρ, hVq, i, k0, hi, hvs⟩ := g.start p0 k W hph hK hU
+        have hρg : ∀ x, GateW K1 x → ρ x = e1.mem x := fun x hx =>
+          (hVq.2.1 x (by rw [hM.own, hx s1.mem]; exact Or.inr rfl)).trans (hk1 x hx)
+        have hEv : EpochPteN K1 (CoreView.view K1.toKLayout c1 ρ) :=
+          epochPteN_view c1 (epochPteN_of ⟨e1, hCe, hρg⟩)
+        refine ⟨ρ, hVq, i, k0, O.sf (Ch1 c1) _ { s1 with mem := CoreView.view K1.toKLayout c1 ρ } _ _ _ _ _ i
+          (hX c1).chainOf hEv hi, ?_⟩
+        rcases hvs with ⟨hk, hn⟩ | hk
+        · exact Or.inl ⟨hk, O.vs s1 K1 hK hU c1 k0 ρ i hM hVq hn⟩
+        · refine Or.inr ⟨hk, ?_⟩
+          by_cases hn : cfg.NoV i
+          · exact fun _ _ => O.fh (Ch1 c1) s1 K1 hK hU c1 k0 ρ i (hX c1).chainOf hEv hi hM hVq hn
+          · exact vSafe9_of_vSafe (O.vs s1 K1 hK hU c1 k0 ρ i hM hVq hn)
+      · have hP := okP_R_C (g.serX hs 0#u64) ⟨hV _ _ (g.serC hs).1, (g.serC hs).2⟩
+        exact ⟨hP.1, hP.2, g.serG hs⟩
+    refine ⟨.step hE hS hst, ?_, ?_⟩
+    · by_cases hs : SerStep s1 c1
+      · exact g.serX hs
+      · obtain ⟨e1, e2⟩ := g.keep hs
+        rw [e1, e2]; exact hX
+    · by_cases hs : SerStep s1 c1
+      · exact ⟨s1', ⟨hV _ _ (g.serC hs).1, (g.serC hs).2⟩, fun _ _ => rfl⟩
+      · obtain ⟨eK, -⟩ := g.keep hs
+        subst eK
+        obtain ⟨-, -, -, hSI, -⟩ := Fl4Proofs.P2.Serial.xsafeRunH_inv h0 hA0 hR
+        refine ⟨e1, hCe, fun x hx => ?_⟩
+        rw [← hk1 x hx]
+        exact step_gate_keep hM (Fl4Proofs.P2.Serial.allowed_of_sinv hSI c1) hS hs hx
+  | @hw s1 K1 Ch1 _ v a y _ hH ih =>
+    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
+    obtain ⟨H1, -, hK, -, hM⟩ := exec_safeRunPV9 h0 hA0 hK0 hU0 hM0 hE
+    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
+    rw [← hk1 x hx]
+    exact hw_gate_keep hK hM hH hx
+  | ad _ hA _ => exact absurd hA (hAd _ _ _ _ _)
+
+/-- **V15, exact form, on the re-based platform** (gen 56; module docstring): `P : LocPlatC`, the execution an
+`ExecV15C`. -/
+theorem serializable_fl4_V15_exact_C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg)
+    (hAd : cfg.NoAd) (hV : cfg.VcpuNone) (P : LocPlatC st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
+    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
+    (hB : ∀ e, SerExitC P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecV15C cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
+    RunAll s.log s0.mem s.mem := by
+  have hc0' : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem := ⟨hV _ _ hc0.1, hc0.2⟩
+  obtain ⟨hK0, hU0⟩ := okP_R_C (hB 0#u64) hc0'
+  exact serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_V15C O hAd hV P h0 hA0 hB hc0' hM0 h).1 hq
+
 /-- **V15, exact form** (module docstring). -/
 theorem serializable_fl4_V15_exact {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg) (hAd : cfg.NoAd)
     (hV : cfg.VcpuNone) (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
     {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
     (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
     (hM0 : MapsP K0 s0) (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  have hc0' : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem := ⟨hV _ _ hc0.1, hc0.2⟩
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0'
-  have h10 : ExecWPRV10 cfg.Fam cfg.NoV (fun _ _ _ _ _ i => cfg.NoV i) cfg.SF P s0 K0 Ch0 s K Ch :=
-    execWPRV10_of_11 (fun _ _ _ _ _ _ hn => hn) (execWPRV11_of_12 (execWPRV12_of_V15 hAd hV h))
-  exact serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0
-    (execPV9_of_WPRV10S O.sf O.vs (fun Ch s K hK hU c k ρ i hC hE hsf hM hVq hn => O.fh Ch s K hK hU c k ρ i hC hE
-      hsf hM hVq hn) P h0 hA0 hB hc0' hM0 h10).1 hq
+    RunAll s.log s0.mem s.mem :=
+  serializable_fl4_V15_exact_C O hAd hV P.toC h0 hA0 hB hc0 hM0 h.toC hq
+
+/-- **V15, permuted form, on the re-based platform** (gen 56): the exact form's conclusion with `ℓ = s.log`. -/
+theorem serializable_fl4_V15_perm_C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg)
+    (hAd : cfg.NoAd) (hV : cfg.VcpuNone) (P : LocPlatC st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
+    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
+    (hB : ∀ e, SerExitC P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecV15C cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
+    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
+  ⟨s.log, List.Perm.refl _, serializable_fl4_V15_exact_C O hAd hV P h0 hA0 hB hc0 hM0 h hq⟩
 
 /-- **V15, permuted form** (module docstring): the exact form's conclusion with `ℓ = s.log`. -/
 theorem serializable_fl4_V15_perm {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg) (hAd : cfg.NoAd)
@@ -206,7 +291,7 @@ theorem serializable_fl4_V15_perm {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) 
     (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
     (hM0 : MapsP K0 s0) (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  ⟨s.log, List.Perm.refl _, serializable_fl4_V15_exact O hAd hV P h0 hA0 hB hc0 hM0 h hq⟩
+  serializable_fl4_V15_perm_C O hAd hV P.toC h0 hA0 hB hc0 hM0 h.toC hq
 
 end exec
 
@@ -236,39 +321,6 @@ theorem native_noAd : (ExecCfg.native st ar hA a0 arI AR MR).NoAd := fun _ _ _ _
 theorem native_vcpuNone : (ExecCfg.native st ar hA a0 arI AR MR).VcpuNone := fun _ _ h => h
 
 variable {arI AR MR}
-
-/-- **The native execution is V13's** (both directions). -/
-theorem execV15_native_iff {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
-    {Ch0 Ch : U64 → S → Prop} :
-    (∃ E, ExecV15 (ExecCfg.native st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch E) ↔
-      ExecWPRV12 (fl4LocV13 st ar hA a0) (fun i => ¬ IoIx (S := S) i) (StartV13 st ar hA a0 arI AR MR) P s0 K0 Ch0
-        s K Ch :=
-  ⟨fun ⟨_, h⟩ => execWPRV12_of_V15 (native_noAd st ar hA a0 arI AR MR) (native_vcpuNone st ar hA a0 arI AR MR) h,
-    fun h => execV15_of_WPRV12 (cfg := ExecCfg.native st ar hA a0 arI AR MR) (fun _ _ h => h) h⟩
-
-/-- **V15's native top** (from V13). -/
-theorem serializable_fl4_V15_native (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecV15 (ExecCfg.native st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localV13 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    ((execV15_native_iff st ar hA a0).1 ⟨E, h⟩) hq
-
-/-- **V13's exact statement from V15's native top** (V13 is recovered losslessly). -/
-theorem serializable_fl4_localV13ofV15 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV12 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (StartV13 st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨E, h'⟩ := (execV15_native_iff st ar hA a0).2 h
-  exact serializable_fl4_V15_native st ar hA a0 P hIoa h0 hA0 hB hc0 hM0 h' hq
 
 end native
 

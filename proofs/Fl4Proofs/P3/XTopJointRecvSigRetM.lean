@@ -16,6 +16,10 @@ sch17's `JMidLeavesHyp6`).
   and FL4's, both generic in the action) leaves `chooseNewThread`.
 * `jRecvSigHypM2_of`: the notification receive at a switch mid state in
   every case (`jRecvSigHypM_of` outside the SC return).
+
+(p3J gen 53) Each notification-receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointJAtZRM
 import Fl4Proofs.P3.XTopJointRecvSigM
@@ -252,9 +256,8 @@ theorem JAtZ.recvSigBlockPreJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI A
 
 
 set_option maxHeartbeats 4000000 in
-/-- **The blocking receive giving the SC back at a switch mid state**
-(module docstring): `recvSigBlockPreJM`, then `JAtZR.maybeReturnJQ`. -/
-theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- (p3J gen 53) **`JAtZ.recvSigRetJM` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvSigRetJM` is its instance at `RJR`). -/
+theorem JAtZ.recvSigRetJMQ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -262,10 +265,13 @@ theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b) (hsc : x.ntfnSc = some σ.curSc)
     (hcov : (∀ k, Z.th n = some k → Covered (L.mem s) Z.G n.val (n.val + max (objSize k) 1)) ∧
       (∀ k, H n = some k → Covered (L.mem s) Z.G n.val (n.val + 2 ^ k.bits)))
-    (cb : Fl4Spec.Badge) (rt : Fl4Spec.CapRights) :
+    (cb : Fl4Spec.Badge) (rt : Fl4Spec.CapRights)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     notification.receive_signal st arI s a t n true ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) t.bv (.notificationCap n.bv cb rt) true σ).1,
-        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb t ht
   have hC : CurInv σ := J.curInv hni.ncn
@@ -291,19 +297,39 @@ theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     (J3.inv.notQueued hkt3 (by rfl)) (P1.blocked_out h0 htP hnrw)
     (fun u hu => hsa u (by rw [← hact3]; exact hu)) (by rw [hid3, ← hcur]; exact hni.1)) ?_
   rintro s5 ⟨-, σ5, he5, Ac', Lst', J5⟩
-  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, _, _, _, _, _, _, J5, inferInstance⟩
+  exact ⟨((), σ5), by rw [hspec, he5]; exact Set.mem_singleton _, J5.xtop.relTop, hPq _ _ _ _ _ _ _ _ J5⟩
 
 set_option maxHeartbeats 4000000 in
-/-- **The blocking notification receive at a switch mid state, every case**
-(module docstring): `jRecvSigHypM_of` outside the SC return,
-`JAtZ.recvSigRetJM` for it. -/
-theorem jRecvSigHypM2_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+/-- **The blocking receive giving the SC back at a switch mid state**
+(module docstring): `recvSigBlockPreJM`, then `JAtZR.maybeReturnJQ`. -/
+theorem JAtZ.recvSigRetJM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : MidE σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
+    (hna : ∀ b, x.ntfnObj ≠ .activeNtfn b) (hsc : x.ntfnSc = some σ.curSc)
+    (hcov : (∀ k, Z.th n = some k → Covered (L.mem s) Z.G n.val (n.val + max (objSize k) 1)) ∧
+      (∀ k, H n = some k → Covered (L.mem s) Z.G n.val (n.val + 2 ^ k.bits)))
+    (cb : Fl4Spec.Badge) (rt : Fl4Spec.CapRights) :
+    notification.receive_signal st arI s a t n true ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) t.bv (.notificationCap n.bv cb rt) true σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvSigRetJMQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT J ht hcur hni hsw hnq hn hk hna hsc hcov cb rt (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 53) **`jRecvSigHypM2_of` with its post as a parameter** (module docstring: `Pq` from every `JAtZR` at `Z.mv G V` with the entry's `H`, `Cs`; `jRecvSigHypM2_of` is its instance at `RJR`). -/
+theorem jRecvSigHypM2_ofQ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ)
     (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
-    (hex : ∃ x, σ.kheap p.bv = some (.notification x)) (hHd : JHeld (L := L) Z.th s (.Notification p b w rd)) :
+    (hex : ∃ x, σ.kheap p.bv = some (.notification x)) (hHd : JHeld (L := L) Z.th s (.Notification p b w rd))
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZR (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     notification.receive_signal st arI s a ct p true ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RJR (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   by_cases hret : ∃ x, σ.kheap p.bv = some (.notification x) ∧ (∀ b', x.ntfnObj ≠ .activeNtfn b') ∧
       x.ntfnSc = some σ.curSc
   · obtain ⟨x, hk, hna, hsc⟩ := hret
@@ -319,8 +345,23 @@ theorem jRecvSigHypM2_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
       (ok_inj (phys_eq _).symm) rfl (range_ntfn p b w rd hfit) fun k hk' => by
         rw [hHn] at hk'; cases hk'
         exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
-    exact J.recvSigRetJM hAT ht hcur hni hsw hnq hn hk hna hsc hcov b.bv (rightsOf w rd false false)
-  · exact jRecvSigHypM_of hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd hret
+    exact J.recvSigRetJMQ hAT ht hcur hni hsw hnq hn hk hna hsc hcov b.bv (rightsOf w rd false false) hPq
+  · exact jRecvSigHypM_ofQ hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd hret hPq
+
+set_option maxHeartbeats 4000000 in
+/-- **The blocking notification receive at a switch mid state, every case**
+(module docstring): `jRecvSigHypM_of` outside the SC return,
+`JAtZ.recvSigRetJM` for it. -/
+theorem jRecvSigHypM2_of (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
+    {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv) (hni : MidE σ)
+    (hsw : σ.schedulerAction ≠ .resumeCurThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (p : U64) (b : U64) (w rd : Bool) (ac : Fl4Spec.Cap) (hcr : CapRel (.Notification p b w rd) ac)
+    (hex : ∃ x, σ.kheap p.bv = some (.notification x)) (hHd : JHeld (L := L) Z.th s (.Notification p b w rd)) :
+    notification.receive_signal st arI s a ct p true ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RJR (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  jRecvSigHypM2_ofQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZR (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT J ht hcur hni hsw hnq p b w rd ac hcr hex hHd (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 end
 

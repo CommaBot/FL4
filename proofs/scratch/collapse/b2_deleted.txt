@@ -1,0 +1,466 @@
+# p3mc gen 55, collapse B2: declarations deleted (x86), from scratchpad apply.py over the depdump of par/p3mc adbdcb3c0 (p3mc55-d0).
+# Criteria (collapse.md, #115): (i) no term-level user outside the set (transport copies count); (ii)/(iii) par/p3J f23736c37, par/a64 59c0ecfb1 (own changes since 5099c9e13), par/mmuAD 53901f72a: every hit file of the names is blob-identical to main 5baf782fc or hits only unrelated tokens (ok, mono); kept for line mmuAD: serializable_fl4_localU3c_of (scratch/mmu8_ax.lean), serializable_fl4_localU3c_ofAcc (scratch/mmu11_ax.lean).
+# KEEP-UNDELETABLE: dead structure fields whose structure stays. Whole modules removed: P2/E2EPAD2U, P2/E2EPU11, P2/E2EPW11RI.
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.runAllV12_B (theorem, lines 276-281)
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.runAllV13_B (theorem, lines 283-288)
+DEL x86 Fl4Proofs.P2.BootRVmF Fl4Proofs.P2.BootSt.topV13_R (theorem, lines 331-343)
+DEL x86 Fl4Proofs.P2.BootRun Fl4Proofs.P2.BootSt.runEndV12_B (theorem, lines 243-250)
+DEL x86 Fl4Proofs.P2.BootRun Fl4Proofs.P2.BootSt.topV12_B (theorem, lines 267-278)
+DEL x86 Fl4Proofs.P2.BootRun Fl4Proofs.P2.BootSt.topV13_B (theorem, lines 280-291)
+DEL x86 Fl4Proofs.P2.E2EPAD2U Fl4Proofs.P2.E2EP.execVX4d_of_U3b (theorem, lines 31-52)
+DEL x86 Fl4Proofs.P2.E2EPAD2U Fl4Proofs.P2.E2EP.execVX4d_of_U3b2 (theorem, lines 54-75)
+DEL x86 Fl4Proofs.P2.E2EPAD2U Fl4Proofs.P2.E2EP.serializable_fl4_localU3d_ofAD (theorem, lines 77-88)
+DEL x86 Fl4Proofs.P2.E2EPAD2U Fl4Proofs.P2.E2EP.serializable_fl4_localU3d_ofAD2 (theorem, lines 90-101)
+DEL x86 Fl4Proofs.P2.E2EPU1 Fl4Proofs.P2.E2EP.serializable_fl4_localU1G (theorem, lines 404-426)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.FHStart (def, lines 50-63)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.FHAt (def, lines 65-69)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.vmF_annV_fh (theorem, lines 71-84)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.execWPRV10_of_WPRV9 (theorem, lines 133-148)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.execPV9_of_WPRV10 (theorem, lines 150-216)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.serializable_fl4_localU10 (theorem, lines 227-253)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.serializable_fl4_localU9of10 (theorem, lines 255-266)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.ActStart (def, lines 49-59)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.NoGoStart (def, lines 61-73)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.VmDisAt (def, lines 75-79)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.fhAt_dis (theorem, lines 81-86)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.vmF_annV_dis (theorem, lines 88-108)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.execWPRV10_mono (theorem, lines 117-133)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.serializable_fl4_localU11 (theorem, lines 144-170)
+DEL x86 Fl4Proofs.P2.E2EPU11 Fl4Proofs.P2.E2EP.serializable_fl4_localU10of11 (theorem, lines 172-184)
+DEL x86 Fl4Proofs.P2.E2EPU12 Fl4Proofs.P2.E2EP.vmF_annV_all (theorem, lines 363-371)
+DEL x86 Fl4Proofs.P2.E2EPU12 Fl4Proofs.P2.E2EP.serializable_fl4_localU12 (theorem, lines 382-408)
+DEL x86 Fl4Proofs.P2.E2EPU12 Fl4Proofs.P2.E2EP.serializable_fl4_localU11of12 (theorem, lines 410-425)
+DEL x86 Fl4Proofs.P2.E2EPU12 Fl4Proofs.P2.E2EP.serializable_fl4_localU12aof12 (theorem, lines 427-442)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.ut_act (theorem, lines 67-78)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.vmF_act0_SF (theorem, lines 165-172)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.ActStartA (def, lines 182-192)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.VmDisAt12 (def, lines 194-198)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.dis_dis12 (theorem, lines 200-208)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.vmF_annV_dis12 (theorem, lines 210-230)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.serializable_fl4_localU12a (theorem, lines 319-351)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.serializable_fl4_localU11of12a (theorem, lines 353-365)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.vmR_act0_SF (theorem, lines 64-71)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.RFHAt (def, lines 167-171)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.U13At (def, lines 173-176)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.vmR_annV_rfh (theorem, lines 178-200)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.serializable_fl4_localU13 (theorem, lines 211-240)
+DEL x86 Fl4Proofs.P2.E2EPU13 Fl4Proofs.P2.E2EP.serializable_fl4_localU12of13 (theorem, lines 242-254)
+DEL x86 Fl4Proofs.P2.E2EPU14 Fl4Proofs.P2.E2EP.vmR_annV_all (theorem, lines 305-313)
+DEL x86 Fl4Proofs.P2.E2EPU14 Fl4Proofs.P2.E2EP.serializable_fl4_localU14 (theorem, lines 324-352)
+DEL x86 Fl4Proofs.P2.E2EPU14 Fl4Proofs.P2.E2EP.serializable_fl4_localU13of14 (theorem, lines 354-371)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.sl_k0_safe (theorem, lines 145-264)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.SlHAt (def, lines 275-279)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.U15At (def, lines 281-284)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.sl_annV_h (theorem, lines 286-312)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.serializable_fl4_localU15 (theorem, lines 323-353)
+DEL x86 Fl4Proofs.P2.E2EPU15 Fl4Proofs.P2.E2EP.serializable_fl4_localU14of15 (theorem, lines 355-367)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.slAll_of_h (theorem, lines 284-288)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.sl_annV_allB (theorem, lines 320-329)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.vmF_annV_allB (theorem, lines 356-364)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.vmR_annV_allB (theorem, lines 379-387)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.serializable_fl4_localU16 (theorem, lines 398-425)
+DEL x86 Fl4Proofs.P2.E2EPU16 Fl4Proofs.P2.E2EP.serializable_fl4_localU15of16 (theorem, lines 427-439)
+DEL x86 Fl4Proofs.P2.E2EPU17 Fl4Proofs.P2.E2EP.serializable_fl4_localU17 (theorem, lines 178-206)
+DEL x86 Fl4Proofs.P2.E2EPU17 Fl4Proofs.P2.E2EP.serializable_fl4_localU16of17 (theorem, lines 208-220)
+DEL x86 Fl4Proofs.P2.E2EPU18 Fl4Proofs.P2.E2EP.serializable_fl4_localU18 (theorem, lines 312-340)
+DEL x86 Fl4Proofs.P2.E2EPU18 Fl4Proofs.P2.E2EP.serializable_fl4_localU17of18 (theorem, lines 342-354)
+DEL x86 Fl4Proofs.P2.E2EPU19 Fl4Proofs.P2.E2EP.serializable_fl4_localU19 (theorem, lines 392-421)
+DEL x86 Fl4Proofs.P2.E2EPU19 Fl4Proofs.P2.E2EP.serializable_fl4_localU18of19 (theorem, lines 423-435)
+DEL x86 Fl4Proofs.P2.E2EPU20 Fl4Proofs.P2.E2EP.serializable_fl4_localU20 (theorem, lines 833-863)
+DEL x86 Fl4Proofs.P2.E2EPU20 Fl4Proofs.P2.E2EP.serializable_fl4_localU19of20 (theorem, lines 865-877)
+DEL x86 Fl4Proofs.P2.E2EPU21 Fl4Proofs.P2.E2EP.serializable_fl4_localU21 (theorem, lines 120-151)
+DEL x86 Fl4Proofs.P2.E2EPU21 Fl4Proofs.P2.E2EP.serializable_fl4_localU20of21 (theorem, lines 153-165)
+DEL x86 Fl4Proofs.P2.E2EPU22 Fl4Proofs.P2.E2EP.serializable_fl4_localU22 (theorem, lines 109-141)
+DEL x86 Fl4Proofs.P2.E2EPU22 Fl4Proofs.P2.E2EP.serializable_fl4_localU21of22 (theorem, lines 143-155)
+DEL x86 Fl4Proofs.P2.E2EPU23 Fl4Proofs.P2.E2EP.serializable_fl4_localU23 (theorem, lines 110-144)
+DEL x86 Fl4Proofs.P2.E2EPU23 Fl4Proofs.P2.E2EP.serializable_fl4_localU22of23 (theorem, lines 146-158)
+DEL x86 Fl4Proofs.P2.E2EPU24 Fl4Proofs.P2.E2EP.serializable_fl4_localU24 (theorem, lines 128-162)
+DEL x86 Fl4Proofs.P2.E2EPU24 Fl4Proofs.P2.E2EP.serializable_fl4_localU23of24 (theorem, lines 164-176)
+DEL x86 Fl4Proofs.P2.E2EPU25 Fl4Proofs.P2.E2EP.serializable_fl4_localU25 (theorem, lines 160-195)
+DEL x86 Fl4Proofs.P2.E2EPU25 Fl4Proofs.P2.E2EP.serializable_fl4_localU24of25 (theorem, lines 197-209)
+DEL x86 Fl4Proofs.P2.E2EPU26 Fl4Proofs.P2.E2EP.serializable_fl4_localU26 (theorem, lines 98-134)
+DEL x86 Fl4Proofs.P2.E2EPU26 Fl4Proofs.P2.E2EP.serializable_fl4_localU25of26 (theorem, lines 136-148)
+DEL x86 Fl4Proofs.P2.E2EPU27 Fl4Proofs.P2.E2EP.serializable_fl4_localU27 (theorem, lines 101-138)
+DEL x86 Fl4Proofs.P2.E2EPU27 Fl4Proofs.P2.E2EP.serializable_fl4_localU26of27 (theorem, lines 140-152)
+DEL x86 Fl4Proofs.P2.E2EPU28 Fl4Proofs.P2.E2EP.serializable_fl4_localU27of28 (theorem, lines 134-146)
+DEL x86 Fl4Proofs.P2.E2EPU3 Fl4Proofs.P2.E2EP.mmu_gate_keep (theorem, lines 92-100)
+DEL x86 Fl4Proofs.P2.E2EPU3 Fl4Proofs.P2.E2EP.execU3_of_WPR (theorem, lines 198-206)
+DEL x86 Fl4Proofs.P2.E2EPU3 Fl4Proofs.P2.E2EP.execPA_of_U3G (theorem, lines 208-256)
+DEL x86 Fl4Proofs.P2.E2EPU3 Fl4Proofs.P2.E2EP.serializable_fl4_localU3 (theorem, lines 267-290)
+DEL x86 Fl4Proofs.P2.E2EPU3 Fl4Proofs.P2.E2EP.serializable_fl4_localU2_viaU3 (theorem, lines 292-303)
+DEL x86 Fl4Proofs.P2.E2EPU3c Fl4Proofs.P2.E2EP.famU2 (abbrev, lines 147-151)
+DEL x86 Fl4Proofs.P2.E2EPU3c Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_of (theorem, lines 153-175)
+DEL x86 Fl4Proofs.P2.E2EPU3d Fl4Proofs.P2.E2EP.execU3b_aRunRB (theorem, lines 323-383)
+DEL x86 Fl4Proofs.P2.E2EPU3d Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_ofDI (theorem, lines 392-425)
+DEL x86 Fl4Proofs.P2.E2EPU3e Fl4Proofs.P2.E2EP.insA_delQ (theorem, lines 190-204)
+DEL x86 Fl4Proofs.P2.E2EPU3e Fl4Proofs.P2.E2EP.insA_invQ (theorem, lines 206-222)
+DEL x86 Fl4Proofs.P2.E2EPU3e Fl4Proofs.P2.E2EP.serializable_fl4_localU3b_ofAcc (theorem, lines 233-258)
+DEL x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.execPV_of_WPRVG (theorem, lines 378-427)
+DEL x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.serializable_fl4_localU6 (theorem, lines 470-495)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.start
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.serC
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU6 Fl4Proofs.P2.E2EP.Fl4StepWPRV.serG
+DEL x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.startAt_UN (theorem, lines 303-311)
+DEL x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.execWPRV7_of_WPRV (theorem, lines 437-448)
+DEL x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.execPV_of_WPRV7 (theorem, lines 450-499)
+DEL x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.serializable_fl4_localU7 (theorem, lines 510-533)
+DEL x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.serializable_fl4_localU6of7 (theorem, lines 535-546)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.start
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU7 Fl4Proofs.P2.E2EP.Fl4StepWPRV7.serC
+DEL x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.execWPRV9_of_WPRV8 (theorem, lines 246-257)
+DEL x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.execPV9_of_WPRV9 (theorem, lines 259-319)
+DEL x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.serializable_fl4_localU9 (theorem, lines 330-354)
+DEL x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.serializable_fl4_localU8of9 (theorem, lines 356-367)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.start
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPU9 Fl4Proofs.P2.E2EP.Fl4StepWPRV9.serC
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.execWPRV11_of_10 (theorem, lines 106-121)
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.serializable_fl4_localU28ofV11 (theorem, lines 177-188)
+DEL x86 Fl4Proofs.P2.E2EPV12 Fl4Proofs.P2.E2EP.serializable_fl4_localV12 (theorem, lines 104-116)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.VmFEntV13.ofJ14 (theorem, lines 222-225)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.VmREntV13.ofU (theorem, lines 232-235)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.SlEntV13.ofU (theorem, lines 242-245)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.startV13_of_V2C (theorem, lines 315-338)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.execWPRV12_conv (theorem, lines 349-372)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.serializable_fl4_localV13 (theorem, lines 383-396)
+DEL x86 Fl4Proofs.P2.E2EPV13 Fl4Proofs.P2.E2EP.serializable_fl4_localV12ofV13 (theorem, lines 398-410)
+DEL x86 Fl4Proofs.P2.E2EPVX1 Fl4Proofs.P2.E2EP.StartVX (def, lines 297-304)
+DEL x86 Fl4Proofs.P2.E2EPVX1 Fl4Proofs.P2.E2EP.serializable_fl4_localVX1G (theorem, lines 306-330)
+DEL x86 Fl4Proofs.P2.E2EPVX10 Fl4Proofs.P2.E2EP.serializable_fl4_localVX10G (theorem, lines 143-189)
+DEL x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.SFaV (def, lines 384-388)
+DEL x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.execVX_of_VX2 (theorem, lines 390-417)
+DEL x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.serializable_fl4_localVX2SG (theorem, lines 469-495)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.Fl4StepVX2.ser
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.Fl4StepVX2.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.Fl4StepVX2.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.Fl4StepVX2.start
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPVX2 Fl4Proofs.P2.E2EP.Fl4StepVX2.keep
+DEL x86 Fl4Proofs.P2.E2EPVX3 Fl4Proofs.P2.E2EP.StartVX3 (def, lines 690-696)
+DEL x86 Fl4Proofs.P2.E2EPVX3 Fl4Proofs.P2.E2EP.serializable_fl4_localVX3G (theorem, lines 698-726)
+DEL x86 Fl4Proofs.P2.E2EPVX4 Fl4Proofs.P2.E2EP.StartVX4 (def, lines 534-542)
+DEL x86 Fl4Proofs.P2.E2EPVX4 Fl4Proofs.P2.E2EP.serializable_fl4_localVX4G (theorem, lines 544-575)
+DEL x86 Fl4Proofs.P2.E2EPVX5 Fl4Proofs.P2.E2EP.serializable_fl4_localVX5G (theorem, lines 1060-1095)
+DEL x86 Fl4Proofs.P2.E2EPVX7 Fl4Proofs.P2.E2EP.serializable_fl4_localVX7G (theorem, lines 1381-1420)
+DEL x86 Fl4Proofs.P2.E2EPVX8 Fl4Proofs.P2.E2EP.StartVX8 (def, lines 1265-1274)
+DEL x86 Fl4Proofs.P2.E2EPVX8 Fl4Proofs.P2.E2EP.serializable_fl4_localVX8G (theorem, lines 1276-1319)
+DEL x86 Fl4Proofs.P2.E2EPVX9 Fl4Proofs.P2.E2EP.serializable_fl4_localVX9G (theorem, lines 760-802)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.vt_avoidPJ_W5 (theorem, lines 76-85)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.allW11J (theorem, lines 87-130)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.fl4LocW11J (def, lines 132-135)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.PteLay.ok (theorem, lines 147-149)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.execP_of_WP (theorem, lines 189-213)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.StartQP (def, lines 219-228)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.StartP3W11J (def, lines 236-242)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.startAtP_W11 (theorem, lines 246-255)
+DEL x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.serializable_fl4_localW11P (theorem, lines 257-271)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.serP
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.serV
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11 Fl4Proofs.P2.E2EP.Fl4StepWP.start
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.pteConv_canon (theorem, lines 209-218)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.okP_of_conv (theorem, lines 220-224)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.qPs_of_conv (theorem, lines 226-247)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.StartQPB (def, lines 253-261)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.StartP3W11JB (def, lines 308-313)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.boot_okP (theorem, lines 317-324)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.execP_of_WPJ (theorem, lines 326-373)
+DEL x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ (theorem, lines 375-387)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.start
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EPW11J Fl4Proofs.P2.E2EP.Fl4StepWPJ.serC
+DEL x86 Fl4Proofs.P2.E2EPW11J10 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ10 (theorem, lines 386-398)
+DEL x86 Fl4Proofs.P2.E2EPW11J11 Fl4Proofs.P2.E2EP.startAt_C (theorem, lines 655-678)
+DEL x86 Fl4Proofs.P2.E2EPW11J11 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ11 (theorem, lines 688-701)
+DEL x86 Fl4Proofs.P2.E2EPW11J12 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ12 (theorem, lines 323-335)
+DEL x86 Fl4Proofs.P2.E2EPW11J2 Fl4Proofs.P2.E2EP.StartP3W11JC (def, lines 152-157)
+DEL x86 Fl4Proofs.P2.E2EPW11J2 Fl4Proofs.P2.E2EP.startQPB_of (theorem, lines 161-174)
+DEL x86 Fl4Proofs.P2.E2EPW11J2 Fl4Proofs.P2.E2EP.ExecWPJ.mono (theorem, lines 176-189)
+DEL x86 Fl4Proofs.P2.E2EPW11J2 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ2 (theorem, lines 191-205)
+DEL x86 Fl4Proofs.P2.E2EPW11J3 Fl4Proofs.P2.E2EP.StartP3W11JL (def, lines 101-105)
+DEL x86 Fl4Proofs.P2.E2EPW11J3 Fl4Proofs.P2.E2EP.ExecWPJ.monoC (theorem, lines 109-129)
+DEL x86 Fl4Proofs.P2.E2EPW11J3 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ3 (theorem, lines 131-144)
+DEL x86 Fl4Proofs.P2.E2EPW11J4 Fl4Proofs.P2.E2EP.StartP3W11JS (def, lines 265-269)
+DEL x86 Fl4Proofs.P2.E2EPW11J4 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ4 (theorem, lines 273-286)
+DEL x86 Fl4Proofs.P2.E2EPW11J5 Fl4Proofs.P2.E2EP.StartP3W11JT (def, lines 180-184)
+DEL x86 Fl4Proofs.P2.E2EPW11J5 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ5 (theorem, lines 188-201)
+DEL x86 Fl4Proofs.P2.E2EPW11J6 Fl4Proofs.P2.E2EP.StartP3W11JU (def, lines 209-213)
+DEL x86 Fl4Proofs.P2.E2EPW11J6 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ6 (theorem, lines 217-230)
+DEL x86 Fl4Proofs.P2.E2EPW11J7 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ7 (theorem, lines 224-238)
+DEL x86 Fl4Proofs.P2.E2EPW11J9 Fl4Proofs.P2.E2EP.execP_of_WPJG (theorem, lines 43-91)
+DEL x86 Fl4Proofs.P2.E2EPW11J9 Fl4Proofs.P2.E2EP.startAt_cutA (theorem, lines 102-124)
+DEL x86 Fl4Proofs.P2.E2EPW11J9 Fl4Proofs.P2.E2EP.startAtV_A (theorem, lines 212-220)
+DEL x86 Fl4Proofs.P2.E2EPW11J9 Fl4Proofs.P2.E2EP.startAt_A (theorem, lines 222-231)
+DEL x86 Fl4Proofs.P2.E2EPW11J9 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PJ8 (theorem, lines 243-257)
+DEL x86 Fl4Proofs.P2.E2EPW11R Fl4Proofs.P2.E2EP.execP_of_WPR (theorem, lines 127-172)
+DEL x86 Fl4Proofs.P2.E2EPW11R Fl4Proofs.P2.E2EP.serializable_fl4_localW11PR (theorem, lines 174-185)
+DEL x86 Fl4Proofs.P2.E2EPW11RI Fl4Proofs.P2.E2EP.StartW11RI (def, lines 40-46)
+DEL x86 Fl4Proofs.P2.E2EPW11RI Fl4Proofs.P2.E2EP.execP_of_WPRI (theorem, lines 50-103)
+DEL x86 Fl4Proofs.P2.E2EPW11RI Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRI (theorem, lines 105-122)
+DEL x86 Fl4Proofs.P2.E2EPW11RID Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRID (theorem, lines 115-126)
+DEL x86 Fl4Proofs.P2.E2EVFl4W Fl4Proofs.P2.E2EV.fl4LocW (def, lines 171-179)
+DEL x86 Fl4Proofs.P2.E2EVFl4W Fl4Proofs.P2.E2EV.serializable_fl4_localW (theorem, lines 181-187)
+DEL x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.toJ11 (theorem, lines 100-103)
+DEL x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.SlQYB.toQ (theorem, lines 111-115)
+DEL x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.startAt_P3W14 (theorem, lines 140-162)
+DEL x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.serializable_fl4_localW14 (theorem, lines 172-183)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.yb
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.nb
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.lk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.hct
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.fd
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4W14 Fl4Proofs.P2.E2EV.VmREntJ14.ix
+DEL x86 Fl4Proofs.P2.E2EVFl4W2 Fl4Proofs.P2.E2EV.fl4LocW2 (def, lines 347-355)
+DEL x86 Fl4Proofs.P2.E2EVFl4W2 Fl4Proofs.P2.E2EV.serializable_fl4_localW2 (theorem, lines 357-363)
+DEL x86 Fl4Proofs.P2.E2EVFl4WI Fl4Proofs.P2.E2EV.fl4LocP3WI (def, lines 117-126)
+DEL x86 Fl4Proofs.P2.E2EVFl4WI Fl4Proofs.P2.E2EV.Fl4IxWI (abbrev, lines 128-128)
+DEL x86 Fl4Proofs.P2.E2EVFl4WI Fl4Proofs.P2.E2EV.StartP3WI (def, lines 140-152)
+DEL x86 Fl4Proofs.P2.E2EVFl4WI Fl4Proofs.P2.E2EV.startAt_P3WI (theorem, lines 156-178)
+DEL x86 Fl4Proofs.P2.E2EVFl4WI Fl4Proofs.P2.E2EV.serializable_fl4_localWI (theorem, lines 188-199)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.cmSlotW (def, lines 49-57)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.fl4LocP3WIC (def, lines 65-75)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.Fl4IxWIC (abbrev, lines 77-78)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.StartP3WIC (def, lines 88-100)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.startAt_P3WIC (theorem, lines 104-126)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.serializable_fl4_localWIC (theorem, lines 136-147)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.InvPremC.w
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.E2EVFl4WIC Fl4Proofs.P2.E2EV.InvPremC.nul
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC2 Fl4Proofs.P2.E2EV.fl4LocP3WIC2 (def, lines 46-56)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC2 Fl4Proofs.P2.E2EV.Fl4IxWIC2 (abbrev, lines 58-59)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC2 Fl4Proofs.P2.E2EV.StartP3WIC2 (def, lines 69-81)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC2 Fl4Proofs.P2.E2EV.startAt_P3WIC2 (theorem, lines 85-107)
+DEL x86 Fl4Proofs.P2.E2EVFl4WIC2 Fl4Proofs.P2.E2EV.serializable_fl4_localWIC2 (theorem, lines 117-128)
+DEL x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.pmPathsI (def, lines 74-87)
+DEL x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.StartPmI (def, lines 89-95)
+DEL x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.pm_hSFQI (theorem, lines 99-108)
+DEL x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmI (theorem, lines 118-129)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.PmObl5.lk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.PmObl5.mv
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.PmObl5.cs
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmBlkF Fl4Proofs.P2.E2EP.PmObl5.roA
+DEL x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.pmPathsJ (def, lines 163-176)
+DEL x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.StartPmJ (def, lines 178-184)
+DEL x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.pm_hSFQJ (theorem, lines 188-196)
+DEL x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmJ (theorem, lines 206-217)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.PmObl6.roA
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.PmObl6.cs
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmMvC Fl4Proofs.P2.E2EP.PmObl6.lk
+DEL x86 Fl4Proofs.P2.InvPmRoE Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPm3 (theorem, lines 110-122)
+DEL x86 Fl4Proofs.P2.InvPmRoot Fl4Proofs.P2.E2EP.StartPmH (def, lines 119-126)
+DEL x86 Fl4Proofs.P2.InvPmRoot Fl4Proofs.P2.E2EP.pm_hSFQH (theorem, lines 130-136)
+DEL x86 Fl4Proofs.P2.InvPmRoot Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmH (theorem, lines 146-157)
+DEL x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.pmPathsB (def, lines 66-69)
+DEL x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.StartPm (def, lines 71-76)
+DEL x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.pm_hSFQ (theorem, lines 80-88)
+DEL x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPm (theorem, lines 98-109)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.ra
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.uf
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.ro
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.pr
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.mv
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.acc
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop Fl4Proofs.P2.E2EP.PmObl.dec
+DEL x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.pm_huf (theorem, lines 59-101)
+DEL x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.pmPathsF (def, lines 124-134)
+DEL x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.StartPmF (def, lines 136-141)
+DEL x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.pm_hSFQF (theorem, lines 145-153)
+DEL x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPm2 (theorem, lines 163-175)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.PmObl2.iw
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.PmObl2.pdw
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.PmObl2.mv
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.PmObl2.acc
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmTop2 Fl4Proofs.P2.E2EP.PmObl2.lk
+DEL x86 Fl4Proofs.P2.InvPmTop3 Fl4Proofs.P2.E2EP.StartPmG (def, lines 174-180)
+DEL x86 Fl4Proofs.P2.InvPmTop3 Fl4Proofs.P2.E2EP.pm_hSFQG (theorem, lines 184-192)
+DEL x86 Fl4Proofs.P2.InvPmTop3 Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmG (theorem, lines 202-213)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.altOf_pmU (theorem, lines 93-96)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.pm_accU_of_blk (theorem, lines 151-167)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.pm_hufU (theorem, lines 314-327)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.pmPathsU (def, lines 355-364)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.StartPmU (def, lines 366-371)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.pm_hSFQU (theorem, lines 375-383)
+DEL x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.serializable_fl4_localW11PRIPmU (theorem, lines 393-404)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.lk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.cs
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.blk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.roA
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.pdw
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.InvPmU Fl4Proofs.P2.E2EP.PmObl3.mv
+DEL x86 Fl4Proofs.P2.StFamC Fl4Proofs.P2.E2EP.serializable_fl4_localU16C (theorem, lines 350-375)
+DEL x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.execWPRV8_of_WPRV7 (theorem, lines 201-212)
+DEL x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.execPV_of_WPRV8 (theorem, lines 214-268)
+DEL x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.serializable_fl4_localU8 (theorem, lines 301-325)
+DEL x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.serializable_fl4_localU7of8 (theorem, lines 327-338)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.arm
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.serG
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.serC
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.keep
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.serX
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.ViewSafeIoU8 Fl4Proofs.P2.E2EP.Fl4StepWPRV8.start
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.YbRely (def, lines 142-146)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.ybMerge_keep (theorem, lines 150-175)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.ybFrame_keep (theorem, lines 177-187)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.ybRun_keep (theorem, lines 189-193)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.ybRely (theorem, lines 195-198)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.YbAnch.ybw (theorem, lines 200-209)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.YbAnch.ybwK (theorem, lines 211-214)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.toV13 (theorem, lines 302-305)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.toV13 (theorem, lines 307-310)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.toV13 (theorem, lines 312-315)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.StartU2V14 (def, lines 327-352)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.StartV14 (def, lines 354-358)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.startV13_of_V14 (theorem, lines 362-385)
+DEL x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.serializable_fl4_localV14 (theorem, lines 396-410)
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.lk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.hlk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.ix
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.nbc
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.ix
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.ix
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.hct
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.lk
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmREntV14.fd
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.nbc
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.gl
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.sg
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.nv
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.acc
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.hct
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.el
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.VmFEntV14.hct
+KEEP-UNDELETABLE x86 Fl4Proofs.P2.YbwAnch Fl4Proofs.P2.E2EP.SlEntV14.sc
+
+# gen 56 (p3mc), collapse B2 continued: declarations deleted (x86), constant-level fixpoint over the depdump of par/p3mc 60167b88c (p3mc55-b2), with the gen-56 rewirings simulated (serializable_fl4_V15_exact / _perm re-proved over ExecV15C via execPV9_of_V15C; P2/Boot{Cfg,Start,Run,RVmF,V15} built as ExecV15 executions).
+# Criteria as gen 55 (collapse.md, #115). Seeds per the Architect's gen-56 ruling: ExecWPRV10-12 (+ Fl4StepWPRV10-12, execWPRV10_of_11, execWPRV11_of_12, execPV9_of_WPRV10S), execV15_native_iff (+ execWPRV12_of_V15, execV15_of_WPRV12), V13ofV15* / V13viaV15, the V15 stepping stones without outside consumer (V15_native, _pm*, _ad, _adV, _adN, pmKAD{N,V,H,W,F,S,I,C,O,D} old-name forms and their *of* lemmas, pmKC/pmKF/pmKG), U28, V11, VX11/VX11G/VX11AE/VX11AF and P3W/P3WV/P3W5V/P3W6V (kept alive only by historical AX prints), the V12/V13 boot witnesses (premisesV12_B/V13_B, execStartV12_B, startReachedV12_B/V13_B, execWPRV12_vcpus, hwStepP_false, hw_dead).
+# Kept: V15_exact/_perm (+ _C), pmKADZ_C (+ old-name pmKADZ), pmKADZW, AD3/AD3_C/AD3W, BootV15; VX11AD/VX11AG kept for line mmuAD (par/mmuAD fc62acf9a edits scratch/mmu13_ax.lean / mmu16_ax.lean, which print them); U2 kept (term-level user wit_U2_io and its WitU34Gen copy).
+# KEEP-UNDELETABLE: dead fields of kept structures PmObl4V.{blk,cs,lk,mv,roA}, VmInsAE.{cm,del,inv}, VmInsAF.{del,inv}. Whole modules removed (emptied): P2/E2EPU10, P2/E2EPV12 (importers re-pointed to VmFhView / E2EPV11). Line ranges are those of 60167b88c.
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.cfg7_log (theorem, lines 141-141)
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.famB (abbrev, lines 241-246)
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.premisesV12_B (theorem, lines 248-260)
+DEL x86 Fl4Proofs.P2.BootCfg Fl4Proofs.P2.BootSt.premisesV13_B (theorem, lines 262-274)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.execStartV12_B (theorem, lines 267-274)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.startReachedV12_B (theorem, lines 285-297)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.startReachedV13_B (theorem, lines 299-310)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.execWPRV12_vcpus (theorem, lines 341-352)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.hwStepP_false (theorem, lines 354-361)
+DEL x86 Fl4Proofs.P2.BootStart Fl4Proofs.P2.BootSt.hw_dead (theorem, lines 363-369)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.Fl4StepWPRV10 (structure, lines 59-82)
+DEL x86 Fl4Proofs.P2.E2EPU10 Fl4Proofs.P2.E2EP.ExecWPRV10 (inductive, lines 84-95)
+DEL x86 Fl4Proofs.P2.E2EPU12a Fl4Proofs.P2.E2EP.execPV9_of_WPRV10S (theorem, lines 170-237)
+DEL x86 Fl4Proofs.P2.E2EPU28 Fl4Proofs.P2.E2EP.serializable_fl4_localU28 (theorem, lines 94-132)
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.Fl4StepWPRV11 (structure, lines 54-74)
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.ExecWPRV11 (inductive, lines 76-86)
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.execWPRV10_of_11 (theorem, lines 88-104)
+DEL x86 Fl4Proofs.P2.E2EPV11 Fl4Proofs.P2.E2EP.serializable_fl4_localV11 (theorem, lines 145-158)
+DEL x86 Fl4Proofs.P2.E2EPV12 Fl4Proofs.P2.E2EP.Fl4StepWPRV12 (structure, lines 47-67)
+DEL x86 Fl4Proofs.P2.E2EPV12 Fl4Proofs.P2.E2EP.ExecWPRV12 (inductive, lines 69-79)
+DEL x86 Fl4Proofs.P2.E2EPV12 Fl4Proofs.P2.E2EP.execWPRV11_of_12 (theorem, lines 81-95)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.pmCs_of_serExit (theorem, lines 79-84)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.pmObl7_ofSer (theorem, lines 93-97)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKC (theorem, lines 107-119)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.insV15V_of (theorem, lines 158-160)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.execV15_aRunDV (theorem, lines 240-252)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.execV15_aRunD (theorem, lines 254-265)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.serializable_fl4_V15_ad (theorem, lines 267-276)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.serializable_fl4_V15_adV (theorem, lines 289-297)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.slotOblV13PmKAD (theorem, lines 325-329)
+DEL x86 Fl4Proofs.P2.E2EPV15AD Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKAD (theorem, lines 339-351)
+DEL x86 Fl4Proofs.P2.E2EPV15Base Fl4Proofs.P2.E2EP.execWPRV12_of_V15 (theorem, lines 153-162)
+DEL x86 Fl4Proofs.P2.E2EPV15Base Fl4Proofs.P2.E2EP.execV15_of_WPRV12 (theorem, lines 164-176)
+DEL x86 Fl4Proofs.P2.E2EPV15Base Fl4Proofs.P2.E2EP.execV15_native_iff (theorem, lines 279-286)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.slotOblV13 (theorem, lines 134-138)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_V15_native (theorem, lines 140-149)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_localV13ofV15 (theorem, lines 151-163)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_localV13viaV15 (theorem, lines 165-176)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.fl4LocV13Pm (abbrev, lines 191-193)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.StartPmV (def, lines 195-200)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.StartV13Pm (def, lines 202-206)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.ExecCfg.nativePm (def, lines 213-219)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.PmFhV (def, lines 223-231)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.pmStartV_at (theorem, lines 233-241)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.slotOblV13Pm (theorem, lines 243-262)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.nativePm_noAd (theorem, lines 264-265)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.nativePm_vcpuNone (theorem, lines 267-268)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_V15_pm (theorem, lines 270-279)
+DEL x86 Fl4Proofs.P2.E2EPV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_localV13ofV15Pm (theorem, lines 281-294)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.slotOblV13PmK (theorem, lines 112-117)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.nativePmK_noAd (theorem, lines 119-120)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.nativePmK_vcpuNone (theorem, lines 122-123)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmK (theorem, lines 125-135)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.pmFhK_of_V (theorem, lines 146-153)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmVofK (theorem, lines 155-171)
+DEL x86 Fl4Proofs.P2.E2EPV15PmK Fl4Proofs.P2.E2EP.serializable_fl4_localV13ofV15PmK (theorem, lines 173-186)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.pmObl4_of_V (theorem, lines 245-250)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.StartPmV0 (def, lines 262-267)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.StartV13PmV (def, lines 269-273)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.ExecCfg.nativePmV (def, lines 275-281)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.startPmV0_of (theorem, lines 285-290)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.startPmV_of_V0 (theorem, lines 292-299)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.slotOblV13PmV (theorem, lines 301-320)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.nativePmV_noAd (theorem, lines 322-323)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.nativePmV_vcpuNone (theorem, lines 325-326)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmV (theorem, lines 328-338)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmV' (theorem, lines 340-350)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmOfV (theorem, lines 352-367)
+DEL x86 Fl4Proofs.P2.E2EPV15PmV Fl4Proofs.P2.E2EP.serializable_fl4_localV13ofV15PmV (theorem, lines 369-382)
+DEL x86 Fl4Proofs.P2.E2EPVX11 Fl4Proofs.P2.E2EP.serializable_fl4_localVX11G (theorem, lines 939-989)
+DEL x86 Fl4Proofs.P2.E2EPVX11 Fl4Proofs.P2.E2EP.serializable_fl4_localVX11 (theorem, lines 991-1015)
+DEL x86 Fl4Proofs.P2.E2EPVX11AE Fl4Proofs.P2.E2EP.execVX4c_aRunR (theorem, lines 190-256)
+DEL x86 Fl4Proofs.P2.E2EPVX11AE Fl4Proofs.P2.E2EP.serializable_VX4c_of (theorem, lines 258-275)
+DEL x86 Fl4Proofs.P2.E2EPVX11AE Fl4Proofs.P2.E2EP.serializable_fl4_localVX11AE (theorem, lines 361-413)
+DEL x86 Fl4Proofs.P2.E2EPVX11AF Fl4Proofs.P2.E2EP.serializable_fl4_localVX11AF (theorem, lines 107-159)
+DEL x86 Fl4Proofs.P2.E2EVFl4Top Fl4Proofs.P2.E2EV.serializable_fl4_localP3WV (theorem, lines 297-302)
+DEL x86 Fl4Proofs.P2.E2EVFl4Top Fl4Proofs.P2.E2EV.serializable_fl4_localP3W (theorem, lines 395-409)
+DEL x86 Fl4Proofs.P2.E2EVFl4W5 Fl4Proofs.P2.E2EV.serializable_fl4_localP3W5V (theorem, lines 387-392)
+DEL x86 Fl4Proofs.P2.E2EVFl4W6 Fl4Proofs.P2.E2EV.serializable_fl4_localP3W6V (theorem, lines 172-177)
+DEL x86 Fl4Proofs.P2.InsV15CM Fl4Proofs.P2.E2EP.insV15NOV51_of_50 (theorem, lines 229-233)
+DEL x86 Fl4Proofs.P2.InsV15CM Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADC (theorem, lines 258-268)
+DEL x86 Fl4Proofs.P2.InsV15CM Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADIofC (theorem, lines 270-279)
+DEL x86 Fl4Proofs.P2.InsV15Del Fl4Proofs.P2.E2EP.insV15NOV53_of_52 (theorem, lines 430-434)
+DEL x86 Fl4Proofs.P2.InsV15Del Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADD (theorem, lines 448-458)
+DEL x86 Fl4Proofs.P2.InsV15Del Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADOofD (theorem, lines 460-469)
+DEL x86 Fl4Proofs.P2.InsV15Io Fl4Proofs.P2.E2EP.insV15NOV52_of_51 (theorem, lines 137-141)
+DEL x86 Fl4Proofs.P2.InsV15Io Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADO (theorem, lines 176-186)
+DEL x86 Fl4Proofs.P2.InsV15Io Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADCofO (theorem, lines 188-197)
+DEL x86 Fl4Proofs.P2.InsV15Irq Fl4Proofs.P2.E2EP.insV15NOV50_of_49S (theorem, lines 571-575)
+DEL x86 Fl4Proofs.P2.InsV15Irq Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADI (theorem, lines 605-615)
+DEL x86 Fl4Proofs.P2.InsV15Irq Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADSofI (theorem, lines 617-626)
+DEL x86 Fl4Proofs.P2.InsV15N Fl4Proofs.P2.E2EP.insV15_of_N (theorem, lines 49-61)
+DEL x86 Fl4Proofs.P2.InsV15N Fl4Proofs.P2.E2EP.serializable_fl4_V15_adN (theorem, lines 70-78)
+DEL x86 Fl4Proofs.P2.InsV15N Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADN (theorem, lines 88-98)
+DEL x86 Fl4Proofs.P2.InsV15O Fl4Proofs.P2.E2EP.insV15NO_of_N (theorem, lines 46-50)
+DEL x86 Fl4Proofs.P2.InsV15O Fl4Proofs.P2.E2EP.insV15N_of_NO (theorem, lines 65-76)
+DEL x86 Fl4Proofs.P2.InsV15O Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADV (theorem, lines 78-89)
+DEL x86 Fl4Proofs.P2.InsV15O Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADNofV (theorem, lines 91-100)
+DEL x86 Fl4Proofs.P2.InsV15O48 Fl4Proofs.P2.E2EP.insV15NO47_of_48 (theorem, lines 39-46)
+DEL x86 Fl4Proofs.P2.InsV15O48 Fl4Proofs.P2.E2EP.insV15NO48_of_47 (theorem, lines 48-52)
+DEL x86 Fl4Proofs.P2.InsV15O48 Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADH (theorem, lines 54-65)
+DEL x86 Fl4Proofs.P2.InsV15O48 Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADVofH (theorem, lines 67-76)
+DEL x86 Fl4Proofs.P2.InsV15O48V Fl4Proofs.P2.E2EP.insV15NOV48_of_NO48 (theorem, lines 118-122)
+DEL x86 Fl4Proofs.P2.InsV15O48V Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADW (theorem, lines 138-148)
+DEL x86 Fl4Proofs.P2.InsV15O48V Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADHofW (theorem, lines 150-159)
+DEL x86 Fl4Proofs.P2.InsV15O49 Fl4Proofs.P2.E2EP.insV15NOV49_of_48V (theorem, lines 46-50)
+DEL x86 Fl4Proofs.P2.InsV15O49 Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADF (theorem, lines 87-97)
+DEL x86 Fl4Proofs.P2.InsV15O49 Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADWofF (theorem, lines 99-108)
+DEL x86 Fl4Proofs.P2.InsV15O49S Fl4Proofs.P2.E2EP.insV15NOV49S_of_49 (theorem, lines 45-49)
+DEL x86 Fl4Proofs.P2.InsV15O49S Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADS (theorem, lines 84-94)
+DEL x86 Fl4Proofs.P2.InsV15O49S Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADFofS (theorem, lines 96-105)
+DEL x86 Fl4Proofs.P2.InsV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADOofZ (theorem, lines 567-576)
+DEL x86 Fl4Proofs.P2.InsV15Pm Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKADZofO (theorem, lines 578-586)
+DEL x86 Fl4Proofs.P2.InvPmAnnV Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKG (theorem, lines 469-479)
+DEL x86 Fl4Proofs.P2.InvPmGdV Fl4Proofs.P2.E2EP.serializable_fl4_V15_pmKF (theorem, lines 394-403)

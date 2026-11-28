@@ -37,7 +37,7 @@ Named premises (of `pmPaths`): [W] `hacc`, `hdec`, `hmv`, `hra`; [J] `huf` (user
 `invBodyPmG` from the entries and their alternatives) and [W] `hro` (`PmRoW` of the tree). The program tree and
 its `NoZero` are proved (`pm_isProg`, `pm_noZero`, `pm_hpz`: the tree `R.invBodyPmG` of `ProgGenPm*`). No existing statement changes.
 -/
-import Fl4Proofs.P2.E2EPW11RI
+import Fl4Proofs.P2.E2EPW11R
 import Fl4Proofs.P2.InvPmPlan
 import Fl4Proofs.P2.ProgGenPmTop
 open Aeneas Aeneas.Std Result

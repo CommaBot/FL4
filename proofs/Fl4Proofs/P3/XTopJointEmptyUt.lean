@@ -25,6 +25,8 @@ The cover is moved to the state after (the covering cap is not `sl`'s) and
 
 * `emptySlot_cdt_orig`: the spec's `empty_slot` of a slot holding a cap sets
   the CDT and the original bits as `emptySlotCdtState`.
+
+(mmuAD gen 42b3) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `delUtFact_of`; each `JAtZ` name (or the unsuffixed name) is a one-line corollary via `JAtZ.toB` with its statement unchanged.
 -/
 import Fl4Proofs.P3.XTopJointEmpty
 open Aeneas Aeneas.Std Result
@@ -87,9 +89,9 @@ whose only child was the emptied slot `sl` (itself childless) is childless
 after; the slots in use, the original slots and the debug-list head, covered
 by caps other than `sl`'s (or in the kernel block, which the untyped regions
 miss, `JCovD.ks`), miss its region (`ut_free`). -/
-theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl)
     (hDS2 : DState (L := L) Z.th s' σ' G') (hU2 : UtInv (L.mem s') G')
     (hnull : capV (L.mem s') (cslotAddr sl) = .Null)
@@ -175,6 +177,30 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       · have := out _ (Or.inl (hdbg hz hi))
         omega
 
+
+/-- `JAtZB.delUtFact_of` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl)
+    (hDS2 : DState (L := L) Z.th s' σ' G') (hU2 : UtInv (L.mem s') G')
+    (hnull : capV (L.mem s') (cslotAddr sl) = .Null)
+    (hoth : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y)
+    (hw : P1.WritesIn st s s' (InSlot Z.th))
+    (hcdt : σ'.cdt = (emptySlotCdtState σ sl).cdt)
+    (hor : σ'.isOriginalCap = (emptySlotCdtState σ sl).isOriginalCap)
+    {u : Fl4Spec.CslotPtr} {up usb ufi : U64} {udev : Bool} (hu : AbsSlot Z.th u)
+    (hcu : capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev))
+    (hpar : σ.cdt sl = some u) (honly : ∀ x, σ.cdt x = some u → x = sl) (hleaf : ∀ x, σ.cdt x ≠ some sl)
+    (hlive : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl →
+      (capV (L.mem s) y ≠ .Null ∨ ∃ x, cslotAddr x = y ∧ σ.isOriginalCap x = true) →
+      SlotLiveAt (L.mem s) Z.G (L.ksb s) (cslotAddr sl) y)
+    (hdbg : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
+      L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ L.idleW s →
+      OtherCov (L.mem s) Z.G (cslotAddr sl) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val
+        ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1)) :
+    DelUtFact (L := L) Z.th s' σ' up usb ufi udev :=
+  J.toB.delUtFact_of hA hDS2 hU2 hnull hoth hw hcdt hor hu hcu hpar honly hleaf hlive hdbg
 end
 
 end

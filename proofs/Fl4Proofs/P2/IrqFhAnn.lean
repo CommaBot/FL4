@@ -22,6 +22,10 @@ its run at `s` is its run at `σ` (`irqTail_guardT` at `σ`, P1's invariant hold
   (`interp_gd`, `StepOK` by `stepOK_nondec` / `stepOK_state`, i.e. the `withinM_of_within` variant keeping the
   current thread's `AFFINITY` asked for in the handoff: here the store checks it at the write).
 
+Gen 49 (in place, statement of `irq_fh_annV` unchanged): its certificate data is split out as **`irq_fh_cert`** (read
+set `IrqFhRd`, write set `IrqFhWd`, the guarded run with `StepOK`, and the writes' `WPerm` at the start), so that the
+`InsA` twin (P2/InsV15Irq) reuses it.
+
 No named premises; no existing statement changed.
 -/
 import Fl4Proofs.P2.IrqFhGd
@@ -68,6 +72,12 @@ def IrqFhWd (Z : U64 → Nat) (σ : S) (b : U64) : Prop :=
 def IrqFhP (Z : U64 → Nat) (c : U64) (σ : S) (x : S) (q v : U64) : Prop :=
   IrqFhWn st Z σ q ∨ (q = stA (L.curW σ) ∧ v = sched.TS_RUNNING ∧ L.mem x (stA (L.curW σ)) = sched.TS_RESTART ∧
     L.mem x (affA (L.curW σ)) = c)
+
+/-- **The read set of the certificate**: `IrqFhRn` and the earliest thread's `AFFINITY` (gen 49, split out of
+`irq_fh_annV`). -/
+def IrqFhRd (Z : U64 → Nat) (irq : U64) (σ : S) (b : U64) : Prop :=
+  IrqFhRn st Z irq σ b ∨ (L.mem σ (L.nodeAt σ (L.cpu σ) layout.node.TIMER_MIN) ≠ 0#u64 ∧
+    b = core.num.U64.wrapping_add (L.mem σ (L.nodeAt σ (L.cpu σ) layout.node.TIMER_MIN)) 3520#u64)
 
 end sets
 
@@ -127,10 +137,11 @@ section main
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A : Type} (ar : machine.Arch A)
 
-set_option maxHeartbeats 16000000 in
-/-- **U9's armed timer-interrupt program is `Safe` at a view start whose earliest thread is not homed** (module
-docstring). -/
-theorem irq_fh_annV (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
+set_option maxHeartbeats 4000000 in
+/-- **The data of `irq_fh_annV`'s certificate** (gen 49, split out of `irq_fh_annV` in place): the read set
+`IrqFhRd`, aligned and readable, the write set `IrqFhWd`, held at the start, and the guarded run with `StepOK` at
+every state carrying `ρ` on the read set. -/
+theorem irq_fh_cert (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
     {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
     (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
     {lk : S → U64 → Prop} {irq : U64} {pl : localtimer.TimerIrqPlan} {σ : S} {a : A}
@@ -138,11 +149,16 @@ theorem irq_fh_annV (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU
     (hc : L.cpu σ = c) (hl : lk σ = hs)
     (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x)
     (hF : ρ (tmA (L := L) σ) ≠ 0#u64 → ρ (affA (ρ (tmA (L := L) σ))) ≠ c) :
-    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
-      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
-        (tr (rsE (· ∈ K.ptes) (MaxR (userV K.toKLayoutV) st lk) σ) (· ∈ K.user)
-          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
-          (R.localtimer.handle_timer_irq_local irq pl) ∅ a)) := by
+    (∀ b, IrqFhRd st (Heap.scBits K.toKLayout.heap) irq σ b → Aligned b) ∧
+    (∀ q, IrqFhRd st (Heap.scBits K.toKLayout.heap) irq σ q → (rsE (· ∈ K.ptes) (MaxR (userV K.toKLayoutV) st lk) σ q ∧ VO K c ρ q) ∧ ¬ q ∈ K.user) ∧
+    (∀ x, IrqFhWd st (Heap.scBits K.toKLayout.heap) σ x → Aligned x ∧ (¬ x ∈ K.user → HeldV c hs (ownP K μ x))) ∧
+    (∀ q, ¬ q ∈ K.user → (rsE (· ∈ K.ptes) (MaxR (userV K.toKLayoutV) st lk) σ q ∧ VO K c ρ q) → PO c hs (ownP K μ q)) ∧
+    (∀ s : S, L.cpu s = L.cpu σ → L.ksb s = L.ksb σ → (∀ b, IrqFhRd st (Heap.scBits K.toKLayout.heap) irq σ b → L.mem s b = ρ b) →
+      ∃ r, interp (guard st (IrqFhRd st (Heap.scBits K.toKLayout.heap) irq σ) (IrqFhWd st (Heap.scBits K.toKLayout.heap) σ)) ar
+          (R.localtimer.handle_timer_irq_local irq pl) s a = ok r ∧
+        WithinM st ar (fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ)
+          (· ∈ K.user) c hs (L.mem x) (L.mem y)) (R.localtimer.handle_timer_irq_local irq pl) s a) ∧
+    (∀ x, IrqFhWd st (Heap.scBits K.toKLayout.heap) σ x → PathObl.WPerm (OwnMap.own K.toKLayout) (L.cpu σ) (lk σ) (L.mem σ) x) := by
   have hX := hJ.regionOKX
   have hK0 := hJ.regionOK
   have hUO := hJ.userOK
@@ -559,10 +575,31 @@ theorem irq_fh_annV (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU
       (Q := fun x y => PathObl.StepOK (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) (· ∈ K.user) c hs
         (L.mem x) (L.mem y)) (I := fun _ => True) hStep _ s a r trivial hgd
     exact (interp_mguard _ s a r hm).2
+  exact ⟨hal, hR0, hWd, hRPO, hgo, fun x hx => (gW x hx).2.1⟩
+
+set_option maxHeartbeats 16000000 in
+/-- **U9's armed timer-interrupt program is `Safe` at a view start whose earliest thread is not homed** (module
+docstring). -/
+theorem irq_fh_annV (hA : P0.ArchTotal ar) {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K) (nv : K.vcpus = ∅)
+    {c : U64} {hs : U64 → Prop} {ρ μ : U64 → U64}
+    (hV : VEq (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs ρ μ)
+    {lk : S → U64 → Prop} {irq : U64} {pl : localtimer.TimerIrqPlan} {σ : S} {a : A}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hq : QPs K st σ) (hirq : irq.val < 128)
+    (hc : L.cpu σ = c) (hl : lk σ = hs)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x)
+    (hF : ρ (tmA (L := L) σ) ≠ 0#u64 → ρ (affA (ρ (tmA (L := L) σ))) ≠ c) :
+    Safe (ownP K) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c hs μ
+      (narrowSP (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout μ) c (VO K c ρ) ∅
+        (tr (rsE (· ∈ K.ptes) (MaxR (userV K.toKLayoutV) st lk) σ) (· ∈ K.user)
+          (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
+          (R.localtimer.handle_timer_irq_local irq pl) ∅ a)) := by
+  obtain ⟨hal, hR0, hWd, hRPO, hgo, -⟩ := irq_fh_cert ar hA hK hU nv hV hJ hq hirq hc hl hmm hF
   have h := PathObl.safe_tr_wr (own := ownP K) (cls := OwnMap.cls K.toKLayout) (kt := OwnMap.ko K.toKLayout μ)
     (User := (· ∈ K.user)) ar (moveHeldP hK) (ownDepP hK hU) (masksWr_plain st) (a := a)
-    (R.localtimer.handle_timer_irq_local irq pl) (irq_noZero irq pl) hc (Ro := Ro) (Rd := Rd) (Wd := Wd) hal hR0
-    hWd hRPO (fun x hx => hV.2.1 x hx) hgo
+    (R.localtimer.handle_timer_irq_local irq pl) (irq_noZero irq pl) hc
+    (Ro := fun q => rsE (· ∈ K.ptes) (MaxR (userV K.toKLayoutV) st lk) σ q ∧ VO K c ρ q)
+    (Rd := IrqFhRd st (Heap.scBits K.toKLayout.heap) irq σ) (Wd := IrqFhWd st (Heap.scBits K.toKLayout.heap) σ)
+    hal hR0 hWd hRPO (fun x hx => hV.2.1 x hx) hgo
   exact E2E.safe_narrow_tr ar _ ∅ a μ h
 
 end main

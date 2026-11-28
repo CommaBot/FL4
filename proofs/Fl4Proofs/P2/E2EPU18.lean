@@ -31,6 +31,9 @@
 * Open: `VSafe9` [J] at irq (route (a)), vq and invocation starts; `VSafe` [J] unchanged.
 
 No existing statement changed except the root import list.
+
+Gen 48 (in place, statements unchanged): `st_k0_nar` (the four run facts) split out of `st_k0_safeC`, shared with
+`st_k0_insAH` (P2/InsV15StH).
 -/
 import Fl4Proofs.P2.StHView
 import Fl4Proofs.P2.E2EPU17
@@ -135,6 +138,73 @@ theorem st_dec_alt (hA : P0.ArchTotal ar) {K : KLayoutP} (hU : UserOKP K) {c : U
         (gS := guard st (StNR st K c ρ lk s0) (StNW K c ρ)) hr').1,
       (st_walk_v ar V hJ E htH hat0 hto.1 hto.2 hAlt (gS := mguard st (StVW st K.toKLayout c ρ)) hr').1⟩
 
+set_option maxHeartbeats 4000000 in
+/-- **st's narrowed and checked runs at a homed view start** (split out of `st_k0_safeC`'s proof in place, gen 48):
+the four run facts `LocalPath.safeVQW` asks (`VQNarW`), for the st path at the view, the start states agreeing with
+`σ` on the core, the kernel base, the frame masks and the aligned kernel words. -/
+theorem st_k0_nar (j : StArg S) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOKP K) (c : U64) (ρ : U64 → U64)
+    (hH : ρ (fld j.target oAFFINITY) = c)
+    (hp : (stSlotC st ar hA (masksWr_plain st)).Prem j K.toKLayoutV (view K.toKLayout c ρ))
+    (W : NoVcpuRW K.toKLayoutV
+      ((stSlotC st ar hA (masksWr_plain st)).path j K.toKLayoutV (view K.toKLayout c ρ) hK.base hU.base hp))
+    (hAv : AvoidP K ((LocalPath.liftV hK.base (LocalPath.atV hK.base
+      ((stSlotC st ar hA (masksWr_plain st)).path j K.toKLayoutV (view K.toKLayout c ρ) hK.base hU.base hp) W)
+        (noVcpuRd_atV hK.base _ W)).rJ K (fun b hb => Or.inl hb)))
+    (σ : S) (a : A) (hc' : L.cpu σ = c) :
+    (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx (view K.toKLayout c ρ)) _ hAv).VQNarW σ a
+      (view K.toKLayout c ρ) (@StNR S st L K c ρ j.lk) (fun _ => StNW K c ρ) (@StVW S st L K.toKLayout c ρ)
+      (fun s0 => L.cpu s0 = L.cpu σ ∧ L.ksb s0 = L.ksb σ ∧ st.frame_masks s0 = st.frame_masks σ ∧
+        ∀ x, Aligned x → x ∉ K.user → L.mem s0 x = L.mem σ x) := by
+  have hpr : K.toKLayoutV.vcpus = ∅ ∧ StPremK2B st j K.toKLayoutV (view K.toKLayout c ρ) := hp
+  have vf : VFacts L K.toKLayoutV := VFacts.ofEmpty hpr.1 hpr.2.bun.choose_spec
+  -- the facts at a start state
+  have At : ∀ s0 : S, (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx (view K.toKLayout c ρ)) _ hAv).Pre s0 →
+      L.cpu s0 = c → (∀ x, Aligned x → x ∉ K.user → L.mem s0 x = view K.toKLayout c ρ x) →
+      ∃ Cs Ω Sg Ac, ∃ E0 : StEV st K Cs Ω Sg Ac j.target s0, SlJAt (L := L) K.toKLayout s0 ∧
+        SlVC (L := L) K c ρ s0 := by
+    intro s0 hpre0 hc0 hm0
+    obtain ⟨⟨hJ0, hQ0⟩, hQP0⟩ := id hpre0
+    have hJ0' : SlJAt (L := L) K.toKLayout s0 := hJ0
+    have hQ0' : j.Q K.toKLayoutV (view K.toKLayout c ρ) s0 := hQ0
+    have hQP0' : QPs K st s0 := hQP0
+    have E0 := (stEntK_userV hK.base (vf.v hJ0').1 (vf.v hJ0').2.1 (slJAt_ksb hJ0') (hpr.2.pe s0 hJ0' hQ0')).ent
+    exact ⟨_, _, _, _, E0, hJ0', stVC_ent hK hU hJ0' E0 hQP0' hc0 hm0⟩
+  unfold Fl4Proofs.P2.E2E.LocalPath.VQNarW Fl4Proofs.P2.E2E.LocalPath.VQNar
+  refine ⟨⟨?_, ?_⟩, ?_, ?_⟩
+  · -- accepted runs, narrowed
+    intro s0 r hpre0 _ hc0 hρ0 hrun0 hacc0
+    obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
+    obtain ⟨b, s1, a1⟩ := r
+    have hb : b = true := hacc0
+    subst hb
+    have hr0 : localtimer.handle_set_timer_local st ar s0 a j.n j.target = ok (true, s1, a1) := hrun0
+    exact st_acc_v (st := st) (L := L) ar hA (lk := j.lk) V0 hJ0 E0 hH hr0
+  · -- declined runs, narrowed, at every alternative
+    intro s0 r hpre0 _ hc0 hρ0 hrun0 hdec0 s' r' hAlt0 hrun'
+    obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
+    obtain ⟨b, s1, a1⟩ := r
+    have hb : b = false := Bool.eq_false_iff.2 hdec0
+    subst hb
+    exact (st_dec_alt st ar hA hU V0 hJ0 E0 hH hrun0 hAlt0 hrun').1
+  · -- accepted runs, checked
+    intro s0 r hpre0 _ hc0 hρ0 hrun0 hacc0
+    obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
+    obtain ⟨b, s1, a1⟩ := r
+    have hb : b = true := hacc0
+    subst hb
+    have hr0 : localtimer.handle_set_timer_local st ar s0 a j.n j.target = ok (true, s1, a1) := hrun0
+    have g := st_acc_vw (st := st) (L := L) ar hA (regionOK_userV hK.base) (userOK_userV hK.base hU.base)
+      (st_isProg S j.n j.target) E0.inv E0.tg E0.lay hH hr0
+    rw [stVW_userV] at g
+    exact g
+  · -- declined runs, checked, at every alternative
+    intro s0 r hpre0 _ hc0 hρ0 hrun0 hdec0 s' r' hAlt0 hrun'
+    obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
+    obtain ⟨b, s1, a1⟩ := r
+    have hb : b = false := Bool.eq_false_iff.2 hdec0
+    subst hb
+    exact (st_dec_alt st ar hA hU V0 hJ0 E0 hH hrun0 hAlt0 hrun').2
+
 set_option maxHeartbeats 8000000 in
 /-- **The st body is `Safe` at every view start whose target is homed** (module docstring). -/
 theorem st_k0_safeC (j : StArg S) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
@@ -160,24 +230,8 @@ theorem st_k0_safeC (j : StArg S) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOK
       rintro P W hAv rfl hS'
       obtain ⟨σ, a, hpre, hc, hl, hμ, rfl⟩ := hS'
       have hc' : L.cpu σ = c := hc
-      have hl' : j.lk σ = hs := hl
       refine Fl4Proofs.P2.Serial.safe_narrow _ ?_ ∅
-      have hz := st_noZero j.n j.target
-      have hPg := IsProg.on (st_isProg S j.n j.target) ar st (fun _ => True)
-      have hpr : K.toKLayoutV.vcpus = ∅ ∧ StPremK2B st j K.toKLayoutV (view K.toKLayout c ρ) := hp
-      have vf : VFacts L K.toKLayoutV := VFacts.ofEmpty hpr.1 hpr.2.bun.choose_spec
-      -- the facts at a start state
-      have At : ∀ s0 : S, (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx (view K.toKLayout c ρ)) _ hAv).Pre s0 →
-          L.cpu s0 = c → (∀ x, Aligned x → x ∉ K.user → L.mem s0 x = view K.toKLayout c ρ x) →
-          ∃ Cs Ω Sg Ac, ∃ E0 : StEV st K Cs Ω Sg Ac j.target s0, SlJAt (L := L) K.toKLayout s0 ∧
-            SlVC (L := L) K c ρ s0 := by
-        intro s0 hpre0 hc0 hm0
-        obtain ⟨⟨hJ0, hQ0⟩, hQP0⟩ := id hpre0
-        have hJ0' : SlJAt (L := L) K.toKLayout s0 := hJ0
-        have hQ0' : j.Q K.toKLayoutV (view K.toKLayout c ρ) s0 := hQ0
-        have hQP0' : QPs K st s0 := hQP0
-        have E0 := (stEntK_userV hK.base (vf.v hJ0').1 (vf.v hJ0').2.1 (slJAt_ksb hJ0') (hpr.2.pe s0 hJ0' hQ0')).ent
-        exact ⟨_, _, _, _, E0, hJ0', stVC_ent hK hU hJ0' E0 hQP0' hc0 hm0⟩
+      obtain ⟨⟨hNA, hND⟩, hVA, hVD⟩ := st_k0_nar st ar hA j K hK hU c ρ hH hp W hAv σ a hc'
       have := E2E.LocalPath.safeVQW
         (LocalPath.cutLiftP hK hU (fun x hx => ko_pte hK hx (view K.toKLayout c ρ)) _ hAv)
         (moveHeldP hK) (ownDepP hK hU) (ρv := view K.toKLayout c ρ) (ρ := ρ) (μ := μ) (σ := σ) (a := a)
@@ -195,41 +249,8 @@ theorem st_k0_safeC (j : StArg S) (K : KLayoutP) (hK : RegionOKP K) (hU : UserOK
           refine ⟨(L.cpu_wr s b v).trans hQ.1, (L.ksb_wr s b v).trans hQ.2.1,
             (masksWr_plain st s b v).trans hQ.2.2.1, fun x hx hu' => ?_⟩
           exact (mem_wr_ne' (L := L) hb hx (fun e => hu' (e ▸ hu))).trans (hQ.2.2.2 x hx hu'))
-        ?_ ?_ ?_ ?_
-      · rw [hc, hl] at this; exact this
-      · -- accepted runs, narrowed
-        intro s0 r hpre0 _ hc0 hρ0 hrun0 hacc0
-        obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
-        obtain ⟨b, s1, a1⟩ := r
-        have hb : b = true := hacc0
-        subst hb
-        have hr0 : localtimer.handle_set_timer_local st ar s0 a j.n j.target = ok (true, s1, a1) := hrun0
-        exact st_acc_v (st := st) (L := L) ar hA (lk := j.lk) V0 hJ0 E0 hH hr0
-      · -- declined runs, narrowed, at every alternative
-        intro s0 r hpre0 _ hc0 hρ0 hrun0 hdec0 s' r' hAlt0 hrun'
-        obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
-        obtain ⟨b, s1, a1⟩ := r
-        have hb : b = false := Bool.eq_false_iff.2 hdec0
-        subst hb
-        exact (st_dec_alt st ar hA hU V0 hJ0 E0 hH hrun0 hAlt0 hrun').1
-      · -- accepted runs, checked
-        intro s0 r hpre0 _ hc0 hρ0 hrun0 hacc0
-        obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
-        obtain ⟨b, s1, a1⟩ := r
-        have hb : b = true := hacc0
-        subst hb
-        have hr0 : localtimer.handle_set_timer_local st ar s0 a j.n j.target = ok (true, s1, a1) := hrun0
-        have g := st_acc_vw (st := st) (L := L) ar hA (regionOK_userV hK.base) (userOK_userV hK.base hU.base)
-          (st_isProg S j.n j.target) E0.inv E0.tg E0.lay hH hr0
-        rw [stVW_userV] at g
-        exact g
-      · -- declined runs, checked, at every alternative
-        intro s0 r hpre0 _ hc0 hρ0 hrun0 hdec0 s' r' hAlt0 hrun'
-        obtain ⟨Cs, Ω, Sg, Ac, E0, hJ0, V0⟩ := At s0 hpre0 (hc0.trans hc') hρ0
-        obtain ⟨b, s1, a1⟩ := r
-        have hb : b = false := Bool.eq_false_iff.2 hdec0
-        subst hb
-        exact (st_dec_alt st ar hA hU V0 hJ0 E0 hH hrun0 hAlt0 hrun').2
+        hNA hND hVA hVD
+      rw [hc, hl] at this; exact this
     exact key _ _ (allC st ar hA (masksWr_plain st) L.total a0 (.st j) K (view K.toKLayout c ρ) hK hU)
       (SlotU.fam_pos _ _ hp) hS
   · have key : ∀ (P : E2E.LocalPath (OwnMap.own (userV K.toKLayoutV)) (OwnMap.cls (userV K.toKLayoutV))
@@ -287,50 +308,6 @@ theorem st_annV_h {Ch : S → Prop}
     rw [hM.own, hM.cls, hM.ko] at hV ⊢
     exact st_k0_safeC st ar hA a0 j K hK hU c _ ρ s.mem k hV hf hS
   all_goals exact False.elim hf
-
-/-- **FL4 end to end with st's `VSafe9` discharged at every st start** (module docstring), over the family whose sl
-and st programs are the extracted trees. The conclusion is about the physical memory. -/
-theorem serializable_fl4_localU18 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U18At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_WPRV10S ?_ ?_ ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  · intro Ch K s hK hU c hs q i hC hE hsf
-    rcases i with i | ((j | j) | j)
-    · exact startAt_UNC st ar hA a0 P hIoa hC hE hsf
-    · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · intro s K hK hU c k ρ i hM hV hn
-    exact vSafe_ioC st ar hA a0 hM hV (not_not.mp hn)
-  · intro Ch s K hK hU c k ρ i hC hE hsf hM hV hf
-    rcases hf with ((((hf | hf) | hf) | hf) | hf)
-    · exact vmF_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact vmR_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact sl_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact st_annV_fh st ar hA a0 hC hE hsf hM hV hf
-    · exact st_annV_h st ar hA a0 hC hE hsf hM hV hf
-
-/-- **U17's statement follows from U18** (every U17 execution is a U18 one). -/
-theorem serializable_fl4_localU17of18 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U17At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU18 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV10_mono (fun _ _ _ _ _ _ hf => Or.inl hf) h) hq
 
 end all
 

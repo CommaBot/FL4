@@ -11,10 +11,12 @@ not hold and the tops were not applied. This module finishes the body and leaves
   every `LocalPath.body`) is `StFree`; **`stFree_cutP`** / **`stFree_narrow`**: the PTE cut (`cutP`) and the
   re-annotation (`narrowSP`, hence `annV`) keep it. **`stFree_kB`**: the armed timer-IRQ body `kB O a` is `StFree` —
   no fact about the extracted `handle_timer_irq_local` beyond its being a translated tree is needed.
-* **`run_loc`**: along an `ExecWPRV12`, a core-0 local path at an open gate whose remaining body is `StFree` runs to
+* **`run_loc`**: along an `ExecV15 cfg` (gen 56; until gen 55 an `ExecWPRV12`), a core-0
+  local path at an open gate whose remaining body is `StFree` runs to
   `.done` (reads `rd` / `rds` / `rdc` take memory's value, `wr` writes, every `lock` attempt is taken as a failure,
   `b = false`, which `Step.lock` allows at any time), other cores' phases, the gate and the log unchanged. Each step's
-  `Fl4StepWPRV12` (`stepW_loc`): `arm` / `start` from the phases (no `.start` is ever met: `StFree`), `serX` / `serC`
+  `Fl4StepV15` (`stepW_loc`; at an open gate the step keeps the epoch memory, `execV15_opn`):
+  `arm` / `start` from the phases (no `.start` is ever met: `StFree`), `serX` / `serC`
   / `serG` vacuous (the gate is open, so no `SerStep`), `keep` by `rfl`. **`leave_loc`**: then the `leave` step.
   The program is an inductive (well-founded) tree, so the run terminates by induction; it is one of the body's runs,
   not a chosen one (the values read are memory's).
@@ -22,22 +24,25 @@ not hold and the tops were not applied. This module finishes the body and leaves
   configuration with `NoLoc` and log `[.start k]`.
 
 ## The tops on an execution with a real start (goal 1)
-* **`runEndV12_B`** / **`runEndV13_B`**: `ExecWPRV12 (famB a0) (¬ IoIx) (StartV2C | StartV13) … (s0B O) … s …` with
+* **`runEndV13_B`** (gen 56: `∃ s E, ExecV15 (ExecCfg.native …) … (s0B O) … s … E`; `runEndV12_B` retired) with
   `NoLoc s` and `s.log = [.start (kB O a)]`: the execution runs the timer-IRQ path's `.start` step (start fact
   proved, gen 37) and its whole body.
-* **`topV12_B`** / **`topV13_B`**: `serializable_fl4_localV12` / `serializable_fl4_localV13` applied to that
+* `topV12_B` / `topV13_B` (retired in gen 55; now **`topV15_B`**, P2/BootV15):
+  `serializable_fl4_localV12` / `serializable_fl4_localV13` applied to that
   execution: `Run (.start (kB O a)) memB s.mem` — the top's conclusion (the log's sequential run reaches the physical
   memory) on an execution containing a real start of a real path.
 
 ## A serial step from the boot to a P3 exit (goal 2, the Cfg side)
 * `sfg1 … sfg4`: core 0 takes the ticket with a body `p`, scans itself, closes the gate and runs `p` (`Run p m m'`)
   as a serial entry, the exit ghosts being rule 8's for a new layout `K'` (memory `m'`), gate open again.
-  **`exec_ser`**: the four steps are an `ExecWPRV12` from `cfg0 K m` (layout `K`, chain `Ch0`) to `sfg4 …` (layout
+  **`exec_ser`**: the four steps are an `ExecV15 cfg` (gen 56) from `cfg0 K m`
+  (layout `K`, chain `Ch0`) to `sfg4 …` (layout
   `K'`, chain `Ch'`) for every `K'`, `Ch'` with `SerExitW P K' (Ch' e)` and `K'.vcpus = ∅ ∧ K'.ptes = ptesR K' m'`.
   `sfg4` is `cfg0 K' m'` up to `seen` / `log` (`sfg4_ph`, `sfg4_gate`, `mapsP_sfg4`, `noLoc_sfg4`).
 * **`serExit_of`**: every P3 exit `hJ : JReachU17 σe a3 τ` gives `SerExitW` for `chainC P hJ`'s layout and chain.
   **`serBridge_B`**: from `s0B O`, for any such exit, any `Run p memB m'` and the convention
-  `ptes = ptesR K' m'`, the serial step is an `ExecWPRV12` of V12 / V13's family to the exit's layout. So what goal 2
+  `ptes = ptesR K' m'`, the serial step is an `ExecV15` of every configuration admitting VCPU-free layouts.
+  So what goal 2
   still needs is entirely on the P3 side: a `JReachU17` state `σe` with a non-idle current thread, the memory `m'`
   reached from `memB` by writes, and the layout convention there (see the handoff, §43).
 
@@ -153,15 +158,14 @@ theorem dfg3_ph (K : KLayoutP) (m : U64 → U64) (k : SP) {d : U64} (hd : d ≠ 
 section run
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-variable {ι : Type} {LP : PathsP ι} {NoV : ι → Prop}
-  {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+variable {ι : Type} {cfg : ExecCfg S ι}
   {P : LocPlat st arI AR MR} {s0 : Cfg U64 U64 U64 U64} {K0 : KLayoutP} {Ch0 : U64 → S → Prop}
-  {K : KLayoutP} {Ch : U64 → S → Prop}
+  {K : KLayoutP} {Ch : U64 → S → Prop} {E : U64 → U64}
 
-/-- **A local step at an open gate** (no `SerStep`): every field of `Fl4StepWPRV12` from the phases. -/
+/-- **A local step at an open gate** (no `SerStep`): every field of `Fl4StepV15` from the phases. -/
 theorem stepW_loc {s s' : Cfg U64 U64 U64 U64} {c : U64} (hg : s.gate = .opn)
     (harm : ∀ p, s'.ph c ≠ .arm p) (hst : ∀ p0 k W, s.ph c ≠ .loc p0 (.start k) W) :
-    Fl4StepWPRV12 LP NoV SF P s K Ch c s' K Ch where
+    Fl4StepV15 cfg P s K Ch c s' K Ch where
   arm p h := absurd h (harm p)
   start p0 k W h := absurd h (hst p0 k W)
   serX h := absurd (h.1.symm.trans hg) (by decide)
@@ -169,26 +173,33 @@ theorem stepW_loc {s s' : Cfg U64 U64 U64 U64} {c : U64} (hg : s.gate = .opn)
   serG h := absurd (h.1.symm.trans hg) (by decide)
   keep _ := ⟨rfl, rfl⟩
 
+/-- **A step at an open gate keeps the epoch memory.** -/
+theorem execV15_opn {s s' : Cfg U64 U64 U64 U64} {c : U64} (he : ExecV15 cfg P s0 K0 Ch0 s K Ch E)
+    (hg : s.gate = .opn) (hS : Step s c s') (g : Fl4StepV15 cfg P s K Ch c s' K Ch) :
+    ExecV15 cfg P s0 K0 Ch0 s' K Ch E := by
+  have h := ExecV15.step he hS g
+  rwa [if_neg (fun h => absurd (h.1.symm.trans hg) (by decide))] at h
+
 /-- One local step of core 0, then the rest of the run. -/
 theorem run_cont {s s1 : Cfg U64 U64 U64 U64} {p0 k' : SP} {W1 : Set U64}
-    (he : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch) (hg : s.gate = .opn) (hS : Step s 0#u64 s1)
+    (he : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hg : s.gate = .opn) (hS : Step s 0#u64 s1)
     (hst : ∀ p0 k W, s.ph 0#u64 ≠ .loc p0 (.start k) W)
     (hph : s1.ph = Function.update s.ph 0#u64 (.loc p0 k' W1)) (hg1 : s1.gate = s.gate) (hl1 : s1.log = s.log)
-    (ih : ∀ {s : Cfg U64 U64 U64 U64} {p0 : SP} {W : Set U64}, ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch →
+    (ih : ∀ {s : Cfg U64 U64 U64 U64} {p0 : SP} {W : Set U64}, ExecV15 cfg P s0 K0 Ch0 s K Ch E →
       s.ph 0#u64 = .loc p0 k' W → s.gate = .opn →
-      ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecWPRV12 LP NoV SF P s0 K0 Ch0 s' K Ch ∧
+      ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecV15 cfg P s0 K0 Ch0 s' K Ch E ∧
         s'.ph 0#u64 = .loc p0 .done W' ∧ (∀ d, d ≠ 0#u64 → s'.ph d = s.ph d) ∧ s'.gate = .opn ∧ s'.log = s.log) :
-    ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecWPRV12 LP NoV SF P s0 K0 Ch0 s' K Ch ∧
+    ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecV15 cfg P s0 K0 Ch0 s' K Ch E ∧
       s'.ph 0#u64 = .loc p0 .done W' ∧ (∀ d, d ≠ 0#u64 → s'.ph d = s.ph d) ∧ s'.gate = .opn ∧ s'.log = s.log := by
-  have e1 : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s1 K Ch :=
-    .step he hS (stepW_loc hg (fun p h => by rw [hph, Function.update_self] at h; cases h) hst)
+  have e1 : ExecV15 cfg P s0 K0 Ch0 s1 K Ch E :=
+    execV15_opn he hg hS (stepW_loc hg (fun p h => by rw [hph, Function.update_self] at h; cases h) hst)
   obtain ⟨s', W', e', hp', hd, hg', hl⟩ := ih e1 (by rw [hph, Function.update_self]) (hg1.trans hg)
   exact ⟨s', W', e', hp', fun d h => by rw [hd d h, hph, Function.update_of_ne h], hg', hl.trans hl1⟩
 
 /-- **A `StFree` body of core 0 runs to `.done`** (module docstring). -/
 theorem run_loc (k : SP) : StFree k → ∀ {s : Cfg U64 U64 U64 U64} {p0 : SP} {W : Set U64},
-    ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch → s.ph 0#u64 = .loc p0 k W → s.gate = .opn →
-    ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecWPRV12 LP NoV SF P s0 K0 Ch0 s' K Ch ∧
+    ExecV15 cfg P s0 K0 Ch0 s K Ch E → s.ph 0#u64 = .loc p0 k W → s.gate = .opn →
+    ∃ (s' : Cfg U64 U64 U64 U64) (W' : Set U64), ExecV15 cfg P s0 K0 Ch0 s' K Ch E ∧
       s'.ph 0#u64 = .loc p0 .done W' ∧ (∀ d, d ≠ 0#u64 → s'.ph d = s.ph d) ∧ s'.gate = .opn ∧ s'.log = s.log := by
   induction k with
   | done => intro _ s p0 W he hp hg; exact ⟨s, W, he, hp, fun _ _ => rfl, hg, rfl⟩
@@ -216,16 +227,16 @@ theorem run_loc (k : SP) : StFree k → ∀ {s : Cfg U64 U64 U64 U64} {p0 : SP} 
 
 /-- **The `leave` step** at an open gate. -/
 theorem leave_loc {s s1 : Cfg U64 U64 U64 U64} {p0 : SP} {W : Set U64}
-    (he : ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch) (hp : s.ph 0#u64 = .loc p0 .done W) (hg : s.gate = .opn)
+    (he : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hp : s.ph 0#u64 = .loc p0 .done W) (hg : s.gate = .opn)
     (hS : Step s 0#u64 s1) (hph : s1.ph = Function.update s.ph 0#u64 .idle) :
-    ExecWPRV12 LP NoV SF P s0 K0 Ch0 s1 K Ch :=
-  .step he hS (stepW_loc hg (fun p h => by rw [hph, Function.update_self] at h; cases h)
+    ExecV15 cfg P s0 K0 Ch0 s1 K Ch E :=
+  execV15_opn he hg hS (stepW_loc hg (fun p h => by rw [hph, Function.update_self] at h; cases h)
     (fun p0' k' W' h => by rw [hp] at h; cases h))
 
 /-- **From the `.start` step to the end** (module docstring): the started `StFree` body runs and core 0 leaves. -/
 theorem runEnd {m : U64 → U64} {k : SP} (hk : StFree k)
-    (he : ExecWPRV12 LP NoV SF P s0 K0 Ch0 (dfg3 K m k) K Ch) :
-    ∃ s : Cfg U64 U64 U64 U64, ExecWPRV12 LP NoV SF P s0 K0 Ch0 s K Ch ∧ NoLoc s ∧ s.log = [.start k] := by
+    (he : ExecV15 cfg P s0 K0 Ch0 (dfg3 K m k) K Ch E) :
+    ∃ s : Cfg U64 U64 U64 U64, ExecV15 cfg P s0 K0 Ch0 s K Ch E ∧ NoLoc s ∧ s.log = [.start k] := by
   obtain ⟨s', W', he', hp', hd, hg', hl⟩ := run_loc k hk he (dfg3_ph0 K m k) rfl
   refine ⟨_, leave_loc he' hp' hg' (Step.leave hp') rfl, fun d => ?_, ?_⟩
   · show ¬ (Function.update s'.ph 0#u64 Phase.idle d).IsLoc
@@ -240,55 +251,21 @@ end run
 
 /-! ## The tops on an execution with a real start -/
 
-/-- **V12: an execution from the boot that starts the timer-IRQ path, runs its body and leaves.** -/
-theorem runEndV12_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV2C bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) s (KB O) (fun _ => ChB O) ∧
-      NoLoc s ∧ s.log = [.start (kB O a)] :=
-  runEnd (stFree_kB O a) (execStartV12_B O a0 a)
-
-/-- **V13: the same execution with V13's start fact.** -/
+/-- **The native V15 configuration: the timer-IRQ path's `.start`, its whole body and the leave.** -/
 theorem runEndV13_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) s (KB O) (fun _ => ChB O) ∧
-      NoLoc s ∧ s.log = [.start (kB O a)] :=
-  runEnd (stFree_kB O a) (execStartV13_B O a0 a)
+    ∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+        (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) s (KB O) (fun _ => ChB O) E ∧
+      NoLoc s ∧ s.log = [.start (kB O a)] := by
+  obtain ⟨E, he⟩ := execStartV13_B O a0 a
+  obtain ⟨s, he', hq, hl⟩ := runEnd (stFree_kB O a) he
+  exact ⟨s, E, he', hq, hl⟩
 
 theorem runAll_one {p : SP} {m m' : U64 → U64} (h : RunAll [p] m m') : Run p m m' := by
   obtain ⟨m1, h1, h2⟩ := h
   have e : m' = m1 := h2
   rw [e]
   exact h1
-
-/-- **V12 applied to an execution with a real start** (module docstring). -/
-theorem topV12_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV2C bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) s (KB O) (fun _ => ChB O) ∧
-      NoLoc s ∧ s.log = [.start (kB O a)] ∧ Run (.start (kB O a)) memB s.mem := by
-  obtain ⟨s, he, hq, hl⟩ := runEndV12_B O a0 a
-  have hr := serializable_fl4_localV12 bst LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext)
-    LocPlatM.mrKeepIoapic_archT (init_B O) (armInv_B O) (fun _ => serExitW_B O) (hc0_B O) (mapsP_B O) he hq
-  rw [hl] at hr
-  exact ⟨s, he, hq, hl, runAll_one hr⟩
-
-/-- **V13 applied to an execution with a real start.** -/
-theorem topV13_B (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    ∃ s : Cfg U64 U64 U64 U64,
-      ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i)
-        (StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-        (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O) (fun _ => ChB O) s (KB O) (fun _ => ChB O) ∧
-      NoLoc s ∧ s.log = [.start (kB O a)] ∧ Run (.start (kB O a)) memB s.mem := by
-  obtain ⟨s, he, hq, hl⟩ := runEndV13_B O a0 a
-  have hr := serializable_fl4_localV13 bst LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext)
-    LocPlatM.mrKeepIoapic_archT (init_B O) (armInv_B O) (fun _ => serExitW_B O) (hc0_B O) (mapsP_B O) he hq
-  rw [hl] at hr
-  exact ⟨s, he, hq, hl, runAll_one hr⟩
 
 /-! ## A serial step to a new layout (goal 2, the `Cfg` side) -/
 
@@ -340,24 +317,23 @@ theorem sfg_steps (hr : Run p m m') :
 end sergen
 
 section serexec
-variable {ι : Type} {LP : PathsP ι} {NoV : ι → Prop}
-  {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+variable {ι : Type} {cfg : ExecCfg BS ι}
   {P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR} {K : KLayoutP} {Ch0 : U64 → BS → Prop} {m : U64 → U64}
 
 /-- **A serial step from `cfg0 K m` to any exit layout** (module docstring). -/
 theorem exec_ser {p : SP} {K' : KLayoutP} {m' : U64 → U64} {Ch' : U64 → BS → Prop}
-    (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K m)
-    (hX : ∀ e, SerExitW P K'.toKLayoutV (Ch' e)) (hc' : K'.vcpus = ∅ ∧ K'.ptes = ptesR K' m')
+    (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e)) (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
+    (hX : ∀ e, SerExitW P K'.toKLayoutV (Ch' e)) (hc' : cfg.VcpuOK K' m' ∧ K'.ptes = ptesR K' m')
     (hr : Run p m m') :
-    ExecWPRV12 LP NoV SF P (cfg0 K m) K Ch0 (sfg4 K m p K' m') K' Ch' := by
+    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (sfg4 K m p K' m') K' Ch' E := by
   obtain ⟨h1, h2, h3, h4⟩ := sfg_steps K m p K' m' hr
-  have e1 := execE (LP := LP) (NoV := NoV) (SF := SF) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
+  obtain ⟨_, e1⟩ := execE (cfg := cfg) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
     (stepW_keep hB hc (fun q h => by rw [sfg1_ph0] at h; cases h) (noSt_idle (cfg0_ph K m _)) rfl ⟨rfl, rfl, rfl⟩)
-  have e2 := execE e1 h2 (stepW_keep hB hc (fun q h => by rw [sfg2_ph0] at h; cases h)
+  obtain ⟨_, e2⟩ := execE e1 h2 (stepW_keep hB hc (fun q h => by rw [sfg2_ph0] at h; cases h)
       (fun p0 k W h => by rw [sfg1_ph0] at h; cases h) rfl ⟨rfl, rfl, rfl⟩)
-  have e3 := execE e2 h3 (stepW_keep hB hc (fun q h => by rw [sfg3_ph0] at h; cases h)
+  obtain ⟨_, e3⟩ := execE e2 h3 (stepW_keep hB hc (fun q h => by rw [sfg3_ph0] at h; cases h)
       (fun p0 k W h => by rw [sfg2_ph0] at h; cases h) rfl ⟨rfl, rfl, rfl⟩)
-  refine .step e3 h4 ?_
+  refine ⟨_, .step e3 h4 ?_⟩
   exact
     { arm := fun q h => by rw [sfg4_ph] at h; cases h
       start := fun p0 k W h => by rw [sfg3_ph0] at h; cases h
@@ -380,17 +356,16 @@ theorem serExit_of (O : LocPlatM.OpaqueH) {σe : BS} {a3 : Fl4Spec.MachineState}
   ⟨σe, a3, τ, hJ, rfl⟩
 
 /-- **From the boot, a serial step to any P3 exit** (module docstring): for every exit `hJ`, memory `m'` reached
-from `memB` by the serial body `p`, and the PTE convention at `m'`, an `ExecWPRV12` of V12 / V13's family. -/
-theorem serBridge_B (O : LocPlatM.OpaqueH) (a0 : Fl4Spec.MachineState)
-    {SF : (BS → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → IxB →
-      Prop}
+from `memB` by the serial body `p`, and the PTE convention at `m'`, an `ExecV15` for every configuration whose
+VCPU convention admits the VCPU-free layouts. -/
+theorem serBridge_B (O : LocPlatM.OpaqueH) {cfg : ExecCfg BS IxB} (hv : ∀ K m, K.vcpus = ∅ → cfg.VcpuOK K m)
     {σe : BS} {a3 : Fl4Spec.MachineState} {τ : Fl4Spec.State Unit}
     (hJ : SInvR.G5.JReachU17 (L := bsL) LocPlatM.archT LocPlatM.ART modelMR σe a3 τ)
     {p : SP} {m' : U64 → U64} (hr : Run p memB m') {E : Set U64} (hE : E = ptesR (KX O hJ E) m') :
-    ExecWPRV12 (famB a0) (fun i => ¬ IoIx (S := BS) i) SF (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O)
+    ∃ E', ExecV15 cfg (LocPlatM.locPlat_archT O bs_ext) (s0B O) (KB O)
       (fun _ => ChB O) (sfg4 (KB O) memB p (KX O hJ E) m') (KX O hJ E)
-      (fun _ => (chainC (LocPlatM.locPlat_archT O bs_ext) hJ).2) :=
-  exec_ser (fun _ => serExitW_B O) (hc0_B O) (fun _ => serExit_of O hJ E) ⟨rfl, hE⟩ hr
+      (fun _ => (chainC (LocPlatM.locPlat_archT O bs_ext) hJ).2) E' :=
+  exec_ser (fun _ => serExitW_B O) ⟨hv _ _ (hc0_B O).1, (hc0_B O).2⟩ (fun _ => serExit_of O hJ E) ⟨hv _ _ rfl, hE⟩ hr
 
 end
 end Fl4Proofs.P2.BootSt

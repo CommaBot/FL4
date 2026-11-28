@@ -30,6 +30,7 @@ are, which P1 has no invariant for yet):
 * `sub`: the subframe destination slots are cap slots (as x86_64's `VsPlace.sub`).
 -/
 import Fl4ProofsA64.P1.QueueDecEpt
+import Fl4ProofsA64.P1.CopT
 open Aeneas Aeneas.Std Result
 
 namespace Fl4ProofsA64.P1
@@ -149,16 +150,6 @@ theorem inWin_of' {v : U64} (h1 : ¬ v < fl4_abi.consts.HIGH_VSPACE_BASE)
 theorem Cur0.wrV {V : U64 → Prop} (hV : VsOK Ω Sg V) {s0 s : S} (h : Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     {x : U64} (hx : V x) (v : U64) : st.write s x v ⦃ s' => Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
   WP.spec_mono (LawfulStore.write_spec s x v) fun s' e => by subst e; exact h.vs hV (writesIn_wr_V hV hx)
-
-set_option hygiene false in
-/-- The cache maintenance before a descriptor write (arch calls and pure steps only). -/
-local macro "copT" : tactic => `(tactic| (repeat' (first
-  | exact (WP.spec_ok _).2 trivial
-  | exact hA.cache_op _ _ _ _ _ _ _
-  | (refine WP.spec_bind (shl_and63u _) fun _ _ => ?_)
-  | (refine WP.spec_bind (P0.layout.paddr.p0 _) fun _ _ => ?_)
-  | (refine WP.spec_bind (Pₘ := fun _ => True) ?_ fun _ _ => ?_)
-  | split)))
 
 set_option maxHeartbeats 4000000 in
 /-- **`install_page`** at a VSpace word (break-before-make: at most two writes of the slot). -/

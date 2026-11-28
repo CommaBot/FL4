@@ -29,6 +29,10 @@ complete check is the receive check of `receive_signal`
   P1's `complete_signal.ipc`.
 * `jRecvIpcUDN`: `jRecvIpcUN` without `¬ IpcActDon`; `jRecvIpcLinkDN`:
   XTopJointRecvIpcLinkN's `jRecvIpcLinkN` without it.
+
+(p3J gen 54) Each receive leaf ending in `RJR` / `RJ` here has a post-parametric form `…Q` (post
+`RelTopM ∧ Pq`, `Pq` from every `JAtZR` / `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs` by `hPq`; the proof moved
+there); the original statement is unchanged and is its one-line instance. No new premises.
 -/
 import Fl4Proofs.P3.XTopJointRecvSigDonD
 import Fl4Proofs.P3.XTopJointRecvIpcN
@@ -441,9 +445,8 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 32000000 in
-/-- **`receive_ipc` with an active bound notification at a `MidN` state,
-donating or not** (module docstring). -/
-theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
+/-- (p3J gen 54) **`JAtZ.recvIpcActDJN` with its post as a parameter** (module docstring: `Pq` from every `JAtZ` at `Z.mv G V` with the entry's `H`, `Cs`; `JAtZ.recvIpcActDJN` is its instance at `RJ`). -/
+theorem JAtZ.recvIpcActDJNQ (hAT : P0.ArchTotal arI)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
@@ -454,10 +457,13 @@ theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
     (blk : Bool) {e : U64} {xe : Fl4Spec.Endpoint} (hke : σ.kheap e.bv = some (.endpoint xe))
     (cb : U64) (c1 c2 c3 c4 : Bool)
     {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
-    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    {Pq : S → A → Fl4Spec.State Unit → Prop}
+    (hPq : ∀ (G : MdbGhost) (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64) (s' : S)
+      (a' : A) (σ' : Fl4Spec.State Unit), JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac' Lst' D' s' a' σ' → Pq s' a' σ') :
     endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+        RelTopM (L := L) r.1 z.2 ∧ Pq r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hsc0 : xt.tcbSchedContext = none := hni.2.2.2 xt (by rw [hcur]; exact hkt)
   have hrn : Fl4Spec.runnable xt.tcbState = true := hni.run xt (by rw [hcur]; exact hkt)
@@ -609,7 +615,29 @@ theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
       unfold specCompleteTail; rw [nd_bind_one hd]; rfl
     rw [e1, specCompleteCheck_eqU (donShape_of I2 hkt2 hkn2 hnqT hsc1 hd) hkd]
   rw [receiveIpc_active b rights blk (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hke hk hact, hspecC, hsT, hu]
-  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
+  exact ⟨_, Set.mem_singleton _, J'.xtop.relTop, hPq _ _ _ _ _ _ _ _ J'⟩
+
+set_option maxHeartbeats 32000000 in
+/-- **`receive_ipc` with an active bound notification at a `MidN` state,
+donating or not** (module docstring). -/
+theorem JAtZ.recvIpcActDJN (hAT : P0.ArchTotal arI)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv)
+    (hni : MidN σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification} (hk : σ.kheap n.bv = some (.notification x))
+    (hbn : xt.tcbBoundNotification = some n.bv) {b0 : Fl4Spec.Badge} (hact : x.ntfnObj = .activeNtfn b0)
+    (blk : Bool) {e : U64} {xe : Fl4Spec.Endpoint} (hke : σ.kheap e.bv = some (.endpoint xe))
+    (cb : U64) (c1 c2 c3 c4 : Bool)
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  JAtZ.recvIpcActDJNQ (Pq := fun s' a' σ' => ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' ∧ VxE Z)
+    hAT hmb J ht hcur hni hnq hkt hn hk hbn hact blk hke cb c1 c2 c3 c4 hrc b rights (fun _ _ _ _ _ _ _ _ J' => ⟨_, _, _, _, _, _, J', inferInstance⟩)
 
 set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` with a null or free reply at a `MidN` state outside the

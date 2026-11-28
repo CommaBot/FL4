@@ -79,7 +79,8 @@ def sigVmTailS (ntfnptr tcb : ObjRef) : SMonad Unit Unit := do
         let sc ← getSchedContext scp
         let ntfnScp ← getNtfnObjRef Notification.ntfnSc ntfnptr
         let curScPtr ← NonDet.gets fun s : State Unit => s.curSc
-        NonDet.when (scOpt = ntfnScp ∧ sc.scSporadic ∧ scp ≠ curScPtr) <| refillUnblockCheck scp)
+        let inRq ← NonDet.gets (inReleaseQueue tcb)
+        NonDet.when (scOpt = ntfnScp ∧ sc.scSporadic ∧ scp ≠ curScPtr ∧ inRq = false) <| refillUnblockCheck scp)
     scOpt
 
 /-- The signal completes the VMEnter: `sendSignalVF` is `vmReportF` then `sigVmTailS`. -/

@@ -35,6 +35,9 @@ present store is handled as it is natively.
 
 Named premises beyond U1P's: [P] `MmuAD`, [S] `VmPweT`. No [W]. No existing statement changed (new file; root import
 list extended).
+
+Gen 55 (line p3mc): `execVX4d_aRunD_C`, `serializable_VXD_of_C` (`P : LocPlatC`) and `ad_startAt_C`
+(`P : LocPlatC`, `hRun : ChainRun`), the old names one-line corollaries (statements unchanged; P2/E2EPAD3).
 -/
 import Fl4Proofs.P2.E2EPVX11AG
 import Fl4Proofs.P2.E2EPU3j
@@ -57,34 +60,33 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 variable {ι : Type}
 
-/-- **An `ExecVX4d` execution is an `ARunD` one at the epoch's paging words**; `hIns` also receives `VmPweT` in VM
-epochs (`execVX4c_aRunR`'s proof). -/
-theorem execVX4d_aRunD {LP : PathsP ι}
+/-- **`execVX4d_aRunD` on the re-based platform** (gen 55, in place: `P : LocPlatC` for `P : LocPlat`). -/
+theorem execVX4d_aRunD_C {LP : PathsP ι}
     {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (P : LocPlat st arI AR MR)
+    (P : LocPlatC st arI AR MR)
     (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (K.vcpus = ∅ → NatEp P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      (K.vcpus = ∅ → NatEpC P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
       SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
     (hIns : ∀ (Ch : S → Prop) (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K)
       (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : ι),
-      (K.vcpus = ∅ → SerExitW P K.toKLayoutV Ch) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      (K.vcpus = ∅ → SerExitC P K.toKLayoutV Ch) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
       (K.vcpus ≠ ∅ → VmPweT K E) → EpochJV K E s →
       MapsP K s → SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q →
       InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs ∅ s.mem q)
     {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecVX4d LP SF P s0 K0 Ch0 s K Ch E) :
+    (hA0 : ArmInv s0) (hB : SerExitC P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecVX4dC LP SF P s0 K0 Ch0 s K Ch E) :
     ARunD ADEq NotPresent s0 s (PWE K E) ∧ RegionOKP K ∧ UserOKP K ∧ MapsP K s ∧
-      (K.vcpus = ∅ → SerExitW P K.toKLayoutV Ch) ∧ (K.vcpus ≠ ∅ → VtxBundle4 st L K) ∧
+      (K.vcpus = ∅ → SerExitC P K.toKLayoutV Ch) ∧ (K.vcpus ≠ ∅ → VtxBundle4 st L K) ∧
       (K.vcpus ≠ ∅ → VmPweT K E) ∧ EpochJV K E s := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
+  obtain ⟨hK0, hU0⟩ := okP_R_C hB hc0
   induction h with
   | refl => exact ⟨.refl _, hK0, hU0, hM0, fun _ => hB, fun hn => (hn hc0.1).elim, fun hn => (hn hc0.1).elim,
       epochJV_ser hc0.2⟩
   | @step s1 s1' K1 K1' Ch1 Ch1' c1 E1 _ hS g hPw ih =>
     obtain ⟨hR, hK, hU, hM, hX, hV, hW, J⟩ := ih
     obtain ⟨⟨_, _, _, _, _, I, -⟩, hSI, -⟩ := aRunD_inv adEq_equiv (fun _ _ h => adEq_np h) h0 hA0 hR
-    have hN : K1.vcpus = ∅ → NatEp P K1 Ch1 s1 := fun nv => ⟨hX nv, epoch_start (J.toJ nv)⟩
+    have hN : K1.vcpus = ∅ → NatEpC P K1 Ch1 s1 := fun nv => ⟨hX nv, epoch_start (J.toJ nv)⟩
     have hst : ∀ p0 k W, s1.ph c1 = .loc p0 (.start k) W →
         ∃ i, SF Ch1 K1 s1.mem hK hU c1 (fun l => s1.lk l = some c1) k i ∧
           StartAt (LP i K1 s1.mem hK hU) c1 (fun l => s1.lk l = some c1) s1.mem k := by
@@ -103,12 +105,12 @@ theorem execVX4d_aRunD {LP : PathsP ι}
       have hig : IgnG (PWE K1' s1'.mem) s1'.own := by
         rw [(g.serG hs).own]
         rcases g.ser hs with ⟨hXs, nv, hc⟩ | ⟨hne, hc, hb⟩
-        · exact pwe_own (okP_R hXs ⟨nv, hc⟩).1
+        · exact pwe_own (okP_R_C hXs ⟨nv, hc⟩).1
         · exact pwe_own (hb.b.okP hc).1
       have hst' : ARunD ADEq NotPresent s0 s1' (PWE K1' s1'.mem) :=
         .step hR' hS hok (fun p0 k W hph => absurd (by rw [hph]; trivial) (hnl c1)) hig
       rcases g.ser hs with ⟨hXs, nv, hc⟩ | ⟨hne, hc, hb⟩
-      · have hK' := okP_R hXs ⟨nv, hc⟩
+      · have hK' := okP_R_C hXs ⟨nv, hc⟩
         exact ⟨hst', hK'.1, hK'.2, g.serG hs, fun _ => hXs, fun hn => (hn nv).elim, fun hn => (hn nv).elim,
           epochJV_ser hc⟩
       · have hK' := hb.b.okP hc
@@ -131,6 +133,48 @@ theorem execVX4d_aRunD {LP : PathsP ι}
     obtain ⟨hR, hK, hU, hM, hX, hV, hW, J⟩ := ih
     exact ⟨.ad hR (adWr_pwe hK hM hH), hK, hU, maps_pwe hK hM hH, hX, hV, hW, epochJV_mmu J hH⟩
 
+/-- **An `ExecVX4d` execution is an `ARunD` one at the epoch's paging words**; `hIns` also receives `VmPweT` in VM
+epochs (`execVX4c_aRunR`'s proof). -/
+theorem execVX4d_aRunD {LP : PathsP ι}
+    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+    (P : LocPlat st arI AR MR)
+    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
+      (K.vcpus = ∅ → NatEp P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
+    (hIns : ∀ (Ch : S → Prop) (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K)
+      (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : ι),
+      (K.vcpus = ∅ → SerExitW P K.toKLayoutV Ch) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      (K.vcpus ≠ ∅ → VmPweT K E) → EpochJV K E s →
+      MapsP K s → SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q →
+      InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs ∅ s.mem q)
+    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
+    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecVX4d LP SF P s0 K0 Ch0 s K Ch E) :
+    ARunD ADEq NotPresent s0 s (PWE K E) ∧ RegionOKP K ∧ UserOKP K ∧ MapsP K s ∧
+      (K.vcpus = ∅ → SerExitW P K.toKLayoutV Ch) ∧ (K.vcpus ≠ ∅ → VtxBundle4 st L K) ∧
+      (K.vcpus ≠ ∅ → VmPweT K E) ∧ EpochJV K E s :=
+  execVX4d_aRunD_C P.toC hSF hIns h0 hA0 hB hc0 hM0 h.toC
+
+/-- **`serializable_VXD_of` on the re-based platform** (gen 55, in place: `P : LocPlatC` for `P : LocPlat`). -/
+theorem serializable_VXD_of_C {LP : PathsP ι}
+    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+    (P : LocPlatC st arI AR MR)
+    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
+      (K.vcpus = ∅ → NatEpC P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
+    (hIns : ∀ (Ch : S → Prop) (K : KLayoutP) (E : U64 → U64) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K)
+      (hU : UserOKP K) (c : U64) (hs : U64 → Prop) (q : SP) (i : ι),
+      (K.vcpus = ∅ → SerExitC P K.toKLayoutV Ch) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      (K.vcpus ≠ ∅ → VmPweT K E) → EpochJV K E s →
+      MapsP K s → SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q →
+      InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c hs ∅ s.mem q)
+    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
+    (hA0 : ArmInv s0) (hB : SerExitC P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0) (h : ExecVX4dC LP SF P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
+    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
+  serializable_safeD adEq_equiv (fun _ _ h => adEq_np h) h0 hA0
+    (execVX4d_aRunD_C P hSF hIns h0 hA0 hB hc0 hM0 h).1 hq
+
 /-- **Every quiescent `ExecVX4d` state is serial up to deferring A/D entries**, given `hSF` and `hIns`. -/
 theorem serializable_VXD_of {LP : PathsP ι}
     {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
@@ -148,8 +192,7 @@ theorem serializable_VXD_of {LP : PathsP ι}
     (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
     (hM0 : MapsP K0 s0) (h : ExecVX4d LP SF P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_safeD adEq_equiv (fun _ _ h => adEq_np h) h0 hA0
-    (execVX4d_aRunD P hSF hIns h0 hA0 hB hc0 hM0 h).1 hq
+  serializable_VXD_of_C P.toC hSF hIns h0 hA0 hB hc0 hM0 h.toC hq
 
 end exec
 
@@ -173,11 +216,12 @@ abbrev famAD {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st
 abbrev StartAD {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks) :=
   StartVX11 st ar hA (masksWr_plain st) L.total a0 (StartU1P st ar hA a0 B (arI := arI) (AR := AR) (MR := MR))
 
-/-- **The union's start case split** (`vx11_startAt`, native cases `serializable_fl4_localU3c_of`'s). -/
-theorem ad_startAt (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
+/-- **`ad_startAt` on the re-based platform**
+(gen 55, in place: `P : LocPlatC` and `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
+theorem ad_startAt_C (P : LocPlatC st arI AR MR) (hRun : ChainRun st arI AR MR)
     {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks) :
     ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (K.vcpus = ∅ → NatEp P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      (K.vcpus = ∅ → NatEpC P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
       StartAD st ar hA a0 B (arI := arI) (AR := AR) (MR := MR) Ch K s.mem hK hU c hs q i →
       StartAt (famAD st ar hA a0 B i K s.mem hK hU) c hs s.mem q := by
   intro Ch K s hK hU c hs q i hN hV hsf
@@ -188,7 +232,7 @@ theorem ad_startAt (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic 
     obtain ⟨hX, hE⟩ := hN nv
     have hC := hX.chainOf
     rcases i with i | (((j | j) | j) | j)
-    · exact startAt_U st ar hA (masksWr_plain st) L.total a0 P hIoa hC hE hsf'
+    · exact startAt_U_C st ar hA (masksWr_plain st) L.total a0 hRun hC hE hsf'
     · exact delPteStart_at st ar hA (masksWr_plain st) hC hE hsf'
     · exact invStartU2_at st ar hA (masksWr_plain st) hC hE hsf'
     · exact cmStartU2_at st ar hA (masksWr_plain st) hC hE hsf'
@@ -215,6 +259,15 @@ theorem ad_startAt (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic 
     exact vmFStartY_at (hV hsf'.1) hsf'
   · have hsf' : VmRStartY st ar hA (masksWr_plain st) K s.mem hK hU c hs q j := hsf
     exact vmRStartY_at (hV hsf'.1) hsf'
+
+/-- **The union's start case split** (`vx11_startAt`, native cases `serializable_fl4_localU3c_of`'s). -/
+theorem ad_startAt (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
+    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks) :
+    ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
+      (K.vcpus = ∅ → NatEp P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
+      StartAD st ar hA a0 B (arI := arI) (AR := AR) (MR := MR) Ch K s.mem hK hU c hs q i →
+      StartAt (famAD st ar hA a0 B i K s.mem hK hU) c hs s.mem q :=
+  ad_startAt_C st ar hA a0 P.toC (chainRun_of P hIoa) B
 
 /-- **FL4 end to end with the host walker's A/D writes, over the union family** (module docstring): every U1 slot in
 native and VM epochs and PageMap in native epochs. Premises: U1P's (`P`, [P] `hIoa`, `B` = [P] `cs` / [P] `lk`,

@@ -4,6 +4,13 @@ P3 (DESIGN.md §9), scheduler: **`JAtZ` across a scheduler step**
 spec's `SchStep` (the current thread and the current CR3 may change):
 the heap-reading fields from `SchStep.toTK` (the step to `σ'` with `σ`'s
 current thread and arch state has `σ'`'s heap).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `sch_apart`,
+`sch_buf`, `sch_jpl`, `sch_utc`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged
+(the `JAtZB` copies of gens 24-39 deleted).
+
+(mmuAD gen 42b18) `sch_frame` stated over `JAtZB` in place; `JAtZ.sch_frame` is it plus ScJointFrame's
+`JAtZ.ext_tfoot`. P3/JAtZBSchedR's copy deleted.
 -/
 import Fl4Proofs.P3.ScJointFrame
 import Fl4Proofs.P3.ScXSched
@@ -20,9 +27,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` across a scheduler step** (module docstring). -/
-theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hX : XTopAt (L := L) AR Z s' a' σ')
@@ -40,7 +47,7 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
-    JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
+    JAtZB (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
   have hT := hK.toTK
   have hobj0 := J.obj.tkw hT
   have hobj : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ' :=
@@ -69,7 +76,6 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
-    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw),
     J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
     (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hksz).withP
       (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX hobj J.zH.1 hjpl hinv hact))
@@ -82,14 +88,38 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
     exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)
 
+/-- `JAtZB.sch_frame` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hX : XTopAt (L := L) AR Z s' a' σ')
+    (hcall : Sched.CallRel (L.mem s') Z.R Z.C σ' Lst') (hrf : Sched.RFree (L.mem s') Z.R Z.C σ' Lst')
+    (hyl : Sched.YieldRel Z.T Z.C (L.mem s') σ') (hmcp : Sched.McpRel Z.T (L.mem s') σ')
+    (hbuf : BufWordRel Z.T (L.mem s') σ')
+    (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
+    (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
+    (hkern : JKern (L := L) arI H Cs D' Z.th s' σ')
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
+    (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
+    (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
+    (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRunM σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
+    JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' :=
+  (Fl4Proofs.P3.JAtZB.sch_frame (J := J.toB) (hw := hw) (hK := hK) (hX := hX) (hcall := hcall) (hrf := hrf) (hyl := hyl) (hmcp := hmcp) (hbuf := hbuf) (hrp := hrp) (hap := hap) (hjpl := hjpl) (hjc := hjc) (hkern := hkern) (hutc := hutc) (hnsc := hnsc) (hinv := hinv) (hcur := hcur) (hown := hown) (hoff := hoff) (hact := hact) (hbsa := hbsa) (hcr := hcr) (hblk := hblk) (hKd := hKd) (hidl := hidl) (hDD := hDD)).toJAtZ (J.ext_tfoot hw)
+
 
 
 /-! ## The re-established fields across a scheduler step -/
 
 /-- **`BufWordRel` after a scheduler step** (`sc_buf` through `toTK`). -/
-theorem JAtZ.sch_buf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_buf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
     BufWordRel Z.T (L.mem s') σ' := by
   have hS := J.xtop.fin.1.1.1
@@ -98,20 +128,36 @@ theorem JAtZ.sch_buf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have hb : BufKeep σ σ' := hb0
   exact J.buf.frame (fun t ht => hw.mem_eq (tIpcBufA_aligned (hc.tcbs t ht)) fun hb => hb.ne_buf hS ht rfl) hb
 
-/-- **`SlotsApart` after a scheduler step.** -/
-theorem JAtZ.sch_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `JAtZB.sch_buf` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_buf {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    BufWordRel Z.T (L.mem s') σ' :=
+  Fl4Proofs.P3.JAtZB.sch_buf (J := J.toB) (hw := hw) (hK := hK)
+
+/-- **`SlotsApart` after a scheduler step.** -/
+theorem JAtZB.sch_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
     Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ' := by
   have hz0 := hK.toTK.szKeep
   have hz : Sched.SzKeep σ σ' := hz0
   exact J.apart.sc_frame hw.1 hz
 
-/-- **`JPlaced` after a scheduler step.** -/
-theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `JAtZB.sch_apart` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ') :
+    Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ' :=
+  Fl4Proofs.P3.JAtZB.sch_apart (J := J.toB) (hw := hw) (hK := hK)
+
+/-- **`JPlaced` after a scheduler step.** -/
+theorem JAtZB.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ' := by
@@ -124,6 +170,15 @@ theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have hIA := hJ.irqApart (c := Z.c) J.zH.1 J.zH.2.2.2 J.c0 J.zH.2.2.1 J.kern.ksbFit
   exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hz q.bv y n hq) hw.1 (irq_of_ufoot hS J.rp hIA hwU) hiw⟩
 
+/-- `JAtZB.sch_jpl` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_jpl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
+    ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ' :=
+  Fl4Proofs.P3.JAtZB.sch_jpl (J := J.toB) (hw := hw) (hK := hK) (hiw := hiw)
+
 
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after a scheduler step** (`sc_utc`'s proof; the
@@ -132,9 +187,9 @@ apart), the free parts zero (no SC-step word there: the TCBs are typed, the
 notifications and SCs are spec objects outside it, `SpecFree`, the node is
 outside every untyped cap, `JCovD`), the rest by the kept kernel state and
 the node-0 `DEBUG_TCBS` word (`hDbg`, P1-supplied). -/
-theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
     ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
@@ -184,6 +239,16 @@ theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     rw [hK.cdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← hK.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `JAtZB.sch_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.sch_utc (J := J.toB) (hw := hw) (hK := hK) (hDbg := hDbg)
 
 end
 

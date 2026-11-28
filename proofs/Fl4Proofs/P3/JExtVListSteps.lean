@@ -25,6 +25,10 @@ P3 (line mmuAD, gen 23): **`VList` across `vcpu::init` (insertion at the head) a
   (`JAtZ.hhc` below derives `hhc` from exactly that buffer fact `hU`).
 
 No [P] / [W] / [S] premise; no existing statement changed.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `hhc`, `hhv`,
+`hnd`; each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of
+gens 24-39 deleted).
 -/
 import Fl4Proofs.P3.JExtVList
 open Aeneas Aeneas.Std Result
@@ -695,16 +699,21 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V X : Set U64}
 
 /-- The head word lies in no VCPU of `V` (`JVm.ks`: VCPUs off the kernel-global area). -/
-theorem JAtZ.hhv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.hhv (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     ∀ w ∈ V, (P1.vHeadA st s).val < w.val ∨ w.val + 32768 ≤ (P1.vHeadA st s).val := by
   intro w hw
   have hv : (P1.vHeadA st s).val = (L.ksb s).val + 80 := vHead_val J.kern.ksbFit
   rcases Jv.ks w hw with e | e <;> omega
 
+/-- `JAtZB.hhv` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hhv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    ∀ w ∈ V, (P1.vHeadA st s).val < w.val ∨ w.val + 32768 ≤ (P1.vHeadA st s).val :=
+  Fl4Proofs.P3.JAtZB.hhv (J := J.toB) (Jv := Jv)
+
 /-- **`hhc` at a joint state** from the one missing fact `hU` [J] (no IPC-buffer word is the head word): the
 node words (`JKern.nodeFit` / base), the TCB words (`JKern.hks`: TCBs off the kernel-global area), the state words
 (`VList.hd`) and the VCPU words (`JVm.ks`) are no head word. -/
-theorem JAtZ.hhc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
+theorem JAtZB.hhc (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
     (Vl : VList st V Z.th s) (hU : P1.vHeadA st s ∉ BufU Z σ) :
     ¬ CW st V Z.th (fun _ => BufU Z σ) s (P1.vHeadA st s) := by
   have hv : (P1.vHeadA st s).val = (L.ksb s).val + 80 := vHead_val J.kern.ksbFit
@@ -735,8 +744,14 @@ theorem JAtZ.hhc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L 
     rw [lay_svm_val ((J.jvLay Jv).vfit w hw).2] at e1
     rcases Jv.ks w hw with h | h <;> omega
 
+/-- `JAtZB.hhc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hhc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
+    (Vl : VList st V Z.th s) (hU : P1.vHeadA st s ∉ BufU Z σ) :
+    ¬ CW st V Z.th (fun _ => BufU Z σ) s (P1.vHeadA st s) :=
+  Fl4Proofs.P3.JAtZB.hhc (J := J.toB) (Jv := Jv) (Vl := Vl) (hU := hU)
+
 /-- The current core's node words lie outside every VCPU of `V` (as in `JAtZ.finPl`). -/
-theorem JAtZ.hnd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+theorem JAtZB.hnd (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
     ∀ b, (b = ipiA st s ∨ b = actA st s) → ∀ w ∈ V, b.val < w.val ∨ w.val + 32768 ≤ b.val := by
   intro b hb w hw
   have h15 : (2 : Nat) ^ 15 = 32768 := by norm_num
@@ -751,6 +766,11 @@ theorem JAtZ.hnd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L 
       unfold actA; rw [e]; omega
   rcases J.kern.hnd w _ (Jv.heap w hw) (L.cpu s) J.kern.cpuCs with e | e <;>
     (try simp only [P1.HKind.bits, h15] at e) <;> omega
+
+/-- `JAtZB.hnd` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hnd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) :
+    ∀ b, (b = ipiA st s ∨ b = actA st s) → ∀ w ∈ V, b.val < w.val ∨ w.val + 32768 ≤ b.val :=
+  Fl4Proofs.P3.JAtZB.hnd (J := J.toB) (Jv := Jv)
 
 /-- **`vcpu_finalise_vl` at a joint state**: only `hU` [J] (no IPC-buffer word is the head word) left. -/
 theorem vcpu_finalise_vlJ (hA : P0.ArchTotal ar) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

@@ -3,6 +3,10 @@ P3 (DESIGN.md §9), scheduler: **the dead stay dead across `schedule`**
 (`JAtZ.deadP_sch_step`, ScDeadStep's `deadP_sc_step` for a scheduler step
 `SchStep`, the spec's links cut only, as `lkm_schedule` gives for
 `schedule`).
+
+(mmuAD gen 42b17, second pass) Stated over `JAtZB` with the copy's `ext`-free proof (the copy differed only in
+qualified names, e.g. `Sched.nodeW`): `deadP_sch_step`; the `JAtZ` names are one-line corollaries via `JAtZ.toB`,
+statements unchanged.
 -/
 import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.ScSchedLK
@@ -19,9 +23,9 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across a scheduler step** (`deadP_sc_step` for a
 `SchStep`, the idle thread by `ActIdle` after). -/
-theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZB.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hX' : XTopAt (L := L) AR Z s' a' σ')
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ))
     (hK0 : SchStep (fun _ => False) σ σ')
@@ -69,8 +73,8 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       exact optRef_eq_none (by rw [show P1.boundA q = tBoundA q from rfl, ← hR'.bound, hb, h1])
     · intro e
       have hact := hS'.act
-      have ea : L.actionW s' = nodeW st s' Z.c layout.node.SCHED_ACTION := by
-        unfold P1.LawfulStore.actionW nodeW; rw [hc'.cur]
+      have ea : L.actionW s' = Sched.nodeW st s' Z.c layout.node.SCHED_ACTION := by
+        unfold P1.LawfulStore.actionW Sched.nodeW; rw [hc'.cur]
       rw [← ea, ← e] at hact
       revert hact
       cases hsa : σ'.schedulerAction with
@@ -91,7 +95,7 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       obtain ⟨xi, hki, -, hsti, -⟩ := hAI.2
       have h1 := hs'.idleTh
       have ei : σ'.idleThread = q.bv := by
-        rw [h1, e]; unfold P1.LawfulStore.idleW nodeW; rw [hc'.cur]
+        rw [h1, e]; unfold P1.LawfulStore.idleW Sched.nodeW; rw [hc'.cur]
       rw [ei, hk'] at hki; cases hki
       rw [hstate] at hsti
       rw [hsti] at hst0
@@ -161,6 +165,18 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       · rw [scReplyA_eq', J.sc_out_keep hw hq hqC (by decide) (by decide), ← scReplyA_eq']; exact d2
       · rw [← scW_ntfn, J.sc_out_keep hw hq hqC (by decide) (by decide), scW_ntfn]; exact d3
       · rw [scYieldFromA_eq, J.sc_out_keep hw hq hqC (by decide) (by decide), ← scYieldFromA_eq]; exact d4
+
+/-- `JAtZB.deadP_sch_step` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (hX' : XTopAt (L := L) AR Z s' a' σ')
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ))
+    (hK0 : SchStep (fun _ => False) σ σ')
+    {W : Fl4Spec.ObjRef → Prop} (hL : LK W σ σ') (hAI : ActIdle σ')
+    {q : U64} (hYm : YMemDead (L := L) H Z.C s s' q) (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) :
+    DeadP (L := L) H s' q :=
+  Fl4Proofs.P3.JAtZB.deadP_sch_step (J := J.toB) (hX' := hX') (hw := hw) (hK0 := hK0) (hL := hL) (hAI := hAI) (hYm := hYm) (hW := hW) (hd := hd)
 
 
 end

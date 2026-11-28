@@ -54,9 +54,17 @@ TCB's VCPU word is 0), so every VM-epoch fact is [S] start content or the [S] la
   object in a VM epoch), and of upper-level paging words against VCPUs (gen 14's counterexample shape: a named root
   whose L4 entry points into a VCPU makes `v.PENDING` a paging word; excluded only by the real kernel's typing).
 
+## Gen 55 (line p3mc): re-based in place onto `LocPlatC` / `ChainRun`
+`ExecVX4eC` (the constructors over `Fl4StepVX4C`), `ExecVX4e.toC`, `execVX4d_of_e_C` and
+**`serializable_fl4_localAD3_C`** (`P : LocPlatC`, `hRun : ChainRun` for `P : LocPlat`, [P] `hIoa`; any `LocPlatCR`
+gives both); `serializable_fl4_localAD3` is its one-line corollary at `P.toC`, `chainRun_of P hIoa` (statement
+unchanged). The chain below: `NatEpC` (E2EPVX1), `Fl4StepVX4C` (E2EPVX4), `ExecVX4dC` (E2EPVX11AG), `startAt_U_C`
+(E2EPU1), `execVX4d_aRunD_C` / `serializable_VXD_of_C` / `ad_startAt_C` (E2EPAD), `ad2_startAt_C` /
+`serializable_fl4_localAD2_C` (E2EPAD2). P2/V15PlatW applies it at jboot's witness (`serializable_fl4_localAD3W`).
+
 No sorry / admit / native_decide / bv_decide. New module; no existing statement changes.
 -/
-import Fl4Proofs.P2.E2EPAD2U
+import Fl4Proofs.P2.E2EPAD2
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.E2EP
@@ -138,6 +146,34 @@ inductive ExecVX4e (LP : PathsP ι)
       ExecVX4e LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
       ExecVX4e LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
 
+/-- **`ExecVX4e` on the re-based platform** (gen 55): the same constructors over `Fl4StepVX4C`. -/
+inductive ExecVX4eC (LP : PathsP ι)
+    (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
+    (P : LocPlatC st arI AR MR) (s0 : Cfg U64 U64 U64 U64) (K0 : KLayoutP) (Ch0 : S → Prop) :
+    Cfg U64 U64 U64 U64 → KLayoutP → (S → Prop) → (U64 → U64) → Prop
+  | refl : ExecVX4eC LP SF P s0 K0 Ch0 s0 K0 Ch0 s0.mem
+  | step {s s' : Cfg U64 U64 U64 U64} {K K' : KLayoutP} {Ch Ch' : S → Prop} {c : U64} {E : U64 → U64} :
+      ExecVX4eC LP SF P s0 K0 Ch0 s K Ch E → Step s c s' → Fl4StepVX4C LP SF P s K Ch c s' K' Ch' →
+      /- [S] the narrowed VM layout fact at a VM serial exit -/
+      (SerStep s c → K'.vcpus ≠ ∅ → VmPweU K' s'.mem) →
+      ExecVX4eC LP SF P s0 K0 Ch0 s' K' Ch' (if SerStep s c then s'.mem else E)
+  | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {E : U64 → U64} {v a x : U64} :
+      ExecVX4eC LP SF P s0 K0 Ch0 s K Ch E → HwStepP K s v a x → ExecVX4eC LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
+  | mmu {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {E : U64 → U64} {a x : U64} :
+      ExecVX4eC LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
+      ExecVX4eC LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
+
+/-- An `ExecVX4e` run is an `ExecVX4eC` run at `P.toC`. -/
+theorem ExecVX4e.toC {LP : PathsP ι}
+    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64}
+    (h : ExecVX4e LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4eC LP SF P.toC s0 K0 Ch0 s K Ch E := by
+  induction h with
+  | refl => exact .refl
+  | step _ hS g hPw ih => exact .step ih hS g.toC hPw
+  | hw _ hH ih => exact .hw ih hH
+  | mmu _ hH ih => exact .mmu ih hH
+
 /-- **An `ExecVX4e` run is an `ExecVX4d` run** (start facts mapped pointwise; `VmPweT` from `VmPweU` and the exit's
 `VtxBundle4`). -/
 theorem execVX4d_of_e {LP : PathsP ι}
@@ -146,6 +182,25 @@ theorem execVX4d_of_e {LP : PathsP ι}
     (hSF : ∀ Ch K m hK hU c hs q i, SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
     {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
     {E : U64 → U64} (h : ExecVX4e LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4d LP SF' P s0 K0 Ch0 s K Ch E := by
+  induction h with
+  | refl => exact .refl
+  | @step s1 s1' K1 K1' Ch1 Ch1' c1 E1 _ hS g hPw ih =>
+    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.ser, g.serG, g.keep⟩ (fun hs hne => ?_)
+    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
+      exact ⟨i, hSF _ _ _ _ _ _ _ _ _ hi⟩
+    · rcases g.ser hs with ⟨-, nv, -⟩ | ⟨-, -, hV⟩
+      · exact (hne nv).elim
+      · exact (hPw hs hne).toT hV.b.ul.rx
+  | hw _ hH ih => exact .hw ih hH
+  | mmu _ hH ih => exact .mmu ih hH
+
+/-- **`execVX4d_of_e` on the re-based platform** (gen 55): `ExecVX4eC` ↦ `ExecVX4dC`. -/
+theorem execVX4d_of_e_C {LP : PathsP ι}
+    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
+      Prop}
+    (hSF : ∀ Ch K m hK hU c hs q i, SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
+    {P : LocPlatC st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
+    {E : U64 → U64} (h : ExecVX4eC LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4dC LP SF' P s0 K0 Ch0 s K Ch E := by
   induction h with
   | refl => exact .refl
   | @step s1 s1' K1 K1' Ch1 Ch1' c1 E1 _ hS g hPw ih =>
@@ -247,6 +302,20 @@ theorem startAD3_of2 {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : P
   · exact h
   · exact pmStartX3_of h
 
+/-- **`serializable_fl4_localAD3` on the re-based platform**
+(gen 55, in place: `P : LocPlatC` and `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
+theorem serializable_fl4_localAD3_C (P : LocPlatC st arI AR MR) (hRun : ChainRun st arI AR MR)
+    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
+    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
+    (hA0 : ArmInv s0) (hB : SerExitC P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
+    (hM0 : MapsP K0 s0)
+    (h : ExecVX4eC (famAD2 st ar hA a0 B) (StartAD3 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR))
+      P s0 K0 Ch0 s K Ch E)
+    (hq : NoLoc s) :
+    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
+  serializable_fl4_localAD2_C st ar hA a0 P hRun B h0 hA0 hB hc0 hM0
+    (execVX4d_of_e_C (startAD2_of3 st ar hA a0 B) h) hq
+
 /-- **FL4 end to end with the host walker's A/D writes, every U1 slot and PageMap in native and VM epochs, gen 18**
 (module docstring). Premises: `serializable_fl4_localAD2`'s (`P`, [P] `hIoa`, `B` = [P] `cs` / [P] `lk`, `h0`,
 `hA0`, `hB`, `hc0`, `hM0`, the execution, `hq`), with the execution over `ExecVX4e` ([P] `MmuAD`, [S] `VmPweU` at
@@ -261,8 +330,7 @@ theorem serializable_fl4_localAD3 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P
       P s0 K0 Ch0 s K Ch E)
     (hq : NoLoc s) :
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_localAD2 st ar hA a0 P hIoa B h0 hA0 hB hc0 hM0
-    (execVX4d_of_e (startAD2_of3 st ar hA a0 B) h) hq
+  serializable_fl4_localAD3_C st ar hA a0 P.toC (chainRun_of P hIoa) B h0 hA0 hB hc0 hM0 h.toC hq
 
 /-- **`serializable_fl4_localAD2` from `serializable_fl4_localAD3`** (AD2's premises and conclusion verbatim): AD3
 asks nothing AD2 does not. -/

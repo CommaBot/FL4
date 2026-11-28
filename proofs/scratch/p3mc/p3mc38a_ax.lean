@@ -11,11 +11,8 @@ import Fl4Proofs.P2.BootRun
 #print axioms Fl4Proofs.P2.BootSt.run_loc
 #print axioms Fl4Proofs.P2.BootSt.leave_loc
 #print axioms Fl4Proofs.P2.BootSt.runEnd
-#print axioms Fl4Proofs.P2.BootSt.runEndV12_B
 #print axioms Fl4Proofs.P2.BootSt.runEndV13_B
 #print axioms Fl4Proofs.P2.BootSt.runAll_one
-#print axioms Fl4Proofs.P2.BootSt.topV12_B
-#print axioms Fl4Proofs.P2.BootSt.topV13_B
 #print axioms Fl4Proofs.P2.BootSt.sfg1
 #print axioms Fl4Proofs.P2.BootSt.sfg2
 #print axioms Fl4Proofs.P2.BootSt.sfg3

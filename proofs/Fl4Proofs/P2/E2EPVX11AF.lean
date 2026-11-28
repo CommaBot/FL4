@@ -15,6 +15,8 @@ discharges the Copy / Mint field.
 
 Named premises of `serializable_fl4_localVX11AF` beyond VX11's and [P] `MmuAD`: [S] `VmPwe` at VM serial exits (in
 `ExecVX4c`, E2EPVX11AE), [W] `VmInsAF` (`inv`, `del`). No existing statement changed.
+
+Gen 56 (handoff p3mc §61) retired, with `ExecWPRV10–12` and the V15 stepping stones: `serializable_fl4_localVX11AF`.
 -/
 import Fl4Proofs.P2.E2EPVX11AE
 open Aeneas Aeneas.Std Result
@@ -103,60 +105,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **FL4 end to end with every U1 slot in native and VM epochs and the host walker's A/D writes** (module
-docstring): VX11's premises (`P`, [P] `hIoa`, `h0`, `hA0`, `hB`, `hc0`, `hM0`, the execution, `hq`) over `ExecVX4c`
-(so [S] `VmPwe` at VM serial exits), [P] `MmuAD` (its `mmu` step), and [W] `hVm : VmInsAF` (two fields). -/
-theorem serializable_fl4_localVX11AF (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (hVm : VmInsAF st ar hA hm)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4c (famVX11 st ar hA hm hSt a0) (StartVX11U st ar hA hm hSt a0 (arI := arI) (AR := AR) (MR := MR))
-      P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  refine serializable_VX4c_of P (vx11_startAt st ar hA hm hSt a0 P hIoa) ?_ h0 hA0 hB hc0 hM0 h hq
-  intro Ch K E s hK hU c hs q i hX hV hW J hM hsf hP
-  rcases i with ((((((((((i | j) | j) | j) | j) | j) | j) | j) | j) | j) | j) | j
-  · have hsf' : K.vcpus = ∅ ∧ StartU1 st ar hA hm hSt a0 arI AR MR (StartInvU2 st ar hA hm) Ch K s.mem hK hU c hs
-        q i := hsf
-    have nv := hsf'.1
-    have J' := J.toJ nv
-    have hb : ∃ σe, SlJAt (L := L) K.toKLayout σe := by
-      obtain ⟨σe, hC'⟩ := (hX nv).chainOf
-      have hσe : Ch σe := by
-        obtain ⟨_, _, _, _, _, _, _, _, h'⟩ := hC'
-        exact h'
-      exact ⟨σe, ChainOf.bun hC' σe hσe⟩
-    rcases i with i | ((j | j) | j)
-    · exact insA_w11 st ar hA hm hSt a0 i (hK := hK) (hU := hU) hb J' hM hP
-    · exact insA_delR st ar hA hm j (hK := hK) (hU := hU) hb J' hM hP
-    · exact insA_invR st ar hA hm j (hK := hK) (hU := hU) hb J' hM hP
-    · exact insA_cm st ar hA hm j (hK := hK) (hU := hU) hb J' hM hP
-  · have hsf' : VxStartV2 st ar hA hm K s.mem hK hU c hs q j := hsf
-    have hne := vxStartV2_ne hsf'
-    exact insAW_vx st ar hA hm K E s hK hU c hs q j hne (hV hne) (hW hne) J hM hP
-  · have hsf' : VtStartV4 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_vt st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : IoStartX5 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_io st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : StStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_st st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : IrqStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_irq st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : SlStartX st ar hA hm hSt a0 K s.mem hK hU c hs q j := hsf
-    exact insAW_sl st ar hA hm hSt a0 K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : InvStartX9 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact hVm.inv K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : CMStartX9 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_cm st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : DelPteStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact hVm.del K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : VmFStartY st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_vmF st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
-  · have hsf' : VmRStartY st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact insAW_vmR st ar hA hm K E s hK hU c hs q j hsf'.1 (hV hsf'.1) (hW hsf'.1) J hM hP
 
 end top
 

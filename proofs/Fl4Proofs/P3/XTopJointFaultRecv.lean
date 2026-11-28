@@ -36,6 +36,10 @@ FL4 reads the fault word where the call flag is false, l4v takes
   receiver; `JAtZ.faultHypJZ`: `handle_fault` at a given `J` for every
   handler cap (null, endpoint idle/sending/receiving), used by
   XTopJointEntry's `handle_invocation_refinesJ`.
+
+(mmuAD gen 42b18) `fin_frameF`, `setFaultCapJ` stated over `JAtZB` in place with the copies' statements (post at `Z`;
+`setFaultCapJ` also names its `FinW` footprint); the `JAtZ` names are corollaries (witness `Z.vs`, `ext` by
+`JAtZ.ext_oobj` over `FinW`). P3/JAtZV3FaultRecvB's copies deleted.
 -/
 import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointSendPushD
@@ -56,10 +60,10 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-set_option maxHeartbeats 8000000 in
+set_option maxHeartbeats 4000000 in
 /-- **`JAtZ` across a quiet step writing `FinW` words** (XTopJointRegFrame's
 `JAtZ.reg_frameF` with the footprint `FinW`). -/
-theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+theorem JAtZB.fin_frameF (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {Ac' : Set U64}
     (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) (hA : QKY σ σ') (hyk : YKeep σ σ')
@@ -68,7 +72,7 @@ theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
       (P1.Heap.scBits H) ∅ s)) :
-    ∃ V', JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' := by
+    JAtZB (L := L) arI AR Z H Cs Ac' Lst D s' a σ' := by
   have hI := J.xtop.irelK J.ks J.buf
   have hwC : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ) := hw.mono fun b hb => Or.inl hb
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hwC fun b hb => CnW.oobj hI.2.2.1 hb
@@ -101,20 +105,35 @@ theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
         (DXKeep.of_dbg hKd (J.tdkeep_of hwF fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
-  have hC0 := JCs.same J hF.1 hA.ksz
+  have hC0 := JCs.sameB J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
+  exact J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD
 
-set_option maxHeartbeats 16000000 in
+/-- `JAtZB.fin_frameF` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {Ac' : Set U64}
+    (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
+    (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) (hA : QKY σ σ') (hyk : YKeep σ σ')
+    (hInv : Inv σ')
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s)) :
+    ∃ V', JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst D s' a σ' :=
+  ⟨Z.vs, (Fl4Proofs.P3.JAtZB.fin_frameF (J := J.toB) (hI3 := hI3) (hw := hw) (hA := hA) (hyk := hyk) (hInv := hInv) (hblk := hblk) (hfoot := hfoot)).toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb)
+    (fun _ hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb))⟩
+
+set_option maxHeartbeats 4000000 in
 /-- **`set_fault` of a cap fault at `J`** (module docstring): the thread not
 blocked on send (so `Inv.rd`'s class is unchanged), P1's `CanBlock` of any
 thread carried. -/
-theorem JAtZ.setFaultCapJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZB.setFaultCapJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : ∀ e d, x.tcbState ≠ .blockedOnSend e d)
     {t0 : U64} (hcb : P1.CanBlock st (P1.Heap.tcbs H) Ac s t0)
     {f : error.Fault} {f' : Fl4Spec.Fault} (hf : CapFaultCorr f f') :
-    faults.set_fault st s t f ⦃ s' => ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s' a
-      (updK σ t.bv (.tcb { x with tcbFault := some f' })) ∧ P1.CanBlock st (P1.Heap.tcbs H) Ac s' t0 ⦄ := by
+    faults.set_fault st s t f ⦃ s' => JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a
+      (updK σ t.bv (.tcb { x with tcbFault := some f' })) ∧ P1.CanBlock st (P1.Heap.tcbs H) Ac s' t0 ∧
+      P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) ⦄ := by
   have hP0 := J.ip
   have hI := J.xtop.irelK J.ks J.buf
   have hta := hP0.e.tcb t ht
@@ -154,9 +173,20 @@ theorem JAtZ.setFaultCapJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
     by_cases hp : p = t.bv
     · subst hp; exact Or.inr (Or.inl ⟨x, y, hk, by simp [updK], rfl⟩)
     · exact Or.inl (by simp [updK, hp])
-  obtain ⟨V, J'⟩ := J.fin_frameF hI7 hwF hA (YK.YKS.updTcb (y := y) hk rfl).ykeep
+  have J' := J.fin_frameF hI7 hwF hA (YK.YKS.updTcb (y := y) hk rfl).ykeep
     (J.inv.updSame (y := y) hk rfl rfl (Or.inr hns)) hblk7 hfoot7
-  exact ⟨V, J', hcb7⟩
+  exact ⟨J', hcb7, hwF⟩
+
+/-- `JAtZB.setFaultCapJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.setFaultCapJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : ∀ e d, x.tcbState ≠ .blockedOnSend e d)
+    {t0 : U64} (hcb : P1.CanBlock st (P1.Heap.tcbs H) Ac s t0)
+    {f : error.Fault} {f' : Fl4Spec.Fault} (hf : CapFaultCorr f f') :
+    faults.set_fault st s t f ⦃ s' => ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s' a
+      (updK σ t.bv (.tcb { x with tcbFault := some f' })) ∧ P1.CanBlock st (P1.Heap.tcbs H) Ac s' t0 ⦄ :=
+  WP.spec_mono (Fl4Proofs.P3.JAtZB.setFaultCapJ (J := J.toB) (ht := ht) (hk := hk) (hns := hns) (hcb := hcb) (hf := hf)) fun _ ⟨B, hcb, hw⟩ =>
+    ⟨Z.vs, B.toJAtZ (J.ext_oobj hw (fun _ hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb)
+      (fun _ hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb)), hcb⟩
 
 end
 

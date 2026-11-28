@@ -22,6 +22,18 @@ one `Fire`: the signal (`Signal`), then `reprogram_timer` set.
   `Fires`, the domain time kept.
 * `jat_scheduleF`: `jat_scheduleT2` with `hfireJ` discharged by `fireJ`
   (given `SignalJHyp`), at fresh VSpace sets.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `jcov_keepX`,
+`tmw_ne_node`, `tmw_ne_obj`, `tmw_ne_tcb`, `tmw_obj`, `tmw_slots`, `tmw_utc`, `tmw_word`, `tw_word`; each `JAtZ` name
+is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39 deleted).
+
+(mmuAD gen 42b18) `tmw_step`, `reprogramJ` stated over `JAtZB` in place (`JAtZ` names via new `JAtZ.ext_tmw` /
+`JAtZB.reprogram_w`). The fire loop is one proof: `fire_loopE` over `JAtZB` with a state fact `E` (`FireInvE`,
+`SignalJHypE`), `fire_loopJ` its instance at `E := JExt`, P3/JAtZBFire's `fire_loopJB` at `E := True` (`fireInv_iff`,
+`fireInvB_iff`, `SignalJHyp.toE`, `SignalJHypB.toE`); `SignalJHypB` [J], `FireInvB`, `JAtZB.fireJ` moved here from
+P3/JAtZBFire (statements unchanged), the copies there deleted. Named premises here: `SignalJHyp` [J], `SignalJHypB`
+[J] (moved, unchanged), `SignalJHypE` [J] (the generic form of the two; asked only by `fire_loopE`, given by
+`SignalJHyp.toE` / `SignalJHypB.toE`).
 -/
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.BufFr
@@ -55,7 +67,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- **A timer word, by value**: a TCB's timer fields (offsets 3528..3576), or
 a timer-tree or `REPROGRAM` word of a core's node. -/
-theorem JAtZ.tw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : P1.TW st Z.T Cs s b) :
     (∃ y ∈ Z.T, y.val + 3528 ≤ b.val ∧ b.val < y.val + 3576) ∨
     (∃ c ∈ Cs, ∃ o : Nat, (o = 104 ∨ o = 112) ∧ b.val = L.nodeBase s c + o) := by
@@ -69,7 +81,14 @@ theorem JAtZ.tw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       by rw [Notif.tfield_val (hT y hy) (by omega)]; omega⟩
   · right; exact ⟨c', hc', o.val, ho, P1.nodeAt_val (hNP c' hc') (by omega)⟩
 
-theorem JAtZ.tmw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `JAtZB.tw_word` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : P1.TW st Z.T Cs s b) :
+    (∃ y ∈ Z.T, y.val + 3528 ≤ b.val ∧ b.val < y.val + 3576) ∨
+    (∃ c ∈ Cs, ∃ o : Nat, (o = 104 ∨ o = 112) ∧ b.val = L.nodeBase s c + o) :=
+  Fl4Proofs.P3.JAtZB.tw_word (J := J.toB) (hb := hb)
+
+theorem JAtZB.tmw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) :
     (∃ y ∈ Z.T, y.val + 3528 ≤ b.val ∧ b.val < y.val + 3576) ∨
     (∃ c ∈ Cs, ∃ o : Nat, (o = 104 ∨ o = 112 ∨ o = 56) ∧ b.val = L.nodeBase s c + o) := by
@@ -84,8 +103,15 @@ theorem JAtZ.tmw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     have h56 : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
     exact ⟨Z.c, hcC, 56, by omega, by rw [P1.nodeAt_val hN (by omega), h56]⟩
 
+/-- `JAtZB.tmw_word` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) :
+    (∃ y ∈ Z.T, y.val + 3528 ≤ b.val ∧ b.val < y.val + 3576) ∨
+    (∃ c ∈ Cs, ∃ o : Nat, (o = 104 ∨ o = 112 ∨ o = 56) ∧ b.val = L.nodeBase s c + o) :=
+  Fl4Proofs.P3.JAtZB.tmw_word (J := J.toB) (hb := hb)
+
 /-- **A timer word lies in no object of `H`** but a TCB's timer fields. -/
-theorem JAtZ.tmw_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {p : U64} {k : P1.HKind} (hp : H p = some k)
     (hin : p.val ≤ b.val ∧ b.val < p.val + 2 ^ k.bits) :
     k = .tcb ∧ p ∈ Z.T ∧ p.val + 3528 ≤ b.val ∧ b.val < p.val + 3576 := by
@@ -100,22 +126,41 @@ theorem JAtZ.tmw_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   · have := J.kern.hnd p k hp c hc
     rcases ho with rfl | rfl | rfl <;> omega
 
+/-- `JAtZB.tmw_obj` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {p : U64} {k : P1.HKind} (hp : H p = some k)
+    (hin : p.val ≤ b.val ∧ b.val < p.val + 2 ^ k.bits) :
+    k = .tcb ∧ p ∈ Z.T ∧ p.val + 3528 ≤ b.val ∧ b.val < p.val + 3576 :=
+  Fl4Proofs.P3.JAtZB.tmw_obj (J := J.toB) (hb := hb) (hp := hp) (hin := hin)
+
 /-- A timer word is no word of a non-TCB object of `H`. -/
-theorem JAtZ.tmw_ne_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_ne_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {p : U64} {k : P1.HKind} (hp : H p = some k) (hk : k ≠ .tcb)
     {w : U64} (hw : p.val ≤ w.val ∧ w.val < p.val + 2 ^ k.bits) : b ≠ w := fun e => by
   subst e; exact hk (J.tmw_obj hb hp hw).1
 
+/-- `JAtZB.tmw_ne_obj` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_ne_obj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {p : U64} {k : P1.HKind} (hp : H p = some k) (hk : k ≠ .tcb)
+    {w : U64} (hw : p.val ≤ w.val ∧ w.val < p.val + 2 ^ k.bits) : b ≠ w :=
+  Fl4Proofs.P3.JAtZB.tmw_ne_obj (J := J.toB) (hb := hb) (hp := hp) (hk := hk) (hw := hw)
+
 /-- A timer word is no TCB word off the timer fields. -/
-theorem JAtZ.tmw_ne_tcb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_ne_tcb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {t : U64} (ht : t ∈ Z.T) {w : U64} {K : Nat}
     (hwv : w.val = t.val + K) (hK : K < 3528 ∨ (3576 ≤ K ∧ K < 4096)) : b ≠ w := fun e => by
   subst e
   have := J.tmw_obj hb (J.zH.1 t ht) (by simp only [P1.HKind.bits]; omega)
   omega
 
+/-- `JAtZB.tmw_ne_tcb` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_ne_tcb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {t : U64} (ht : t ∈ Z.T) {w : U64} {K : Nat}
+    (hwv : w.val = t.val + K) (hK : K < 3528 ∨ (3576 ≤ K ∧ K < 4096)) : b ≠ w :=
+  Fl4Proofs.P3.JAtZB.tmw_ne_tcb (J := J.toB) (hb := hb) (ht := ht) (hwv := hwv) (hK := hK)
+
 /-- A timer word is no node word off the timer-tree and `REPROGRAM` words. -/
-theorem JAtZ.tmw_ne_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_ne_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {c : U64} (hc : c ∈ Cs) {o : U64} (ho : o.val < 4288)
     (h1 : o.val ≠ 104) (h2 : o.val ≠ 112) (h3 : o.val ≠ 56) : b ≠ L.nodeAt s c o := fun e => by
   have hN : P1.NodePlaced st Z.T s c := by rw [J.tcbs_eq.1]; exact P1.TInv.nodes J.blk c hc
@@ -135,9 +180,15 @@ theorem JAtZ.tmw_ne_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · have : c.val * 4288 + 4288 ≤ c'.val * 4288 := by nlinarith
         omega
 
+/-- `JAtZB.tmw_ne_node` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_ne_node {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : TmW (L := L) Z.T Cs Z.c s b) {c : U64} (hc : c ∈ Cs) {o : U64} (ho : o.val < 4288)
+    (h1 : o.val ≠ 104) (h2 : o.val ≠ 112) (h3 : o.val ≠ 56) : b ≠ L.nodeAt s c o :=
+  Fl4Proofs.P3.JAtZB.tmw_ne_node (J := J.toB) (hb := hb) (hc := hc) (ho := ho) (h1 := h1) (h2 := h2) (h3 := h3)
+
 /-- `SlotsSame` across timer-word writes: the slots lie in `Z.th`'s objects,
 which are `H`'s (`JPlaced`), at a TCB's cap slots (below offset 256). -/
-theorem JAtZ.tmw_slots {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_slots {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s)) : SlotsSame Z.th (L.mem s) (L.mem s') := by
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hPl := hJ.pl
@@ -171,11 +222,16 @@ theorem JAtZ.tmw_slots {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   have := w 0#u64 (by decide) (by decide)
   rwa [wordOf_zero] at this
 
+/-- `JAtZB.tmw_slots` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_slots {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s)) : SlotsSame Z.th (L.mem s) (L.mem s') :=
+  Fl4Proofs.P3.JAtZB.tmw_slots (J := J.toB) (hw := hw)
+
 set_option maxHeartbeats 2000000 in
 /-- **The untyped caps' facts across timer-word writes** (`finW_utc`'s
 argument: no timer word in an untyped cap's free part, the TCBs being typed
 and the nodes outside every untyped region). -/
-theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
@@ -215,6 +271,18 @@ theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     rw [hcdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `JAtZB.tmw_utc` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (harch : σ'.archState = σ.archState)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  Fl4Proofs.P3.JAtZB.tmw_utc (J := J.toB) (hw := hw) (hSS := hSS) (hcdt := hcdt) (horig := horig) (harch := harch) (hDbg := hDbg)
 
 /-- **A TCB off `X` keeps its deadline word** across an `XFoot` write set
 (P1's footprints of `timer::remove` / `timer::insert`). -/
@@ -287,7 +355,7 @@ theorem insert_td {T Cs : Set U64} (s : S) (t d bd : U64) (hT : P1.TcbPlaced T) 
 /-- **`JCovD` across a step keeping every slot**, the dead set's `DeadX`
 carried by the caller (`JAtZ.jcov_keep` with `hdx` in place of a
 `DXKeep`: the timer steps write deadline words). -/
-theorem JAtZ.jcov_keepX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.jcov_keepX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s)
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hdead : ∀ q ∈ D, DeadP (L := L) H s' q)
     (hidl : Sched.IdleKeep (L := L) s s')
@@ -298,6 +366,15 @@ theorem JAtZ.jcov_keepX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   exact J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
     (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
     (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hdx
+
+/-- `JAtZB.jcov_keepX` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.jcov_keepX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hdead : ∀ q ∈ D, DeadP (L := L) H s' q)
+    (hidl : Sched.IdleKeep (L := L) s s')
+    (hdx : ∀ q ∈ D, Sched.DeadX (L := L) H Cs s q → Sched.DeadX (L := L) H Cs s' q) :
+    JCovD (L := L) Z.th H Z.G D Cs s' :=
+  Fl4Proofs.P3.JAtZB.jcov_keepX (J := J.toB) (hks := hks) (hSS := hSS) (hdead := hdead) (hidl := hidl) (hdx := hdx)
 
 /-- **`DeadX` across a step keeping the debug words**, a dead TCB's deadline
 word staying 0. -/
@@ -312,18 +389,25 @@ theorem Sched.DeadX.keepT {H : P1.Heap} {Cs : Set U64} {s s' : S} {q : U64}
   refine ⟨by rw [e1]; exact d1, fun c hc => ?_, htd hH d3⟩
   rw [P1.nodeAt_of_ksb hKd.1, e2 c hc]; exact d2 c hc
 
+/-- **`ext` across a timer step** (mmuAD gen 42b18: the `ext`-rebuild of `tmw_step` / `reprogramJ` stated over
+`JAtZB`): the slots kept (`tmw_slots`), every TCB's VCPU word kept (offset 3664, no timer field: `tmw_ne_tcb`). -/
+theorem JAtZ.ext_tmw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s)) : JExt (L := L) Z.th s' :=
+  J.ext.ss (J.toB.tmw_slots hw) fun t ht => hw.mem_eq (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) fun hb =>
+    J.toB.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)) (by omega) rfl
+
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across timer-word writes** (module docstring): the timer words
 written, `REPROGRAM` kept or set to 1, P1's `BlkOK` after given; a dead TCB's
 deadline word stays 0 (`hTd`). -/
-theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
     (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
       L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
     (hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s' (P1.tdA q) = 0#u64) :
-    ∃ r : Bool, JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a { σ with reprogramTimer := σ.reprogramTimer || r } := by
+    ∃ r : Bool, JAtZB (L := L) arI AR Z H Cs Ac Lst D s' a { σ with reprogramTimer := σ.reprogramTimer || r } := by
   obtain ⟨r, hX'⟩ := J.xtop.tmStep J.otherTmOK hw hR
   refine ⟨r, ?_⟩
   set σ' : Fl4Spec.State Unit := { σ with reprogramTimer := σ.reprogramTimer || r } with hσ'
@@ -410,8 +494,19 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       hAI, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   exact J.cs_frameK (hvn := J.vsSS (G' := Z.G) hX' hks hSS (Vs.ArchShr.of_ao F.sk.arch fun q ao h =>
-    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.sameB J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
     hSS hKd F.sk.idle
+
+/-- `JAtZB.tmw_step` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (TmW (L := L) Z.T Cs Z.c s))
+    (hR : L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) ∨
+      L.mem s' (L.nodeAt s Z.c layout.node.REPROGRAM) = 1#u64)
+    (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s')
+    (hTd : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s' (P1.tdA q) = 0#u64) :
+    ∃ r : Bool, JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a { σ with reprogramTimer := σ.reprogramTimer || r } :=
+  (Fl4Proofs.P3.JAtZB.tmw_step (J := J.toB) (hw := hw) (hR := hR) (hblk := hblk) (hTd := hTd)).imp fun _ B => B.toJAtZ (J.ext_tmw hw)
 
 
 variable (arI) in
@@ -438,12 +533,23 @@ def FireInv (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Se
   ∃ (σ1 : Fl4Spec.State Unit) (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
     Fires σ σ1 ∧ σ1.domainTime = σ.domainTime ∧ JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s a σ1
 
+/-- **`reprogram_timer`'s write is a timer word** (`TmW`: the current core's `REPROGRAM` word; mmuAD gen 42b18, for
+`reprogramJ`'s `ext` rebuild). -/
+theorem JAtZB.reprogram_w {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    P1.WritesIn st s (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) 1#u64) (TmW (L := L) Z.T Cs Z.c s) := by
+  obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
+  have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
+  have hN : P1.NodePlaced st Z.T s Z.c := by rw [J.tcbs_eq.1]; exact P1.TInv.nodes J.blk Z.c hcC
+  rw [hc.cur]
+  exact (P1.writesIn_wr (P1.nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))).mono
+    fun _ hb => Or.inr hb
+
 set_option maxHeartbeats 8000000 in
 /-- **The `REPROGRAM` write** at the end of a fired timer: `JAtZ` after,
 `reprogram_timer` set. -/
-theorem JAtZ.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D
+theorem JAtZB.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    JAtZB (L := L) arI AR Z H Cs Ac Lst D
       (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) 1#u64) a { σ with reprogramTimer := true } := by
   obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
   have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
@@ -472,17 +578,72 @@ theorem JAtZ.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   rw [e] at J'
   exact J'
 
-set_option maxHeartbeats 8000000 in
-/-- **The TCB timers' loop keeps `FireInv`** (module docstring). -/
-theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State Unit} (s : S) (a : A) (now i : U64)
-    (h : FireInv (L := L) (arI := arI) AR Z H Cs σ s a) :
-    timer.fire_loop st arI s a now i ⦃ r => FireInv (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ := by
+/-- `JAtZB.reprogramJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D
+      (L.wr s (L.nodeAt s (L.cpu s) layout.node.REPROGRAM) 1#u64) a { σ with reprogramTimer := true } :=
+  (Fl4Proofs.P3.JAtZB.reprogramJ (J := J.toB)).toJAtZ (J.ext_tmw J.toB.reprogram_w)
+
+variable (arI) in
+/-- **`send_signal` keeps `JAtZB`** [J] (ScFireJ's `SignalJHyp` with `JAtZ` → `JAtZB`, gen 32; JAtZBFire module docstring): from `JAtZ` at a
+notification of `N`, FL4's `send_signal` against the spec's `send_signal`
+(deterministic, not failing), `JAtZ` after at fresh VSpace sets
+(`XTopAt.irel_same`'s), the domain time kept. The IPC side is proved on
+`IRel` (`send_signal_top`); the `JAtZ` lift (the footprint and spec frame
+of a notification's wake: the dequeue or the bound receiver's
+`cancel_ipc`, the restart, the SC donation, the switch, the sporadic
+check) is not. -/
+def SignalJHypB (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
+  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (n badge : U64), JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ → n ∈ Z.N →
+    notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64),
+      Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZB (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
+
+/-- The loop's invariant: `JAtZ` at fresh VSpace sets after some fired
+timers, the domain time kept. -/
+def FireInvB (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (σ : Fl4Spec.State Unit)
+    (s : S) (a : A) : Prop :=
+  ∃ (σ1 : Fl4Spec.State Unit) (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
+    Fires σ σ1 ∧ σ1.domainTime = σ.domainTime ∧ JAtZB (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s a σ1
+
+/-- **The fire loop's invariant over `JAtZB` with a state fact `E`** (mmuAD gen 42b18): `FireInv` is
+`E := JExt` (`fireInv_iff`), JAtZBFire's `FireInvB` is `E := True` (`fireInvB_iff`). -/
+def FireInvE (E : TypedHeap → S → Prop) (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (σ : Fl4Spec.State Unit) (s : S) (a : A) : Prop :=
+  ∃ (σ1 : Fl4Spec.State Unit) (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
+    Fires σ σ1 ∧ σ1.domainTime = σ.domainTime ∧ JAtZB (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s a σ1 ∧ E Z.th s
+
+variable (arI) in
+/-- **`send_signal` over `JAtZB` with a state fact `E`** [J] (mmuAD gen 42b18: the generic form of `SignalJHyp` [J]
+and `SignalJHypB` [J], which give it at `E := JExt` (`SignalJHyp.toE`) and `E := True` (`SignalJHypB.toE`); asked
+only by `fire_loopE`). -/
+def SignalJHypE (E : TypedHeap → S → Prop) (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
+  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (n badge : U64), JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ → E Z.th s → n ∈ Z.N →
+    notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64),
+      Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZB (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ∧ E Z.th r.1 ⦄
+
+set_option maxHeartbeats 4000000 in
+/-- **The TCB timers' loop keeps `FireInvE`** (module docstring; mmuAD gen 42b18: the original `fire_loopJ`'s proof
+over `JAtZB`, the state fact `E` carried across each timer step by `hE` and across the signal by `hSig`). -/
+theorem fire_loopE {E : TypedHeap → S → Prop}
+    (hE : ∀ {Z' : XSets} {Cs' Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} {s1 : S} {a1 : A}
+      {σ1 : Fl4Spec.State Unit} {s2 : S}, JAtZB (L := L) arI AR Z' H Cs' Ac' Lst' D' s1 a1 σ1 → E Z'.th s1 →
+      P1.WritesIn st s1 s2 (TmW (L := L) Z'.T Cs' Z'.c s1) → E Z'.th s2)
+    (hSig : SignalJHypE (L := L) arI E AR H Cs) {σ : Fl4Spec.State Unit} (s : S) (a : A) (now i : U64)
+    (h : FireInvE (L := L) (arI := arI) E AR Z H Cs σ s a) :
+    timer.fire_loop st arI s a now i ⦃ r => FireInvE (L := L) (arI := arI) E AR Z H Cs σ r.1 r.2 ⦄ := by
   unfold timer.fire_loop
   apply loop.spec_decr_nat (measure := fun x => 32 - x.2.2.val)
-    (inv := fun x => FireInv (L := L) (arI := arI) AR Z H Cs σ x.1 x.2.1)
+    (inv := fun x => FireInvE (L := L) (arI := arI) E AR Z H Cs σ x.1 x.2.1)
   · rintro ⟨s1, a1, i1⟩ h1
     try simp only at h1
-    obtain ⟨σ1, V1, Ac1, Lst1, D1, hF1, hd1, J1⟩ := id h1
+    obtain ⟨σ1, V1, Ac1, Lst1, D1, hF1, hd1, J1, hE1⟩ := id h1
     have hTe : Z.T = P1.Heap.tcbs H := J1.tcbs_eq.1
     unfold timer.fire_loop.body
     dsimp only
@@ -541,6 +702,7 @@ theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State 
             · have : Z.c.val * 4288 + 4288 ≤ c'.val * 4288 := by nlinarith
               omega
       obtain ⟨r2, J2⟩ := J1.tmw_step hw2' (Or.inl hR2) h2 hTd2
+      have hE2 : E Z.th s2 := hE (Z' := Z.mv Z.G V1) J1 hE1 hw2'
       have e2 : (σ1.reprogramTimer || r2) = σ1.reprogramTimer := by
         have g1 : (σ1.reprogramTimer || r2) = decide (Sched.nodeW st s2 Z.c layout.node.REPROGRAM ≠ 0#u64) :=
           J2.xtop.fin.1.1.1.repr
@@ -549,21 +711,21 @@ theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State 
         rw [g1, g0]; unfold Sched.nodeW
         rw [P1.nodeAt_of_ksb hw2.1, hR2]
       rw [e2] at J2
-      have J2' : JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s2 a1 σ1 := J2
+      have J2' : JAtZB (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s2 a1 σ1 := J2
       step with P1.obj.Tcb.bound_ntfn.val as ⟨n, en⟩
       refine WP.spec_bind (Pₘ := fun r : S × A => ∃ (σ2 : Fl4Spec.State Unit) (V2 : XVs) (Ac2 : Set U64)
           (Lst2 : U64 → List U64) (D2 : Set U64), (σ2 = σ1 ∨ Signal σ1 σ2) ∧ σ2.domainTime = σ1.domainTime ∧
-          JAtZ (L := L) arI AR (Z.mv Z.G V2) H Cs Ac2 Lst2 D2 r.1 r.2 σ2) ?_ ?_
+          JAtZB (L := L) arI AR (Z.mv Z.G V2) H Cs Ac2 Lst2 D2 r.1 r.2 σ2 ∧ E Z.th r.1) ?_ ?_
       · split
         · rename_i hn0
           have hn0' : L.mem s2 (P1.boundA t) ≠ 0#u64 := by rw [← en]; exact P1.bne_ne hn0
           have hnH : n ∈ P1.Heap.ntfns H := by rw [en]; exact h2.2.2.1.2.2.bnd t htT hn0'
           have hnN : n ∈ Z.N := J2'.hset.2.1 n hnH
-          refine WP.spec_mono (hSig _ _ _ _ _ _ _ n bd J2' hnN) ?_
-          rintro r ⟨σ2, V2, Ac2, Lst2, D2, hss, hd2, J3⟩
-          exact ⟨σ2, V2, Ac2, Lst2, D2, Or.inr ⟨n.bv, bd.bv, hss⟩, hd2, J3⟩
-        · exact (WP.spec_ok _).2 ⟨σ1, V1, Ac1, Lst1, D1, Or.inl rfl, rfl, J2'⟩
-      rintro ⟨s3, a3⟩ ⟨σ2, V2, Ac2, Lst2, D2, hsig, hd2, J3⟩
+          refine WP.spec_mono (hSig _ _ _ _ _ _ _ n bd J2' hE2 hnN) ?_
+          rintro r ⟨σ2, V2, Ac2, Lst2, D2, hss, hd2, J3, hE3⟩
+          exact ⟨σ2, V2, Ac2, Lst2, D2, Or.inr ⟨n.bv, bd.bv, hss⟩, hd2, J3, hE3⟩
+        · exact (WP.spec_ok _).2 ⟨σ1, V1, Ac1, Lst1, D1, Or.inl rfl, rfl, J2', hE2⟩
+      rintro ⟨s3, a3⟩ ⟨σ2, V2, Ac2, Lst2, D2, hsig, hd2, J3, hE3⟩
       try simp only at J3
       try simp only [WP.uncurry'_pair]
       step with P1.LawfulStore.cur_cpu_spec as ⟨c3, ec3⟩
@@ -573,9 +735,55 @@ theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State 
       subst es4 ec3
       refine ⟨⟨{ σ2 with reprogramTimer := true }, V2, Ac2, Lst2, D2,
         Relation.ReflTransGen.tail hF1 ⟨σ2, hsig, rfl⟩, (hd2.trans hd1 : σ2.domainTime = σ.domainTime),
-        J3.reprogramJ⟩, by omega⟩
+        J3.reprogramJ, hE (Z' := Z.mv Z.G V2) J3 hE3 J3.reprogram_w⟩, by omega⟩
     · exact (WP.spec_ok _).2 h1
   · exact h
+
+theorem fireInv_iff {σ : Fl4Spec.State Unit} {s : S} {a : A} :
+    FireInv (L := L) (arI := arI) AR Z H Cs σ s a ↔
+      FireInvE (L := L) (arI := arI) (fun th s => JExt (L := L) th s) AR Z H Cs σ s a :=
+  ⟨fun ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, J⟩ => ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, J.toB, J.ext⟩,
+    fun ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B, E⟩ => ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B.toJAtZ E⟩⟩
+
+theorem fireInvB_iff {σ : Fl4Spec.State Unit} {s : S} {a : A} :
+    FireInvB (L := L) (arI := arI) AR Z H Cs σ s a ↔
+      FireInvE (L := L) (arI := arI) (fun _ _ => True) AR Z H Cs σ s a :=
+  ⟨fun ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B⟩ => ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B, trivial⟩,
+    fun ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B, _⟩ => ⟨σ1, V1, Ac1, Lst1, D1, h1, h2, B⟩⟩
+
+theorem SignalJHyp.toE (h : SignalJHyp (L := L) arI AR H Cs) :
+    SignalJHypE (L := L) arI (fun th s => JExt (L := L) th s) AR H Cs :=
+  fun Z Ac Lst D s a σ n badge B E hn => WP.spec_mono (h Z Ac Lst D s a σ n badge (B.toJAtZ E) hn)
+    fun _ ⟨σ', V', Ac', Lst', D', he, hd, J⟩ => ⟨σ', V', Ac', Lst', D', he, hd, J.toB, J.ext⟩
+
+theorem SignalJHypB.toE (h : SignalJHypB (L := L) arI AR H Cs) : SignalJHypE (L := L) arI (fun _ _ => True) AR H Cs :=
+  fun Z Ac Lst D s a σ n badge B _ hn => WP.spec_mono (h Z Ac Lst D s a σ n badge B hn)
+    fun _ ⟨σ', V', Ac', Lst', D', he, hd, B'⟩ => ⟨σ', V', Ac', Lst', D', he, hd, B', trivial⟩
+
+/-- **The TCB timers' loop keeps `FireInv`** (module docstring; `fire_loopE` at `E := JExt`, `ext` across a timer
+step by `JAtZ.ext_tmw`). -/
+theorem fire_loopJ (hSig : SignalJHyp (L := L) arI AR H Cs) {σ : Fl4Spec.State Unit} (s : S) (a : A) (now i : U64)
+    (h : FireInv (L := L) (arI := arI) AR Z H Cs σ s a) :
+    timer.fire_loop st arI s a now i ⦃ r => FireInv (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ :=
+  WP.spec_mono (fire_loopE (fun B E hw => (B.toJAtZ E).ext_tmw hw) hSig.toE s a now i (fireInv_iff.1 h))
+    fun _ h => fireInv_iff.2 h
+
+/-- **The TCB timers' loop keeps `FireInvB`** (`fire_loopE` at `E := True`). -/
+theorem fire_loopJB (hSig : SignalJHypB (L := L) arI AR H Cs) {σ : Fl4Spec.State Unit} (s : S) (a : A) (now i : U64)
+    (h : FireInvB (L := L) (arI := arI) AR Z H Cs σ s a) :
+    timer.fire_loop st arI s a now i ⦃ r => FireInvB (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ :=
+  WP.spec_mono (fire_loopE (fun _ _ _ => trivial) hSig.toE s a now i (fireInvB_iff.1 h)) fun _ h => fireInvB_iff.2 h
+
+
+set_option maxHeartbeats 4000000 in
+/-- **`JAtZ` across FL4's TCB timers** (module docstring). -/
+theorem JAtZB.fireJ (hSig : SignalJHypB (L := L) arI AR H Cs) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    timer.fire st arI s a ⦃ r => FireInvB (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ := by
+  unfold timer.fire
+  refine WP.spec_bind (L.cur_cpu_spec s) fun c _ => ?_
+  refine WP.spec_bind (P1.obj.node_get.spec s c _) fun now _ => ?_
+  exact fire_loopJB hSig s a now 0#u64 ⟨σ, Z.vs, Ac, Lst, D, Relation.ReflTransGen.refl, rfl, J⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`JAtZ` across FL4's TCB timers** (module docstring). -/

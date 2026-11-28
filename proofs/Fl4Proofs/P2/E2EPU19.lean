@@ -34,6 +34,9 @@ false`: localvm.rs `handle_vcpu_exit_local`). So the run is a decline at every m
 * Open: `VSafe9` [J] at irq (route (a)), vt (`vq`'s right summand) and invocation starts; `VSafe` [J] unchanged.
 
 No existing statement changed except the root import list.
+
+Gen 47 (line p3mc): `vx_fh_annV`'s read-set block split out as `vx_rd_node`, `vx_rd_st`, `vx_fh_rd` (with the words'
+region tag) and `vx_annV`'s glue as `vx_start_data`, both shared with P2/InsV15Vx's `InsA` proofs; statements unchanged.
 -/
 import Fl4Proofs.P2.E2EPU18
 open Aeneas Aeneas.Std Result
@@ -189,6 +192,85 @@ theorem vx_cur_home {K : KLayoutP} {c : U64} {ρ : U64 → U64} {σ : S}
   obtain ⟨r, v, -⟩ := hX.tcbW _ htH 3464#u64 (by simp) (by simp) (by simp)
   exact CoreView.view_tzero_home r (by rw [v]; simp [CoreView.TZero]) hv
 
+set_option maxHeartbeats 4000000 in
+/-- A node word of the core at a P3 bundle state of `c`'s view: in the path's read set, kept by the view, no user
+word, region-tagged (`vx_fh_annV`'s read set; gen 47 split). -/
+theorem vx_rd_node {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64} {lk : S → U64 → Prop} {σ : S}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hc : L.cpu σ = c) (o : U64) (ho : o.val < 4288) (h8 : o.val % 8 = 0) :
+    (VexitRS K.toKLayoutV st lk σ (L.nodeAt σ (L.cpu σ) o) ∧ ¬ L.nodeAt σ (L.cpu σ) o ∈ K.ptes) ∧
+      SR K c ρ (L.nodeAt σ (L.cpu σ) o) ∧ L.nodeAt σ (L.cpu σ) o ∉ K.user ∧
+      region K.toKLayout (L.nodeAt σ (L.cpu σ) o) ≠ .none := by
+  obtain ⟨_, B⟩ := bunIx_of hJ
+  have hI := B.bxi
+  have hL := B.stLay
+  have h0 := hI.1.choose_spec.choose_spec
+  have hN : NodePlaced st K.toKLayout.heap.tcbs σ (L.cpu σ) := h0.nodes _ h0.cur
+  have hr : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node (L.cpu σ) := hL.nd o ho
+  have hr' : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node c := by rw [hr, hc]
+  refine ⟨⟨⟨nodeAt_aligned hN ho h8, Or.inr (rpermV_of_own (fun ⟨w, hw⟩ => by
+      have h := hK.base.none w _ hw
+      rw [hr] at h
+      cases h) (Or.inl (held_core (hL.own_node _ ho))))⟩, fun hp => by
+      have h := hK.none _ hp
+      rw [hr] at h
+      cases h⟩,
+    sr_nf hK (by rw [hr']; intro h; cases h) (nf_node hr'), hL.nu_node ho, by rw [hr]; intro h; cases h⟩
+
+set_option maxHeartbeats 4000000 in
+/-- The current thread's `STATE` word at a P3 bundle state of `c`'s view: as `vx_rd_node` (gen 47 split). -/
+theorem vx_rd_st {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64} {lk : S → U64 → Prop} {σ : S}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hc : L.cpu σ = c)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
+    (VexitRS K.toKLayoutV st lk σ (core.num.U64.wrapping_add (L.curW σ) 3328#u64) ∧
+        ¬ core.num.U64.wrapping_add (L.curW σ) 3328#u64 ∈ K.ptes) ∧
+      SR K c ρ (core.num.U64.wrapping_add (L.curW σ) 3328#u64) ∧
+      core.num.U64.wrapping_add (L.curW σ) 3328#u64 ∉ K.user ∧
+      region K.toKLayout (core.num.U64.wrapping_add (L.curW σ) 3328#u64) ≠ .none := by
+  have hX := hJ.regionOKX
+  obtain ⟨_, B⟩ := bunIx_of hJ
+  have hI := B.bxi
+  have hL := B.stLay
+  have hP := stPre_ofS B.ac
+  have h0 := hI.1.choose_spec.choose_spec
+  have hT : TcbPlaced K.toKLayout.heap.tcbs := h0.tcbs
+  have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
+  have htH : K.toKLayout.heap (L.curW σ) = some .tcb := hcT
+  have ht' := hT _ hcT
+  have hcur := vx_cur_home hJ hmm
+  obtain ⟨r, -, -⟩ := hX.tcbW _ htH 3328#u64 (by simp) (by simp) (by simp)
+  have r' : region K.toKLayout (core.num.U64.wrapping_add (L.curW σ) 3328#u64) = .tcb (L.curW σ) := r
+  have e := hL.own_tcb hT (L.mem σ) hcT (k := 3328#u64) (by simp) (by simp)
+  unfold fld at e
+  have g1 : ¬ GateField (3328#u64).val := by simp [GateField]
+  have g2 : ¬ TimerField (3328#u64).val := by simp [TimerField]
+  have g3 : ¬ GField (3328#u64).val := by simp [GField]
+  have eo : OwnMap.own K.toKLayout (L.mem σ) (core.num.U64.wrapping_add (L.curW σ) 3328#u64) =
+      .core (L.cpu σ) := by
+    rw [e, tcbOwner, if_neg g1, if_neg g2, if_neg g3]
+    exact congrArg Owner.core hP.aff
+  refine ⟨⟨⟨field_aligned ht' (by simp) (by simp), Or.inr (rpermV_of_own (fun ⟨w, hw⟩ => by
+      have h := hK.base.none w _ hw
+      rw [r'] at h
+      cases h) (Or.inl (held_core eo)))⟩, fun hp => by
+      have h := hK.none _ hp
+      rw [r'] at h
+      cases h⟩,
+    sr_tcb hK hX htH hcur (o := 3328#u64) (by simp) (by simp) (by simp),
+    hL.nu_tcb hcT (k := 3328#u64) (by simp) (by simp), by rw [r']; intro h; cases h⟩
+
+/-- **The three words a vx body with `v = 0` reads, at a P3 bundle state of `c`'s view** (`vx_fh_annV`'s read set,
+gen 47 split; also used by `vx_fh_insA`, P2/InsV15Vx): in the path's read set off the PTE words, kept by the view,
+no user word, region-tagged. -/
+theorem vx_fh_rd {K : KLayoutP} (hK : RegionOKP K) {c : U64} {ρ : U64 → U64} {lk : S → U64 → Prop} {σ : S}
+    (hJ : SlJAt (L := L) K.toKLayout σ) (hc : L.cpu σ = c)
+    (hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ x = view K.toKLayout c ρ x) :
+    ∀ b, VxRd (L := L) σ b → (VexitRS K.toKLayoutV st lk σ b ∧ ¬ b ∈ K.ptes) ∧ SR K c ρ b ∧ b ∉ K.user ∧
+      region K.toKLayout b ≠ .none := by
+  rintro b (rfl | rfl | rfl)
+  · exact vx_rd_node hK hJ hc _ (by rw [curth_val]; omega) (by rw [curth_val])
+  · exact vx_rd_node hK hJ hc _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
+  · exact vx_rd_st hK hJ hc hmm
+
 set_option maxHeartbeats 8000000 in
 /-- **U9's armed vx program with `v = 0` is `Safe` at a view start** (module docstring). -/
 theorem vx_fh_annV (hmk : E2E.MasksWr st) {K : KLayoutP} (hK : RegionOKP K)
@@ -203,61 +285,11 @@ theorem vx_fh_annV (hmk : E2E.MasksWr st) {K : KLayoutP} (hK : RegionOKP K)
           (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ) (masksOf st σ) ar
           (R.localvm.handle_vcpu_exit_local v n) ∅ a)) := by
   subst hv
-  have hX := hJ.regionOKX
-  obtain ⟨Ac, B⟩ := bunIx_of hJ
-  have hI := B.bxi
-  have hL := B.stLay
-  have hP := stPre_ofS B.ac
-  have h0 := hI.1.choose_spec.choose_spec
-  have hT : TcbPlaced K.toKLayout.heap.tcbs := h0.tcbs
-  have hN : NodePlaced st K.toKLayout.heap.tcbs σ (L.cpu σ) := h0.nodes _ h0.cur
-  have hcT : L.curW σ ∈ K.toKLayout.heap.tcbs := h0.curT
-  have htH : K.toKLayout.heap (L.curW σ) = some .tcb := hcT
-  have ht' := hT _ hcT
-  have hcur := vx_cur_home hJ hmm
   -- the read set
   let Rs : U64 → Prop := fun x => VexitRS K.toKLayoutV st lk σ x ∧ ¬ x ∈ K.ptes
-  have nR : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 →
-      Rs (L.nodeAt σ (L.cpu σ) o) ∧ SR K c ρ (L.nodeAt σ (L.cpu σ) o) ∧ L.nodeAt σ (L.cpu σ) o ∉ K.user := by
-    intro o ho h8
-    have hr : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node (L.cpu σ) := hL.nd o ho
-    have hr' : region K.toKLayout (L.nodeAt σ (L.cpu σ) o) = .node c := by rw [hr, hc]
-    refine ⟨⟨⟨nodeAt_aligned hN ho h8, Or.inr (rpermV_of_own (fun ⟨w, hw⟩ => by
-        have h := hK.base.none w _ hw
-        rw [hr] at h
-        cases h) (Or.inl (held_core (hL.own_node _ ho))))⟩, fun hp => by
-        have h := hK.none _ hp
-        rw [hr] at h
-        cases h⟩,
-      sr_nf hK (by rw [hr']; intro h; cases h) (nf_node hr'), hL.nu_node ho⟩
-  have sR : Rs (core.num.U64.wrapping_add (L.curW σ) 3328#u64) ∧
-      SR K c ρ (core.num.U64.wrapping_add (L.curW σ) 3328#u64) ∧
-      core.num.U64.wrapping_add (L.curW σ) 3328#u64 ∉ K.user := by
-    obtain ⟨r, -, -⟩ := hX.tcbW _ htH 3328#u64 (by simp) (by simp) (by simp)
-    have r' : region K.toKLayout (core.num.U64.wrapping_add (L.curW σ) 3328#u64) = .tcb (L.curW σ) := r
-    have e := hL.own_tcb hT (L.mem σ) hcT (k := 3328#u64) (by simp) (by simp)
-    unfold fld at e
-    have g1 : ¬ GateField (3328#u64).val := by simp [GateField]
-    have g2 : ¬ TimerField (3328#u64).val := by simp [TimerField]
-    have g3 : ¬ GField (3328#u64).val := by simp [GField]
-    have eo : OwnMap.own K.toKLayout (L.mem σ) (core.num.U64.wrapping_add (L.curW σ) 3328#u64) =
-        .core (L.cpu σ) := by
-      rw [e, tcbOwner, if_neg g1, if_neg g2, if_neg g3]
-      exact congrArg Owner.core hP.aff
-    refine ⟨⟨⟨field_aligned ht' (by simp) (by simp), Or.inr (rpermV_of_own (fun ⟨w, hw⟩ => by
-        have h := hK.base.none w _ hw
-        rw [r'] at h
-        cases h) (Or.inl (held_core eo)))⟩, fun hp => by
-        have h := hK.none _ hp
-        rw [r'] at h
-        cases h⟩,
-      sr_tcb hK hX htH hcur (o := 3328#u64) (by simp) (by simp) (by simp),
-      hL.nu_tcb hcT (k := 3328#u64) (by simp) (by simp)⟩
-  have W : ∀ b, VxRd (L := L) σ b → Rs b ∧ SR K c ρ b ∧ b ∉ K.user := by
-    rintro b (rfl | rfl | rfl)
-    · exact nR _ (by rw [curth_val]; omega) (by rw [curth_val])
-    · exact nR _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])
-    · exact sR
+  have W : ∀ b, VxRd (L := L) σ b → Rs b ∧ SR K c ρ b ∧ b ∉ K.user := fun b hb =>
+    have h := vx_fh_rd (lk := lk) hK hJ hc hmm b hb
+    ⟨h.1, h.2.1, h.2.2.1⟩
   -- the narrowed read set
   let Ro : U64 → Prop := fun q => Rs q ∧ VO K c ρ q
   have hR0 : ∀ q, VxRd (L := L) σ q → Ro q ∧ q ∉ K.user := fun q hq =>
@@ -299,15 +331,22 @@ def U19At (K : KLayoutP) (c : U64) (hs : U64 → Prop) (ρ : U64 → U64) (k0 : 
     (i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)) : Prop :=
   U18At (S := S) K c hs ρ k0 i ∨ VxAt (S := S) K c hs ρ k0 i
 
-set_option maxHeartbeats 8000000 in
-/-- **U9's re-annotated body is `Safe` at every vx start** (module docstring). -/
-theorem vx_annV {Ch : S → Prop}
+set_option maxHeartbeats 4000000 in
+/-- **What a vx start gives** (`vx_annV`'s glue, gen 47 split; also used by P2/InsV15Vx's `vx_insA_annV`): the glue
+state `σ'` (a P3 bundle state of `c`'s view, core `c`, locks `hs`) with `v = 0`, and the armed body, the cut of the
+translated vx tree. -/
+theorem vx_start_data {Ch : S → Prop}
     {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
     {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
     (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
     (hf : VxAt (S := S) K c (fun l => s.lk l = some c) ρ k i) :
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) := by
+    ∃ (σ' : S) (a : A) (lk : S → U64 → Prop) (v n : U64), v = 0#u64 ∧ SlJAt (L := L) K.toKLayout σ' ∧
+      L.cpu σ' = c ∧ lk σ' = (fun l => s.lk l = some c) ∧
+      (∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x) ∧
+      k = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c
+        (tr (VexitRS K.toKLayoutV st lk σ') (· ∈ K.user) (OwnMap.cls K.toKLayout)
+          (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
+          (R.localvm.handle_vcpu_exit_local v n) ∅ a) ∅ := by
   rcases i with ((j | j | j | j | j | j | j) | j)
   · exact False.elim hf
   · exact False.elim hf
@@ -322,67 +361,33 @@ theorem vx_annV {Ch : S → Prop}
       subst e
       have hEn' : VxEntJ8N st j K.toKLayoutV σ' := by rw [hσ]; exact hEn
       have hJ : SlJAt (L := L) K.toKLayout σ' := hEn'.ix.ac.slJAt
-      have hv0 : j.v = 0#u64 := hEn'.hv.trans (vOf_zero hJ)
       have hc' : L.cpu σ' = c := hc
       have hl' : j.lk σ' = (fun l => s.lk l = some c) := hl
       have hmm : ∀ x, Aligned x → x ∉ K.user → L.mem σ' x = view K.toKLayout c ρ x := hμ
-      unfold annV
-      rw [hM.own, hM.cls, hM.ko] at hV ⊢
-      have h := vx_fh_annV ar (masksWr_plain st) hK hU hV (lk := j.lk) (n := j.n) (a := a) hv0 hJ hc' hl' hmm
-      rw [tr_cut (VexitRS K.toKLayoutV st j.lk σ') (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout)
-        (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
-        (R.localvm.handle_vcpu_exit_local j.v j.n) ∅ a] at h
-      convert h using 3
+      refine ⟨σ', a, j.lk, j.v, j.n, hEn'.hv.trans (vOf_zero hJ), hJ, hc', hl', hmm, ?_⟩
       unfold LocalPath.body
       rw [hc]
       all_goals rfl
     · exact False.elim hf
   · exact False.elim hf
 
-/-- **FL4 end to end with vx's `VSafe9` discharged** (module docstring), over U18's family. The conclusion is about
-the physical memory. -/
-theorem serializable_fl4_localU19 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U19At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R (hB 0#u64) hc0
-  refine serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_WPRV10S ?_ ?_ ?_ P h0 hA0 hB hc0 hM0 h).1 hq
-  · intro Ch K s hK hU c hs q i hC hE hsf
-    rcases i with i | ((j | j) | j)
-    · exact startAt_UNC st ar hA a0 P hIoa hC hE hsf
-    · exact delPteStart_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact invStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-    · exact cmStartU2_atN st ar hA (masksWr_plain st) hC hE (hsf.2 fun _ s b v _ _ _ => hsf.1.wr s b v)
-  · intro s K hK hU c k ρ i hM hV hn
-    exact vSafe_ioC st ar hA a0 hM hV (not_not.mp hn)
-  · intro Ch s K hK hU c k ρ i hC hE hsf hM hV hf
-    rcases hf with (((((hf | hf) | hf) | hf) | hf) | hf)
-    · exact vmF_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact vmR_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact sl_annV_allC st ar hA a0 P hIoa hC hE hsf hM hV hf
-    · exact st_annV_fh st ar hA a0 hC hE hsf hM hV hf
-    · exact st_annV_h st ar hA a0 hC hE hsf hM hV hf
-    · exact vx_annV st ar hA a0 hsf hM hV hf
-
-/-- **U18's statement follows from U19** (every U18 execution is a U19 one). -/
-theorem serializable_fl4_localU18of19 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecWPRV10 (PathsP.sum (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0)
-        (PathsP.sum (PathsP.sum (delPteSlot st ar hA (masksWr_plain st)) (invSlotU st ar hA (masksWr_plain st)))
-          (cmSlotU st ar hA (masksWr_plain st))))
-      (fun i => ¬ IoIx (S := S) i) (U18At (S := S)) (StartV2C st ar hA a0 arI AR MR) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_localU19 st ar hA a0 P hIoa h0 hA0 hB hc0 hM0
-    (execWPRV10_mono (fun _ _ _ _ _ _ hf => Or.inl hf) h) hq
+set_option maxHeartbeats 8000000 in
+/-- **U9's re-annotated body is `Safe` at every vx start** (module docstring). -/
+theorem vx_annV {Ch : S → Prop}
+    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
+    {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
+    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
+    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
+    (hf : VxAt (S := S) K c (fun l => s.lk l = some c) ρ k i) :
+    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) := by
+  obtain ⟨σ', a, lk, v, n, hv0, hJ, hc', hl', hmm, rfl⟩ := vx_start_data st ar hA a0 hsf hf
+  unfold annV
+  rw [hM.own, hM.cls, hM.ko] at hV ⊢
+  have h := vx_fh_annV ar (masksWr_plain st) hK hU hV (lk := lk) (n := n) (a := a) hv0 hJ hc' hl' hmm
+  rw [tr_cut (VexitRS K.toKLayoutV st lk σ') (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout)
+    (OwnMap.ko K.toKLayout (view K.toKLayout c ρ)) c (L.ksb σ') (masksOf st σ') ar
+    (R.localvm.handle_vcpu_exit_local v n) ∅ a] at h
+  exact h
 
 end all
 

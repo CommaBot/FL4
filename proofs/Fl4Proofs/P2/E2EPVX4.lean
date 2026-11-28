@@ -474,6 +474,34 @@ structure Fl4StepVX4 (LP : PathsP ι)
   /-- Layout and chain change only at serial steps. -/
   keep : ¬ SerStep s c → K' = K ∧ Ch' = Ch
 
+/-- **`Fl4StepVX4` on the re-based platform** (gen 55): the native serial exit is `SerExitC P` for
+`P : LocPlatC`; every other field is `Fl4StepVX4`'s. -/
+structure Fl4StepVX4C (LP : PathsP ι)
+    (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
+    (P : LocPlatC st arI AR MR) (s : Cfg U64 U64 U64 U64) (K : KLayoutP) (Ch : S → Prop) (c : U64)
+    (s' : Cfg U64 U64 U64 U64) (K' : KLayoutP) (Ch' : S → Prop) : Prop where
+  /-- [P] an armed program is pure glue. -/
+  arm : ∀ p, s'.ph c = .arm p → PureGlue p
+  /-- [P] the glue's start fact. -/
+  start : ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ (hK : RegionOKP K) (hU : UserOKP K),
+    ∃ i, SF Ch K s.mem hK hU c (fun l => s.lk l = some c) k i
+  /-- The serial exit: native ([P] `SerExitW`, convention) or VM (convention `vcpus ≠ ∅`, `ptes = ptesR`;
+  [S] `VtxBundle4`). -/
+  ser : SerStep s c → (SerExitC P K'.toKLayoutV Ch' ∧ K'.vcpus = ∅ ∧ K'.ptes = ptesR K' s'.mem) ∨
+    (K'.vcpus ≠ ∅ ∧ K'.ptes = ptesR K' s'.mem ∧ VtxBundle4 st L K')
+  /-- [P] the exit ghost with rule 8. -/
+  serG : SerStep s c → MapsP K' s'
+  /-- Layout and chain change only at serial steps. -/
+  keep : ¬ SerStep s c → K' = K ∧ Ch' = Ch
+
+/-- A `Fl4StepVX4` step is a `Fl4StepVX4C` step at `P.toC` (`SerExitW P ≡ SerExitC P.toC`). -/
+theorem Fl4StepVX4.toC {LP : PathsP ι}
+    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
+    {P : LocPlat st arI AR MR} {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {c : U64}
+    {s' : Cfg U64 U64 U64 U64} {K' : KLayoutP} {Ch' : S → Prop} (g : Fl4StepVX4 LP SF P s K Ch c s' K' Ch') :
+    Fl4StepVX4C LP SF P.toC s K Ch c s' K' Ch' :=
+  ⟨g.arm, g.start, g.ser, g.serG, g.keep⟩
+
 /-- **An execution of FL4 whose VM epochs carry `VtxBundle4`.** -/
 inductive ExecVX4 (LP : PathsP ι)
     (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop)
@@ -530,49 +558,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable {A : Type} (ar : machine.Arch A)
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **The start facts with the VM-exit, VM-timer and VM-epoch I/O-port slots** (VX2's, the VM-timer slot at
-`VtStartV4`, the I/O-port slot at `IoStartX`). -/
-def StartVX4 {ιN : Type}
-    (SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop)
-    (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) : ((ιN ⊕ VxArg S) ⊕ VtArg S) ⊕ IoArg S → Prop
-  | .inl (.inl i) => StartVX2 st ar hA hm SFN Ch K m hK hU c hs q i
-  | .inl (.inr j) => VtStartV4 st ar hA hm K m hK hU c hs q j
-  | .inr j => IoStartX st ar hA hm K m hK hU c hs q j
-
-/-- **FL4 end to end with native and VM epochs; the VM-exit, VM-timer and I/O-port slots in VM epochs; generic in
-the native family** (`serializable_fl4_localVX3G` over `ExecVX4`). -/
-theorem serializable_fl4_localVX4G (P : LocPlat st arI AR MR) {ιN : Type} (LN : PathsP ιN)
-    {SFN : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ιN → Prop}
-    (hSFN : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SFN Ch K s.mem hK hU c hs q i → StartAt (LN i K s.mem hK hU) c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4 (PathsP.sum (PathsP.sum (PathsP.sum LN (vxSlotPV st ar hA hm)) (vtSlotPV st ar hA hm))
-        (ioSlotPX st ar hA hm))
-      (StartVX4 st ar hA hm SFN) P s0 K0 Ch0 s K Ch)
-    (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  have hX := (execVX_of_VX4 hc0.1 h).1
-  refine serializable_e2eP _ h0 hA0 hK0 hU0 hM0 (execP_of_VX P ?_ h0 hA0 hB hc0 hM0 hX).1 hq
-  intro Ch K s hK hU c hs q i hN hsf
-  obtain ⟨hV, hsf⟩ := hsf
-  rcases i with ((i | j) | j) | j
-  · have hsf' : K.vcpus = ∅ ∧ SFN Ch K s.mem hK hU c hs q i := hsf
-    obtain ⟨nv, hsf'⟩ := hsf'
-    obtain ⟨hX, hE⟩ := hN nv
-    exact hSFN Ch K s hK hU c hs q i hX.chainOf hE hsf'
-  · have hsf' : VxStartV2 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact vxStartV_at st ar hA hm (vxStartV_of_V2 (hV (vxStartV2_ne hsf')).b hsf')
-  · have hsf' : VtStartV4 st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact vtStartV2_at (hV hsf'.1).b (vtStartV2_of_V4 (hV hsf'.1).b hsf')
-  · have hsf' : IoStartX st ar hA hm K s.mem hK hU c hs q j := hsf
-    exact ioStartX_at (hV hsf'.1) hsf'
 
 end top
 

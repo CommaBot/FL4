@@ -267,9 +267,12 @@ def vmSignalCompletes (onCore remoteCur : ObjRef → Bool) (t : ObjRef) : SMonad
 `notification::send_signal`): an idle notification bound to a
 `runningVM` thread whose VMEnter `vmSignalCompletes` is completed by
 `vmReportF` with the badge, then MCS donation, `possibleSwitchTo` and the
-sporadic refill check (as `sendSignalV`); otherwise the ported
-`sendSignal` (FL4 `set_active`; its `kick_guest` has no abstract
-effect). -/
+sporadic refill check (as `sendSignalV`, but skipped when the thread is in
+the release queue, `inReleaseQueue`: FL4 #114, fl4-core notification.rs
+l. 106-120 `&& !sched::in_release_queue(s, t)` — a `runningVM` thread can sit
+in the release queue, and moving its head refill there would unsort it);
+otherwise the ported `sendSignal` (FL4 `set_active`; its `kick_guest` has
+no abstract effect). -/
 def sendSignalVF (onCore remoteCur : ObjRef → Bool) (ntfnptr : ObjRef) (badge : Badge) :
     SMonad Z Unit := do
   let ntfn ← getNotification ntfnptr
@@ -289,7 +292,8 @@ def sendSignalVF (onCore remoteCur : ObjRef → Bool) (ntfnptr : ObjRef) (badge 
             let sc ← getSchedContext scp
             let ntfnScp ← getNtfnObjRef Notification.ntfnSc ntfnptr
             let curScPtr ← NonDet.gets fun s : State Z => s.curSc
-            NonDet.when (scOpt = ntfnScp ∧ sc.scSporadic ∧ scp ≠ curScPtr) <| refillUnblockCheck scp)
+            let inRq ← NonDet.gets (inReleaseQueue tcb)
+            NonDet.when (scOpt = ntfnScp ∧ sc.scSporadic ∧ scp ≠ curScPtr ∧ inRq = false) <| refillUnblockCheck scp)
         scOpt
     else sendSignal ntfnptr badge
   | _, _ => sendSignal ntfnptr badge

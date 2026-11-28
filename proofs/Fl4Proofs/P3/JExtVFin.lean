@@ -34,6 +34,10 @@ word, the previous VCPU's `NEXT` word and the next VCPU's `PREV` word to be alig
   proves natively, so a VM-epoch joint invariant carrying `JAtZ`'s VCPU-free fields provides them.
 
 No [P] / [W] / [S] premise; no existing statement changed.
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `finPl`, `hTt`;
+each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
 -/
 import Fl4Proofs.P3.JExtVInit
 import Fl4Proofs.P3.JExtVLay
@@ -121,7 +125,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit} {V X : Set U64}
 
 /-- **`FinPl` at a joint state** (module docstring): `hnd` from `JKern.hnd` + `JVm.heap`; `hL`, `hP`, `hhd` [J]. -/
-theorem JAtZ.finPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {v : U64}
+theorem JAtZB.finPl (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {v : U64}
     (hv : v ∈ V) (hL : ∀ w, P1.VListed st s w ↔ w ∈ V)
     (hP : ∀ w ∈ V, L.mem s (vPrevA w) ≠ 0#u64 → L.mem s (vPrevA w) ∈ V)
     (hhd : P1.Aligned (P1.vHeadA st s) ∧ ¬ JW V Z.th (P1.vHeadA st s) ∧ ¬ SW Z.th (P1.vHeadA st s)) :
@@ -139,6 +143,14 @@ theorem JAtZ.finPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (
       unfold actA; rw [e]; omega
   rcases J.kern.hnd w _ (Jv.heap w hw) (L.cpu s) J.kern.cpuCs with e | e <;>
     (try simp only [P1.HKind.bits, h15] at e) <;> omega
+
+/-- `JAtZB.finPl` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.finPl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ) {v : U64}
+    (hv : v ∈ V) (hL : ∀ w, P1.VListed st s w ↔ w ∈ V)
+    (hP : ∀ w ∈ V, L.mem s (vPrevA w) ≠ 0#u64 → L.mem s (vPrevA w) ∈ V)
+    (hhd : P1.Aligned (P1.vHeadA st s) ∧ ¬ JW V Z.th (P1.vHeadA st s) ∧ ¬ SW Z.th (P1.vHeadA st s)) :
+    FinPl st V Z.th (fun _ => BufU Z σ) s v :=
+  Fl4Proofs.P3.JAtZB.finPl (J := J.toB) (Jv := Jv) (hv := hv) (hL := hL) (hP := hP) (hhd := hhd)
 
 /-- **`vcpu_finalise_jv_of` without `FinPl`** (`JAtZ.finPl`; `hL`, `hP`, `hhd` [J]). At a native `JAtZ` state
 `V` is empty and the theorem is vacuous; it is the form a VM-epoch joint invariant instantiates. -/
@@ -198,8 +210,13 @@ theorem JAtZ.vcpuOm (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm 
     VcpuOm V (P1.Heap.omega H) (P1.Heap.frame H) :=
   vcpuOm_of_heap J.kern.heap Jv.heap
 
-theorem JAtZ.hTt (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.hTt (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     ∀ y, Z.th y = some .tcb → y ∈ P1.Heap.tcbs H := fun y hy => J.zH.1 y (J.thT y hy)
+
+/-- `JAtZB.hTt` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.hTt (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    ∀ y, Z.th y = some .tcb → y ∈ P1.Heap.tcbs H :=
+  Fl4Proofs.P3.JAtZB.hTt (J := J.toB)
 
 end
 

@@ -18,6 +18,13 @@ stack and donates the SC to the receiver; l4v `reply_push` with
 * **`JAtZ.pushDonJ`**: the donation part of `reply_push` from `JAtZ` to
   `JAtZ` (XTopJointFinScReply's `JAtZ.sc_frameS` with the frame words of
   XTopJointRemove's `RmW`).
+
+(mmuAD gen 42b17) Stated over `JAtZ`'s `ext`-free part `JAtZB` (P3/JointAt), none reading `JAtZ.ext`: `stackHead`;
+each `JAtZ` name is a one-line corollary via `JAtZ.toB` with its statement unchanged (the `JAtZB` copies of gens 24-39
+deleted).
+
+(mmuAD gen 42b18) `pushDonJ` stated over `JAtZB` in place (the copy's post, with the `RmW` footprint and `ScTKw`);
+`JAtZ.pushDonJ` its corollary (`ext` by `JAtZ.ext_oobj` over `RmW`). P3/JAtZV3FaultDon's copy deleted.
 -/
 import Fl4Proofs.P3.XTopJointSendPush
 import Fl4Proofs.P3.XTopJointRemove
@@ -1026,7 +1033,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- **The old head of an SC's call stack** at `J`: a reply other than the SC
 and than any detached reply. -/
-theorem JAtZ.stackHead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sc : U64} (hsC : sc ∈ Z.C)
+theorem JAtZB.stackHead (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {sc : U64} (hsC : sc ∈ Z.C)
     {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n)) {w : U64}
     (hdet : Detached Z.C Lst w) :
     ∀ h l, y.scReplies = h :: l → h ≠ sc.bv ∧ h ≠ w.bv ∧ ∃ x, σ.kheap h = some (.reply x) := by
@@ -1047,12 +1054,19 @@ theorem JAtZ.stackHead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sc : U
       rw [hky] at h2; cases h2
     · exact hdet sc hsC (by rw [e, P1.eq_of_bv e']; exact List.mem_cons_self ..)
 
-set_option maxHeartbeats 32000000 in
+/-- `JAtZB.stackHead` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.stackHead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sc : U64} (hsC : sc ∈ Z.C)
+    {y : Fl4Spec.SchedContext} {n : Nat} (hky : σ.kheap sc.bv = some (.schedContext y n)) {w : U64}
+    (hdet : Detached Z.C Lst w) :
+    ∀ h l, y.scReplies = h :: l → h ≠ sc.bv ∧ h ≠ w.bv ∧ ∃ x, σ.kheap h = some (.reply x) :=
+  Fl4Proofs.P3.JAtZB.stackHead (J := J.toB) (hsC := hsC) (hky := hky) (hdet := hdet)
+
+set_option maxHeartbeats 4000000 in
 /-- **The donating part of `reply_push` at `J`** (module docstring): the
 current thread `t`, blocked on the reply `w` (bound to it, unlinked, on no
 call stack), donates its SC `sc` (active) to `d` (`Inactive`, no SC, not
 dead), both in no queue, a reschedule pending. -/
-theorem JAtZ.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t d w sc : U64} (ht : t ∈ Z.T) (hd : d ∈ Z.T) (hw : w ∈ Z.R) (hsC : sc ∈ Z.C) (htd : t ≠ d)
     {xt xd : Fl4Spec.Tcb} {xw : Fl4Spec.Reply} {y : Fl4Spec.SchedContext} {n : Nat}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))
@@ -1074,7 +1088,9 @@ theorem JAtZ.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs 
           Fl4Spec.bindScReply (Z := Unit) sc.bv w.bv
           Fl4Spec.schedContextDonate (Z := Unit) sc.bv d.bv) σ =
           ({((), pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n)}, False) ∧
-        ∃ Lst', JAtZ (L := L) arI AR Z H Cs Ac Lst' D res.1 a (pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n) ⦄ := by
+        ∃ Lst', JAtZB (L := L) arI AR Z H Cs Ac Lst' D res.1 a (pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n) ∧
+          P1.WritesIn st s res.1 (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ) ∧
+          ScTKw (fun _ => False) σ (pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n) ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
@@ -1138,7 +1154,7 @@ theorem JAtZ.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs 
     apply hne
     rw [hs.idleTh]
     unfold P1.LawfulStore.idleW at h'; rw [hc.cur] at h'
-    exact congrArg _ (show nodeW st s Z.c layout.node.IDLE_THREAD = u from h').symm
+    exact congrArg _ (show Sched.nodeW st s Z.c layout.node.IDLE_THREAD = u from h').symm
   have hitd : t.bv ≠ σ.idleThread := by
     obtain ⟨x, hkx, -, hxs, -⟩ := J.act.2
     intro e; rw [← e, hkt] at hkx; cases hkx; rw [hst] at hxs; cases hxs
@@ -1265,11 +1281,39 @@ theorem JAtZ.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs 
     dn_bsa hktB hkdB hkpB htd' hst' hsd' (by rw [hsd]; rfl) (bd_bsa hky hkw hws hh J.bsa hya)
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hks (J.rmW_irq hwR) hIK.2⟩
+  refine ⟨?_, hwR, hK⟩
   exact J.sc_frameS hks hSS (J.vkeep_of hwR fun b hb => J.rmW_nv hb) hK hX' hCR' hRF' hrr (J.yld.frame k2 hyk) (J.mcp.frame k1 hmk)
     (J.buf.frame kb hK.bufKeep) hRP' (J.apart.sc_frame hks hK.szKeep) hjpl (J.jcov_keep hks hSS hdead hIK (DXKeep.of_dbg hKd (J.tdkeep_of hwR fun b hb => J.rmW_ntd hb)))
     (J.sc_kernW hW hK hFK hX' hDbg (subset_refl D))
     (J.rmW_utc hwR hSS hK.cdt hK.orig pd_arch hDbg) hN' hI' (Or.inl hcn') hown hoff hact hbsa
     (Or.inl (by rw [hcn']; intro h; cases h)) hblk hKd hIK.1 J.zD
+
+/-- `JAtZB.pushDonJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.pushDonJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {t d w sc : U64} (ht : t ∈ Z.T) (hd : d ∈ Z.T) (hw : w ∈ Z.R) (hsC : sc ∈ Z.C) (htd : t ≠ d)
+    {xt xd : Fl4Spec.Tcb} {xw : Fl4Spec.Reply} {y : Fl4Spec.SchedContext} {n : Nat}
+    (hkt : σ.kheap t.bv = some (.tcb xt)) (hkd : σ.kheap d.bv = some (.tcb xd))
+    (hkw : σ.kheap w.bv = some (.reply xw)) (hky : σ.kheap sc.bv = some (.schedContext y n))
+    (hst : xt.tcbState = .blockedOnReply w.bv) (hxt : xt.tcbSchedContext = some sc.bv) (hyt : y.scTcb = some t.bv)
+    (hxd : xd.tcbSchedContext = none) (hsd : xd.tcbState = .inactive) (hwt : xw.replyTcb = some t.bv)
+    (hct : σ.curThread = t.bv) (hcsc : σ.curSc = sc.bv) (hcn : σ.schedulerAction = .chooseNewThread)
+    (hnqt : NotQueued σ t.bv) (hnqd : NotQueued σ d.bv) (hya : Fl4Spec.scActive y = true)
+    (hdet : Detached Z.C Lst w) (hn0 : L.mem s (rNextA w) = 0#u64) (hp0 : L.mem s (rPrevA w) = 0#u64)
+    (hdD : ∀ q ∈ D, q.bv ≠ d.bv) :
+    (do
+      let i2 ← obj.Sc.reply st sc s
+      let s3 ← if i2 != 0#u64 then obj.Reply.set_next st i2 s w false else ok s
+      let s4 ← obj.Reply.set_prev st w s3 i2
+      let s5 ← obj.Sc.set_reply st sc s4 w
+      let s6 ← obj.Reply.set_next st w s5 sc true
+      schedcontext.donate st arI s6 a sc d) ⦃ res => res.2 = a ∧
+        (do
+          Fl4Spec.bindScReply (Z := Unit) sc.bv w.bv
+          Fl4Spec.schedContextDonate (Z := Unit) sc.bv d.bv) σ =
+          ({((), pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n)}, False) ∧
+        ∃ Lst', JAtZ (L := L) arI AR Z H Cs Ac Lst' D res.1 a (pdSt σ t.bv d.bv sc.bv w.bv xt xd xw y n) ⦄ :=
+  WP.spec_mono (Fl4Proofs.P3.JAtZB.pushDonJ (J := J.toB) (hAT := hAT) (ht := ht) (hd := hd) (hw := hw) (hsC := hsC) (htd := htd) (hkt := hkt) (hkd := hkd) (hkw := hkw) (hky := hky) (hst := hst) (hxt := hxt) (hyt := hyt) (hxd := hxd) (hsd := hsd) (hwt := hwt) (hct := hct) (hcsc := hcsc) (hcn := hcn) (hnqt := hnqt) (hnqd := hnqd) (hya := hya) (hdet := hdet) (hn0 := hn0) (hp0 := hp0) (hdD := hdD)) fun _ ⟨ha, he, Lst', B, hw, _⟩ =>
+    ⟨ha, he, Lst', B.toJAtZ (J.ext_oobj hw (fun _ hb => RmW.oobj J.xtop.fin.1.1.1 hb) (fun _ hb => J.rmW_nv hb))⟩
 
 end
 

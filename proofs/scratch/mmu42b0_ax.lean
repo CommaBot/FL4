@@ -1,0 +1,27 @@
+import Fl4Proofs.P3.EptCore
+#print axioms Fl4Proofs.P3.GuestEntry
+#print axioms Fl4Proofs.P3.GuestTag
+#print axioms Fl4Proofs.P3.NoGuestTag
+#print axioms Fl4Proofs.P3.EptApart
+#print axioms Fl4Proofs.P3.EptCore
+#print axioms Fl4Proofs.P3.VmEptState
+#print axioms Fl4Proofs.P3.ept_bits
+#print axioms Fl4Proofs.P3.eptA_val
+#print axioms Fl4Proofs.P3.eptCore_empty
+#print axioms Fl4Proofs.P3.EptCore.frame
+#print axioms Fl4Proofs.P3.EptCore.apartV
+#print axioms Fl4Proofs.P3.JAtZB.eptHeap
+#print axioms Fl4Proofs.P3.JAtZB.eptApartH
+#print axioms Fl4Proofs.P3.JAtZB.eptHead
+#print axioms Fl4Proofs.P3.JAtZB.oobjX
+#print axioms Fl4Proofs.P3.ept_tk_arch
+#print axioms Fl4Proofs.P3.EptCore.ofBS
+#print axioms Fl4Proofs.P3.EptCore.ofB
+#print axioms Fl4Proofs.P3.EptCore.ofTK
+#print axioms Fl4Proofs.P3.vmEptState_iff
+#print axioms Fl4Proofs.P3.VmState.toEpt
+#print axioms Fl4Proofs.P3.JAtZ.toVmEptState
+#print axioms Fl4Proofs.P3.VmEptState.ofBS
+#print axioms Fl4Proofs.P3.VmEptState.ofB
+#print axioms Fl4Proofs.P3.VmEptState.ofTK
+#print axioms Fl4Proofs.P3.VmEptState.archV

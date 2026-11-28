@@ -42,6 +42,8 @@ decode (`VDecTail`) and then `set_thread_state TS_RUNNING` when the state is `TS
 `associateVcpuTcbF` writes the TCB's VCPU field, not its state) and the reply relation at `JAtZV3` are needed.
 
 No named premise. No existing statement changed.
+
+(mmuAD gen 42b17, second pass) Copies removed (originals generalised in place): P3/FrontEndExtra `argsJ`.
 -/
 import Fl4Proofs.P3.JAtZV3EioFront
 open Aeneas Aeneas.Std Result
@@ -56,105 +58,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
 
-
-set_option maxHeartbeats 4000000 in
-/-- **`JAtZ.argsJ` over `JAtZB`** (verbatim; module docstring). P3/FrontEndExtra: **The argument words at `J`**: the spec's `getMrs` words are FL4's
-`syscall_arg`s, as many as `msgLen`, and the first five arguments are
-`fl4GetMr`'s (`ArgRel`, also past the message length). -/
-theorem JAtZB.argsJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
-    {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
-    {mi : Fl4Spec.MessageInfo} (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
-    {buf : U64} (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
-    {buffer : Option Fl4Spec.ObjRef}
-    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
-    {argsU : List U64}
-    (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False)) :
-    (msgLen info buf).val = argsU.length ∧
-    (∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x) ∧
-    ArgRel (st := st) s σ ct buf buffer 5 := by
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  obtain ⟨htcb, xs, hks⟩ := J.xtop.curTcb hcur
-  have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  have hI := J.xtop.irelK J.ks J.buf
-  have hR := hI.1.toE
-  have hxs := hR.at_tcb hctT hks
-  have hwmi : (L.mem s (regA ct layout.reg.MSG_INFO)).bv =
-      xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register := by
-    rw [← regIdx_msgInfo]; exact hxs.regs _
-  have hmi' : mi = Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register) := by
-    have h := (congrArg Prod.fst (hmi.symm.trans (getMessageInfo_eq hks)))
-    exact congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
-  have hbuffer' : buffer = Endp.ipcBufOf false xs := by
-    have h := (congrArg Prod.fst (hbuffer.symm.trans (lookupIpcBuffer_eq hks false)))
-    exact congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
-  have hm := Endp.msg_info_spec (L := L) s ct
-  rw [hinfo, WP.spec_ok] at hm
-  obtain ⟨-, hlen, -, hle⟩ := hm
-  have hb := lookup_buf_full s σ J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.1 htcb hks hOK false
-  rw [hbuf, WP.spec_ok] at hb
-  obtain ⟨hsb, hsbp⟩ := hb
-  obtain ⟨xs', hks', hws⟩ := J.buf ct hctT
-  rw [hks] at hks'; cases hks'
-  have hsm : ∀ sp, Endp.ipcBufOf false xs = some sp → Endp.BufMap Z.B buf sp :=
-    fun sp h => hBC ct hctT xs false sp hks h buf (hsbp hws sp h)
-  have hal : ∀ sb, Endp.ipcBufOf false xs = some sb → ∀ k, k < 128 → (bufAddr sb k).toNat % 8 = 0 := by
-    intro sb hsb' k hk
-    have hmb := hBC ct hctT xs false sb hks hsb' ⟨sb⟩ rfl
-    have hv : (⟨BitVec.ofNat 64 k⟩ : U64).val = k := by
-      show (BitVec.ofNat 64 k).toNat = k; simp; omega
-    have h := (J.ip.e.balign _ (hmb ⟨BitVec.ofNat 64 k⟩ (by rw [hv]; omega))).2
-    rw [hv] at h; exact h
-  subst hmi' hbuffer'
-  set regs := xs.tcbArch.tcbContext.userRegs
-  set um := σ.machineState.underlyingMemory
-  set len := Fl4Spec.unat (Fl4Spec.dataToMessageInfo (regs Fl4Spec.msg_info_register)).miLength with hlen'
-  have hlv : info.length.val = len := by
-    show info.length.bv.toNat = _; rw [hlen, hwmi]
-  have hV : argsU.map UScalar.bv = specMrs regs (Endp.ipcBufOf false xs) um len := by
-    have h := (congrArg Prod.fst (hmrs.symm.trans (getMrs_eq hks _ hal _)))
-    exact congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
-  have hL : argsU.length = (specMrs regs (Endp.ipcBufOf false xs) um len).length := by
-    rw [← hV, List.length_map]
-  have hreg : ∀ r, (L.mem s (regA ct (regIdx r))).bv = regs r := fun r => hxs.regs r
-  have hrel := syscall_arg_rel (L := L) (s := s) (B := Z.B) (um := um) hreg (fun wp h => hR.buf wp h)
-    (ct := ct) ⟨hsb.1, hsb.2⟩ hsm
-  refine ⟨?_, fun i x hx => ?_, fun i hi => ?_⟩
-  · rw [hL, specMrs_length]
-    have hN : msg.N_MSG_REGISTERS.val = 4 := by simp [msg.N_MSG_REGISTERS]
-    unfold msgLen
-    by_cases hgt : info.length > msg.N_MSG_REGISTERS
-    · have hgt0 : msg.N_MSG_REGISTERS.val < info.length.val := by scalar_tac
-      have hgt' : 4 < info.length.val := by omega
-      rw [if_pos hgt]
-      by_cases h0 : buf = 0#u64
-      · rw [if_pos h0, hN, (hsb.1 h0)]; (try simp only); omega
-      · rw [if_neg h0]
-        cases e : Endp.ipcBufOf false xs with
-        | none => exact absurd (hsb.2 e) h0
-        | some _ => (try simp only); omega
-    · have hle' : info.length.val ≤ 4 := by
-        have : ¬ msg.N_MSG_REGISTERS.val < info.length.val := fun h => hgt (by scalar_tac)
-        omega
-      rw [if_neg hgt]
-      cases Endp.ipcBufOf false xs <;> (try simp only) <;> omega
-  · have hlt : i.val < argsU.length := by
-      by_contra h; rw [List.getElem?_eq_none (by omega)] at hx; cases hx
-    have hx' : argsU[i.val] = x := by rw [List.getElem?_eq_getElem hlt] at hx; cases hx; rfl
-    have h120 : argsU.length ≤ 120 := by
-      rw [hL]; exact le_trans (specMrs_len_le _ _ _ _) (by omega)
-    obtain ⟨y, hy, hyv⟩ := hrel i (by omega)
-    have hg := specMrs_get regs (Endp.ipcBufOf false xs) um len i.val (by omega) (by rw [← hL]; exact hlt)
-    have hm : (argsU.map UScalar.bv)[i.val]! = x.bv := by
-      rw [getElem!_pos _ i.val (by simpa using hlt)]; simp [hx']
-    rw [hV] at hm
-    rw [hy]; congr 1
-    apply P1.eq_of_bv
-    rw [hyv, ← hg, hm]
-  · obtain ⟨y, hy, hyv⟩ := hrel i (by omega)
-    refine ⟨y, hy, ?_⟩
-    rw [fl4GetMr_eq hks _ hal i.val (by omega), hyv]
 
 /-- **The tracked buffer words: aligned, off every VCPU** (module docstring). -/
 theorem JAtZB.bWord {V : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}

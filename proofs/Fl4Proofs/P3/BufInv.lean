@@ -18,6 +18,10 @@ over every `XTopAt` state of the typed heap, false in general).
 * `Endp.IpcBufCapOK.setFrame`, `Endp.BufCover.setFrame`: a TCB's IPC frame
   and buffer address replaced, given the new pair's facts: the obligations
   of the IPC-buffer install (SetIPCBuffer, Configure).
+
+(mmuAD gen 42b18) `scAlign8`, `bufPlacedLow`, `bufPlaced0`, `bufPlacedJ` stated over `JAtZB` in place (none reads
+`JAtZ.ext`), each `JAtZ` name a one-line corollary via `JAtZ.toB`; P3/JAtZV3MrJ's renamed copies `JAtZB.scAlign8B` /
+`JAtZB.bufPlacedB` deleted (users re-pointed).
 -/
 import Fl4Proofs.P3.JointAt
 import Fl4Proofs.P3.BufDefs
@@ -65,7 +69,7 @@ variable {arI : machine.Arch A} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 /-- The SCs of `Z.C` are 8-aligned (`H`'s SC objects, `JPlaced.sc`, `HeapOK.align`). -/
-theorem JAtZ.scAlign8 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.scAlign8 (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     ∀ sc ∈ Z.C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → sc.val % 8 = 0 := by
   intro sc hsc x n hk
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -76,21 +80,37 @@ theorem JAtZ.scAlign8 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     Nat.pow_dvd_pow 2 (by simp only [Fl4Spec.minSchedContextBits]; omega : 3 ≤ n + Fl4Spec.minSchedContextBits)
   rw [← Nat.mod_mod_of_dvd sc.val hd, hal]
 
+/-- `JAtZB.scAlign8` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.scAlign8 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    ∀ sc ∈ Z.C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → sc.val % 8 = 0 :=
+  Fl4Proofs.P3.JAtZB.scAlign8 (J := J.toB)
+
 /-- **`BufPlaced` at a `JAtZ`**, the buffer words off the nodes below core
 `Z.c`. -/
-theorem JAtZ.bufPlacedLow (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZB.bufPlacedLow (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hlow : ∀ wp ∈ Z.B, wp.1.val < L.nodeBase s 0#u64 ∨ L.nodeBase s Z.c ≤ wp.1.val) :
     Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
   bufPlaced_of J.xtop J.ks J.ip J.scAlign8 hlow
 
+/-- `JAtZB.bufPlacedLow` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufPlacedLow (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hlow : ∀ wp ∈ Z.B, wp.1.val < L.nodeBase s 0#u64 ∨ L.nodeBase s Z.c ≤ wp.1.val) :
+    Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
+  Fl4Proofs.P3.JAtZB.bufPlacedLow (J := J.toB) (hlow := hlow)
+
 /-- **`BufPlaced` at a `JAtZ` on core 0.** -/
-theorem JAtZ.bufPlaced0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hc0 : Z.c = 0#u64) :
+theorem JAtZB.bufPlaced0 (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hc0 : Z.c = 0#u64) :
     Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
   J.bufPlacedLow fun _ _ => by rw [hc0]; omega
 
+/-- `JAtZB.bufPlaced0` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufPlaced0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hc0 : Z.c = 0#u64) :
+    Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
+  Fl4Proofs.P3.JAtZB.bufPlaced0 (J := J.toB) (hc0 := hc0)
+
 /-- **`BufPlaced` at every `JAtZ`** (no premise): `hlow` from `JAtZ.nodeB`
 at the node slots below core `Z.c` (`Z.c ∈ Cs`, `JKern.csLt`). -/
-theorem JAtZ.bufPlacedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+theorem JAtZB.bufPlacedJ (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ := by
   refine J.bufPlacedLow fun wp hw => ?_
   obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
@@ -112,6 +132,11 @@ theorem JAtZ.bufPlacedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   have hhi : wp.1.val - ((L.ksb s).val + 13568) < k * 4288 + 4288 := by
     rw [hk]; exact Nat.lt_div_mul_add (by norm_num)
   omega
+
+/-- `JAtZB.bufPlacedJ` at `JAtZ` (via `JAtZ.toB`). -/
+theorem JAtZ.bufPlacedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
+  Fl4Proofs.P3.JAtZB.bufPlacedJ (J := J.toB)
 
 end Placed
 

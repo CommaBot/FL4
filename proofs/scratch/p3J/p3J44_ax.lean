@@ -1,0 +1,23 @@
+import Fl4Proofs
+#print axioms Fl4Proofs.P3.WCk
+#print axioms Fl4Proofs.P3.WPost.map
+#print axioms Fl4Proofs.P3.ck_pp
+#print axioms Fl4Proofs.P3.FinObjHypWRcZ.ck
+#print axioms Fl4Proofs.P3.PPHypDW.ckMap
+#print axioms Fl4Proofs.P3.RdTrivHyp.ck
+#print axioms Fl4Proofs.P3.PostDelHypW.ck
+#print axioms Fl4Proofs.P3.kw_zombie
+#print axioms Fl4Proofs.P3.ZombieHypWZ.ck
+#print axioms Fl4Proofs.P3.SwapHypWZ.ck
+#print axioms Fl4Proofs.P3.EmptyHypWR.ck
+#print axioms Fl4Proofs.P3.natFin_notArch
+#print axioms Fl4Proofs.P3.finJLZck
+#print axioms Fl4Proofs.P3.delHypsJLck
+#print axioms Fl4Proofs.P3.delHypsJLMck
+#print axioms Fl4Proofs.P3.JAtZ.finSlotProjW
+#print axioms Fl4Proofs.P3.hfinWJL
+#print axioms Fl4Proofs.P3.JAtZ.postCapDelWf
+#print axioms Fl4Proofs.P3.delHypsJLft
+#print axioms Fl4Proofs.P3.delHypsJLMft
+#print axioms Fl4Proofs.P3.delHypsJLMckT
+#print axioms Fl4Proofs.P3.delHypsJLMftT

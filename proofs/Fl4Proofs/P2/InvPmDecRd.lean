@@ -15,8 +15,12 @@ state:
   (`PmRoot`, from the plan by `pmRoot_of_qf`);
 * **`pm_decWalk`**: `check_vspace` of that cap and the small-page `page_entry_slot` (user `va`) at `s2` on such a
   store are `st`'s at `s2` (`pm_vsRd`, `vsRdG_tr` for both stores; the prefix writes no `VsW` word).
+* **`pm_decRdC`**, **`pm_decWalkC`** (gen-45 p3mc, moved here from P2/InvPmGdV): the same with the read hypothesis
+  cut by a word class `G` (`∀ b, IoRS (ptU K) s b → G b → R b`), the class asked only at the words read (the
+  caller's node words, its registers, the slots, the walk words off the leaves). `pm_decRd` / `pm_decWalk` are their
+  one-line instances at `G := fun _ => True` (statements unchanged).
 
-No named premise. New module; no existing statement changes.
+No named premise. New module; gen 45 re-proves `pm_decRd` / `pm_decWalk` as corollaries (statements unchanged).
 -/
 import Fl4Proofs.P2.InvPmDecG
 open Aeneas Aeneas.Std Result
@@ -104,10 +108,16 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : localinv.Plan} {K : KLayoutP} {μ : U64 → U64}
 variable {A : Type} {ar : machine.Arch A}
 
-/-- **The PageMap decode's first reads at the decode state** (module docstring). -/
-theorem pm_decRd (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S} [GRd gS st (IoRS (st := st) K.ptU Locks s)]
+set_option maxHeartbeats 1000000 in
+/-- **The PageMap decode's first reads, the read hypothesis cut by a word class `G`** (module docstring; `pm_decRd`
+is its instance at `G := True`). -/
+theorem pm_decRdC (hA : P0.ArchTotal ar) {s : S} {R G : U64 → Prop} {gS : machine.Store S} [GRd gS st R]
     {a : A} {nx : U64} {s1 s2 : S} {a1 : A}
-    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1) :
+    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
+    (hR : ∀ b, IoRS (st := st) K.ptU Locks s b → G b → R b)
+    (hGn : ∀ o : U64, o.val < 4288 → G (L.nodeAt s (L.cpu s) o))
+    (hGr : ∀ r : U64, r.val < 384 → G (regA (L.curW s) r))
+    (hGs : ∀ q ∈ K.slots, G q ∧ G (core.num.U64.wrapping_add q 8#u64)) :
     L.curW s2 = L.curW s ∧
     sched.cur_thread gS s2 = sched.cur_thread st s2 ∧
     (∀ i, i < msg.N_MSG_REGISTERS → ∀ buf,
@@ -130,14 +140,15 @@ theorem pm_decRd (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S} [GRd gS s
     obtain ⟨q, hq, hbq⟩ := hs
     exact Pb.slot_keep w0 hq hbq hb
   refine ⟨hct, ?_, ?_, ?_⟩
-  · have hctR : IoRS (st := st) K.ptU Locks s (L.nodeAt s2 (L.cpu s2) layout.node.CUR_THREAD) := by
+  · have hctR : R (L.nodeAt s2 (L.cpu s2) layout.node.CUR_THREAD) := by
       rw [I.cp, nodeAt_of_ksb I.k]
-      exact (P.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1
+      exact hR _ (P.nd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD])
+        (by simp [layout.node.CUR_THREAD])).1 (hGn _ (by simp [layout.node.CUR_THREAD]))
     exact sched.cur_thread.guard (gS := gS) s2 hctR
   · intro i hi buf
     refine msg.syscall_arg.guard_lt (gS := gS) s2 (L.curW s2) buf i hi (fun r hr => ?_)
     rw [hct]
-    exact (P.reg (msgReg_lt hr)).1
+    exact hR _ (P.reg (msgReg_lt hr)).1 (hGr _ (msgReg_lt hr))
   · obtain ⟨⟨-, ⟨t, info, ex, ht, hi, hpw⟩, harm, -⟩, -⟩ := hq
     have et : t = L.curW s := by rw [cur_thread_ok] at ht; exact (ok_inj_ff ht).symm
     subst et
@@ -149,18 +160,20 @@ theorem pm_decRd (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S} [GRd gS s
     rw [hx0] at hx0'
     obtain rfl := ok_inj_ff hx0'
     have hc2 : obj.Slot.cap st x0 s2 = obj.Slot.cap st x0 s := cap_agree hL hxK ag
-    have hR := P.slot (Locks := Locks) (sl := x0) hxK (Or.inr (cap_pml4_nof hcx))
-    refine ⟨x0, root, rasid, ?_, obj.Slot.cap.guard (gS := gS) x0 s2 hR.1 hR.2, hc2.trans hcx,
-      hRt x0 root rasid hx0 hcx⟩
+    have hRx := P.slot (Locks := Locks) (sl := x0) hxK (Or.inr (cap_pml4_nof hcx))
+    refine ⟨x0, root, rasid, ?_, obj.Slot.cap.guard (gS := gS) x0 s2 (hR _ hRx.1 (hGs x0 hxK).1)
+      (hR _ hRx.2 (hGs x0 hxK).2), hc2.trans hcx, hRt x0 root rasid hx0 hcx⟩
     unfold vspace.extra obj.Slot.is_null
     simp only [show ¬ (0#usize ≥ 3#usize) by decide, ↓reduceIte, hx0, bind_ok, decide_eq_true_eq, hx00]
 
-/-- **The PageMap decode's walk at the decode state** on a store reading `IoRS (ptU K) s` as `st`: `check_vspace`
-and the small-page `page_entry_slot` give `st`'s answers at `s2` (`pm_vsRd` + `vsRdG_tr` twice: the walk reads only
-`VsW` words off `K.ptes`, which the prefix does not write). -/
-theorem pm_decWalk (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S}
-    [GRd gS st (IoRS (st := st) K.ptU Locks s)] {a : A} {nx : U64} {s1 s2 : S} {a1 : A}
+set_option maxHeartbeats 1000000 in
+/-- **The PageMap decode's walk, the read hypothesis cut by a word class `G`** (module docstring; `pm_decWalk` is
+its instance at `G := True`). -/
+theorem pm_decWalkC (hA : P0.ArchTotal ar) {s : S} {R G : U64 → Prop} {gS : machine.Store S} [GRd gS st R]
+    {a : A} {nx : U64} {s1 s2 : S} {a1 : A}
     (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
+    (hR : ∀ b, IoRS (st := st) K.ptU Locks s b → G b → R b)
+    (hGv : ∀ b, VsW K.toKLayout b → b ∉ K.ptes → G b)
     {root rasid va : U64} (hva : ¬ va > fl4_abi.consts.USER_TOP) :
     vspace.check_vspace gS s2 (.Pml4 root true rasid) = vspace.check_vspace st s2 (.Pml4 root true rasid) ∧
     (vspace.find_vspace_for_asid st s rasid = ok (.Ok root) →
@@ -173,7 +186,7 @@ theorem pm_decWalk (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S}
   have hrs : ∀ b, (VsW K.toKLayout b ∧ ¬ b ∈ K.ptes) → st.read s2 b = st.read s b := fun b hb => by
     rw [L.read_eq, L.read_eq, w0.2.2 b hb.1.1 (Pb.vs_notPreW hb.1)]
   have hrg : ∀ b, (VsW K.toKLayout b ∧ ¬ b ∈ K.ptes) → gS.read s2 b = st.read s b := fun b hb =>
-    (gst_read (pm_vsW_ioRS (Locks := Locks) (s := s) hb.1 hb.2)).trans (hrs b hb)
+    (gst_read (hR _ (pm_vsW_ioRS (Locks := Locks) (s := s) hb.1 hb.2) (hGv _ hb.1 hb.2))).trans (hrs b hb)
   have hks : st.ks_base s2 = st.ks_base s := by rw [L.ks_base_eq, L.ks_base_eq, w0.1]
   have hkg : gS.ks_base s2 = st.ks_base s := by rw [gst_ks_base]; exact hks
   have T1 := vsRdG_tr hV hrg hkg
@@ -182,6 +195,33 @@ theorem pm_decWalk (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S}
     (check_vspace_tr (m' := st) (x' := s2) (s := s) (root := root) T2.1).symm, fun hf => ?_⟩
   exact (page_entry_slot_small_tr (m' := gS) (x' := s2) (s := s) ((T1.2 root hf))).trans
     (page_entry_slot_small_tr (m' := st) (x' := s2) (s := s) ((T2.2 root hf))).symm
+
+/-- **The PageMap decode's first reads at the decode state** (module docstring): `pm_decRdC` at `G := True`. -/
+theorem pm_decRd (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S} [GRd gS st (IoRS (st := st) K.ptU Locks s)]
+    {a : A} {nx : U64} {s1 s2 : S} {a1 : A}
+    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1) :
+    L.curW s2 = L.curW s ∧
+    sched.cur_thread gS s2 = sched.cur_thread st s2 ∧
+    (∀ i, i < msg.N_MSG_REGISTERS → ∀ buf,
+      msg.syscall_arg gS s2 (L.curW s2) buf i = msg.syscall_arg st s2 (L.curW s2) buf i) ∧
+    ∃ x0 root rasid, vspace.extra p.extra 0#usize = ok (some x0) ∧
+      obj.Slot.cap gS x0 s2 = obj.Slot.cap st x0 s2 ∧
+      obj.Slot.cap st x0 s2 = ok (.Pml4 root true rasid) ∧
+      vspace.find_vspace_for_asid st s rasid = ok (.Ok root) :=
+  pm_decRdC (R := IoRS (st := st) K.ptU Locks s) (G := fun _ => True) hA hE C (fun _ h _ => h) (fun _ _ => trivial)
+    (fun _ _ => trivial) (fun _ _ => ⟨trivial, trivial⟩)
+
+/-- **The PageMap decode's walk at the decode state** on a store reading `IoRS (ptU K) s` as `st`: `check_vspace`
+and the small-page `page_entry_slot` give `st`'s answers at `s2` (`pm_decWalkC` at `G := True`). -/
+theorem pm_decWalk (hA : P0.ArchTotal ar) {s : S} {gS : machine.Store S}
+    [GRd gS st (IoRS (st := st) K.ptU Locks s)] {a : A} {nx : U64} {s1 s2 : S} {a1 : A}
+    (hE : PmPreG st Cs Ω Sg Ac Locks p K μ s) (C : InvChk st ar s a (L.curW s) p nx s1 s2 a1)
+    {root rasid va : U64} (hva : ¬ va > fl4_abi.consts.USER_TOP) :
+    vspace.check_vspace gS s2 (.Pml4 root true rasid) = vspace.check_vspace st s2 (.Pml4 root true rasid) ∧
+    (vspace.find_vspace_for_asid st s rasid = ok (.Ok root) →
+      vspace.page_entry_slot gS s2 root va .Small = vspace.page_entry_slot st s2 root va .Small) :=
+  pm_decWalkC (R := IoRS (st := st) K.ptU Locks s) (G := fun _ => True) hA hE C (fun _ h _ => h)
+    (fun _ _ _ => trivial) hva
 
 end rd
 
