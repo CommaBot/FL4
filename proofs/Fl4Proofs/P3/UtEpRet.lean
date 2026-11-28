@@ -226,7 +226,7 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
     (hZ0 : UtFreeZ σ (p.val + fi.val) (p.val + 2 ^ sb.val)) (hKN : UtNodesAt (L.ksb s) p sb) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (fun _ _ => Sched.SlotWd Z.th) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (fun _ _ => Sched.SlotWd Z.th) (DefObj σ) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   replace hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨
@@ -1268,7 +1268,9 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
     cases he
     exact RetWin.intro (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk) ⟨uu, huu, by rw [hcj, eA]⟩ (by rw [hlen]; exact hdsC) hw
       (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout)
-      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc
+      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc hty
+      (RetNew.ofNone (by rw [hlen, ← eA]; exact hThX) hk0 (fun _ _ => by
+        rw [hlen, ← eA]; exact fun a ha g1 g2 => (hWZ' a ha g1 g2).resolve_right fun h => hTn h.1))
       (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3)
       (fun _ a ha g1 g2 => hU.zero hnd a ha (by rw [← eA] at g1; omega) (by rw [hlen, ← eA] at g2; omega))
 

@@ -153,12 +153,10 @@ theorem invokeUntyped_noreset_coP (bitsApi : ApiObjectType → Nat → Nat) (sl 
 
 end SpecCo
 
-/-- **`inSlot_keeps` with window writes**: the TCBs' `MCP`, `YIELD_TO` and
-IPC-buffer words, the SCs' `REPLY` words and the replies' links are kept by
-writes of slot words and of window words apart from `T`, `C`'s SCs and `R`. -/
-theorem inSlotW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `inSlotW_keeps` over `JAtZB` (mmuAD gen 42b26, in place; `inSlotW_keeps` is its corollary). -/
+theorem inSlotW_keepsB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
     (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val)
     (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
       b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
@@ -197,7 +195,52 @@ theorem inSlotW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     · rcases (hA y hy).2.2.2.2 r hr with h | h <;> omega
     · rcases hWR _ h r hr with e | e <;> omega
 
+/-- **`inSlot_keeps` with window writes**: the TCBs' `MCP`, `YIELD_TO` and
+IPC-buffer words, the SCs' `REPLY` words and the replies' links are kept by
+writes of slot words and of window words apart from `T`, `C`'s SCs and `R`. -/
+theorem inSlotW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val)
+    (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
+      b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
+    (hWR : ∀ b, Win b → ∀ r ∈ Z.R, b.val < r.val ∨ r.val + 32 ≤ b.val) :
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
+    (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
+    (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) :=
+  inSlotW_keepsB J.toB hw hWT hWC hWR
+
+
 set_option maxHeartbeats 2000000 in
+/-- `uaRestW` over `JAtZB` (mmuAD gen 42b26, in place; `JAtZ.uaRestW` is its corollary). -/
+theorem JAtZB.uaRestW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val)
+    (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
+      b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
+    (hWR : ∀ b, Win b → ∀ r ∈ Z.R, b.val < r.val ∨ r.val + 32 ≤ b.val)
+    {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop} {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject}
+    (hA : SpecAdd σ σB W o) (hi : IdleNew W o) (hcn : CnK σB σ') {Nn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) :
+    CallRel (L.mem s') Z.R Z.C σ' Lst ∧ RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ' ∧ RFree (L.mem s') Z.R Z.C σ' Lst ∧
+    RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
+    BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
+    (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
+  have hC := CnStep.of_cnK hcn
+  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlotW_keepsB J hw hWT hWC hWR
+  have ck := uaCKeep hA hi hC
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uadd hA hi hC k4,
+    J.yld.frame k2 (uaYKeep hA hi hC), J.mcp.frame k1 (uaMcpKeep hA hi hC), J.buf.frame kb (uaBufKeep hA hi hC),
+    (J.nsc.uadd hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
+    CurInvW.cn (CurInvW.uadd J.cur hA hi) hC, (J.own.uadd hA hi).cn hC.toHStep, (J.off.uadd hA hi).cn hC.toHStep,
+    (J.act.uadd hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
+    (J.isorted.uadd hA hi).cn hC.toHStep, (J.curRun.uadd hA hi).cn hC.toHStep (Or.inr hC.act)⟩
+
+
+
 /-- **`JAtZ.uaRest` with window writes: a retype's fresh idle objects**
 (module docstring): from `JAtZ` before, FL4 writing slot words and window words `Win` (apart from `T`, `C`'s SCs and `R`), and the
 spec's `SpecAdd` of idle endpoints or notifications followed by a CNode-only
@@ -218,26 +261,12 @@ theorem JAtZ.uaRestW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
     BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
     (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
-    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
-  have hC := CnStep.of_cnK hcn
-  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlotW_keeps J hw hWT hWC hWR
-  have ck := uaCKeep hA hi hC
-  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
-  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uadd hA hi hC k4,
-    J.yld.frame k2 (uaYKeep hA hi hC), J.mcp.frame k1 (uaMcpKeep hA hi hC), J.buf.frame kb (uaBufKeep hA hi hC),
-    (J.nsc.uadd hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
-    CurInvW.cn (CurInvW.uadd J.cur hA hi) hC, (J.own.uadd hA hi).cn hC.toHStep, (J.off.uadd hA hi).cn hC.toHStep,
-    (J.act.uadd hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
-    (J.isorted.uadd hA hi).cn hC.toHStep, (J.curRun.uadd hA hi).cn hC.toHStep (Or.inr hC.act)⟩
-
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' :=
+  JAtZB.uaRestW J.toB hw hWT hWC hWR hA hi hcn hWn
 
 set_option maxHeartbeats 2000000 in
-/-- **`JAtZ.addRP` with window writes**: `RPlaced` and `SlotsApart` at the notifications and replies grown by
-the window across the retype (`JAtZ.uaRest`'s `RPlaced` at the old sets,
-`SlotsApart.sc_frame`): the new notifications and replies lie in `[lo, hi)`,
-where no spec object (so no reply, notification or SC) and no object of the
-typed heap (so no slot, no TCB) is; at most one of the two sets is new. -/
-theorem JAtZ.addRPW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addRPW` over `JAtZB` (mmuAD gen 42b26, in place; `JAtZ.addRPW` is its corollary). -/
+theorem JAtZB.addRPW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
     (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val)
     (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
@@ -314,18 +343,35 @@ theorem JAtZ.addRPW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · exact h5 r hr
       · have := slotOff x hx; have := hRw r hr; omega
 
+
+/-- **`JAtZ.addRP` with window writes**: `RPlaced` and `SlotsApart` at the notifications and replies grown by
+the window across the retype (`JAtZ.uaRest`'s `RPlaced` at the old sets,
+`SlotsApart.sc_frame`): the new notifications and replies lie in `[lo, hi)`,
+where no spec object (so no reply, notification or SC) and no object of the
+typed heap (so no slot, no TCB) is; at most one of the two sets is new. -/
+theorem JAtZ.addRPW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWT : ∀ b, Win b → ∀ t ∈ Z.T, b.val < t.val ∨ t.val + 4096 ≤ b.val)
+    (hWC : ∀ b, Win b → ∀ q ∈ Z.C, ∀ x n, σ.kheap q.bv = some (.schedContext x n) →
+      b.val < q.val ∨ q.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ b.val)
+    (hWR : ∀ b, Win b → ∀ r ∈ Z.R, b.val < r.val ∨ r.val + 32 ≤ b.val) {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop}
+    {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject} (hA : SpecAdd σ σB W o) (hid : IdleNew W o) (hcn : CnK σB σ')
+    {Nn Rn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hNw : ∀ n ∈ Nn, lo ≤ n.val ∧ n.val + 64 ≤ hi)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi)
+    (hRks : ∀ r ∈ Rn, r.val + 32 ≤ (L.ksb s').val ∨ L.nodeBase s' Z.c + 4288 ≤ r.val)
+    (hNR : Nn = ∅ ∨ Rn = ∅) :
+    RPlaced st (Z.N ∪ Nn) Z.T Z.C (Z.R ∪ Rn) Z.c s' σ' ∧
+      SlotsApart (st := st) Z.th Z.T (Z.N ∪ Nn) Z.C (Z.R ∪ Rn) Z.c s' σ' :=
+  JAtZB.addRPW J.toB hw hWT hWC hWR hA hid hcn hWn hlo0 hhi64 hfree hspec hNw hRw hRks hNR
+
 set_option maxHeartbeats 4000000 in
-/-- **The untyped caps' facts after a retype that keeps the typed heap**
-(`JAtZ.ret_utc` with FL4 also writing the window `Win`, below the source's new free index and off
-every other RAM untyped cap's free part and the debug word; `ins_utcG` for the
-creation's insertions `Dst` and the source's free index raised from `fi0`
-to `fi1`): the source keeps its facts at the higher free index (its free
-part shrinks; it has a child after, `hchild`); every other untyped cap keeps
-them as in `ins_utcG` (the new MDB slots miss every childless untyped
-region, `hlv`, from the destination's liveness). -/
-theorem JAtZ.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `ret_utcW` over `JAtZB` (mmuAD gen 42b26, in place; `JAtZ.ret_utcW` is its corollary). -/
+theorem JAtZB.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} (hxs : AbsSlot Z.th xs)
     (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 false)
     (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 false) (hfi : fi0.val ≤ fi1.val)
@@ -436,6 +482,42 @@ theorem JAtZ.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     by_cases e : Dst sl'
     · exact (hlv sl' e sl p sb fi dev hsl hcv hdF hnc).2
     · exact r1 sl' (by rw [← horig sl' e]; exact h)
+
+
+/-- **The untyped caps' facts after a retype that keeps the typed heap**
+(`JAtZ.ret_utc` with FL4 also writing the window `Win`, below the source's new free index and off
+every other RAM untyped cap's free part and the debug word; `ins_utcG` for the
+creation's insertions `Dst` and the source's free index raised from `fi0`
+to `fi1`): the source keeps its facts at the higher free index (its free
+part shrinks; it has a child after, `hchild`); every other untyped cap keeps
+them as in `ins_utcG` (the new MDB slots miss every childless untyped
+region, `hlv`, from the destination's liveness). -/
+theorem JAtZ.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} (hxs : AbsSlot Z.th xs)
+    (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 false)
+    (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 false) (hfi : fi0.val ≤ fi1.val)
+    (hfi1 : fi1.val ≤ 2 ^ sb0.val) (Dst : Fl4Spec.CslotPtr → Prop)
+    (hDa : ∀ d, Dst d → AbsSlot Z.th d) (hDn : ∀ d, Dst d → capAt (L.mem s) (cslotAddr d) = ok .Null)
+    (hDu : ∀ d, Dst d → ∀ p sb fi dv, capV (L.mem s') (cslotAddr d) ≠ .Untyped p sb fi dv)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr xs → (∀ d, Dst d → y ≠ cslotAddr d) →
+      capV (L.mem s') y = capV (L.mem s) y)
+    {Win : U64 → Prop} (hw : P1.WritesIn st s s' (fun b => InSlot Z.th b ∨ Win b))
+    (hWs : ∀ b, Win b → b.val < p0.val + fi1.val)
+    (hWo : ∀ sl p sb fi, AbsSlot Z.th sl → cslotAddr sl ≠ cslotAddr xs →
+      capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi false → ∀ b, Win b → b.val < p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ b.val)
+    (hWd : ¬ Win (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) (hcdt : ∀ x, ¬ Dst x → σ'.cdt x = σ.cdt x)
+    (horig : ∀ sl, ¬ Dst sl → σ'.isOriginalCap sl = σ.isOriginalCap sl)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hM' : MdbLinks Z.th (L.mem s') G') (hchild : ∃ x, σ'.cdt x = some xs)
+    (hlv : ∀ d, Dst d → ∀ sl p sb fi dev, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev →
+      dev = false → (¬ ∃ x, σ.cdt x = some sl) →
+      ((cslotAddr d).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr d).val) ∧
+        AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) d) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi :=
+  JAtZB.ret_utcW J.toB hxs hc0 hc1 hfi hfi1 Dst hDa hDn hDu hcap hw hWs hWo hWd hcdt horig hgp hM' hchild hlv
 
 end
 

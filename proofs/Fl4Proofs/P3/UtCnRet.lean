@@ -171,7 +171,7 @@ theorem JAtZB.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (fun _ _ => Sched.SlotWd Z.th) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (fun _ _ => Sched.SlotWd Z.th) (DefObj σ) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -778,7 +778,11 @@ theorem JAtZB.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
     exact RetWin.intro (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk)
       ⟨uu, huu, by rw [capsOf_native (Or.inl (by omega)), hcj, eA]⟩ (by rw [hlen]; exact hdsC) hw
       (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout)
-      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc
+      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc hty
+      ⟨fun q i hqi hq => newSlot_null hThX hksk hP' hTn hWZ' hqi hq, fun t0 ht0 hq => (by
+        rcases hThX.casesI ht0 with h | ⟨-, h⟩
+        · rw [hq] at h; cases h
+        · rw [hk0] at h; cases h), fun h1 _ => absurd h1 (by omega)⟩
       (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3)
       (fun _ a ha g1 g2 => hU.zero hnd a ha (by rw [← eA] at g1; omega) (by rw [hlen, ← eA] at g2; omega))
 

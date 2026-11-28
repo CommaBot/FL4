@@ -221,7 +221,7 @@ theorem JAtZB.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (RetWdT (L := L) Z.th s) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (RetWdT (L := L) Z.th s) (DefObj σ) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -1403,7 +1403,18 @@ theorem JAtZB.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (
     refine RetWin.intro (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk)
       ⟨uu, huu, by rw [capsOf_native (Or.inl (by omega)), hcj, eA]⟩ (by rw [hlen]; exact hdsC) ?_
       (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout)
-      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc
+      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc hty
+      ⟨fun q i hqi hq => newSlot_nullT hThX4 hk0 hP' hWZ4 hfitW hqi hq, fun t0 ht0 hq0 => (by
+        rcases hThX.casesI ht0 with h | ⟨⟨i, hi, hq⟩, -⟩
+        · rw [hq0] at h; cases h
+        · try simp only [hk4] at hq
+          have e : t0 = bT Aw i := UScalar.eq_of_val_eq (by rw [bT_v hi hfitW]; omega)
+          subst e
+          have hv : (tVcpuA (bT Aw i)).val = (bT Aw i).val + 3664 := Notif.tfield_val (hTB i hi) (by simp)
+          have a := (hTB i hi).align
+          exact ⟨winZero_vcpu hWZ4 hfitW hi _ (by show _ % 8 = 0; rw [hv]; omega) hv,
+            hzW i hi layout.tcb.STATE (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)⟩),
+        fun h1 _ => absurd h1 (by omega)⟩
       (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3)
       (fun _ a ha g1 g2 => hU.zero hnd a ha (by rw [← eA] at g1; omega) (by rw [hlen, ← eA] at g2; omega))
     refine ⟨hwT.1, hwT.2.1, fun b hb hn => hwT.2.2 b hb (fun h => hn ?_)⟩

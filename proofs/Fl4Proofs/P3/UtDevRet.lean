@@ -162,9 +162,10 @@ def DevX (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.State Un
 /-- A device body's `UtBodyPostB` (`DevX` after) with `JExt` at the entry is `UtBodyPostD` (as
 `UtBodyPostB.toPost`). -/
 theorem UtBodyPostB.toPostD {th : TypedHeap} {G : MdbGhost} {H : P1.Heap} {s : S} {σ : Fl4Spec.State Unit}
-    {nt : Nat} {W : Nat → Nat → U64 → Prop} {inv : Fl4Spec.UntypedInvocation}
-    {res : core.result.Result Unit error.Exc × S × A}
-    (h : UtBodyPostB (L := L) arI AR th G H s σ nt (DevX (L := L)) W inv res) (hn : nt ≤ 13)
+    {nt : Nat} {W : Nat → Nat → U64 → Prop}
+    {O : Fl4Spec.ApiObjectType → Bool → Nat → Fl4Spec.ObjRef → Fl4Spec.KernelObject → Prop}
+    {inv : Fl4Spec.UntypedInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    (h : UtBodyPostB (L := L) arI AR th G H s σ nt (DevX (L := L)) W O inv res) (hn : nt ≤ 13)
     (hv : ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev → t ≠ .archObject .vcpuObj)
     (E : JExt (L := L) th s) : UtBodyPostD (L := L) arI AR σ inv res := by
   obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hvx, ⟨hDA, hDF⟩, hx, -⟩ := h
@@ -191,7 +192,7 @@ theorem JAtZB.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win true ⦃ res =>
-      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (DevX (L := L)) (fun _ _ => Sched.SlotWd Z.th) (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (DevX (L := L)) (fun _ _ => Sched.SlotWd Z.th) (DefObj σ) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
         res ⦄ := by
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
@@ -928,7 +929,8 @@ theorem JAtZB.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (
     exact RetWin.intro (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk)
       ⟨uu, huu, by rw [capsOf_native (Or.inl (by rcases hnt with h | h | h <;> rw [h] <;> decide)), hcj, eA]⟩ (by rw [hlen]; exact hdsC) hw
       (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout)
-      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc
+      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc hty
+      (RetNew.ofNone (by rw [hlen, ← eA]; exact hThX) hk0 (fun h1 _ => absurd h1 (by rcases hnt with h | h | h <;> rw [h] <;> decide)))
       (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3) (fun h => by cases h)
 
 /-- **The no-reset retype of device frames from a `JAtZ` state** (module

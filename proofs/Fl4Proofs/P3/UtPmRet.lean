@@ -37,10 +37,23 @@ theorem objTypeOf_pml4 {n : Nat} (h : objTypeOf n = some (.archObject .pml4Obj))
     rw [(objTypeOf_none n).2 (by omega)] at h; cases h
   interval_cases n <;> simp_all [objTypeOf, Fl4Spec.archDataToObjType]
 
+/-- **The PML4 body's spec objects** (mmuAD gen 42b26, `RetWin`'s object predicate for type 8): a PML4 with an
+invalid user half (`init_arch_objects`' `copy_global_mappings` copies the global PML4's kernel half in,
+UtPmAdd `invokeUntyped_noreset_pml4`), not the default (all-invalid) object. -/
+def PmObj (_t : Fl4Spec.ApiObjectType) (_dev : Bool) (_us : Nat) (_q : Fl4Spec.ObjRef) (ko : Fl4Spec.KernelObject) : Prop :=
+  ∃ pt, ko = .archObj (.pageMapL4 pt) ∧ ∀ j : BitVec 9, j.toNat < 256 → pt j = .invalidPML4E
+
+/-- The PML4 body's objects satisfy `RetObjOK` (no VCPU, ASID pool or EPT table). -/
+theorem retObjOK_pm {t : Fl4Spec.ApiObjectType} {dev : Bool} {us : Nat} : RetObjOK 8 (PmObj t dev us) := by
+  rintro q ko ⟨pt, rfl, -⟩
+  exact ⟨fun _ vs h => (by cases h), fun f h => (by cases h), fun l es h => (by cases h),
+    fun h1 _ => absurd h1 (by omega)⟩
+
 set_option maxHeartbeats 16000000 in
-/-- **The body of `JAtZ.utPmJ`: the retype of PML4s without a reset from a
-`JAtZ` state** (handoff/utj.md Round 13; as UtEpRet's `JAtZ.utEpBodyJ`). -/
-theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+/-- `utPmBodyJ` over `JAtZB` (mmuAD gen 42b26, in place; `JAtZ.utPmBodyJ` is its corollary): the post `UtBodyPostB`
+with `RetWin` at the PML4 footprint `RetWdW` (slot words, the window) and the PML4 object predicate `PmObj` (the
+global mappings copied, the user half invalid), `JExt` carried from the entry. -/
+theorem JAtZB.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -51,7 +64,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (RetWdW Z.th) PmObj (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -79,7 +92,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hRPN := RetPostB.toNB hRP
   obtain ⟨hok, har, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
     hE, hbr, hRFu⟩ := hRP
-  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
+  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, huu, hcj⟩, hdsC,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
   rw [capsOf_native (n := n0) (by rw [objTypeOf_inj hn0 hty, hnt]; decide)] at hcj
@@ -789,13 +802,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _),
-      J.ext.vkeep (J.vkeep_of hwI fun b hb u hu e => by
-        rcases hb with hb | hb
-        · exact J.inSlot_nv hb u hu e
-        · have h1 := hWT b hb u hu
-          rw [e, Sched.tVcpuA_val J.ip.e.tcb hu] at h1
-          omega)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+    hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hX4 hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
@@ -820,11 +827,52 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
         refine ⟨by rw [e]; rfl, fun i hi => ?_⟩
         rw [hz4 b hbw i (by simpa using hi)]
         exact Vs.not_eP_zero))
-  refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
+  have htV : t ≠ .archObject .vcpuObj := by rw [ht]; exact fun h => by cases h
+  refine ⟨σ', (VirtR7.fl4InvokeUntypedV_run _ _ _ _ _ _ _ _ htV σ).trans hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance⟩
+    refine ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance, trivial, fun _ hx =>
+      ⟨hx.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _),
+        hx.vkeep (J.vkeep_of hwI fun b hb u hu e => by
+          rcases hb with hb | hb
+          · exact J.inSlot_nv hb u hu e
+          · have h1 := hWT b hb u hu
+            rw [e, Sched.tVcpuA_val J.ip.e.tcb hu] at h1
+            omega)⟩, fun _ _ _ _ _ _ _ _ he => ?_⟩
+    cases he
+    exact RetWin.introO (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk)
+      ⟨uu, huu, by rw [capsOf_native (Or.inl (by omega)), hcj, eA]⟩ (by rw [hlen]; exact hdsC)
+      (by rw [hlen, ← eA]; exact hw)
+      (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout)
+      (hA.congrW (fun q => by rw [← ht, hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl)
+      (fun q hq _ => hpm q (by rw [← ht, hb]; exact hq)) (fun _ => by rw [hnt]; exact retObjOK_pm) hcnk hkc
+      (RetNew.ofNone (by rw [hlen, ← eA]; exact hThX) hk0 (fun h1 _ => absurd h1 (by omega)))
+      (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3)
+      (fun _ a ha g1 g2 => hU.zero hnd a ha (by rw [← eA] at g1; omega) (by rw [hlen, ← eA] at g2; omega))
+
+/-- **The body of `JAtZ.utPmJ`: the retype of PML4s without a reset from a
+`JAtZ` state** (handoff/utj.md Round 13; as UtEpRet's `JAtZ.utEpBodyJ`). -/
+theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+    (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
+    (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
+    (hnt : nt.val = 8) (hc0 : Z.c = 0#u64)
+    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv) (hfiv : fiv = fi)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
+        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
+        res ⦄ :=
+  WP.spec_mono (JAtZB.utPmBodyJ J.toB hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU)
+    fun _ h => h.toPost (by omega)
+    (fun _ _ _ _ _ _ _ _ he => by
+      cases he; intro e; rw [e] at hctx; have := hctx.ty; rw [hnt] at this
+      simp [objTypeOf, Fl4Spec.archDataToObjType] at this) J.ext
+
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of PML4s at `J`** (module docstring; `JAtZ.utEpJ`'s
