@@ -464,47 +464,4 @@ theorem invBlkGdUW2_of8 {A : Type} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
 
 end arm
 
-section paths
-variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop}
-variable {A : Type}
-
-/-- (stpost gen 14) **The uncut CNodeDelete local path** (`Q := InvQF`, truncated Deletes included): `inv_pathsKDelU`
-with `hacc` from `invUAccW_of2` + `invBlkUW2_of8`, `hdec` / `hra` from `invDecW_of` / `invRaW_of` (`hSeen` from
-`invSeen_of`), `hmv` from `invMoveW_ofU` + `invBlkGdUW2_of8`, `hps` from `invPs_of`. Premises: `hA`, [P] `hm`,
-[J] `hvs : InvVsJ`, [J] `hcdt : InvCdtJ`, [J] `hz`, [J] `hbuf : InvBufJ8`, [J] `huf`, `hpz` ([P] IsProgOn ∧ [W] NoZero ∧
-[W] InvRoW ∧ [W] InvURoAccW). -/
-noncomputable def inv_pathsKFU8 (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
-    (hm : E2E.MasksWr st)
-    (hvs : ∀ K m, InvVsJ st K (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s))
-    (hcdt : ∀ K m, InvCdtJ st K (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s))
-    (hz : ∀ K s, SlJAt (L := L) K s → (0#u64) ∉ K.slots)
-    (hbuf : ∀ K m s, SlJAt (L := L) K s → InvQF st Cs Ω Sg Ac Locks p K m s → InvBufJ8 (st := st) K s)
-    (huf : ∀ K m s b v, SlJAt (L := L) K s → InvQF st Cs Ω Sg Ac Locks p K m s → b ∈ K.user → Aligned b →
-      (SlJAt (L := L) K (L.wr s b v) ∧ InvQF st Cs Ω Sg Ac Locks p K m (L.wr s b v)) ∧ Locks (L.wr s b v) = Locks s ∧
-        IoRS (st := st) K Locks (L.wr s b v) = IoRS (st := st) K Locks s ∧
-        IoWS (st := st) K Locks (L.wr s b v) = IoWS (st := st) K Locks s ∧
-        IoDS (st := st) (L.wr s b v) = IoDS (st := st) s)
-    (hpz : ∀ K m, ∃ q : SProg Bool, IsProgOn (fun m s a => syscall.handle_invocation_local m ar s a number p) ar st
-      (AltOf st (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s) (IoRS (st := st) K Locks)
-        (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)) q ∧ NoZero q ∧
-      InvRoW st ar number p K Locks m q (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s) ∧
-      InvURoAccW st ar number p K Locks m q (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s)) :
-    E2E.Paths Unit :=
-  inv_pathsKDelU ar hA number p hm (InvQF st Cs Ω Sg Ac Locks p) (fun _ _ _ _ hq => hq.1.1.1)
-    (fun K m => invUAccW_of2 hA (fun _ h => h.2.1.1.1)
-      (fun s h => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s h.1 h.2)
-      (fun s h => invPs_of K m s h.1 h.2) (invBlkUW2_of8 hA (hvs K m) (hcdt K m) (hz K) (hbuf K m)))
-    (fun K m => invDecW_of hA (fun _ h => h.1.regionOK) (fun _ h => h.1.ioLayA) (fun _ h => h.2.1.1.1)
-      (fun s h => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s h.1 h.2))
-    (fun K m => invMoveW_ofU hA (fun _ h => h.1.regionOK) (fun _ h => h.1.userOK) (fun _ h => h.1.ioLayA)
-      (fun _ h => h.2.1.1.1) (fun s h => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s h.1 h.2)
-      (fun s h => invPs_of K m s h.1 h.2) (fun _ h => h.2.1.1.2) (hpz K m).choose_spec.1
-      (invBlkGdUW2_of8 hA (hvs K m) (hcdt K m) (hz K) (hbuf K m)))
-    (fun K m => invRaW_of hA (fun _ h => h.2.1.1.1)
-      (fun s h => invSeen_of (fun K _ s hJ _ => hz K s hJ) K m s h.1 h.2))
-    huf hpz
-
-end paths
-
 end Fl4Proofs.P2.PathObl

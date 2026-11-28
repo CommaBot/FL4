@@ -204,18 +204,6 @@ theorem sl_insA_annV_h_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   exact insA_narrow _ (sl_k0_insAH st ar hA a0 j K hK hU nv c _ ρ s.mem k E hV h0 hH J.conv hT hS) ∅
 
 set_option maxHeartbeats 4000000 in
-/-- **U9's re-annotated body is `InsA` at every homed sl start without a VCPU** (module docstring). -/
-theorem sl_insA_annV_h (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {j : SlArg S} (E : U64 → U64) (nv : K.vcpus = ∅)
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (J : EpochJV K E s)
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k
-      (.inl (.sl j)))
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem) (hH : SlHome st K c ρ j) :
-    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  sl_insA_annV_h_C st ar hA a0 (locPlatCR_of P hIoa) E nv hC J hsf hM hV hH
-
-set_option maxHeartbeats 4000000 in
 /-- **`vmR_insA_annV_h` on the re-based platform** (gen 54, in place: `P : LocPlatCR` for `P : LocPlat` / `hIoa`). -/
 theorem vmR_insA_annV_h_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
     {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
@@ -242,20 +230,6 @@ theorem vmR_insA_annV_h_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   rw [hM.own, hM.cls, hM.ko] at hV ⊢
   exact insA_narrow _
     (vmR_k0_insAH st ar hA a0 j K hK hU c _ ρ s.mem k E hV hLk h0 hTR hF nv J.conv hT hS) ∅
-
-set_option maxHeartbeats 4000000 in
-/-- **U9's re-annotated body is `InsA` at every vmR start without a VCPU whose reply names no thread homed
-elsewhere** (module docstring). -/
-theorem vmR_insA_annV_h (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {j : VmRArg S} (E : U64 → U64) (nv : K.vcpus = ∅)
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (J : EpochJV K E s)
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k
-      (.inl (.vmR j)))
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hF : ¬ RFH (S := S) K c ρ j) :
-    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  vmR_insA_annV_h_C st ar hA a0 (locPlatCR_of P hIoa) E nv hC J hsf hM hV hF
 
 end all
 
@@ -296,19 +270,6 @@ theorem insAP_slH_view_C (P : LocPlatCR st arI AR MR)
   exact insAP_of_insA (sl_insA_annV_h_C st ar hA a0 P E nv hC J hsf' hM hV hx)
 
 set_option maxHeartbeats 4000000 in
-/-- **`InsV15V`'s obligation of `nativePmKAD B` at every homed sl start** (module docstring). -/
-theorem insAP_slH_view (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl7 st Cs Ω Sg Ac Locks) {Ch : S → Prop} {s : Cfg U64 U64 U64 U64} {K : KLayoutP}
-    (E : U64 → U64) {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k0 : SP} {ρ : U64 → U64} {i : IxV13Pm S}
-    (nv : K.vcpus = ∅) (hx : SlHPm st K c ρ i) (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (J : EpochJV K E s) (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hsf : (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).SF Ch K (CoreView.view K.toKLayout c ρ) hK hU c
-      (fun l => s.lk l = some c) k0 i) :
-    InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) ∅ s.mem
-      (if (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).NoV i then annV s K c ρ k0 else k0) :=
-  insAP_slH_view_C st ar hA a0 (locPlatCR_of P hIoa) B E nv hx hC J hM hV hsf
-
-set_option maxHeartbeats 4000000 in
 /-- **`insAP_vmRH_view` on the re-based platform** (gen 54, in place: `P : LocPlatCR` for `P : LocPlat` / `hIoa`). -/
 theorem insAP_vmRH_view_C (P : LocPlatCR st arI AR MR)
     (B : PmObl7 st Cs Ω Sg Ac Locks) {Ch : S → Prop} {s : Cfg U64 U64 U64 U64} {K : KLayoutP}
@@ -327,20 +288,6 @@ theorem insAP_vmRH_view_C (P : LocPlatCR st arI AR MR)
       (fun l => s.lk l = some c) k0 (.inl (.vmR j)) := hsf
   have hsf' := startV2C_of_V13 st ar hA a0 hC hsf0
   exact insAP_of_insA (vmR_insA_annV_h_C st ar hA a0 P E nv hC J hsf' hM hV hx)
-
-set_option maxHeartbeats 4000000 in
-/-- **`InsV15V`'s obligation of `nativePmKAD B` at every vmR start whose reply names no thread homed elsewhere**
-(module docstring). -/
-theorem insAP_vmRH_view (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl7 st Cs Ω Sg Ac Locks) {Ch : S → Prop} {s : Cfg U64 U64 U64 U64} {K : KLayoutP}
-    (E : U64 → U64) {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k0 : SP} {ρ : U64 → U64} {i : IxV13Pm S}
-    (nv : K.vcpus = ∅) (hx : VmRHPm (S := S) K c ρ i) (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (J : EpochJV K E s) (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hsf : (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).SF Ch K (CoreView.view K.toKLayout c ρ) hK hU c
-      (fun l => s.lk l = some c) k0 i) :
-    InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) ∅ s.mem
-      (if (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).NoV i then annV s K c ρ k0 else k0) :=
-  insAP_vmRH_view_C st ar hA a0 (locPlatCR_of P hIoa) B E nv hx hC J hM hV hsf
 
 end pm
 

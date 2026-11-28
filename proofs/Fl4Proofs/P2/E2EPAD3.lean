@@ -114,12 +114,6 @@ theorem VmPweU.toT (h : VmPweU K E) (X : RegionOKX K.toKLayout) : VmPweT K E :=
     tabw := fun hi hhi => ⟨⟨(X.asidT hi hhi).2, (X.asidT hi hhi).1, h.tabu hi hhi⟩,
       fun lo hlo hne => h.pool hi hhi lo hlo hne⟩ }
 
-/-- `VmPweU` is part of `VmPweT`. -/
-theorem VmPweT.toU (h : VmPweT K E) : VmPweU K E :=
-  { toVmPwe := h.toVmPwe
-    tabu := fun hi hhi => (h.tabw hi hhi).1.2.2
-    pool := fun hi hhi lo hlo hne => (h.tabw hi hhi).2 lo hlo hne }
-
 end tab
 
 /-! ## 3. `ExecVX4e` and the embeddings -/
@@ -163,37 +157,6 @@ inductive ExecVX4eC (LP : PathsP ι)
       ExecVX4eC LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
       ExecVX4eC LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
 
-/-- An `ExecVX4e` run is an `ExecVX4eC` run at `P.toC`. -/
-theorem ExecVX4e.toC {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64}
-    (h : ExecVX4e LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4eC LP SF P.toC s0 K0 Ch0 s K Ch E := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g hPw ih => exact .step ih hS g.toC hPw
-  | hw _ hH ih => exact .hw ih hH
-  | mmu _ hH ih => exact .mmu ih hH
-
-/-- **An `ExecVX4e` run is an `ExecVX4d` run** (start facts mapped pointwise; `VmPweT` from `VmPweU` and the exit's
-`VtxBundle4`). -/
-theorem execVX4d_of_e {LP : PathsP ι}
-    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-      Prop}
-    (hSF : ∀ Ch K m hK hU c hs q i, SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    {E : U64 → U64} (h : ExecVX4e LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4d LP SF' P s0 K0 Ch0 s K Ch E := by
-  induction h with
-  | refl => exact .refl
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 E1 _ hS g hPw ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.ser, g.serG, g.keep⟩ (fun hs hne => ?_)
-    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-      exact ⟨i, hSF _ _ _ _ _ _ _ _ _ hi⟩
-    · rcases g.ser hs with ⟨-, nv, -⟩ | ⟨-, -, hV⟩
-      · exact (hne nv).elim
-      · exact (hPw hs hne).toT hV.b.ul.rx
-  | hw _ hH ih => exact .hw ih hH
-  | mmu _ hH ih => exact .mmu ih hH
-
 /-- **`execVX4d_of_e` on the re-based platform** (gen 55): `ExecVX4eC` ↦ `ExecVX4dC`. -/
 theorem execVX4d_of_e_C {LP : PathsP ι}
     {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
@@ -210,23 +173,6 @@ theorem execVX4d_of_e_C {LP : PathsP ι}
     · rcases g.ser hs with ⟨-, nv, -⟩ | ⟨-, -, hV⟩
       · exact (hne nv).elim
       · exact (hPw hs hne).toT hV.b.ul.rx
-  | hw _ hH ih => exact .hw ih hH
-  | mmu _ hH ih => exact .mmu ih hH
-
-/-- **An `ExecVX4d` run is an `ExecVX4e` run** (start facts mapped pointwise; `VmPweT.toU`). -/
-theorem execVX4e_of_d {LP : PathsP ι}
-    {SF SF' : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-      Prop}
-    (hSF : ∀ Ch K m hK hU c hs q i, SF Ch K m hK hU c hs q i → SF' Ch K m hK hU c hs q i)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    {E : U64 → U64} (h : ExecVX4d LP SF P s0 K0 Ch0 s K Ch E) : ExecVX4e LP SF' P s0 K0 Ch0 s K Ch E := by
-  induction h with
-  | refl => exact .refl
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 E1 _ hS g hPw ih =>
-    refine .step ih hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.ser, g.serG, g.keep⟩
-      (fun hs hne => (hPw hs hne).toU)
-    obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-    exact ⟨i, hSF _ _ _ _ _ _ _ _ _ hi⟩
   | hw _ hH ih => exact .hw ih hH
   | mmu _ hH ih => exact .mmu ih hH
 
@@ -262,14 +208,6 @@ theorem pmStartX_of3 {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K} {hU : U
   obtain ⟨hQ, hEx, hW, h0⟩ := he.ent.2
   exact ⟨hv, hp, σ, a, ⟨he.hz, ⟨he.ent.1, hQ, hEx, pmRoot_of_qf hQ, hW, h0⟩, he.qps⟩, hc, hl, hμ, hq⟩
 
-/-- **`PmStartX3` from `PmStartX`** (forget `PmRoot`). -/
-theorem pmStartX3_of {K : KLayoutP} {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64}
-    {hs : U64 → Prop} {q : SP} {j : InvArg S} (h : PmStartX st ar hA hm K m hK hU c hs q j) :
-    PmStartX3 st ar hA hm K m hK hU c hs q j := by
-  obtain ⟨hv, hp, σ, a, he, hc, hl, hμ, hq⟩ := h
-  obtain ⟨hQ, hEx, -, hW, h0⟩ := he.ent.2
-  exact ⟨hv, hp, σ, a, ⟨he.hz, ⟨he.ent.1, hQ, hEx, hW, h0⟩, he.qps⟩, hc, hl, hμ, hq⟩
-
 end slot
 
 /-! ## 5. The top -/
@@ -294,14 +232,6 @@ theorem startAD2_of3 {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : P
   · exact h
   · exact pmStartX_of3 h
 
-theorem startAD3_of2 {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks) :
-    ∀ Ch K m hK hU c hs q i, StartAD2 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR) Ch K m hK hU c hs q i →
-      StartAD3 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR) Ch K m hK hU c hs q i := by
-  intro Ch K m hK hU c hs q i h
-  rcases i with i | j
-  · exact h
-  · exact pmStartX3_of h
-
 /-- **`serializable_fl4_localAD3` on the re-based platform**
 (gen 55, in place: `P : LocPlatC` and `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
 theorem serializable_fl4_localAD3_C (P : LocPlatC st arI AR MR) (hRun : ChainRun st arI AR MR)
@@ -315,36 +245,6 @@ theorem serializable_fl4_localAD3_C (P : LocPlatC st arI AR MR) (hRun : ChainRun
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
   serializable_fl4_localAD2_C st ar hA a0 P hRun B h0 hA0 hB hc0 hM0
     (execVX4d_of_e_C (startAD2_of3 st ar hA a0 B) h) hq
-
-/-- **FL4 end to end with the host walker's A/D writes, every U1 slot and PageMap in native and VM epochs, gen 18**
-(module docstring). Premises: `serializable_fl4_localAD2`'s (`P`, [P] `hIoa`, `B` = [P] `cs` / [P] `lk`, `h0`,
-`hA0`, `hB`, `hc0`, `hM0`, the execution, `hq`), with the execution over `ExecVX4e` ([P] `MmuAD`, [S] `VmPweU` at
-VM serial exits) and the start facts `StartAD3` ([S] `InvEntV9` at `PmEntG3` for the VM-epoch PageMap start).
-No [W]. -/
-theorem serializable_fl4_localAD3 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4e (famAD2 st ar hA a0 B) (StartAD3 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR))
-      P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_localAD3_C st ar hA a0 P.toC (chainRun_of P hIoa) B h0 hA0 hB hc0 hM0 h.toC hq
-
-/-- **`serializable_fl4_localAD2` from `serializable_fl4_localAD3`** (AD2's premises and conclusion verbatim): AD3
-asks nothing AD2 does not. -/
-theorem serializable_fl4_localAD2of3 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4d (famAD2 st ar hA a0 B) (StartAD2 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR))
-      P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_localAD3 st ar hA a0 P hIoa B h0 hA0 hB hc0 hM0
-    (execVX4e_of_d (startAD3_of2 st ar hA a0 B) h) hq
 
 end top
 

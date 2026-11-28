@@ -172,19 +172,6 @@ inductive ExecU3H (LP : PathsP ι)
       ExecU3H LP SF P PW s0 K0 Ch0 s K Ch → MmuAD (PW K) s.mem a x →
       ExecU3H LP SF P PW s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- **`ExecU3` is the part of `ExecU3H` whose A/D writes hit free leaves** (for any `PW` containing the leaves). -/
-theorem execU3H_of_U3 {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {PW : KLayoutP → U64 → Prop} (hPW : ∀ K x, x ∈ K.ptes → PW K x)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecU3 LP SF P s0 K0 Ch0 s K Ch) : ExecU3H LP SF P PW s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g ih => exact .step ih hS g
-  | hw _ hH ih => exact .hw ih hH
-  | @mmu s K Ch a x _ hH ih =>
-    exact .mmu ih ⟨hPW K a hH.hw.pw, hH.hw.present, hH.hw.ad, hH.hw.chg⟩
-
 end exec
 
 /-! ## The top -/

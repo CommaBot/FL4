@@ -105,32 +105,6 @@ theorem HIPostMXP.mid {AR : A → Fl4Spec.Cr3 → Prop} {σ : Fl4Spec.State Unit
   · rw [h1, if_pos rfl] at hX
     exact Or.inr ⟨h1, h2, hR, hX⟩
 
-/-- **`handle_invocation_refinesJ` for ReplyRecv / NBSendRecv / NBSendWait's
-invocation** (`first_phase`, neither blocking nor calling) with the mid state
-`JMid` at `Ok`, from `JMidRunHyp` [W]. -/
-theorem handle_invocation_midJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
-    {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (can_donate : Bool) (cptr : U64)
-    (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
-    (mi : Fl4Spec.MessageInfo) (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
-    (buf : U64) (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
-    (buffer : Option Fl4Spec.ObjRef)
-    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
-    (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
-    (hr2 : ipc.lookup_extra_caps st s ct buf info = ok r2)
-    (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr)))
-    (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False))
-    (argsU : List U64)
-    (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
-    (hH : JEntryHyps (L := L) arI AR Z H Cs D s ar σ ct false false can_donate true cptr info mi buf buffer
-      argsU r2 er)
-    (hM : JMidRunHyp true can_donate (Fl4Spec.toBl cptr.bv) σ) (hE : MidEntry σ) :
-    syscall.handle_invocation st arI s ar false false can_donate true cptr ⦃ res =>
-      HIPostMid (L := L) arI AR σ can_donate (Fl4Spec.toBl cptr.bv) res ⦄ :=
-  WP.spec_mono (handle_invocation_refinesJ arI s ar σ J ct hct false false can_donate true cptr info hinfo mi hmi
-    buf hbuf buffer hbuffer r2 hr2 er her argsU hmrs hH) fun _ h => h.mid arI hM hE
-
 end
 
 end

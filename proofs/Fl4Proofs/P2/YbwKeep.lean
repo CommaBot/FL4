@@ -143,13 +143,6 @@ section reach
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop}
 
-/-- **A reachable joint state with the word facts at one bundle is a `JReachYB` state.** -/
-theorem jreachYB_of_ybw {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : JReachU17 (L := L) arI AR MR s a σ)
-    {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hW : YBWH st H s) (hC : CYW st s) :
-    JReachYB (L := L) arI AR MR s a σ :=
-  ⟨hR, yb_of_ybwH J hW, cyn_of_cyw J hC⟩
-
 /-- **At a `JReachYB` state the word facts hold at every bundle.** -/
 theorem JReachYB.ybw {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachYB (L := L) arI AR MR s a σ)
     {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
@@ -164,93 +157,11 @@ theorem JReachYB.ybw_ex (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4
   obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ := jreach_invU3 hnd h.1.1
   exact ⟨Z, H, Cs, Ac, Lst, D, J, h.ybw J⟩
 
-/-- **The word-level post of a kernel exit**: P3's `RJ ∧ JReachYB` at some spec state, and the word facts at every
-bundle of the exit. -/
-def YbwPost (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
-    (r : S × A) : Prop :=
-  ∃ σ', RJ (L := L) arI AR r.1 r.2 σ' ∧ JReachYB (L := L) arI AR MR r.1 r.2 σ' ∧
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D r.1 r.2 σ' → YBWH st H r.1 ∧ CYW st r.1
-
-theorem ybwPost_of {r : S × A}
-    (h : ∃ σ', RJ (L := L) arI AR r.1 r.2 σ' ∧ JReachYB (L := L) arI AR MR r.1 r.2 σ') :
-    YbwPost (st := st) arI AR MR r := by
-  obtain ⟨σ', hRJ, hY⟩ := h
-  exact ⟨σ', hRJ, hY, fun _ _ _ _ _ _ J => hY.ybw J⟩
-
 end reach
 
 section top
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
-
-set_option maxHeartbeats 4000000 in
-/-- **`YBW` is kept by every kernel entry P3 covers** (module docstring): at a reachable joint state with the word
-facts at one bundle, each of the six entry kinds ends, under `kernel_entry_reachU29`'s hypotheses, in a `JReachYB`
-exit with the word facts at every exit bundle. Premises: `kernel_entry_reachU29`'s, nothing new. -/
-theorem kernel_entry_ybwU29 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : JReachU17 (L := L) arI AR MR s a σ)
-    {Z0 : XSets} {H0 : P1.Heap} {Cs0 Ac0 : Set U64} {Lst0 : U64 → List U64} {D0 : Set U64}
-    (J0 : JAtZ (L := L) arI AR Z0 H0 Cs0 Ac0 Lst0 D0 s a σ) (hW : YBWH st H0 s) (hC : CYW st s) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ YBWH st H s ∧ CYW st s ∧
-      (∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c →
-        (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-          ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            KDispHypsKVU29 (L := L) arI AR (Z.mv Z.G V') H Cs D' s' a' σb n c) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            ∀ ct', sched.cur_thread st s' = ok ct' →
-              JDecMRLK (L := L) arI VtxK AR MR (Z.mv Z.G V') H Cs D' s' a' σb ct') →
-        (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-          (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-            JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-            KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => YbwPost (st := st) arI AR MR r ⦄) ∧
-      (∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-        KFinEv13 (L := L) arI AR .interrupt (KFrontI (st := st) arI s a1 w) σ →
-        syscall.handle_interrupt_entry st arI s a1 w ⦃ r => YbwPost (st := st) arI AR MR r ⦄) ∧
-      (∀ (n c : U64), σ.curThread ≠ σ.idleThread → UserHw n c →
-        KFinEv13 (L := L) arI AR (.userLevelFault n.bv c.bv) (KFrontF2 (st := st) arI (brU (st := st) arI n c) s a) σ →
-        syscall.handle_user_exception st arI s a n c ⦃ r => YbwPost (st := st) arI AR MR r ⦄) ∧
-      (∀ (ad c : U64) (ft : Fl4Spec.VMFaultType), σ.curThread ≠ σ.idleThread → VmfHw ad c ft σ →
-        KFinEv13 (L := L) arI AR (.vmFaultEvent ft) (KFrontF2 (st := st) arI (brV (st := st) arI ad c) s a) σ →
-        syscall.handle_vm_fault st arI s a ad c ⦃ r => YbwPost (st := st) arI AR MR r ⦄) ∧
-      (∀ (v : U64), σ.curThread ≠ σ.idleThread → v.val < 256 →
-        (∀ ev, KEvSpec (.trap v) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontTrap (st := st) arI s a) w.2) →
-        syscall.handle_trap_syscall st arI s a v ⦃ r => YbwPost (st := st) arI AR MR r ⦄) ∧
-      (∀ (n : I64), σ.curThread ≠ σ.idleThread → UnkSys (L := L) n s → NoDbgSys (L := L) arI n s a →
-        (∀ ev, KEvSpec (.sysU n) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontSysU (st := st) arI n s a) w.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => YbwPost (st := st) arI AR MR r ⦄) := by
-  have hJ := jreachYB_of_ybw hR J0 hW hC
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hY, hC', hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_yieldScope2U29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, ybwH_of_yb J hY, cyw_of_cyn J hC', ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro n c hct hn hfl hK hDL hFin
-    exact WP.spec_mono (hSys n c hct hn hfl hK hDL hFin) fun r hr => ybwPost_of hr
-  · intro w a1 hIh hE
-    exact WP.spec_mono (hIrq w a1 hIh hE) fun r hr => ybwPost_of hr
-  · intro n c hct hU hE
-    exact WP.spec_mono (hUs n c hct hU hE) fun r hr => ybwPost_of hr
-  · intro ad c ft hct hV hE
-    exact WP.spec_mono (hVm ad c ft hct hV hE) fun r hr => ybwPost_of hr
-  · intro v hct hv hE
-    exact WP.spec_mono (hTr v hct hv hE) fun r hr => ybwPost_of hr
-  · intro n hct hU hND hE
-    exact WP.spec_mono (hSU n hct hU hND hE) fun r hr => ybwPost_of hr
 
 variable {arI AR MR}
 

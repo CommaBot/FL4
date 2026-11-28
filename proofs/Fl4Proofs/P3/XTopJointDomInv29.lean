@@ -43,23 +43,8 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-theorem cdomA_eq (s : S) : P1.cdomA st s = curDomA st s := by
-  unfold P1.cdomA curDomA layout.ks.CUR_DOMAIN; rfl
-
 theorem cdomA_ksW (s : S) : P1.cdomA st s = ksW (L.ksb s) 8#u64 := by
   unfold P1.cdomA ksW layout.ks.CUR_DOMAIN; rfl
-
-/-- P3's scheduler relation gives FL4's one domain. -/
-theorem Sched.SchedSpec.domInv {T C : Set U64} {c : U64} {s : S} {Q : U64 → List U64} {R : List U64}
-    {σ : Fl4Spec.State Unit} (h : SchedSpec st T C c s Q R σ) : P1.DomInv st T s := by
-  refine ⟨by rw [cdomA_eq]; exact h.curDom.2, fun t ht => ?_⟩
-  obtain ⟨x, -, -, hd, -⟩ := h.tcb t ht
-  exact hd
-
-theorem Sched.SchedRel.domInv {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
-    (h : SchedRel st N T C c s σ) : P1.DomInv st T s := by
-  obtain ⟨Q, R, -, hs⟩ := h.lists
-  exact hs.domInv
 
 /-! ## `next_domain` -/
 
@@ -200,22 +185,6 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-/-- **FL4's one domain at every joint state**, over `H`'s TCBs. -/
-theorem JAtZ.domInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : P1.DomInv st (P1.Heap.tcbs H) s := by
-  have h := (J.xtop.fin.1.1.1).domInv
-  rw [J.tcbs_eq.1] at h
-  exact h
-
-/-- `EntryInv` with FL4's one domain, over some sets. -/
-def EntDomAt (st : machine.Store S) [L : P1.LawfulStore st] (s : S) : Prop :=
-  ∃ (H : P1.Heap) (Cs Ac : Set U64),
-    P1.EntryDomInv st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H)
-      (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
-
-theorem JAt.entDomAt (h : JAt (L := L) arI AR s a σ) (hX : SInvX σ) : EntDomAt st s := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ := h
-  exact ⟨H, Cs, Ac, J.entryInv hX.cr.2, J.domInv⟩
-
 /-- **`NdDomOK` from the domain schedule relation and `DomListOK`**: `DomRel`
 gives entry `i`'s spec domain as the word (below `2 ^ 8`) and the start index
 as the `DOM_SCHED_START` word, `DomListOK.dom` every entry's domain 0 and
@@ -238,19 +207,6 @@ theorem ndDomOK_of (hD : DomRel (L.mem s) (L.ksb s) σ) (hV : DomListOK σ) : Nd
 /-- `NdOK` (what `next_domain` reads, ScNextDomB) gives `NdDomOK`. -/
 theorem ndDomOK_of_ndOK (h : NdOK (L := L) s σ) : NdDomOK st s := ndDomOK_of h.1 h.2.1
 
-/-- **`NdDomOK` at every joint state with `DomListOK`.** -/
-theorem JAtZ.ndDomOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : DomListOK σ) : NdDomOK st s :=
-  ndDomOK_of J.xtop.rel.2.2.2.1 hV
-
-/-- `EntDomAt` with the domain schedule words (`NdDomOK`). -/
-def EntDomNdAt (st : machine.Store S) [L : P1.LawfulStore st] (s : S) : Prop :=
-  EntDomAt st s ∧ NdDomOK st s
-
-theorem JAt.entDomNdAt (h : JAt (L := L) arI AR s a σ) (hX : SInvX σ) : EntDomNdAt st s := by
-  refine ⟨JAt.entDomAt h hX, ?_⟩
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ := h
-  exact J.ndDomOK (SInvR.G5.sinvX_dom hX)
-
 end
 
 end
@@ -262,172 +218,6 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 open Fl4Proofs.P3 Fl4Proofs.P3.SInvR.G4
 
 noncomputable section
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
-
-set_option maxHeartbeats 8000000 in
-/-- **Every kernel entry from a reachable joint state starts and ends in P1's
-`EntryInv` with FL4's one domain** (`EntryDomInv`; module docstring):
-`kernel_entry_reachU29`'s premises, `kernel_entry_entryInvU29`'s clauses. -/
-theorem kernel_entry_domInvU29 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      P1.EntryDomInv st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H)
-        (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s ∧
-      (∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c →
-        (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-          ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            KDispHypsKVU29 (L := L) arI AR (Z.mv Z.G V') H Cs D' s' a' σb n c) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            ∀ ct', sched.cur_thread st s' = ok ct' →
-              JDecMRLK (L := L) arI VtxK AR MR (Z.mv Z.G V') H Cs D' s' a' σb ct') →
-        (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-          (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-            JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-            KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => EntDomAt st r.1 ⦄) ∧
-      (∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-        KFinEv13 (L := L) arI AR .interrupt (KFrontI (st := st) arI s a1 w) σ →
-        syscall.handle_interrupt_entry st arI s a1 w ⦃ r => EntDomAt st r.1 ⦄) ∧
-      (∀ (n c : U64), σ.curThread ≠ σ.idleThread → UserHw n c →
-        KFinEv13 (L := L) arI AR (.userLevelFault n.bv c.bv) (KFrontF2 (st := st) arI (brU (st := st) arI n c) s a) σ →
-        syscall.handle_user_exception st arI s a n c ⦃ r => EntDomAt st r.1 ⦄) ∧
-      (∀ (ad c : U64) (ft : Fl4Spec.VMFaultType), σ.curThread ≠ σ.idleThread → VmfHw ad c ft σ →
-        KFinEv13 (L := L) arI AR (.vmFaultEvent ft) (KFrontF2 (st := st) arI (brV (st := st) arI ad c) s a) σ →
-        syscall.handle_vm_fault st arI s a ad c ⦃ r => EntDomAt st r.1 ⦄) ∧
-      (∀ (v : U64), σ.curThread ≠ σ.idleThread → v.val < 256 →
-        (∀ ev, KEvSpec (.trap v) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontTrap (st := st) arI s a) w.2) →
-        syscall.handle_trap_syscall st arI s a v ⦃ r => EntDomAt st r.1 ⦄) ∧
-      (∀ (n : I64), σ.curThread ≠ σ.idleThread → UnkSys (L := L) n s → NoDbgSys (L := L) arI n s a →
-        (∀ ev, KEvSpec (.sysU n) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontSysU (st := st) arI n s a) w.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => EntDomAt st r.1 ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, -, -, -, -, -, -, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  refine ⟨Z, H, Cs, Ac, Lst, D, J, ⟨J.entryInv hX.cr.2, J.domInv⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro n c hct hn hfl hK hDL hFin
-    refine WP.spec_mono (hSys n c hct hn hfl hK hDL hFin) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-  · intro w a1 hIh hE
-    refine WP.spec_mono (hIrq w a1 hIh hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-  · intro n c hct hU hE
-    refine WP.spec_mono (hUs n c hct hU hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-  · intro ad c ft hct hV hE
-    refine WP.spec_mono (hVm ad c ft hct hV hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-  · intro v hct hv hE
-    refine WP.spec_mono (hTr v hct hv hE) ?_
-    rintro r ⟨ev, σ', -, -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-  · intro n hct hU hND hE
-    refine WP.spec_mono (hSU n hct hU hND hE) ?_
-    rintro r ⟨ev, σ', -, -, hRJ, hX', -⟩
-    exact JAt.entDomAt hRJ.2 hX'
-
-set_option maxHeartbeats 8000000 in
-/-- **`kernel_entry_domInvU29` with the domain schedule words**: every
-kernel entry from a reachable joint state starts in `EntryDomInv ∧ NdDomOK`
-and ends in `EntDomNdAt` (`NdDomOK` from `DomRel`, carried in the relation,
-and `SInvX`'s `DomListOK`, `JAtZ.ndDomOK`). Same premises as
-`kernel_entry_domInvU29`. -/
-theorem kernel_entry_domNdU29 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      P1.EntryDomInv st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H)
-        (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s ∧ NdDomOK st s ∧
-      (∀ (n : I64) (c : Fl4Spec.Syscall), σ.curThread ≠ σ.idleThread → NativeSys n c →
-        (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-          ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            KDispHypsKVU29 (L := L) arI AR (Z.mv Z.G V') H Cs D' s' a' σb n c) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            ∀ ct', sched.cur_thread st s' = ok ct' →
-              JDecMRLK (L := L) arI VtxK AR MR (Z.mv Z.G V') H Cs D' s' a' σb ct') →
-        (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-          (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-            JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-            KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => EntDomNdAt st r.1 ⦄) ∧
-      (∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-        KFinEv13 (L := L) arI AR .interrupt (KFrontI (st := st) arI s a1 w) σ →
-        syscall.handle_interrupt_entry st arI s a1 w ⦃ r => EntDomNdAt st r.1 ⦄) ∧
-      (∀ (n c : U64), σ.curThread ≠ σ.idleThread → UserHw n c →
-        KFinEv13 (L := L) arI AR (.userLevelFault n.bv c.bv) (KFrontF2 (st := st) arI (brU (st := st) arI n c) s a) σ →
-        syscall.handle_user_exception st arI s a n c ⦃ r => EntDomNdAt st r.1 ⦄) ∧
-      (∀ (ad c : U64) (ft : Fl4Spec.VMFaultType), σ.curThread ≠ σ.idleThread → VmfHw ad c ft σ →
-        KFinEv13 (L := L) arI AR (.vmFaultEvent ft) (KFrontF2 (st := st) arI (brV (st := st) arI ad c) s a) σ →
-        syscall.handle_vm_fault st arI s a ad c ⦃ r => EntDomNdAt st r.1 ⦄) ∧
-      (∀ (v : U64), σ.curThread ≠ σ.idleThread → v.val < 256 →
-        (∀ ev, KEvSpec (.trap v) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontTrap (st := st) arI s a) w.2) →
-        syscall.handle_trap_syscall st arI s a v ⦃ r => EntDomNdAt st r.1 ⦄) ∧
-      (∀ (n : I64), σ.curThread ≠ σ.idleThread → UnkSys (L := L) n s → NoDbgSys (L := L) arI n s a →
-        (∀ ev, KEvSpec (.sysU n) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontSysU (st := st) arI n s a) w.2) →
-        syscall.handle_syscall st arI s a n ⦃ r => EntDomNdAt st r.1 ⦄) := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, -, -, -, -, -, -, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  refine ⟨Z, H, Cs, Ac, Lst, D, J, ⟨J.entryInv hX.cr.2, J.domInv⟩, J.ndDomOK (sinvX_dom hX), ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro n c hct hn hfl hK hDL hFin
-    refine WP.spec_mono (hSys n c hct hn hfl hK hDL hFin) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-  · intro w a1 hIh hE
-    refine WP.spec_mono (hIrq w a1 hIh hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-  · intro n c hct hU hE
-    refine WP.spec_mono (hUs n c hct hU hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-  · intro ad c ft hct hV hE
-    refine WP.spec_mono (hVm ad c ft hct hV hE) ?_
-    rintro r ⟨σ', -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-  · intro v hct hv hE
-    refine WP.spec_mono (hTr v hct hv hE) ?_
-    rintro r ⟨ev, σ', -, -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-  · intro n hct hU hND hE
-    refine WP.spec_mono (hSU n hct hU hND hE) ?_
-    rintro r ⟨ev, σ', -, -, hRJ, hX', -⟩
-    exact JAt.entDomNdAt hRJ.2 hX'
-
-end
 
 end
 

@@ -215,41 +215,6 @@ inductive ExecWPRR (LP : PathsP ι)
 
 /-! ## Coverage: U2 ⊆ U5, U4 ⊆ U5, quiet U2 ⊆ U4 -/
 
-/-- **Every U2 execution is a U5 execution** (`ρ := s.mem`). -/
-theorem execWPRR_of_WPR {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPR LP SF P s0 K0 Ch0 s K Ch) : ExecWPRR LP SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    exact .step ih hS ⟨g.arm, fun p0 k W hph hK hU =>
-      ⟨s1.mem, ⟨fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩, g.start p0 k W hph hK hU⟩, g.serX, g.serC, g.serG,
-      g.keep⟩
-  | hw _ hH ih => exact .hw ih hH
-
-/-- **Every U4 execution is a U5 execution** (`ρ := H`; `VEq H s.mem` by `SerialH.veq_start` from the invariants
-of the execution so far). -/
-theorem execWPRR_of_WPRH {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    (P : LocPlat st arI AR MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {H : U64 → U64} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecWPRH LP SF P s0 K0 Ch0 s K H Ch) : ExecWPRR LP SF P s0 K0 Ch0 s K Ch := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  induction h with
-  | refl => exact .refl
-  | @step s1 s1' K1 K1' H1 Ch1 Ch1' c1 hE hS g ih =>
-    obtain ⟨hr, -⟩ := exec_safeRunPH h0 hA0 hK0 hU0 hM0 (execPH_of_WPRHG hSF P h0 hA0 hB hc0 hM0 hE).1
-    obtain ⟨I, O, Sw, -⟩ := xsafeRunH_inv h0 hA0 hr
-    exact .step ih hS ⟨g.arm, fun p0 k W hph hK hU =>
-      ⟨H1, veq_start I O Sw hph, g.start p0 k W hph hK hU⟩, g.serX, g.serC, g.serG, g.keep⟩
-  | hw _ hH ih => exact .hw ih hH
-
 /-- **A quiet start**: when core `c` is at a `.start`, no local path in progress has written. -/
 def QuietStart (s : Cfg U64 U64 U64 U64) (c : U64) : Prop :=
   ∀ p0 k W, s.ph c = .loc p0 (.start k) W → ∀ d p0' p' W', s.ph d = .loc p0' p' W' → W' = ∅
@@ -265,45 +230,6 @@ inductive ExecWPRQ (LP : PathsP ι)
       ExecWPRQ LP SF P s0 K0 Ch0 s' K' Ch'
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {v a x : U64} :
       ExecWPRQ LP SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecWPRQ LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
-
-/-- A quiet U2 execution is a U2 execution. -/
-theorem ExecWPRQ.toWPR {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPRQ LP SF P s0 K0 Ch0 s K Ch) : ExecWPR LP SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g _ ih => exact .step ih hS g
-  | hw _ hH ih => exact .hw ih hH
-
-/-- **A quiet U2 execution is a U4 execution** (module docstring): at a quiet start the serial-prefix memory is the
-physical memory (`InvH.agree`), so U2's start fact is U4's. -/
-theorem execWPRH_of_WPRQ {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    (P : LocPlat st arI AR MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecWPRQ LP SF P s0 K0 Ch0 s K Ch) :
-    ∃ H, ExecWPRH LP SF P s0 K0 Ch0 s K H Ch := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  induction h with
-  | refl => exact ⟨_, .refl⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g hq ih =>
-    obtain ⟨H1, hE⟩ := ih
-    obtain ⟨hr, -⟩ := exec_safeRunPH h0 hA0 hK0 hU0 hM0 (execPH_of_WPRHG hSF P h0 hA0 hB hc0 hM0 hE).1
-    obtain ⟨I, -⟩ := xsafeRunH_inv h0 hA0 hr
-    refine ⟨_, .step hE hS ⟨g.arm, fun p0 k W hph hK hU => ?_, g.serX, g.serC, g.serG, g.keep⟩⟩
-    have e : H1 = s1.mem := funext fun x =>
-      (I.agree x fun d q0 q U hd => by rw [hq p0 k W hph d q0 q U hd]; exact Set.notMem_empty x).symm
-    rw [e]
-    exact g.start p0 k W hph hK hU
-  | hw _ hH ih =>
-    obtain ⟨H1, hE⟩ := ih
-    exact ⟨_, .hw hE hH⟩
 
 end exec
 

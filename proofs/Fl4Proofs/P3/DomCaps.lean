@@ -146,38 +146,6 @@ theorem decDomHyp_irqHandler (th : TypedHeap) (hP : Placed th)
   exact irq_handler_dk4 arI th hP hO hPD hK s ar σ G hDS hL lbl ct hct hcur htcb hact hmask irq hirq hok extra x0 hx0
     cps hex hxn hD hP1
 
-/-- **The IRQ control cap's `DecDomHyp`** (`CPost`'s `DK4` conjunct). -/
-theorem decDomHyp_irqControl (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (G : MdbGhost)
-    (hCR : CRel th (L.mem s) σ G) (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : MdbOKV (L.ksb s) (L.mem s) G)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
-    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
-    (hlen : length.val = args.length)
-    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
-    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
-    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
-    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
-    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
-    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
-    (hAR : ArchIrqRel arI ar σ) (hD : DomPlaced (L := L) th s) (blk call don fp : Bool) :
-    DecDomHyp (L := L) arI s ar lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf extra := by
-  unfold DecDomHyp syscall.decode_invocation
-  rw [hct]; simp only [bind_ok]
-  refine WP.spec_mono (irq_control_decode_refines arI th hP s ar σ G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
-    hct args hlen hargs hcur htcb hact hact2 extra x0 hx0 _ hex hps hls hsrcC nA hnum hnA hmask hAR) ?_
-  rintro ⟨r0, s', a'⟩ hq
-  cases r0 with
-  | Err e => obtain ⟨rfl, -⟩ := hq; exact DK4.refl _
-  | Ok u =>
-    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hdk, -⟩ := hq
-    exact hdk hD
-
 /-- **The IO port control cap's `DecDomHyp`** (`IoCPost`'s `DK4` conjunct). -/
 theorem decDomHyp_ioportControl (th : TypedHeap) (hP : Placed th) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hL : IoLayout th (L.ksb s))

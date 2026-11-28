@@ -120,19 +120,6 @@ theorem insAP_io_view_C (hRun : ChainRun st arI AR MR)
   rw [hM.own, hM.cls, hM.ko] at hV ⊢
   exact insAP_of_insA (io_k0_insA st ar hA a0 j K hK hU nv c _ ρ s.mem k0 E hV J.conv hT hS)
 
-set_option maxHeartbeats 4000000 in
-/-- **`InsV15V`'s obligation of `nativePmKAD B` at every io start** (module docstring). -/
-theorem insAP_io_view (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl7 st Cs Ω Sg Ac Locks) {Ch : S → Prop} {s : Cfg U64 U64 U64 U64} {K : KLayoutP}
-    {E : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k0 : SP} {ρ : U64 → U64} {i : IxV13Pm S}
-    (nv : K.vcpus = ∅) (hx : IoPm (S := S) i) (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (J : EpochJV K E s) (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hsf : (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).SF Ch K (CoreView.view K.toKLayout c ρ) hK hU c
-      (fun l => s.lk l = some c) k0 i) :
-    InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) ∅ s.mem
-      (if (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).NoV i then annV s K c ρ k0 else k0) :=
-  insAP_io_view_C st ar hA a0 (chainRun_of P hIoa) B nv hx hC J hM hV hsf
-
 /-- **The view starts at which the obligation is still asked after gen 50's io step** (module docstring). -/
 def Open52 (s : Cfg U64 U64 U64 U64) (K : KLayoutP) (c : U64) (ρ : U64 → U64) (k0 : SP) (i : IxV13Pm S) : Prop :=
   Open51 st s K c ρ k0 i ∧ ¬ IoPm (S := S) i

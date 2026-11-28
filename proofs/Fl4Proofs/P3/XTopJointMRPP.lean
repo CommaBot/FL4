@@ -62,8 +62,6 @@ structure IrqPlatA (AR : A → Fl4Spec.Cr3 → Prop) : Prop where
   noIpi : ∀ a : A, arI.take_pending_irq a ⦃ r => r.1.val ≠ 126 ∧ r.1.val ≠ 127 ⦄
   ackAR : ∀ a i c, AR a c → arI.ack_irq a i ⦃ a' => AR a' c ⦄
 
-theorem IrqPlat.toA (h : IrqPlat arI AR) : IrqPlatA arI AR := ⟨h.takeAR, h.noIpi, h.ackAR⟩
-
 /-- **`update_timestamp` moves `MR` by one clock read.** -/
 theorem update_timestamp_mr (hM : MachPlat arI MR) {a : A} {ms : Fl4Spec.MachineState} (hR : MR a ms) (s : S) :
     sched.update_timestamp st arI s a ⦃ r => MR r.2 (gctState ms) ⦄ := by
@@ -368,51 +366,6 @@ theorem JAtZ.ppJHM {s : S} {a : A} {σ : Fl4Spec.State Unit}
   · exact hOk
   · exact hErr
 
-
-set_option maxHeartbeats 16000000 in
-/-- **XTopJointIrqZR's `afterInv_of_mcsJ` under `MachPlat`** (module
-docstring). -/
-theorem afterInv_of_mcsJM {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (hmcs : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
-      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
-      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ⦄)
-    (hM : MachPlat arI MR) (hIP : IrqPlatA arI AR) (hIrq : JIrqHypJ (L := L) arI AR) (e : error.Exc) :
-    syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
-  unfold syscall.after_invocation
-  refine WP.spec_bind hmcs ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, ⟨Z', H', Cs', Ac', Lst', D', J', _⟩, hR1⟩
-  have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
-  refine WP.spec_bind (WP.spec_and (WP.spec_and (hM.takeAt hR1) (hIP.takeAR a1 _ hAR1)) (hIP.noIpi a1)) ?_
-  rintro ⟨w, a2⟩ ⟨⟨⟨irq, ms, hIq, hnone, hsome, hum, -⟩, hAR2⟩, h126, h127⟩
-  obtain ⟨Lst2, J2⟩ := J'.msArJ ms a2 hum (fun _ => hAR2)
-  unfold syscall.check_interrupt
-  by_cases hw : w = syscall.NO_IRQ
-  · have hirq : irq = none := hnone.1 hw
-    subst hirq
-    have e : (w != syscall.NO_IRQ) = false := by simp [hw]
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩⟩⟩
-  · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
-      cases irq with
-      | none => exact absurd (hnone.2 rfl) hw
-      | some i => exact ⟨i, rfl⟩
-    obtain ⟨hwi, hmask⟩ := hsome i rfl
-    have e : (w != syscall.NO_IRQ) = true := by simpa using hw
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [↓reduceIte]
-    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩ hwi hmask h126 h127) ?_
-    rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
-    · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
-    · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), hJ⟩⟩
 
 end
 

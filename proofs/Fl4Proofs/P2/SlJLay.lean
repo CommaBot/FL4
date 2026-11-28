@@ -48,7 +48,7 @@ along every step (`JKern.csN`); all are serial entries. A P3 statement "an accep
 from `JAtZ Z H Cs` ends in `JAtZ (Z.mv G' V') H Cs`" (the posts already have that shape inside
 `kernel_entry_reachU17V`'s premises) would close it.
 -/
-import Fl4Proofs.P2.SlJReach
+import Fl4Proofs.P2.SlJEnt
 import Fl4Proofs.P2.FootTimerSetLP
 open Aeneas Aeneas.Std Result
 
@@ -81,27 +81,6 @@ theorem slJAt_of_JAtZ_stable {A' : Type} {arI : machine.Arch A'} {AR : A' → Fl
     rfl
   have h := SlJAt.of_JAtZ J hres hn
   rwa [e] at h
-
-set_option maxHeartbeats 4000000 in
-/-- **`SlJAt` at every reachable entry state, for every layout matching its stable ghosts**
-(module docstring): `kernel_entry_reachU17V`'s premises only. -/
-theorem slJAt_of_reachU17_stable {A : Type} (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop)
-    (MR : A → Fl4Spec.MachineState → Prop) [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR)
-    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Zx : XSets) (H : Heap) (Cs : Set U64),
-      ∀ K : KLayout, K.heap = H → K.slots = {a | IsSlot Zx.th a} →
-        K.user = {b | ∃ wp ∈ Zx.B, wp.1 = b} → K.ksb = L.ksb s →
-        (∀ c : U64, c ∈ Cs ↔ c.val < K.ncores) → SlJAt (L := L) K s := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, -, J, hX, -⟩ :=
-    kernel_entry_reachU17V arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  exact ⟨Z, H, Cs, fun K hH hS hU hk hn => slJAt_of_JAtZ_stable J hX.cr.2 K hH hS hU hk hn⟩
 
 end
 

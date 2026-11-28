@@ -243,53 +243,6 @@ def NatEpC (P : LocPlatC st arI AR MR) (K : KLayoutP) (Ch : S → Prop) (s : Cfg
   SerExitC P K.toKLayoutV Ch ∧
     ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x
 
-/-- **An `ExecVX` is an `ExecP`**; in a native epoch (`K.vcpus = ∅`) the chain and `ptesR` data hold
-(`execP_of_WPRG`'s induction, the VM exit making the invariant vacuous). The start step is abstracted as `hSF`, which
-receives the native data only when the epoch is native. -/
-theorem execP_of_VX {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (P : LocPlat st arI AR MR)
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (K.vcpus = ∅ → NatEp P K Ch s) → SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecVX LP SF P s0 K0 Ch0 s K Ch) :
-    ExecP LP s0 K0 s K ∧ (K.vcpus = ∅ → NatEp P K Ch s) := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  induction h with
-  | refl => exact ⟨.refl, fun _ => ⟨hB, s0, hc0, fun _ _ => rfl⟩⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hN⟩ := ih
-    have hst : Fl4StepP LP s1 K1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-        exact ⟨i, hSF _ _ s1 _ _ _ _ _ i hN hi⟩
-      · rcases g.ser hs with ⟨hX, hc⟩ | ⟨-, hV⟩
-        · have hP := okP_R hX hc
-          exact ⟨hP.1, hP.2, g.serG hs⟩
-        · exact ⟨hV.1, hV.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, fun nv => ?_⟩
-    by_cases hs : SerStep s1 c1
-    · rcases g.ser hs with ⟨hX, hc⟩ | ⟨hne, -⟩
-      · exact ⟨hX, s1', hc, fun _ _ => rfl⟩
-      · exact absurd nv hne
-    · obtain ⟨eK, eC⟩ := g.keep hs
-      subst eK eC
-      obtain ⟨hX, e1, hCe, hk1⟩ := hN nv
-      obtain ⟨hr, -, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-      obtain ⟨-, hSI, -⟩ := xsafeRun_greach h0 hA0 hr
-      refine ⟨hX, e1, hCe, fun x hx => ?_⟩
-      rw [← hk1 x hx]
-      exact step_gate_keep hM (allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hN⟩ := ih
-    obtain ⟨-, hK, -, hM⟩ := exec_safeRunP h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, fun nv => ?_⟩
-    obtain ⟨hX, e1, hCe, hk1⟩ := hN nv
-    refine ⟨hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
 end exec
 
 /-! ## The tops -/

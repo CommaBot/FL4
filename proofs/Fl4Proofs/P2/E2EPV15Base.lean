@@ -151,35 +151,6 @@ theorem ExecV15.toC {cfg : ExecCfg S ι} {P : LocPlat st arI AR MR} {s0 s : Cfg 
   | hw _ hH ih => exact .hw ih hH
   | ad _ hA ih => exact .ad ih hA
 
-/-- **The VCPU set stays empty along an `ExecV15` whose convention has no VCPU.** -/
-theorem execV15_vcpus {cfg : ExecCfg S ι} (hV : cfg.VcpuNone) {P : LocPlat st arI AR MR}
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64}
-    (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (h0 : K0.vcpus = ∅) : K.vcpus = ∅ := by
-  induction h with
-  | refl => exact h0
-  | @step s s' K K' Ch Ch' c _ _ _ g ih =>
-    by_cases hs : SerStep s c
-    · exact hV _ _ (g.serC hs).1
-    · rw [(g.keep hs).1]; exact ih
-  | hw _ _ ih => exact ih
-  | ad _ _ ih => exact ih
-
-/-- No hardware step at a layout without VCPU. -/
-theorem hwStepP_noVcpu {K : KLayoutP} (hv : K.vcpus = ∅) {s : Cfg U64 U64 U64 U64} {v a x : U64} :
-    ¬ HwStepP K s v a x := by
-  intro H
-  rcases H.frame a (by simpa using H.chg) with h | ⟨⟨hv', -⟩, -⟩
-  · exact H.kern h
-  · have : v ∈ (∅ : Set U64) := hv ▸ hv'
-    exact this
-
-/-- **`hw_dead`, derived for `ExecV15`**: no hardware step fires along an execution whose convention has no VCPU. -/
-theorem hwV15_dead {cfg : ExecCfg S ι} (hV : cfg.VcpuNone) {P : LocPlat st arI AR MR}
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64}
-    (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hc0 : cfg.VcpuOK K0 s0.mem) {v a x : U64} :
-    ¬ cfg.HwStep K s v a x :=
-  hwStepP_noVcpu (execV15_vcpus hV h (hV _ _ hc0))
-
 /-! ## The per-slot obligations and the two tops -/
 
 /-- **The per-slot obligations at the CoreView** (module docstring; `execPV9_of_V15C`'s hypotheses). -/
@@ -266,15 +237,6 @@ theorem serializable_fl4_V15_exact_C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := 
   obtain ⟨hK0, hU0⟩ := okP_R_C (hB 0#u64) hc0'
   exact serializable_e2ePV9 _ h0 hA0 hK0 hU0 hM0 (execPV9_of_V15C O hAd hV P h0 hA0 hB hc0' hM0 h).1 hq
 
-/-- **V15, exact form** (module docstring). -/
-theorem serializable_fl4_V15_exact {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg) (hAd : cfg.NoAd)
-    (hV : cfg.VcpuNone) (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
-    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
-    RunAll s.log s0.mem s.mem :=
-  serializable_fl4_V15_exact_C O hAd hV P.toC h0 hA0 hB hc0 hM0 h.toC hq
-
 /-- **V15, permuted form, on the re-based platform** (gen 56): the exact form's conclusion with `ℓ = s.log`. -/
 theorem serializable_fl4_V15_perm_C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg)
     (hAd : cfg.NoAd) (hV : cfg.VcpuNone) (P : LocPlatC st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
@@ -283,15 +245,6 @@ theorem serializable_fl4_V15_perm_C {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L
     (hM0 : MapsP K0 s0) (h : ExecV15C cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
   ⟨s.log, List.Perm.refl _, serializable_fl4_V15_exact_C O hAd hV P h0 hA0 hB hc0 hM0 h hq⟩
-
-/-- **V15, permuted form** (module docstring): the exact form's conclusion with `ℓ = s.log`. -/
-theorem serializable_fl4_V15_perm {cfg : ExecCfg S ι} (O : SlotOblV15 (L := L) arI AR MR cfg) (hAd : cfg.NoAd)
-    (hV : cfg.VcpuNone) (P : LocPlat st arI AR MR) {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP}
-    {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0) (hA0 : ArmInv s0)
-    (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : cfg.VcpuOK K0 s0.mem ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecV15 cfg P s0 K0 Ch0 s K Ch E) (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_V15_perm_C O hAd hV P.toC h0 hA0 hB hc0 hM0 h.toC hq
 
 end exec
 

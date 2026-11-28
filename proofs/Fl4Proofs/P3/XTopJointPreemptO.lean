@@ -53,30 +53,6 @@ theorem curScFree_of {T C : Set U64} {σ : Fl4Spec.State Unit} (hI : Inv σ) (hO
       exact hnr (by bv_omega) hr
     · rw [hun y n hky] at hyt; cases hyt
 
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop}
-
-/-- **`jAtPre_holeTN` with `CurScFree` at the hole** (module docstring). -/
-theorem jAtPre_holeO (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
-    JHoleAtT (L := L) arI AR s a σ ∧ σ.curThread ≠ σ.idleThread ∧ Vs.NoSwitch σ ∧ CurScFree σ := by
-  refine ⟨(jAtPre_holeTN hAK hA hnd hP h).1, (jAtPre_holeTN hAK hA hnd hP h).2.1,
-    (jAtPre_holeTN hAK hA hnd hP h).2.2, ?_⟩
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, -, hp00⟩, -, hσ⟩ := h
-  obtain ⟨r0, -, ms0, hm0, -, -⟩ := spec_exists (hP.now a0 σ0)
-  have hE := Sched.updateTimeStamp_eq' hnd hm0
-  obtain ⟨r1, -, irq, ms, hIq, -, -⟩ := spec_exists (hP.irq a0
-    { { { σ0 with machineState := ms0 } with curTime := r0.1.bv } with
-      consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
-  have e := pp_err_eq hE hIq _ hσ rfl
-  subst e
-  have h0 : CurScFree σ0 := curScFree_of J.inv J.own hp00
-  intro u xt hu hs
-  exact h0 u xt hu hs
-
-end
-
 end
 
 end Fl4Proofs.P3

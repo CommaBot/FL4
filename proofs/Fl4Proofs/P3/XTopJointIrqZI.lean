@@ -210,19 +210,6 @@ theorem JAtZ.handleIrqJIN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP 
       exact Or.inr ⟨_, mem_hi_reserved hle hres, Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
 
 
-/-- `JAtZ.handleIrqJIN` from the ∀-form `hNS` (the pre-g3e statement). -/
-theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
-    (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
-    interrupt.handle_interrupt st arI s a w ⦃ r =>
-      σ.interruptStates i = .irqInactive ∨
-        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
-
-
 variable (arI) in
 /-- What the covered preemption path ends in under `IrqPlatI`: `JAt` after an
 outcome of `preemption_path` (no spec failure). -/
@@ -231,100 +218,6 @@ def PPQJI (AR : A → Fl4Spec.Cr3 → Prop) (σ1 : Fl4Spec.State Unit) (r : S ×
 
 theorem PPQJI.toJ {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQJI (L := L) arI AR σ1 r) :
     PPQJ (L := L) arI AR σ1 r := Or.inr h
-
-set_option maxHeartbeats 16000000 in
-/-- **`JHole.afterInvJZJ` with `IrqPlatI`**: `JAt` after the path, no spec failure. -/
-theorem JHole.afterInvJZI [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hT : TShift σ0 σ) (hAT : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1)
-    (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hIP : IrqPlatI (L := L) arI AR) (hARI : ARIface arI AR)
-    (hmbA : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ) (hcov : PPCov σ ∨ PPCovT σ) (e : error.Exc) :
-    syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
-  unfold syscall.after_invocation
-  refine WP.spec_bind (Hh.mcsPPJZ hT hAT hnd hmrt hmb hcov) ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J', _⟩
-  have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
-  refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and (hIP.base.take a1 σ') (hIP.base.takeAR a1 _ hAR1))
-    (hIP.base.noIpi a1)) (hIP.act s1 a1 σ' ⟨Z', H', Cs', Ac', Lst', D', J', inferInstance⟩)) ?_
-  rintro ⟨w, a2⟩ ⟨⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩, hact⟩
-  obtain ⟨Lst2, J2⟩ := J'.msArJ ms a2 hum (fun _ => hAR2)
-  unfold syscall.check_interrupt
-  by_cases hw : w = syscall.NO_IRQ
-  · have hirq : irq = none := hnone.1 hw
-    subst hirq
-    have e : (w != syscall.NO_IRQ) = false := by simp [hw]
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine (WP.spec_ok _).2 ⟨rfl, ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩⟩⟩
-  · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
-      cases irq with
-      | none => exact absurd (hnone.2 rfl) hw
-      | some i => exact ⟨i, rfl⟩
-    obtain ⟨hwi, hmask⟩ := hsome i rfl
-    have e : (w != syscall.NO_IRQ) = true := by simpa using hw
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [↓reduceIte]
-    refine WP.spec_bind (J2.handleIrqJI hARI hAT hIP.base hmbA hNS w i hwi h126 h127) ?_
-    rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
-    · exact absurd hf (hact _ ms hIq i rfl)
-    · exact (WP.spec_ok _).2 ⟨rfl, ⟨z, hm _ (mem_maybeHandle_some hIq hz), hJ⟩⟩
-
-set_option maxHeartbeats 16000000 in
-/-- **`afterInv_of_mcsJ` with `IrqPlatI`**: `JAt` after the path, no spec failure. -/
-theorem afterInv_of_mcsI {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (hmcs : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
-      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
-      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ⦄)
-    (hIP : IrqPlatI (L := L) arI AR) (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI)
-    (hmbA : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ) (e : error.Exc) :
-    syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
-  unfold syscall.after_invocation
-  refine WP.spec_bind hmcs ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', J', _⟩
-  have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
-  refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and (hIP.base.take a1 σ') (hIP.base.takeAR a1 _ hAR1))
-    (hIP.base.noIpi a1)) (hIP.act s1 a1 σ' ⟨Z', H', Cs', Ac', Lst', D', J', inferInstance⟩)) ?_
-  rintro ⟨w, a2⟩ ⟨⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩, hact⟩
-  obtain ⟨Lst2, J2⟩ := J'.msArJ ms a2 hum (fun _ => hAR2)
-  unfold syscall.check_interrupt
-  by_cases hw : w = syscall.NO_IRQ
-  · have hirq : irq = none := hnone.1 hw
-    subst hirq
-    have e : (w != syscall.NO_IRQ) = false := by simp [hw]
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine (WP.spec_ok _).2 ⟨rfl, ⟨((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), ⟨Z', H', Cs', Ac', Lst2, D', J2, inferInstance⟩⟩⟩
-  · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
-      cases irq with
-      | none => exact absurd (hnone.2 rfl) hw
-      | some i => exact ⟨i, rfl⟩
-    obtain ⟨hwi, hmask⟩ := hsome i rfl
-    have e : (w != syscall.NO_IRQ) = true := by simpa using hw
-    show (do
-      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
-      ok (false, s2, a3)) ⦃ _ ⦄
-    rw [e]
-    simp only [↓reduceIte]
-    refine WP.spec_bind (J2.handleIrqJI hARI hAT hIP.base hmbA hNS w i hwi h126 h127) ?_
-    rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
-    · exact absurd hf (hact _ ms hIq i rfl)
-    · exact (WP.spec_ok _).2 ⟨rfl, ⟨z, hm _ (mem_maybeHandle_some hIq hz), hJ⟩⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`afterInv_of_mcsI` with `NativeScope` at the state after the MCS part**
@@ -383,64 +276,6 @@ def PPQCI (AR : A → Fl4Spec.Cr3 → Prop) (σ1 : Fl4Spec.State Unit) (r : S ×
 theorem PPQCI.toC {σ1 : Fl4Spec.State Unit} {r : S × A} (h : PPQCI (L := L) arI AR σ1 r) :
     PPQC (L := L) arI AR σ1 r :=
   h.imp PPQJI.toJ id
-
-/-- **`hPre_ofZEC` ending in `PPQCI`** (with `IrqPlatI`). -/
-theorem hPre_ofZECI (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hP : PPPlat arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hIP : IrqPlatI (L := L) arI AR)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hRest : JPreemptRestHypE (L := L) arI AR) :
-    ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPre (L := L) arI AR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQCI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
-  intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg⟩ :=
-    jAtPre_holeL hARI.toARKeep hA hnd hP h
-  by_cases hc : PPCov σ1 ∨ PPCovT σ1
-  · exact WP.spec_mono (Hh.afterInvJZI hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hARI hP.minBudget hNS hc _)
-      fun _ h => Or.inl h.2
-  by_cases hi : PPCovI σ1
-  · exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJI hi) hIP hARI hA hP.minBudget hNS _) fun _ h => Or.inl h.2
-  by_cases hC : CurInv σ1
-  · cases hsc : Fl4Spec.schedulable σ1.curThread σ1 with
-    | true =>
-      by_cases hsuf : ∀ y n, σ1.kheap σ1.curSc = some (.schedContext y n) →
-          Fl4Spec.refillSufficient σ1.consumedTime (Fl4Spec.refillHd y) = true
-      · exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJS hTs hA hnd (hP.minBudget a1) hC hni hsc hsuf)
-          hIP hARI hA hP.minBudget hNS _) fun _ h => Or.inl h.2
-      · have hnc : ¬ (PPCov σ1 ∨ PPCovT σ1 ∨ PPCovI σ1) :=
-          fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
-        exact WP.spec_mono (hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC hsc hsuf hnc)
-          fun _ h => Or.inr ⟨⟨hnc, hC, hsc, hsuf⟩, h⟩
-    | false =>
-      exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJC hA (hmrt a1) (hP.minBudget a1) hC hni hns hsc)
-        hIP hARI hA hP.minBudget hNS _) fun _ h => Or.inl h.2
-  · have hsch : Fl4Spec.schedulable σ1.curThread σ1 = false := by
-      cases e : Fl4Spec.schedulable σ1.curThread σ1 with
-      | false => rfl
-      | true => exact absurd (curInv_of_sched hct e) hC
-    exact WP.spec_mono (afterInv_of_mcsI (Hh.mcsPPJU hA (hmrt a1) (hP.minBudget a1) hC hct hfr hcg hsch hi)
-      hIP hARI hA hP.minBudget hNS _) fun _ h => Or.inl h.2
-
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_invokeJEPZEC` ending in `PPQCI`** (with `IrqPlatI`). -/
-theorem dispatch_invokeJEPZECI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
-    (hn : InvSys number call bl don)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hIP : IrqPlatI (L := L) arI AR)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hRest : JPreemptRestHypE (L := L) arI AR) :
-    syscall.dispatch_syscall st arI s ar number ⦃ r =>
-      DispPost (L := L) arI AR (PPQCI (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ :=
-  dispatch_invokeJE arI s ar σ J ct hct number call bl don hn hG hE hP _
-    (hPre_ofZECI hARI hA hnd hPP hmrt hIP hNS hRest)
 
 end
 

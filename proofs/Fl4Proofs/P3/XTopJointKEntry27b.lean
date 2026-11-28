@@ -231,43 +231,6 @@ theorem KDispHypsKV27b.to27 (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.Sta
     exact ⟨a1, a2.toR hq, a3,
       ⟨jPerfRegHyp_27b hnd hS hni.1 hBA _, jPerfIrqSlotHyp_27b hnd hS hBA _⟩, jMidVfhHyp_27b hnd hS hBA _, a4⟩
 
-set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ27` with the mid-path premises and `JEntryAt.epQ` discharged**
-(module docstring). Removed: `JPerfRegHyp`, `JPerfIrqSlotHyp`, `JMidVfhHyp` (in `hK`'s
-`mid`) and `JEntryAt.epQ` (in `hK`'s `inv` and `mid`). Added: `hE : EpQAll σ` [J]
-(l4v `valid_ep` with `valid_sched`'s released-queue / action slices at σ; epq2
-carries it at every exit). -/
-theorem kernel_entryJ27b [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
-    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
-    (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
-    (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
-    (hn : NativeSys n c)
-    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
-    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
-        KDispHypsKV27b (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
-    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-        KFinAtR27 (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hNSR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-      (σ : Fl4Spec.State Unit), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → NativeScope σ)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
-  kernel_entryJ27 s a σ J hni hR hS hQ n c hn hflag hB
-    (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' =>
-      (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to27 hnd hS hni hE hBA)
-    hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hNS hNSR hT hmax htu
-
 end
 
 end

@@ -556,17 +556,6 @@ theorem serializable_fl4_V15_pmKADZ_C (P : LocPlatCR st arI AR MR)
     ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
   serializable_fl4_V15_pmKADO_C st ar hA a0 P B (insV15NOV52_holds st ar hA a0 B) h0 hA0 hB hc0 hM0 h hq
 
-/-- **FL4 end to end over V13's slots and PageMap on CoreView with the walker's A/D writes, without the start
-obligation** (module docstring §3): `serializable_fl4_V15_pmKADO` with its [J] discharged (`insV15NOV52_holds`). -/
-theorem serializable_fl4_V15_pmKADZ (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl7 st Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : ∀ e, SerExitW P K0.toKLayoutV (Ch0 e)) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecV15 (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B) P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_V15_pmKADZ_C st ar hA a0 (locPlatCR_of P hIoa) B h0 hA0 hB hc0 hM0 h.toC hq
-
 end all
 
 end

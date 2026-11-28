@@ -196,62 +196,6 @@ theorem JHole.chargeBudgetUJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S
     hidW.1 J.zD⟩
 
 
-set_option maxHeartbeats 16000000 in
-/-- **`mcs_preemption_point` at a hole without `CurInv`, current thread not
-schedulable, current SC active** (module docstring). -/
-theorem JHole.mcsPPJU [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
-    (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hnc : ¬ CurInv σ) (hct : CtOK σ) (hf : CurScFree σ) (hg : Chg σ)
-    (hsch : Fl4Spec.schedulable σ.curThread σ = false) (hin : ¬ PPCovI σ) :
-    syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
-      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
-      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ⦄ := by
-  have hax : ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → Fl4Spec.scActive x = true := fun x n h => by
-    cases e : Fl4Spec.scActive x with
-    | true => rfl
-    | false => exact (hin ⟨hsch, fun x' n' h' => by rw [h] at h'; cases h'; exact e⟩).elim
-  have hS := Hh.xtop.fin.1.1.1
-  have hR := Hh.xtop.fin.1.1.2.2.1
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  have hscC := Hh.curSc_in
-  unfold syscall.mcs_preemption_point
-  step with sched.cur_thread.spec' as ⟨ct, hct'⟩
-  step with Sched.sched.is_schedulable.spec' as ⟨b, hb⟩
-  rw [hc.cur] at hct'
-  subst hct'
-  rw [schedulable_eq hR hS hc.curT] at hb
-  have ect : σ.curThread = (nodeW st s Z.c layout.node.CUR_THREAD).bv := hs.curThread
-  subst hb
-  rw [← ect, hsch]
-  simp only [Bool.false_eq_true, ↓reduceIte]
-  step with sched.cur_sc.spec' as ⟨sc, hsc⟩
-  step with sporadic.sc_active.spec' as ⟨b1, hb1⟩
-  rw [hc.cur] at hsc
-  subst hsc
-  obtain ⟨x, n, hkx, hx⟩ := hs.scs _ hscC
-  have hab : b1 = Fl4Spec.scActive x := by
-    rw [hb1]; show _ = decide (0 < x.scRefillMax); apply decide_eq_decide.2; rw [← hx.max]; rfl
-  have hkx' : σ.kheap σ.curSc = some (.schedContext x n) := by rw [hs.curSc]; exact hkx
-  have hax' : Fl4Spec.scActive x = true := hax x n hkx'
-  rw [hab, hax']
-  simp only [↓reduceIte]
-  step with sched.consumed.spec' as ⟨cv, hcv⟩
-  rw [hc.cur] at hcv
-  subst hcv
-  refine WP.spec_mono (Hh.chargeBudgetUJ hAT hnc hsch hct hf hg hax hmrt hmb _) ?_
-  rintro ⟨s', a'⟩ ⟨ha, σ', h1, -, Lst', J'⟩
-  simp only at ha
-  subst a'
-  have hga : Fl4Spec.getScActive (Z := Unit) σ.curSc σ = ({(true, σ)}, False) := by
-    unfold Fl4Spec.getScActive Fl4Spec.NonDet.getsThe; rw [readScActive_eq' hkx', hax']; rfl
-  have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
-    rw [hs.consumed]; exact h1
-  exact ⟨σ', fun y hy => mem_pp_charge hsch hga (by rw [h1']; rfl) hy,
-    fun hy => fail_pp_charge hsch hga (by rw [h1']; rfl) hy, Z, H, Cs, Ac, Lst', D, J', inferInstance⟩
-
 variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with
 `CurInv`** [W] (kp14: `JPreemptRestHypL` with case (b) proved by
@@ -266,73 +210,6 @@ def JPreemptRestHypM (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
 
 theorem jPreemptRestHypM_of (h : JPreemptRestHypL (L := L) arI AR) : JPreemptRestHypM (L := L) arI AR :=
   fun s a σ hJ hn hi hs hf hc hg hC => h s a σ hJ hn hi hs hf hc hg (Or.inl hC)
-
-/-- **`hPre_ofZL` with `JPreemptRestHypM`** (kp14). -/
-theorem hPre_ofZM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hP : PPPlat arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hIP : IrqPlat arI AR)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hRest : JPreemptRestHypM (L := L) arI AR) :
-    ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPre (L := L) arI AR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
-  intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs, _⟩, hni, hns, hfr, hct, hcg⟩ :=
-    jAtPre_holeL hARI.toARKeep hA hnd hP h
-  have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
-  by_cases hc : PPCov σ1 ∨ PPCovT σ1
-  · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
-      fun _ h => h.2.toPPQ
-  by_cases hi : PPCovI σ1
-  · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
-  by_cases hC : CurInv σ1
-  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, inferInstance⟩
-      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns hfr hct hcg hC
-      fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
-  · have hsch : Fl4Spec.schedulable σ1.curThread σ1 = false := by
-      cases e : Fl4Spec.schedulable σ1.curThread σ1 with
-      | false => rfl
-      | true => exact absurd (curInv_of_sched hct e) hC
-    exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJU hA (hmrt a1) (hP.minBudget a1) hC hct hfr hcg hsch hi)
-      hIP hIrq _) fun _ h => h.2.toPPQ
-
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_invokeJPZL` with `JPreemptRestHypM`** (kp14). -/
-theorem dispatch_invokeJPZM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
-    (hn : InvSys number call bl don)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hIP : IrqPlat arI AR)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hRest : JPreemptRestHypM (L := L) arI AR) :
-    syscall.dispatch_syscall st arI s ar number ⦃ r =>
-      DispPost (L := L) arI AR (PPQ (L := L) arI AR) (DispInv call bl don) σ r ⦄ :=
-  dispatch_invokeJ arI s ar σ J ct hct number call bl don hn hG hE hP _
-    (hPre_ofZM hARI hA hnd hPP hmrt hIP hNS hRest)
-
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_invokeJEPZL` with `JPreemptRestHypM`** (kp14; against
-`fl4HandleEvent true`'s branch). -/
-theorem dispatch_invokeJEPZM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
-    (hn : InvSys number call bl don)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hIP : IrqPlat arI AR)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hRest : JPreemptRestHypM (L := L) arI AR) :
-    syscall.dispatch_syscall st arI s ar number ⦃ r =>
-      DispPost (L := L) arI AR (PPQ (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ :=
-  dispatch_invokeJE arI s ar σ J ct hct number call bl don hn hG hE hP _
-    (hPre_ofZM hARI hA hnd hPP hmrt hIP hNS hRest)
 
 end
 

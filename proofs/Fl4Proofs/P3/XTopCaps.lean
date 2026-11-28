@@ -175,38 +175,6 @@ theorem decode_invocation_irq_controlXS {AR : A → Fl4Spec.Cr3 → Prop}
       mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
         hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, hXp⟩
 
-/-- **`IrqXHyp` for the IRQ control cap** (`decode_invocation_irq_controlXS`
-at `XTop`, `Steps.xtop`): beyond `decode_invocation_irq_control`'s
-hypotheses, `XTopAt` at its typed heap, `KsApart`, the current thread
-runnable and `ARMask`. -/
-theorem decode_invocation_irq_controlX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR)
-    (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
-    (hL : IntLayout th (L.ksb s))
-    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
-    (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
-    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
-    (hlen : length.val = args.length)
-    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hcur : σ.curThread = ct.bv)
-    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
-    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
-    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
-    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
-    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
-    (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hG : Z.G = G) (hX0 : XTopAt (L := L) AR Z s ar σ)
-    (hKA : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s)) (hC : CurRun σ) (hTh : ∀ t, th t = some .tcb → t ∈ Z.T)
-    (hDel : XDelNtfnHyp (L := L) arI AR th) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
-    (buffer : Option Fl4Spec.ObjRef) :
-    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
-      extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct :=
-  decode_invocation_irq_controlXS arI th s ar σ G hL hHA lbl slbl hlbl hrm length buf ct hct args hlen hargs hcur
-    hact hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA hmask hAR hth hG hX0 hC _ ⟨Z, hX0⟩
-    (fun _ _ _ h => h.xtop arI hAM hDel hth hX0 hKA hTh) (fun _ _ _ h => h) blk call don fp ci buffer
-
 /-- **`IoXHyp` for the IO port control cap**: every label, from `IoCPost`'s
 `Steps`; beyond `decode_invocation_ioport_control`'s hypotheses, `XTopAt`
 at its typed heap, `KsApart`, the current thread runnable and `ARMask`. -/

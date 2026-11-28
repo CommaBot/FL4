@@ -38,38 +38,6 @@ variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → 
 def RunMc (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   RunCK (L := L) arI AR MR s a σ ∧ JAtMc (L := L) arI AR s a σ
 
-/-- **`FIKeepIrq` [J]** (module docstring): from `s`, the interrupt entry's outcomes related to a spec interrupt
-event and a `RunCK` state keep the other cores' idle objects outside the projection. -/
-def FIKeepIrq (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-    syscall.handle_interrupt_entry st arI s a1 w ⦃ r => ∀ σ', EvOut false .interrupt σ σ' →
-      RunCK (L := L) arI AR MR r.1 r.2 σ' → JAtMc (L := L) arI AR r.1 r.2 σ' ⦄
-
-set_option maxHeartbeats 4000000 in
-/-- **The interrupt entry on any core, through `RunMc`** (module docstring; `hFI` [J]). -/
-theorem kernel_entry_runMc_irq [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatK arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hMap : IoaMap arI)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet) (hCfg : KCfgFL4) (hNV : NoVirt arI)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMc (L := L) arI AR MR s a σ)
-    (hFI : FIKeepIrq (L := L) arI AR MR s a σ) :
-    ∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-      syscall.handle_interrupt_entry st arI s a1 w ⦃ r => ∃ σ', EvOut false .interrupt σ σ' ∧
-        RunMc (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  intro w a1 hw
-  obtain ⟨_, _, _, _, _, _, -, -, hI, -⟩ := kernel_entry_runCK arI AR MR hARI hA hnd hM hIp hKD hIo hIoa hPAi hIA hT hmax htu hRef
-    hPI hSX hDR hMap hFpu hFW hCfg hNV hR.1
-  have h2 := spec_and2 (hI w a1 hw) (hFI w a1 hw)
-  refine WP.spec_mono h2 ?_
-  rintro r ⟨⟨σ', h1, hJ⟩, hK⟩
-  exact ⟨σ', h1, hJ, hK σ' h1 hJ⟩
-
 end
 
 end Fl4Proofs.P3.Mc

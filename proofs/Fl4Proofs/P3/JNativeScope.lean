@@ -27,7 +27,7 @@ premise).
 No new premise ([J]/[P]/[W]): every theorem's premises are those of the lemma it wraps. No existing statement
 changed.
 -/
-import Fl4Proofs.P3.XTopJointDomInv29Q
+import Fl4Proofs.P3.XTopJointDomInv29
 import Fl4Proofs.P3.JCurRunR
 import Fl4Proofs.P3.SpecInvNativeScopeBridge
 open Aeneas Aeneas.Std Result

@@ -59,17 +59,6 @@ def yslQ (L : List ObjRef) (p : ObjRef) (x : Tcb) : Prop := ysQ x ∧ (p ∈ L �
 /-- YieldScope, and no yield at the threads of `L`. -/
 abbrev YSL (L : List ObjRef) (σ : State Unit) : Prop := TP (yslQ L) σ
 
-theorem YSL.nil_iff (σ : State Unit) : YSL [] σ ↔ YieldScopeS σ :=
-  ⟨fun h p x hp => (h p x hp).1, fun h p x hp => ⟨h p x hp, fun h => nomatch h⟩⟩
-
-/-- **`YSL [ct]` from `YieldScopeS` and the entry half** (what `handleRecv`'s `receiveIpcBlocked` needs). -/
-theorem YSL.ofCur {σ : State Unit} (h : YieldScopeS σ) (hc : CurYieldNone σ) : YSL [σ.curThread] σ := by
-  intro p x hp
-  refine ⟨h p x hp, fun hm => ?_⟩
-  simp only [List.mem_singleton] at hm
-  subst hm
-  exact hc x hp
-
 variable {L : List ObjRef}
 
 abbrev YSK {α : Type} (L : List ObjRef) (m : NonDet (State Unit) α) : Prop := IK (YSL L) m
@@ -128,11 +117,6 @@ theorem ys_optionUpdateThread {α : Type} (t : ObjRef) (fn : α → Tcb → Tcb)
   · exact ik_pure _
   · exact tp_threadSet _ _ (h _)
 macro_rules | `(tactic| ys_leaf) => `(tactic| ((with_reducible refine ys_optionUpdateThread _ _ _ ?_); ys_side))
-
-/-- **Clearing a thread's yield keeps `YSL`.** -/
-theorem ys_clearYield (t : ObjRef) :
-    IK (TP (yslQ L)) (threadSet (Z := Unit) (tcbYieldToUpdate fun _ => none) t) :=
-  tp_threadSet _ _ fun _ _ => ⟨fun h => absurd rfl h, fun _ => rfl⟩
 
 /-! ## Boot -/
 

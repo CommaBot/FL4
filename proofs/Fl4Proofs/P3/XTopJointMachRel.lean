@@ -49,7 +49,7 @@ between FL4's arch state and the spec's `MachineState`), replacing the
   `noIrq` (unlike `IrqPlat`); likewise `PPPlat` itself is unsatisfiable while
   `MachPlat` holds for `modelArch`.
 -/
-import Fl4Proofs.P3.XTopJointIrqPlat
+import Fl4Proofs.P3.XTopJointIrqZI
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -303,19 +303,6 @@ theorem MachPlat.takeAt {MR : A → Fl4Spec.MachineState → Prop} (hM : MachPla
   rintro r ⟨h1, h2, h3⟩
   exact ⟨_, _, doMachineOp_single (getActiveIRQ_eq true _), h1, fun i hi => ⟨h2 i hi, gaiLine_unmasked (b := true) (ms := σ.machineState) hi⟩, rfl, h3⟩
 
-/-- **Under `MachPlat`, a platform that never reports a line has a spec
-oracle that never reports one at a related state**: `MachPlat` does not
-force `NO_IRQ` (contrast `IrqPlat.noIrq`). -/
-theorem MachPlat.noIrq_imp {MR : A → Fl4Spec.MachineState → Prop} (hM : MachPlat arI MR)
-    (h : ∀ a, arI.take_pending_irq a ⦃ r => r.1 = syscall.NO_IRQ ⦄) {a : A} {ms : Fl4Spec.MachineState}
-    (hR : MR a ms) : gaiLine true ms = none := by
-  obtain ⟨r, e, h1, -⟩ := spec_exists (hM.take a ms hR)
-  obtain ⟨r', e', h2⟩ := spec_exists (h a)
-  rw [e] at e'
-  have e2 := ok_inj e'
-  subst e2
-  exact h1.1 h2
-
 end
 
 section Model
@@ -445,24 +432,6 @@ theorem modelArch_machPlat : MachPlat modelArch modelMR where
   frame a ms ms' := by
     rintro ⟨h1, h2, h3, h4⟩ e1 e2 e3 e4
     exact ⟨h1.trans e1.symm, h2.trans e2.symm, h3.trans e3.symm, h4.trans e4.symm⟩
-
-/-- **The model reports the spec's line** (non-vacuity: a pending unmasked
-line is taken). -/
-theorem modelArch_take_some {ms : MachineState} {i : Irq} (h : gaiLine true ms = some i) :
-    modelArch.take_pending_irq ms ⦃ r => r.1 ≠ syscall.NO_IRQ ∧ r.1.val = i.toNat ⦄ := by
-  show (ok (modelTake ms, gaiState ms) : Result (U64 × MachineState)) ⦃ _ ⦄
-  rw [WP.spec_ok]; exact modelTake_some h
-
-/-- **The model never reports a line iff the spec's oracle never does**:
-`MachPlat` (satisfied by the model) does not imply `noIrq`. -/
-theorem modelArch_noIrq_iff :
-    (∀ ms, modelArch.take_pending_irq ms ⦃ r => r.1 = syscall.NO_IRQ ⦄) ↔ ∀ ms, gaiLine true ms = none := by
-  constructor
-  · intro h ms
-    exact modelArch_machPlat.noIrq_imp h ⟨rfl, rfl, rfl, rfl⟩
-  · intro h ms
-    show (ok (modelTake ms, gaiState ms) : Result (U64 × MachineState)) ⦃ _ ⦄
-    rw [WP.spec_ok]; exact modelTake_none (h ms)
 
 end Model
 

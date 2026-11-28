@@ -304,38 +304,6 @@ theorem decode_invocation_threadJAt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
             argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hni hct hpT)))))
 
 set_option maxHeartbeats 4000000 in
-/-- **The IRQ control cap on `JAt`** (`decode_invocation_irq_controlX`; the
-CSpace relation, `FinInv`, `MdbOKV`, `IrqRel`, the caller's TCB, the arch
-mask and `mask_irq` derived): beyond `JAtZ`, the CSpace globals, the arch
-interface [P], `HandlersActive` [J], the IOAPIC relation (`ArchIrqRel` [P]),
-the scheduler-action word apart from the IRQ states, the invoked slot. -/
-theorem decode_invocation_irq_controlJAt [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
-    (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
-    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
-    (hlen : length.val = args.length)
-    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    {ps : U64} {rs : Nat} (hps : Z.th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
-    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
-    (hAR : ArchIrqRel arI ar σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
-    (buffer : Option Fl4Spec.ObjRef) :
-    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
-      extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
-  have hX := J.xtop
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  exact decode_invocation_irq_controlX arI hARI.toMask Z.th s ar σ Z.G
-    (hG.lay Z s ar σ rfl hX).1 hHA lbl slbl hlbl hrm length buf ct
-    hct args hlen hargs hcur J.kern.act hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA
-    (maskIrq_total arI hT) hAR rfl rfl hX J.ks (J.curRun.run hni) J.thT (hG.delNtfn arI hARI hT) blk call don fp ci buffer
-
-set_option maxHeartbeats 4000000 in
 /-- **The IO port control cap on `JAt`** (`decode_invocation_ioport_controlX`;
 the CSpace relation, `FinInv`, `MdbOKV`, `IoRel`, the caller's TCB derived):
 beyond `JAtZ`, the CSpace globals, the arch interface [P], `IoPortsAlloc`

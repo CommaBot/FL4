@@ -30,7 +30,7 @@ Premises of `serializable_fl4_localW11PRID`: `serializable_fl4_localW11PR`'s (`P
 -/
 import Fl4Proofs.P2.E2EPW11R
 import Fl4Proofs.P2.InvDelPteOnceP
-import Fl4Proofs.P2.InvDelPtePlanLt
+import Fl4Proofs.P2.InvDelPteEnt
 import Fl4Proofs.P2.E2EVFl4WIS
 open Aeneas Aeneas.Std Result
 
@@ -113,46 +113,6 @@ variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
 end top
-
-section sat
-variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
-variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- (invj gen 8) **The slot's record and entry hold at every chain state planning a Delete of a live-mapped frame
-cap** (module docstring). Inputs: `nv` (no VCPU, as every P3 slot), `hIoa` [P] / `P` (as `chain_run`), `hct` [P]
-(non-idle current thread), `hp` (the plan), `hlbl` / `hmap` (the Delete of a live-mapped small frame cap), the
-convention `hc` / `hag` at a memory `m1` (an epoch start's). -/
-theorem delPteStart_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {K : KLayoutP} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    {s : S} (hs : Ch s) (hct : NonIdle st arI AR MR s) {n : I64} {p : localinv.Plan}
-    (hp : localinv.plan st s n = ok (some p))
-    (hlbl : ∀ t info, sched.cur_thread st s = ok t → msg.msg_info st s t = ok info →
-      info.label = fl4_abi.label.CNodeDelete)
-    (hmap : ∀ cp cr cg cgb dest, obj.Slot.cap st p.slot s = ok (.CNode cp cr cg cgb) →
-      cspace.lookup_target_slot st s (.CNode cp cr cg cgb) (L.mem s (regA (L.curW s) layout.reg.R10))
-        (L.mem s (regA (L.curW s) layout.reg.R8)) = ok (.Ok dest) →
-      ∃ fp rt asid va e, obj.Slot.cap st dest s = ok (.Frame fp .Small rt false true false asid va) ∧
-        asid ≠ 0#u64 ∧ localinv.small_page_entry st s asid va = ok (some e) ∧ e ≠ 0#u64)
-    {m1 : U64 → U64} (hc : K.ptes = ptesR K m1) (hag : GateAg st K m1 s) :
-    ∃ Ac : Set U64, ∀ j : InvArg S, j.Cs = {c : U64 | c.val < K.ncores} → j.Ω = K.heap.omega →
-      j.Sg = K.heap.frame → j.Ac = Ac → j.p = p → j.Locks = planLocks p →
-      DelPtePrem st j K ∧ PreP st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K (L.mem s) s := by
-  obtain ⟨Ac, BI⟩ := bunIx_of (L := L) (ChainOf.bun hC s hs)
-  refine ⟨Ac, fun j e1 e2 e3 e4 e5 e6 => ?_⟩
-  have hrun := chain_run P hIoa hC hs hct
-  let i : IoArg S := ⟨n, j.Cs, j.Ω, j.Sg, j.Ac, j.Locks, fun _ _ _ => True⟩
-  have BI' : BunIx (L := L) K.toKLayout K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns
-      K.heap.scBits i.Ac s := by
-    show BunIx (L := L) K.toKLayout K.heap.tcbs j.Cs j.Ω K.heap j.Sg K.heap.replies K.heap.scs K.heap.ntfns
-      K.heap.scBits j.Ac s
-    rw [e1, e2, e3, e4]; exact BI
-  have hP := (IoEntJ7.of_bun st BI' hrun).toJ.pre
-  refine ⟨⟨nv, ⟨s, BI'.ac⟩, fun _ _ _ _ _ _ _ => by rw [e6]; rfl⟩, ChainOf.bun hC s hs, ?_, m1, hc, hag⟩
-  rw [e5, e6]
-  exact ⟨⟨⟨hP, fun _ _ => rfl⟩, planD_of_plan hp, invArmP_of hp hlbl hmap, fun k x hk hx => ⟨k, hk, hx⟩⟩,
-    invLk_of_plan hp⟩
-
-end sat
 
 end
 end Fl4Proofs.P2.E2EP

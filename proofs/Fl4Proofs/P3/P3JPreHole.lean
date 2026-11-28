@@ -21,7 +21,7 @@ at the hole's sets (`JStab Z H Cs`), which is what P3JMidInv's `MidXP` needs.
   the hole is `PPCov` (the endpoint-timeout case `PPCovT` and XTopJointMRHole's rest case
   `jPreemptRestHypEQ_ofIM` need a period `≠ 0`: vacuous). Three branches, each the non-stable proof with the
   stable post: `PPCov` (XTopJointMRPath2's `mcsPPJZMF`, its `PPCov` arm), `PPCovI` (XTopJointPreemptI's
-  `mcsPPJI`), neither (XTopJointPreemptM's `mcsPPJU`).
+  former inactive-SC proof), neither (XTopJointPreemptM's former active-SC proof).
 
 No premise; no sorry. New module; no existing statement changed.
 -/
@@ -262,7 +262,7 @@ theorem JHole.mcsCovSt [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s :
         fun hy => fail_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy, J'.stab, rfl, fun hN => hN, fun hC0 => hC0⟩
 
 set_option maxHeartbeats 4000000 in
-/-- (p3J gen 45) **XTopJointPreemptI's `mcsPPJI` at the hole's sets** (inactive current SC). -/
+/-- (p3J gen 45) **XTopJointPreemptI's former inactive-SC proof at the hole's sets** (inactive current SC). -/
 theorem JHole.mcsInactSt {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) [VxE Z] (hcov : PPCovI σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
@@ -389,7 +389,7 @@ theorem JHole.mcsInactSt {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a
   exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, J'.stab, rfl, fun hN => hN, fun hC0 => hC0⟩
 
 set_option maxHeartbeats 4000000 in
-/-- (p3J gen 45) **XTopJointPreemptM's `mcsPPJU` at the hole's sets** (no `CurInv`, active current SC). -/
+/-- (p3J gen 45) **XTopJointPreemptM's former active-SC proof at the hole's sets** (no `CurInv`, active current SC). -/
 theorem JHole.mcsUSt [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)

@@ -295,14 +295,6 @@ theorem startAt_P3W11_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
   | sl j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .sl j) h
   | vq j => exact startAt_P3W10_C st ar hA hm hSt a0 hRun hC (i := .vq j) h
 
-/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W11`**, given the current chain. -/
-theorem startAt_P3W11 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartP3W11 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q :=
-  startAt_P3W11_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
-
 end start
 
 section top

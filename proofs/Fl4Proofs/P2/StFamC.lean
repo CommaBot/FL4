@@ -242,15 +242,6 @@ theorem startAt_UNC_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
   | irq j => exact startAt_UNB_C st ar hA a0 hRun (i := .irq j) hC hE h
   | vq j => exact startAt_UNB_C st ar hA a0 hRun (i := .vq j) hC hE h
 
-/-- **`StartU2C` gives `StartAt` of the new family** (`startAt_UNB` off st, `startAt_stC` at st). -/
-theorem startAt_UNC (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} {s : Cfg U64 U64 U64 U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop}
-    {q : SP} {i : Fl4IxW (S := S)}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K s.mem)
-    (h : StartU2C st ar hA a0 arI AR MR Ch K s.mem hK hU c hs q i) :
-    StartAt (fl4LocW11JC st ar hA (masksWr_plain st) L.total a0 i K s.mem hK hU) c hs s.mem q :=
-  startAt_UNC_C st ar hA a0 (chainRun_of P hIoa) hC hE h
-
 end start
 
 /-! ## U16 over the new family -/
@@ -278,17 +269,6 @@ theorem sl_annV_allC_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   · exact sl_annV_allB_C st ar hA a0 P (hK := hK) (hU := hU) (i := .inl (.sl j)) hC hE hsf hM hV hf
   all_goals exact False.elim hf
 
-/-- **sl starts over the new family** (`sl_annV_allB`: the sl clause of `StartV2C` is `StartV2B`'s). -/
-theorem sl_annV_allC (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K (CoreView.view K.toKLayout c ρ))
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hf : SlAllAt (S := S) K c (fun l => s.lk l = some c) ρ k i) :
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  sl_annV_allC_C st ar hA a0 (locPlatCR_of P hIoa) hC hE hsf hM hV hf
-
 /-- **The io starts' `VSafe` over the new family** (`vSafe_ioB`). -/
 theorem vSafe_ioC {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
     {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)} (hM : MapsP K s)
@@ -314,16 +294,6 @@ theorem vmF_annV_allC_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   · exact vmF_annV_allB_C st ar hA a0 P (hK := hK) (hU := hU) (i := .inl (.vmF j)) hC hE hsf hM hV hf
   all_goals exact False.elim hf
 
-/-- **vmF starts over the new family** (`vmF_annV_allB`). -/
-theorem vmF_annV_allC (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K (CoreView.view K.toKLayout c ρ))
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem) (hf : VmFIx (S := S) i) :
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  vmF_annV_allC_C st ar hA a0 (locPlatCR_of P hIoa) hC hE hsf hM hV hf
-
 /-- **`vmR_annV_allC` on the re-based platform** (gen 54, in place: `P : LocPlatCR` for `P : LocPlat` / `hIoa`). -/
 theorem vmR_annV_allC_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
     {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
@@ -336,16 +306,6 @@ theorem vmR_annV_allC_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   · exact False.elim hf
   · exact vmR_annV_allB_C st ar hA a0 P (hK := hK) (hU := hU) (i := .inl (.vmR j)) hC hE hsf hM hV hf
   all_goals exact False.elim hf
-
-/-- **vmR starts over the new family** (`vmR_annV_allB`). -/
-theorem vmR_annV_allC (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {i : Fl4IxW (S := S) ⊕ ((InvArg S ⊕ InvArg S) ⊕ InvArg S)}
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (hE : EpochPteN K (CoreView.view K.toKLayout c ρ))
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k i)
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem) (hf : VmRIx (S := S) i) :
-    Safe s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  vmR_annV_allC_C st ar hA a0 (locPlatCR_of P hIoa) hC hE hsf hM hV hf
 
 end all
 

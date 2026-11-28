@@ -309,14 +309,6 @@ theorem startD_of_U_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
   | irq j => exact h
   | vq j => exact h
 
-/-- **`StartU` gives `StartD`** at a state of the current chain (`run` by `chain_run`). -/
-theorem startD_of_U (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartU st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartD st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i :=
-  startD_of_U_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
-
 /-- **`startAtV_C` on the re-based platform** (gen 54, in place: `hRun : ChainRun` for `P` / `hIoa`). -/
 theorem startAtV_C_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
     {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
@@ -354,16 +346,6 @@ theorem startAtV_C_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
   | vq j =>
     exact startAtV_A_C st ar hA hm hSt a0 hRun hC0 (hK := hK) (hU := hU)
       (startA_of_B st ar hA hm hSt a0 (hK := hK) (hU := hU) (i := .vq j) h)
-
-/-- **`StartC` gives a start of `fl4LocA`'s `ownV` path** (`startAt_C` stopped before the PTE cut). -/
-theorem startAtV_C (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartC st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    ∃ q0, StartAt ((fl4LocA st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K.toKLayoutV m hK.base hU.base)
-      c hs m q0 ∧
-      q = cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout m) c q0 ∅ :=
-  startAtV_C_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
 
 /-- **`startAt_U` on the re-based platform** (gen 55, in place: `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
 theorem startAt_U_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
@@ -421,19 +403,6 @@ variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.Pl
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st) (hSt : P0.StoreTotal st) (a0 : A)
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **vmF's `StartU` holds at every chain state with vmF's entry facts** (record `VmFPremB` built from the state,
-`kd` [P]; `m := L.mem σ`). -/
-theorem startU_vmF_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K)
-    {σe σ : S} (hC : ChainOf (L := L) arI AR MR σe K.toKLayoutV.toKLayout Ch) (hσ : Ch σ)
-    {j : VmFArg S} (hE : VmFEntJ14 st ar arI AR MR j K.toKLayoutV σ)
-    (kd : ∀ s, KernDetS (L := L) (userV K.toKLayoutV).user j.Locks s) (a : A) :
-    ∃ q, StartU st ar hA hm hSt a0 arI AR MR Ch K (L.mem σ) hK hU (L.cpu σ) (j.Locks σ) q (.vmF j) := by
-  have hE10 := (hE.toJ12 st ar).toJ10 st ar hA (chain_run P hIoa hC hσ hE.hct)
-  have h : VmFPremB st j K.toKLayoutV := ⟨hE.nv, ⟨σ, ChainOf.bun hC σ hσ⟩, kd⟩
-  exact ⟨_, ((vmFSlotA st ar hA hm).liftAt j K.toKLayoutV (L.mem σ) hK.base hU.base (h.toA hA hE10)).body σ a,
-    ⟨h, σ, ⟨hσ, hE⟩, fun _ => ⟨σ, a, rfl, rfl, rfl, fun _ _ _ => rfl, rfl⟩⟩, rfl⟩
-
 /-- **vmR's `StartU` holds at every chain state with vmR's entry facts**, given the [P]s `cs` / `kd` and
 `K.vcpus = ∅` (as `startD_vmR_sat`). -/
 theorem startU_vmR_sat {Ch : S → Prop} {K : KLayoutP} (hK : RegionOKP K) (hU : UserOKP K)
@@ -461,31 +430,6 @@ theorem startU_vt_sat {Ch : S → Prop} {K : KLayoutP} (hK : RegionOKP K) (hU : 
     (Nt : ∀ q ∈ j.Nt, j.H q = some .ntfn) (a : A) :
     ∃ q, StartU st ar hA hm hSt a0 arI AR MR Ch K (L.mem σ) hK hU (L.cpu σ) (j.lk σ) q (.vq (.inr j)) :=
   startA_vt_sat st ar hA hm hSt a0 hK hU hC hσ hE kd Nt a
-
-/-- **The mapped-frame Delete slot's start fact holds at every chain state planning such a Delete**
-(`delPteStart_sat`'s record and entry, assembled into `DelPteStart` at `m := L.mem s`, core `L.cpu s`, locks
-`j.Locks s`). -/
-theorem startU1_delPte_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {K : KLayoutP} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    (hK : RegionOKP K) (hU : UserOKP K)
-    {s : S} (hs : Ch s) (hct : NonIdle st arI AR MR s) {n : I64} {p : localinv.Plan}
-    (hp : localinv.plan st s n = ok (some p))
-    (hlbl : ∀ t info, sched.cur_thread st s = ok t → msg.msg_info st s t = ok info →
-      info.label = fl4_abi.label.CNodeDelete)
-    (hmap : ∀ cp cr cg cgb dest, obj.Slot.cap st p.slot s = ok (.CNode cp cr cg cgb) →
-      cspace.lookup_target_slot st s (.CNode cp cr cg cgb) (L.mem s (regA (L.curW s) layout.reg.R10))
-        (L.mem s (regA (L.curW s) layout.reg.R8)) = ok (.Ok dest) →
-      ∃ fp rt asid va e, obj.Slot.cap st dest s = ok (.Frame fp .Small rt false true false asid va) ∧
-        asid ≠ 0#u64 ∧ localinv.small_page_entry st s asid va = ok (some e) ∧ e ≠ 0#u64)
-    {m1 : U64 → U64} (hc : K.ptes = ptesR K m1) (hag : GateAg st K m1 s) (a : A) :
-    ∃ Ac : Set U64, ∀ j : InvArg S, j.Cs = {c : U64 | c.val < K.ncores} → j.Ω = K.heap.omega →
-      j.Sg = K.heap.frame → j.Ac = Ac → j.p = p → j.Locks = planLocks p →
-      ∃ q, StartU1 st ar hA hm hSt a0 arI AR MR (DelPteStart st ar hA hm) Ch K (L.mem s) hK hU (L.cpu s)
-        (j.Locks s) q (.inr j) := by
-  obtain ⟨Ac, H⟩ := delPteStart_sat st P hIoa hC nv hs hct hp hlbl hmap hc hag
-  refine ⟨Ac, fun j e1 e2 e3 e4 e5 e6 => ?_⟩
-  obtain ⟨h, -, hQ, -⟩ := H j e1 e2 e3 e4 e5 e6
-  exact ⟨_, h, s, a, ⟨hs, hQ⟩, rfl, rfl, fun _ _ _ => rfl, rfl⟩
 
 end sat
 

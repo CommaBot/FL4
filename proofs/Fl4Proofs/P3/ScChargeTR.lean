@@ -9,7 +9,8 @@ send ScTmoCtRecv's `JTH.tmoRecvJ` in place of `JTH.tmoBlockJA`, and the
 platform facts `hmax`/`htu` [P] (as XTopJointFaultTmo's `runTmoP_recv`).
 -/
 import Fl4Proofs.P3.ScTmoCtRecv
-import Fl4Proofs.P3.XTopJointPreemptA
+import Fl4Proofs.P3.ScChargeTA
+import Fl4Proofs.P3.XTopJointPreemptE
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -401,62 +402,6 @@ theorem JHole.checkBudgetTR {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit}
     simp only [Bool.false_eq_true, ↓reduceIte]
     rw [nd_gets_bind]
     exact mem_bind_nd (x := z) hz' (by simp [pure, Fl4Spec.NonDet.pure])
-
-end
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-  {Lst : U64 → List U64} {D : Set U64}
-
-set_option maxHeartbeats 16000000 in
-/-- **`mcs_preemption_point` charging the current thread with an endpoint
-timeout handler on an idle or sending endpoint, a reschedule pending or
-not** (module docstring). -/
-theorem JHole.mcsPPJR [VxE Z] {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
-    (hres : σ.schedulerAction = .resumeCurThread ∨ σ.schedulerAction = .chooseNewThread)
-    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hsch : Fl4Spec.schedulable σ.curThread σ = true)
-    (hnsuf : ¬ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) →
-      Fl4Spec.refillSufficient σ.consumedTime (Fl4Spec.refillHd y) = true))
-    {xt : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xt))
-    (hrr : xt.tcbState = .running ∨ xt.tcbState = .restart)
-    {p bd : Fl4Spec.Word} {r : Fl4Spec.CapRights} (hth : xt.tcbTimeoutHandler = .endpointCap p bd r)
-    (hper : ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scPeriod ≠ 0)
-    (hkl : ∃ l, σ.kheap p = some (.endpoint (.recvEP l))) :
-    syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
-      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
-      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ⦄ := by
-  have hS := Hh.xtop.fin.1.1.1
-  have hR := Hh.xtop.fin.1.1.2.2.1
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨hscC, -, -, -, hact, -, -⟩ := CurInv.facts hS Hh.inv hC
-  unfold syscall.mcs_preemption_point
-  step with sched.cur_thread.spec' as ⟨ct, hct'⟩
-  step with Sched.sched.is_schedulable.spec' as ⟨b, hb⟩
-  rw [hc.cur] at hct'
-  subst hct'
-  rw [schedulable_eq hR hS hc.curT] at hb
-  have ect : σ.curThread = (nodeW st s Z.c layout.node.CUR_THREAD).bv := hs.curThread
-  subst hb
-  rw [← ect, hsch]
-  simp only [↓reduceIte]
-  refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb)
-    (Hh.checkBudgetTR hAT hmax htu hC hni hres hnq hmrt hmb hkt hrr hth hper hkl)) ?_
-  rintro ⟨r, s', a'⟩ ⟨hT, hF⟩
-  refine (WP.spec_ok _).2 ?_
-  cases r
-  · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
-    exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-      Z.mv Z.G V, H, Cs, Ac', Lst', D', J', inferInstance⟩
-  · exact absurd (hT rfl).2.2 hnsuf
-
-variable (arI) in
 
 end
 

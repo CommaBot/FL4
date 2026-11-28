@@ -446,40 +446,6 @@ theorem decode_invocation_irq_handlerJLL [Fl4Proofs.P1.PlainStore st] (s : S) (a
     length (cslotAddr sl) buf blk call don fp args ci sl buffer
 
 set_option maxHeartbeats 4000000 in
-/-- **The IRQ control cap, `JAtL` after** (XTopJointStep's
-`decode_invocation_irq_controlJ_step`; no `JStepHyps`). -/
-theorem decode_invocation_irq_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
-    (hHA : HandlersActive (L.mem s) (L.ksb s) Z.G)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
-    (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
-    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
-    (hlen : length.val = args.length)
-    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    {ps : U64} {rs : Nat} (hps : Z.th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
-    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
-    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
-    (hAR : ArchIrqRel arI ar σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
-    (buffer : Option Fl4Spec.ObjRef) :
-    XCap (L := L) arI (JAtL (L := L) arI AR) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
-  have hX := J.xtop
-  have hZB := J.zNoBlk hsg
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  exact decode_invocation_irq_controlXS arI Z.th s ar σ Z.G J.intL hHA lbl slbl hlbl hrm length
-    buf ct hct args hlen hargs hcur J.kern.act hact2 extra x0 hx0 excaps hex hps hls hsrcC nA hnum hnA
-    (maskIrq_total arI hT) hAR rfl rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J, hLv, inferInstance⟩
-    (fun _ _ _ h => let ⟨_, V', Ac', Lst', D', J', hL', _⟩ := Steps.jatL hARI.toMask h rfl J hLv hZB
-      ⟨_, H, Cs, Ac', Lst', D', J', hL', inferInstance⟩)
-    (fun _ _ _ h => JAt.xtop arI (JAtL.toJAt arI h))
-    blk call don fp ci buffer
-
-set_option maxHeartbeats 4000000 in
 /-- **The IO port control cap, `JAtL` after** (XTopJointStep's
 `decode_invocation_ioport_controlJ_step`; no `JStepHyps`). -/
 theorem decode_invocation_ioport_controlJ_stepL (s : S) (ar : A) (σ : Fl4Spec.State Unit)

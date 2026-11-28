@@ -39,24 +39,6 @@ def SlV0 (K : KLayoutP) (c : U64) (ρ : U64 → U64) : Prop :=
     (∀ x, Aligned x → x ∉ K.user → L.mem σc x = view K.toKLayout c ρ x) ∧ L.actionW σc = 0#u64 ∧
     (L.mem σc (stA (L.curW σc)) = sched.TS_RESTART ∨ L.mem σc (stA (L.curW σc)) = sched.TS_RUNNING)
 
-/-- **The sl start fact of a chain gives `SlV0`** (the glue's witness is the chain state). -/
-theorem sl_v0_SF (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    {ρ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : SlArg S}
-    (h : StartV2 st ar hA a0 arI AR MR Ch K (view K.toKLayout c ρ) hK hU c hs q (.inl (.sl j))) :
-    SlV0 st K c ρ := by
-  have h' : StartU2 st ar hA a0 arI AR MR Ch K (view K.toKLayout c ρ) hK hU c hs q (.sl j) := h
-  obtain ⟨q0, ⟨hL, σ, ⟨hCσ, hE⟩, hG⟩, -⟩ := h'
-  obtain ⟨σe, hC'⟩ := hC
-  obtain ⟨A', arI', AR', Zx, Lst, D, a', τ, B, -⟩ := hE.ix
-  have hR : (slSlotP3W6 st ar hA (masksWr_plain st) L.total a0).Prem j K.toKLayoutV (view K.toKLayout c ρ) :=
-    show K.toKLayoutV.vcpus = ∅ ∧ SlPremP6 st j K.toKLayoutV from
-      ⟨nv, ⟨σ, ChainOf.bun hC' σ hCσ⟩, B.csLt, fun K' s _ => hL.kernDetAt K' s⟩
-  obtain ⟨σ', a'', e', hc, -, hμ, -⟩ := hG hR
-  subst e'
-  exact ⟨_, hc, slJAt_ksb (ChainOf.bun hC' _ hCσ), fun x hx hu => hμ x hx hu,
-    chain_act0 st P hIoa hC' hCσ hE.hct, chain_run P hIoa hC' hCσ hE.hct⟩
-
 end act
 
 section view

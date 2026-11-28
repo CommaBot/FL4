@@ -571,28 +571,6 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 variable {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop}
 variable {A : Type}
 
-/-- (invj gen 2) **The uncut CNodeDelete local path, no [W]**: `inv_pathsKFU2` with `htr := invURoTrW_of`.
-Premises: `hA`, [P] `hm`, [J] `hIw`, [P] `hlk`. -/
-noncomputable def inv_pathsKFU3 (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
-    (hm : E2E.MasksWr st)
-    (hIw : ∀ K s b v, SlJAt (L := L) K s →
-      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s →
-      b ∈ K.user → Aligned b →
-      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac (L.wr s b v))
-    (hlk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s) :
-    E2E.Paths Unit :=
-  inv_pathsKFU2 (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number p hm hIw hlk
-    (fun K m => invURoTrW_of hA hm K m)
-
-/-- (invj gen 2) **`inv_pathsKFU3` with `hIw` from iolay's `ioPre_wr_hIw`** (P2/E2EVFl4W9.lean). Premises: `hA`,
-[P] `hm`, [P] `hCs` (the core set below 64: `JKern.csLt` at the top, as `IoPremW9.hCs`), [P] `hlk`. -/
-noncomputable def inv_pathsKFU4 (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
-    (hm : E2E.MasksWr st) (hCs : ∀ c ∈ Cs, c.val < 64)
-    (hlk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s) :
-    E2E.Paths Unit :=
-  inv_pathsKFU3 (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number p hm
-    (ioPre_wr_hIw (Ω := Ω) (Sg := Sg) (Ac := Ac) hCs) hlk
-
 /-- (invj gen 2) **`inv_pathsKF3` with `hIw` from `ioPre_wr_hIw`** (the `length ≥ 2` path, `Q := InvQL`). Premises:
 `hA`, [P] `hm`, [P] `hCs`, [P] `hlk`. -/
 noncomputable def inv_pathsKF4 (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)

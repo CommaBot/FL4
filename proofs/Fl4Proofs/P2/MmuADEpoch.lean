@@ -305,19 +305,6 @@ inductive ExecU3b (LP : PathsP ι)
       ExecU3b LP SF P s0 K0 Ch0 s K Ch E → MmuAD (PWE K E) s.mem a x →
       ExecU3b LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch E
 
-/-- **Every `ExecU3` execution is an `ExecU3b` one** (free-leaf writes are paging-word writes). -/
-theorem execU3b_of_U3 {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecU3 LP SF P s0 K0 Ch0 s K Ch) : ∃ E, ExecU3b LP SF P s0 K0 Ch0 s K Ch E := by
-  induction h with
-  | refl => exact ⟨_, .refl⟩
-  | step _ hS g ih => obtain ⟨E, hE⟩ := ih; exact ⟨_, .step hE hS g⟩
-  | hw _ hH ih => obtain ⟨E, hE⟩ := ih; exact ⟨_, .hw hE hH⟩
-  | mmu _ hH ih =>
-    obtain ⟨E, hE⟩ := ih
-    exact ⟨_, .mmu hE ⟨Or.inl hH.hw.pw, hH.hw.present, hH.hw.ad, hH.hw.chg⟩⟩
-
 end exec
 
 end

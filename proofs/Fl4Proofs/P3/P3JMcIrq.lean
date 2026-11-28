@@ -46,20 +46,6 @@ def StabPost (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.Stat
     JAtZ (L := L) arI AR (Z.mv G' V') H Cs Ac' Lst' D' s' a' σ' ∧ VxE (Z.mv G' V') ∧
       P1.WritesIn st s s' (ProjW (L := L) H Cs s) ∧ KhNoneKeep σ σ' ∧ UtKeep (L := L) Z.G G' s s'
 
-/-- **`IrqStab` [J]** (module docstring): the interrupt clause's outcomes meet `StabPost` at every `JAtZ` ghosts. -/
-def IrqStab (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-      syscall.handle_interrupt_entry st arI s a1 w ⦃ r => ∀ σ', EvOut false .interrupt σ σ' →
-        RunCK (L := L) arI AR MR r.1 r.2 σ' → StabPost (L := L) arI AR Z H Cs s σ r.1 r.2 σ' ⦄
-
-/-- **`UserStab` [J]** (module docstring): the same for the user-exception clause. -/
-def UserStab (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ (n c : U64), σ.curThread ≠ σ.idleThread → UserHw n c →
-      syscall.handle_user_exception st arI s a n c ⦃ r => ∀ σ', EvOut false (.userLevelFault n.bv c.bv) σ σ' →
-        RunCK (L := L) arI AR MR r.1 r.2 σ' → StabPost (L := L) arI AR Z H Cs s σ r.1 r.2 σ' ⦄
-
 variable {arI AR MR}
 
 /-- **`RunMcW` at a clause outcome** (module docstring). -/
@@ -75,58 +61,6 @@ theorem runMcW_post {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcW (L :=
 /-- `RunMcW` gives `RunMc`. -/
 theorem RunMcW.runMc {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : RunMcW (L := L) arI AR MR s a σ) :
     RunMc (L := L) arI AR MR s a σ := ⟨h.1, h.2.jAtMc⟩
-
-set_option maxHeartbeats 4000000 in
-/-- **The interrupt entry on any core, through `RunMcW`** (module docstring; `hSt` [J]). -/
-theorem kernel_entry_runMcW_irq [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatK arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hMap : IoaMap arI)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet) (hCfg : KCfgFL4) (hNV : NoVirt arI)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcW (L := L) arI AR MR s a σ)
-    (hSt : IrqStab (L := L) arI AR MR s a σ) :
-    ∀ (w : U64) (a1 : A), IrqHw AR MR a a1 σ w →
-      syscall.handle_interrupt_entry st arI s a1 w ⦃ r => ∃ σ', EvOut false .interrupt σ σ' ∧
-        RunMcW (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  intro w a1 hw
-  obtain ⟨_, _, _, _, _, _, -, -, hI, -⟩ := kernel_entry_runCK arI AR MR hARI hA hnd hM hIp hKD hIo hIoa hPAi hIA hT
-    hmax htu hRef hPI hSX hDR hMap hFpu hFW hCfg hNV hR.1
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, hF⟩ := hR.2
-  refine WP.spec_mono (spec_and2 (hI w a1 hw) (hSt Z H Cs Ac Lst D J w a1 hw)) ?_
-  rintro r ⟨⟨σ', h1, hC⟩, hK⟩
-  obtain ⟨G', V', Ac', Lst', D', J', hV', hW, hKk, hU⟩ := hK σ' h1 hC
-  exact ⟨σ', h1, hC, jAtMcW_step J hF J' hV' hW hKk hU⟩
-
-set_option maxHeartbeats 4000000 in
-/-- **The user-exception entry on any core, through `RunMcW`** (module docstring; `hSt` [J]). -/
-theorem kernel_entry_runMcW_user [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlatF arI MR) (hIp : IpiF arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPAi : ∀ a c, AR a c → arI.irq_pending a ⦃ r => AR r.2 c ⦄) (hIA : IrqPlatK arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    (hMap : IoaMap arI)
-    (hFpu : FpuImplDet) (hFW : FpuWriteDet) (hCfg : KCfgFL4) (hNV : NoVirt arI)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hR : RunMcW (L := L) arI AR MR s a σ)
-    (hSt : UserStab (L := L) arI AR MR s a σ) :
-    ∀ (n c : U64), σ.curThread ≠ σ.idleThread → UserHw n c →
-      syscall.handle_user_exception st arI s a n c ⦃ r => ∃ σ', EvOut false (.userLevelFault n.bv c.bv) σ σ' ∧
-        RunMcW (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  intro n c hne hu
-  obtain ⟨_, _, _, _, _, _, -, -, -, hU0, -⟩ := kernel_entry_runCK arI AR MR hARI hA hnd hM hIp hKD hIo hIoa hPAi
-    hIA hT hmax htu hRef hPI hSX hDR hMap hFpu hFW hCfg hNV hR.1
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -, hF⟩ := hR.2
-  refine WP.spec_mono (spec_and2 (hU0 n c hne hu) (hSt Z H Cs Ac Lst D J n c hne hu)) ?_
-  rintro r ⟨⟨σ', h1, hC⟩, hK⟩
-  obtain ⟨G', V', Ac', Lst', D', J', hV', hW, hKk, hU⟩ := hK σ' h1 hC
-  exact ⟨σ', h1, hC, jAtMcW_step J hF J' hV' hW hKk hU⟩
 
 end
 

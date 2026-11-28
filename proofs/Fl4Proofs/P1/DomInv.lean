@@ -149,11 +149,6 @@ theorem dom_lt_num {d : U64} (h : ¬ (d ≥ layout.NUM_DOMAINS)) : d = 0#u64 := 
   have : d.val < 1 := by scalar_tac
   rw [show (0#u64 : U64).val = 0 by simp]; omega
 
-/-- `EntryInv` with FL4's one domain. -/
-def EntryDomInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
-    (Z : U64 → Nat) (Ac : Set U64) (s : S) : Prop :=
-  EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ DomInv st T s
-
 end
 
 end Fl4Proofs.P1

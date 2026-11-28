@@ -74,15 +74,6 @@ theorem ad2_startAt_C (P : LocPlatC st arI AR MR) (hRun : ChainRun st arI AR MR)
   · have hsf' : PmStartX st ar hA (masksWr_plain st) K s.mem hK hU c hs q j := hsf
     exact pmStartX_at (hV hsf'.1) hsf'
 
-/-- **The start case split** (`ad_startAt` ⊕ `pmStartX_at`). -/
-theorem ad2_startAt (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks) :
-    ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (K.vcpus = ∅ → NatEp P K Ch s) → (K.vcpus ≠ ∅ → VtxBundle4 st L K) →
-      StartAD2 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR) Ch K s.mem hK hU c hs q i →
-      StartAt (famAD2 st ar hA a0 B i K s.mem hK hU) c hs s.mem q :=
-  ad2_startAt_C st ar hA a0 P.toC (chainRun_of P hIoa) B
-
 /-- **`serializable_fl4_localAD2` on the re-based platform**
 (gen 55, in place: `P : LocPlatC` and `hRun : ChainRun` for `P : LocPlat` / `hIoa`). -/
 theorem serializable_fl4_localAD2_C (P : LocPlatC st arI AR MR) (hRun : ChainRun st arI AR MR)
@@ -152,21 +143,6 @@ theorem serializable_fl4_localAD2_C (P : LocPlatC st arI AR MR) (hRun : ChainRun
   · have hsf' : VmRStartY st ar hA (masksWr_plain st) K s.mem hK hU c hs q j := hsf
     exact insAP_of_insA (insAW_vmR st ar hA (masksWr_plain st) K E s hK hU c hs q j hsf'.1 (hV hsf'.1)
       (hW hsf'.1).toVmPwe J hM hP)
-
-/-- **FL4 end to end with the host walker's A/D writes, every U1 slot and PageMap in native and VM epochs**
-(module docstring). Premises: `serializable_fl4_localAD`'s (`P`, [P] `hIoa`, `B` = [P] `cs` / [P] `lk`, `h0`,
-`hA0`, `hB`, `hc0`, `hM0`, the execution, `hq`), with the execution's start facts extended by `PmStartX` ([S]
-`InvEntV9` at `PmEntG`). No [W]. -/
-theorem serializable_fl4_localAD2 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} (B : PmObl7 st Cs Ω Sg Ac Locks)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop} {E : U64 → U64} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0)
-    (h : ExecVX4d (famAD2 st ar hA a0 B) (StartAD2 st ar hA a0 B (arI := arI) (AR := AR) (MR := MR))
-      P s0 K0 Ch0 s K Ch E)
-    (hq : NoLoc s) :
-    ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ s0.mem s.mem :=
-  serializable_fl4_localAD2_C st ar hA a0 P.toC (chainRun_of P hIoa) B h0 hA0 hB hc0 hM0 h.toC hq
 
 end top
 

@@ -194,43 +194,5 @@ def StartInvU2 (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOK
 
 end top
 
-section sat
-variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st] {A : Type}
-  (ar : machine.Arch A)
-variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
-variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- **The CNodeDelete slot's start fact holds at every chain state planning a CNodeDelete with no PTE lock**
-(gen 1's `invStartU_sat` for `InvStartU2`). -/
-theorem invStartU2_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {K : KLayoutP} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    (hK : RegionOKP K) (hU : UserOKP K)
-    {s : S} (hs : Ch s) (hct : NonIdle st arI AR MR s) {n : I64} {p : localinv.Plan}
-    (hp : localinv.plan st s n = ok (some p)) (harm : InvArm st p s) (a : A) :
-    ∃ Ac : Set U64, ∀ j : InvArg S, j.Cs = {c : U64 | c.val < K.ncores} → j.Ω = K.heap.omega →
-      j.Sg = K.heap.frame → j.Ac = Ac → j.p = p → j.Locks = planLocks p →
-      ∃ q, InvStartU2 st ar hA hm Ch K (L.mem s) hK hU (L.cpu s) (j.Locks s) q j := by
-  obtain ⟨Ac, H⟩ := invStartW_sat (K := K.toKLayoutV) st P hIoa hC nv hs hct hp harm
-  refine ⟨Ac, fun j e1 e2 e3 e4 e5 e6 => ?_⟩
-  obtain ⟨h, hQ⟩ := H j e1 e2 e3 e4 e5 e6
-  exact ⟨_, _, ⟨h, s, a, ⟨hs, hQ⟩, rfl, rfl, fun _ _ _ => rfl, rfl⟩, rfl⟩
-
-/-- **The Copy / Mint slot's start fact holds at every chain state planning a CNodeCopy / CNodeMint** (gen 1's
-`cmStartU_sat` for `CMStartU2`). -/
-theorem cmStartU2_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {K : KLayoutP} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    (hK : RegionOKP K) (hU : UserOKP K)
-    {s : S} (hs : Ch s) (hct : NonIdle st arI AR MR s) {n : I64} {p : localinv.Plan}
-    (hp : localinv.plan st s n = ok (some p)) (harm : InvCMArm st s) (a : A) :
-    ∃ Ac : Set U64, ∀ j : InvArg S, j.Cs = {c : U64 | c.val < K.ncores} → j.Ω = K.heap.omega →
-      j.Sg = K.heap.frame → j.Ac = Ac → j.p = p → j.Locks = planLocks p →
-      ∃ q, CMStartU2 st ar hA hm Ch K (L.mem s) hK hU (L.cpu s) (j.Locks s) q j := by
-  obtain ⟨Ac, H⟩ := cmStartW_sat2 (K := K.toKLayoutV) st P hIoa hC nv hs hct hp harm
-  refine ⟨Ac, fun j e1 e2 e3 e4 e5 e6 => ?_⟩
-  obtain ⟨h, hQ⟩ := H j e1 e2 e3 e4 e5 e6
-  exact ⟨_, _, ⟨h, s, a, ⟨hs, hQ⟩, rfl, rfl, fun _ _ _ => rfl, rfl⟩, rfl⟩
-
-end sat
-
 end
 end Fl4Proofs.P2.E2EP

@@ -288,38 +288,6 @@ end
 
 /-! ## The induction's tops with the `int $N` entry -/
 
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop}
-
-set_option maxHeartbeats 8000000 in
-/-- **The `int $N` entry at every reachable state** (module docstring): from a
-non-idle thread, for a vector below 256 [P], given the finish bundle at the
-FaultIP states, `handle_trap_syscall` ends related to the spec's event of
-this run (no `JEvRef`), with `SInvX`, `MR`, and `JReachE3` again. -/
-theorem kernel_entry_reachE3T (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachE3 (L := L) arI AR MR s a σ)
-    (v : U64) (hv : v.val < 256) (hct : σ.curThread ≠ σ.idleThread)
-    (hFin : ∀ ev, KEvSpec (.trap v) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-      KFinEv (L := L) arI AR ev (KFrontTrap (st := st) arI s a) w.2) :
-    syscall.handle_trap_syscall st arI s a v ⦃ r => ∃ ev σ', KEvSpec (.trap v) true ev ∧ EvOut true ev σ σ' ∧
-      RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
-      JReachE3 (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J, _⟩, hX, hR⟩ := jreach_invE3 hnd hJ
-  have hE := jEvRef_trap hnd v hv J hX hct hR hFin hARI hA hM hKD hmrt hmb hT hmax htu
-  obtain ⟨⟨s', a'⟩, hrun, ev, σ', hK, hO, hRJM⟩ := spec_exists hE
-  rw [hrun, WP.spec_ok]
-  have hev : ev ≠ .interrupt → σ.curThread ≠ σ.idleThread := fun _ => hct
-  exact ⟨ev, σ', hK, hO, hRJM.1, sinvX_evOut hnd hX hev (fun _ => sinvX_fip hX) hO, hRJM.2,
-    JReachE3.event (.trap v) true ev hJ hK hev hrun hO hRJM⟩
-
-end
-
 end
 
 end Fl4Proofs.P3

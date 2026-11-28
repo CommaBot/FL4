@@ -514,41 +514,6 @@ inductive ExecVX4 (LP : PathsP ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {v a x : U64} :
       ExecVX4 LP SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecVX4 LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- The start facts with the epoch's `VtxBundle4` added. -/
-def SFaV4 (SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι →
-    Prop) (Ch : S → Prop) (K : KLayoutP) (m : U64 → U64) (hK : RegionOKP K) (hU : UserOKP K) (c : U64)
-    (hs : U64 → Prop) (q : SP) (i : ι) : Prop :=
-  (K.vcpus ≠ ∅ → VtxBundle4 st L K) ∧ SF Ch K m hK hU c hs q i
-
-/-- **An `ExecVX4` is an `ExecVX`** whose start facts carry the epoch's `VtxBundle4`. -/
-theorem execVX_of_VX4 {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (hc0 : K0.vcpus = ∅) (h : ExecVX4 LP SF P s0 K0 Ch0 s K Ch) :
-    ExecVX LP (SFaV4 (st := st) SF) P s0 K0 Ch0 s K Ch ∧ (K.vcpus ≠ ∅ → VtxBundle4 st L K) := by
-  induction h with
-  | refl => exact ⟨.refl, fun hn => (hn hc0).elim⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hV⟩ := ih
-    have hst : Fl4StepVX LP (SFaV4 (st := st) SF) P s1 K1 Ch1 c1 s1' K1' Ch1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, g.serG, g.keep⟩
-      · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-        exact ⟨i, hV, hi⟩
-      · rcases g.ser hs with hN | ⟨hne, he, hb⟩
-        · exact Or.inl hN
-        · exact Or.inr ⟨hne, hb.b.okP he⟩
-    refine ⟨.step hE hS hst, fun hne => ?_⟩
-    by_cases hs : SerStep s1 c1
-    · rcases g.ser hs with ⟨-, hc, -⟩ | ⟨-, -, hb⟩
-      · exact absurd hc hne
-      · exact hb
-    · obtain ⟨eK, -⟩ := g.keep hs
-      subst eK
-      exact hV hne
-  | @hw s1 K1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hV⟩ := ih
-    exact ⟨.hw hE hH, hV⟩
-
 end exec
 
 /-! ## Part 5: the tops -/

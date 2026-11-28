@@ -104,10 +104,6 @@ theorem PortInVal.toMR {MR : A → Fl4Spec.MachineState → Prop} (h : PortInVal
   fun a a' p z v hv σ _ => h a a' p z v hv σ
 
 variable {arI} in
-theorem PortInVal.at (h : PortInVal arI) (a : A) (σ : Fl4Spec.State Unit) : PortInValAt arI a σ :=
-  fun a' p z v hv σ' _ => h a a' p z v hv σ'
-
-variable {arI} in
 theorem PortInValMR.at {MR : A → Fl4Spec.MachineState → Prop} (h : PortInValMR arI MR) {a : A}
     {σ : Fl4Spec.State Unit} (hR : MR a σ.machineState) : PortInValAt arI a σ :=
   fun a' p z v hv σ' he => h a a' p z v hv σ' (he ▸ hR)

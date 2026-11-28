@@ -62,20 +62,6 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
   {AR : A → Fl4Spec.Cr3 → Prop}
 
-/-- **`VsRootOK` at a `JAtZ` state** (module docstring). -/
-theorem JAtZ.vsRootOK {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
-    VsRootOK Z.T σ := by
-  refine vsRootOK_of J.xtop.rel.2.1.1 J.xtop.fin.2.1 fun t ht => ?_
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have hth : Z.th t = some .tcb := (hJ.tcb t).2 (J.zH.1 t ht)
-  refine ⟨hth, fun p asid hc => ?_⟩
-  have hx : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
-  have h := J.vsc _ hx
-  rw [capV_of_capAt hc] at h
-  have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
-  exact (h'.2.2 rfl).1
-
 /-- **`VsRootOK` at a `JAtZR` state** (module docstring). -/
 theorem JAtZR.vsRootOK {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) :

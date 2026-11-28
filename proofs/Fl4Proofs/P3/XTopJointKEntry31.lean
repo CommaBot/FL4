@@ -23,7 +23,7 @@ premise.
 * `kernel_entryJ31`: `kernel_entryJ30` with `hK` giving `KDispHypsKV31` and
   `hFin` giving `KFinAtR31`. No premise added.
 -/
-import Fl4Proofs.P3.XTopJointKEntry30
+import Fl4Proofs.P3.XTopJointKEntry29
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -127,45 +127,6 @@ theorem KDispHypsKV31.to27b {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spe
     (h : KDispHypsKV31 (L := L) arI AR MR Z H Cs D s a σ n c) : KDispHypsKV27b (L := L) arI AR MR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hI => let ⟨g, e, p, v⟩ := h.inv ct call bl don hct hI; ⟨g.toM, e, p, v⟩,
     fun ct rg sr cr hct hM => let ⟨g, e, p, v⟩ := h.mid ct rg sr cr hct hM; ⟨g.toM, e, p, v⟩⟩
-
-end
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {MR : A → Fl4Spec.MachineState → Prop}
-
-set_option maxHeartbeats 4000000 in
-/-- **The newest top** (module docstring): `kernel_entryJ30`'s premises, with
-the bundles inside `hK` (`KDispHypsKV31`) free of the ∀-state `JDelParts.vt`. -/
-theorem kernel_entryJ31 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
-    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
-    (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
-    (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
-    (hn : NativeSys n c)
-    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
-    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-      (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-        KDispHypsKV31 (L := L) arI AR MR (Z.mv Z.G V') H Cs D' s' a' σb n c)
-    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-        KFinAtR31 (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
-  kernel_entryJ30 s a σ J hni hR hS hE hQ n c hn hflag hB
-    (fun σb hBA V' Ac' Lst' D' s' a' hF J' => (hK σb hBA V' Ac' Lst' D' s' a' hF J').to27b)
-    (fun x hx Z' H' Cs' Ac' Lst' D' s' a' hF J' => (hFin x hx Z' H' Cs' Ac' Lst' D' s' a' hF J').to27)
-    hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu
 
 end
 

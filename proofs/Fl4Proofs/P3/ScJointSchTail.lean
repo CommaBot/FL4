@@ -73,17 +73,6 @@ theorem JAtZB.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     by rw [hcpu]; exact K.cpuCs, J.zH.1 _ hcT, hcscH, K.csLt, K.cs0, K.csN, K.tdx.frame hK.huge⟩
   rw [hna, hDbg]; exact K.head
 
-/-- `JAtZB.sch_kern` at `JAtZ` (via `JAtZ.toB`). -/
-theorem JAtZ.sch_kern {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
-    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
-    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ')
-    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))
-    (hdw : (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ≠ (P1.stA (L.curW s')).val)
-    (hcscH : H (L.cscW s') ≠ none) : JKern (L := L) arI H Cs D Z.th s' σ' :=
-  Fl4Proofs.P3.JAtZB.sch_kern (J := J.toB) (hw := hw) (hK := hK) (hS' := hS') (hDbg := hDbg) (hdw := hdw) (hcscH := hcscH)
-
 /-- **The new current SC after a scheduler step**: `H`'s (the spec's SC,
 `JPlaced`) and not dead (bound to the current thread, `CurInv`: its `TCB`
 word is not 0, as a dead SC's is). -/
@@ -113,15 +102,6 @@ theorem JAtZB.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have h1 := hR.tcb
   rw [hown x n hx, show scW c 24#u64 = P1.scTcbA c from scW_tcb c, d, optRef_zero] at h1
   cases h1
-
-/-- `JAtZB.sch_csc` at `JAtZ` (via `JAtZ.toB`). -/
-theorem JAtZ.sch_csc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
-    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
-    (hS' : SchedRel st Z.N Z.T Z.C Z.c s' σ') (hI' : Inv σ') (hC' : CurInv σ')
-    (hdead : ∀ q ∈ D, Sched.DeadP (L := L) H s' q) : H (L.cscW s') ≠ none ∧ L.cscW s' ∉ D :=
-  Fl4Proofs.P3.JAtZB.sch_csc (J := J.toB) (hw := hw) (hK := hK) (hS' := hS') (hI' := hI') (hC' := hC') (hdead := hdead)
 
 /-- **The facts after FL4's `schedule` the tail does not derive** (module
 docstring): the VSpace current-thread relation and the arch CR3 (the arch
