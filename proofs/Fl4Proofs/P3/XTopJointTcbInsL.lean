@@ -126,14 +126,6 @@ theorem insWJ_wjl (kb : U64) : InsWJ (L := L) arI AR Z H Cs kb (WJL (L := L) arI
   obtain ⟨V', Ac', Lst', D', J', -⟩ := id hW'
   exact ⟨hW', LiveDN.insT J hDS hW.2 J' hDS' ht hn hci hwS hnull hcap hnn hsh hlive⟩
 
-/-- **`TcbInsW` at `WJL`** (module docstring). -/
-theorem tcbInsW_wjl [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
-    (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR Z.th) (hF : JThreadFinHypsU (L := L) arI AR Z.th)
-    (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR) (hAM : ARMask arI AR) :
-    TcbInsW (L := L) arI AR Z H Cs (fun kb => WJL (L := L) arI AR Z H Cs kb) (RdLX (L := L) (A := A) Z.th H Z.vx)
-      (RzJ (L := L) (A := A) H Cs) :=
-  ⟨insWJ_wjl arI, fun kb => ⟨_, delHypsJL arI hT hAR hK hV hF hnd hPP hAM Z H Cs kb rfl⟩⟩
-
 end
 
 end

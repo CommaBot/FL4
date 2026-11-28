@@ -113,26 +113,6 @@ theorem JPathAtMU35.of_invoked {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H 
   obtain ⟨rfl, -⟩ := lookAt_unique h0 hL
   exact hI info mi buf buffer r2 er argsU c e exs h9 hL h13
 
-/-- **The ∀-slot premise forces every SchedControl cap onto the current core** (inventory K1): at an entry
-whose front-end reads succeed, `JPathAtMU30` gives `cpu = Z.c` for a `SchedControl cpu` cap in *any* CNode
-slot, invoked or not. -/
-theorem jPathAtMU30_schedControl {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
-    {ar : A} {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
-    (h : JPathAtMU30 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr)
-    {info : msginfo.MessageInfo} {mi : Fl4Spec.MessageInfo} {buf : U64} {buffer : Option Fl4Spec.ObjRef}
-    {e : Aeneas.Std.Array obj.Slot 3#usize} {exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {argsU : List U64}
-    (h1 : msg.msg_info st s ct = ok info) (h2 : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
-    (h3 : msg.lookup_ipc_buffer st s false ct = ok buf)
-    (h4 : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
-    (h5 : ipc.lookup_extra_caps st s ct buf info = ok (.Ok e))
-    (h6 : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(.ok exs, σ)}, False))
-    (h7 : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
-    {sl : Fl4Spec.CslotPtr} {cpu : U64} (h8 : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length))
-    (h9 : capAt (L.mem s) (cslotAddr sl) = ok (.SchedControl cpu))
-    (h10 : Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap (.SchedControl cpu), σ)}, False)) :
-    cpu = Z.c :=
-  h info mi buf buffer (.Ok e) (.ok exs) argsU h1 h2 h3 h4 h5 h6 h7 sl _ e exs h8 h9 h10 rfl rfl trivial
-
 /-- `KDispHypsKVU36` as the transported record (P3JGen's copy of `KDispHypsKVU35`). -/
 theorem KDispHypsKVU36.toJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
     {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}

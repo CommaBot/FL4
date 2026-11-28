@@ -77,32 +77,6 @@ theorem restart_out_eq {σ σ1 σ2 : Fl4Spec.State Unit}
   have e := (Prod.mk.inj (h1.symm.trans h2)).1
   exact congrArg Prod.snd (Set.singleton_eq_singleton_iff.1 e)
 
-set_option maxHeartbeats 4000000 in
-/-- **The notification cap's leaf at `J`** (module docstring). -/
-theorem notifLeafJ (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl) {p b : U64} {w r : Bool}
-    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r))
-    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) :
-    XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
-        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
-        let (s2, a1) ← notification.send_signal st arI s1 ar p b
-        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
-      (Fl4Spec.sendSignal (Z := Unit) p.bv b.bv σ1) := by
-  intro _
-  have hpN := (J.slotN hA hc).1
-  obtain ⟨s1, σ1', x, -, hst1, -, -, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
-  obtain rfl := restart_out_eq hst1 hst
-  rw [hs1]
-  simp only [bind_ok]
-  refine WP.spec_bind (signalJHyp_of hAT hW hmb Z Ac1 Lst1 D1 s1 ar σ1' p b J1 hpN) ?_
-  rintro ⟨s2, a1⟩ ⟨σ', V', Ac', Lst', D', hsp, -, J'⟩
-  apply (WP.spec_ok _).2
-  refine ⟨rfl, ((), σ'), by rw [hsp]; exact Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J', inferInstance⟩
-
-
 variable (st arI) in
 /-- FL4's `do_reply_transfer` after `reply_remove` (the receiver `i` was
 blocked on the reply): the sporadic unblock test, the transfer and

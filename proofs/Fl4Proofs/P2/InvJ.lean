@@ -299,42 +299,6 @@ theorem inv_pathsKF3_startAt (ar : machine.Arch A) (hA : P0.ArchTotal ar) (numbe
         σ a) :=
   ⟨σ, a, ⟨h7 σ a3 τ hR, hq⟩, hc, hl, hμ, rfl⟩
 
-/-- (invj gen 1) **The uncut CNodeDelete local path at `Q := InvQF`, premises closed but two**: `inv_pathsKFU` with
-`hvs`, `hcdt`, `hz` as `inv_pathsKF3`, `huf := hufQF_of2 hIw hlk`, and `hpz` for the tree `R.invBodyG number p`
-(`inv_isProgOn` with `hSC := invSlotCNK_of`, `inv_noZero`, `invRoW_of` with `hSeen := invSeen_of`,
-`invURoAccW_of` with `hacc` from stpost's `invAccW_of2` + `invBlkW2_of` at `InvQL`), on `inv_pathsKFU8` with
-`hbuf := invBufJ8_of`. Premises: `hA`, [P] `hm`, [J] `hIw`, [P] `hlk`, [W] `htr : InvURoTrW` (ReadOnce of accepted
-truncated runs). -/
-noncomputable def inv_pathsKFU2 (ar : machine.Arch A) (hA : P0.ArchTotal ar) (number : I64) (p : localinv.Plan)
-    (hm : E2E.MasksWr st)
-    (hIw : ∀ K s b v, SlJAt (L := L) K s →
-      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s →
-      b ∈ K.user → Aligned b →
-      IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac (L.wr s b v))
-    (hlk : ∀ K s b v, SlJAt (L := L) K s → b ∈ K.user → Aligned b → Locks (L.wr s b v) = Locks s)
-    (htr : ∀ K m, InvURoTrW st ar number p K Locks m (R.invBodyG number p)
-      (fun s => SlJAt (L := L) K s ∧ InvQF st Cs Ω Sg Ac Locks p K m s)) :
-    E2E.Paths Unit :=
-  inv_pathsKFU8 (Cs := Cs) (Ω := Ω) (Sg := Sg) (Ac := Ac) (Locks := Locks) ar hA number p hm
-    (fun _ _ => invVsJ_of (fun _ h => h.1))
-    (fun _ _ => invCdtJ_of (fun _ h => h.1))
-    hz_of (fun _ _ _ hJ _ => invBufJ8_of hJ) (hufQF_of2 hIw hlk)
-    (fun K m =>
-      have hp := inv_isProgOn (Locks := Locks) (m0 := m) hA (P := fun s => SlJAt (L := L) K s ∧
-        InvQF st Cs Ω Sg Ac Locks p K m s) (fun _ h => h.2.1.1.1)
-        (invSlotCNK_of (Q := InvQF st Cs Ω Sg Ac Locks p) (fun _ _ _ _ hq => hq) K m)
-        (inv_isProg S number p)
-      ⟨R.invBodyG number p, hp, inv_noZero number p,
-        invRoW_of hA (fun _ h => h.2.1.1.1)
-          (fun s h => invSeen_of (fun K _ s hJ _ => hz_of K s hJ) K m s h.1 h.2) hp (inv_noZero number p),
-        invURoAccW_of hm (PL := fun s => SlJAt (L := L) K s ∧ InvQL st Cs Ω Sg Ac Locks p K m s)
-          (fun _ h hL => ⟨h.1, h.2, hL⟩) hp (inv_noZero number p)
-          (invAccW_of2 hA (fun _ h => h.2.1.1.1.1)
-            (fun s h => invSeen_of (fun K _ s hJ _ => hz_of K s hJ) K m s h.1 h.2.1)
-            (fun s h => invPs_of K m s h.1 h.2.1)
-            (invBlkW2_of hA (invVsJ_of (fun _ h => h.1)) (invCdtJ_of (fun _ h => h.1)) (hz_of K)))
-          (htr K m)⟩)
-
 end paths
 
 end Fl4Proofs.P2.PathObl

@@ -19,7 +19,9 @@ that is `JReachU17` **and** `JStab Z H Cs` (`JAtZ (Z.mv G V) H Cs …`).
 Premises: the U29 tops' (a subset); no new premise.
 -/
 import Fl4Proofs.P3.StPostEv
-import Fl4Proofs.P3.XTopJointKEntryU29S
+import Fl4Proofs.P3.XTopJointKEntryU29
+import Fl4Proofs.P3.XTopJointKEntryVm
+import Fl4Proofs.P1.FastSysLocal
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5

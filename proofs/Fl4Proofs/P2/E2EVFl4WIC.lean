@@ -72,36 +72,5 @@ variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} 
 
 end top
 
-section sat
-variable {S : Type} (st : machine.Store S) [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
-variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-
-/-- (slhuf gen 13) **The Copy / Mint slot's record and entry fact hold at every chain state with a non-idle current
-thread whose CNodeCopy / CNodeMint invocation is planned** (module docstring; as invj's `invStartW_sat`), given [J]
-`hnul`. -/
-theorem cmStartW_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {K : KLayoutV} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    {s : S} (hs : Ch s) (hct : NonIdle st arI AR MR s) {n : I64} {p : localinv.Plan}
-    (hp : localinv.plan st s n = ok (some p)) (harm : InvCMArm st s)
-    (hnul : ∀ (K' : OwnMap.KLayout) (s : S), SlJAt (L := L) K' s → InvNulJ st K' s) :
-    ∃ Ac : Set U64, ∀ j : InvArg S, j.Cs = {c : U64 | c.val < K.ncores} → j.Ω = K.heap.omega →
-      j.Sg = K.heap.frame → j.Ac = Ac → j.p = p → j.Locks = planLocks p →
-      InvPremC st j K (L.mem s) ∧ InvQCMW st j.Cs j.Ω j.Sg j.Ac j.Locks j.p K.toKLayout (L.mem s) s := by
-  obtain ⟨Ac, BI⟩ := bunIx_of (L := L) (ChainOf.bun hC s hs)
-  refine ⟨Ac, fun j e1 e2 e3 e4 e5 e6 => ?_⟩
-  have hrun := chain_run P hIoa hC hs hct
-  let i : IoArg S := ⟨n, j.Cs, j.Ω, j.Sg, j.Ac, j.Locks, fun _ _ _ => True⟩
-  have BI' : BunIx (L := L) K.toKLayout K.heap.tcbs i.Cs i.Ω K.heap i.Sg K.heap.replies K.heap.scs K.heap.ntfns
-      K.heap.scBits i.Ac s := by
-    show BunIx (L := L) K.toKLayout K.heap.tcbs j.Cs j.Ω K.heap j.Sg K.heap.replies K.heap.scs K.heap.ntfns
-      K.heap.scBits j.Ac s
-    rw [e1, e2, e3, e4]; exact BI
-  have hP := (IoEntJ7.of_bun st BI' hrun).toJ.pre
-  refine ⟨⟨⟨nv, ⟨s, BI'.ac⟩, fun _ _ _ _ _ _ _ => by rw [e6]; rfl⟩, hnul⟩, ?_⟩
-  rw [e5, e6]
-  exact invQCMW_of_plan hP (fun _ _ => rfl) hp harm (fun k x hk hx => ⟨k, hk, hx⟩)
-
-end sat
-
 end
 end Fl4Proofs.P2.E2EV

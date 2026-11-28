@@ -69,10 +69,6 @@ section free
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
 variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
 
-/-- **`SerExitW` reads only the base layout**: it holds for `K` iff for `K` with any other VCPU set. -/
-theorem serExitW_vcpus (P : LocPlat st arI AR MR) (K : KLayoutV) (Ch : S → Prop) (V : Set U64) :
-    SerExitW P K Ch ↔ SerExitW P { K with vcpus := V } Ch := Iff.rfl
-
 omit [Fl4Proofs.P1.PlainStore st] in
 /-- **`VcpuLay` is a real obligation**: a VCPU set containing an address that is not a heap `.other 15` object
 breaks it. -/

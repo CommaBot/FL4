@@ -247,14 +247,6 @@ theorem slotOblV13PmKAD_C (P : LocPlatCR st arI AR MR)
   have O := slotOblV13PmK_C st ar hA a0 P B (pmFhK_holds st ar hA B)
   ⟨O.sf, O.vs, O.fh⟩
 
-/-- **Every gen-44 execution (no A/D step) is a `nativePmKAD` execution.** -/
-theorem execV15_pmKAD_of_pmK (B : PmObl7 st Cs Ω Sg Ac Locks) {P : LocPlat st arI AR MR}
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : U64 → S → Prop} {E : U64 → U64}
-    (h : ExecV15 (ExecCfg.nativePmK st ar hA a0 arI AR MR B) P s0 K0 Ch0 s K Ch E) :
-    ExecV15 (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B) P s0 K0 Ch0 s K Ch E :=
-  ExecV15.map (c1 := ExecCfg.nativePmK st ar hA a0 arI AR MR B) (c2 := ExecCfg.nativePmKAD st ar hA a0 arI AR MR B) id
-    (fun _ _ _ _ _ _ _ _ _ h => h) (fun _ h => h) (fun _ _ h => h) (fun _ _ _ _ _ h => False.elim h) h
-
 end pmAD
 
 end

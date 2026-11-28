@@ -336,61 +336,6 @@ end plan
 section ent
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
-/-- `plan_fields` with the `plan_with` call it ends in (stpost's P3 `plan_fieldsW`, copied: P3 is not imported). -/
-theorem plan_fieldsWCM {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
-    ∃ t info cptr r buf e, sched.cur_thread st s = ok t ∧ msg.msg_info st s t = ok info ∧
-      obj.Tcb.reg st t s layout.reg.CAP = ok cptr ∧
-      cspace.lookup_slot st s t cptr = ok (core.result.Result.Ok r) ∧
-      msg.lookup_ipc_buffer st s false t = ok buf ∧
-      ipc.lookup_extra_caps st s t buf info = ok (core.result.Result.Ok e) ∧
-      localinv.plan_with st s t info.label r.slot e = ok (some p) := by
-  unfold localinv.plan at h
-  split at h
-  · simp at h
-  obtain ⟨t, et, h⟩ := bind_eq_ok h
-  obtain ⟨info, ei, h⟩ := bind_eq_ok h
-  obtain ⟨b, -, h⟩ := bind_eq_ok h
-  split at h
-  swap
-  · simp at h
-  obtain ⟨cptr, ec, h⟩ := bind_eq_ok h
-  obtain ⟨r, er, h⟩ := bind_eq_ok h
-  cases r with
-  | Err _ => simp at h
-  | Ok r1 =>
-    try simp only at h
-    obtain ⟨buf, eb, h⟩ := bind_eq_ok h
-    obtain ⟨r2, er2, h⟩ := bind_eq_ok h
-    cases r2 with
-    | Err _ => simp at h
-    | Ok e =>
-      try simp only at h
-      exact ⟨t, info, cptr, r1, buf, e, et, ei, ec, er, eb, er2, h⟩
-
-/-- (slhuf gen 12) **The plan's data flow at the entry**: its extra caps are `lookup_extra_caps`'s, and
-`plan_with` on its own slot and extra caps returns it. -/
-theorem plan_fieldsCM {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
-    ∃ t info buf, sched.cur_thread st s = ok t ∧ msg.msg_info st s t = ok info ∧
-      msg.lookup_ipc_buffer st s false t = ok buf ∧
-      ipc.lookup_extra_caps st s t buf info = ok (core.result.Result.Ok p.extra) ∧
-      localinv.plan_with st s t info.label p.slot p.extra = ok (some p) := by
-  obtain ⟨t, info, cptr, r, buf, e, et, ei, ec, er, eb, ee, hsl, hex⟩ := plan_fields h
-  obtain ⟨t', info', cptr', r', buf', e', et', ei', ec', er', eb', ee', hpw⟩ := plan_fieldsWCM h
-  have h1 : t' = t := ok_inj_ff (et'.symm.trans et)
-  rw [h1] at ei' ec' er' eb' ee' hpw
-  have h2 : info' = info := ok_inj_ff (ei'.symm.trans ei)
-  rw [h2] at ee' hpw
-  have h3 : cptr' = cptr := ok_inj_ff (ec'.symm.trans ec)
-  rw [h3] at er'
-  have h4 : r' = r := by have := ok_inj_ff (er'.symm.trans er); cases this; rfl
-  rw [h4] at hpw
-  have h5 : buf' = buf := ok_inj_ff (eb'.symm.trans eb)
-  rw [h5] at ee'
-  have h6 : e' = e := by have := ok_inj_ff (ee'.symm.trans ee); cases this; rfl
-  rw [h6] at hpw
-  rw [hsl, hex]
-  exact ⟨t, info, buf, et, ei, eb, ee, hpw⟩
-
 variable (st) in
 /-- (slhuf gen 12) **The plan's extra caps at the entry** (`localinv.plan`'s data flow, kept: `InvPlanD` forgets
 where its extra caps come from): `lookup_extra_caps` returns them and `plan_with` on them returns the plan. -/
@@ -398,14 +343,6 @@ def InvEx (p : localinv.Plan) (s : S) : Prop :=
   ∃ info buf, msg.msg_info st s (L.curW s) = ok info ∧ msg.lookup_ipc_buffer st s false (L.curW s) = ok buf ∧
     ipc.lookup_extra_caps st s (L.curW s) buf info = ok (core.result.Result.Ok p.extra) ∧
     localinv.plan_with st s (L.curW s) info.label p.slot p.extra = ok (some p)
-
-/-- (slhuf gen 12) **`InvEx` from the plan at the entry** (`loc_chain_all` clause 8's input `hp`). -/
-theorem invEx_of_plan {s : S} {n : I64} {p : localinv.Plan} (h : localinv.plan st s n = ok (some p)) :
-    InvEx st p s := by
-  obtain ⟨t, info, buf, et, ei, eb, ee, hpw⟩ := plan_fieldsCM h
-  have ht : t = L.curW s := ok_inj_ff (et.symm.trans (cur_thread_ok s))
-  subst ht
-  exact ⟨info, buf, ei, eb, ee, hpw⟩
 
 variable (st) in
 /-- (slhuf gen 12) **The canonical `Q` of the Copy / Mint path**: `InvQCM` with the plan's lookup (`InvLk`) and its

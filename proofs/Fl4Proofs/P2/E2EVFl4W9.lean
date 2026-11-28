@@ -458,56 +458,9 @@ theorem ioEntJ9_sat {K : KLayoutV} {s : S} (h : SlJAt (L := L) K.toKLayout s) (h
   rw [e1, e2, e3, e4]
   exact BI
 
-/-- **W7's io entry facts (formerly unsatisfiable) hold at every chain state with a non-idle current thread.** -/
-theorem ioEntJ7_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S} {K : KLayoutV}
-    {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe K.toKLayout Ch) {s : S} (hs : Ch s)
-    (hct : NonIdle st arI AR MR s) :
-    ∃ Ac : Set U64, ∀ i : IoArg S, i.Cs = {c : U64 | c.val < K.ncores} → i.Ω = K.heap.omega →
-      i.Sg = K.heap.frame → i.Ac = Ac → IoEntJ7 st i K s := by
-  obtain ⟨Ac, hE⟩ := ioEntJ9_sat st (ChainOf.bun hC s hs) hct
-  exact ⟨Ac, fun i e1 e2 e3 e4 => (hE i e1 e2 e3 e4).toJ7 st (chain_run P hIoa hC hs hct)⟩
-
-/-- **`VmBaseR7` (vmF / vmR's formerly false entry part) holds at every chain state with a non-idle current
-thread**, at the chain's layout. -/
-theorem vmBaseR7_sat (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {σe : S}
-    {Kl : OwnMap.KLayout} {Ch : S → Prop} (hC : ChainOf (L := L) arI AR MR σe Kl Ch) {s : S} (hs : Ch s)
-    (hct : NonIdle st arI AR MR s) : VmBaseR7 st Kl s :=
-  VmBaseR7.of_bun st (ChainOf.bun hC s hs) (chain_run P hIoa hC hs hct)
-
 end sat
 
 /-! ## Executions whose starts see the chain -/
-
-section exec
-variable {S : Type} {st : machine.Store S} [L : LawfulStore st] [Fl4Proofs.P1.PlainStore st]
-variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop} {MR : A3 → Fl4Spec.MachineState → Prop}
-variable {ι : Type}
-
-/-- **`execV_of_W` with the start callback given the current chain** (`ChainOf`, module docstring item 4). -/
-theorem execV_of_WC {LP : PathsV ι}
-    {SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) → SF Ch K m hK hU c hs q i →
-        StartAt (LP i K m hK hU) c hs m q)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV} {Ch0 Ch : S → Prop}
-    (hB : SerExitW P K0 Ch0) (h : ExecW LP SF P s0 K0 Ch0 s K Ch) :
-    ExecV LP s0 K0 s K ∧ SerExitW P K Ch := by
-  induction h with
-  | refl => exact ⟨.refl, hB⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX⟩ := ih
-    refine ⟨.step hE hS ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩, ?_⟩
-    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-      exact ⟨i, hSF _ _ _ _ _ _ _ _ i hX.chainOf hi⟩
-    · have hok := serExitW_ok (g.serX hs) (g.serV hs)
-      exact ⟨hok.1, hok.2, (g.serG hs).maps⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-  | hw _ hH ih => exact ⟨.hw ih.1 hH, ih.2⟩
-
-end exec
 
 /-! ## The start fact and the top -/
 
@@ -555,14 +508,6 @@ theorem startAt_P3W9_C (hRun : ChainRun st arI AR MR) {Ch : S → Prop}
   | irq j => exact startAt_P3W8 st ar hA hm hSt a0 hCh (i := .irq j) h
   | sl j => exact startAt_P3W8 st ar hA hm hSt a0 hCh (i := .sl j) h
   | vq j => exact startAt_P3W8 st ar hA hm hSt a0 hCh (i := .vq j) h
-
-/-- **`StartAt` of `fl4LocP3W6`'s family from `StartP3W9`**, given the current chain. -/
-theorem startAt_P3W9 (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {K : KLayoutV} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    {m : U64 → U64} {hK : RegionOKV K} {hU : UserOKV K} {c : U64} {hs : U64 → Prop} {q : SP}
-    {i : Fl4IxW (S := S)} (h : StartP3W9 st ar hA hm hSt a0 arI AR MR Ch K m hK hU c hs q i) :
-    StartAt ((fl4LocP3W6 st ar hA hm hSt a0).paths (fl4Dflt st ar hm) i K m hK hU) c hs m q :=
-  startAt_P3W9_C st ar hA hm hSt a0 (chainRun_of P hIoa) hC h
 
 end start
 

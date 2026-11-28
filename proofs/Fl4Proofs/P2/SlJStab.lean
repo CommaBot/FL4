@@ -63,7 +63,9 @@ before reaching any top.)
 -/
 import Fl4Proofs.P2.SlJLay
 import Fl4Proofs.P2.SerExit
-import Fl4Proofs.P3.XTopJointKEntryU29S
+import Fl4Proofs.P3.XTopJointKEntryU29
+import Fl4Proofs.P3.XTopJointKEntryVm
+import Fl4Proofs.P1.FastSysLocal
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl
@@ -172,66 +174,6 @@ theorem slJAt_layoutJ_of_jreachSt {Loc : S → A → Fl4Spec.State Unit → S �
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JReachSt (L := L) arI AR MR Loc Z.th Z.B H Cs k s a σ) :
     SlJAt (L := L) (layoutJ Z H k n) s :=
   slJAt_of_jreachSt hnd hK h _ rfl rfl rfl rfl hn
-
-set_option maxHeartbeats 8000000 in
-/-- **Accepted syscall local runs keep `JReachSt`, under U29's tops** (module docstring): the
-`JReachU17` side is `kernel_entry_reachU29S`'s (its two clauses, inputs verbatim, at the
-ghosts it picks); the `Loc` step is the run itself (`LocSys`, inside `Loc`). -/
-theorem jreachSt_sysLoc [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {Loc : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop}
-    (hsub : ∀ s a σ s' a' σ', LocSys (st := st) arI s a σ s' a' σ' → Loc s a σ s' a' σ')
-    {th : TypedHeap} {B : Set (U64 × Fl4Spec.Word)} {H0 : Heap} {Cs0 : Set U64} {k : U64}
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachSt (L := L) arI AR MR Loc th B H0 Cs0 k s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      (∀ (n : I64) (c : Fl4Spec.Syscall) (found : U64 × U64), σ.curThread ≠ σ.idleThread → NativeSys n c →
-        (∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-          ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            KDispHypsKVU29 (L := L) arI AR (Z.mv Z.G V') H Cs D' s' a' σb n c) →
-        (∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-          (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-            JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-            ∀ ct', sched.cur_thread st s' = ok ct' →
-              JDecMRLK (L := L) arI VtxK AR MR (Z.mv Z.G V') H Cs D' s' a' σb ct') →
-        (∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-          (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-            JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-            KFinAtR13 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-        (∀ t f, sched.cur_thread st s = ok t → obj.Tcb.flags st t s = ok f →
-          (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 → n = fl4_abi.syscall.SysReplyRecv →
-          fastpath.reply_caps st s t = ok (some found)) →
-        ∀ s' a', syscall.handle_syscall_local st arI s a n found = ok (true, s', a') →
-          ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
-            JReachSt (L := L) arI AR MR Loc th B H0 Cs0 k s' a' σ') ∧
-      (∀ (n : I64) (found : U64 × U64), σ.curThread ≠ σ.idleThread → UnkSys (L := L) n s →
-        NoDbgSys (L := L) arI n s a →
-        (∀ ev, KEvSpec (.sysU n) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-          KFinEv13 (L := L) arI AR ev (KFrontSysU (st := st) arI n s a) w.2) →
-        ∀ s' a', syscall.handle_syscall_local st arI s a n found = ok (true, s', a') →
-          ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
-            JReachSt (L := L) arI AR MR Loc th B H0 Cs0 k s' a' σ') := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, hSys, hSU⟩ :=
-    kernel_entry_reachU29S arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ.reach
-  refine ⟨Z, H, Cs, Ac, Lst, D, J, fun n c found hct hn hfl hK hDL hFin hfd s' a' hrun => ?_,
-    fun n found hct hU hND hFin s' a' hrun => ?_⟩
-  · have hT' := hSys n c found hct hn hfl hK hDL hFin hfd
-    rw [hrun, WP.spec_ok] at hT'
-    obtain ⟨σ', hσ', -, -, -, -, -, -, -, hR'⟩ := hT' rfl
-    exact ⟨σ', hσ', .loc hJ (hsub _ _ _ _ _ _ ⟨n, found, hrun, Or.inl ⟨c, hn, hσ'⟩⟩) hR'⟩
-  · have hT' := hSU n found hct hU hND hFin
-    rw [hrun, WP.spec_ok] at hT'
-    obtain ⟨ev, σ', hev, hO, -, -, -, -, -, -, hR'⟩ := hT' rfl
-    exact ⟨ev, σ', hev, hO, .loc hJ (hsub _ _ _ _ _ _ ⟨n, found, hrun, Or.inr ⟨ev, hev, hO⟩⟩) hR'⟩
 
 end
 

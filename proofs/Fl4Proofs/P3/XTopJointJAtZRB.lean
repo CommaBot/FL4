@@ -18,8 +18,11 @@ import Fl4Proofs.P3.XTopJointPP
 import Fl4Proofs.P3.JEntryIrq
 import Fl4Proofs.P3.ScSignalDonJ
 import Fl4Proofs.P3.ScSignalJ
-import Fl4Proofs.P3.XTopJointSchedRF
-import Fl4Proofs.P3.XTopJointSchedRF2
+import Fl4Proofs.P3.XTopJointSchedR
+import Fl4Proofs.P3.ScScheduleF
+import Fl4Proofs.P3.ScFpuOwnK
+import Fl4Proofs.P3.G7dVsRoot
+import Fl4Proofs.P3.ScNextDomCF
 import Fl4Proofs.P3.XTopJointSchedRF3
 import Fl4Proofs.P3.SigNoVm
 import Fl4Proofs.P3.BufAtJR
@@ -1836,24 +1839,6 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 
 variable (arI) in
-/-- **The remote `RunningVM` signal on `JAtZR`** [J] (module docstring):
-`SignalJHypZR`'s statement where `send_signal` finds the idle notification's
-bound thread `RunningVM` (FL4's remote stall; VT-x, outside the spec model,
-DESIGN §5, as `JVtHyps`). The waking cases (a waiting notification's head,
-the bound thread blocked receiving, donating the notification's SC or not)
-are proved (`JAtZR.signal_waitDJ`, `JAtZR.signal_boundDJ`, ScSignalDonJ). -/
-def SignalRestJHypZR (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
-  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (n badge : U64) (x : Fl4Spec.Notification), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → n ∈ Z.N →
-    σ.kheap n.bv = some (.notification x) →
-    (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
-      σ.kheap t = some (.tcb tcb) ∧ tcb.tcbState = .runningVM) →
-    notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
-      (Lst' : U64 → List U64) (D' : Set U64),
-      Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
-      JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
-
-variable (arI) in
 /-- **`SignalRestJHypZR` at the states satisfying `P`** (g3b; `P := True` is
 `SignalRestJHypZR`; at `P := NativeScope` it holds outright). -/
 def SignalRestJHypZRP (P : Fl4Spec.State Unit → Prop) (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
@@ -2320,37 +2305,6 @@ theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ') ∧ CurInv σ' ∧ CurRunW σ' ⦄ :=
   jat_scheduleFR2ZR s a σ J hd hnd hAT hVt P hP (signalJHyp_ofZR hAT P hW hmb) hA hAN hFO hsni hsend hT hTail
-
-/-- **`jat_scheduleFR2ZR` with `SignalJHypZR` reduced to the waking signals**
-(`jat_scheduleSR2ZRP` at `P := True`, the pre-g3b statement). -/
-theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-    {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
-    (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
-    (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
-      (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
-        Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
-    (hW : SignalRestJHypZR (L := L) arI AR H Cs) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
-    (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
-    (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
-      timer.fire st arI s a = ok rf →
-      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
-        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
-       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
-      Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
-      P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
-      SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
-      SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄) :
-    sched.schedule st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), Fires σ σ1 ∧
-      Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧ RJ (L := L) arI AR r.1 r.2 σ' ∧
-      (∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ') ∧ CurInv σ' ∧ CurRunW σ' ⦄ :=
-  jat_scheduleSR2ZRP s a σ J hd hnd hAT hVt (fun _ => True) (fun _ _ => trivial)
-    (fun Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ hn hk hb => hW Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 hn hk hb) hmb
-    hA hAN hFO hsni hsend hT hTail
-
 
 end
 end

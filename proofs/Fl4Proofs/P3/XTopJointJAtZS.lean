@@ -178,59 +178,6 @@ def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State U
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
-theorem JAtZ.toS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ where
-  xtop := J.xtop
-  call := J.call
-  rfree := J.rfree
-  rrecv := J.rrecv
-  yld := J.yld
-  mcp := J.mcp
-  buf := J.buf
-  ks := J.ks
-  thT := J.thT
-  thk := J.thk
-  ip := J.ip
-  rp := J.rp
-  apart := J.apart
-  nk := J.nk
-  nodeB := J.nodeB
-  jpl := J.jpl
-  cover := J.cover
-  obj := J.obj
-  zH := J.zH
-  sfree := J.sfree
-  hset := J.hset
-  hscC := J.hscC
-  jcov := J.jcov
-  kern := J.kern
-  del := J.del
-  ut := J.ut
-  bound := J.bound
-  finM := J.finM
-  utc := J.utc
-  nsc := J.nsc
-  inv := J.inv
-  cur := J.cur.imp_right Or.inl
-  own := J.own
-  off := J.off
-  act := J.act
-  c0 := J.c0
-  bsa := J.bsa
-  sv := J.sv
-  isorted := J.isorted
-  slink := J.slink
-  curRun := J.curRun
-  blk := J.blk
-  intL := J.intL
-  vsc := J.vsc
-  bok := J.bok
-  fcov := J.fcov
-  fcap := J.fcap
-  ext := J.ext
-  live := J.live
-  zD := J.zD
-  carry := J.carry
-
 theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
   xtop := J.xtop
@@ -292,9 +239,6 @@ theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   · exact Or.inl (J.toJ (Or.inl h))
   · exact Or.inl (J.toJ (Or.inr h))
   · exact Or.inr h
-
-theorem JAt.toS (h : JAt (L := L) arI AR s a σ) : JAtS (L := L) arI AR s a σ :=
-  let ⟨Z, H, Cs, Ac, Lst, D, J, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, J.toS, inferInstance⟩
 
 /-- `JAtS` with the `JAtZ` case split off. -/
 theorem JAtS.toJ_or (h : JAtS (L := L) arI AR s a σ) : JAt (L := L) arI AR s a σ ∨ SwBlk σ :=

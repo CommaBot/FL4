@@ -123,15 +123,6 @@ theorem vmF_bun_SF_C {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr
   subst e'
   exact tabRV_of st (ChainOf.bun hC' _ hCσ) (fun x hx hu => hμ x hx hu)
 
-/-- **A bundle state with the view's kernel words** at a vmF start fact of a chain (`vmF_act0_SF`'s witness). -/
-theorem vmF_bun_SF {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop} (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    {Ch : S → Prop} {K : KLayoutP} (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (nv : K.vcpus = ∅)
-    {ρ : U64 → U64} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {hs : U64 → Prop} {q : SP} {j : VmFArg S}
-    (h : StartV2 st ar hA a0 arI AR MR Ch K (view K.toKLayout c ρ) hK hU c hs q (.inl (.vmF j))) :
-    TabRV st K c ρ :=
-  vmF_bun_SF_C st ar hA a0 (chainRun_of P hIoa) hC nv h
-
 set_option maxHeartbeats 4000000 in
 /-- **vmF's narrowed runs at a view start with action 0 whose fault handler is homed wherever reached** (split out
 of `vmF_k0_safe`'s proof in place, gen 48): the run facts `LocalPath.safeVQ` asks (`VQNar`), for the vmF path at the

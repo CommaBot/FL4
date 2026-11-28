@@ -91,54 +91,6 @@ inductive ExecWPRH (LP : PathsP ι)
       ExecWPRH LP SF P s0 K0 Ch0 s K H Ch → HwStepP K s v a x →
       ExecWPRH LP SF P s0 K0 Ch0 (hwCfg s a x) K (Function.update H a x) Ch
 
-/-- **An `ExecWPRH` is an `ExecPH`, with the epoch invariant** (`execP_of_WPRG` with the ghost history). -/
-theorem execPH_of_WPRHG {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutP) (s : Cfg U64 U64 U64 U64) (hK : RegionOKP K) (hU : UserOKP K) c hs q i,
-      (∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) →
-      (∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x) →
-      SF Ch K s.mem hK hU c hs q i → StartAt (LP i K s.mem hK hU) c hs s.mem q)
-    (P : LocPlat st arI AR MR)
-    {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {H : U64 → U64} {Ch0 Ch : S → Prop} (h0 : Init s0)
-    (hA0 : ArmInv s0) (hB : SerExitW P K0.toKLayoutV Ch0) (hc0 : K0.vcpus = ∅ ∧ K0.ptes = ptesR K0 s0.mem)
-    (hM0 : MapsP K0 s0) (h : ExecWPRH LP SF P s0 K0 Ch0 s K H Ch) :
-    ExecPH LP s0 K0 s K H ∧ SerExitW P K.toKLayoutV Ch ∧
-      ∃ s1 : Cfg U64 U64 U64 U64, (K.vcpus = ∅ ∧ K.ptes = ptesR K s1.mem) ∧ ∀ x, GateW K x → s.mem x = s1.mem x := by
-  obtain ⟨hK0, hU0⟩ := okP_R hB hc0
-  induction h with
-  | refl => exact ⟨.refl, hB, s0, hc0, fun _ _ => rfl⟩
-  | @step s1 s1' K1 K1' H1 Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨hR, -, -, hM⟩ := exec_safeRunPH h0 hA0 hK0 hU0 hM0 hE
-    have hst : Fl4StepPH LP s1 K1 H1 c1 s1' K1' := by
-      refine ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩
-      · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-        have hHg : ∀ x, GateW K1 x → H1 x = e1.mem x := fun x hx => by
-          rw [xsafeRunH_agree h0 hA0 hR x (fun d hd => by rw [hM.own, hx s1.mem] at hd; exact hd)]
-          exact hk1 x hx
-        exact ⟨i, hSF _ _ { s1 with mem := H1 } _ _ _ _ _ i hX.chainOf ⟨e1, hCe, hHg⟩ hi⟩
-      · have hP := okP_R (g.serX hs) (g.serC hs)
-        exact ⟨hP.1, hP.2, g.serG hs⟩
-    refine ⟨.step hE hS hst, ?_, ?_⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-    · by_cases hs : SerStep s1 c1
-      · exact ⟨s1', g.serC hs, fun _ _ => rfl⟩
-      · obtain ⟨eK, -⟩ := g.keep hs
-        subst eK
-        obtain ⟨-, -, -, hSI, -⟩ := xsafeRunH_inv h0 hA0 hR
-        refine ⟨e1, hCe, fun x hx => ?_⟩
-        rw [← hk1 x hx]
-        exact step_gate_keep hM (Fl4Proofs.P2.Serial.allowed_of_sinv hSI c1) hS hs hx
-  | @hw s1 K1 H1 Ch1 v a y _ hH ih =>
-    obtain ⟨hE, hX, e1, hCe, hk1⟩ := ih
-    obtain ⟨-, hK, -, hM⟩ := exec_safeRunPH h0 hA0 hK0 hU0 hM0 hE
-    refine ⟨.hw hE hH, hX, e1, hCe, fun x hx => ?_⟩
-    rw [← hk1 x hx]
-    exact hw_gate_keep hK hM hH hx
-
 end exec
 
 /-! ## The top -/

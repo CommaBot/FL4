@@ -57,38 +57,6 @@ theorem locKeepSt_st (Loc : S → A → Fl4Spec.State Unit → S → A → Fl4Sp
   intro k s a σ s' a' σ' ⟨_, _, _, _, _, _, hk, _, _⟩ ⟨_, hks, Z, Ac, Lst, D, hth, hB, J, hvx⟩
   exact ⟨Z, Ac, Lst, D, hth, hB, hks.trans hk, J, hvx⟩
 
-set_option maxHeartbeats 8000000 in
-/-- **The accepted trapped syscall from a `JReachSt` state** (module docstring): a spec
-outcome `σ'` of the unknown-syscall event and `JReachSt` at `(s', a', σ')` by a `LocSt` step.
-`hK`: `LocKeepSt` of the chain's whole step relation (gives `JAtSt` at the start). -/
-theorem jreachSt_sysUSt [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
-    (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {Loc : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop}
-    {th : TypedHeap} {B : Set (U64 × Fl4Spec.Word)} {H : Heap} {Cs : Set U64} {k : U64}
-    (hK : LocKeepSt (L := L) arI AR Loc th B H Cs)
-    (hsub : ∀ s a σ s' a' σ', LocSt (L := L) arI AR (LocSys (st := st) arI) th B H Cs s a σ s' a' σ' →
-      Loc s a σ s' a' σ')
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachSt (L := L) arI AR MR Loc th B H Cs k s a σ)
-    (n : I64) (found : U64 × U64) (hct : σ.curThread ≠ σ.idleThread) (hU : UnkSys (L := L) n s)
-    (hND : NoDbgSys (L := L) arI n s a)
-    (hFin : ∀ ev, KEvSpec (.sysU n) true ev → ∀ w ∈ (Fl4Spec.fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1,
-      KFinEv13 (L := L) arI AR ev (KFrontSysU (st := st) arI n s a) w.2)
-    {s' : S} {a' : A} (hrun : syscall.handle_syscall_local st arI s a n found = ok (true, s', a'))
-    (hks : L.ksb s' = L.ksb s) :
-    ∃ ev σ', KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧
-      JReachSt (L := L) arI AR MR Loc th B H Cs k s' a' σ' := by
-  obtain ⟨Z, Ac, Lst, D, hth, hB, -, J, hvx⟩ := hJ.atSt' hK
-  have := hvx
-  have hT' := kernel_entry_sysU_localSt hARI hA hnd hM hKD hPA hT hmax htu hRef hSX hDR hJ.reach J n found hct hU
-    hND hFin
-  rw [hrun, WP.spec_ok] at hT'
-  obtain ⟨ev, σ', hev, hO, hR', G, V, Ac', Lst', D', J'⟩ := hT' rfl
-  refine ⟨ev, σ', hev, hO, .loc hJ (hsub _ _ _ _ _ _ ⟨⟨n, found, hrun, Or.inr ⟨ev, hev, hO⟩⟩, hks,
-    Z.mv G V, Ac', Lst', D', hth, hB, J', ⟨hvx.eq⟩⟩) hR'⟩
-
 /-- **The kernel-state base is read off the spec's IRQ node.** `JAtZ`'s `IrqRel` (in `XTopAt`)
 pins `σ.interruptIrqNode 0` to the address `nodeA (L.ksb s) 0`; so two joint states whose spec
 states share the IRQ node share the kernel-state base (whatever their ghosts). -/

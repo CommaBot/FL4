@@ -270,15 +270,6 @@ def InvQCM (Cs Ω Sg Ac : Set U64) (Locks : S → U64 → Prop) (p : localinv.Pl
   IoQ st Cs Ω Sg Ac K m s ∧ InvPlanD st p s ∧ InvCMArm st s ∧
     ∀ (i : Nat) (x : U64), i < p.n.val → p.locks.val[i]? = some x → Locks s x
 
-/-- **`InvQCM` at an entry state** from its pieces (as `invQ_intro`). -/
-theorem invQCM_intro {number : I64} {p : localinv.Plan} {K : KLayout} {m : U64 → U64} {s : S}
-    (hP : IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s)
-    (hmA : ∀ d, K.heap d = some .tcb → m (fld d oAFFINITY) = L.mem s (fld d oAFFINITY))
-    (hp : localinv.plan st s number = ok (some p)) (harm : InvCMArm st s)
-    (hlk : ∀ (i : Nat) (x : U64), i < p.n.val → p.locks.val[i]? = some x → Locks s x) :
-    InvQCM st Cs Ω Sg Ac Locks p K m s :=
-  ⟨⟨hP, hmA⟩, planD_of_plan hp, harm, hlk⟩
-
 /-- **The Copy / Mint local path as an `E2E.Paths` member**: `inv_localPathCM` at every layout `K` and memory `m`,
 `Pre := SlJAt K ∧ Q K m` (as `inv_pathsK`; `hacc` over the new guard, the other premises as there plus
 `InvCMRoAccW` in `hpz`). -/

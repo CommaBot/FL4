@@ -176,22 +176,6 @@ theorem hPre_ofZQIMN (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
     exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJUM hA (hmrt a1) (hPA.minBudget a1) hC hct hfr hcg hsch hi
       hM hK hR hV)) hM hIA hARI hA hPA.minBudget _) fun _ h => h
 
-/-- `hPre_ofZQIMN` from the ∀-form `hNS` (the pre-g3b statement). -/
-theorem hPre_ofZQIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
-    (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r =>
-        r.1 = false ∧ PPQJI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
-  intro s1 a1 σ1 hr h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, -⟩, -⟩ := jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
-  exact hPre_ofZQIMN hARI hA hnd hM hK hPA hIA hmrt hmax htu s1 a1 σ1 hr h
-    (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩)
-
 end
 
 end

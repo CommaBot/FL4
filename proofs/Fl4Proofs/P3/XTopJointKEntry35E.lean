@@ -73,12 +73,6 @@ theorem utNodesJ_of_ks {G : MdbGhost} (h : UtKsApart (L := L) G Cs s) : UtNodesJ
 theorem JAtZ.utksJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : UtNodesJ (L.mem s) Z.G (L.ksb s) :=
   utNodesJ_of_ks J.jcov.ks
 
-/-- **`HandlersActive` from the spec's `SpecIrqH`** (INV-PLAN E8). -/
-theorem JAtZ.handlersJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hS : SpecIrqH σ) :
-    HandlersActive (L.mem s) (L.ksb s) Z.G :=
-  handlersActive_of_spec J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.2.1 J.xtop.fin.1.1.2.2.2.1 fun sl irq hg =>
-    hS sl irq (SInvU.getCap_capAt (x := (_, σ)) (by rw [hg]; exact Set.mem_singleton _)).2
-
 /-- **`IoPortsAlloc` from the spec's `SpecIoP`** (INV-PLAN E9). -/
 theorem JAtZ.portsJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hS : SpecIoP σ) :
     IoPortsAlloc (L.mem s) (L.ksb s) Z.G :=
@@ -113,19 +107,6 @@ theorem JAtZ.fpuFrameJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (x : U6
 
 end
 
-/-- **`SInvI` from the entry state to the dispatch state** (module docstring;
-the FaultIP write keeps the caps, `update_time_stamp` the rest). -/
-theorem sinvI_disp (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.State Unit} {x : Fl4Spec.Tcb}
-    (hk : σ.kheap σ.curThread = some (.tcb x)) (hBA : BudgetAt σ σb true) (h : SInvI σ) : SInvI σb := by
-  obtain ⟨⟨σu, hu, ebu⟩, ek, -⟩ := BudgetAt.shape27 hnd hk hBA
-  have ek' : σb.kheap = Function.update σ.kheap σ.curThread
-      (some (.tcb (setReg x .faultIP (x.tcbArch.tcbContext.userRegs .nextIP - 2)))) := ek
-  have hE := Sched.updateTimeStamp_eq' hnd
-    (doMachineOp_single (getCurrentTime_eq (faultIPSt σ σ.curThread x).machineState))
-  rw [hE] at hu
-  have e : σu = _ := congrArg Prod.snd (Set.mem_singleton_iff.1 hu)
-  refine h.frame (capAt_updTcb hk (by rfl) ek') ?_ ?_ ?_ (archObj_updTcb hk ek') <;> rw [ebu, e] <;> rfl
-
 /-! ## The bundles -/
 
 section
@@ -147,21 +128,6 @@ structure JEntryAtR5 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
 
 variable {arI}
-
-theorem JEntryAtR5.toR3 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-    {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hI : SInvI σ) (E : JEntryAtR5 (L := L) arI AR Z s ar σ) :
-    JEntryAtR3 (L := L) arI AR Z s ar σ where
-  stall := E.stall
-  flags := E.flags
-  handlers := J.handlersJ hI.irqH
-  ports := J.portsJ hI.ioP
-  ioapics := E.ioapics
-  archIrq := E.archIrq
-  vsTyp := E.vsTyp
-  fnz := J.fnzJ
-  urz := J.urzJ hI.utZ
-  utks := J.utksJ
 
 variable (arI)
 
@@ -232,78 +198,6 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 open Fl4Proofs.P3 Fl4Proofs.P3.SInvR.G4
 
 noncomputable section
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-
-/-- **`KDispHypsKV35` with `JEntryAtR5`** (module docstring). -/
-structure KDispHypsKV35E (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
-    (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
-  inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryAtR5 (L := L) arI AR Z s a σ ∧
-    JPathAtM35E (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
-    JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
-  mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryAtR5 (L := L) arI AR Z s a σ ∧
-    JPathAtM35E (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
-    JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
-
-variable {arI}
-
-theorem KDispHypsKV35E.to35 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}
-    {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hI : SInvI σ)
-    (h : KDispHypsKV35E (L := L) arI AR MR Z H Cs D s a σ n c) :
-    KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c :=
-  ⟨fun ct call bl don hct hi => let ⟨e, p, v⟩ := h.inv ct call bl don hct hi; ⟨e.toR3 J hI, p.to35 J, v⟩,
-    fun ct rg sr cr hct hm => let ⟨e, p, v⟩ := h.mid ct rg sr cr hct hm; ⟨e.toR3 J hI, p.to35 J, v⟩⟩
-
-end
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {MR : A → Fl4Spec.MachineState → Prop}
-
-set_option maxHeartbeats 4000000 in
-/-- **The newest top** (module docstring): `kernel_entryJ35` with the spec-only
-entry bundle `hI : SInvI σ` [J] spec in place of `JEntryAtR3`'s `handlers`,
-`ports`, `urz` at every dispatch state and the Thread path's `hFr`, and `fnz`,
-`utks` proved from `JAtZ`.
-Every other premise is `kernel_entryJ35`'s. -/
-theorem kernel_entryJ35E [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
-    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hct : σ.curThread ≠ σ.idleThread)
-    (hR : MR a σ.machineState) (hX : SInvX σ) (hI : SInvI σ)
-    (n : I64) (c : Fl4Spec.Syscall)
-    (hn : NativeSys n c)
-    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
-      (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
-        KDispHypsKV35E (L := L) arI AR MR (Z.mv Z.G V') H Cs D' s' a' σb n c)
-    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
-        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-        KFinAtR31 (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
-    (hFast : n = fl4_abi.syscall.SysReplyRecv →
-      FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPostX (L := L) arI AR c σ r ⦄ := by
-  obtain ⟨x, hk, -⟩ := hX.sb.1.2
-  exact kernel_entryJ35 s a σ J hct hR hX n c hn hflag
-    (fun σb hBA V' Ac' Lst' D' s' a' hF J' =>
-      (hK σb hBA V' Ac' Lst' D' s' a' hF J').to35 J' (sinvI_disp hnd hk hBA hI))
-    hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI hFast
-
-end
 
 end
 

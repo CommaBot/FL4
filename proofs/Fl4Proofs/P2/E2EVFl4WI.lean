@@ -58,10 +58,6 @@ theorem avoidV_nv (nv : K.vcpus = ∅) (P : LocalPath (OwnMap.own K.toKLayout) c
     exact interp_mono (fun q _ => hV q) (fun _ _ => trivial) _ hz s' a _ hg
   · rw [hrs]; exact P.isProg
 
-/-- The chosen tree of a program premise `∃ q, _ ∧ NoZero q ∧ _` has no `zero`. -/
-theorem nz_choose {X : Type} {P Q : SProg X → Prop} (h : ∃ q, P q ∧ NoZero q ∧ Q q) : NoZero h.choose :=
-  h.choose_spec.2.1
-
 end av
 
 /-! ## The slot -/
@@ -95,16 +91,6 @@ theorem InvPremW.hCs {i : InvArg S} {K : KLayoutV} {m : U64 → U64} (h : InvPre
   exact fun c hc => B.j.kern.csLt c hc
 
 variable (hA : P0.ArchTotal ar) (hm : E2E.MasksWr st)
-
-/-- **The frame-cap invocation slot** (route C, at `inv_pathsKFU4`; `AvoidV` by `avoidV_nv`). -/
-def invSlotW : SlotC (InvArg S) where
-  Prem i K m := InvPremW st i K m
-  path i K m hK hU h :=
-    inv_pathsKFU4 (Cs := i.Cs) (Ω := i.Ω) (Sg := i.Sg) (Ac := i.Ac) (Locks := i.Locks) ar hA i.number i.p hm
-      (h.hCs st) h.lk () K.toKLayout m hK.base hU.base
-  Av i K m hK hU h := avoidV_nv h.nv _ (by
-    dsimp only [inv_pathsKFU4, inv_pathsKFU3, inv_pathsKFU2, inv_pathsKFU8, inv_pathsKDelU, inv_localPathU]
-    exact nz_choose _)
 
 end slot
 

@@ -256,10 +256,6 @@ theorem ybOut_keep {τ τ' : Fl4Spec.State Unit} (hX : SInvX τ) (hY : SInv.Yiel
 
 variable {arI AR MR}
 
-theorem ChainYB.ch {K : KLayout} {Ch : S → Prop} {σ : S} (h : ChainYB (L := L) arI AR MR K Ch σ) : Ch σ := by
-  obtain ⟨k, Z, H, Cx, nc, -, -, rfl, a, τ, hR, -⟩ := h
-  exact ⟨a, τ, hR⟩
-
 /-- **The chain's YieldBlock states are closed under its local runs** (module docstring, item 3): if from every
 `JReachSt` spec state of `σ` a local run reaches `σ'` with a `YBOut` outcome in the chain (what each `loc_chain_all`
 clause 2–6, 8–10 gives), then `σ'` is a YieldBlock state of the chain. -/
@@ -297,12 +293,6 @@ theorem chainOfYB_exists [Fl4Proofs.P1.PlainStore st] (P : LocPlat st arI AR MR)
 noncomputable def chainCYB [Fl4Proofs.P1.PlainStore st] (P : LocPlat st arI AR MR) {σe : S} {a3 : A3} {τ : Fl4Spec.State Unit}
     (h : JReachYB (L := L) arI AR MR σe a3 τ) : KLayout × (S → Prop) :=
   Classical.choose (chainOfYB_exists P h)
-
-theorem chainCYB_spec [Fl4Proofs.P1.PlainStore st] (P : LocPlat st arI AR MR) {σe : S} {a3 : A3}
-    {τ : Fl4Spec.State Unit} (h : JReachYB (L := L) arI AR MR σe a3 τ) :
-    ChainOf (L := L) arI AR MR σe (chainCYB P h).1 (chainCYB P h).2 ∧
-      ChainYB (L := L) arI AR MR (chainCYB P h).1 (chainCYB P h).2 σe :=
-  Classical.choose_spec (chainOfYB_exists P h)
 
 end chainYB
 
@@ -392,18 +382,6 @@ the chain chosen by `chainCYB`. -/
 def SerExitWYB (P : LocPlat st arI AR MR) (K : KLayoutV) (Ch : S → Prop) : Prop :=
   ∃ (σe : S) (a3 : A3) (τ : Fl4Spec.State Unit) (hJ : Fl4Proofs.P3.SInvR.G5.JReachYB (L := L) arI AR MR σe a3 τ),
     chainCYB P hJ = (K.toKLayout, Ch)
-
-theorem SerExitWYB.chainOf {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitWYB P K Ch) :
-    ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch ∧ ChainYB (L := L) arI AR MR K.toKLayout Ch σe := by
-  obtain ⟨σe, a3, τ, hJ, e⟩ := h
-  have hs := chainCYB_spec P hJ
-  rw [e] at hs
-  exact ⟨σe, hs⟩
-
-/-- **The base**: the exit is a YieldBlock state of the chosen chain. -/
-theorem SerExitWYB.base {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitWYB P K Ch) :
-    ∃ σe, ChainYB (L := L) arI AR MR K.toKLayout Ch σe :=
-  let ⟨σe, _, h2⟩ := h.chainOf; ⟨σe, h2⟩
 
 variable {ι : Type}
 

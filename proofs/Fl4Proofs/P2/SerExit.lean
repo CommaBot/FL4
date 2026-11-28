@@ -89,53 +89,6 @@ theorem ser_of_JAtZ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → L
   let h := OwnMap.ok_of_JAtZ J hn
   ⟨h.1, h.2, maps_of_ghost hG⟩
 
-/-- **`Fl4Step.ser`'s conclusion at every `JReachU17` state** (where every serial
-entry P3 covers exits), with the ghosts `kernel_entry_reachU17V` gives. -/
-theorem ser_of_reach [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      ∀ n : Nat, (∀ c : U64, c.val < n → c ∈ Cs) → ∀ c : Serial.Cfg U64 U64 U64 U64,
-        ExitGhost (L := L) (OwnMap.layoutJ Z H (L.ksb s) n) s c →
-        OwnMap.RegionOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-          E2E.UserOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-          E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, -, J, -⟩ :=
-    kernel_entry_reachU17V arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  exact ⟨Z, H, Cs, Ac, Lst, D, J, fun n hn c hG => ser_of_JAtZ J hn hG⟩
-
-/-- **`Fl4Step.ser`'s conclusion at every `JReachU17` state, by the top of record**
-`kernel_entry_reachU29` (premises verbatim, statement unchanged): the `JAtZ` its
-conclusion opens with gives the layout. Every exit of `U29` / `U29T` (accepted
-local runs) / `U29TD` lands in `JReachU17`, so this applies at the exit of every
-serial entry P3 covers. -/
-theorem ser_of_reachU29 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧
-      ∀ n : Nat, (∀ c : U64, c.val < n → c ∈ Cs) → ∀ c : Serial.Cfg U64 U64 U64 U64,
-        ExitGhost (L := L) (OwnMap.layoutJ Z H (L.ksb s) n) s c →
-        OwnMap.RegionOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-          E2E.UserOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-          E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ :=
-    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  exact ⟨Z, H, Cs, Ac, Lst, D, J, fun n hn c hG => ser_of_JAtZ J hn hG⟩
-
 /-- With one core counted, `hn` is `JKern.cs0`. -/
 theorem cores_one {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
     {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -174,51 +127,6 @@ theorem ser_of_JAtZN {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
   obtain ⟨n, hn⟩ := J.kern.csN
   have h := OwnMap.ok_of_JAtZ J (n := n) (fun c hc => (hn c).mpr hc)
   exact ⟨n, hn, h.1, h.2, fun _ hG => maps_of_ghost hG⟩
-
-/-- **`ser_of_reach` with `hn` discharged**: at every `JReachU17` state, under
-`kernel_entry_reachU17V`'s premises only, some ghosts and core count `n` (`Cs` = `0 .. n-1`)
-give `Fl4Step.ser`'s conclusion for the layout read off the state, for every configuration
-satisfying `ExitGhost` [P]. -/
-theorem ser_of_reachN [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (n : Nat),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ (∀ c : U64, c ∈ Cs ↔ c.val < n) ∧
-      OwnMap.RegionOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-      E2E.UserOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-      ∀ c : Serial.Cfg U64 U64 U64 U64, ExitGhost (L := L) (OwnMap.layoutJ Z H (L.ksb s) n) s c →
-        E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, -, J, -⟩ :=
-    kernel_entry_reachU17V arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  obtain ⟨n, hn, h⟩ := ser_of_JAtZN J
-  exact ⟨Z, H, Cs, Ac, Lst, D, n, J, hn, h⟩
-
-/-- **`ser_of_reachU29` with `hn` discharged** (the top of record, premises verbatim). -/
-theorem ser_of_reachU29N [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
-    (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR)
-    (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU17 (L := L) arI AR MR s a σ) :
-    ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (n : Nat),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ (∀ c : U64, c ∈ Cs ↔ c.val < n) ∧
-      OwnMap.RegionOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-      E2E.UserOK (OwnMap.layoutJ Z H (L.ksb s) n) ∧
-      ∀ c : Serial.Cfg U64 U64 U64 U64, ExitGhost (L := L) (OwnMap.layoutJ Z H (L.ksb s) n) s c →
-        E2E.Maps (OwnMap.layoutJ Z H (L.ksb s) n) c := by
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J, -⟩ :=
-    kernel_entry_reachU29 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
-  obtain ⟨n, hn, h⟩ := ser_of_JAtZN J
-  exact ⟨Z, H, Cs, Ac, Lst, D, n, J, hn, h⟩
 
 /-- **`Fl4Step.ser` for a serial step, `hn` discharged**: the core count is `JKern.csN`'s. -/
 theorem ser_step_of_JAtZN {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}

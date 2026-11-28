@@ -152,20 +152,6 @@ theorem ybRun_of_jreachSt {Z : Fl4Proofs.P3.XSets} {H : Heap} {Cx : Set U64} {k 
   obtain ⟨Z2, Ac2, Lst2, D2, -, -, -, J2, -⟩ := hR'.atSt' (locKeepSt_st _ _ _ _ _)
   exact ⟨a, τ, hR.reach, ⟨Z1, Cx, Ac1, Lst1, D1, J1⟩, a', τ', hO, ⟨Z2, Cx, Ac2, Lst2, D2, J2⟩⟩
 
-/-- **A YieldBlock state of a chain is an anchor** for every core, at the chain's heap. -/
-theorem ybAnch_of_chainYB {Kl : OwnMap.KLayout} {Ch : S → Prop} {σ : S}
-    (h : ChainYB (L := L) arI AR MR Kl Ch σ) (c : U64) : YbAnch (L := L) arI AR MR Kl.heap c σ := by
-  obtain ⟨k, Z, H, Cx, nc, rfl, -, -, a, τ, hR, hY, hC⟩ := h
-  obtain ⟨Z1, Ac1, Lst1, D1, -, -, -, J1, -⟩ := hR.atSt' (locKeepSt_st _ _ _ _ _)
-  exact .exit ⟨hR.reach, hY, hC⟩ ⟨Z1, Cx, Ac1, Lst1, D1, J1⟩
-
-/-- **The exit `SerExitWYB` chooses is an anchor of its chain** (satisfiability of `anch` at the serial exit). -/
-theorem ybAnch_of_serExitWYB [Fl4Proofs.P1.PlainStore st] {P : LocPlat st arI AR MR} {K : KLayoutV}
-    {Ch : S → Prop} (h : SerExitWYB P K Ch) (c : U64) :
-    ∃ σe, Ch σe ∧ YbAnch (L := L) arI AR MR K.toKLayout.heap c σe := by
-  obtain ⟨σe, hY⟩ := h.base
-  exact ⟨σe, hY.ch, ybAnch_of_chainYB hY c⟩
-
 end anch
 
 /-! ## The entry records without `ybw` -/

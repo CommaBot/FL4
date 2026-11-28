@@ -35,19 +35,6 @@ open fl4_core Classical
 
 noncomputable section
 
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop}
-
-/-- **U32's platform premises give U33's** (`MachPlat.toF`, `IrqPlatA.toIpiF`, `IrqPlatA.toK`,
-`IrqAckU.of_machPlat`). -/
-theorem u33_premises_of_u32 (hM : MachPlat arI MR) (hIA : IrqPlatA arI AR) :
-    MachPlatF arI MR ∧ IpiF arI MR ∧ IrqPlatK arI AR ∧
-      ∀ (Z : XSets) (s : S) (a : A) (σ : Fl4Spec.State Unit), IrqAckU (L := L) arI MR Z s a σ :=
-  ⟨MachPlat.toF hM, IrqPlatA.toIpiF hIA, IrqPlatA.toK hIA, fun _ _ _ _ => IrqAckU.of_machPlat hM⟩
-
-end
-
 /-- **The model arch meets U33's new platform premises at `ipiMR`, whatever the oracle**
 (`MachPlatF`, `IpiF`: JBootIpi; the three keep records: the model's ops leave the state). -/
 theorem modelArch_u33Plat :

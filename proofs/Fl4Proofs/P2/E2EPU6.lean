@@ -397,16 +397,6 @@ inductive ExecWPRRHo (LP : PathsP ι)
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {Ch : S → Prop} {v a x : U64} :
       ExecWPRRHo LP SF P s0 K0 Ch0 s K Ch → HwStepP K s v a x → ExecWPRRHo LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
 
-/-- A homed U5 execution is a U5 execution. -/
-theorem ExecWPRRHo.toWPRR {LP : PathsP ι}
-    {SF : (S → Prop) → ∀ K : KLayoutP, (U64 → U64) → RegionOKP K → UserOKP K → U64 → (U64 → Prop) → SP → ι → Prop}
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutP} {Ch0 Ch : S → Prop}
-    (h : ExecWPRRHo LP SF P s0 K0 Ch0 s K Ch) : ExecWPRR LP SF P s0 K0 Ch0 s K Ch := by
-  induction h with
-  | refl => exact .refl
-  | step _ hS g _ ih => exact .step ih hS g
-  | hw _ hH ih => exact .hw ih hH
-
 end exec
 
 /-! ## The top -/

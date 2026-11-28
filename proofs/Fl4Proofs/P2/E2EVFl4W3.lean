@@ -331,9 +331,6 @@ structure ExitGhostV (K : KLayoutV) (c : Cfg U64 U64 U64 U64) : Prop where
   cls : c.cls = OwnMap.cls K.toKLayout
   ko : c.ko = OwnMap.ko K.toKLayout c.mem
 
-theorem ExitGhostV.maps {K : KLayoutV} {c : Cfg U64 U64 U64 U64} (h : ExitGhostV K c) : MapsV K c :=
-  ⟨h.own, h.cls, h.ko⟩
-
 section glue
 variable {own : (U64 → U64) → U64 → Owner U64 U64} {cls : U64 → U64 → U64}
   {ko : U64 → ClsOwner U64} {User : U64 → Prop}
@@ -529,21 +526,11 @@ theorem SerExitC.lay {P : LocPlatC st arI AR MR} {K : KLayoutV} {Ch : S → Prop
   obtain ⟨σe, Z, H, Cx, nc, -, -, -, hC, hσ⟩ := h.chainOf
   exact ⟨σe, hC, hσ⟩
 
-/-- Clause 7 and the layout facts on the chosen chain. -/
-theorem SerExitW.lay {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch) :
-    ∃ σe, ChainLay (L := L) K.toKLayout Ch ∧ Ch σe :=
-  SerExitC.lay ((serExitW_iff_C P).1 h)
-
 /-- **`serExitW_ok` over `LocPlatC`** (gen 54, in place). -/
 theorem serExitC_ok {P : LocPlatC st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitC P K Ch)
     (hV : VcpuLay L K) : RegionOKV K ∧ UserOKV K := by
   obtain ⟨σe, hC, hσ⟩ := h.lay
   exact ⟨regionOKV_of_JAtZ hC.hK (hC.bun σe hσ) hV.1 hV.2, ⟨hC.hU⟩⟩
-
-/-- **`Fl4StepV.ser`'s conclusion from the glue premises** (`regionOKV_of_JAtZ` at the exit). -/
-theorem serExitW_ok {P : LocPlat st arI AR MR} {K : KLayoutV} {Ch : S → Prop} (h : SerExitW P K Ch)
-    (hV : VcpuLay L K) : RegionOKV K ∧ UserOKV K :=
-  serExitC_ok ((serExitW_iff_C P).1 h) hV
 
 variable {ι : Type}
 
@@ -578,31 +565,6 @@ inductive ExecW (LP : PathsV ι)
       ExecW LP SF P s0 K0 Ch0 s' K' Ch'
   | hw {s : Cfg U64 U64 U64 U64} {K : KLayoutV} {Ch : S → Prop} {v a x : U64} :
       ExecW LP SF P s0 K0 Ch0 s K Ch → HwStepV K s v a x → ExecW LP SF P s0 K0 Ch0 (hwCfg s a x) K Ch
-
-/-- **An `ExecW` is an `ExecV`** (module docstring, item 3): `Fl4StepV.ser` from `serExitW_ok` and the exit ghost,
-`Fl4StepV.start` from the family's `SF → StartAt` at clause 7 of the current chain. -/
-theorem execV_of_W {LP : PathsV ι}
-    {SF : (S → Prop) → ∀ K : KLayoutV, (U64 → U64) → RegionOKV K → UserOKV K → U64 → (U64 → Prop) → SP → ι → Prop}
-    (hSF : ∀ (Ch : S → Prop) (K : KLayoutV) (m : U64 → U64) (hK : RegionOKV K) (hU : UserOKV K) c hs q i,
-      (∀ σ, Ch σ → SlJAt (L := L) K.toKLayout σ) → SF Ch K m hK hU c hs q i → StartAt (LP i K m hK hU) c hs m q)
-    {P : LocPlat st arI AR MR} {s0 s : Cfg U64 U64 U64 U64} {K0 K : KLayoutV} {Ch0 Ch : S → Prop}
-    (hB : SerExitW P K0 Ch0) (h : ExecW LP SF P s0 K0 Ch0 s K Ch) :
-    ExecV LP s0 K0 s K ∧ SerExitW P K Ch := by
-  induction h with
-  | refl => exact ⟨.refl, hB⟩
-  | @step s1 s1' K1 K1' Ch1 Ch1' c1 _ hS g ih =>
-    obtain ⟨hE, hX⟩ := ih
-    obtain ⟨σe, hC, -⟩ := hX.lay
-    refine ⟨.step hE hS ⟨g.arm, fun p0 k W hph hK hU => ?_, fun hs => ?_, fun hn => (g.keep hn).1⟩, ?_⟩
-    · obtain ⟨i, hi⟩ := g.start p0 k W hph hK hU
-      exact ⟨i, hSF _ _ _ _ _ _ _ _ i hC.bun hi⟩
-    · have hok := serExitW_ok (g.serX hs) (g.serV hs)
-      exact ⟨hok.1, hok.2, (g.serG hs).maps⟩
-    · by_cases hs : SerStep s1 c1
-      · exact g.serX hs
-      · obtain ⟨e1, e2⟩ := g.keep hs
-        rw [e1, e2]; exact hX
-  | hw _ hH ih => exact ⟨.hw ih.1 hH, ih.2⟩
 
 end exec
 

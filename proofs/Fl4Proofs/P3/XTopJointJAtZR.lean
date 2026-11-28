@@ -34,13 +34,6 @@ def CurInvR (σ : Fl4Spec.State Unit) : Prop :=
 theorem curInvR_of {σ : Fl4Spec.State Unit} (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) :
     CurInvR σ := fun hr => h.resolve_left (by rw [hr]; intro e; cases e)
 
-theorem curInvR_ofS {σ : Fl4Spec.State Unit} (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ ∨ SwBlk σ) :
-    CurInvR σ := fun hr => by
-  rcases h with h | h | ⟨-, -, u, hu, -⟩
-  · rw [hr] at h; cases h
-  · exact h
-  · rw [hr] at hu; cases hu
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
@@ -214,59 +207,6 @@ theorem JAtZ.toR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L :=
   nsc := J.nsc
   inv := J.inv
   cur := curInvR_of J.cur
-  own := J.own
-  off := J.off
-  act := J.act
-  c0 := J.c0
-  bsa := J.bsa
-  sv := J.sv
-  isorted := J.isorted
-  slink := J.slink
-  curRun := J.curRun
-  blk := J.blk
-  intL := J.intL
-  vsc := J.vsc
-  bok := J.bok
-  fcov := J.fcov
-  fcap := J.fcap
-  ext := J.ext
-  live := J.live
-  zD := J.zD
-  carry := J.carry
-
-theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ where
-  xtop := J.xtop
-  call := J.call
-  rfree := J.rfree
-  rrecv := J.rrecv
-  yld := J.yld
-  mcp := J.mcp
-  buf := J.buf
-  ks := J.ks
-  thT := J.thT
-  thk := J.thk
-  ip := J.ip
-  rp := J.rp
-  apart := J.apart
-  nk := J.nk
-  nodeB := J.nodeB
-  jpl := J.jpl
-  cover := J.cover
-  obj := J.obj
-  zH := J.zH
-  sfree := J.sfree
-  hset := J.hset
-  hscC := J.hscC
-  jcov := J.jcov
-  kern := J.kern
-  del := J.del
-  ut := J.ut
-  bound := J.bound
-  finM := J.finM
-  utc := J.utc
-  nsc := J.nsc
-  inv := J.inv
-  cur := curInvR_ofS J.cur
   own := J.own
   off := J.off
   act := J.act

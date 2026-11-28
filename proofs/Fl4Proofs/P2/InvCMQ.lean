@@ -55,17 +55,6 @@ theorem invQCMW_of_F {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {p : l
     {m : U64 → U64} {s : S} (h : InvQCMF st Cs Ω Sg Ac Locks p K m s) : InvQCMW st Cs Ω Sg Ac Locks p K m s :=
   ⟨h.1, h.2.1, invExW_of_ex h.2.2⟩
 
-/-- (slhuf gen 13) **`InvQCMW` at an entry state** from the plan (`loc_chain_all` clause 8's input `hp`), the
-Copy / Mint label, the locks and the affinity words (as `invQCM_intro`). -/
-theorem invQCMW_of_plan {Cs Ω Sg Ac : Set U64} {Locks : S → U64 → Prop} {number : I64} {p : localinv.Plan}
-    {K : KLayout} {m : U64 → U64} {s : S}
-    (hP : IoPre st K K.heap.tcbs Cs Ω K.heap Sg K.heap.replies K.heap.scs K.heap.ntfns K.heap.scBits Ac s)
-    (hmA : ∀ d, K.heap d = some .tcb → m (fld d OwnMap.oAFFINITY) = L.mem s (fld d OwnMap.oAFFINITY))
-    (hp : localinv.plan st s number = ok (some p)) (harm : InvCMArm st s)
-    (hlk : ∀ (i : Nat) (x : U64), i < p.n.val → p.locks.val[i]? = some x → Locks s x) :
-    InvQCMW st Cs Ω Sg Ac Locks p K m s :=
-  ⟨invQCM_intro hP hmA hp harm hlk, invLk_of_plan hp, invExW_of_ex (invEx_of_plan hp)⟩
-
 end defs
 
 /-! ## The entry facts from `InvQCMW` -/

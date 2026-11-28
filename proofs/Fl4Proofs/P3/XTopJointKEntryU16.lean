@@ -100,52 +100,6 @@ structure JAsidCPathU16 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.He
       (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
       (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
 
-/-- **`JPathMEU12` with the U16 Untyped and ASID control paths.** -/
-def JPathMEU16 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (lbl length : U64)
-    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data)
-    (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
-  | .Untyped p sb fi dev =>
-      (dev = true → JDevPathU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU
-        ci sl excaps buffer ct) ∧
-      (dev = false → JUtPathMU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl
-        argsU ci sl excaps buffer ct)
-  | .AsidControl => JAsidCPathU16 (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl
-      excaps buffer ct
-  | c => JPathMEU12 (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
-      buffer ct c
-
-/-- **`JPathAtMU12` with `JPathMEU16`.** -/
-def JPathAtMU16 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (ct : U64) (is_call blocking can_donate first_phase : Bool) (cptr : U64) : Prop :=
-  ∀ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)
-    (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
-    (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))) (argsU : List U64),
-    msg.msg_info st s ct = ok info →
-    Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False) →
-    msg.lookup_ipc_buffer st s false ct = ok buf →
-    Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False) →
-    ipc.lookup_extra_caps st s ct buf info = ok r2 →
-    (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False) →
-    Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False) →
-    ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
-      (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
-      capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
-      r2 = .Ok e → er = .ok exs → Vs.NativeCap c →
-      JPathMEU16 (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf
-        e mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
-
-/-- **`KDispHypsKVU12` with `JPathAtMU16`.** -/
-structure KDispHypsKVU16 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
-    (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
-  inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryAtR6 (L := L) arI AR Z s a σ ∧
-    JPathAtMU16 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
-  mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryAtR6 (L := L) arI AR Z s a σ ∧
-    JPathAtMU16 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))
-
 variable {arI}
 
 theorem JUtPathMU16.toM {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {ar : A}

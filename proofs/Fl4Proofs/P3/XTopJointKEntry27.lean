@@ -254,47 +254,6 @@ theorem KDispHypsKV27.to26 (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.Stat
   · obtain ⟨a1, a2, a3, a4, a5, a6⟩ := h.mid ct rg sr cr hct' hm
     exact ⟨a1, hE a2, a3, a4, a5, a6⟩
 
-set_option maxHeartbeats 4000000 in
-/-- **`kernel_entryJ26P` with the per-state spec premises from `SInvB`** (module
-docstring). Removed: `hVI` (SInvB), `hB`'s `now` / `cur` / `tmo`, `JEntryAt`'s
-`ni` / `ctnq` / `sg` / `rd0` / `vfh` / `cnf` and `recv` in `hK`, `KFinAtR.fo` in
-`hFin`. Added: `hS : SInvB σ` (carried) and `hQ` [J] (l4v `ct_not_in_q` at σ). -/
-theorem kernel_entryJ27 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
-    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
-    (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ)
-    (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (n : I64) (c : Fl4Spec.Syscall)
-    (hn : NativeSys n c)
-    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
-    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
-    (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb → [VxE Z'] →
-        KDispHypsKV27 (L := L) arI AR MR Z' H' Cs' D' s' a' σb n c)
-    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
-      (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-        KFinAtR27 (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hNSR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-      (σ : Fl4Spec.State Unit), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → NativeScope σ)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
-  have hct : σ.curThread ≠ σ.idleThread := hni.1
-  have hC : CurInv σ := J.cur.resolve_left (by rw [hni.2]; intro e; cases e)
-  exact kernel_entryJ26P s a σ J hni hR hS.1.1.vim n c hn hflag
-    (fun x hk => ⟨hM.nowAgree hR hS.1.1.vmt, curInv_faultIPSt hk hC, hB x hk, Or.inr hQ⟩)
-    (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' =>
-      (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to26 hnd hS hni hQ hB hBA)
-    (fun x hx Z' H' Cs' Ac' Lst' D' s' a' J' =>
-      (hFin x hx Z' H' Cs' Ac' Lst' D' s' a' J').toR (fun o e => SInvAll.sinvB_front_fo true c hS hct x hx o e))
-    hARI hA hnd hM hKD hPA hIA hmrt hmb hNS hNSR hT hmax htu
-
 end
 
 end

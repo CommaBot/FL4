@@ -16,12 +16,6 @@ open fl4_core Classical
 
 noncomputable section
 
-/-- l4v `valid_irq_handlers` with `valid_cap`'s bound: every IRQ handler cap
-of the spec's CSpace is for an IRQ up to `maxIRQ` that is not inactive. -/
-def SpecIrqHandlers (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ sl irq, Fl4Spec.getCap (Z := Unit) sl σ = ({(.irqHandlerCap irq, σ)}, False) →
-    irq ≤ Fl4Spec.maxIRQ ∧ σ.interruptStates irq ≠ .irqInactive
-
 /-- l4v `valid_ioports`: every IO port cap's ports are allocated. -/
 def SpecIoPorts (σ : Fl4Spec.State Unit) : Prop :=
   ∀ sl f l, Fl4Spec.getCap (Z := Unit) sl σ = ({(.archObjectCap (.ioPortCap f l), σ)}, False) →
@@ -34,27 +28,6 @@ def SpecIrqNode (σ : Fl4Spec.State Unit) : Prop :=
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {th : TypedHeap}
-
-/-- **`HandlersActive` from l4v's `valid_irq_handlers`.** -/
-theorem handlersActive_of_spec {s : S} {kb : U64} {σ : Fl4Spec.State Unit} {G : MdbGhost}
-    (hR : StateRel th (L.mem s) σ) (hM : MdbLinks th (L.mem s) G) (hIR : IrqRel (L.mem s) kb σ)
-    (hS : SpecIrqHandlers σ) : HandlersActive (L.mem s) kb G := by
-  intro y hy i hi
-  obtain ⟨ysl, hys, rfl⟩ := ((hM.members _).1 hy).1.abs
-  obtain ⟨c, ac, hc, hca, hg⟩ := hR.abs_cap hys
-  rw [capV_of_capAt hc] at hi; subst hi
-  have hwf : i.val < 256 := by have : i.val < 128 := hca.1; omega
-  rw [hca.abs] at hg
-  obtain ⟨h1, h2⟩ := hS ysl _ hg
-  have hi8 : (BitVec.ofNat 8 i.val : BitVec 8).toNat = i.val := by
-    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt hwf
-  have h128 : i.val < 128 := by
-    have : (BitVec.ofNat 8 i.val : BitVec 8).toNat ≤ (Fl4Spec.maxIRQ : BitVec 8).toNat := BitVec.le_def.1 h1
-    rw [hi8] at this
-    have hm : (Fl4Spec.maxIRQ : BitVec 8).toNat = 125 := rfl
-    omega
-  refine ⟨h128, fun h0 => h2 ?_⟩
-  rw [hIR.st i h128, (irqSt_inactive _).2 h0]
 
 /-- **`IoPortsAlloc` from l4v's `valid_ioports`.** -/
 theorem ioPortsAlloc_of_spec {s : S} {kb : U64} {σ : Fl4Spec.State Unit} {G : MdbGhost}

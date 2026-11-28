@@ -548,18 +548,6 @@ theorem vmF_insA_annV_C (P : LocPlatCR st arI AR MR) {Ch : S → Prop}
   rw [hM.own, hM.cls, hM.ko] at hV ⊢
   exact vmF_k0_insA st ar hA a0 j K hK hU c _ ρ s.mem k E hV hLk h0 hTR nv J.conv hT hS
 
-set_option maxHeartbeats 4000000 in
-/-- **U9's re-annotated body is `InsA` at every vmF start without a VCPU** (module docstring §2). -/
-theorem vmF_insA_annV (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR) {Ch : S → Prop}
-    {s : Cfg U64 U64 U64 U64} {K : KLayoutP} {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k : SP}
-    {ρ : U64 → U64} {j : VmFArg S} (E : U64 → U64) (nv : K.vcpus = ∅)
-    (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch) (J : EpochJV K E s)
-    (hsf : StartV2C st ar hA a0 arI AR MR Ch K (CoreView.view K.toKLayout c ρ) hK hU c (fun l => s.lk l = some c) k
-      (.inl (.vmF j)))
-    (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem) :
-    InsA (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) s.mem (annV s K c ρ k) :=
-  vmF_insA_annV_C st ar hA a0 (locPlatCR_of P hIoa) E nv hC J hsf hM hV
-
 end all
 
 section pm
@@ -592,19 +580,6 @@ theorem insAP_vmF_view_C (P : LocPlatCR st arI AR MR)
       (fun l => s.lk l = some c) k0 (.inl (.vmF j)) := hsf
   have hsf' := startV2C_of_V13 st ar hA a0 hC hsf0
   exact insAP_of_insA (vmF_insA_annV_C st ar hA a0 P E nv hC J hsf' hM hV)
-
-set_option maxHeartbeats 4000000 in
-/-- **`InsV15V`'s obligation of `nativePmKAD B` at every vmF start** (module docstring §2). -/
-theorem insAP_vmF_view (P : LocPlat st arI AR MR) (hIoa : Fl4Proofs.P3.MRKeepIoapic arI MR)
-    (B : PmObl7 st Cs Ω Sg Ac Locks) {Ch : S → Prop} {s : Cfg U64 U64 U64 U64} {K : KLayoutP}
-    (E : U64 → U64) {hK : RegionOKP K} {hU : UserOKP K} {c : U64} {k0 : SP} {ρ : U64 → U64} {i : IxV13Pm S}
-    (nv : K.vcpus = ∅) (hx : VmFPm (S := S) i) (hC : ∃ σe, ChainOf (L := L) arI AR MR σe K.toKLayout Ch)
-    (J : EpochJV K E s) (hM : MapsP K s) (hV : VEq s.own s.cls s.ko c (fun l => s.lk l = some c) ρ s.mem)
-    (hsf : (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).SF Ch K (CoreView.view K.toKLayout c ρ) hK hU c
-      (fun l => s.lk l = some c) k0 i) :
-    InsAP (PWE K E) ADEq NotPresent s.own s.cls s.ko c (fun l => s.lk l = some c) ∅ s.mem
-      (if (ExecCfg.nativePmKAD st ar hA a0 arI AR MR B).NoV i then annV s K c ρ k0 else k0) :=
-  insAP_vmF_view_C st ar hA a0 (locPlatCR_of P hIoa) B E nv hx hC J hM hV hsf
 
 end pm
 

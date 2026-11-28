@@ -381,14 +381,6 @@ theorem JAtZ.restart_keeps_resume (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a 
   rw [if_neg fun h => h.2.2 hs]
   exact hni.2
 
-/-- **The preempted outcome of a preemption point at `JAtZ`** is `JAtPre`
-(XTopJointCnDel; `PPR0` gives the base its no-switch and non-idle facts). -/
-theorem JAtZ.jAtPre_pp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] {s' : S} {a' : A}
-    {σ' : Fl4Spec.State Unit} (hpp : sched.preemption_point st arI s a = ok (.Err .Preempted, s', a'))
-    (hsp : (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) (hR0 : PPR0 σ) :
-    JAtPre (L := L) arI AR s' a' σ' :=
-  ⟨s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hR0.1.2.1, hR0⟩, hpp, hsp⟩
-
 end
 
 section

@@ -140,16 +140,6 @@ theorem locRunMv_tick (hAK : ARKeep arI AR) : LocRunMv (L := L) arI AR (LocTick 
     exact h)
   exact ⟨rfl, Z.G, Z.vs, Ac, Lst', D, by rw [tick_eq]; exact J'⟩
 
-/-- **`JReachSt` is closed under the clock reading** of a declined entry (`jreachU17_tick`). -/
-theorem jreachSt_tick (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR) (hM : MachPlat arI MR)
-    {Loc : S → A → Fl4Spec.State Unit → S → A → Fl4Spec.State Unit → Prop}
-    (hsub : ∀ s a σ s' a' σ', LocTick arI s a σ s' a' σ' → Loc s a σ s' a' σ')
-    {th : TypedHeap} {B : Set (U64 × Fl4Spec.Word)} {H : Heap} {Cs : Set U64} {k : U64}
-    {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachSt (L := L) arI AR MR Loc th B H Cs k s a σ)
-    {n1 : U64} {a1 : A} (hn : arI.now a = ok (n1, a1)) :
-    JReachSt (L := L) arI AR MR Loc th B H Cs k s a1 (Fl4Spec.fl4ClockTick σ) :=
-  .loc hJ (hsub _ _ _ _ _ _ ⟨rfl, ⟨n1, hn⟩, rfl⟩) (jreachU17_tick hnd hARI hM hJ.reach hn)
-
 /-! ## A user-word write -/
 
 /-- **`LocKeepSt` for a user-word write** (module docstring): `JAtZ.userWrJ` keeps every
@@ -166,50 +156,5 @@ theorem locKeepSt_user (th : TypedHeap) (B : Set (U64 × Fl4Spec.Word)) (H : Hea
 end
 
 /-! ## `StartAt` for the syscall local path under `LocKeepSt` -/
-
-section
-variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
-variable {Locks : S → U64 → Prop}
-variable {A : Type}
-variable {n : I64} {found : U64 × U64} {Cs Ω Sg Ac : Set U64}
-
-/-- **`sl_pathsK_startAt_stab` under the ghost-relative premise** `LocKeepSt` (same
-statement, `LocRunMv` replaced by `LocKeepSt Loc Z.th Z.B H Cx`). -/
-theorem sl_pathsK_startAt_stab' {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
-    {MR : A3 → Fl4Spec.MachineState → Prop}
-    {Loc : S → A3 → Fl4Spec.State Unit → S → A3 → Fl4Spec.State Unit → Prop}
-    (hnd : Fl4Spec.numDomains = 1)
-    (ar : machine.Arch A) (hSt : P0.StoreTotal st) (hA : P0.ArchTotal ar)
-    (hm : Fl4Proofs.P2.E2E.MasksWr st) (a0 : A) (Q : KLayout → (U64 → U64) → S → Prop)
-    (hPE : ∀ K m s, SlJAt (L := L) K s → Q K m s →
-      SlPreB (st := st) ar K Locks m n found K.heap.tcbs Cs Ω K.user Sg K.heap.replies
-        K.heap.scs K.heap.ntfns Ac K.heap K.heap.scBits s)
-    (hEr : ∀ K m s, SlJAt (L := L) K s → Q K m s → SlEntR (st := st) K Locks found s)
-    (hHr : ∀ K m s, SlJAt (L := L) K s → Q K m s → SlHereR (st := st) K found s)
-    (hAr : ∀ K m s, SlJAt (L := L) K s → Q K m s → SlAccR (st := st) ar K Locks found s)
-    (huf : ∀ K m s b v, SlJAt (L := L) K s → Q K m s → b ∈ K.user → Aligned b →
-      (SlJAt (L := L) K (L.wr s b v) ∧ Q K m (L.wr s b v)) ∧ Locks (L.wr s b v) = Locks s ∧
-        SlRS (st := st) K Locks (L.wr s b v) = SlRS (st := st) K Locks s ∧
-        SlWS (st := st) K Locks (L.wr s b v) = SlWS (st := st) K Locks s ∧
-        SlDS (L := L) (L.wr s b v) = SlDS (L := L) s)
-    (hpz : ∀ K m, ∃ p : SProg Bool, IsProg (slBody S n found) p ∧ NoZero p ∧
-      Fl4Proofs.P2.E2E.ReadOnce st ar p (OwnMap.cls K) (OwnMap.ko K m) (· ∈ K.user)
-        (fun s => SlJAt (L := L) K s ∧ Q K m s) (SlRS (st := st) K Locks))
-    {Z : XSets} {H : Heap} {Cx : Set U64} {k : U64} {nc : Nat} (hn : ∀ c : U64, c ∈ Cx ↔ c.val < nc)
-    (hKL : LocKeepSt (L := L) arI AR Loc Z.th Z.B H Cx)
-    (m : U64 → U64) (hK : RegionOK (layoutJ Z H k nc)) (hU : Fl4Proofs.P2.E2E.UserOK (layoutJ Z H k nc))
-    {σ : S} {a3 : A3} {τ : Fl4Spec.State Unit}
-    (hR : JReachSt (L := L) arI AR MR Loc Z.th Z.B H Cx k σ a3 τ)
-    (a : A) (hQ : Q (layoutJ Z H k nc) m σ) {c : U64} {hs : U64 → Prop}
-    (hc : L.cpu σ = c) (hl : Locks σ = hs) {μ : U64 → U64}
-    (hμ : ∀ x, Aligned x → x ∉ (layoutJ Z H k nc).user → L.mem σ x = μ x) :
-    Fl4Proofs.P2.E2E.StartAt
-      (sl_pathsK (Locks := Locks) ar hSt hA hm a0 Q hPE hEr hHr hAr huf hpz () (layoutJ Z H k nc) m hK hU) c hs μ
-      ((sl_pathsK (Locks := Locks) ar hSt hA hm a0 Q hPE hEr hHr hAr huf hpz () (layoutJ Z H k nc) m hK hU).body
-        σ a) :=
-  sl_pathsK_startAt ar hSt hA hm a0 Q hPE hEr hHr hAr huf hpz (layoutJ Z H k nc) m hK hU a
-    (slJAt_layoutJ_of_jreachSt' hnd hn hKL hR) hQ hc hl hμ
-
-end
 
 end Fl4Proofs.P2.PathObl

@@ -37,10 +37,6 @@ theorem MF.trans {σ1 σ2 σ3 : State Unit} (h1 : MF σ1 σ2) (h2 : MF σ2 σ3) 
 /-- Every outcome keeps the current SC and the idle thread. -/
 def MFA {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → MF σ x.2
 
-theorem MFA.of_eq {α : Type} {m : NonDet (State Unit) α} (hP : MFA m) {σ σ' : State Unit} {a : α} {X : Prop}
-    (h : m σ = ({(a, σ')}, X)) : MF σ σ' :=
-  hP σ (a, σ') (by rw [h]; exact Set.mem_singleton _)
-
 section Comb
 
 theorem mf_bind {α β : Type} {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β} (hm : MFA m)
@@ -58,9 +54,6 @@ theorem mf_pure {α : Type} (a : α) : MFA (pure a : NonDet (State Unit) α) :=
   mf_same fun _ x hx => by rw [Set.mem_singleton_iff.1 hx]
 
 theorem mf_pure' {α : Type} (a : α) : MFA (NonDet.pure a : NonDet (State Unit) α) := mf_pure a
-
-theorem mf_gets {α : Type} (g : State Unit → α) : MFA (NonDet.gets g) :=
-  mf_same fun _ x hx => by rw [Set.mem_singleton_iff.1 hx]
 
 theorem mf_get : MFA (NonDet.get : NonDet (State Unit) (State Unit)) :=
   mf_same fun _ x hx => by rw [Set.mem_singleton_iff.1 hx]
@@ -84,9 +77,6 @@ theorem mf_selectF {α : Type} (S : Set α × Prop) : MFA (NonDet.selectF S : No
 theorem mf_ite {α : Type} (P : Prop) [Decidable P] {m1 m2 : NonDet (State Unit) α} (h1 : MFA m1)
     (h2 : MFA m2) : MFA (if P then m1 else m2) := by
   split <;> assumption
-
-theorem mf_when (P : Prop) [Decidable P] {m : NonDet (State Unit) Unit} (h : MFA m) : MFA (NonDet.when P m) := by
-  unfold NonDet.when; exact mf_ite P h (mf_pure' _)
 
 theorem mf_unless (P : Prop) [Decidable P] {m : NonDet (State Unit) Unit} (h : MFA m) :
     MFA (NonDet.unless P m) := by
@@ -124,24 +114,11 @@ theorem mf_doExtendedOp (eop : DetExtMonad Unit) : MFA (doExtendedOp (Z := Unit)
   split
   exact mf_modify (fun σ => ⟨rfl, rfl, rfl, rfl⟩)
 
-theorem mf_whileLoop {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (State Unit) α}
-    (hB : ∀ r, MFA (B r)) (r : α) : MFA (NonDet.whileLoop C B r) := by
-  intro σ x hx
-  induction hx with
-  | done _ => exact MF.refl _
-  | step _ hm _ ih => exact (hB _ _ _ hm).trans ih
-
 theorem mf_mapMx {α β : Type} {g : α → NonDet (State Unit) β} (h : ∀ a, MFA (g a)) (xs : List α) :
     MFA (NonDet.mapMx g xs) := by
   induction xs with
   | nil => exact mf_pure' _
   | cons a xs' ih => exact mf_bind' (h a) fun _ => ih
-
-theorem mf_mapM {α β : Type} {g : α → NonDet (State Unit) β} (h : ∀ a, MFA (g a)) (xs : List α) :
-    MFA (NonDet.mapM g xs) := by
-  induction xs with
-  | nil => exact mf_pure' _
-  | cons a xs' ih => exact mf_bind' (h a) fun _ => mf_bind' ih fun _ => mf_pure' _
 
 end Comb
 
@@ -168,16 +145,6 @@ section Ops
 
 theorem mf_threadSet (g : Tcb → Tcb) (p : ObjRef) : MFA (threadSet (Z := Unit) g p) := by
   unfold threadSet; repeat mf_step0
-
-theorem mf_threadGet {α : Type} (g : Tcb → α) (p : ObjRef) : MFA (threadGet (Z := Unit) g p) := by
-  unfold threadGet; repeat mf_step0
-
-theorem mf_getSchedContext (p : ObjRef) : MFA (getSchedContext (Z := Unit) p) := by
-  unfold getSchedContext; repeat mf_step0
-
-theorem mf_updateSchedContext (p : ObjRef) (g : SchedContext → SchedContext) :
-    MFA (updateSchedContext (Z := Unit) p g) := by
-  unfold updateSchedContext; repeat mf_step0
 
 theorem mf_getSimpleKo {α : Type} [Nonempty α] (C : α → KernelObject) (p : ObjRef) :
     MFA (getSimpleKo (Z := Unit) C p) := by
@@ -229,28 +196,10 @@ macro "mf_unf" : tactic => `(tactic| first
 
 macro "mf_auto" : tactic => `(tactic| repeat (first | mf_step | mf_unf))
 
-theorem mf_chargeBudgetF (u : Ticks) : MFA (chargeBudget (Z := Unit) u false) := by
-  unfold chargeBudget endTimeslice refillResetRr refillBudgetCheck handleOverrun chargeEntireHeadRefill
-    headInsufficientLoop mergeNonoverlappingHeadRefill scheduleUsed refillPopHead updateRefillHd updateRefillTl
-    refillAddTail isRoundRobin getRefillHead getRefillTail getRefills refillSingle refillSize refillFull
-    getScRefillReady getScRefillSufficient getThreadState isValidTimeoutHandler getCap
-  try simp only [Bool.false_eq_true, false_and, ↓reduceIte]
-  repeat (any_goals (first | mf_step | mf_unf))
-
 end
 
 end Fl4Proofs.P3.Sched
 
 namespace Fl4Proofs.P3
-
-section
-variable {A : Type} {arI : fl4_core.machine.Arch A} {MR : A → Fl4Spec.MachineState → Prop}
-
-/-- **`MR` moves along an `MF` step.** -/
-theorem MachPlat.mfKeep (hM : MachPlat arI MR) {a : A} {σ σ' : Fl4Spec.State Unit} (hR : MR a σ.machineState)
-    (h : Sched.MF σ σ') : MR a σ'.machineState :=
-  hM.frame a _ _ hR h.1 h.2.1 h.2.2.1 h.2.2.2
-
-end
 
 end Fl4Proofs.P3

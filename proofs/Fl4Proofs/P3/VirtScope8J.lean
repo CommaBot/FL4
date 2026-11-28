@@ -24,7 +24,8 @@ Named premises: `hvk : virtKind = .none` [S] (as gen 5–7); **`hvirt : ∀ a, a
 -/
 import Fl4Proofs.P3.VirtScope8
 import Fl4Proofs.P3.VirtAgreeDec
-import Fl4Proofs.P3.VirtExtTopU36
+import Fl4Proofs.P3.VirtAgree
+import Fl4Proofs.P3.XTopJointKEntryU36I
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5

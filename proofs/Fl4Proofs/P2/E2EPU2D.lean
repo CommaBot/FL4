@@ -31,7 +31,9 @@ With these:
 No named premise. New module; no existing statement changes.
 -/
 import Fl4Proofs.P2.InvDelNoPteR
-import Fl4Proofs.P2.E2EPU1W
+import Fl4Proofs.P2.E2EPU1
+import Fl4Proofs.P2.E2EVFl4WIC
+import Fl4Proofs.P2.InvCMPathZ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P2.PathObl

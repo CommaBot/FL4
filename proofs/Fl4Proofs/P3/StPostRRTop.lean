@@ -272,57 +272,6 @@ theorem kernel_entry_rrSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
       fun r ⟨σ', hmem, hRJ, hM', hSt⟩ => ⟨σ', mem_kentry hx hmem, hRJ, hM', hSt.mv⟩
 
 
-set_option maxHeartbeats 4000000 in
-/-- (stpost) **The accepted ReplyRecv entry beside the gate, stable ghosts**: `handle_syscall_local`
-with the trap flag clear and `SysReplyRecv`, where it returns `true`, ends at a
-`fl4KernelEntrySyscall true .sysReplyRecv` outcome with `RJ`, `MR` and `JStab Z H Cs`
-(`kernel_entry_rrSt` with `hacc` from `P1.syscall_local_rr_acc`, carried to `handle_syscall` by
-`FastAcc.of_rrpre` and to the local entry by `P1.syscall_local_same`). `hfd`: fl4-sync's `found`
-contract [P] (as P1 `syscall_local_same`). -/
-theorem kernel_entry_rr_localSt [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
-    {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z] (hni : Entered σ)
-    (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hNS0 : NativeScope σ)
-    (hn : NativeSys fl4_abi.syscall.SysReplyRecv .sysReplyRecv) (found : U64 × U64)
-    (hfd : ∀ t f, sched.cur_thread st s = ok t → obj.Tcb.flags st t s = ok f →
-      (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 → fl4_abi.syscall.SysReplyRecv = fl4_abi.syscall.SysReplyRecv →
-      fastpath.reply_caps st s t = ok (some found))
-    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
-      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
-    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudgetB arI a (faultIPSt σ σ.curThread x))
-    (hS : SInvAll.SInvB σ) (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hFin : ∀ x ∈ (specFront .sysReplyRecv σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64)
-      (Lst' : U64 → List U64) (D' : Set U64) (s' : S) (a' : A),
-        KFrontF (L := L) arI fl4_abi.syscall.SysReplyRecv s a s' a' →
-        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
-        KFinAtR (L := L) arI AR Z' H' Cs' s' a' x.2)
-    (hRPd : P1.RRPreAt (L := L) arI s a) (hRV : SInvR.RV σ) (hSX : P1.StoreExt st)
-    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR)
-    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hT : TimeAgree arI)
-    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
-    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall_local st arI s a fl4_abi.syscall.SysReplyRecv found ⦃ r => r.1 = true →
-      ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true .sysReplyRecv σ).1 ∧
-        RJ (L := L) arI AR r.2.1 r.2.2 σ' ∧ MR r.2.2 σ'.machineState ∧
-        JStab (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ := by
-  obtain ⟨⟨b, s', a'⟩, e, -⟩ := P1.spec_ex_fd
-    (P0.syscall.handle_syscall_local.p0 st arI s a fl4_abi.syscall.SysReplyRecv found L.total hA)
-  rw [e, WP.spec_ok]
-  intro hb
-  simp only at hb
-  subst hb
-  have hs := P1.syscall_local_same arI hA J.bxi (fun _ et => J.cnOff et) hfd e
-  have hacc := P1.syscall_local_rr_acc arI hA J.bxi (fun _ et => J.cnOff et) hfd hflag e
-  have hG := kernel_entry_rrSt s a σ J hni hR hVI hNS0 hn hflag hB hS hQ hFin hacc hRPd hRV hARI hA hnd hM hKD hmrt
-    hmb hT hmax htu
-  have hG' := P1.FastAgree.spec st arI (P1.FastAgree.of_acc st arI P1.LawfulStore.total hA
-    (FastAcc.of_rrpre hSX hflag hn.range rfl hRPd)) hG
-  rw [hs, WP.spec_ok] at hG'
-  exact hG'
-
 end
 
 end

@@ -47,7 +47,6 @@ Fl4Proofs.P3.JExtV2Bind
 Fl4Proofs.P3.VirtAgree
 Fl4Proofs.P3.VirtDispVcpu
 Fl4Proofs.P3.VirtExtTop
-Fl4Proofs.P3.VirtExtTopU36
 Fl4Proofs.P3.VirtF13
 Fl4Proofs.P3.VirtFinNR
 Fl4Proofs.P3.VirtHinvB

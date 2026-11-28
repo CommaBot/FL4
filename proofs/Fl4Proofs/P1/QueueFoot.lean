@@ -247,13 +247,6 @@ theorem LawfulStore.QFoot.kwB {s : S} {W : List U64} {c : U64} {P : Nat → Prop
   · subst h; rw [inqA_eq]; exact kwB_field ht (by simp) (by simp) (by simp)
   · exact h.kwB hcpu (fun o e => by omega)
 
-theorem EpFoot.kwB {s : S} {W : List U64} {e b : U64} (hW : ∀ w ∈ W, w ∈ T) (he : e ∈ Es) (h : EpFoot W e b) :
-    KWB st T Cs Sg Scs Z Es s b := by
-  rcases h with h | h | h
-  · exact h.kwB hW
-  · exact kwB_ep he (Or.inl h)
-  · exact kwB_ep he (Or.inr h)
-
 theorem InRing.kwB {s : S} {c b : U64} (hc : c ∈ Scs) (h : InRing c (Z c) b) : KWB st T Cs Sg Scs Z Es s b :=
   kwB_sc hc h.inSC
 

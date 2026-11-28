@@ -673,33 +673,6 @@ theorem JAtZ.midEntry {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   rw [← et] at hk hm
   exact not_in_ntfnQueue hR ht hk hr n' hn' n hp (by rw [hq]; exact hm)
 
-/-- **`handle_invocation_midJ` from `JMidPerfHyp` [W]**: `JMidRunHyp` by
-`jMidRunHyp_of`, `MidEntry` by `JAtZ.midEntry` (with `Entered` and the
-current thread's no-fault fact [J], `JEntryAt.cnf`'s). -/
-theorem handle_invocation_midJP [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
-    {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (can_donate : Bool) (cptr : U64)
-    (info : msginfo.MessageInfo) (hinfo : msg.msg_info st s ct = ok info)
-    (mi : Fl4Spec.MessageInfo) (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
-    (buf : U64) (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
-    (buffer : Option Fl4Spec.ObjRef)
-    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
-    (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
-    (hr2 : ipc.lookup_extra_caps st s ct buf info = ok r2)
-    (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr)))
-    (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False))
-    (argsU : List U64)
-    (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
-    (hH : JEntryHyps (L := L) arI AR Z H Cs D s ar σ ct false false can_donate true cptr info mi buf buffer
-      argsU r2 er)
-    (hW : MidRun.JMidPerfHyp can_donate (Fl4Spec.toBl cptr.bv) σ) (hni : Entered σ)
-    (hnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none) :
-    syscall.handle_invocation st arI s ar false false can_donate true cptr ⦃ res =>
-      HIPostMid (L := L) arI AR σ can_donate (Fl4Spec.toBl cptr.bv) res ⦄ :=
-  handle_invocation_midJ arI s ar σ J ct hct can_donate cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
-    argsU hmrs hH (MidRun.jMidRunHyp_of hW) (J.midEntry hni hnf)
-
 end
 
 end

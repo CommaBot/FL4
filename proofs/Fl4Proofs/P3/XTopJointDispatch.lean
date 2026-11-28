@@ -117,46 +117,6 @@ theorem JAtZ.frontEx {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   rw [map_bv_ofBv]
   exact getMrs_eq hks _ hal _
 
-/-- **The per-cap path premise at the front end's values** (`JEntryHyps.path`
-for every outcome of the front end's reads, which `JAtZ.frontEx` shows to
-exist and be unique). -/
-def JPathAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
-    (is_call blocking can_donate first_phase : Bool) (cptr : U64) : Prop :=
-  ∀ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)
-    (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
-    (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))) (argsU : List U64),
-    msg.msg_info st s ct = ok info →
-    Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False) →
-    msg.lookup_ipc_buffer st s false ct = ok buf →
-    Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False) →
-    ipc.lookup_extra_caps st s ct buf info = ok r2 →
-    (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False) →
-    Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False) →
-    ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
-      (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
-      capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
-      r2 = .Ok e → er = .ok exs →
-      JPath (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
-        mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
-
-/-- **One invocation at `J`, the front end discharged**:
-`handle_invocation_refinesJ` from `JAtZ`, `JEntryGlob`, `JEntryAt` and the
-path premise at the front end's values. -/
-theorem handle_invocation_entryJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct)
-    (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr) :
-    syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
-      HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true σ is_call blocking can_donate first_phase
-        (Fl4Spec.toBl cptr.bv) res ⦄ := by
-  obtain ⟨info, mi, buf, buffer, r2, er, argsU, hinfo, hmi, hbuf, hbuffer, hr2, her, hmrs⟩ :=
-    JAtZ.frontEx arI J J.xferH.1 J.xferH.2.1 hct
-  exact handle_invocation_refinesJ arI s ar σ J ct hct is_call blocking can_donate first_phase cptr info hinfo mi hmi
-    buf hbuf buffer hbuffer r2 hr2 er her argsU hmrs
-    ⟨hG, hE, hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs⟩
-
 /-- The spec's invoking syscalls with FL4's dispatcher: `handleSend bl`
 (`call = false`, `don = false`) and `handleCall` (`call = bl = don = true`)
 with `fl4HandleInvocationR true` for l4v's `handleInvocation`. -/
@@ -172,53 +132,6 @@ def DispPost (AR : A → Fl4Spec.Cr3 → Prop) (Q : Fl4Spec.State Unit → S × 
     (σ : Fl4Spec.State Unit) (r : S × A) : Prop :=
   ∃ y ∈ (m.run σ).1,
     (y.1 = .ok () ∧ RelTopM (L := L) r.1 y.2 ∧ JAt (L := L) arI AR r.1 r.2 y.2) ∨ (y.1 = .error () ∧ Q y.2 r)
-
-set_option maxHeartbeats 4000000 in
-/-- **`handle_invocation` then `after_invocation` at `J`**, from the cap
-register's word; the preemption path (`after_invocation` of `Err`) from
-every related `JAtPre` state to `Q` is the premise `hPre` (plan item 7). -/
-theorem invoke_afterJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (call bl don : Bool)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (Q : Fl4Spec.State Unit → S × A → Prop)
-    (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPre (L := L) arI AR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
-    (do
-      let (r, s1, a1) ← syscall.handle_invocation st arI s ar call bl don false (L.mem s (regA ct layout.reg.CAP))
-      let (_, s2, a2) ← syscall.after_invocation st arI s1 a1 r
-      ok (s2, a2)) ⦃ r => DispPost (L := L) arI AR Q (DispInv call bl don) σ r ⦄ := by
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  obtain ⟨-, xs, hks⟩ := J.xtop.curTcb hcur
-  have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  have hxs := (J.xtop.irelK J.ks J.buf).1.toE.at_tcb hctT hks
-  have hcp : Fl4Spec.dataToCptr (xs.tcbArch.tcbContext.userRegs Fl4Spec.cap_register) =
-      Fl4Spec.toBl (L.mem s (regA ct layout.reg.CAP)).bv := by
-    rw [← regIdx_cap, hxs.regs]; rfl
-  have hk' : σ.kheap σ.curThread = some (.tcb xs) := by rw [hcur]; exact hks
-  have hreg := mem_getCapReg hk' Fl4Spec.cap_register
-  rw [hcp] at hreg
-  have top : ∀ y, y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) true call bl don false
-      (Fl4Spec.toBl (L.mem s (regA ct layout.reg.CAP)).bv)).run σ).1 → y ∈ ((DispInv call bl don).run σ).1 :=
-    fun y hy => mem_bindE_ok (mem_liftE (ε := Unit) hreg) hy
-  have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
-  refine WP.spec_bind (handle_invocation_entryJ arI s ar σ J ct hct call bl don false _ hG hE hP) ?_
-  rintro ⟨r, s1, a1⟩ ⟨y, hy, hres, hrel, hX⟩
-  rcases hres with ⟨rfl, hy1⟩ | ⟨rfl, hy1⟩
-  · show (do
-      let (_, s2, a2) ← syscall.after_invocation st arI s1 a1 (.Ok ())
-      ok (s2, a2)) ⦃ _ ⦄
-    rw [show syscall.after_invocation st arI s1 a1 (.Ok ()) = ok (true, s1, a1) by
-      unfold syscall.after_invocation; rfl, bind_ok]
-    refine hok ?_
-    exact ⟨y, top y hy, Or.inl ⟨hy1, hrel, ifP_X (fun h => by cases h) hX⟩⟩
-  · rw [if_pos rfl] at hX
-    refine WP.spec_bind (hPre s1 a1 y.2 hrel hX) ?_
-    rintro ⟨b, s2, a2⟩ hQ
-    refine hok ?_
-    exact ⟨y, top y hy, Or.inr ⟨hy1, hQ⟩⟩
 
 theorem regIdx_reply : regIdx Fl4Spec.replyRegister = layout.reg.REPLY := by
   unfold layout.reg.REPLY layout.reg.R12; rfl
@@ -302,40 +215,6 @@ def InvSys (n : I64) (call bl don : Bool) : Prop :=
   (n = fl4_abi.syscall.SysNBSend ∧ call = false ∧ bl = false ∧ don = false) ∨
   (n = fl4_abi.syscall.SysCall ∧ call = true ∧ bl = true ∧ don = true)
 
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_syscall` for `SysSend`, `SysNBSend`, `SysCall` at `J`**
-against `handleSend true`, `handleSend false`, `handleCall` with FL4's
-dispatcher (`DispInv`), the preemption path the premise `hPre`
-(`invoke_afterJ`). -/
-theorem dispatch_invokeJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
-    (hn : InvSys number call bl don)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (Q : Fl4Spec.State Unit → S × A → Prop)
-    (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPre (L := L) arI AR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
-    syscall.dispatch_syscall st arI s ar number ⦃ r => DispPost (L := L) arI AR Q (DispInv call bl don) σ r ⦄ := by
-  have h := invoke_afterJ arI s ar σ J ct hct call bl don hG hE hP Q hPre
-  unfold syscall.dispatch_syscall
-  rw [hct]; simp only [bind_ok]
-  refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.CAP) ?_
-  rintro c0 rfl
-  refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.REPLY) ?_
-  rintro c1 -
-  have n65 : fl4_abi.syscall.SysNBSend ≠ fl4_abi.syscall.SysSend := by
-    unfold fl4_abi.syscall.SysNBSend fl4_abi.syscall.SysSend; decide
-  have n15 : fl4_abi.syscall.SysCall ≠ fl4_abi.syscall.SysSend := by
-    unfold fl4_abi.syscall.SysCall fl4_abi.syscall.SysSend; decide
-  have n16 : fl4_abi.syscall.SysCall ≠ fl4_abi.syscall.SysNBSend := by
-    unfold fl4_abi.syscall.SysCall fl4_abi.syscall.SysNBSend; decide
-  rcases hn with ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
-  · rw [if_pos rfl]; exact h
-  · rw [if_neg n65, if_pos rfl]; exact h
-  · rw [if_neg n15, if_neg n16, if_pos rfl]; exact h
-
 /-- FL4's receiving syscall numbers with `handle_recv`'s flags
 (`dispatch_syscall`): `SysRecv`, `SysNBRecv`, `SysWait`, `SysNBWait`
 (`handleRecv true true`, `false true`, `true false`, `false false`). -/
@@ -410,23 +289,6 @@ theorem fl4HandleSyscall_recv (rep bl cr : Bool) :
     Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr) =
       Fl4Spec.withoutPreemption (Fl4Spec.handleRecv bl cr) := by
   cases bl <;> cases cr <;> rfl
-
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_invokeJ` against `fl4HandleEvent true`'s branch.** -/
-theorem dispatch_invokeJE [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
-    (hn : InvSys number call bl don)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
-    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
-    (Q : Fl4Spec.State Unit → S × A → Prop)
-    (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
-      JAtPre (L := L) arI AR s1 a1 σ1 →
-      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
-    syscall.dispatch_syscall st arI s ar number ⦃ r =>
-      DispPost (L := L) arI AR Q (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ := by
-  rw [fl4HandleSyscall_inv hn]
-  exact dispatch_invokeJ arI s ar σ J ct hct number call bl don hn hG hE hP Q hPre
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJ` against `fl4HandleEvent rep`'s branch** (the spec's

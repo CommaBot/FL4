@@ -182,19 +182,6 @@ theorem RunW.of_new2F {σ σ3 : State Unit}
     obtain ⟨x0, hx0, e⟩ := hk.tcb_back hx'
     rw [h1] at hx0; cases hx0; rw [e.st]; exact h3
 
-/-- `newcur_of` up to the FPU. -/
-theorem newcur_ofF {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ schedulable σ'.curThread σ = true ∨
-      σ'.curThread = σ.curThread)
-    (hk : HeapEqUpToFpu σ σ') (hr : σ'.releaseQueue = σ.releaseQueue) (hId : IdleOK σ) (hC : CurInv σ)
-    (hisc : σ'.idleSc = σ.idleSc := by first | rfl | assumption) :
-    ∃ xt scp, σ'.kheap σ'.curThread = some (.tcb xt) ∧ xt.tcbSchedContext = some scp ∧
-      NotIpcBlk xt.tcbState ∧ σ'.curThread ∉ σ'.releaseQueue ∧
-      (scp ≠ σ'.idleSc → ∀ x n, σ'.kheap scp = some (.schedContext x n) → scActive x = true) := by
-  obtain ⟨xt, scp, h1, h2, h3, h4, h5⟩ := newcur_of (σ' := { σ' with kheap := σ.kheap }) h rfl hr hId hC hisc
-  obtain ⟨y, hy, e⟩ := hk.tcb h1
-  exact ⟨y, scp, hy, by rw [e.sc]; exact h2, by rw [e.st]; exact h3, h4,
-    fun hne x n hx => h5 hne x n (hk.sc.1 hx)⟩
-
 /-- `newcur_of2` up to the FPU. -/
 theorem newcur_of2F {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨ schedulable σ'.curThread σ = true)
     (hk : HeapEqUpToFpu σ σ') (hr : σ'.releaseQueue = σ.releaseQueue) (hId : IdleOK σ)
@@ -398,10 +385,6 @@ def ArchSwF (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N
   (∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
     VsRootOK T σ → vspace.set_kernel_vm_root st ar s a ⦃ r => ∃ σ1, Fl4Spec.archSwitchToIdleThread (Z := Unit) σ =
       ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeeps σ σ1 ⦄)
-
-theorem ArchSw.toF {N T C : Set U64} {c : U64} (h : ArchSw st ar N T C c) : ArchSwF st ar N T C c :=
-  ⟨fun s a σ hS hR _ _ t ht => WP.spec_mono (h.1 s a σ hS hR t ht) fun _ ⟨σ1, e1, e2, e3, e4⟩ =>
-    ⟨σ1, e1, e2, e3, e4.toF⟩, fun s a σ hS hR _ => h.2 s a σ hS hR⟩
 
 /-- `VsRootOK` across a heap equal up to the FPU part of TCBs. -/
 theorem VsRootOK.ofF {T : Set U64} {σ σ' : Fl4Spec.State Unit} (h : VsRootOK T σ) (hk : HeapEqUpToFpu σ σ')
