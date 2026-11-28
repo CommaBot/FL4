@@ -81,11 +81,22 @@ def RetPostNB {A' : Type} (th : TypedHeap) (m : U64 → U64) (G : MdbGhost) (σ 
       ∃ A k w dslot cj, RetExp th th' m (L.mem res.2.1) G G' A k w dslot cj (invSrc inv) ∧
         RetFrameIB (L := L) arI ar th G s s0 bitsApi inv A k w dslot cj th' res
 
+/-- An EPT table's (types 15..18) object in P1's heap is an `other` one (`newKind_other_of` for the EPT types). -/
+theorem newKind_ept {n us : Nat} (h1 : 15 ≤ n) (h2 : n ≤ 18) : newKind n us = some (.other 12) := by
+  unfold newKind
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    if_neg (by omega), if_pos (by omega)]
+
+theorem newKind_other_ept {n us : Nat} (h1 : 15 ≤ n) (h2 : n ≤ 18) {kd : HKind} (hk : newKind n us = some kd) :
+    ∃ z, kd = .other z := by
+  rw [newKind_ept h1 h2] at hk; exact ⟨12, (Option.some.inj hk).symm⟩
+
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 8000 in
 /-- **`JPlaced.retype` after its restart**: the same from `RetPostNB` (the run
 from `σ1`, `KSz σ σ1`; the frame from `s0`), so also for a retype that
-starts after the restart and the reset (handoff/utj.md Round 13). -/
+starts after the restart and the reset (handoff/utj.md Round 13). mmuAD gen 42b22: also for the EPT
+types 15..18 (`hn13`'s second disjunct; their window caps `Ept`, `capsOf_ept`). -/
 theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
     {σ : Fl4Spec.State Unit} {A' : Type} {arI : machine.Arch A'} {ar : A'}
     {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat} {sl : Fl4Spec.CslotPtr} {rs : Bool} {pb rb : Fl4Spec.ObjRef}
@@ -96,7 +107,7 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
     {σ1 : Fl4Spec.State Unit} {s0 : S} (hksz : KSz σ σ1)
     (hRP : RetPostNB (L := L) th (L.mem s) G σ σ1 arI ar s s0 bitsApi (L.ksb s) (.retype sl rs pb rb t us slots dev) res)
     (hok : res.1 = .Ok ())
-    (n : Nat) (hnT : objTypeOf n = some t) (hn13 : n ≤ 13)
+    (n : Nat) (hnT : objTypeOf n = some t) (hn13 : n ≤ 13 ∨ (15 ≤ n ∧ n ≤ 18))
     (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ 2 ^ bitsApi t us)
     (hlt : ∀ kd, newKind n us = some kd → kd.bits < 64) (hsc7 : ∀ z, newKind n us = some (.sc z) → 7 ≤ z)
     (hdevT : n = 1 → dev = false) (hz1 : n = 1 → 2 ^ bitsApi t us = 4096)
@@ -132,7 +143,13 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
   · rw [hok] at e; cases e
   have e0 := objTypeOf_inj hn0 hnT
   subst n0
-  rw [capsOf_native (n := n) (by omega)] at hcjE
+  -- the window caps: a native type's (`newCapOf`) or an EPT table's (`Ept`)
+  have hcjC : ∀ j, (n ≤ 13 ∧ cj j = newCapOf n ⟨BitVec.ofNat 64 (A + j * k)⟩ uu dev) ∨
+      (15 ≤ n ∧ n ≤ 18 ∧ ∃ b l, cj j = .Ept b l false 0#u64 0#u64) := by
+    intro j; rw [hcjE]
+    rcases hn13 with h | h
+    · exact Or.inl ⟨h, by rw [capsOf_native (Or.inl (Nat.lt_succ_of_le h))] <;> rfl⟩
+    · exact Or.inr ⟨h.1, h.2, ⟨BitVec.ofNat 64 (A + j * 4096)⟩, eptLvl n, by rw [capsOf_ept h.1 h.2] <;> rfl⟩
   have hk1 := hE.k1
   -- the dropped region is uncovered
   have hunc : ∀ a b, a < b → Covered (L.mem s) G a b → b ≤ lo ∨ hi ≤ a := by
@@ -300,6 +317,12 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
           exact capTyped_keep hJP.heap ha0 rfl (hJP.typed a ((hM.members a).1 ha0).1) hkeepH
         · exact capTyped_ut (hE.utk a ha0 hu)
       · rw [hE.newc j hj, hcjE]
+        rcases hn13 with hn13 | hn18
+        swap
+        · rw [capsOf_ept hn18.1 hn18.2]
+          exact ⟨fun _ _ _ _ _ _ h => by simp [ejOf] at h, fun _ _ _ _ h => by simp [ejOf] at h,
+            fun _ _ h => by simp [ejOf] at h⟩
+        rw [capsOf_native (Or.inl (Nat.lt_succ_of_le hn13))]
         unfold cjOf
         have hlt' : rb.toNat + j * k < 2 ^ 64 := by
           have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
@@ -591,19 +614,22 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
         have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va →
             ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
           intro p sz r d m' ep a' va hc kd hk
-          rw [hcjE] at hc; unfold cjOf at hc
-          exact newKind_other_of (by have := newCapOf_frame hc; omega) hk
+          rcases hcjC j with ⟨-, e⟩ | ⟨-, -, b, l, e⟩ <;> rw [e] at hc
+          · exact newKind_other_of (by have := newCapOf_frame hc; omega) hk
+          · cases hc
         -- a new table's object is an `other` one too
         have hnkT : ∀ p m' a' va, (cj j = .PageTable p m' a' va ∨ cj j = .PageDirectory p m' a' va ∨
             cj j = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
           intro p m' a' va hc kd hk
-          rw [hcjE] at hc; unfold cjOf at hc
-          exact newKind_other_of (by have := newCapOf_tab hc; omega) hk
+          rcases hcjC j with ⟨-, e⟩ | ⟨-, -, b, l, e⟩ <;> rw [e] at hc
+          · exact newKind_other_of (by have := newCapOf_tab hc; omega) hk
+          · rcases hc with h | h | h <;> cases h
         -- (f1) a new PML4's object is an `other` one too (type 8, `newCapOf_pml4`)
         have hnkP : ∀ p m' a', cj j = .Pml4 p m' a' → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
           intro p m' a' hc kd hk
-          rw [hcjE] at hc; unfold cjOf at hc
-          exact newKind_other_of (by have := newCapOf_pml4 hc; omega) hk
+          rcases hcjC j with ⟨-, e⟩ | ⟨-, -, b, l, e⟩ <;> rw [e] at hc
+          · exact newKind_other_of (by have := newCapOf_pml4 hc; omega) hk
+          · cases hc
         have hfrT : ∀ c', cj j = c' → (∀ kd, newKind n us = some kd → ∃ z, kd = .other z) →
             FrApartH H' c' := by
           intro c' hc hK q kq hq hkq
@@ -618,12 +644,27 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
             have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
             rw [Nat.add_mul, Nat.one_mul] at this
             rw [hb', ht']; omega
-        have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
-          intro p lv m' a' va hc
-          rw [hcjE] at hc; unfold cjOf at hc
-          exact newCapOf_ne_ept hc
+        -- (mmuAD gen 42b22) a new `Ept` cap is an EPT table's, an `other` object of `H'`
+        have hne : ∀ p lv m' a' va, cj j = .Ept p lv m' a' va → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
+          intro p lv m' a' va hc kd hk
+          rcases hcjC j with ⟨-, e⟩ | ⟨h1, h2, -⟩
+          · rw [e] at hc; exact absurd hc newCapOf_ne_ept
+          · exact newKind_other_ept h1 h2 hk
         cases hc : cj j with
-        | Ept p lv m' a' va => exact absurd hc (hne p lv m' a' va)
+        | Ept p lv m' a' va =>
+          -- (mmuAD gen 42b22) a new EPT table: `H'`'s `other 12` object at the window's slot
+          refine ⟨?_, hfrT _ hc (hne p lv m' a' va hc)⟩
+          rw [hc] at hb ht
+          have hpv : p.val = A + j * k := by unfold baseF at hb; rwa [ptrF_ept] at hb
+          obtain ⟨h15, h18⟩ : 15 ≤ n ∧ n ≤ 18 := by
+            rcases hcjC j with ⟨-, e⟩ | ⟨h1, h2, -⟩
+            · rw [hc] at e; exact absurd e.symm newCapOf_ne_ept
+            · exact ⟨h1, h2⟩
+          have hk12 := newKind_ept (us := us) h15 h18
+          have h4 : 4096 ≤ k := by rw [ek]; exact hbits _ hk12
+          have e12 : (2 : Nat) ^ 12 = 4096 := rfl
+          refine ⟨12, by rw [hO, if_pos ⟨⟨j, hj, hpv⟩, by rw [hk12]; rfl⟩, hk12], le_of_eq (by rw [hb, hpv]), ?_⟩
+          rw [ht, hpv, e12]; omega
         | Frame p sz r d m' ep a' va =>
           have hK := hnk p sz r d m' ep a' va hc
           rw [hc] at hb ht
@@ -643,7 +684,10 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
         | SchedContext p sb =>
           -- a new SC: `H'`'s at the window's slot, of the cap's size, in the
           -- source (RAM) untyped's region, so not the idle SC (`IdleOut`)
-          have hsc := newCapOf_sc (by rw [hcjE] at hc; unfold cjOf at hc; exact hc)
+          have hsc := newCapOf_sc (by
+            rcases hcjC j with ⟨-, e⟩ | ⟨-, -, b, l, e⟩ <;> rw [e] at hc
+            · exact hc
+            · cases hc)
           obtain ⟨rfl, rfl, rfl⟩ := hsc
           have hlt' : A + j * k < 2 ^ 64 := by
             have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
@@ -669,7 +713,7 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
       rw [hnull]; trivial
 
 /-- **`JPlaced.retypeGS` for a RAM source**: the source's kernel-state-block
-apartness from `JCovD.ks`, its spec-object fact from `SpecFree`. -/
+apartness from `JCovD.ks`, its spec-object fact from `SpecFree` (mmuAD gen 42b22: also for the EPT types). -/
 theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
     {σ : Fl4Spec.State Unit} {A' : Type} {arI : machine.Arch A'} {ar : A'}
     {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat} {sl : Fl4Spec.CslotPtr} {rs : Bool} {pb rb : Fl4Spec.ObjRef}
@@ -680,7 +724,7 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
     {σ1 : Fl4Spec.State Unit} {s0 : S} (hksz : KSz σ σ1)
     (hRP : RetPostNB (L := L) th (L.mem s) G σ σ1 arI ar s s0 bitsApi (L.ksb s) (.retype sl rs pb rb t us slots dev) res)
     (hok : res.1 = .Ok ())
-    (n : Nat) (hnT : objTypeOf n = some t) (hn13 : n ≤ 13)
+    (n : Nat) (hnT : objTypeOf n = some t) (hn13 : n ≤ 13 ∨ (15 ≤ n ∧ n ≤ 18))
     (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ 2 ^ bitsApi t us)
     (hlt : ∀ kd, newKind n us = some kd → kd.bits < 64) (hsc7 : ∀ z, newKind n us = some (.sc z) → 7 ≤ z)
     (hdevT : n = 1 → dev = false) (hz1 : n = 1 → 2 ^ bitsApi t us = 4096)

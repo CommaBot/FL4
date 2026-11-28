@@ -530,7 +530,7 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · rw [e2] at hk; cases hk
   have hn1 : nt.val ≠ 1 := by omega
   obtain ⟨th2, σ2, A2, k2', w2, lo2, hi2, eA2, ek2, ew2, -, -, hor2, hhas2, hthx2, hJP2⟩ :=
-    Sched.JPlaced.retypeG (L := L) hJp J.jcov J.ut hI hM hksz hRPN hok nt.val hty (by omega)
+    Sched.JPlaced.retypeG (L := L) hJp J.jcov J.ut hI hM hksz hRPN hok nt.val hty (Or.inl (by omega))
       (fun kd h => by rw [hK0] at h; cases h) (fun kd h => by rw [hK0] at h; cases h)
       (fun z h => by rw [hK0] at h; cases h) (fun h => absurd h hn1) (fun h => absurd h hn1)
       J.kern.ksbAl J.kern.nodeFit (fun ct h => by rw [hc2] at h; cases eq_of_ok_eq h; exact J.kern.curT) J.intL

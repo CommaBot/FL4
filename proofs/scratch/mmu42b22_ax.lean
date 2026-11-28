@@ -97,3 +97,6 @@ open Fl4Proofs.P3
 #print axioms Fl4Proofs.P3.JAtZ.utEpBodyJ
 #print axioms Fl4Proofs.P3.key_ept
 #print axioms Fl4Proofs.P3.EptCore.growSZ
+#print axioms Fl4Proofs.P3.Sched.JPlaced.retypeG
+#print axioms Fl4Proofs.P3.capsOf_ram
+#print axioms Fl4Proofs.P3.mapFree_capsOf
