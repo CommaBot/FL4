@@ -24,7 +24,13 @@ the footprint `W`, the spec-object predicate `O`, `RetObjOK`, the new objects' F
   spec's run, `Ok`, `VmEptState V (RetTabs ∪ X) (RetLvl XL)` after), **`VmEptState.ofPostN`** (0..13: `X`, `XL`
   unchanged, **`retTabs_none`**, **`retLvl_none`**).
 
-Not covered: the VCPU (14; its `VmState`-entry body, 42b27).
+Gen 42b27: `hob` of `VcpuCore.ofRet`, `EptCore.ofRet`, `VmEptState.ofRet`, `ofPost`, `ofPostN` asked only for
+`t ≠ untyped` (the proofs read it only there; for the untyped type the spec's `defaultObject` is `undefined`, so the
+unguarded form could not be given). New **`JVm.winOff`** / **`EptCore.winOff`** (`winV` / `winX`'s proofs for any range
+every spec object misses; `winV`, `winX` their instances, statements unchanged). The unified retype over the bodies
+is P3/RetVmAll.
+
+Not covered: the VCPU (14; no `JAtZB` fact after FL4's VCPU retype exists, P3/RetVmAll).
 
 No named premise. No `sorry`; only the three standard axioms.
 -/
@@ -221,20 +227,26 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 open Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Sched Fl4Proofs.P1
 
-/-- **A RAM window is apart from the VCPUs** (module docstring). -/
-theorem JAtZB.winV (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
-    {sl : Fl4Spec.CslotPtr} {p sb fi : U64}
-    (hAs : AbsSlot Z.th sl) (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
-    {lo hi : Nat} (h1 : p.val + fi.val ≤ lo) (h2 : hi ≤ p.val + 2 ^ sb.val) :
+/-- **A range every spec object misses is apart from the VCPUs** (gen 42b27: `JAtZB.winV`'s proof, any range). -/
+theorem JVm.winOff (Jv : JVm (L := L) V H s σ) {lo hi : Nat}
+    (hσ : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat) :
     ∀ v ∈ V, v.val + 32768 ≤ lo ∨ hi ≤ v.val := by
   intro v hv
   obtain ⟨x, hx⟩ := Jv.spec v hv
-  have h := (B.winFree hAs hcap h1 h2).1 _ _ hx
+  have h := hσ _ _ hx
   have e : (2 : Nat) ^ Fl4Spec.objBits (.archObj (.vcpu x)) = 32768 := by
     simp [Fl4Spec.objBits, Fl4Spec.archKobjSize]
   have hv' : v.bv.toNat = v.val := rfl
   rw [e, hv'] at h
   exact h
+
+/-- **A RAM window is apart from the VCPUs** (module docstring). -/
+theorem JAtZB.winV (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (Jv : JVm (L := L) V H s σ)
+    {sl : Fl4Spec.CslotPtr} {p sb fi : U64}
+    (hAs : AbsSlot Z.th sl) (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
+    {lo hi : Nat} (h1 : p.val + fi.val ≤ lo) (h2 : hi ≤ p.val + 2 ^ sb.val) :
+    ∀ v ∈ V, v.val + 32768 ≤ lo ∨ hi ≤ v.val :=
+  Jv.winOff (B.winFree hAs hcap h1 h2).1
 
 /-- **`VList` at a grown typed heap**: the list head is no word of a new object (no new slot or its word 8, no new
 TCB's `VCPU` or state word). -/
@@ -269,7 +281,7 @@ theorem VcpuCore.ofRet (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : V
     (hF : RetFootV (L := L) V Z.th s W) (hn14 : nt ≠ 14)
     (hVw : ∀ v ∈ V, v.val + 32768 ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ v.val)
     (hKw : rb.toNat + w * 2 ^ zOf nt us ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ rb.toNat)
-    (hob : ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
+    (hob : t ≠ .untyped → ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
     (hfit : rb.toNat + w * 2 ^ zOf nt us ≤ 2 ^ 64) :
     VcpuCore (L := L) V Z' H' s' σ' := by
   obtain ⟨k, dslot, cj, hk, -, ⟨uu, -, hcj⟩, hcw, -, hw, hThX, hSt, -, hcaps, hout, ⟨σB, o, hA, hO, -, hkc⟩,
@@ -380,7 +392,7 @@ theorem VcpuCore.ofRet (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : V
       · exact Or.inl ⟨ko0, h, hb0⟩
       · right
         intro v hv _
-        have hp := Nat.pow_le_pow_right (by norm_num : 0 < 2) (hob _ _ (hO _ hq htu))
+        have hp := Nat.pow_le_pow_right (by norm_num : 0 < 2) (hob htu _ _ (hO _ hq htu))
         obtain ⟨j, hj, rfl⟩ := regionPtrs_mem hq
         have hjk : (j + 1) * 2 ^ zOf nt us ≤ w * 2 ^ zOf nt us := Nat.mul_le_mul_right _ hj
         rw [Nat.add_mul, Nat.one_mul] at hjk
@@ -460,19 +472,26 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 open Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Sched Fl4Proofs.P1
 
+/-- **A range every spec object misses is apart from the tables of `X`** (gen 42b27: `JAtZB.winX`'s proof, any
+range). -/
+theorem EptCore.winOff {th : TypedHeap} (C : EptCore (L := L) X XL th s σ) {lo hi : Nat}
+    (hσ : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat) :
+    ∀ u ∈ X, u.val + 4096 ≤ lo ∨ hi ≤ u.val := by
+  intro u hu
+  obtain ⟨es, hk, -⟩ := C.rel.obj u hu
+  have h := hσ _ _ hk
+  have e : (2 : Nat) ^ Fl4Spec.objBits (.archObj (.ept (XL u) es)) = 4096 := by rw [ept_bits]; rfl
+  have hu' : u.bv.toNat = u.val := rfl
+  rw [e, hu'] at h
+  exact h
+
 /-- **A RAM window is apart from the tables of `X`** (P3/RetFoot's `JAtZB.winFree`). -/
 theorem JAtZB.winX (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : EptCore (L := L) X XL Z.th s σ)
     {sl : Fl4Spec.CslotPtr} {p sb fi : U64}
     (hAs : AbsSlot Z.th sl) (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
     {lo hi : Nat} (h1 : p.val + fi.val ≤ lo) (h2 : hi ≤ p.val + 2 ^ sb.val) :
-    ∀ u ∈ X, u.val + 4096 ≤ lo ∨ hi ≤ u.val := by
-  intro u hu
-  obtain ⟨es, hk, -⟩ := C.rel.obj u hu
-  have h := (B.winFree hAs hcap h1 h2).1 _ _ hk
-  have e : (2 : Nat) ^ Fl4Spec.objBits (.archObj (.ept (XL u) es)) = 4096 := by rw [ept_bits]; rfl
-  have hu' : u.bv.toNat = u.val := rfl
-  rw [e, hu'] at h
-  exact h
+    ∀ u ∈ X, u.val + 4096 ≤ lo ∨ hi ≤ u.val :=
+  C.winOff (B.winFree hAs hcap h1 h2).1
 
 /-- **A RAM window misses the whole kernel-global area** `[ksb, ksb + 304384)` (the kernel-state block, the 64 cores'
 nodes and the ASID table: `UtKsApart`). -/
@@ -508,7 +527,7 @@ theorem EptCore.ofRet (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : Ep
     (R : RetWin (L := L) Z.th Z'.th Z.G Z'.G H H' σ σ' s s' W O xs nt t us rb w dev)
     (hF : RetFootE X W) (hty : objTypeOf nt = some t) (hn14 : nt ≠ 14)
     (hXw : ∀ u ∈ X, u.val + 4096 ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ u.val)
-    (hob : ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
+    (hob : t ≠ .untyped → ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
     (hfit : rb.toNat + w * 2 ^ zOf nt us ≤ 2 ^ 64)
     (hσw : 15 ≤ nt → nt ≤ 18 → ∀ o ko, σ.kheap o = some ko →
       o.toNat + 2 ^ Fl4Spec.objBits ko ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ o.toNat)
@@ -666,7 +685,7 @@ theorem EptCore.ofRet (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : Ep
         have := hTb u hu
         rcases hσw h1 h2 o' ko0 h with h' | h' <;> omega
       · exact C.sep u hu o' ko0 h hne
-    · have hp := Nat.pow_le_pow_right (by norm_num : 0 < 2) (hob _ _ (hO _ hq htu))
+    · have hp := Nat.pow_le_pow_right (by norm_num : 0 < 2) (hob htu _ _ (hO _ hq htu))
       obtain ⟨j', hj', rfl⟩ := regionPtrs_mem hq
       have hjk : (j' + 1) * 2 ^ zOf nt us ≤ w * 2 ^ zOf nt us := Nat.mul_le_mul_right _ hj'
       rw [Nat.add_mul, Nat.one_mul] at hjk
@@ -802,7 +821,7 @@ theorem VmEptState.ofRet (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D 
     (hVw : ∀ v ∈ V, v.val + 32768 ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ v.val)
     (hXw : ∀ u ∈ X, u.val + 4096 ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ u.val)
     (hKw : rb.toNat + w * 2 ^ zOf nt us ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ rb.toNat)
-    (hob : ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
+    (hob : t ≠ .untyped → ∀ q ko, O q ko → Fl4Spec.objBits ko ≤ zOf nt us)
     (hfit : rb.toNat + w * 2 ^ zOf nt us ≤ 2 ^ 64)
     (hσw : 15 ≤ nt → nt ≤ 18 → ∀ o ko, σ.kheap o = some ko →
       o.toNat + 2 ^ Fl4Spec.objBits ko ≤ rb.toNat ∨ rb.toNat + w * 2 ^ zOf nt us ≤ o.toNat)
@@ -826,7 +845,7 @@ theorem VmEptState.ofPost (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D
     (hFV : RetFootV (L := L) V Z.th s (W rb.toNat (rb.toNat + slots.length * 2 ^ zOf nt us)))
     (hFE : RetFootE X (W rb.toNat (rb.toNat + slots.length * 2 ^ zOf nt us)))
     (hty : objTypeOf nt = some t) (hn14 : nt ≠ 14)
-    (hob : ∀ q ko, O t false us q ko → Fl4Spec.objBits ko ≤ zOf nt us) :
+    (hob : t ≠ .untyped → ∀ q ko, O t false us q ko → Fl4Spec.objBits ko ≤ zOf nt us) :
     ∃ σ', (Fl4Spec.fl4InvokeUntypedV (Z := Unit) (.retype src rs pb rb t us slots false)).run σ =
         ({(.ok (), σ')}, False) ∧
       res.1 = .Ok () ∧ ∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
@@ -854,7 +873,7 @@ theorem VmEptState.ofPostN (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst 
     (hFV : RetFootV (L := L) V Z.th s (W rb.toNat (rb.toNat + slots.length * 2 ^ zOf nt us)))
     (hFE : RetFootE X (W rb.toNat (rb.toNat + slots.length * 2 ^ zOf nt us)))
     (hty : objTypeOf nt = some t) (hn13 : nt ≤ 13)
-    (hob : ∀ q ko, O t false us q ko → Fl4Spec.objBits ko ≤ zOf nt us) :
+    (hob : t ≠ .untyped → ∀ q ko, O t false us q ko → Fl4Spec.objBits ko ≤ zOf nt us) :
     ∃ σ', (Fl4Spec.fl4InvokeUntypedV (Z := Unit) (.retype src rs pb rb t us slots false)).run σ =
         ({(.ok (), σ')}, False) ∧
       res.1 = .Ok () ∧ ∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
