@@ -2795,6 +2795,8 @@ import Fl4Proofs.P3.P3JMidIpcSt
 import Fl4Proofs.P3.P3JMidIpcC
 import Fl4Proofs.P3.P3JSysLzzSat
 import Fl4Proofs.P3.P3JSysLzzW1
+import Fl4Proofs.P3.P3JSysLzzP
+import Fl4Proofs.P3.P3JSysLzzT1
 import Fl4Proofs.P2.E2EPV15PmK
 import Fl4Proofs.P2.InvPmAnnV
 import Fl4Proofs.P2.InvPmGdV
