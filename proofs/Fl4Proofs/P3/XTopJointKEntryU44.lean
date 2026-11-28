@@ -8,7 +8,7 @@ restated as exactly what is left of it: scope facts about the invoked cap only.
   `resetChunkBits = 16` are not provable from the port; FL4's values are the extracted
   `untyped.RETYPE_FAN_OUT_LIMIT` / `untyped.RESET_CHUNK_BITS`. **`KCfgFL4`** [P] (module KCfgFL4) states the
   spec's two constants are those (global; it mentions no state, joint set or entry, so asking it per entry,
-  as every untyped leaf of `JPathAtMU35` did, asked one constant fact again; `kCfgFL4_consistent`).
+  as every untyped leaf of `JPathAtMU30` did, asked one constant fact again; `kCfgFL4_consistent`).
 * `JPathMEU44` (cap-by-cap, unfolding `JPathMEU30` → `JPathMEU29` → `JPathMEU12` → `JPathMEU7` → `JPathMEU4`
   → `JPathME6` → `JPathME` → `JPathM`): every leaf of `JPathMEU30` that is not `True` at a native cap, and
   nothing else:
@@ -24,7 +24,7 @@ restated as exactly what is left of it: scope facts about the invoked cap only.
     `NativeCap`).
   `JPathMEU44.toU30 (KCfgFL4) (NativeCap c)` re-adds `fan` / `rcb` and the non-native leaves;
   `JPathMEU30.toU44` drops them (no premise).
-* `JPathAtMU44` / **`KDispHypsKVU44`**: `JPathAtMU35` / `KDispHypsKVU39` on `JPathMEU44` (same quantifier
+* `JPathAtMU44` / **`KDispHypsKVU44`**: `JPathAtMU30` / `KDispHypsKVU39` on `JPathMEU44` (same quantifier
   prefix, `LookAt` at the invoked slot). So the syscall clause's remaining path premise carries no [J] or
   [P] fact any more: only [S] K1 / K4 and [scope] K3 / K6 / K7, all about the invoked cap.
   `KDispHypsKVU44.toU39 (KCfgFL4)`, `KDispHypsKVU39.toU44`.
@@ -82,7 +82,7 @@ def JPathMEU44 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
         (.Frame p sz rt d m ep asid va) blk call don fp buf extra slbl argsU ci sl excaps buffer ct
   | _ => True
 
-/-- **`JPathAtMU35` on `JPathMEU44`.** -/
+/-- **`JPathAtMU30` on `JPathMEU44`.** -/
 def JPathAtMU44 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (ct : U64) (is_call blocking can_donate first_phase : Bool) (cptr : U64) : Prop :=
   ∀ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)
@@ -140,43 +140,13 @@ theorem JPathMEU44.toU30 (hC : KCfgFL4) {AR : A → Fl4Spec.Cr3 → Prop} {Z : X
   case Ept p l m asid va => exact hN.elim
   all_goals exact trivial
 
-/-- **`JPathMEU30` gives `JPathMEU44`** (the `fan` / `rcb` and non-native leaves dropped). -/
-theorem JPathMEU30.toU44 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64}
-    {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} {lbl length : U64} {blk call don fp : Bool} {buf : U64}
-    {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data} {argsU : List U64} {ci : Fl4Spec.CapRef}
-    {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef}
-    {ct : U64} {c : capability.Cap}
-    (h : JPathMEU30 (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
-      buffer ct c) :
-    JPathMEU44 (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
-      buffer ct c := by
-  cases c
-  case SchedControl cpu => exact h
-  case Thread p => exact h
-  case Frame p sz rt d m ep asid va => exact h
-  case Untyped p sb fi dev =>
-    obtain ⟨h1, h2⟩ := h
-    cases dev
-    · exact ⟨(h2 rfl).vtx, (h2 rfl).core0⟩
-    · exact ⟨(h1 rfl).vtx, (h1 rfl).core0⟩
-  all_goals exact trivial
-
-/-- **`JPathAtMU44` gives `JPathAtMU35`** under `KCfgFL4`. -/
+/-- **`JPathAtMU44` gives `JPathAtMU30`** under `KCfgFL4`. -/
 theorem JPathAtMU44.toU35 (hC : KCfgFL4) {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64}
     {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
     (h : JPathAtMU44 (L := L) arI AR Z s ar σ ct ic bl cd fp cptr) :
-    JPathAtMU35 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr :=
+    JPathAtMU30 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr :=
   fun info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL =>
     JPathMEU44.toU30 hC h13 (h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL)
-
-/-- **`JPathAtMU35` gives `JPathAtMU44`.** -/
-theorem JPathAtMU35.toU44 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64}
-    {s : S} {ar : A} {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
-    (h : JPathAtMU35 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr) :
-    JPathAtMU44 (L := L) arI AR Z s ar σ ct ic bl cd fp cptr :=
-  fun info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL =>
-    JPathMEU30.toU44 (h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL)
 
 /-- **`KDispHypsKVU44` gives `KDispHypsKVU39`** under `KCfgFL4`. -/
 theorem KDispHypsKVU44.toU39 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
@@ -185,14 +155,6 @@ theorem KDispHypsKVU44.toU39 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     KDispHypsKVU39 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => (h.inv ct call bl don hct hi).toU35 hC,
    fun ct rg sr cr hct hm => (h.mid ct rg sr cr hct hm).toU35 hC⟩
-
-/-- **`KDispHypsKVU39` gives `KDispHypsKVU44`** (fields dropped). -/
-theorem KDispHypsKVU39.toU44 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
-    {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : KDispHypsKVU39 (L := L) arI AR Z H Cs D s a σ n c) :
-    KDispHypsKVU44 (L := L) arI AR Z H Cs D s a σ n c :=
-  ⟨fun ct call bl don hct hi => (h.inv ct call bl don hct hi).toU44,
-   fun ct rg sr cr hct hm => (h.mid ct rg sr cr hct hm).toU44⟩
 
 end
 

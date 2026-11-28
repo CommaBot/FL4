@@ -17,7 +17,7 @@ refined spec differ by construction (the "exact exceptions of P3x"); the composi
 **The narrowing.** `VtxInv c lbl argsU` [S]: the invoked cap and message are a VT-x invocation — a thread cap
 at `TCBSetEPTRoot` (88), a frame cap with the EPT flag or at `X86PageMapEPT` (60), an untyped cap with first
 message word in 14..18 (FL4's VT-x object types `ot::X86Vcpu ..< ot::Count`). These are exactly the cases of
-`JPathAtMU35` with a VT-x leaf (`JVtxScope`, inventory K6 / K7 / K3); they contain every `VirtRoute` input
+`JPathAtMU30` with a VT-x leaf (`JVtxScope`, inventory K6 / K7 / K3); they contain every `VirtRoute` input
 of a native cap (`vtxInv_of_virtRoute`, P3JVtxBridge) and also the VT-x inputs on which ext and port agree
 but FL4's VT-x path has no functional refinement (first-phase label 88, unmapped EPT-flagged frames, VT-x
 retypes with VT-x present: still [scope]).
@@ -26,7 +26,7 @@ retypes with VT-x present: still [scope]).
   current message is not a `VtxInv`.
 * `JPathMEU37`: `JPathMEU30` with no VT-x leaf (thread and frame caps: `True`; untyped caps: `JUtPathU37`
   = `fan`, `core0`, `rcb`, without `vtx`). `JPathMEU37.toU30`: under `¬ VtxInv` it gives `JPathMEU30`.
-* `JPathAtMU37`, `KDispHypsKVU37`: `JPathAtMU35` / `KDispHypsKVU36` on `JPathMEU37`; `KDispHypsKVU37.toU36`.
+* `JPathAtMU37`, `KDispHypsKVU37`: `JPathAtMU30` / `KDispHypsKVU36` on `JPathMEU37`; `KDispHypsKVU37.toU36`.
 
 **Premise diff U36 → U37** (syscall clause): `KDispHypsKVU36 …` ↦ `KDispHypsKVU37 …` (the leaves K3 `vtx`, K6,
 K7 removed), and the new antecedent `KNoVtx …` [S] before it (the clause now covers non-VT-x invocations
@@ -77,7 +77,7 @@ def JPathMEU37 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D
   | c => JPathMEU30 (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
       buffer ct c
 
-/-- **`JPathAtMU35` on `JPathMEU37`.** -/
+/-- **`JPathAtMU30` on `JPathMEU37`.** -/
 def JPathAtMU37 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (ct : U64) (is_call blocking can_donate first_phase : Bool) (cptr : U64) : Prop :=
   ∀ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)

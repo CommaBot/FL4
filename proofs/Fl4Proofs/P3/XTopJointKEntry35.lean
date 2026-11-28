@@ -137,7 +137,7 @@ def JPathAtM35 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D
     ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
       capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
-      r2 = .Ok e → er = .ok exs → Vs.NativeCap c →
+      r2 = .Ok e → er = .ok exs → Vs.NativeCap c → LookAt ct cptr σ sl c →
       JPathM (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
         mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
 
@@ -163,13 +163,13 @@ theorem JPathAtM35.toM {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
     (h : JPathAtM35 (L := L) arI AR Z H Cs D s a σ ct ic bl cd fp cptr) :
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct ic bl cd fp cptr := by
-  intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs hsl hc hg hr he
+  intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs hsl hc hg hr he hL
   have hN : Vs.NativeCap c := by
     obtain ⟨p, h1', h2'⟩ := id hsl
     have hx : IsSlot Z.th (cslotAddr sl) := AbsSlot.isSlot ⟨p, h1', Or.inl h2'⟩
     have := J.ext.nat _ hx
     rwa [capV_of_capAt hc] at this
-  exact h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs hsl hc hg hr he hN
+  exact h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs hsl hc hg hr he hN hL
 
 /-- **`JEntryGlobM32` from the top's [P] / [S] premises** (every field a
 duplicate, but `archRef` and `portIn`). -/

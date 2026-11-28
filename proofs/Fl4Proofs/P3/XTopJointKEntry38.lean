@@ -486,7 +486,7 @@ theorem handle_invocation_entryJMUM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
       (MKD.faults_handle_fault L.total hA hKD hR)
       (fun z hz => congrArg Prod.fst (MachT.mtk_handleFaultG _ _ σ z hz)))
       fun _ ⟨z, hz, ⟨h1, h2⟩, h3⟩ => ⟨z, hz, h1, h2, h3⟩
-  refine handle_invocation_refinesMXP arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) true s ar σ Z.th Z.G
+  refine handle_invocation_refinesMXPL arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩, hR⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
     ((J.extraJ J.xferH.1 J.xferH.2.1 hct hinfo hmi hbuf
@@ -513,7 +513,7 @@ theorem handle_invocation_entryJMUM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
       rw [e, Sched.stsAct_rec]; exact hcur) ?_
   obtain ⟨hLen, hArgs, hA5⟩ := J.argsJ J.xferH.1 J.xferH.2.1
     hct hinfo hmi hbuf hbuffer hmrs
-  intro sl c e exs hsl hc hget h1 h2
+  intro sl c e exs hsl hc hget h1 h2 hL
   have hl : argsU.length ≤ 120 := by
     have hm := Endp.msg_info_spec (L := L) s ct
     rw [hinfo, WP.spec_ok] at hm
@@ -529,7 +529,7 @@ theorem handle_invocation_entryJMUM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     exact h e h1
   exact decOK_JMM arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
-    (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2)
+    (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2 hL)
     hPD hDL hR hVT hVI hNs hM hKD hA
 
 end

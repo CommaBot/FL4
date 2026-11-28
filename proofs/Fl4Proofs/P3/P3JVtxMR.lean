@@ -276,9 +276,6 @@ def VtxU : capability.Cap → U64 → List U64 → Prop
   | .Untyped .., _, argsU => ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
   | _, _, _ => False
 
-theorem vtxU_vtxK : ∀ c lbl argsU, VtxU c lbl argsU → VtxK c lbl argsU := by
-  intro c lbl argsU h
-  cases c <;> first | exact h | exact (show False from h).elim
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)

@@ -212,9 +212,6 @@ def VtxR : capability.Cap → U64 → List U64 → Prop
       ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
   | _, _, _ => False
 
-theorem vtxR_vtxU : ∀ c lbl argsU, VtxR c lbl argsU → VtxU c lbl argsU := by
-  intro c lbl argsU h
-  cases c <;> first | exact h.2 | exact (show False from h).elim
 
 /-- `VtxU` off the VT-x retype at arch state `ar` (module docstring): a label other than `UntypedRetype`, or
 no virtualization reported at `ar`. -/

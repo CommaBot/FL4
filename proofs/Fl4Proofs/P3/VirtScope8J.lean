@@ -4,14 +4,14 @@ narrowed route scope derived from U36I's own per-entry premise.**
 
 U33's proof walks FL4's front end (message info, `lookup_slot`, IPC buffer, extra caps, message words) beside the
 spec's and applies the per-slot path premise at the invoked slot; that walk sits inside
-`handle_invocation_refinesMXPL` / `handle_invocation_entryJMUL` (P3JLook) and was not reusable. This module
+`handle_invocation_refinesMXPL` / `handle_invocation_entryJMU` (XTopJointKEntry23P) and was not reusable. This module
 restates it as lemmas about the **spec's decode points** (VirtR7e's `DecPt`):
 
 * `run_lookupPart_ok`, `run_lookupPart_err1`, `run_lookupPart_err2` (the spec's `lookupPart` from single-outcome
   reads), **`decPt_joint`** (the walk: at a `JAtZ` state every spec decode point of `toBl cptr` is FL4's front end —
   `frontEx`, `lookup_slot_refines`, `StateRel.slot_cap`, `frontJ`, `extraJ`, `argsJ`: one message info, the
   looked-up slot with FL4's cap `c` there and `absCap c` the spec's, FL4's extra-slot array with `ExtraOK`, the
-  argument words with `syscall_arg`, all at the decode state `σ` itself).
+  argument words with `syscall_arg`, all at the decode state `σ` itself; and `LookAt`, the invoked slot).
 * **`offRoute6_of_path`**: `JPathAtMU30 … fp cptr` (U36I's per-entry path premise) at an `NR` state ⇒
   `OffRoute6 fp (toBl cptr.bv) σ`: at each on-route point the leaf (`JPathME` @88 / `JPathME6` @60 / the untyped
   `vtx` field) is `XCapP` against the ported decoder, and VirtAgreeDec's `agree_*` turn it into `ErrAgree`.
@@ -103,7 +103,8 @@ theorem decPt_joint {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       Fl4Spec.getCap (Z := Unit) a0.1 σ = ({(absCap c, σ)}, False) ∧ a0.2.1 = absCap c ∧
       info'.label.bv = info.miLabel ∧ ExtraOK Z.th (L.mem s) e a0.2.2.1 ∧
       (msgLen info' buf).val = argsU.length ∧
-      (∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x) := by
+      (∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x) ∧
+      LookAt ct cptr σ a0.1 c := by
   obtain ⟨s1, t2, h1, ha, hu⟩ := hd
   obtain ⟨hcur, -⟩ := J.curEq hct
   obtain ⟨info', mi, buf, buffer, r2, er, argsU, hinfo, hmi, hbuf, hbuffer, hr2, her, hmrs⟩ :=
@@ -156,7 +157,7 @@ theorem decPt_joint {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       have hca' : ca = absCap c := hca.abs
       subst hca'
       exact ⟨rfl, info', buf, r2, e, argsU, c, hinfo, hmi, hbuf, hbuffer, hr2, her, hmrs, rfl, he,
-        ⟨p, hp, hth⟩, hc, hget, rfl, hLb, hXO e exs he rfl, hLen, hArgs⟩
+        ⟨p, hp, hth⟩, hc, hget, rfl, hLb, hXO e exs he rfl, hLen, hArgs, hl⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **U36I's per-entry path premise gives the route scope at its decode points** (module docstring). -/
@@ -170,9 +171,9 @@ theorem offRoute6_of_path (hvk : Fl4Spec.virtKind = .none) {s : S} {a : A} {σ :
   have hd' := hd
   obtain ⟨s1, t2, h1, ha, -⟩ := hd'
   obtain ⟨hu, info', buf, r2, e, argsU, c, hinfo, hmi, hbuf, hbuffer, hr2, her, hmrs, hargsE, he, hsl, hc, hget,
-    hcap, hLb, hXO, hLen, hArgs⟩ := decPt_joint arI J hct cptr hd
+    hcap, hLb, hXO, hLen, hArgs, hLk⟩ := decPt_joint arI J hct cptr hd
   subst u
-  dsimp only at hbuffer her hmrs hsl hc hget hcap hXO
+  dsimp only at hbuffer her hmrs hsl hc hget hcap hXO hLk
   have hcur := (J.curEq hct).1
   rw [hcur, hmi] at h1
   obtain ⟨-, e2⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 h1)
@@ -190,7 +191,7 @@ theorem offRoute6_of_path (hvk : Fl4Spec.virtKind = .none) {s : S} {a : A} {σ :
   · exact Or.inl hR
   right
   have hM := fun hN => hP info' info buf buffer r2 (.ok exs) argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs
-    hsl hc hget he rfl hN
+    hsl hc hget he rfl hN hLk
   cases c with
   | Thread p =>
     obtain ⟨hfp, hl⟩ : ¬ fp ∧ Fl4Spec.dataToNat info.miLabel = Fl4Spec.fl4SetEptRootLabel := hR

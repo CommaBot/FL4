@@ -113,7 +113,7 @@ def JPathAtMU28 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
     ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
       capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
-      r2 = .Ok e → er = .ok exs → Vs.NativeCap c →
+      r2 = .Ok e → er = .ok exs → Vs.NativeCap c → LookAt ct cptr σ sl c →
       JPathMEU28 (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
         mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
 
@@ -164,8 +164,8 @@ theorem JPathAtMU28.toU27 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (h : JPathAtMU28 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr) :
     JPathAtMU27 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr := by
-  intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13
-  have hP := h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13
+  intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL
+  have hP := h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 hL
   cases c
   case Untyped p sb fi dev =>
     exact ⟨fun hd => (hP.1 hd).toU27 J hni, fun hd => (hP.2 hd).toU27 J hni⟩

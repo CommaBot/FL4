@@ -8,8 +8,24 @@ Names: a constant whose root component is `Fl4Proofs<X>` (`X` empty, `N`, `I`, `
 it): no axiom, no trusted step. `transportD` is a diagnostic variant (scratch use only) that records the
 constants whose copy the kernel rejects instead of stopping at the first.
 -/
-import Fl4Proofs.P3.P3JXport
+import Fl4Proofs.P3.XTopJointKEntryU30
 open Lean Meta Elab Command
+
+namespace Fl4Proofs.P3.StallNarrow
+
+/-- The constants a constant's type, value and (for an inductive) constructors use. -/
+def depsOf (env : Environment) (n : Name) : Array Name :=
+  match env.find? n with
+  | none => #[]
+  | some ci =>
+    let v := match ci.value? (allowOpaque := true) with | some v => v.getUsedConstants | none => #[]
+    let k := match ci with
+      | .inductInfo ii => ii.ctors.toArray.flatMap (fun c => match env.find? c with
+          | some cc => cc.type.getUsedConstants | none => #[])
+      | _ => #[]
+    ci.type.getUsedConstants ++ v ++ k
+
+end Fl4Proofs.P3.StallNarrow
 
 namespace Fl4Proofs.P3.P3KX
 

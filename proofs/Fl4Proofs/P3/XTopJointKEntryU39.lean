@@ -7,7 +7,7 @@ P3 (line p3J, gen 5): **`kernel_entry_reachU39`** = `kernel_entry_reachU38` with
   one backend fact again and again. **`IoaMap arI`** [P] (platform premise, global): exactly those two fields
   (FL4 x86_64 `arch.rs` `ioapic_map` / `ioapic_map_remapped`: in range (`ioapic < count()`, `pin < pins(ioapic)`,
   level / polarity bits, handle below 2^16) the routing writes the redirection entry and answers `true`).
-* `KDispHypsKVU39` = `KDispHypsKVU38` without `JEntryAtR7W` (only the `JPathAtMU35` path [J]s in `inv` and
+* `KDispHypsKVU39` = `KDispHypsKVU38` without `JEntryAtR7W` (only the `JPathAtMU30` path [J]s in `inv` and
   `mid`); `KDispHypsKVU39.toU38` (from `IoaMap`), `KDispHypsKVU38.toU39` (dropped).
 
 **Premise diff U38 → U39**: new global premise `hMap : IoaMap arI` [P]; in the syscall clause
@@ -49,10 +49,10 @@ structure KDispHypsKVU39 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   /-- [J] as `KDispHypsKVU38.inv` without `map` / `mapr`. -/
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JPathAtMU35 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
+    JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
   /-- [J] as `KDispHypsKVU38.mid` without `map` / `mapr`. -/
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JPathAtMU35 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))
+    JPathAtMU30 (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg))
 
 variable {arI}
 
@@ -74,20 +74,6 @@ theorem KDispHypsKVU39.toU38 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     KDispHypsKVU38 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => ⟨hM.toW, h.inv ct call bl don hct hi⟩,
    fun ct rg sr cr hct hm => ⟨hM.toW, h.mid ct rg sr cr hct hm⟩⟩
-
-/-- **`KDispHypsKVU38` gives `KDispHypsKVU39`** (fields dropped). -/
-theorem KDispHypsKVU38.toU39 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S}
-    {a : A} {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall}
-    (h : KDispHypsKVU38 (L := L) arI AR Z H Cs D s a σ n c) :
-    KDispHypsKVU39 (L := L) arI AR Z H Cs D s a σ n c :=
-  ⟨fun ct call bl don hct hi => (h.inv ct call bl don hct hi).2,
-   fun ct rg sr cr hct hm => (h.mid ct rg sr cr hct hm).2⟩
-
-end
-
-section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-variable (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop)
 
 end
 
