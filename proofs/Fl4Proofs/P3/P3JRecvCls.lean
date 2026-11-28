@@ -263,7 +263,7 @@ theorem dispRecv_stFt (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM
   unfold DispPostSt
   rw [fl4HandleSyscall_recv]
   refine ⟨⟨_, mem_liftE (ε := Unit) hz, Or.inl ⟨rfl, hJS, ?_⟩⟩, hW⟩
-  exact msF_mrT hMT hMr (congrArg Prod.fst (MachT.mtk_handleRecvG bl cr _ z hz))
+  exact msF_mr hMT hMr (congrArg Prod.fst (MachT.mtk_handleRecvG bl cr _ z hz))
 
 end
 

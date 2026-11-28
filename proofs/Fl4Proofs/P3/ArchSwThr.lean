@@ -210,9 +210,9 @@ theorem archSwFT_of (hD : FpuImplDet) (hW : FpuWriteDet) (hAT : P0.ArchTotal ar)
   rw [nd_bind_one hv]
   exact hl
 
-/-- `ArchSwF'` (both halves) from the opaque FPU premises and `ArchTotal`. -/
+/-- `ArchSwF` (both halves; `ArchSwF'` before collapse A, K) from the opaque FPU premises and `ArchTotal`. -/
 theorem archSwF'_of (hD : FpuImplDet) (hW : FpuWriteDet) (hAT : P0.ArchTotal ar) {N T C : Set U64} {c : U64} :
-    ArchSwF' st ar N T C c :=
+    ArchSwF st ar N T C c :=
   (archSwFT_of hD hW hAT).toN hAT
 
 end

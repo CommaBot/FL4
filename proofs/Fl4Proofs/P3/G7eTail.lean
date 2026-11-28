@@ -105,7 +105,7 @@ theorem KFinAtR8.to5 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
     (F : KFinAtR8 (L := L) arI AR Z H Cs s a σ) (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hFO : FpuOwnOK σ) : KFinAtR5 (L := L) arI AR Z H Cs s a σ :=
   ⟨F.hd, F.arch, F.archNd,
-    kfin_tail_of J F.hd hnd hAT hK hRef F.arch F.archNd (sniHyp_of hAT hD) (sendHyp_of hAT) hT hFO F.idle⟩
+    kfin_tail_of J F.hd hnd hAT hK hRef F.arch F.archNd (sniHyp_of hAT hD) (sendHyp_of hAT) hT hFO F.idle, ⟨F.idle, hRef, hK⟩⟩
 
 variable (arI)
 

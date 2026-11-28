@@ -835,7 +835,6 @@ import Fl4Proofs.P3.ScArchF
 import Fl4Proofs.P3.ScScheduleF
 import Fl4Proofs.P3.ScNextDomF
 import Fl4Proofs.P3.ScFpuOwnK
-import Fl4Proofs.P3.ScNextDomCF
 import Fl4Proofs.P3.XTopJointSchedRF3
 import Fl4Proofs.P3.XTopJointMidRun
 import Fl4Proofs.P3.XTopJointMidRunK
@@ -2215,10 +2214,6 @@ import Fl4Proofs.P3.JBootQU40
 import Fl4Proofs.P3.ScFpuNd
 import Fl4Proofs.P3.XTopJointKEntryU41
 import Fl4Proofs.P3.ArchSwIdle
-import Fl4Proofs.P3.P3KXport
-import Fl4Proofs.P3.P3KGen1
-import Fl4Proofs.P3.P3KFin
-import Fl4Proofs.P3.P3KGen
 import Fl4Proofs.P3.XTopJointKEntryU42
 import Fl4Proofs.P2.ViewSafeGen
 import Fl4Proofs.P2.ViewSafeOwn
@@ -2624,11 +2619,8 @@ import Fl4Proofs.P3.JBootM2Mc
 import Fl4Proofs.P3.P3JMcStep
 import Fl4Proofs.P3.P3JMcIrq
 import Fl4Proofs.P3.P3JStIrq
-import Fl4Proofs.P3.P3JStIrqKFin
-import Fl4Proofs.P3.P3JStIrqK
 import Fl4Proofs.P3.P3JStIrqTop
 import Fl4Proofs.P3.P3JStEv
-import Fl4Proofs.P3.P3JStEvK
 import Fl4Proofs.P3.P3JStEvTop
 import Fl4Proofs.P3.P3JMcFootK
 import Fl4Proofs.P3.P3JKtF
@@ -2638,7 +2630,6 @@ import Fl4Proofs.P3.P3JKtTop
 import Fl4Proofs.P3.P3JMcUt
 import Fl4Proofs.P3.P3JKtSys
 import Fl4Proofs.P3.P3JStTrap
-import Fl4Proofs.P3.P3JStTrapK
 import Fl4Proofs.P3.P3JMcTrap
 import Fl4Proofs.P3.P3JMcBuf
 import Fl4Proofs.P3.P3JMcFootC
@@ -2668,7 +2659,6 @@ import Fl4Proofs.P3.P3JRecvN
 import Fl4Proofs.P3.P3JSysRecv
 import Fl4Proofs.P3.P3JFinR
 import Fl4Proofs.P3.P3JSysSt
-import Fl4Proofs.P3.P3JSysStK
 import Fl4Proofs.P3.P3JSysStTop
 import Fl4Proofs.P3.P3JSysLeaf
 import Fl4Proofs.P3.P3JSigSt

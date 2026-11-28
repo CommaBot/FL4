@@ -87,6 +87,9 @@ structure KFinAtR31 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) 
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
       SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄
+  /-- [J] the idle TCB's vtable (`IdleVt`, from `KFinAtR8.idle`) and the arch premises `ArchRefines` [P] /
+  `ARKeep` the g7e scheduler chain needs, carried to the old finish lemmas. -/
+  rr : FinRootR arI AR σ
 
 /-- **`KFinAtR27.vt` is a theorem** (g2a; INV-PLAN F2 `VtAsidJ`, JProducers'
 `VtAsidJ` [J]): a set TCB is the typed heap's (`JPlaced.tcb`, `zH`), so its
@@ -111,7 +114,7 @@ variable {arI}
 
 theorem KFinAtR31.to27 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (F : KFinAtR31 (L := L) arI AR Z H Cs s a σ) : KFinAtR27 (L := L) arI AR Z H Cs s a σ :=
-  ⟨F.hd, vtAsid_ofR arI AR Z H Cs, F.arch, F.archNd, F.sni, F.send, F.tail⟩
+  ⟨F.hd, vtAsid_ofR arI AR Z H Cs, F.arch, F.archNd, F.sni, F.send, F.tail, F.rr⟩
 
 /-- `JDelParts` from `JDelPartsN`: `vt` by `JVtHyps.ofExt` (g2a). -/
 theorem JDelPartsN.toJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : JDelPartsN (L := L) arI AR th) :

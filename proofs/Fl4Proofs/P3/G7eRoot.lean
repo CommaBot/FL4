@@ -37,10 +37,6 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Sched
 
 noncomputable section
 
-/-- **[J] `IdleVt`** (INV-PLAN §1.U3L D7; module docstring). -/
-def IdleVt (σ : Fl4Spec.State Unit) : Prop :=
-  ∃ x : Fl4Spec.Tcb, σ.kheap σ.idleThread = some (.tcb x) ∧
-    ∀ p asid, x.tcbVtable ≠ .archObjectCap (.pml4Cap p (some asid))
 
 theorem IdleVt.frame {σ σ' : Fl4Spec.State Unit} (h : IdleVt σ) (hk : HeapEqUpToFpu σ σ')
     (hi : σ'.idleThread = σ.idleThread) : IdleVt σ' := by

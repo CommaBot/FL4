@@ -216,13 +216,16 @@ structure KFinAtR27 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) 
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
       SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄
+  /-- [J] the idle TCB's vtable (`IdleVt`, from `KFinAtR8.idle`) and the arch premises `ArchRefines` [P] /
+  `ARKeep` the g7e scheduler chain needs, carried to the old finish lemmas. -/
+  rr : FinRootR arI AR σ
 
 variable {arI} {MR : A → Fl4Spec.MachineState → Prop}
 
 theorem KFinAtR27.toR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (F : KFinAtR27 (L := L) arI AR Z H Cs s a σ) (fo : FpuOwnOK σ) :
     KFinAtR (L := L) arI AR Z H Cs s a σ :=
-  ⟨F.hd, F.vt, F.arch, F.archNd, fo, F.sni, F.send, F.tail⟩
+  ⟨F.hd, F.vt, F.arch, F.archNd, ⟨fo, F.rr⟩, F.sni, F.send, F.tail⟩
 
 /-- **`KDispHypsKV26` at a dispatch state from `KDispHypsKV27`, `SInvB`, `hQ` and
 `OffReady` at the `FaultIP` state** (module docstring). -/

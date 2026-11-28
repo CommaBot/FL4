@@ -59,13 +59,16 @@ structure KFinAtR5 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
       SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄
+  /-- [J] the idle TCB's vtable (`IdleVt`, from `KFinAtR8.idle`) and the arch premises `ArchRefines` [P] /
+  `ARKeep` the g7e scheduler chain needs, carried to the old finish lemmas. -/
+  rr : FinRootR arI AR σ
 
 variable {arI}
 
 theorem KFinAtR5.to31 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (hA : P0.ArchTotal arI) (hD : SetDlDet) (F : KFinAtR5 (L := L) arI AR Z H Cs s a σ) :
     KFinAtR31 (L := L) arI AR Z H Cs s a σ :=
-  ⟨F.hd, F.arch, F.archNd, sniHyp_of hA hD, sendHyp_of hA, F.tail⟩
+  ⟨F.hd, F.arch, F.archNd, sniHyp_of hA hD, sendHyp_of hA, F.tail, F.rr⟩
 
 variable (arI)
 

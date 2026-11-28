@@ -407,7 +407,7 @@ theorem invInvHIL [Fl4Proofs.P1.PlainStore st] (hA : P0.ArchTotal arI) (hnd : Fl
     refine WP.spec_mono (WP.spec_and (WP.spec_and (J.faultHypJZGSt hA hnib hct hq hvfh hcf)
       (MKD.faults_handle_fault L.total hA hKD hMb)) (Mc.faultProjW hA J hCb hnib hq hct f)) ?_
     rintro r ⟨⟨⟨z, hz, h1, h2⟩, h3⟩, h4⟩
-    exact ⟨z, hz, h1, JStab.mv h2, msF_mrT hMT h3 (congrArg Prod.fst (MachT.mtk_handleFaultG _ _ σb z hz)), h4⟩
+    exact ⟨z, hz, h1, JStab.mv h2, msF_mr hMT h3 (congrArg Prod.fst (MachT.mtk_handleFaultG _ _ σb z hz)), h4⟩
   refine handle_invocation_refinesMXPL arI (MidX (L := L) arI AR MR Z H Cs s')
     (MidXP (L := L) arI AR MR Z H Cs s') true s' a' σb
     Z.th Z.G hXt.rel.1 hXt.rel.2.1 hXt.rel.2.2.1 hXt.rel.2.2.2.1 hXt.rel.2.2.2.2.1 ?x0 ct hct hcur htcb
@@ -425,7 +425,7 @@ theorem invInvHIL [Fl4Proofs.P1.PlainStore st] (hA : P0.ArchTotal arI) (hnd : Fl
     refine WP.spec_mono (WP.spec_and (WP.spec_and (J'.flTailJSt hc call) (MKD.fl_tail L.total hA hKD hR'))
       (Mc.flTailProjWc J'.kern.heap J'.blk (J'.zH.1 ct hct') call)) ?_
     rintro res ⟨⟨⟨h1, z, hz, h2, h3⟩, h4⟩, h5⟩
-    exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mrT hMT h4 (congrArg Prod.fst (MachT.mtk_specTailG _ _ _ σ' z hz)),
+    exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mr hMT h4 (congrArg Prod.fst (MachT.mtk_specTailG _ _ _ σ' z hz)),
       hW1.projW_trans h5⟩
   case repF =>
     intro a1 e e' hX1 he
@@ -444,7 +444,7 @@ theorem invInvHIL [Fl4Proofs.P1.PlainStore st] (hA : P0.ArchTotal arI) (hnd : Fl
       ((J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJSt hcur call e e' he)
       (MKD.reply_err_tail (e := e) (t := ct) (s := s') (is_call := call) L.total hA hKD hR')) hFt) ?_
     rintro res ⟨⟨⟨h1, z, hz, h2, h3⟩, h4⟩, h5⟩
-    exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mrT hMT h4
+    exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mr hMT h4
       (congrArg Prod.fst (MachT.mtk_when (MachT.mtk_fl4ReplyFromKernelErrorG _ _ _) σb z hz)), h5⟩
   case pk => exact midPK J hcur bl call don
   case dec =>

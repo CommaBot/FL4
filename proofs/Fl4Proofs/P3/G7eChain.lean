@@ -148,7 +148,7 @@ theorem scnt_refines0FA (hRef : ArchRefines ar AR) {N T C P : Set U64} {c : U64}
       P1.WritesIn st s r.1 (SFootN st T c s) ∧ AR r.2 σ'.archState.x64CurrentCr3 ⦄ := by
   by_cases hd0 : σ.domainTime ≠ 0
   · refine WP.spec_mono (schedule_choose_new_thread_refinesFA hRef s a σ hO.now hS hR hN hI (hA.1 s a σ hS hR hfo hvr)
-      (hA.2 s a σ hS hR hvr) hd0) ?_
+      (hA.2 s a σ hS hR hvr hO.now.idle) hd0) ?_
     rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, hAR⟩
     exact ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, TK.tk0 h10, WritesIn.sfootN_of h11, hAR⟩
   have hnd := hdt.resolve_left hd0
@@ -200,7 +200,7 @@ theorem scnt_refines0FA (hRef : ArchRefines ar AR) {N T C P : Set U64} {c : U64}
   have hcN : Vs.crF σn = Vs.crF σ :=
     (show Vs.crF σn = Vs.crF σa from rfl).trans (crf_of_crk Vs.crk_archPrepareNextDomain ha1)
   refine WP.spec_mono (choose_thread_refinesFA hRef (ndS (L := L) s t) a σn (hO _ _ hwN haK.1 hcN) hSn hRn hNn hIn
-    (hA.1 _ a σn hSn hRn hfoN hvrN) (hA.2 _ a σn hSn hRn hvrN) (hSn.lists.choose_spec.choose_spec.2.idleTh).symm) ?_
+    (hA.1 _ a σn hSn hRn hfoN hvrN) (hA.2 _ a σn hSn hRn hvrN (hO _ _ hwN haK.1 hcN).idle) (hSn.lists.choose_spec.choose_spec.2.idleTh).symm) ?_
   rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, -, h11, h12, hAR⟩
   refine ⟨σ', ?_, h2, h3, h4, h5, ?_, h7.trans haK.2.2.2.2.1, h8.trans haK.2.2.1, HeapEqUpToFpu.trans (σ2 := σn) haK.1 h9,
     ?_, WritesIn.sfootN_trans hwN (WritesIn.sfootN_of h12), hAR⟩

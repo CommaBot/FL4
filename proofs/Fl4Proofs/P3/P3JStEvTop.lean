@@ -8,8 +8,8 @@ premises**, and the three `RunMcW` clauses with a footprint premise (P3JStIrqTop
   `FootAt` give `RunMcW` there.
 * **`user_stabU45`**, **`vmf_stabU45`**, **`sysU_stabU45`**: from `RunCK` and any `JAtZ Z H Cs` (with `VxE Z`),
   under U45nv's globals (subset) and the clause's own case conditions (non-idle; `UserHw` / `VmfHw` [P];
-  `UnkSys` ∧ `NoDbgSys`), every outcome is `RunCK` **and** `JStab Z H Cs`. P3JStEvK's `Fl4ProofsK` copies of
-  P3JStEv's stage-A lemmas, the finish record from U43 / U42, `JReachU40` / `CKI` at the outcome as in
+  `UnkSys` ∧ `NoDbgSys`), every outcome is `RunCK` **and** `JStab Z H Cs`. P3JStEv's stage-A lemmas
+  (on the narrowed finish records since collapse A, K), the finish record from U43 / U42, `JReachU40` / `CKI` at the outcome as in
   `irq_stabU45`. This discharges the ghost half of gen 18's `UserStab` [J] (and of the not yet stated VM-fault /
   unknown-syscall `…Stab`).
 * **`UserFoot`**, **`VmfFoot`**, **`SysUFoot`** [J]: `FootAt` at every outcome of the clause, at every `JAtZ` ghosts of
@@ -23,7 +23,7 @@ accepted fast paths only, `kernel_entry_invSt` / `…ioSt` / `…tmSt` / `…rrS
 Named premises: `UserFoot`, `VmfFoot`, `SysUFoot` [J] (above); U45nv's globals as in `kernel_entry_runCK`. No sorry.
 New module; no existing statement changed.
 -/
-import Fl4Proofs.P3.P3JStEvK
+import Fl4Proofs.P3.P3JStEv
 import Fl4Proofs.P3.P3JStIrqTop
 open Aeneas Aeneas.Std Result
 
@@ -98,7 +98,7 @@ theorem user_stabU45 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : 
   obtain ⟨⟨⟨hJ17, hC⟩, hIoa⟩, hCK⟩ := hR
   obtain ⟨_, _, _, _, _, _, -, hX, -⟩ := jreach_invU3 hnd hJ17.1
   have hm := hX.sb.1.1.vim
-  have hG := Fl4ProofsK.P3.SInvR.G5.user_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
+  have hG := Fl4Proofs.P3.SInvR.G5.user_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
     hmax htu hRef hDR hFpu hJ17 J n c hct hU (KFinEv42.toK (kFinEv42_of hFpu hFW hA) hA)
   refine WP.spec_mono hG ?_
   rintro r ⟨σ', hO, hJ', hSt⟩
@@ -124,7 +124,7 @@ theorem vmf_stabU45 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P
   obtain ⟨⟨⟨hJ17, hC⟩, hIoa⟩, hCK⟩ := hR
   obtain ⟨_, _, _, _, _, _, -, hX, -⟩ := jreach_invU3 hnd hJ17.1
   have hm := hX.sb.1.1.vim
-  have hG := Fl4ProofsK.P3.SInvR.G5.vmf_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
+  have hG := Fl4Proofs.P3.SInvR.G5.vmf_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
     hmax htu hRef hDR hFpu hJ17 J ad c ft hct hV (KFinEv42.toK (kFinEv42_of hFpu hFW hA) hA)
   refine WP.spec_mono hG ?_
   rintro r ⟨σ', hO, hJ', hSt⟩
@@ -150,7 +150,7 @@ theorem sysU_stabU45 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : 
   obtain ⟨⟨⟨hJ17, hC⟩, hIoa⟩, hCK⟩ := hR
   obtain ⟨_, _, _, _, _, _, -, hX, -⟩ := jreach_invU3 hnd hJ17.1
   have hm := hX.sb.1.1.vim
-  have hG := Fl4ProofsK.P3.SInvR.G5.sysU_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
+  have hG := Fl4Proofs.P3.SInvR.G5.sysU_entryStU41 hARI hA hnd (MachPlatF.toT hM hIp) hKD ⟨hPAi, hT.mb⟩ hT
     hmax htu hRef hSX hDR hFpu hJ17 J n hct hU hND (fun _ _ _ _ => (KFinEv42.toK (kFinEv42_of hFpu hFW hA) hA))
   refine WP.spec_mono hG ?_
   rintro r ⟨ev, σ', hK, hO, hJ', hSt⟩

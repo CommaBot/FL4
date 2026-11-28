@@ -34,7 +34,6 @@ Named premises: `ReplyXferFt` [J], `DispStabFootLr` [J]. No sorry. New module; n
 import Fl4Proofs.P3.P3JMidDecK
 import Fl4Proofs.P3.StPostInv
 import Fl4Proofs.P3.XTopJointKEntry41V
-import Fl4Proofs.P3.P3KFin
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -65,7 +64,7 @@ theorem TopPostDMXP.mrT (hM : MachPlat arI MR) {X XP : S → A → Fl4Spec.State
     by_cases hp : res.1 = .Err .Preempted
     · rw [if_pos hp] at h4 ⊢; exact h4
     · rw [if_neg hp] at h4 ⊢
-      exact ⟨h4, msF_mrT hM hR ((msF_qperf (hq inv h1) hy).trans (msF_restart h2))⟩
+      exact ⟨h4, msF_mr hM hR ((msF_qperf (hq inv h1) hy).trans (msF_restart h2))⟩
 
 /-- (p3J gen 33) **`TopPostRMX.mr` from `MachPlatT`**. -/
 theorem TopPostRMX.mrT (hM : MachPlat arI MR) {X : S → A → Fl4Spec.State Unit → Prop} {σ : Fl4Spec.State Unit}
@@ -76,7 +75,7 @@ theorem TopPostRMX.mrT (hM : MachPlat arI MR) {X : S → A → Fl4Spec.State Uni
     TopPostRMX (L := L) (fun s a σ => X s a σ ∧ MR a σ.machineState) σ blk call don m ct s res := by
   rcases h with ⟨e, h1, h2, h3, h4⟩ | ⟨h1, h2, inv, h3, σ1, h4, rr, σy, h5, z, hz, h6, h7⟩
   · exact Or.inl ⟨e, h1, h2, h3, h4, hR⟩
-  · refine Or.inr ⟨h1, h2, inv, h3, σ1, h4, rr, σy, h5, z, hz, h6, h7, msF_mrT hM hR ?_⟩
+  · refine Or.inr ⟨h1, h2, inv, h3, σ1, h4, rr, σy, h5, z, hz, h6, h7, msF_mr hM hR ?_⟩
     exact ((congrArg Prod.fst (MachT.mtk_specTailG call ct.bv rr σy z hz)).trans
       (msF_qperf (hq inv h3) h5)).trans (msF_restart h4)
 

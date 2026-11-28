@@ -33,7 +33,8 @@ import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScScheduleF
 import Fl4Proofs.P3.ScFpuOwnK
 import Fl4Proofs.P3.G7dVsRoot
-import Fl4Proofs.P3.ScNextDomCF
+import Fl4Proofs.P3.ScNextDomC
+import Fl4Proofs.P3.ScNextDomF
 import Fl4Proofs.P3.JEntryIrq
 import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointPP

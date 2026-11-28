@@ -2,15 +2,14 @@
 P3 (line p3J, gen 10): **`kernel_entry_reachU42`** = `kernel_entry_reachU41` with the idle half of the
 per-entry `ArchSwF` [P] removed (it is a theorem where it is used).
 
-* P3KGen1 / P3KFin / P3KGen: U41's proof transported (P3KXport) with `ArchSwF` ↦ `ArchSwF'` (ArchSwIdle:
-  the idle half asks `IdleVt σ`, and is a theorem there, `archSwFI_of`). The pre-g7e finish path
-  (`KFinAtR5/31/27/KFinAtR` records, `jat_finishJRNM/JRN/JRP`, `jat_scheduleSR2ZRP/FR2ZR/WP0FZR`) is moved
-  onto the g7e scheduler chain (`jat_scheduleWP0FZRI` on the transported `schedule_refinesWP0FRA`, `RootFr`
-  from `IdleVt` carried in the records as `FinRootR`); ScNextDomCFR's `schedule_refinesWP0FR` and the
-  `cn_*0F` / `scnt_refines0F` chain leave the cone. Every other constant of U41's cone using these ↦ its
-  kernel-checked copy `Fl4ProofsK…`.
+* Collapse A, K: the narrowing of p3J gen 10 (P3KGen1 / P3KFin / P3KGen, U41's proof transported with
+  `ArchSwF` ↦ `ArchSwF'`) is written back in place: `ArchSwF` itself is `ArchSwFT ∧ ArchSwFI` (ScArchF; the
+  idle half asks `IdleVt σ`, and is a theorem, ArchSwIdle's `archSwFI_of`), and the pre-g7e finish path
+  (`KFinAtR5/31/27/KFinAtR` records with `FinRootR` / `FinRootI`, `jat_finishJRNM/JRN/JRP`,
+  `jat_scheduleSR2ZRP/FR2ZR/WP0FZR` in XTopJointKEntry4) runs on the g7e scheduler chain
+  (`schedule_refinesWP0FRA`, `RootFr` from `IdleVt`). U41 is the base theorem on those records.
 * `KFinAtR42` = `KFinAtR41` with `arch : ArchSwFT` (the thread half only); `KFinEv42`.
-  `KFinAtR42.toK` / `KFinEv42.toK` (into the transported records, with `archSwFI_of` from `ArchTotal`),
+  `KFinAtR42.toK` / `KFinEv42.toK` (into U41's records, with `archSwFI_of` from `ArchTotal`),
   `KFinAtR41.to42` / `KFinEv41.to42` (`ArchSwF → ArchSwFT`, the first half).
 * **Premise diff U41 → U42**: the syscall clause's `KFinAtR41 …` ↦ `KFinAtR42 …` and every event's
   `KFinEv41 …` ↦ `KFinEv42 …` (`ArchSwF` ↦ its thread half `ArchSwFT`: the idle half dropped). No new
@@ -23,7 +22,7 @@ Named premises: U41's (XTopJointKEntryU41) with `KFinAtR41.arch : ArchSwF` [P] n
 `KFinAtR42.arch : ArchSwFT` [P] (set_vm_root against archSwitchToThread). No sorry.
 -/
 import Fl4Proofs.P3.XTopJointKEntryU41
-import Fl4Proofs.P3.P3KGen
+import Fl4Proofs.P3.ArchSwIdle
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.SInvR.G5
@@ -52,7 +51,7 @@ variable {arI}
 
 theorem KFinAtR42.toK {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (h : KFinAtR42 (L := L) arI AR Z H Cs s a σ) (hA : P0.ArchTotal arI) :
-    Fl4ProofsK.P3.SInvR.G5.KFinAtR41 (L := L) arI AR Z H Cs s a σ :=
+    Fl4Proofs.P3.SInvR.G5.KFinAtR41 (L := L) arI AR Z H Cs s a σ :=
   ⟨h.arch.toN hA⟩
 
 theorem KFinAtR41.to42 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
@@ -62,7 +61,7 @@ theorem KFinAtR41.to42 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
 
 theorem KFinEv42.toK {AR : A → Fl4Spec.Cr3 → Prop} {ev : Fl4Spec.Event} {Kf : S → A → Prop}
     {σ : Fl4Spec.State Unit} (h : KFinEv42 (L := L) arI AR ev Kf σ) (hA : P0.ArchTotal arI) :
-    Fl4ProofsK.P3.SInvR.G5.KFinEv41 (L := L) arI AR ev Kf σ :=
+    Fl4Proofs.P3.SInvR.G5.KFinEv41 (L := L) arI AR ev Kf σ :=
   fun x hx Z' H' Cs' Ac' Lst' D' s' a' hK hJ => (h x hx Z' H' Cs' Ac' Lst' D' s' a' hK hJ).toK hA
 
 theorem KFinEv41.to42 {AR : A → Fl4Spec.Cr3 → Prop} {ev : Fl4Spec.Event} {Kf : S → A → Prop}
@@ -140,7 +139,7 @@ theorem kernel_entry_reachU42 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧ MR r.2 σ'.machineState ∧
           SpecIoP σ' ∧ SInvIo.IoNoOverlap σ' ∧ SpecUtZ σ' ∧ JReachU40 (L := L) arI AR MR r.1 r.2 σ' ⦄)   := by
   obtain ⟨Z, H, Cs, Ac, Lst, D, J, hX, hCB, hW, hI, hN, hR, hFl, hPg, hSys, hIrq, hUs, hVm, hTr, hSU⟩ :=
-    Fl4ProofsK.P3.SInvR.G5.kernel_entry_reachU41 arI AR MR hARI hA hnd hM hIp hKD hIo hIoa hPAi hIA hT hmax htu hRef hPI hSX hDR hMap hFpu hJ
+    Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU41 arI AR MR hARI hA hnd hM hIp hKD hIo hIoa hPAi hIA hT hmax htu hRef hPI hSX hDR hMap hFpu hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hCB, hW, hI, hN, hR, hFl, hPg, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro n c hct hn hfl hK hDL hFin
     exact hSys n c hct hn hfl hK hDL

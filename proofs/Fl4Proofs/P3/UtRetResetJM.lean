@@ -26,9 +26,8 @@ through the reset and the retype with a reset, so the Untyped decode ends in
   `decode_invocation_untypedJM` (XTopJointUt's decode, `XCapP` at
   `JAt`/`JAtPreMV`).
 
-The native types only (`hNat`: XTopJointEntry's `JUtPath.vtx` [scope] keeps
-the VT-x types 14..18 out, so UtRetResetJ's `JUtRetHypR2` [W] is not needed
-here). No new premise.
+The native types only (`hNat`: the path premise's `vtx` [scope] field keeps the VT-x types 14..18 out;
+the old `JUtRetHypR2` [W] for them is gone with `JUtPath`, collapse A, B3). No new premise.
 -/
 import Fl4Proofs.P3.UtResetLoopJM
 import Fl4Proofs.P3.UtDevReset

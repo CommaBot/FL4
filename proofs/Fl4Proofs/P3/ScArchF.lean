@@ -41,6 +41,15 @@ import Fl4Proofs.P3.ScPres
 import Fl4Proofs.P3.G7dVsDef
 open Aeneas Aeneas.Std Result
 
+namespace Fl4Proofs.P3
+
+/-- **[J] `IdleVt`** (INV-PLAN §1.U3L D7; module docstring). -/
+def IdleVt (σ : Fl4Spec.State Unit) : Prop :=
+  ∃ x : Fl4Spec.Tcb, σ.kheap σ.idleThread = some (.tcb x) ∧
+    ∀ p asid, x.tcbVtable ≠ .archObjectCap (.pml4Cap p (some asid))
+
+end Fl4Proofs.P3
+
 namespace Fl4Proofs.P3.Sched
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif
 
@@ -358,6 +367,20 @@ end Spec
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 
+/-- **[P] The thread half of `ArchSwF`** (verbatim). -/
+def ArchSwFT (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
+    FpuOwnOK σ → VsRootOK T σ →
+    ∀ t ∈ T, vspace.set_vm_root st ar s a t ⦃ r => ∃ σ1, Fl4Spec.archSwitchToThread (Z := Unit) t.bv σ =
+      ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeepsF σ σ1 ⦄
+
+/-- **The idle half of `ArchSwF`, at states with `IdleVt`** (a theorem: `archSwFI_of`). -/
+def ArchSwFI (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
+    VsRootOK T σ → IdleVt σ → vspace.set_kernel_vm_root st ar s a ⦃ r => ∃ σ1,
+      Fl4Spec.archSwitchToIdleThread (Z := Unit) σ =
+      ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeeps σ σ1 ⦄
+
 /-- **The arch hypotheses of a thread switch, up to the FPU** [P], at every
 related state (module docstring): FL4's `set_vm_root` refines the spec's
 `arch_switch_to_thread` (`set_vm_root; lazy_fpu_restore`) at a state whose
@@ -376,15 +399,11 @@ whenever the spec has an FPU owner other than `t`. Both halves are guarded by
 `VsRootOK T σ` (G7dVsDef; g7d, INV-PLAN §1.U3L D2): without it the spec's
 `setVmRoot` fails on a vtable PML4 cap with ASID 0 or an ASID-table entry
 naming a non-pool, states `SchedRel` does not exclude, so the unguarded
-premise was unsatisfiable (g6b audit). -/
+premise was unsatisfiable (g6b audit). Collapse A, K: the two halves are `ArchSwFT` and `ArchSwFI`, and the
+idle half asks `IdleVt σ` as well (p3J gen 9's `ArchSwF'`, ArchSwIdle: without it the idle half is false where the
+idle TCB's vtable is a mapped PML4 cap; with it, it is a theorem, `archSwFI_of`). -/
 def ArchSwF (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
-  (∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
-    FpuOwnOK σ → VsRootOK T σ →
-    ∀ t ∈ T, vspace.set_vm_root st ar s a t ⦃ r => ∃ σ1, Fl4Spec.archSwitchToThread (Z := Unit) t.bv σ =
-      ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeepsF σ σ1 ⦄) ∧
-  (∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
-    VsRootOK T σ → vspace.set_kernel_vm_root st ar s a ⦃ r => ∃ σ1, Fl4Spec.archSwitchToIdleThread (Z := Unit) σ =
-      ({((), σ1)}, False) ∧ SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeeps σ σ1 ⦄)
+  ArchSwFT st ar N T C c ∧ ArchSwFI st ar N T C c
 
 /-- `VsRootOK` across a heap equal up to the FPU part of TCBs. -/
 theorem VsRootOK.ofF {T : Set U64} {σ σ' : Fl4Spec.State Unit} (h : VsRootOK T σ) (hk : HeapEqUpToFpu σ σ')

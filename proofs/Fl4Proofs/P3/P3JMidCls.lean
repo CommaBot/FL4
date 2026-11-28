@@ -255,7 +255,7 @@ theorem mid_invRecvSt (hA : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = cor
     refine WP.spec_mono (WP.spec_and hRS (MKD.syscall_handle_recv L.total hA hKD hMm)) ?_
     rintro r ⟨⟨z, hz, -, hJR, hW2⟩, hMz⟩
     exact ⟨⟨(.ok z.1, z.2), mem_bindE_ok (mem_liftE (ε := Unit) hreg) (mem_bindE_ok hy (mem_liftE hz)),
-      Or.inl ⟨rfl, hJR, msF_mrT hMT hMz (congrArg Prod.fst (MachT.mtk_handleRecvG true cr _ z hz))⟩⟩,
+      Or.inl ⟨rfl, hJR, msF_mr hMT hMz (congrArg Prod.fst (MachT.mtk_handleRecvG true cr _ z hz))⟩⟩,
       hW1.projW_trans hW2⟩
   · dsimp only at hy1 hAI
     subst hy1

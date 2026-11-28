@@ -83,7 +83,7 @@ theorem dispYield_stFt (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (h
   have hms : MachF.msF σ' = MachF.msF σb := by
     rw [e] at hmem
     exact congrArg Prod.fst (MachT.mtk_withoutPreemption MachT.mtk_handleYieldG _ hmem).1
-  exact ⟨⟨((.ok ()), σ'), hmem, Or.inl ⟨rfl, ⟨_, _, _, _, _, J2.toR⟩, msF_mrT hM hMb hms⟩⟩, hW⟩
+  exact ⟨⟨((.ok ()), σ'), hmem, Or.inl ⟨rfl, ⟨_, _, _, _, _, J2.toR⟩, msF_mr hM hMb hms⟩⟩, hW⟩
 
 end
 

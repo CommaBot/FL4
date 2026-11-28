@@ -30,7 +30,14 @@ def split(s):
 K='--k' in sys.argv
 W=[('JPathAtMU35','JPathAtMU30')]
 P=[('Fl4ProofsKJ.','Fl4ProofsK.'),('Fl4ProofsJ.','Fl4Proofs.')]
-if K: W=[]; P=[('Fl4ProofsK.','Fl4Proofs.')]
+if K:
+    P=[('Fl4ProofsK.','Fl4Proofs.')]
+    W=[('KFinAtRI','KFinAtR'),('KFinAtR27I','KFinAtR27'),('KFinAtR31I','KFinAtR31'),('KFinAtR5I','KFinAtR5'),
+     ('to5I','to5'),('to31I','to31'),('to27I','to27'),('toRI','toR'),
+     ('jat_scheduleWP0FZRI','jat_scheduleWP0FZR'),('jat_scheduleFR2ZRI','jat_scheduleFR2ZR'),('jat_scheduleSR2ZRPI','jat_scheduleSR2ZRP'),
+     ('jat_finishJRPI','jat_finishJRP'),('jat_finishJRNI','jat_finishJRN'),('jat_finishJRNMQI','jat_finishJRNM'),
+     ('jat_finishJRNMStQI','jat_finishJRNMSt'),('scnt_refines0FAI','scnt_refines0FA'),('sw_refinesFAI','sw_refinesFA'),
+     ("ArchSwF'",'ArchSwF'),('msF_mrT','msF_mr')]
 tot={}
 for f in [a for a in sys.argv[1:] if a!='--k']:
     s=open(f).read(); parts=split(s); res=[]

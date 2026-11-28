@@ -136,7 +136,7 @@ theorem midTailSt (hA : P0.ArchTotal arI) (hMT : MachPlat arI MR) (hKD : MRKeepD
   refine WP.spec_mono (WP.spec_and (WP.spec_and (J'.flTailJStF hc) (MKD.fl_tail L.total hA hKD hR'))
     (flTailProjW J' hct')) ?_
   rintro res ⟨⟨⟨h1, z, hz, h2, h3⟩, h4⟩, h5⟩
-  exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mrT hMT h4 (congrArg Prod.fst (MachT.mtk_specTailG _ _ _ σ' z hz)),
+  exact ⟨h1, z, hz, h2, JStab.mv h3, msF_mr hMT h4 (congrArg Prod.fst (MachT.mtk_specTailG _ _ _ σ' z hz)),
     hW1.projW_trans h5⟩
 
 /-- (p3J gen 32) **The invocation keeps the current thread** (as `handle_invocation_replyJSt`). -/
