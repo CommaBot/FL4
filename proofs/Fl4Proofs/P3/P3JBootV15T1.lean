@@ -16,9 +16,14 @@ configuration's arch and `arI`, `ART`, `modelMR`, record **`locPlat_archT1 O bs_
   `exec_cfgG` and `v15_of_native` (both `OpaqueH`-free); `(O : OpaqueH)` enters only through `locPlat_archT1 O bs_ext`.
   **`v15_sysLzzP_RT1 (O) hFpu hFW a0`**: one instance `(locPlat_archT1 O bs_ext, sR / σR)` for both — the V15
   execution of `runAllV15_RT1` over the chain `ChR1 O`, `sR` on that chain, `RunMcWKR` at `(sR, σR)` and the closed
-  `_sysLzzP` instance for `SysYield` there. The vmF start (`topV15_R` at `archT1`) is not here: its start chain
-  (P2/BootRVmF `vmFEnt0_R` … `runEndV13_R`, P2/BootStart) fixes `archT` in the types of its definitions (`jR`, `q0R`,
-  `kR`), so it needs either a copy or a re-typing of those definitions.
+  `_sysLzzP` instance for `SysYield` there.
+* **Gen 62, the vmF start on `archT1`.** P2/BootRVmF's start chain is arch-parametric since gen 62 (`jRP`, `kRP`,
+  `runEndV13_RP`, …; the `archT` forms its instances). Here: `chR1_lay`, `slJAt_RT1`, the index **`jRT1 O`**
+  (+ `jRT1_spec`: no lock, `ChR1 O sR`, `VmFEntV13` at `archT1` with `ybw` [J] and `NonIdle` [P] proved), the armed
+  body **`kRT1 O a`**, **`runEndV13_RT1`**, and **`topV15_RT1 (O) a0 a`** — `topV15_R`'s statement at
+  `locPlat_archT1 O bs_ext`, `KR1 O`, `ChR1 O`. **`topV15_sysLzzP_RT1 (O) hFpu hFW a0 a`** (sibling of
+  `v15_sysLzzP_RT1`): that vmF execution, `ChR1 O sR`, `RunMcWKR` at `(sR, σR)` and `_sysLzzP` at `(sR, σR)` for
+  every native syscall, on the one instance `(locPlat_archT1 O bs_ext, sR / σR)`.
 * **`opaqueH_model`**: values of every opaque constant `OpaqueH` and `FpuDet` read (`kernelConfig`, `timeConsts`,
   `maxTicksToUs`, `irqOracle`, `setDeadlineImpl`, `enableFpuImpl`, `disableFpuImpl`, `writeFpuStateImpl`,
   `in8Val` / `in16Val` / `in32Val`) meeting all their facts at once (`pin0` through `pin0_of_val0`).
@@ -162,6 +167,56 @@ theorem v15_sysLzzP_RT1 (O : LocPlatM.OpaqueH) (hFpu : FpuImplDet) (hFW : FpuWri
   obtain ⟨E, h1, -, h2, -⟩ := runAllV15_RT1 O a0
   exact ⟨⟨E, h1, h2⟩, chR1_sR O, runMcWKR_RT1, sysLzzP_RT1_yield O hFpu hFW⟩
 
+/-! ## Gen 62: the vmF start on `archT1` (`topV15_RT1`) -/
+
+/-- (p3J gen 62) `ChainLay` of the second boot start's chain on `archT1`. -/
+theorem chR1_lay (O : LocPlatM.OpaqueH) : ChainLay (L := bsL) (KR1 O).toKLayout (ChR1 O) := by
+  obtain ⟨Z, H, Cx, nc, -, -, -, h, -⟩ := chainC_spec (LocPlatM.locPlat_archT1 O bs_ext) jReach_RT1
+  exact h
+
+/-- (p3J gen 62) The second boot state is a bundle state of `KR1 O`. -/
+theorem slJAt_RT1 (O : LocPlatM.OpaqueH) : SlJAt (L := bsL) (KR1 O).toKLayout sR := (chR1_lay O).bun sR (chR1_sR O)
+
+/-- (p3J gen 62) **The vmF index on `archT1`** (P2's `jRP` at `KR1 O`, `ChR1 O`, `archT1`; as `jR`). -/
+def jRT1 (O : LocPlatM.OpaqueH) : VmFArg BS :=
+  jRP (K := KR1 O) rfl (slJAt_RT1 O) (chR1_sR O) archT1 archT1 ART modelMR
+
+theorem jRT1_spec (O : LocPlatM.OpaqueH) : (jRT1 O).Locks = (fun _ _ => False) ∧ ChR1 O sR ∧
+    VmFEntV13 bst archT1 archT1 ART modelMR (jRT1 O) (KR1 O).toKLayoutV sR :=
+  jRP_spec rfl (slJAt_RT1 O) (chR1_sR O) archT1 archT1 ART modelMR
+
+/-- (p3J gen 62) **The armed vmF body on `archT1`** (P2's `kRP`; as `kR`). -/
+def kRT1 (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : SP :=
+  kRP archT1 LocPlatM.archT1_total (jRT1 O) (KR1 O) a
+
+/-- (p3J gen 62) **V13 on `archT1`: the vmF start at `sR`, its whole body, and the leave** (P2's
+`runEndV13_RP`; as `runEndV13_R`). -/
+theorem runEndV13_RT1 (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
+    ∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (cfgNatBT1 a0) (LocPlatM.locPlat_archT1 O bs_ext) (cfg0 (KR1 O) memR) (KR1 O) (fun _ => ChR1 O) s
+        (KR1 O) (fun _ => ChR1 O) E ∧
+      NoLoc s ∧ s.log = [.start (kRT1 O a)] :=
+  runEndV13_RP archT1 LocPlatM.archT1_total a0 (LocPlatM.locPlat_archT1 O bs_ext) (chR1_lay O) (chR1_sR O)
+    (KR1_ksb O) (jRT1_spec O) (serExitW_RT1 O) (hc0_RT1 O) a
+
+/-- (p3J gen 62) **V15 applied to the vmF start at the second boot start on `archT1`** (`topV15_R`'s statement at
+`locPlat_archT1 O bs_ext`, layout `KR1 O`, chain `ChR1 O`, body `kRT1 O a`; the start carries `ybw` [J] and
+`NonIdle` [P] inside `StartV13`, both proved at `sR`). -/
+theorem topV15_RT1 (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
+    ∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (cfgNatBT1 a0) (LocPlatM.locPlat_archT1 O bs_ext) (cfg0 (KR1 O) memR) (KR1 O) (fun _ => ChR1 O) s
+        (KR1 O) (fun _ => ChR1 O) E ∧
+      ExecV15C (cfgPmBT1 a0) (LocPlatM.locPlat_archT1 O bs_ext).toC (cfg0 (KR1 O) memR) (KR1 O) (fun _ => ChR1 O) s
+        (KR1 O) (fun _ => ChR1 O) E ∧
+      NoLoc s ∧ s.log = [.start (kRT1 O a)] ∧ Run (.start (kRT1 O a)) memR s.mem ∧
+      ∃ ℓ : List SP, ℓ.Perm s.log ∧ RunAll ℓ memR s.mem := by
+  obtain ⟨s, E, h1, hq, hl⟩ := runEndV13_RT1 O a0 a
+  obtain ⟨hr, h2, hp⟩ := v15_of_native bst archT1 LocPlatM.archT1_total a0 (LocPlatM.locPlat_archT1 O bs_ext)
+    mrKeepIoapic_archT1 (pmObl7_none bst) (cfg_init _ _) (cfg_armInv _ _) (fun _ => serExitW_RT1 O) (hc0_RT1 O)
+    (mapsP_cfg0 _ _) h1 hq
+  rw [hl] at hr
+  exact ⟨s, E, h1, h2, hq, hl, runAll_one hr, hp⟩
+
 /-! ## Item 2: `SysK6` at `(sR, σR)` -/
 
 /-- (p3J gen 61) A thread reference that is no TCB makes `lookupSlotForThread` fail (`gets_the` on `none`). -/
@@ -245,6 +300,27 @@ theorem sysLzzP_RT1_call (O : LocPlatM.OpaqueH) (hFpu : FpuImplDet) (hFW : FpuWr
       ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true .sysCall (σR (Z := Unit))).1 ∧
         RunMcWKR (L := bsL) archT1 ART modelMR r.1 r.2 σ' ⦄ :=
   sysLzzP_RT1_native O hFpu hFW _ _ nativeSys_callI
+
+set_option maxHeartbeats 4000000 in
+/-- (p3J gen 62) **The vmF V15 top and `_sysLzzP` on one instance** `(locPlat_archT1 O bs_ext, sR / σR)` (sibling of
+`v15_sysLzzP_RT1`): `topV15_RT1`'s execution over `ChR1 O` (the vmF `.start` at `sR`, its body and the leave), `sR`
+on that chain, `RunMcWKR` at `(sR, σR)`, and `_sysLzzP` closed there for every native syscall
+(`sysLzzP_RT1_native`). -/
+theorem topV15_sysLzzP_RT1 (O : LocPlatM.OpaqueH) (hFpu : FpuImplDet) (hFW : FpuWriteDet)
+    (a0 a : Fl4Spec.MachineState) :
+    (∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (cfgNatBT1 a0) (LocPlatM.locPlat_archT1 O bs_ext) (cfg0 (KR1 O) memR) (KR1 O) (fun _ => ChR1 O) s
+        (KR1 O) (fun _ => ChR1 O) E ∧
+      ExecV15C (cfgPmBT1 a0) (LocPlatM.locPlat_archT1 O bs_ext).toC (cfg0 (KR1 O) memR) (KR1 O) (fun _ => ChR1 O) s
+        (KR1 O) (fun _ => ChR1 O) E ∧
+      NoLoc s ∧ s.log = [.start (kRT1 O a)] ∧ Run (.start (kRT1 O a)) memR s.mem) ∧
+      ChR1 O sR ∧ RunMcWKR (L := bsL) archT1 ART modelMR sR (σR (Z := Unit)).machineState (σR (Z := Unit)) ∧
+      ∀ (n : I64) (c : Fl4Spec.Syscall), NativeSys n c →
+        syscall.handle_syscall bst archT1 sR (σR (Z := Unit)).machineState n ⦃ r =>
+          ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c (σR (Z := Unit))).1 ∧
+            RunMcWKR (L := bsL) archT1 ART modelMR r.1 r.2 σ' ⦄ := by
+  obtain ⟨s, E, h1, h2, hq, hl, hr, -⟩ := topV15_RT1 O a0 a
+  exact ⟨⟨s, E, h1, h2, hq, hl, hr⟩, chR1_sR O, runMcWKR_RT1, fun n c hn => sysLzzP_RT1_native O hFpu hFW n c hn⟩
 
 end
 

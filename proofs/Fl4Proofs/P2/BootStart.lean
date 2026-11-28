@@ -32,6 +32,8 @@ exercised. This module runs one.
   (`VEq` reflexive) — not vacuously: the hypothesis `s.ph 0 = .loc p0 (.start k) W` holds. P2/BootRun runs the
   body to the end; gen 56 retired `startReachedV12_B` / `startReachedV13_B` (V12 / V13's premises up to `hq`).
 
+* (p3J gen 62) `exec_startG`: `exec_start` at any platform record (the `archT` form its instance).
+
 ## The vmF / vmR / sl starts (the clauses carrying `yb` / `ybw` [J]) at the boot memory
 * **`nonIdle_false_B`**: `NonIdle` [P] (a field of `VmFEntJ14` / `VmREntU` / `SlEntU` and of V13's `VmFEntV13` /
   `VmREntV13` / `SlEntV13`) is **false at `sB`**: `jReach_B` is a `JReachU17` at `sB` with `σB.curThread =
@@ -202,18 +204,29 @@ section exec
 variable {ι : Type} {cfg : ExecCfg BS ι}
   {P : LocPlat bst LocPlatM.archT LocPlatM.ART modelMR} {K : KLayoutP} {Ch0 : U64 → BS → Prop} {m : U64 → U64}
 
+variable {A3 : Type} {arI : machine.Arch A3} {AR : A3 → Fl4Spec.Cr3 → Prop}
+  {MR : A3 → Fl4Spec.MachineState → Prop} {PG : LocPlat bst arI AR MR}
+
+/-- (p3J gen 62) **The three-step execution to a `.start` step** at any platform record `PG`, given the `start`
+step's fields `g3` (`exec_start` below is its `archT` instance). -/
+theorem exec_startG {k : SP} (hB : ∀ e, SerExitW PG K.toKLayoutV (Ch0 e))
+    (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
+    (g3 : Fl4StepV15 cfg PG (dfg2 K m k) K Ch0 0#u64 (dfg3 K m k) K Ch0) :
+    ∃ E, ExecV15 cfg PG (cfg0 K m) K Ch0 (dfg3 K m k) K Ch0 E := by
+  obtain ⟨h1, h2, h3⟩ := dfg_steps K m k
+  obtain ⟨_, e1⟩ := execEG (cfg := cfg) (PG := PG) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
+    (stepW_keepG hB hc (fun p h => by rw [dfg1_ph0] at h; cases h; exact .start k) (noSt_idle (cfg0_ph K m _)) rfl
+      (mapsP_dfg1 K m k))
+  obtain ⟨_, e2⟩ := execEG e1 h2 (stepW_keepG hB hc (fun p h => by rw [dfg2_ph0] at h; cases h)
+      (fun p0 k' W h => by rw [dfg1_ph0] at h; cases h) rfl (mapsP_dfg2 K m k))
+  exact execEG e2 h3 g3
+
 /-- **The three-step execution to a `.start` step**, given the `start` step's fields `g3`. -/
 theorem exec_start {k : SP} (hB : ∀ e, SerExitW P K.toKLayoutV (Ch0 e))
     (hc : cfg.VcpuOK K m ∧ K.ptes = ptesR K m)
     (g3 : Fl4StepV15 cfg P (dfg2 K m k) K Ch0 0#u64 (dfg3 K m k) K Ch0) :
-    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (dfg3 K m k) K Ch0 E := by
-  obtain ⟨h1, h2, h3⟩ := dfg_steps K m k
-  obtain ⟨_, e1⟩ := execE (cfg := cfg) (P := P) (s0 := cfg0 K m) (s := cfg0 K m) .refl h1
-    (stepW_keep hB hc (fun p h => by rw [dfg1_ph0] at h; cases h; exact .start k) (noSt_idle (cfg0_ph K m _)) rfl
-      (mapsP_dfg1 K m k))
-  obtain ⟨_, e2⟩ := execE e1 h2 (stepW_keep hB hc (fun p h => by rw [dfg2_ph0] at h; cases h)
-      (fun p0 k' W h => by rw [dfg1_ph0] at h; cases h) rfl (mapsP_dfg2 K m k))
-  exact execE e2 h3 g3
+    ∃ E, ExecV15 cfg P (cfg0 K m) K Ch0 (dfg3 K m k) K Ch0 E :=
+  exec_startG hB hc g3
 
 end exec
 

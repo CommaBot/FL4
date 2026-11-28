@@ -14,7 +14,8 @@ Assembles gen 39's field lemmas (P2/BootRZ … P2/BootRLiveF, units A–F):
   start of this line with `NonIdle`'s conclusion, and `nonIdle_R` (P2/BootRNonIdle) says every `JReachU17` at `sR`
   has it.
 * `KR O` / `ChR O` (`chainC`'s layout / chain at that start, `vcpus = ptes = ∅`), **`serExitW_R`** (`SerExitW` at
-  them), `chR_sR`, `slJAt_sR`, **`ybw_R`** (V13's `ybw` [J] at `sR` and `KR O`: the TCBs' `YIELD_TO` words are 0),
+  them), `chR_sR`, `slJAt_sR`, **`ybw_R`** (V13's `ybw` [J] at `sR` and `KR O`: the TCBs' `YIELD_TO` words are 0;
+  p3J gen 62: `ybw_of`, the same at every layout whose bundle holds at `sR`),
   **`nonIdle_R_chain`** (`NonIdle` at `sR`, the chain state the vmF / sl entry records would name);
 * **`vmFEnt_R`**: V13's vmF entry record `VmFEntV13` (with `ybw` [J] and `NonIdle` [P] proved, not assumed) at a
   concrete index whose lock set satisfies `LkC`, at the chain state `sR` of the chain `ChR O`. What `StartV13`'s
@@ -143,12 +144,13 @@ theorem nonIdle_R_chain (O : LocPlatM.OpaqueH) :
     ChR O sR ∧ NonIdle bst LocPlatM.archT LocPlatM.ART modelMR sR :=
   ⟨chR_sR O, nonIdle_R⟩
 
-/-- **`ybw` holds at the second boot state** (no TCB's `YIELD_TO` word is nonzero in `memR`). -/
-theorem ybw_R (O : LocPlatM.OpaqueH) : YBW bst (KR O).toKLayout sR := by
+/-- (p3J gen 62) **`ybw` holds at the second boot state** at every layout whose bundle holds there (no TCB's
+`YIELD_TO` word is nonzero in `memR`; `ybw_R` below is its instance at `KR O`). -/
+theorem ybw_of {K : OwnMap.KLayout} (hJ : SlJAt (L := bsL) K sR) : YBW bst K sR := by
   intro t ht h0
   exfalso
   apply h0
-  obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := slJAt_sR O
+  obtain ⟨A', arI, AR, Zx, Cx, Ax, Lst, D, a', σ, B⟩ := hJ
   have hT : t ∈ Zx.T := by rw [B.j.tcbs_eq.1]; exact ht
   obtain ⟨Q, R0, hcq, -⟩ := B.j.xtop.fin.1.1.1.lists
   have hta : TcbAddr t := hcq.tcbs t hT
@@ -157,6 +159,8 @@ theorem ybw_R (O : LocPlatM.OpaqueH) : YBW bst (KR O).toKLayout sR := by
   rw [memR_at hv (by omega)]
   exact wordR_zero_of (by omega)
 
+/-- **`ybw` holds at the second boot state** (no TCB's `YIELD_TO` word is nonzero in `memR`). -/
+theorem ybw_R (O : LocPlatM.OpaqueH) : YBW bst (KR O).toKLayout sR := ybw_of (slJAt_sR O)
 
 /-- **V13's vmF entry record at a concrete index** at the chain state `sR` (`VmFEntV13`, the record carrying
 `ybw` [J] and `NonIdle` [P]): fault `addr = code = 0`, P1's sets of the layout `KR O` (`bunIxV_of` at the bundle

@@ -43,6 +43,16 @@ words (`cnR`'s 64 bytes, the root slot's cap word), and so every gen-39 unit tha
 
 No premise beyond `OpaqueH` (where `locPlat_archT` is used). No existing statement changed except the root import
 list.
+
+## Arch-parametric vmF start chain (p3J gen 62)
+The chain above is stated once over the configuration's arch `ar` / `hA`, the entry record's `arI` / `AR` / `MR`, a
+platform record `PG`, and a layout `K` / chain `Ch` through `sR` (`ChainLay`, `Ch sR`, `K.ksb = kbB`, no VCPU, no PTE
+word, `SerExitW PG K Ch`): `homed_of`, `view_of`, `vmFEnt0_RP`, the index `jRP` (+ `jRP_spec`), the programs
+`q0RP` / `k0RP` / `kRP`, `startVmF_RP`, `kRP_eq`, `g3RP`, `stFree_kRP`, `runEndV13_RP` (with P2/BootStart's
+`exec_startG`, P2/BootRJAtZ's `ybw_of`). The `archT` names (`jR`, `q0R`, `k0R`, `kR`, `jR_spec`, `vmFEnt0_R`,
+`startVmF_R`, `kR_eq`, `g3R`, `stFree_kR`, `homed_R`, `view_R`) are their instances at `KR O`, `ChR O`,
+`locPlat_archT O bs_ext`, with statements unchanged; the defs' values are now the generic defs applied (definitionally
+the old bodies). P3/P3JBootV15T1 uses the chain at `archT1`.
 -/
 import Fl4Proofs.P2.BootRJAtZ
 import Fl4Proofs.P2.BootRun
@@ -111,9 +121,10 @@ theorem ptesR_R (O : LocPlatM.OpaqueH) : ptesR (KR O) memR = ∅ := ptesR_memR_o
 theorem hc0_R (O : LocPlatM.OpaqueH) : (KR O).vcpus = ∅ ∧ (KR O).ptes = ptesR (KR O) memR :=
   ⟨rfl, (ptesR_R O).symm⟩
 
-/-- **`memR` is homed on core 0 at `KR O`** (as `homed_B`). -/
-theorem homed_R (O : LocPlatM.OpaqueH) : CoreView.Homed (KR O).toKLayout 0#u64 memR := by
-  have hJ := slJAt_sR O
+/-- (p3J gen 62) **`memR` is homed on core 0** at every layout with kernel base `kbB` whose bundle holds at `sR`
+(`homed_R` below is its instance at `KR O`). -/
+theorem homed_of {K : KLayoutP} (hJ : SlJAt (L := bsL) K.toKLayout sR) (hks : K.ksb = kbB) :
+    CoreView.Homed K.toKLayout 0#u64 memR := by
   refine ⟨fun t ht => ?_, fun p b hb => ?_, fun d b hb hd _ => ?_⟩
   · obtain ⟨-, -, e⟩ := GlueCross.slJAt_aff hJ ht
     rw [sR_memR] at e
@@ -127,11 +138,20 @@ theorem homed_R (O : LocPlatM.OpaqueH) : CoreView.Homed (KR O).toKLayout 0#u64 m
     rw [sR_memR] at e1
     exact e1.trans e2.symm
   · obtain ⟨-, h1, -⟩ := region_node_inv' hb
-    have hk : (KR O).toKLayout.ksb = kbB := KR_ksb O
+    have hk : K.toKLayout.ksb = kbB := hks
     have hd1 : d.val ≠ 0 := fun h0 => hd (UScalar.eq_of_val_eq (by simp [h0]))
     rw [hk, kbB_val] at h1
     show wordR b.val = 0#u64
     exact wordR_zero_of (by omega)
+
+/-- **`memR` is homed on core 0 at `KR O`** (as `homed_B`). -/
+theorem homed_R (O : LocPlatM.OpaqueH) : CoreView.Homed (KR O).toKLayout 0#u64 memR :=
+  homed_of (slJAt_sR O) (KR_ksb O)
+
+/-- (p3J gen 62) **Core 0's view of `memR` is `memR`** at every such layout on a chain through `sR`. -/
+theorem view_of {K : KLayoutP} {Ch : BS → Prop} (hL : ChainLay (L := bsL) K.toKLayout Ch) (hC : Ch sR)
+    (hks : K.ksb = kbB) : CoreView.view K.toKLayout 0#u64 memR = memR :=
+  CoreView.view_eq_self hL.hK (homed_of (hL.bun sR hC) hks)
 
 /-- **Core 0's view of `memR` is `memR`.** -/
 theorem view_R (O : LocPlatM.OpaqueH) : CoreView.view (KR O).toKLayout 0#u64 memR = memR :=
@@ -214,92 +234,187 @@ end ut
 
 /-! ## The vmF index without locks and its entry record -/
 
-/-- **V13's vmF entry record at an index without locks** (module docstring). -/
-theorem vmFEnt0_R (O : LocPlatM.OpaqueH) {A : Type} (ar : machine.Arch A) :
-    ∃ i : VmFArg BS, i.Locks = (fun _ _ => False) ∧ ChR O sR ∧
-      VmFEntV13 bst ar LocPlatM.archT LocPlatM.ART modelMR i (KR O).toKLayoutV sR := by
-  obtain ⟨Cs, Ac, Ω, U, hB⟩ := bunIxV_of (slJAt_sR O)
-  refine ⟨⟨0#u64, 0#u64, (KR O).toKLayout.heap.tcbs, Cs, Ω, U, (KR O).toKLayout.heap.frame,
-    (KR O).toKLayout.heap.replies, (KR O).toKLayout.heap.scs, (KR O).toKLayout.heap.ntfns, Ac,
-    (KR O).toKLayout.heap, (KR O).toKLayout.heap.scBits, fun _ _ => False⟩, rfl, chR_sR O, ?_⟩
+/-- (p3J gen 62) **V13's vmF entry record at an index without locks** at every layout without VCPU whose bundle
+holds at `sR`, on a chain `Ch` through `sR`, for every arch pair (`vmFEnt0_R` below is its instance at `KR O`,
+`ChR O`, `archT`). -/
+theorem vmFEnt0_RP {K : KLayoutP} {Ch : BS → Prop} (hv : K.vcpus = ∅) (hJ : SlJAt (L := bsL) K.toKLayout sR)
+    (hC : Ch sR) {A : Type} (ar : machine.Arch A) {A3 : Type} (arI : machine.Arch A3)
+    (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop) :
+    ∃ i : VmFArg BS, i.Locks = (fun _ _ => False) ∧ Ch sR ∧
+      VmFEntV13 bst ar arI AR MR i K.toKLayoutV sR := by
+  obtain ⟨Cs, Ac, Ω, U, hB⟩ := bunIxV_of hJ
+  refine ⟨⟨0#u64, 0#u64, K.toKLayout.heap.tcbs, Cs, Ω, U, K.toKLayout.heap.frame,
+    K.toKLayout.heap.replies, K.toKLayout.heap.scs, K.toKLayout.heap.ntfns, Ac,
+    K.toKLayout.heap, K.toKLayout.heap.scBits, fun _ _ => False⟩, rfl, hC, ?_⟩
   exact
-    { nv := rfl
+    { nv := hv
       ix := hB
       hct := nonIdle_R
       lk := fun a s1 a1 ptr badge dest r hu hF => by
         obtain ⟨sl, x, y, g, gr, hsl, hc, -⟩ := hF.cap
         exact (noEp_R ar hu hsl hc).elim
-      ybw := ybw_R O
+      ybw := ybw_of hJ
       gl := fun a s1 a1 sl ptr badge x y g gr hu hsl hc => (noEp_R ar hu hsl hc).elim }
 
+/-- **V13's vmF entry record at an index without locks** (module docstring). -/
+theorem vmFEnt0_R (O : LocPlatM.OpaqueH) {A : Type} (ar : machine.Arch A) :
+    ∃ i : VmFArg BS, i.Locks = (fun _ _ => False) ∧ ChR O sR ∧
+      VmFEntV13 bst ar LocPlatM.archT LocPlatM.ART modelMR i (KR O).toKLayoutV sR :=
+  vmFEnt0_RP rfl (slJAt_sR O) (chR_sR O) ar LocPlatM.archT LocPlatM.ART modelMR
+
+/-- (p3J gen 62) **The index** `vmFEnt0_RP` chooses (`jR` below is its instance). -/
+def jRP {K : KLayoutP} {Ch : BS → Prop} (hv : K.vcpus = ∅) (hJ : SlJAt (L := bsL) K.toKLayout sR) (hC : Ch sR)
+    {A : Type} (ar : machine.Arch A) {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop)
+    (MR : A3 → Fl4Spec.MachineState → Prop) : VmFArg BS :=
+  Classical.choose (vmFEnt0_RP hv hJ hC ar arI AR MR)
+
+theorem jRP_spec {K : KLayoutP} {Ch : BS → Prop} (hv : K.vcpus = ∅) (hJ : SlJAt (L := bsL) K.toKLayout sR)
+    (hC : Ch sR) {A : Type} (ar : machine.Arch A) {A3 : Type} (arI : machine.Arch A3)
+    (AR : A3 → Fl4Spec.Cr3 → Prop) (MR : A3 → Fl4Spec.MachineState → Prop) :
+    (jRP hv hJ hC ar arI AR MR).Locks = (fun _ _ => False) ∧ Ch sR ∧
+      VmFEntV13 bst ar arI AR MR (jRP hv hJ hC ar arI AR MR) K.toKLayoutV sR :=
+  Classical.choose_spec (vmFEnt0_RP hv hJ hC ar arI AR MR)
+
 /-- **The index**: `vmFEnt0_R`'s, at the family's arch. -/
-def jR (O : LocPlatM.OpaqueH) : VmFArg BS := Classical.choose (vmFEnt0_R O LocPlatM.archT)
+def jR (O : LocPlatM.OpaqueH) : VmFArg BS :=
+  jRP (K := KR O) rfl (slJAt_sR O) (chR_sR O) LocPlatM.archT LocPlatM.archT LocPlatM.ART modelMR
 
 theorem jR_spec (O : LocPlatM.OpaqueH) : (jR O).Locks = (fun _ _ => False) ∧ ChR O sR ∧
     VmFEntV13 bst LocPlatM.archT LocPlatM.archT LocPlatM.ART modelMR (jR O) (KR O).toKLayoutV sR :=
-  Classical.choose_spec (vmFEnt0_R O LocPlatM.archT)
+  jRP_spec rfl (slJAt_sR O) (chR_sR O) LocPlatM.archT LocPlatM.archT LocPlatM.ART modelMR
 
 /-! ## The start fact -/
 
-/-- The lifted VM-fault body from `sR` (one program for every proof of the slot's premise). -/
-def q0R (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) : SP :=
-  if h : VmFPremA bst LocPlatM.archT (jR O) (KR O).toKLayoutV then
-    ((vmFSlotA bst LocPlatM.archT LocPlatM.archT_total (masksWr_plain bst)).liftAt (jR O) (KR O).toKLayoutV memR
-      hK.base hU.base h).body sR a
+section vmFG
+variable {A : Type} (ar : machine.Arch A) (hA : P0.ArchTotal ar)
+
+/-- (p3J gen 62) The lifted VM-fault body from `sR` at the configuration's arch `ar`, index `i`, layout `K`
+(`q0R` below is its instance). -/
+def q0RP (i : VmFArg BS) (K : KLayoutP) (a : A) (hK : RegionOKP K) (hU : UserOKP K) : SP :=
+  if h : VmFPremA bst ar i K.toKLayoutV then
+    ((vmFSlotA bst ar hA (masksWr_plain bst)).liftAt i K.toKLayoutV memR hK.base hU.base h).body sR a
   else .done
 
-/-- **The started program**: the PTE cut of `q0R`. -/
-def k0R (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) : SP :=
-  cutP (· ∈ (KR O).ptes) (· ∈ (KR O).user) (OwnMap.cls (KR O).toKLayout) (OwnMap.ko (KR O).toKLayout memR) 0#u64
-    (q0R O a hK hU) ∅
+/-- (p3J gen 62) The PTE cut of `q0RP` (`k0R` below is its instance). -/
+def k0RP (i : VmFArg BS) (K : KLayoutP) (a : A) (hK : RegionOKP K) (hU : UserOKP K) : SP :=
+  cutP (· ∈ K.ptes) (· ∈ K.user) (OwnMap.cls K.toKLayout) (OwnMap.ko K.toKLayout memR) 0#u64
+    (q0RP ar hA i K a hK hU) ∅
 
-/-- **`StartV13`'s vmF clause at the second boot start** (module docstring). -/
-theorem startVmF_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) (hK : RegionOKP (KR O))
-    (hU : UserOKP (KR O)) (hs : U64 → Prop) (hhs : (fun _ => False) = hs) :
-    StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR (ChR O) (KR O) memR hK hU
-      0#u64 hs (k0R O a hK hU) (.inl (.vmF (jR O))) := by
+/-- (p3J gen 62) The re-annotated `k0RP` (`kR` below is its instance). -/
+def kRP (i : VmFArg BS) (K : KLayoutP) (a : A) : SP :=
+  if h : RegionOKP K ∧ UserOKP K then annV (cfg0 K memR) K 0#u64 memR (k0RP ar hA i K a h.1 h.2)
+  else .done
+
+variable (a0 : A) {A3 : Type} (arI : machine.Arch A3) (AR : A3 → Fl4Spec.Cr3 → Prop)
+  (MR : A3 → Fl4Spec.MachineState → Prop)
+
+/-- (p3J gen 62) **`StartV13`'s vmF clause at `sR`** for an index `i` without locks whose entry record holds
+there, at every layout whose bundle holds at `sR` (`startVmF_R` below is its instance). -/
+theorem startVmF_RP {K : KLayoutP} {Ch : BS → Prop} {i : VmFArg BS} (hJ : SlJAt (L := bsL) K.toKLayout sR)
+    (hi : i.Locks = (fun _ _ => False) ∧ Ch sR ∧ VmFEntV13 bst ar arI AR MR i K.toKLayoutV sR)
+    (a : A) (hK : RegionOKP K) (hU : UserOKP K) (hs : U64 → Prop)
+    (hhs : (fun _ => False) = hs) :
+    StartV13 bst ar hA a0 arI AR MR Ch K memR hK hU 0#u64 hs (k0RP ar hA i K a hK hU) (.inl (.vmF i)) := by
   subst hhs
-  obtain ⟨hL, hC, hE⟩ := jR_spec O
-  refine ⟨⟨fun _ => False, hL⟩, fun hk => ⟨q0R O a hK hU, ⟨⟨rfl, ⟨sR, slJAt_sR O⟩, hk⟩, sR, ⟨hC, hE⟩,
+  obtain ⟨hL, hC, hE⟩ := hi
+  refine ⟨⟨fun _ => False, hL⟩, fun hk => ⟨q0RP ar hA i K a hK hU, ⟨⟨hE.nv, ⟨sR, hJ⟩, hk⟩, sR, ⟨hC, hE⟩,
     fun h' => ⟨sR, a, rfl, rfl, ?_, fun x hx _ => memR_mem hx, ?_⟩⟩, rfl⟩⟩
-  · show (jR O).Locks sR = fun _ => False
+  · show i.Locks sR = fun _ => False
     rw [hL]
-  · unfold q0R
+  · unfold q0RP
     rw [dif_pos h']
 
-/-! ## The execution: arm, enter, start, run, leave -/
-
-/-- **The armed body**: the re-annotated started program. -/
-def kR (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : SP :=
-  if h : RegionOKP (KR O) ∧ UserOKP (KR O) then annV (cfg0 (KR O) memR) (KR O) 0#u64 memR (k0R O a h.1 h.2)
-  else .done
-
-theorem kR_eq (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) :
-    kR O a = annV (dfg2 (KR O) memR (kR O a)) (KR O) 0#u64 memR (k0R O a hK hU) := by
-  unfold kR
+theorem kRP_eq (i : VmFArg BS) (K : KLayoutP) (a : A) (hK : RegionOKP K) (hU : UserOKP K) :
+    kRP ar hA i K a = annV (dfg2 K memR (kRP ar hA i K a)) K 0#u64 memR (k0RP ar hA i K a hK hU) := by
+  unfold kRP
   rw [dif_pos ⟨hK, hU⟩]
   rfl
 
-/-- **The `.start` step's fields** at the vmF index. -/
-theorem g3R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
-    Fl4StepV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
-      (LocPlatM.locPlat_archT O bs_ext)
-      (dfg2 (KR O) memR (kR O a)) (KR O) (fun _ => ChR O) 0#u64 (dfg3 (KR O) memR (kR O a)) (KR O)
-      (fun _ => ChR O) where
+variable {arI AR MR}
+
+/-- (p3J gen 62) **The `.start` step's fields** at a vmF index of `sR`, at every platform record `PG`, layout and
+chain through `sR` (`g3R` below is its instance). -/
+theorem g3RP (PG : LocPlat bst arI AR MR) {K : KLayoutP} {Ch : BS → Prop} {i : VmFArg BS}
+    (hL : ChainLay (L := bsL) K.toKLayout Ch) (hC : Ch sR) (hks : K.ksb = kbB)
+    (hi : i.Locks = (fun _ _ => False) ∧ Ch sR ∧ VmFEntV13 bst ar arI AR MR i K.toKLayoutV sR)
+    (hB : SerExitW PG K.toKLayoutV Ch) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K memR) (a : A) :
+    Fl4StepV15 (ExecCfg.native bst ar hA a0 arI AR MR) PG
+      (dfg2 K memR (kRP ar hA i K a)) K (fun _ => Ch) 0#u64 (dfg3 K memR (kRP ar hA i K a)) K (fun _ => Ch) where
   arm p h := by rw [dfg3_ph0] at h; cases h
   start p0 k W h hK hU := by
     rw [dfg2_ph0] at h
     injection h with e1 e2 e3
     injection e2 with e2
     subst e2
-    refine ⟨memR, ⟨fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩, .inl (.vmF (jR O)), k0R O a hK hU, ?_,
-      Or.inr (kR_eq O a hK hU)⟩
-    rw [view_R O]
-    exact startVmF_R O a0 a hK hU _ (dfg2_lk _ _ _)
-  serX _ := fun _ => serExitW_R O
-  serC _ := hc0_R O
+    refine ⟨memR, ⟨fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl⟩, .inl (.vmF i), k0RP ar hA i K a hK hU, ?_,
+      Or.inr (kRP_eq ar hA i K a hK hU)⟩
+    rw [view_of hL hC hks]
+    exact startVmF_RP ar hA a0 arI AR MR (hL.bun sR hC) hi a hK hU _ (dfg2_lk _ _ _)
+  serX _ := fun _ => hB
+  serC _ := hc
   serG _ := mapsP_dfg3 _ _ _
   keep _ := ⟨rfl, rfl⟩
+
+/-- (p3J gen 62) **The armed vmF body has no `.start` node** (`stFree_kR` below is its instance). -/
+theorem stFree_kRP (i : VmFArg BS) (K : KLayoutP) (a : A) : StFree (kRP ar hA i K a) := by
+  unfold kRP
+  split
+  · refine stFree_narrow _ _ _ _ _ _ (stFree_cutP _ _ _ _ _ _ _ ?_)
+    unfold q0RP
+    split
+    · exact stFree_tr _ _ _ _ _ _ _ _ _ _ _
+    · trivial
+  · trivial
+
+/-- (p3J gen 62) **V13: the vmF start at `sR`, its whole body, and the leave**, at every platform record `PG`,
+layout and chain through `sR` (`runEndV13_R` below is its instance). -/
+theorem runEndV13_RP (PG : LocPlat bst arI AR MR) {K : KLayoutP} {Ch : BS → Prop} {i : VmFArg BS}
+    (hL : ChainLay (L := bsL) K.toKLayout Ch) (hC : Ch sR) (hks : K.ksb = kbB)
+    (hi : i.Locks = (fun _ _ => False) ∧ Ch sR ∧ VmFEntV13 bst ar arI AR MR i K.toKLayoutV sR)
+    (hB : SerExitW PG K.toKLayoutV Ch) (hc : K.vcpus = ∅ ∧ K.ptes = ptesR K memR) (a : A) :
+    ∃ (s : Cfg U64 U64 U64 U64) (E : U64 → U64),
+      ExecV15 (ExecCfg.native bst ar hA a0 arI AR MR) PG (cfg0 K memR) K (fun _ => Ch) s K (fun _ => Ch) E ∧
+      NoLoc s ∧ s.log = [.start (kRP ar hA i K a)] := by
+  obtain ⟨E, he⟩ := exec_startG (fun _ => hB) hc (g3RP ar hA a0 PG hL hC hks hi hB hc a)
+  obtain ⟨s, he', hq, hl⟩ := runEnd (stFree_kRP ar hA i K a) he
+  exact ⟨s, E, he', hq, hl⟩
+
+end vmFG
+
+/-- The lifted VM-fault body from `sR` (one program for every proof of the slot's premise). -/
+def q0R (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) : SP :=
+  q0RP LocPlatM.archT LocPlatM.archT_total (jR O) (KR O) a hK hU
+
+/-- **The started program**: the PTE cut of `q0R`. -/
+def k0R (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) : SP :=
+  k0RP LocPlatM.archT LocPlatM.archT_total (jR O) (KR O) a hK hU
+
+/-- **`StartV13`'s vmF clause at the second boot start** (module docstring). -/
+theorem startVmF_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) (hK : RegionOKP (KR O))
+    (hU : UserOKP (KR O)) (hs : U64 → Prop) (hhs : (fun _ => False) = hs) :
+    StartV13 bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR (ChR O) (KR O) memR hK hU
+      0#u64 hs (k0R O a hK hU) (.inl (.vmF (jR O))) :=
+  startVmF_RP LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR (slJAt_sR O) (jR_spec O)
+    a hK hU hs hhs
+
+/-! ## The execution: arm, enter, start, run, leave -/
+
+/-- **The armed body**: the re-annotated started program. -/
+def kR (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : SP :=
+  kRP LocPlatM.archT LocPlatM.archT_total (jR O) (KR O) a
+
+theorem kR_eq (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) (hK : RegionOKP (KR O)) (hU : UserOKP (KR O)) :
+    kR O a = annV (dfg2 (KR O) memR (kR O a)) (KR O) 0#u64 memR (k0R O a hK hU) :=
+  kRP_eq LocPlatM.archT LocPlatM.archT_total (jR O) (KR O) a hK hU
+
+/-- **The `.start` step's fields** at the vmF index. -/
+theorem g3R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
+    Fl4StepV15 (ExecCfg.native bst LocPlatM.archT LocPlatM.archT_total a0 LocPlatM.archT LocPlatM.ART modelMR)
+      (LocPlatM.locPlat_archT O bs_ext)
+      (dfg2 (KR O) memR (kR O a)) (KR O) (fun _ => ChR O) 0#u64 (dfg3 (KR O) memR (kR O a)) (KR O)
+      (fun _ => ChR O) :=
+  g3RP LocPlatM.archT LocPlatM.archT_total a0 (LocPlatM.locPlat_archT O bs_ext) (chR_lay O) (chR_sR O) (KR_ksb O)
+    (jR_spec O) (serExitW_R O) (hc0_R O) a
 
 /-- **V13: an execution from the second boot start whose last step is the `.start` of the vmF path.** -/
 theorem execStartV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
@@ -309,15 +424,8 @@ theorem execStartV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
   exec_start (fun _ => serExitW_R O) (hc0_R O) (g3R O a0 a)
 
 /-- **The armed vmF body has no `.start` node.** -/
-theorem stFree_kR (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : StFree (kR O a) := by
-  unfold kR
-  split
-  · refine stFree_narrow _ _ _ _ _ _ (stFree_cutP _ _ _ _ _ _ _ ?_)
-    unfold q0R
-    split
-    · exact stFree_tr _ _ _ _ _ _ _ _ _ _ _
-    · trivial
-  · trivial
+theorem stFree_kR (O : LocPlatM.OpaqueH) (a : Fl4Spec.MachineState) : StFree (kR O a) :=
+  stFree_kRP LocPlatM.archT LocPlatM.archT_total (jR O) (KR O) a
 
 /-- **V13: the vmF start, its whole body, and the leave.** -/
 theorem runEndV13_R (O : LocPlatM.OpaqueH) (a0 a : Fl4Spec.MachineState) :
