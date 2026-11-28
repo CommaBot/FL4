@@ -35,6 +35,7 @@ import Fl4Proofs.P3.UtTcbRet
 import Fl4Proofs.P3.UtTabAdd
 import Fl4Proofs.P3.UtFrameAdd
 import Fl4Proofs.P3.UtRetLive
+import Fl4Proofs.P3.VirtR7
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -224,10 +225,12 @@ joint invariant after without `JExt` (`JAtZB`, `VxE`), and `JExt` carried from t
 state `s` (when it held there) to the new state. `UtBodyPostB.toPost`: with `JExt th s`, `UtBodyPost`.
 Gen 42b22: the carry only for a native type number `nt ≤ 13` (a retype writing `Vcpu` / `Ept` caps breaks
 `JExt.nat`), and the window the body wrote (`RetWin`, for the invocation's base, size and slots), so that the VT-x
-growth after the retype needs nothing more from the body. -/
+growth after the retype needs nothing more from the body. Gen 42b24: the spec's outcome is FL4's untyped invocation
+with `vcpu::init` (`fl4InvokeUntypedV`, the ported one for every type but the VCPU, P3/VirtR7
+`fl4InvokeUntypedV_run`). -/
 def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (nt : Nat)
     (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
-  ∃ σ', (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ = ({(.ok (), σ')}, False) ∧
+  ∃ σ', (Fl4Spec.fl4InvokeUntypedV (Z := Unit) inv).run σ = ({(.ok (), σ')}, False) ∧
     res.1 = .Ok () ∧
     (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
       DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
@@ -237,13 +240,18 @@ def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ :
       ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
         RetWin (L := L) th s res.2.1 nt us rb.toNat slots.length
 
-/-- `UtBodyPostB` of a native type with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`). -/
+/-- `UtBodyPostB` of a native type (not the VCPU) with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`;
+the spec's run by `fl4InvokeUntypedV_run`). -/
 theorem UtBodyPostB.toPost {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {nt : Nat}
     {inv : Fl4Spec.UntypedInvocation}
     {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th s σ nt inv res)
-    (hn : nt ≤ 13) (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
-  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hv, hx, -⟩ := h
-  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx hn E), hv⟩
+    (hn : nt ≤ 13) (hv : ∀ src rs pb rb t us slots dev, inv = .retype src rs pb rb t us slots dev →
+      t ≠ .archObject .vcpuObj)
+    (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
+  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hvx, hx, -⟩ := h
+  obtain ⟨src, rs, pb, rb, t, us, slots, dev⟩ := inv
+  rw [VirtR7.fl4InvokeUntypedV_run _ _ _ _ _ _ _ _ (hv _ _ _ _ _ _ _ _ rfl)] at hrun
+  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx hn E), hvx⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `utEpBodyJ` over `JAtZB` (mmuAD gen 42b21, in place; `JAtZ.utEpBodyJ` is its corollary): the post
@@ -1292,7 +1300,9 @@ theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L
         · have hb : ptrF (.PageTable b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
           rw [hzT b (.inr (.inr ⟨hqW, hn⟩)) i (by simpa using hi)]; exact Vs.not_eP_zero))
-  refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
+  have htV : t ≠ .archObject .vcpuObj := by
+    rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
+  refine ⟨σ', (VirtR7.fl4InvokeUntypedV_run _ _ _ _ _ _ _ _ htV σ).trans hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
@@ -1330,7 +1340,10 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ :=
-  WP.spec_mono (JAtZB.utEpBodyJ J.toB hni hpp hidx hcap (by unfold ArchTab; omega) hc0 hctx hfiv hBO hAF hRU hZ0 hKN) fun _ h => h.toPost (by rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [h]) J.ext
+  WP.spec_mono (JAtZB.utEpBodyJ J.toB hni hpp hidx hcap (by unfold ArchTab; omega) hc0 hctx hfiv hBO hAF hRU hZ0 hKN) fun _ h => h.toPost (by rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [h])
+    (fun _ _ _ _ _ _ _ _ he => by
+      cases he; intro e; rw [e] at hctx; have := hctx.ty
+      rcases hnt with h | h | h | h | h | h | h | h | h <;> rw [h] at this <;> simp [objTypeOf, Fl4Spec.archDataToObjType] at this) J.ext
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of endpoints, notifications, replies, VSpace
