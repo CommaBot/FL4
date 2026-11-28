@@ -323,8 +323,10 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   kernel entry). -/
   rd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
     Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true
-  /-- [P] the Thread decode's `hstall'` (the remote stall a no-op, one core). -/
-  stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
+  /-- [P] the Thread decode's `hstall'` (the remote stall a no-op, one core) at the TCBs of `Z.T`, where
+  the decode uses it (collapse A, N: narrowed from every word, `StallFinding`; true at every `JAtZ`
+  state, `JAtZ.stallT`). -/
+  stall : ∀ q ∈ Z.T, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [J] the Thread decode's `hFl` (SetFlags): FL4's flags word of every TCB
   of `T` against the spec's `tcb_flags` at the invocation (l4v `tcb_relation`'s
   `tcbFlags`; framed across the caller's restart by `JAtZ.flagsRestart`). -/

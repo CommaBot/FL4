@@ -1,27 +1,21 @@
 /-
-P3 (p3P gen 2, finding (c) fix): **`kernel_entry_reachU30`'s proof transported onto the narrowed
-entry records** (`StallNarrowRec`), by a constant renaming re-checked by the kernel.
+P3 (p3P gen 2; collapse A, N): **the kernel-checked constant transport** (`StallNarrow.transport`), the
+library ArchIrqNarrowGen and the staged transports (IrqFixXport, P3JXport, P3KXport) build on.
 
-`JEntryAt*.stall` asked `remote_tcb_stall` to be the no-op at every word (false at reachable
-states, `StallFinding`). The only consumer of that field on U30's proof is the Thread decode
-(`decode_invocation_threadJ_stepMM`, at the target and CopyRegisters' source, both TCBs of `Z.T`).
+`transport` walks the proof cone of a root (every `Fl4Proofs` constant its type and proof reach), takes the
+set `Tr` of constants that mention one of the renamed records (their types, values or constructors,
+transitively), and adds for each a copy under `σ.dst` whose type and value are the original's with the
+records (and every constant they generated) renamed, the single replacements of `σ.constMap` substituted and
+every constant of `Tr` replaced by its copy. Each copy goes through `addDecl`, i.e. the Lean kernel checks it:
+no new axiom, no trusted step.
 
-`narrow_transport` (below) walks the proof cone of U30 (every `Fl4Proofs` constant its type and
-proof reach), takes the set `Tr` of constants that mention one of the seven stall records (their
-types, values or constructors, transitively), and for each adds a copy under `Fl4ProofsN.…`
-(`Fl4Proofs.X` ↦ `Fl4ProofsN.X`) whose type and value are the original's with
-* the seven records (and every constant they generated: constructor, recursor, projections,
-  `casesOn`, …) replaced by StallNarrowRec's `…N` copies, whose `stall` is `∀ q ∈ Z.T, …`;
-* `decode_invocation_threadJ_stepMM` / `…stepM` replaced by `…stepMMN` / `…stepMN` (their
-  `hstall'` narrowed the same way, proved without it from `JAtZ.stallT`);
-* every constant of `Tr` replaced by its copy.
-Each copy goes through `addDecl`, i.e. the Lean kernel checks it: no new axiom, no trusted step.
-The copies are definitions/theorems with the same statements up to that renaming; in particular
-`Fl4ProofsN.P3.SInvR.G5.kernel_entry_reachU30` is U30 with `KDispHypsKVU30` (whose `JEntryAtR7`
-asks the narrowed `stall`) — XTopJointKEntryU31 discharges that field and states the new top.
-No premise is added.
+Collapse A, N: the stall narrowing this module ran on `kernel_entry_reachU30` (records `JEntryAt*` ↦
+StallNarrowRec's `…N` copies, `stall : ∀ q ∈ Z.T, …`; `decode_invocation_threadJ_stepMM/stepM` ↦ `…MMN/MN`;
+copies `Fl4ProofsN.…`) is written back into the base records (`JEntryAt*.stall` is `∀ q ∈ Z.T, …`, the
+Thread decode by XTopJointMRTcbL / KEntry40's `…stepMT` / `…stepMMT`), so its run, StallNarrowRec and
+StallNarrowTcb are gone; only the library is left.
 -/
-import Fl4Proofs.P3.StallNarrowRec
+import Fl4Proofs.P3.XTopJointKEntryU30
 open Lean Meta Elab Command
 
 namespace Fl4Proofs.P3.StallNarrow
@@ -38,22 +32,6 @@ structure Spec where
   recMap : List (Name × Name)
   constMap : List (Name × Name)
   dst : Name
-
-/-- The seven records, renamed to their narrowed copies (prefix renaming: their generated
-constants follow). -/
-def stallRecs : List (Name × Name) :=
-  [(``Fl4Proofs.P3.JEntryAt, ``Fl4Proofs.P3.JEntryAtN),
-   (``Fl4Proofs.P3.JEntryAtR, ``Fl4Proofs.P3.JEntryAtRN),
-   (``Fl4Proofs.P3.JEntryAtR2, ``Fl4Proofs.P3.JEntryAtR2N),
-   (``Fl4Proofs.P3.JEntryAtR3, ``Fl4Proofs.P3.JEntryAtR3N),
-   (``Fl4Proofs.P3.JEntryAtR5, ``Fl4Proofs.P3.JEntryAtR5N),
-   (``Fl4Proofs.P3.SInvR.G5.JEntryAtR6, ``Fl4Proofs.P3.SInvR.G5.JEntryAtR6N),
-   (``Fl4Proofs.P3.SInvR.G5.JEntryAtR7, ``Fl4Proofs.P3.SInvR.G5.JEntryAtR7N)]
-
-/-- Single constants replaced by hand-proved ones of the narrowed statement. -/
-def stallConsts : List (Name × Name) :=
-  [(``Fl4Proofs.P3.decode_invocation_threadJ_stepMM, ``Fl4Proofs.P3.decode_invocation_threadJ_stepMMN),
-   (``Fl4Proofs.P3.decode_invocation_threadJ_stepM, ``Fl4Proofs.P3.decode_invocation_threadJ_stepMN)]
 
 /-- The name of a constant's copy. -/
 def mapName (σ : Spec) (n : Name) : Name := Id.run do
@@ -183,8 +161,3 @@ def transport (σ : Spec) (root : Name) : CoreM Nat := do
   return cnt
 
 end Fl4Proofs.P3.StallNarrow
-
-open Fl4Proofs.P3.StallNarrow in
-run_cmd liftCoreM do
-  let n ← transport ⟨stallRecs, stallConsts, `Fl4ProofsN⟩ ``Fl4Proofs.P3.SInvR.G5.kernel_entry_reachU30
-  logInfo m!"narrow_transport: {n} constants copied"

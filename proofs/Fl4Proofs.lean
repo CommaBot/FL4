@@ -2108,8 +2108,6 @@ import Fl4Proofs.P2.GlueFrame
 import Fl4Proofs.P2.GlueCross
 import Fl4Proofs.P3.XTopJointKEntryU30
 import Fl4Proofs.P3.StallFinding
-import Fl4Proofs.P3.StallNarrowTcb
-import Fl4Proofs.P3.StallNarrowRec
 import Fl4Proofs.P3.StallNarrowGen
 import Fl4Proofs.P3.XTopJointKEntryU31
 import Fl4Proofs.P3.ArchIrqNarrow

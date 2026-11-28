@@ -1,0 +1,18 @@
+# collapse A, N (x86): the stall narrowing written back into the base records; StallNarrowGen's run and
+# every Fl4ProofsN.* copy (250 constants, depdump of f9d7aec84) gone. Format: KIND module decl [note].
+RESTATED P3/XTopJointEntry          JEntryAt.stall            ∀ q, … ↦ ∀ q ∈ Z.T, …
+RESTATED P3/XTopJointKEntry27       JEntryAtR.stall           same
+RESTATED P3/XTopJointKEntry27b      JEntryAtR2.stall          same
+RESTATED P3/XTopJointKEntry33       JEntryAtR3.stall          same
+RESTATED P3/XTopJointKEntry35E      JEntryAtR5.stall          same
+RESTATED P3/XTopJointKEntry36E      SInvR.G5.JEntryAtR6.stall same
+RESTATED P3/XTopJointKEntryU20      SInvR.G5.JEntryAtR7.stall same
+DEL      P3/StallNarrowRec          JEntryAtN JEntryAtRN JEntryAtR2N JEntryAtR3N JEntryAtR5N JEntryAtR6N JEntryAtR7N (the narrowed copies, now the base records)
+DEL      P3/StallNarrowRec          decode_invocation_threadJ_stepMMN decode_invocation_threadJ_stepMN (hand forms for the transport)
+MOVED    P3/StallNarrowTcb -> P3/XTopJointMRTcbL  JAtZ.stallT tcb_copy_regsJT decode_invocation_threadJ_stepMT (statements byte-identical)
+MOVED    P3/StallNarrowTcb -> P3/XTopJointKEntry40 decode_invocation_threadJ_stepMMT (statement byte-identical; heartbeats 4M)
+DEL      P3/XTopJointMRTcbL         decode_invocation_threadJ_stepM   (hstall' form; users moved to …stepMT)
+DEL      P3/XTopJointKEntry40       decode_invocation_threadJ_stepMM  (hstall' form; users moved to …stepMMT)
+DEL      P3/XTopJointTcb            tcb_copy_regsJ                    (hstall' form; user moved to tcb_copy_regsJT)
+DEL      P3/StallNarrowGen          stallRecs stallConsts + the run_cmd (Fl4ProofsN.*, 250 copies)
+REMOVED-MODULE P3/StallNarrowRec P3/StallNarrowTcb (root 2864 -> 2862)

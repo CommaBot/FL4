@@ -6,15 +6,15 @@ chosen outcome.**
 * Thread, the five installing labels: XTopJointMRTcbM's `…JMM` copies (the
   install loop's invariant `WMR MR WJL` carries `MR` to the outcome).
 * Thread, the other non-VT-x labels: `XCapP.mrG` (`f := id`) on mr7's
-  `decode_invocation_threadJ_stepM`: FL4 by `MKD.decode_thread_nonins`
+  `decode_invocation_threadJ_stepMT`: FL4 by `MKD.decode_thread_nonins`
   (MachKeepG4j), spec by `perfF_tcbN` (the decode yields a TCB or FL4-TCB
   invocation that is not `NoPre.PreInv`, `dec_thread_kind` /
   `thread_noPre_of`; their performs keep `msFT`, `qInvT_perform`).
-  `decode_invocation_threadJ_stepMM`: every label but SetEPTRoot.
+  `decode_invocation_threadJ_stepMMT`: every label but SetEPTRoot.
 * `JDecMRLK K` (`JDecMRL2`'s shape for the caps / labels / arguments `K`
   names), `LoudT` (Untyped, Thread at SetEPTRoot), `jDecMRL2_ofT`:
   `JDecMRLK LoudT → JDecMRL2` at a dispatch state (the Thread case as
-  `jPreDecHyp_of18U`, by `decode_invocation_threadJ_stepMM`).
+  `jPreDecHyp_of18U`, by `decode_invocation_threadJ_stepMMT`).
 * Untyped (native object types): XTopJointUtMR's
   `decode_invocation_untypedJMM`, the no-reset runs by `jUtRetHypDMM_of`
   (FL4 `MKD.untyped_retype_nr`, spec `perf_ut_nr`); `jDecMRLK_ofU`:
@@ -136,12 +136,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
-set_option maxHeartbeats 8000000 in
+set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAtM` after** (module docstring): the five installing
 labels by XTopJointMRTcbM, every other non-VT-x label by `XCapP.mrG` on
-`decode_invocation_threadJ_stepM` (FL4 `MKD.decode_thread_nonins`, spec
-`perfF_tcbN`). -/
-theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+`decode_invocation_threadJ_stepMT` (FL4 `MKD.decode_thread_nonins`, spec
+`perfF_tcbN`); the stalls by `JAtZ.stallT` (no `hstall'`). -/
+theorem decode_invocation_threadJ_stepMMT [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z] (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hFl : FlagsRel Z.T (L.mem s) σ) (hfnz : FrNZ Z.th (L.mem s))
@@ -155,7 +155,6 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
     (hsc : capV (L.mem s) (cslotAddr sl) = .Thread p)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
-    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
     (hNative : lbl ≠ fl4_abi.label.TCBSetEPTRoot)
     (hcw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
     (hpI : p ≠ L.idleW s)
@@ -183,8 +182,8 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J, inferInstance⟩
   have hJ0M : JAtM (L := L) arI AR MR s ar σ := ⟨hJ0, hmv.1⟩
-  have hX := decode_invocation_threadJ_stepM arI s ar σ J hni hARI hT hFl hfnz lbl length p blk call don fp buf extra ct
-    hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc
+  have hX := decode_invocation_threadJ_stepMT arI s ar σ J hni hARI hT hFl hfnz lbl length p blk call don fp buf extra ct
+    hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hNative hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc
     hnc0 hcapC hA5 hGb hFJ hmb hidS hbuf hl hJDP hsg hLv hnd hMP hKD hPA hmv hRd0 hnq hTA
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
@@ -221,22 +220,22 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
   · subst h9
     exact xcapP_of_tcb arI s ar σ hJ0M _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_set_timeoutJMM arI s ar σ J hni hsg hP0 hHp hmv.1 (fun _ _ _ _ _ h => h.2.1) hMP hKD hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
-        (hstall' p) call sl hAs extra x0 x1 x2 hx0 excaps hXc _ blk don ci buffer)
+        (J.stallT p hpT) call sl hAs extra x0 x1 x2 hx0 excaps hXc _ blk don ci buffer)
   by_cases h11 : lbl = fl4_abi.label.TCBSetSpace
   · subst h11
     exact xcapP_of_tcb arI s ar σ hJ0M _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_set_spaceJMM arI s ar σ J hni hsg hP0 hHp hmv.1 (fun _ _ _ _ _ h => h.2.1) hMP hKD hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
-        argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
+        argsU hlen hargs (J.stallT p hpT) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   by_cases h10 : lbl = fl4_abi.label.TCBSetIPCBuffer
   · subst h10
     exact xcapP_of_tcb arI s ar σ hJ0M _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_set_ipcJMM arI s ar σ J hni hsg hP0 hHp hmv.1 (fun _ _ _ _ _ h => h.2.1) hMP hKD hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
-        hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 excaps hXc hnc0 hfnz blk don ci buffer)
+        hct argsU hlen hargs (J.stallT p hpT) call sl hAs extra x0 x1 x2 hx0 excaps hXc hnc0 hfnz blk don ci buffer)
   by_cases h5 : lbl = fl4_abi.label.TCBConfigure
   · subst h5
     exact xcapP_of_tcb arI s ar σ hJ0M _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_configureJMM arI s ar σ J hni hsg hP0 hHp hmv.1 (fun _ _ _ _ _ h => h.2.1) hMP hKD hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
-        hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc hfnz blk don ci buffer)
+        hct argsU hlen hargs (J.stallT p hpT) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc hfnz blk don ci buffer)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
     intro hx q hc
@@ -253,7 +252,7 @@ theorem decode_invocation_threadJ_stepMM [Fl4Proofs.P1.PlainStore st] (s : S) (a
   · subst h8
     exact xcapP_of_tcb arI s ar σ hJ0M _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_set_sched_paramsJMM arI s ar σ J hni hsg hP0 hHp hmv.1 (fun _ _ _ _ _ h => h.2.1) hMP hKD hR hT hARI.toARKeep hTA p hp slbl
-        (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (hstall' p) call sl hAs hsc extra
+        (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (J.stallT p hpT) call sl hAs hsc extra
         x0 x1 x2 hx0 hx1 hx2 excaps hXc hcapT hcapC blk don ci buffer)
   have hv : ∀ {c : U64}, lbl ≠ c → lbl.val ≠ c.val := fun hn e => hn (UScalar.eq_of_val_eq e)
   have hl5 : lbl.val ≠ 5 ∧ lbl.val ≠ 8 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 11 :=
@@ -305,7 +304,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 8000000 in
 /-- **`JDecMRL2` with the Thread cap proved** (module docstring): the Thread
-cap at every label but SetEPTRoot by `decode_invocation_threadJ_stepMM`
+cap at every label but SetEPTRoot by `decode_invocation_threadJ_stepMMT`
 (the front-end facts as `jPreDecHyp_of18U`), the rest by `JDecMRLK LoudT`. -/
 theorem jDecMRL2_ofT [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
@@ -368,8 +367,8 @@ theorem jDecMRL2_ofT [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec
       apply hE.sg.idle sl'.1 sl'.2 _ ha0 (by simp [IsPageCap, absCap])
       rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
-    exact decode_invocation_threadJ_stepMM arI s ar σ J hni hG.ari hG.tot hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
-      hAs hsc excaps buffer hext hE.stall hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
+    exact decode_invocation_threadJ_stepMMT arI s ar σ J hni hG.ari hG.tot hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
+      hAs hsc excaps buffer hext hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
       (fun h => hFr h _ hx0) hG.ppA.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hM hKD hG.ppA ⟨hR, hVT, hVI⟩ hE.rd0 hE.ctnq hG.timeAg
   case Untyped p sb fi dev =>
     exact hR3 hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl _ hc trivial

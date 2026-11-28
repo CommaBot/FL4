@@ -7,6 +7,7 @@ StallNarrowGen's kernel-checked renaming (`Fl4Proofs.X` / `Fl4ProofsN.X` ↦ `Fl
 -/
 import Fl4Proofs.P3.XTopJointKEntryU31
 import Fl4Proofs.P3.ArchIrqNarrow
+import Fl4Proofs.P3.StallNarrowGen
 open Lean Meta Elab Command
 
 open Fl4Proofs.P3.StallNarrow in

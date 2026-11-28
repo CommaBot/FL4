@@ -1240,7 +1240,7 @@ theorem handle_invocation_entryJMUL [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAtN (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtML (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
@@ -1314,7 +1314,7 @@ theorem handle_invocation_entryJMUML [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAtN (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : Fl4ProofsI.P3.JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtML (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct)
     (hDL : JDecMRL (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
