@@ -154,6 +154,11 @@ statements: `X = ∅`, resp. `X`, `XL` unchanged).
 Gen 42b10 statement changes (the `named` field): `structure EptCore`; `eptCore_empty`, `VmState.toEpt`,
 `JAtZ.toVmEptState` (+ `htab`); `EptCore.frameI`, `EptCore.frame`, `EptCore.ofBS`, `VmEptState.ofBS` (+ `hnm`).
 
+Gen 42b19 (the Architect's goal 2): **`EptNamed.keepW`**, `EptNamed.keep` generalised to a per-path witness after
+(`hex`) in place of "every mapped non-root cap kept"; `keep` is its corollary (statement unchanged). It lets
+P3/EptDelRoot's `EptCore.ofEmpty` drop a mapped non-root cap whose table is unreachable or has another cap.
+`EptNamed` itself is unchanged (its `ex` already quantifies over the reachable tables only).
+
 No named premise in this module: `EptCore`'s fields are state invariants (true at boot, `eptCore_empty`; kept by
 every step: the non-EPT steps by the frames here, the EPT steps in 42b), and the embeddings' / frames' hypotheses
 are hypotheses of those theorems. The spec is not touched; gen 42b1 changed only this module's and P3/VmState's own
@@ -390,6 +395,28 @@ theorem PoolInj.mono {σ σ' : Fl4Spec.State Unit} (h : PoolInj σ)
   ⟨fun hi hi' p h1 h2 => h.tab hi hi' p (by rw [← hat]; exact h1) (by rw [← hat]; exact h2),
     fun hi lo hi' lo' e e' h1 h2 t1 t2 hr => h.root hi lo hi' lo' e e' (hpool _ _ _ h1 t1) (hpool _ _ _ h2 t2) t1 t2 hr⟩
 
+/-- **`EptNamed` across a step, witnesses given per path** (gen 42b19, the generalisation of `EptNamed.keep`): paths
+after at a nonzero level are old ones, and every such old path to a table has a witness cap after (`hex`: a mapped
+`Ept` slot cap with the path's ASID bits, level and address bits); each `Ept` cap after an old one or to a table with
+an unmapped cap before (so unreachable). `keep` (every mapped non-root cap kept at some slot) and P3/EptDelRoot's
+`EptCore.ofEmpty` (a mapped non-root cap dropped whose table is unreachable or has another cap) are its instances. -/
+theorem EptNamed.keepW {th th' : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} (N : EptNamed th m σ)
+    (hpath : ∀ hi lo gpa l u, GPath σ' hi lo gpa l u → l ≠ 0 → GPath σ hi lo gpa l u) (hinj : PoolInj σ')
+    (hex : ∀ hi lo gpa l u, gpa.toNat < 2 ^ 47 → GPath σ hi lo gpa l u → l ≠ 0 →
+      ∃ y p lv a v, IsSlot th' y ∧ p.bv = u ∧ lv.val = l ∧ Fl4Spec.asidHighBitsOf a.bv = hi ∧
+        Fl4Spec.asidLowBitsOf a.bv = lo ∧ v.bv = gKey gpa l ∧ capV m' y = .Ept p lv true a v)
+    (hcb : ∀ y' p lv (mm : Bool) a v, IsSlot th' y' → capV m' y' = .Ept p lv mm a v →
+      (∃ y, IsSlot th y ∧ capV m y = .Ept p lv mm a v) ∨
+        ∃ y lv0 a0 v0, IsSlot th y ∧ capV m y = .Ept p lv0 false a0 v0) :
+    EptNamed th' m' σ' where
+  ex hi lo gpa l u hg hp hl := hex hi lo gpa l u hg (hpath _ _ _ _ _ hp hl) hl
+  all hi lo gpa l u hg hp hl y' p lv mm a v hy' hpu hc' := by
+    have hp0 := hpath _ _ _ _ _ hp hl
+    rcases hcb y' p lv mm a v hy' hc' with ⟨y, hy, hc⟩ | ⟨y, lv0, a0, v0, hy, hc⟩
+    · exact N.all hi lo gpa l u hg hp0 hl y p lv mm a v hy hpu hc
+    · exact absurd (N.all hi lo gpa l u hg hp0 hl y p lv0 false a0 v0 hy hpu hc).1 Bool.false_ne_true
+  inj := hinj
+
 /-- **`EptNamed` across a step** whose nonzero-level paths are old ones, keeping the mapped non-root `Ept` caps (at
 some slot), each `Ept` cap after an old one or to a table with an unmapped cap before (so unreachable). -/
 theorem EptNamed.keep {th th' : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} (N : EptNamed th m σ)
@@ -399,17 +426,11 @@ theorem EptNamed.keep {th th' : TypedHeap} {m m' : U64 → U64} {σ σ' : Fl4Spe
     (hcb : ∀ y' p lv (mm : Bool) a v, IsSlot th' y' → capV m' y' = .Ept p lv mm a v →
       (∃ y, IsSlot th y ∧ capV m y = .Ept p lv mm a v) ∨
         ∃ y lv0 a0 v0, IsSlot th y ∧ capV m y = .Ept p lv0 false a0 v0) :
-    EptNamed th' m' σ' where
-  ex hi lo gpa l u hg hp hl := by
-    obtain ⟨y, p, lv, a, v, hy, hpu, hlv, h1, h2, h3, hc⟩ := N.ex hi lo gpa l u hg (hpath _ _ _ _ _ hp hl) hl
+    EptNamed th' m' σ' :=
+  N.keepW hpath hinj (fun hi lo gpa l u hg hp hl => by
+    obtain ⟨y, p, lv, a, v, hy, hpu, hlv, h1, h2, h3, hc⟩ := N.ex hi lo gpa l u hg hp hl
     obtain ⟨y', hy', hc'⟩ := hck y p lv a v hy hc (by rw [hlv]; exact hl)
-    exact ⟨y', p, lv, a, v, hy', hpu, hlv, h1, h2, h3, hc'⟩
-  all hi lo gpa l u hg hp hl y' p lv mm a v hy' hpu hc' := by
-    have hp0 := hpath _ _ _ _ _ hp hl
-    rcases hcb y' p lv mm a v hy' hc' with ⟨y, hy, hc⟩ | ⟨y, lv0, a0, v0, hy, hc⟩
-    · exact N.all hi lo gpa l u hg hp0 hl y p lv mm a v hy hpu hc
-    · exact absurd (N.all hi lo gpa l u hg hp0 hl y p lv0 false a0 v0 hy hpu hc).1 Bool.false_ne_true
-  inj := hinj
+    exact ⟨y', p, lv, a, v, hy', hpu, hlv, h1, h2, h3, hc'⟩) hcb
 
 /-- **`EptNamed` across a step keeping the ASID table, whose tagged pool entries and guest tables are old ones**
 (the frames), the mapped non-root `Ept` caps kept at some slot, each `Ept` cap after an old one. -/

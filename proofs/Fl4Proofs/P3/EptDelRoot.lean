@@ -32,6 +32,16 @@ original a corollary, statement unchanged); `EptCore.ofEmpty`'s apartness factor
 
 (gen 42b10) `EptCore.ofEmpty` takes `hxl` (the emptied slot's cap, if an `Ept` cap, is a level-0 one: outside
 `EptNamed`'s witnesses) and proves `EptCore.named`.
+
+(gen 42b19, the Architect's goal 2) **`EptCore.ofEmpty`'s `hxl` generalised** (statement change, this module's own):
+the emptied slot's cap, if a mapped non-root `Ept p lv true a v` cap, has its table `p` reached by no path at a nonzero
+level (a final delete after `ept::finalise`) or another slot `y ≠ x` holds an `Ept` cap to `p` (a non-final delete);
+the old premise (an `Ept` cap is level 0) implies it. `EptNamed` after by `EptNamed.keepW`: a path's witness that was
+the emptied slot is replaced by the other slot's cap (`EptNamed.all` at the path: mapped, same ASID bits and address
+bits; `EptCore.capL`: same level). **`VmEptState.delEptStep`**: `delEptRoot`'s body for any `Ept p l m asid va` cap,
+the finalisation given as hypotheses (FL4 `ok ((Null, Null), s1, a1)`, the spec outcome of `finaliseCapVF`,
+`VmEptState` after, slots and `ksb` kept, `hxl` at the finalised state); `delEptRoot` is `finEptRootAny` +
+`delEptStep` (statement unchanged). The combined delete of every `Ept` cap is P3/EptFinAll's `VmEptState.delEpt`.
 -/
 import Fl4Proofs.P3.EptFinRoot
 import Fl4Proofs.P3.XTopJointWJLEmpty
@@ -356,21 +366,31 @@ theorem JAtZB.slotWd_ept (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C :
     omega
 
 set_option maxHeartbeats 4000000 in
-/-- **`EptCore` across `empty_slot`** (module docstring). -/
+/-- **`EptCore` across `empty_slot`** (module docstring; gen 42b19: `hxl` generalised). The emptied slot's cap, if a
+mapped non-root `Ept p lv true a v` cap, names a table that is reached by no path at a nonzero level (a final delete
+after `ept::finalise`: P3/EptUnmapCore's `EptCore.unmapUnreach`) or that another slot's `Ept` cap names (a non-final
+delete: `ept_nonfinal_twin`); `EptNamed.all` and `EptCore.capL` make that cap the path's witness. A level-0, unmapped
+or non-`Ept` cap needs nothing. -/
 theorem EptCore.ofEmpty (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : EptCore (L := L) X XL Z.th s σ)
     {s' : S} {σ' : Fl4Spec.State Unit} {x : U64}
     (hw : P1.WritesIn st s s' (SlotWd Z.th))
     (hcp : ∀ y, IsSlot Z.th y → y ≠ x → capV (L.mem s') y = capV (L.mem s) y) (hx0 : capV (L.mem s') x = .Null)
-    (hcn : Ipc.CnK σ σ') (hxl : ∀ p lv (mm : Bool) a v, capV (L.mem s) x = .Ept p lv mm a v → lv = 0#u64) :
+    (hcn : Ipc.CnK σ σ')
+    (hxl : ∀ p lv a v, capV (L.mem s) x = .Ept p lv true a v → lv.val ≠ 0 →
+      (∀ hi lo gpa l, gpa.toNat < 2 ^ 47 → l ≠ 0 → ¬ GPath σ hi lo gpa l p.bv) ∨
+      ∃ y, IsSlot Z.th y ∧ y ≠ x ∧ ∃ (lv' : U64) (mm : Bool) (a' v' : U64), capV (L.mem s) y = .Ept p lv' mm a' v') :
     EptCore (L := L) X XL Z.th s' σ' := by
   have hW := B.slotWd_ept C
+  have hpool : ∀ hi lo e, PoolAt σ' hi lo e → e &&& 1 = 1 → PoolAt σ hi lo e :=
+    fun _ _ _ ⟨q, f, h1, h2, h3⟩ _ => ⟨q, f, by rw [← cnK_asid hcn]; exact h1, (cnK_arch hcn).1 h2, h3⟩
   refine C.frame hw hW (fun y hy p l a v mm hc => ?_) ⟨fun y hy => ?_, ⟨fun y hy p l a v hc => ?_,
     fun y hy p sz r d a v hc => ?_⟩, fun y hy p l a v hc => ?_⟩
     (fun t ht => ?_)
     (fun r l es hk => ⟨l, es, (cnK_arch hcn).1 hk⟩) (cnK_entry hcn) (cnK_size hcn) (EptSlotStep.ofOne hcp (Or.inl hx0))
-    (C.named.frameA (cnK_asid hcn)
-      (fun _ _ _ ⟨q, f, h1, h2, h3⟩ _ => ⟨q, f, by rw [← cnK_asid hcn]; exact h1, (cnK_arch hcn).1 h2, h3⟩)
-      (fun r l es hk => (cnK_arch hcn).1 hk) (fun y p lv a v hy hc hl => ?_) (fun y p lv mm a v hy hc => ?_))
+    (C.named.keepW (GPath.mono' (fun hi lo e h1 h2 => Or.inl (hpool hi lo e h1 h2))
+        (fun r l es hk => Or.inl ((cnK_arch hcn).1 hk)))
+      (C.named.inj.mono (cnK_asid hcn) hpool) (fun hi lo gpa l u hg hp hl => ?_)
+      (fun y p lv mm a v hy hc => Or.inl ?_))
   · by_cases e : y = x
     · rw [e, hx0] at hc; cases hc
     · exact ⟨hy, by rw [← hcp y hy e]; exact hc⟩
@@ -388,9 +408,16 @@ theorem EptCore.ofEmpty (B : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (C : 
     · rw [hcp y hy e] at hc; exact C.exte.anz y hy p l a v hc
   · obtain ⟨es, hxe, -⟩ := C.rel.obj t ht
     rw [hxe]; exact (cnK_arch hcn).2 hxe
-  · by_cases e : y = x
-    · subst e; exact (hl (by rw [hxl p lv true a v hc]; rfl)).elim
-    · exact ⟨y, hy, by rw [hcp y hy e]; exact hc⟩
+  · obtain ⟨y, p, lv, a', v, hy, hpu, hlv, h1, h2, h3, hc⟩ := C.named.ex hi lo gpa l u hg hp hl
+    by_cases e : y = x
+    · subst e
+      rcases hxl p lv a' v hc (by rw [hlv]; exact hl) with hun | ⟨y', hy', hne, lv', mm, a2, v2, hc'⟩
+      · exact (hun hi lo gpa l hg hl (by rw [hpu]; exact hp)).elim
+      · obtain ⟨rfl, g1, g2, g3⟩ := C.named.all hi lo gpa l u hg hp hl y' p lv' mm a2 v2 hy' hpu hc'
+        have e1 := C.capL y' hy' p lv' a2 v2 true hc'
+        have e2 := C.capL y hy p lv a' v true hc
+        exact ⟨y', p, lv', a2, v2, hy', hpu, by rw [e1, ← e2, hlv], g1, g2, g3, by rw [hcp y' hy' hne]; exact hc'⟩
+    · exact ⟨y, p, lv, a', v, hy, hpu, hlv, h1, h2, h3, by rw [hcp y hy e]; exact hc⟩
   · by_cases e : y = x
     · rw [e, hx0] at hc; cases hc
     · exact ⟨y, hy, by rw [← hcp y hy e]; exact hc⟩
@@ -455,12 +482,26 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 open Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched Fl4Proofs.P1
 
 set_option maxHeartbeats 4000000 in
-/-- **The delete of a slot holding a mapped EPT root cap at `VmEptState`** (module docstring). From
-`ArchRefines` [P]. -/
-theorem VmEptState.delEptRoot [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR)
-    (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D s a σ)
-    {sl : Fl4Spec.CslotPtr} {p asid va : U64} (hAs : AbsSlot Z.th sl)
-    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Ept p 0#u64 true asid va)) :
+/-- **The delete of a slot holding an `Ept` cap at `VmEptState`, from its finalisation** (gen 42b19: the body of
+`delEptRoot`, generalised to any `Ept p l m asid va` cap): given FL4's finality `fin`, a finalisation `finalise_cap
+… fin false = ok ((Null, Null), s1, a1)` whose spec outcome `σ1` is one of `finaliseCapVF` at the spec's finality,
+`VmEptState` at `s1` / `σ1` with the slots and `ksb` kept, and, for a mapped non-root cap, `EptCore.ofEmpty`'s
+`hxl` at `s1` / `σ1` (the table unreachable, or another slot's `Ept` cap to it), FL4's delete ends as `delEptRoot`
+says. The emptying is `delEptRoot`'s (no cap kind is read but `Ept`'s object apartness and missing VSpace key). -/
+theorem VmEptState.delEptStep [Fl4Proofs.P1.PlainStore st]
+    {sl : Fl4Spec.CslotPtr} {p l asid va : U64} {m : Bool} (hAs : AbsSlot Z.th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Ept p l m asid va))
+    (hR : StateRel Z.th (L.mem s) σ)
+    {fin : Bool} {s1 : S} {a1 : A} {σ1 : Fl4Spec.State Unit}
+    (hfin : cdt.is_final_capability st s (cslotAddr sl) = ok fin)
+    (hf : objects.finalise_cap st arI s a (.Ept p l m asid va) fin false = ok ((.Null, .Null), s1, a1))
+    (hfc : ((.nullCap, .nullCap), σ1) ∈ (Fl4Spec.finaliseCapVF (Z := Unit) (absCap (.Ept p l m asid va))
+      (decide (Fl4Spec.isFinalCap' (absCap (.Ept p l m asid va)) σ)) σ).1)
+    (J1 : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D s1 a1 σ1)
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s1)) (hks1 : L.ksb s1 = L.ksb s)
+    (hxl : m = true → l.val ≠ 0 →
+      (∀ hi lo gpa l', gpa.toNat < 2 ^ 47 → l' ≠ 0 → ¬ GPath σ1 hi lo gpa l' p.bv) ∨
+      ∃ y, IsSlot Z.th y ∧ y ≠ cslotAddr sl ∧ ∃ (lv' : U64) (mm : Bool) (a' v' : U64), capV (L.mem s1) y = .Ept p lv' mm a' v') :
     cdt.delete st arI s a (cslotAddr sl) true ⦃ r => r.1 = .Ok () ∧
       ∃ (σ' : Fl4Spec.State Unit) (G' : MdbGhost) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         (.ok (), σ') ∈ ((Fl4Spec.capDeleteVF (Z := Unit) sl).run σ).1 ∧
@@ -468,12 +509,9 @@ theorem VmEptState.delEptRoot [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI
         capV (L.mem r.2.1) (cslotAddr sl) = .Null ∧
         (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y) ∧
         L.ksb r.2.1 = L.ksb s ⦄ := by
-  have B := J.1.1
-  have hP := B.xtop.rel.1
-  have hR := B.xtop.rel.2.1.1
-  obtain ⟨fin, s1, a1, σ1, hfin, hf, hfc, J1, hSS, hks1⟩ := J.finEptRootAny hA hAs hc
   obtain ⟨⟨B1, Cv1⟩, C1⟩ := J1
-  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Ept p 0#u64 true asid va := by
+  have hP := B1.xtop.rel.1
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Ept p l m asid va := by
     rw [hSS.capV hAs.isSlot]; exact capV_of_capAt hc
   have hDS1 : DState (L := L) Z.th s1 σ1 Z.G := ⟨B1.xtop.rel.2.1, B1.del, B1.xtop.rel.2.2.1⟩
   -- the slot is ready
@@ -507,9 +545,9 @@ theorem VmEptState.delEptRoot [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI
   -- the spec's delete
   obtain ⟨c0, ac, hc0, hca, hg⟩ := hR.abs_cap hAs
   rw [hc] at hc0
-  obtain rfl : (.Ept p 0#u64 true asid va : capability.Cap) = c0 := eq_of_ok_eq hc0
+  obtain rfl : (.Ept p l m asid va : capability.Cap) = c0 := eq_of_ok_eq hc0
   rw [hca.abs] at hg
-  have hfr := rdvf_fin_removable (e := true) hg (by simp [absCap]) hfc (by simp [Fl4Spec.capRemoveable])
+  have hfr := rdvf_fin_removable (e := true) hg (by cases m <;> simp [absCap]) hfc (by simp [Fl4Spec.capRemoveable])
   obtain ⟨v, hv⟩ := rdvf_cte_ok hfr (σ2 := σ2) (by
     simp only [Fl4Spec.NonDet.when, true_or, ↓reduceIte]; exact hes)
   have hoth' : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s2) y = capV (L.mem s) y := fun y hy hne => by
@@ -517,9 +555,29 @@ theorem VmEptState.delEptRoot [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI
   exact ⟨by first | trivial | rfl, σ2, G2, Ac', Lst', D', capDeleteVF_ok hv,
     ⟨⟨B2, Cv1.ofEmpty B1 hw2 (fun y hy hne => hoth y hy hne) hnull hmS hcn2⟩,
       C1.ofEmpty B1 hw2 (fun y hy hne => hoth y hy hne) hnull hcn2
-        (fun p' lv mm a' v' h => by rw [hcv1] at h; exact (capability.Cap.Ept.inj h).2.1.symm)⟩,
+        (fun p' lv a' v' h hl => by
+          rw [hcv1] at h
+          obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := capability.Cap.Ept.inj h
+          exact hxl rfl hl)⟩,
     hnull, hoth', hks2.trans hks1⟩
 
+set_option maxHeartbeats 4000000 in
+/-- **The delete of a slot holding a mapped EPT root cap at `VmEptState`** (module docstring). From
+`ArchRefines` [P]. Gen 42b19: `delEptStep` after `finEptRootAny`. -/
+theorem VmEptState.delEptRoot [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR)
+    (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D s a σ)
+    {sl : Fl4Spec.CslotPtr} {p asid va : U64} (hAs : AbsSlot Z.th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Ept p 0#u64 true asid va)) :
+    cdt.delete st arI s a (cslotAddr sl) true ⦃ r => r.1 = .Ok () ∧
+      ∃ (σ' : Fl4Spec.State Unit) (G' : MdbGhost) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        (.ok (), σ') ∈ ((Fl4Spec.capDeleteVF (Z := Unit) sl).run σ).1 ∧
+        VmEptState (L := L) arI V X XL AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ∧
+        capV (L.mem r.2.1) (cslotAddr sl) = .Null ∧
+        (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem r.2.1) y = capV (L.mem s) y) ∧
+        L.ksb r.2.1 = L.ksb s ⦄ := by
+  obtain ⟨fin, s1, a1, σ1, hfin, hf, hfc, J1, hSS, hks1⟩ := J.finEptRootAny hA hAs hc
+  exact VmEptState.delEptStep arI hAs hc J.1.1.xtop.rel.2.1.1 hfin hf hfc J1 hSS hks1
+    (fun _ hl => (hl rfl).elim)
 end
 
 end
