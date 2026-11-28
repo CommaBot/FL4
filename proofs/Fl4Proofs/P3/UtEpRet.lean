@@ -185,16 +185,31 @@ theorem Endp.IpcBufCapOK.specAdd {σ σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjR
     obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md hf hR
     exact ⟨h1, h2, fun k hk => inUserFrame_keep (fun _ _ hp => hA.kold hp) (h3 k hk), h4, h5⟩
 
+variable (arI) in
+/-- **`UtBodyPost` with `JAtZB` after** (mmuAD gen 42b21): the outcome of a retype body as `UtBodyPost`, with the
+joint invariant after without `JExt` (`JAtZB`, `VxE`), and `JExt` carried from the typed heap `th` at the entry
+state `s` (when it held there) to the new state. `UtBodyPostB.toPost`: with `JExt th s`, `UtBodyPost`. -/
+def UtBodyPostB (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
+    (inv : Fl4Spec.UntypedInvocation) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  ∃ σ', (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ = ({(.ok (), σ')}, False) ∧
+    res.1 = .Ok () ∧
+    (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
+      DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
+    ∃ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZB (L := L) arI AR Z' H' Cs' Ac' Lst' D' res.2.1 res.2.2 σ' ∧ VxE Z' ∧
+      (JExt (L := L) th s → JExt (L := L) Z'.th res.2.1)
+
+/-- `UtBodyPostB` with `JExt` at the entry is `UtBodyPost` (`JAtZB.toJAtZ`). -/
+theorem UtBodyPostB.toPost {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {inv : Fl4Spec.UntypedInvocation}
+    {res : core.result.Result Unit error.Exc × S × A} (h : UtBodyPostB (L := L) arI AR th s σ inv res)
+    (E : JExt (L := L) th s) : UtBodyPost (L := L) arI AR σ inv res := by
+  obtain ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J, hv, hx⟩ := h
+  exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx E), hv⟩
+
 set_option maxHeartbeats 16000000 in
-/-- **The body of `JAtZ.utEpJ`: the retype without a reset from a `JAtZ`
-state** (handoff/utj.md Round 13): FL4's `untyped::retype` with `reset = false`
-from the state itself (after the restart; or after the restart and the
-reset, the cap's free index then 0), against the spec's `invoke_untyped`
-without a reset from `σ`: `UtBodyPost`. The arguments `RetCtx` at the state
-(any `reset` flag, the window base from the cap's free index `fiv = fi`),
-`Entered` (no switch pending), and the kept objects' references to a range
-in the cap's free part (`hRU`, `RegionUnrefJ`'s conclusion at the state). -/
-theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+/-- `utEpBodyJ` over `JAtZB` (mmuAD gen 42b21, in place; `JAtZ.utEpBodyJ` is its corollary): the post
+`UtBodyPostB`, `JExt` carried from the entry. -/
+theorem JAtZB.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -208,7 +223,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hZ0 : UtFreeZ σ (p.val + fi.val) (p.val + 2 ^ sb.val)) (hKN : UtNodesAt (L.ksb s) p sb) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th s σ (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -1209,7 +1224,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
     hKsB J.thT hIpB hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+    hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hXB hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
@@ -1246,7 +1261,36 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance⟩
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ, inferInstance, fun hx =>
+      ⟨hx.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _),
+        hx.vkeep (J.vkeep_slot hwI)⟩⟩
+
+/-- **The body of `JAtZ.utEpJ`: the retype without a reset from a `JAtZ`
+state** (handoff/utj.md Round 13): FL4's `untyped::retype` with `reset = false`
+from the state itself (after the restart; or after the restart and the
+reset, the cap's free index then 0), against the spec's `invoke_untyped`
+without a reset from `σ`: `UtBodyPost`. The arguments `RetCtx` at the state
+(any `reset` flag, the window base from the cap's free index `fiv = fi`),
+`Entered` (no switch pending), and the kept objects' references to a range
+in the cap's free part (`hRU`, `RegionUnrefJ`'s conclusion at the state). -/
+theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+    (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
+    (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
+    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11))
+    (hc0 : Z.c = 0#u64)
+    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv) (hfiv : fiv = fi)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ)
+    (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s)
+    (hZ0 : UtFreeZ σ (p.val + fi.val) (p.val + 2 ^ sb.val)) (hKN : UtNodesAt (L.ksb s) p sb) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
+        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
+        res ⦄ :=
+  WP.spec_mono (JAtZB.utEpBodyJ J.toB hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU hZ0 hKN) fun _ h => h.toPost J.ext
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of endpoints, notifications, replies, VSpace

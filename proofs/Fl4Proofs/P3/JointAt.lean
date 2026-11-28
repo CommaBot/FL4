@@ -652,13 +652,8 @@ theorem curInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : σ.schedul
     Sched.CurInv σ :=
   Fl4Proofs.P3.JAtZB.curInv (J := J.toB) (h := h)
 
-/-- **The current SC is live unless a reschedule is pending**: outside the
-dead set, or `chooseNewThread`. Derived, not carried: under `CurInv` the
-current thread is bound to the current SC, so (`Inv.back`) the SC's `TCB`
-word names it, while a dead SC's `TCB` word is null (`DeadP`). A dead
-current SC arises only when the current thread finalises the last cap to its
-own SC, which unbinds it and asks for a reschedule. -/
-theorem cscLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+/-- `cscLive` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem _root_.Fl4Proofs.P3.JAtZB.cscLive (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     L.cscW s ∉ D ∨ σ.schedulerAction = .chooseNewThread := by
   by_cases hcn : σ.schedulerAction = .chooseNewThread
   · exact Or.inr hcn
@@ -682,6 +677,16 @@ theorem cscLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
   have h0 : y'.scTcb = none := by rw [hx'.tcb, ← Sched.scTcbA_eq, d.1, Notif.optRef_zero]
   rw [e, hyt] at h0; cases h0
 
+
+/-- **The current SC is live unless a reschedule is pending**: outside the
+dead set, or `chooseNewThread`. Derived, not carried: under `CurInv` the
+current thread is bound to the current SC, so (`Inv.back`) the SC's `TCB`
+word names it, while a dead SC's `TCB` word is null (`DeadP`). A dead
+current SC arises only when the current thread finalises the last cap to its
+own SC, which unbinds it and asks for a reschedule. -/
+theorem cscLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    L.cscW s ∉ D ∨ σ.schedulerAction = .chooseNewThread :=
+  Fl4Proofs.P3.JAtZB.cscLive J.toB
 /-- `ScExtra` (the SC decodes' bundle), given the [global] platform facts and
 no reschedule pending. -/
 theorem scExtra (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread)
@@ -732,10 +737,8 @@ theorem pushDonOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t d r : U64
     PushDonOK st Z.N Z.T Z.C Z.R Z.c s σ t d r :=
   ⟨J.nsc, J.inv, J.rp, hiso, ⟨Lst, J.call, hdet, J.rfree⟩, hrel⟩
 
-/-- `UtJoint` (the untyped decode's bundle) at an invoked CNode slot, no
-reschedule pending (an invocation runs with `resume_cur_thread`: the current
-SC live, `cscLive`). -/
-theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
+/-- `utJoint` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem _root_.Fl4Proofs.P3.JAtZB.utJoint (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
     (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
     (hcap : capAt (L.mem s) slot = ok cap)
@@ -750,6 +753,17 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.sch
     J.kern.h0, J.kern.hks, J.kern.hksIn, J.kern.hnd, J.kern.ksbFit, J.kern.ksbAl, J.kern.nodeFit, J.kern.cpuCs,
     J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩
 
+
+/-- `UtJoint` (the untyped decode's bundle) at an invoked CNode slot, no
+reschedule pending (an invocation runs with `resume_cur_thread`: the current
+SC live, `cscLive`). -/
+theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
+    {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
+    (hnode : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) (hslot : slot = cslotAddr (pp.bv, idx))
+    (hcap : capAt (L.mem s) slot = ok cap)
+    (hext : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot Z.th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid Z.th c) :
+    Sched.UtJoint (L := L) arI H Cs s slot cap extra Z.th Z.G D σ pp rs idx :=
+  Fl4Proofs.P3.JAtZB.utJoint J.toB hres hnode hidx hslot hcap hext
 /-- `UtP3Ok` (P1's `P3Ok` for the untyped retype), no reschedule pending. -/
 theorem utP3Ok (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction ≠ .chooseNewThread) {slot : obj.Slot} {cap : capability.Cap}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {pp : U64} {rs : Nat} {idx : List Bool}
@@ -819,11 +833,16 @@ theorem _root_.Fl4Proofs.P3.JAtZB.inSlot_nv (J : JAtZB (L := L) arI AR Z H Cs Ac
 theorem inSlot_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
     ∀ t ∈ Z.T, b ≠ tVcpuA t :=
   J.toB.inSlot_nv hb
-/-- **A step writing slot words only keeps the VCPU words.** -/
-theorem vkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+/-- `vkeep_slot` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem _root_.Fl4Proofs.P3.JAtZB.vkeep_slot (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (InSlot Z.th)) : VKeep (L := L) Z.th s s' :=
   VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.inSlot_nv hb
 
+
+/-- **A step writing slot words only keeps the VCPU words.** -/
+theorem vkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) : VKeep (L := L) Z.th s s' :=
+  Fl4Proofs.P3.JAtZB.vkeep_slot J.toB hw
 /-- **A kernel-state block word is no TCB's VCPU word** (P1's `ksOut`). -/
 theorem ks_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
     (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by

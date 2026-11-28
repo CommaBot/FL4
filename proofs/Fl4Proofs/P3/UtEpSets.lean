@@ -125,9 +125,8 @@ variable {AR : A' → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : S
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **The set and heap fields at the enlarged sets** (module docstring), the
-spec's changed or new CNodes in one disjunct (any CNode after). -/
-theorem JAtZ.addSetsG {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addSetsG` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.addSetsG {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
     (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
     (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
@@ -381,9 +380,41 @@ theorem JAtZ.addSetsG {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     · rcases hKn c hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ | ⟨h, -⟩ | ⟨_, h⟩ <;> cases h
     · exact J.hscC c z h
 
-/-- **The set and heap fields at the enlarged sets** (module docstring;
-`JAtZ.addSetsG` with the changed CNodes old ones). -/
-theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+
+/-- **The set and heap fields at the enlarged sets** (module docstring), the
+spec's changed or new CNodes in one disjunct (any CNode after). -/
+theorem JAtZ.addSetsG {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn Rn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs', ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn) :
+    KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  JAtZB.addSetsG J.toB hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN
+/-- `addSets` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
     (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
     (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
@@ -415,6 +446,39 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   J.addSetsG hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn
     (fun o ko h => (hback o ko h).imp_right (Or.imp_left fun ⟨r, _, cs', _, e⟩ => ⟨r, cs', e⟩)) hT hR hC hBB hE hN
 
+
+/-- **The set and heap fields at the enlarged sets** (module docstring;
+`JAtZ.addSetsG` with the changed CNodes old ones). -/
+theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn Rn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn) :
+    KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  JAtZB.addSets J.toB hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN
 /-- `JAtZ.addSetsG` with `ArchFitHyp` after (jc1b; `ArchFitHyp.add`). -/
 theorem JAtZ.addSetsGA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
@@ -451,8 +515,8 @@ theorem JAtZ.addSetsGA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   ⟨ArchFitHyp.add harch hspec hlo hhi hk1 hout hback hKa,
     J.addSetsG hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN⟩
 
-/-- `JAtZ.addSets` with `ArchFitHyp` after (jc1b; `ArchFitHyp.add`). -/
-theorem JAtZ.addSetsA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addSetsA` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.addSetsA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
     (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
     (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
@@ -487,13 +551,44 @@ theorem JAtZ.addSetsA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   ⟨ArchFitHyp.add harch hspec hlo hhi hk1 hout (fun o ko h => (hback o ko h).imp_right (Or.imp_left fun ⟨r, _, cs', _, e⟩ => ⟨r, cs', e⟩)) hKa,
     J.addSets hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN⟩
 
+
+/-- `JAtZ.addSets` with `ArchFitHyp` after (jc1b; `ArchFitHyp.add`). -/
+theorem JAtZ.addSetsA {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn Rn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn)
+    (hKa : ∀ q m, NewAt A k w q → K = some (.other m) → ∀ ao, σ'.kheap q.bv = some (.archObj ao) →
+      m ≤ Fl4Spec.objBits (.archObj ao)) :
+    ArchFitHyp H' σ' ∧
+        KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) :=
+  JAtZB.addSetsA J.toB hks hlo0 hhi64 hfree hksr hspec hB harch hlo hhi hk1 hout hEw hNw hRw hKn hback hT hR hC hBB hE hN hKa
 set_option maxHeartbeats 2000000 in
-/-- **`RPlaced` and `SlotsApart` at the notifications and replies grown by
-the window** across the retype (`JAtZ.uaRest`'s `RPlaced` at the old sets,
-`SlotsApart.sc_frame`): the new notifications and replies lie in `[lo, hi)`,
-where no spec object (so no reply, notification or SC) and no object of the
-typed heap (so no slot, no TCB) is; at most one of the two sets is new. -/
-theorem JAtZ.addRP {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addRP` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.addRP {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop}
     {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject} (hA : SpecAdd σ σB W o) (hid : IdleNew W o) (hcn : CnK σB σ')
     {Nn Rn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
@@ -566,6 +661,25 @@ theorem JAtZ.addRP {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · exact h5 r hr
       · have := slotOff x hx; have := hRw r hr; omega
 
+
+/-- **`RPlaced` and `SlotsApart` at the notifications and replies grown by
+the window** across the retype (`JAtZ.uaRest`'s `RPlaced` at the old sets,
+`SlotsApart.sc_frame`): the new notifications and replies lie in `[lo, hi)`,
+where no spec object (so no reply, notification or SC) and no object of the
+typed heap (so no slot, no TCB) is; at most one of the two sets is new. -/
+theorem JAtZ.addRP {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop}
+    {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject} (hA : SpecAdd σ σB W o) (hid : IdleNew W o) (hcn : CnK σB σ')
+    {Nn Rn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hNw : ∀ n ∈ Nn, lo ≤ n.val ∧ n.val + 64 ≤ hi)
+    (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi)
+    (hRks : ∀ r ∈ Rn, r.val + 32 ≤ (L.ksb s').val ∨ L.nodeBase s' Z.c + 4288 ≤ r.val)
+    (hNR : Nn = ∅ ∨ Rn = ∅) :
+    RPlaced st (Z.N ∪ Nn) Z.T Z.C (Z.R ∪ Rn) Z.c s' σ' ∧
+      SlotsApart (st := st) Z.th Z.T (Z.N ∪ Nn) Z.C (Z.R ∪ Rn) Z.c s' σ' :=
+  JAtZB.addRP J.toB hw hA hid hcn hWn hlo0 hhi64 hfree hspec hNw hRw hRks hNR
 end
 
 end

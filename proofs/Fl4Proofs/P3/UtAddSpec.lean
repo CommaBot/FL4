@@ -238,6 +238,29 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 set_option maxHeartbeats 2000000 in
+/-- `uaRest` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.uaRest {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop} {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject}
+    (hA : SpecAdd σ σB W o) (hi : IdleNew W o) (hcn : CnK σB σ') {Nn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) :
+    CallRel (L.mem s') Z.R Z.C σ' Lst ∧ RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ' ∧ RFree (L.mem s') Z.R Z.C σ' Lst ∧
+    RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
+    BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
+    (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
+  have hC := CnStep.of_cnK hcn
+  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keepsB arI J hw
+  have ck := uaCKeep hA hi hC
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
+  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uadd hA hi hC k4,
+    J.yld.frame k2 (uaYKeep hA hi hC), J.mcp.frame k1 (uaMcpKeep hA hi hC), J.buf.frame kb (uaBufKeep hA hi hC),
+    (J.nsc.uadd hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
+    CurInvW.cn (CurInvW.uadd J.cur hA hi) hC, (J.own.uadd hA hi).cn hC.toHStep, (J.off.uadd hA hi).cn hC.toHStep,
+    (J.act.uadd hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
+    (J.isorted.uadd hA hi).cn hC.toHStep, (J.curRun.uadd hA hi).cn hC.toHStep (Or.inr hC.act)⟩
+
+
 /-- **`JRest`'s scheduler-side fields across a retype's fresh idle objects**
 (module docstring): from `JAtZ` before, FL4 writing slot words only, and the
 spec's `SpecAdd` of idle endpoints or notifications followed by a CNode-only
@@ -254,18 +277,8 @@ theorem JAtZ.uaRest {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T Z.C (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
     BufWordRel Z.T (L.mem s') σ' ∧ NSC (Z.N ∪ Nn) Z.C σ' ∧ Inv σ' ∧
     (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
-    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' := by
-  have hC := CnStep.of_cnK hcn
-  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keeps arI J hw
-  have ck := uaCKeep hA hi hC
-  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
-  refine ⟨hCR', hRP', RFree.carry J.rfree J.call k4 ck, J.rrecv.uadd hA hi hC k4,
-    J.yld.frame k2 (uaYKeep hA hi hC), J.mcp.frame k1 (uaMcpKeep hA hi hC), J.buf.frame kb (uaBufKeep hA hi hC),
-    (J.nsc.uadd hA hi hWn).cn hC.toHStep, (Inv.add J.inv hA hi.fresh).cn hC,
-    CurInvW.cn (CurInvW.uadd J.cur hA hi) hC, (J.own.uadd hA hi).cn hC.toHStep, (J.off.uadd hA hi).cn hC.toHStep,
-    (J.act.uadd hA hi).cn hC, (BlockedScActive.add J.bsa hA hi.fresh).cn hC.toHStep,
-    (J.isorted.uadd hA hi).cn hC.toHStep, (J.curRun.uadd hA hi).cn hC.toHStep (Or.inr hC.act)⟩
-
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' :=
+  JAtZB.uaRest J.toB hw hA hi hcn hWn
 end
 
 end

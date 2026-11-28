@@ -771,11 +771,9 @@ theorem LiveDN.wstepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 
 set_option maxHeartbeats 4000000 in
-/-- **A step writing slot words at the slots `W` keeps `LiveDN` and
-`ZNoBlk`** (XTopJointLiveStep's `LiveDN.wstep`, with the `XTopAt` after
-and the TCB zombies' TCBs dead after). -/
-theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+/-- `wstepR` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem LiveDN.wstepRB {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     {G' : MdbGhost} {s' : S}
     {σ' : Fl4Spec.State Unit} (hM' : MdbLinks Z.th (L.mem s') G')
     {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
@@ -891,6 +889,29 @@ theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · exact absurd hm hsW
 
 
+
+/-- **A step writing slot words at the slots `W` keeps `LiveDN` and
+`ZNoBlk`** (XTopJointLiveStep's `LiveDN.wstep`, with the `XTopAt` after
+and the TCB zombies' TCBs dead after). -/
+theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    {G' : MdbGhost} {s' : S}
+    {σ' : Fl4Spec.State Unit} (hM' : MdbLinks Z.th (L.mem s') G')
+    {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
+    (hid : σ'.idleThread = σ.idleThread) (hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧
+      DestCap Z.th (L.mem s) p)
+    (hcW : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → LSim (capV (L.mem s') y) (capV (L.mem s) y))
+    (hoW : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W)
+    (hNO : ∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false)
+    (hZ : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n)
+    (hK2 : ∀ y0, IsSlot Z.th y0 → capV (L.mem s) y0 ≠ .Null →
+      ∃ y, IsSlot Z.th y ∧ capV (L.mem s') y ≠ .Null ∧ shape (capV (L.mem s') y) = shape (capV (L.mem s) y0)) :
+    LiveDN (L := L) Z.th H' Cs G' s' σ' :=
+  LiveDN.wstepRB J.toB hLv hM' hDW' hdead hid hdk W hW hcW hoW hNO hZ hK2
 set_option maxHeartbeats 4000000 in
 /-- **`LiveDN` across a step changing slots only up to `LSim`** (a frame cap's
 mapping, an untyped cap's free index; KENTRY-PLAN g2i): the debug words, the

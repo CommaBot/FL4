@@ -252,9 +252,8 @@ variable {AR : A' → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : S
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **`LiveDN` and `zD` after a retype creating no container** (module
-docstring). -/
-theorem JAtZ.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `ret_liveN` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A'} {σ' : Fl4Spec.State Unit} {D' : Set U64}
     {th' : TypedHeap} (hX' : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = th') (hT : Z'.T = Z.T) (hc : Z'.c = Z.c)
     (hold : ∀ q k, Z.th q = some k → th' q = some k) (hNE : NewEmpty Z.th th' (L.mem s') σ')
@@ -311,7 +310,7 @@ theorem JAtZ.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · obtain ⟨d, hd, rfl⟩ := eW; exact absurd h ((hWc d hd).2 p zt n)
     · push_neg at eW
       exact ⟨y, hy, by rw [← hcapK y hy ex eW]; exact h⟩
-  have hLv := LiveDN.wstepR J ⟨hL, ⟨lst, hDW⟩, hN⟩ hM' hDW' hdead hid hdk W hW
+  have hLv := LiveDN.wstepRB J ⟨hL, ⟨lst, hDW⟩, hN⟩ hM' hDW' hdead hid hdk W hW
     (fun y hy hne => by
       by_cases ex : y = xs
       · rw [ex, hs0, hs1]; exact LSim.of_shape rfl
@@ -334,6 +333,30 @@ theorem JAtZ.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   exact ⟨hLv.extendE hold hNE, fun p hp => hnew p (ZTcb.of_zombies hZf (ZTcb.of_extendE hold hNE hp))⟩
 
 
+
+/-- **`LiveDN` and `zD` after a retype creating no container** (module
+docstring). -/
+theorem JAtZ.ret_liveN {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A'} {σ' : Fl4Spec.State Unit} {D' : Set U64}
+    {th' : TypedHeap} (hX' : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = th') (hT : Z'.T = Z.T) (hc : Z'.c = Z.c)
+    (hold : ∀ q k, Z.th q = some k → th' q = some k) (hNE : NewEmpty Z.th th' (L.mem s') σ')
+    (hTH : P1.Heap.tcbs H' = P1.Heap.tcbs H)
+    (hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
+    (hnew : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D')
+    (hid : σ'.idleThread = σ.idleThread)
+    {Aw k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G Z'.G Aw k w dslot cj xs)
+    (hcjZ : ∀ j, j < w → ∀ p zt n, cj j ≠ .Zombie p zt n)
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧ DestCap Z.th (L.mem s) p)
+    (hxs : IsSlot Z.th xs)
+    (hcapK : ∀ y, IsSlot Z.th y → y ≠ xs → (∀ d ∈ W, y ≠ cslotAddr d) → capV (L.mem s') y = capV (L.mem s) y)
+    (hWn : ∀ d ∈ W, capV (L.mem s) (cslotAddr d) = .Null)
+    {src : Fl4Spec.CslotPtr} (hcdt : ∀ d ∈ W, σ'.cdt d = some src)
+    (horgK : ∀ sl, sl ∉ W → σ'.isOriginalCap sl = σ.isOriginalCap sl) :
+    LiveDN (L := L) Z'.th H' Cs Z'.G s' σ' ∧ ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D' :=
+  JAtZB.ret_liveN J.toB hX' hth hT hc hold hNE hTH hdk hdead hnew hid hE hcjZ W hW hxs hcapK hWn hcdt horgK
 /-- (jc5) The tables after a retype whose new arch objects lie in the window
 `NewAt A (2 ^ z) w` with `12 ≤ z`: old ones or inside `[A, A + w * 2 ^ z)`. -/
 theorem tabNew_win {σ σ' : Fl4Spec.State Unit} {A z w : Nat}

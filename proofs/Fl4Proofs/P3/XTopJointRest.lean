@@ -506,12 +506,10 @@ theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi :=
   J.toB.ins_utcG arI hAd hcap hnull hnu hw hcdt horig hgp hM' hlv
 
-/-- **A live CNode misses a childless untyped region** (`DestLive`: named by
-a CNode cap of the MDB, which `ut_free` puts outside, or in the kernel-state
-block, which the joint cover puts outside every untyped region). -/
-theorem JAtZ.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `live_apart` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
     (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
     (hnc : ¬ ∃ x, σ.cdt x = some sl) {q : U64} {rd : Nat} (hpd : Z.th q = some (.cnode rd))
     (hDL : DestLive Z.th (L.mem s) (L.ksb s) q) :
@@ -551,11 +549,22 @@ theorem JAtZ.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have := (J.jcov.ks _ hxm p sb fi (by rw [hcv, hdv])).1
     omega
 
-/-- **A slot of a live CNode misses a childless untyped region**, and the
-CNode stays an object of the region's restriction. -/
-theorem JAtZ.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+
+/-- **A live CNode misses a childless untyped region** (`DestLive`: named by
+a CNode cap of the MDB, which `ut_free` puts outside, or in the kernel-state
+block, which the joint cover puts outside every untyped region). -/
+theorem JAtZ.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
+    (hnc : ¬ ∃ x, σ.cdt x = some sl) {q : U64} {rd : Nat} (hpd : Z.th q = some (.cnode rd))
+    (hDL : DestLive Z.th (L.mem s) (L.ksb s) q) :
+    q.val + 32 * 2 ^ rd ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val :=
+  JAtZB.live_apart arI J.toB hsl hcv hdv hnc hpd hDL
+/-- `live_slot` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
     (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
     (hnc : ¬ ∃ x, σ.cdt x = some sl) {w : Fl4Spec.CslotPtr}
     (hw : ∃ q r, w.1 = q.bv ∧ Z.th q = some (.cnode r) ∧ w.2.length = r ∧ DestLive Z.th (L.mem s) (L.ksb s) q) :
@@ -578,6 +587,18 @@ theorem JAtZ.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   rw [if_neg (by omega)]
   rw [hld]; exact hpd
 
+
+/-- **A slot of a live CNode misses a childless untyped region**, and the
+CNode stays an object of the region's restriction. -/
+theorem JAtZ.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
+    (hnc : ¬ ∃ x, σ.cdt x = some sl) {w : Fl4Spec.CslotPtr}
+    (hw : ∃ q r, w.1 = q.bv ∧ Z.th q = some (.cnode r) ∧ w.2.length = r ∧ DestLive Z.th (L.mem s) (L.ksb s) q) :
+    ((cslotAddr w).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr w).val) ∧
+      AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) w :=
+  JAtZB.live_slot arI J.toB hsl hcv hdv hnc hw
 set_option maxHeartbeats 4000000 in
 /-- **The untyped caps' facts after an insertion of a non-untyped cap into
 a CNode slot** (the IRQ and IO-port inserts, `JStepHyps.slot`): `ins_utcG`,

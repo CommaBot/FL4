@@ -109,16 +109,10 @@ theorem RetExp.cap_keep {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
     exact hyG' ((hM'.members y).2 ⟨hy', _, capAt_capV _ _, hn⟩)
 
 set_option maxHeartbeats 4000000 in
-/-- **The untyped caps' facts after a retype that keeps the typed heap**
-(the endpoints'/notifications' retype without a reset; `ins_utcG` for the
-creation's insertions `Dst` and the source's free index raised from `fi0`
-to `fi1`): the source keeps its facts at the higher free index (its free
-part shrinks; it has a child after, `hchild`); every other untyped cap keeps
-them as in `ins_utcG` (the new MDB slots miss every childless untyped
-region, `hlv`, from the destination's liveness). -/
-theorem JAtZ.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `ret_utc` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
     {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} {d0 : Bool} (hxs : AbsSlot Z.th xs)
     (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 d0)
     (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 d0) (hfi : fi0.val ≤ fi1.val)
@@ -223,6 +217,36 @@ theorem JAtZ.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · exact (hlv sl' e sl p sb fi dev hsl hcv hdF hnc).2
     · exact r1 sl' (by rw [← horig sl' e]; exact h)
 
+
+/-- **The untyped caps' facts after a retype that keeps the typed heap**
+(the endpoints'/notifications' retype without a reset; `ins_utcG` for the
+creation's insertions `Dst` and the source's free index raised from `fi0`
+to `fi1`): the source keeps its facts at the higher free index (its free
+part shrinks; it has a child after, `hchild`); every other untyped cap keeps
+them as in `ins_utcG` (the new MDB slots miss every childless untyped
+region, `hlv`, from the destination's liveness). -/
+theorem JAtZ.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} {d0 : Bool} (hxs : AbsSlot Z.th xs)
+    (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 d0)
+    (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 d0) (hfi : fi0.val ≤ fi1.val)
+    (hfi1 : fi1.val ≤ 2 ^ sb0.val) (Dst : Fl4Spec.CslotPtr → Prop)
+    (hDa : ∀ d, Dst d → AbsSlot Z.th d) (hDn : ∀ d, Dst d → capAt (L.mem s) (cslotAddr d) = ok .Null)
+    (hDu : ∀ d, Dst d → ∀ p sb fi dv, capV (L.mem s') (cslotAddr d) ≠ .Untyped p sb fi dv)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr xs → (∀ d, Dst d → y ≠ cslotAddr d) →
+      capV (L.mem s') y = capV (L.mem s) y)
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) (hcdt : ∀ x, ¬ Dst x → σ'.cdt x = σ.cdt x)
+    (horig : ∀ sl, ¬ Dst sl → σ'.isOriginalCap sl = σ.isOriginalCap sl)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hM' : MdbLinks Z.th (L.mem s') G') (hchild : ∃ x, σ'.cdt x = some xs)
+    (hlv : ∀ d, Dst d → ∀ sl p sb fi dev, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev →
+      dev = false → (¬ ∃ x, σ.cdt x = some sl) →
+      ((cslotAddr d).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr d).val) ∧
+        AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) d) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi :=
+  JAtZB.ret_utc J.toB hxs hc0 hc1 hfi hfi1 Dst hDa hDn hDu hcap hw hcdt horig hgp hM' hchild hlv
 end
 
 end

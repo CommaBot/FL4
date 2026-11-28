@@ -900,14 +900,10 @@ theorem JAtZ.free_dead {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   · obtain ⟨k1, k2⟩ := hi.2 kd hq; omega
 
 set_option maxHeartbeats 4000000 in
-/-- **`JAtZ.create_noresetW` from one `JAtZ` state**: the creation starts at
-the `JAtZ` state itself (after the restart, or after a reset), entered
-(`Entered`: no switch pending, the current thread runnable); the kept objects'
-and FL4's lists' references to the window's objects are the premise `hRU` at
-that state (`RegionUnrefJ`'s conclusion there; no restart in between). -/
-theorem JAtZ.create_noresetB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `create_noresetB` over `JAtZB` (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary). -/
+theorem JAtZB.create_noresetB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
@@ -1077,6 +1073,33 @@ theorem JAtZ.create_noresetB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
       · exact absurd (hnewQ q hna' (by rw [hk'']; simp)) hnq
 
 
+
+/-- **`JAtZ.create_noresetW` from one `JAtZ` state**: the creation starts at
+the `JAtZ` state itself (after the restart, or after a reset), entered
+(`Entered`: no switch pending, the current thread runnable); the kept objects'
+and FL4's lists' references to the window's objects are the premise `hRU` at
+that state (`RegionUnrefJ`'s conclusion there; no restart in between). -/
+theorem JAtZ.create_noresetB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+    (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G G' A0 k w dslot cj (cslotAddr (pp.bv, idx)))
+    (hRU : KeptRefsP3 (L := L) H (RegionD H A0 (A0 + w * k)) s ∧ DbgTimerKept (L := L) H (RegionD H A0 (A0 + w * k)) Cs s)
+    {n us : Nat} (hcjU : newKind n us ≠ none → ∀ j, j < w → isUt (cj j) = false)
+    (hn : n ≠ 1 ∧ (n = 5 → 7 ≤ us)) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
+    {T pml4 : Prop} (hT : ¬ T)
+    (hW : WFrame (L := L) s s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
+      (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
+      (pml4 ∧ A0 ≤ v.val ∧ v.val < A0 + w * k)))
+    (hWZ : (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A0 k w T) (hidl : IdleKeep (L := L) s s') :
+    ∃ (H' : Heap) (Ac' : Set U64),
+      BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
+        (Heap.ntfns H') (Heap.scBits H') Ac' s' ∧
+      HOut H H' A0 (A0 + w * k) A0 k w (newKind n us) ∧
+      JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A0 k w cj q} Cs s' :=
+  JAtZB.create_noresetB J.toB hni hpp hidx hcap hE hRU hcjU hn hk hAk hT hW hWZ hidl
 end
 
 end
