@@ -33,6 +33,9 @@ Gen 42b19: **`VmEptState.finEptTblU`** (`finEptTbl` generalised: plus `ksb` kept
 `Ept` cap to the table, the table reached at the spec's outcome by no path at a nonzero level, P3/EptUnmapCore's
 `EptCore.unmapUnreach`); `finEptTbl` its corollary (statement unchanged).
 
+Gen 42b20: **`VmEptState.finEptFrameGU`** (`finEptFrameG` generalised: plus `ksb` kept, for P3/EptFinAll's frame-slot
+delete); `finEptFrameG` its corollary (statement unchanged).
+
 Premises: `ArchRefines arI AR` [P] (as P3/EptUnmapRel); `MRKeepD arI AR` [P] (P3/MachKeepD; already a premise of the
 U44 / `_sysLzz` tops), only at a final device frame. No new named premise. Root import after `P3.EptFrameUnmap`.
 -/
@@ -236,9 +239,9 @@ theorem VmEptState.finEptTbl (hA : ArchRefines arI AR) (J : VmEptState (L := L) 
     exact ⟨h1, σ', h2, h3, h4⟩
 
 set_option maxHeartbeats 4000000 in
-/-- **The finalisation of an EPT-mapped frame cap at `VmEptState`, device or not** (module docstring; gen 42b16:
-`hD` as `EptCore.finFrameFG`). -/
-theorem VmEptState.finEptFrameG (hA : ArchRefines arI AR)
+/-- **The finalisation of an EPT-mapped frame cap at `VmEptState`, device or not, `ksb` kept** (gen 42b20, the
+generalisation of `finEptFrameG`: plus `L.ksb` kept, what P3/EptDelRoot's `delEptStep` asks of a finalisation). -/
+theorem VmEptState.finEptFrameGU (hA : ArchRefines arI AR)
     (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} (hAs : AbsSlot Z.th sl)
     {p r asid va : U64} {sz : capability.FrameSize} {d : Bool}
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Frame p sz r d true true asid va)) (fin : Bool)
@@ -248,7 +251,7 @@ theorem VmEptState.finEptFrameG (hA : ArchRefines arI AR)
         Fl4Spec.finaliseCapV (Z := Unit) (absCap (.Frame p sz r d true true asid va)) fin σ =
           ({((.nullCap, .nullCap), σ')}, False) ∧
         VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D res.2.1 res.2.2 σ' ∧
-        SlotsSame Z.th (L.mem s) (L.mem res.2.1) ⦄ := by
+        SlotsSame Z.th (L.mem s) (L.mem res.2.1) ∧ L.ksb res.2.1 = L.ksb s ⦄ := by
   have B := J.1.1
   have C := J.2
   have hxs : IsSlot Z.th (cslotAddr sl) := hAs.isSlot
@@ -265,19 +268,36 @@ theorem VmEptState.finEptFrameG (hA : ArchRefines arI AR)
   · simp only at e3
     subst e3
     have hb : ¬ asid.bv ≠ 0 := by rw [h0]; exact fun h => h rfl
-    refine ⟨σ, finCapV_eptFrame ?_ fin, J.archV hAR2, SlotsSame.refl _ _⟩
+    refine ⟨σ, finCapV_eptFrame ?_ fin, J.archV hAR2, SlotsSame.refl _ _, rfl⟩
     unfold Fl4Spec.NonDet.when; rw [if_neg hb]; rfl
   · have hb : asid.bv ≠ 0 := fun h => h0 (P1.eq_of_bv (by rw [h]; rfl))
     rcases hU with ⟨e3, hG⟩ | ⟨t, ht, es, hXt, hPt, hk, -, e3, hG⟩
     · simp only at e3
       subst e3
-      refine ⟨σ, finCapV_eptFrame ?_ fin, J.archV hAR2, SlotsSame.refl _ _⟩
+      refine ⟨σ, finCapV_eptFrame ?_ fin, J.archV hAR2, SlotsSame.refl _ _, rfl⟩
       unfold Fl4Spec.NonDet.when; rw [if_pos hb, ← fbits_val]; exact hG
     · simp only at e3
       subst e3
       obtain ⟨J3, hSS3⟩ := J.unmapEntry ht (g := va.bv) hva (by rw [hXt]; exact hPt) hk _
-      refine ⟨_, finCapV_eptFrame ?_ fin, J3.archV hAR2, hSS3⟩
+      refine ⟨_, finCapV_eptFrame ?_ fin, J3.archV hAR2, hSS3, L.ksb_wr _ _ _⟩
       unfold Fl4Spec.NonDet.when; rw [if_pos hb, ← fbits_val, hG, storeGuestEntry_eq hk]
+
+/-- **The finalisation of an EPT-mapped frame cap at `VmEptState`, device or not** (module docstring; gen 42b16:
+`hD` as `EptCore.finFrameFG`; gen 42b20: `finEptFrameGU` without its `ksb` conjunct). -/
+theorem VmEptState.finEptFrameG (hA : ArchRefines arI AR)
+    (J : VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} (hAs : AbsSlot Z.th sl)
+    {p r asid va : U64} {sz : capability.FrameSize} {d : Bool}
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Frame p sz r d true true asid va)) (fin : Bool)
+    (hD : d = true → fin = true → P0.StoreTotal st ∧ P0.ArchTotal arI ∧ MRKeepD arI AR) :
+    objects.finalise_cap st arI s a (.Frame p sz r d true true asid va) fin false ⦃ res =>
+      res.1 = (.Null, .Null) ∧ ∃ σ' : Fl4Spec.State Unit,
+        Fl4Spec.finaliseCapV (Z := Unit) (absCap (.Frame p sz r d true true asid va)) fin σ =
+          ({((.nullCap, .nullCap), σ')}, False) ∧
+        VmEptState (L := L) arI V X XL AR Z H Cs Ac Lst D res.2.1 res.2.2 σ' ∧
+        SlotsSame Z.th (L.mem s) (L.mem res.2.1) ⦄ :=
+  WP.spec_mono (J.finEptFrameGU hA hAs hc fin hD) fun _ h => by
+    obtain ⟨h1, σ', h2, h3, h4, -⟩ := h
+    exact ⟨h1, σ', h2, h3, h4⟩
 
 /-- **The finalisation of an EPT-mapped non-device frame cap at `VmEptState`** (module docstring). -/
 theorem VmEptState.finEptFrame (hA : ArchRefines arI AR)
