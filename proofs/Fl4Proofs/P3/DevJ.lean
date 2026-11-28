@@ -137,16 +137,10 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
 set_option maxHeartbeats 4000000 in
-/-- **`JAtZ.create_noresetB` for a device source** (UtBodyJ): P1's creation
-from one `JAtZ` state, the source a device untyped cap. The RAM facts of the
-source (`JAtZ.utc`, `JCovD.ks`/`idleOut`) are replaced by `DevApart` (its
-range aligned, off the kernel-state block, the nodes and the idle objects)
-and `DevApart.srcOK` (the new caps no RAM untypeds, `hcjR`); the window's
-base positive (`hpos`) is P1's `WinPlaced` (a RAM cap's from its kernel-half
-pointer; for a device cap it fails only at the pointer 0). -/
-theorem JAtZ.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- `create_noresetBD` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.create_noresetBD` is its corollary). -/
+theorem JAtZB.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
     (hDA : DevApart (L := L) Z.th H Z.G Cs s)
@@ -317,6 +311,39 @@ theorem JAtZ.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H :
       · exact hdead' q (hq'.trans h1.symm) (hdk q kd hHq hd)
       · exact absurd (hnewQ q hna' (by rw [hk'']; simp)) hnq
 
+
+
+/-- **`JAtZ.create_noresetB` for a device source** (UtBodyJ): P1's creation
+from one `JAtZ` state, the source a device untyped cap. The RAM facts of the
+source (`JAtZ.utc`, `JCovD.ks`/`idleOut`) are replaced by `DevApart` (its
+range aligned, off the kernel-state block, the nodes and the idle objects)
+and `DevApart.srcOK` (the new caps no RAM untypeds, `hcjR`); the window's
+base positive (`hpos`) is P1's `WinPlaced` (a RAM cap's from its kernel-half
+pointer; for a device cap it fails only at the pointer 0). -/
+theorem JAtZ.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
+    (hDA : DevApart (L := L) Z.th H Z.G Cs s)
+    {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+    (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G G' A0 k w dslot cj (cslotAddr (pp.bv, idx)))
+    (hRU : KeptRefsP3 (L := L) H (RegionD H A0 (A0 + w * k)) s ∧ DbgTimerKept (L := L) H (RegionD H A0 (A0 + w * k)) Cs s)
+    {n us : Nat} (hcjU : newKind n us ≠ none → ∀ j, j < w → isUt (cj j) = false)
+    (hcjR : ∀ j, j < w → ∀ p sb fi, cj j ≠ .Untyped p sb fi false) (hpos : 0 < A0)
+    (hn : n ≠ 1 ∧ (n = 5 → 7 ≤ us)) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
+    {T pml4 : Prop} (hT : ¬ T)
+    (hW : WFrame (L := L) s s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
+      (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
+      (pml4 ∧ A0 ≤ v.val ∧ v.val < A0 + w * k)))
+    (hWZ : (newKind n us).isSome → (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A0 k w T)
+    (hidl : IdleKeep (L := L) s s') :
+    ∃ (H' : Heap) (Ac' : Set U64),
+      BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
+        (Heap.ntfns H') (Heap.scBits H') Ac' s' ∧
+      HOut H H' A0 (A0 + w * k) A0 k w (newKind n us) ∧
+      JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A0 k w cj q} Cs s' :=
+  JAtZB.create_noresetBD J.toB hni hpp hidx hcap hDA hE hRU hcjU hcjR hpos hn hk hAk hT hW hWZ hidl
 
 end
 

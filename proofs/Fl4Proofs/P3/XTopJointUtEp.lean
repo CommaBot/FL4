@@ -598,6 +598,93 @@ theorem JAtZ.utEpXTop {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       (fun n hn => by obtain ⟨b1, b2, -⟩ := hwb n hn; rw [h64] at b2; rw [hksR]; omega)
       (fun n hn b g1 g2 => by obtain ⟨b1, b2, -⟩ := hwb n hn; rw [h64] at b2; exact hfr0 b (by omega) (by omega))
 
+
+set_option maxHeartbeats 1000000 in
+/-- **`JAtZB` from its parts at new sets and heaps** (mmuAD gen 42b24; the proof of 42b21's `JAtZB.add_frameB`,
+moved): `XTopAt`, `JCs` and `JRest` at `Z'`, `H'`, the fields that read the sets, the heap or the typed heap given
+(`thk`, `bound`, `intL`, the SCs non-null and the buffer words' node apartness at `Z'`). `add_frameB`,
+`add_frame`, `add_frameT` (UtCnAdd) and `add_frameC` (UtScAdd) are its instances. -/
+theorem JAtZB.of_frame {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    {Lst' : U64 → List U64} {D' : Set U64}
+    (hthk : ∀ q k, Z'.th q = some k → k = .tcb ∨ ∃ r, k = .cnode r) (hbound : DelBound Z'.th)
+    (hintL : IntLayout Z'.th (L.ksb s')) (hc0 : ∀ q ∈ Z'.C, q ≠ 0#u64)
+    (hnB : ∀ wp ∈ Z'.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ wp.1.val)
+    (hX : XTopAt (L := L) AR Z' s' a' σ') (hCs : JCs (L := L) Z' s' σ') (R : JRest (L := L) arI Z' H' Cs Ac' Lst' D' s' σ')
+    (hKs : KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s')) (hthT : ∀ t, Z'.th t = some .tcb → t ∈ Z'.T)
+    (hIp : IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hnk : ∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val)
+    (hcov : Sched.SpecCover H' σ') (hobj : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ')
+    (hzH : (∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn))
+    (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R))
+    (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hbf : JBuf (L := L) Z' s' σ')
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
+    JAtZB (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
+  have hTe : Z'.T = P1.Heap.tcbs H' := by
+    obtain ⟨Tr, Cq, hJ⟩ := R.jpl
+    exact Set.ext fun t => ⟨fun h => hzH.1 t h, fun h => hthT t ((hJ.tcb t).2 h)⟩
+  have hRe : Z'.R = P1.Heap.replies H' := Set.ext fun r => ⟨fun h => hzH.2.2.1 r h, fun h => hset.2.2 r h⟩
+  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX hTe hobj R.blk hset.2.1 R.jpl hc0
+  exact ⟨hX, R.call, R.rfree, R.rrecv, R.yld, R.mcp, R.buf, hKs, hthT, hthk, hIp, R.rp, R.apart,
+    hnk, hnB,
+    R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
+    R.kern, hCs.del, hCs.ut, hbound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
+    hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
+    R.curRun, R.blk, hintL, hvc, hbf.1, hbf.2.1, hbf.2.2, hlv, hzD, hcy⟩
+
+/-- `add_frameB` over `JAtZB`, no `JExt` asked (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary,
+`JAtZB.toJAtZ` with `hext`). -/
+theorem JAtZB.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    {Lst' : U64 → List U64} {D' : Set U64}
+    (hth : Z'.th = Z.th) (hC : Z'.C = Z.C) (hks : L.ksb s' = L.ksb s)
+    (hnB : ∀ wp ∈ Z'.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ wp.1.val)
+    (hX : XTopAt (L := L) AR Z' s' a' σ') (hCs : JCs (L := L) Z' s' σ') (R : JRest (L := L) arI Z' H' Cs Ac' Lst' D' s' σ')
+    (hKs : KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s')) (hthT : ∀ t, Z'.th t = some .tcb → t ∈ Z'.T)
+    (hIp : IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hnk : ∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val)
+    (hcov : Sched.SpecCover H' σ') (hobj : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ')
+    (hzH : (∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn))
+    (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R))
+    (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hbf : JBuf (L := L) Z' s' σ')
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
+    JAtZB (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' :=
+  JAtZB.of_frame (by rw [hth]; exact J.thk) (by rw [hth]; exact J.bound) (by rw [hth, hks]; exact J.intL)
+    (by rw [hC]; exact J.c0) hnB hX hCs R hKs hthT hIp hnk hcov hobj hzH hset hscC hvc hbf hlv hzD hcy
+
+/-- `JAtZ.add_frame` over `JAtZB`, no `JExt` asked (mmuAD gen 42b24; `add_frameB` with the buffer words kept). -/
+theorem JAtZB.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
+    {Lst' : U64 → List U64} {D' : Set U64}
+    (hth : Z'.th = Z.th) (hC : Z'.C = Z.C) (hB : Z'.B = Z.B) (hks : L.ksb s' = L.ksb s)
+    (hX : XTopAt (L := L) AR Z' s' a' σ') (hCs : JCs (L := L) Z' s' σ') (R : JRest (L := L) arI Z' H' Cs Ac' Lst' D' s' σ')
+    (hKs : KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s')) (hthT : ∀ t, Z'.th t = some .tcb → t ∈ Z'.T)
+    (hIp : IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
+    (hnk : ∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val)
+    (hcov : Sched.SpecCover H' σ') (hobj : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ')
+    (hzH : (∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn))
+    (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R))
+    (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hbf : JBuf (L := L) Z' s' σ')
+    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D')
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
+    JAtZB (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' :=
+  J.add_frameB hth hC hks (fun wp hw c hc => by
+      simp only [P1.LawfulStore.nodeBase, hks]; rw [hB] at hw; exact J.nodeB wp hw c hc)
+    hX hCs R hKs hthT hIp hnk hcov hobj hzH hset hscC hvc hbf hlv hzD hcy
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` at enlarged sets and a grown heap** (the variant of
 `JAtZ.cs_frameV` for a retype's endpoints or notifications, `XSets.addW`,
@@ -625,57 +712,8 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
     (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
     (hcy : JCarry (L := L) Z' H' Cs s' σ'):
-    JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
-  have hTe : Z'.T = P1.Heap.tcbs H' := by
-    obtain ⟨Tr, Cq, hJ⟩ := R.jpl
-    exact Set.ext fun t => ⟨fun h => hzH.1 t h, fun h => hthT t ((hJ.tcb t).2 h)⟩
-  have hRe : Z'.R = P1.Heap.replies H' := Set.ext fun r => ⟨fun h => hzH.2.2.1 r h, fun h => hset.2.2 r h⟩
-  have hc0 : ∀ q ∈ Z'.C, q ≠ 0#u64 := by rw [hC]; exact J.c0
-  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX hTe hobj R.blk hset.2.1 R.jpl hc0
-  exact ⟨hX, R.call, R.rfree, R.rrecv, R.yld, R.mcp, R.buf, hKs, hthT, by rw [hth]; exact J.thk, hIp, R.rp, R.apart,
-    hnk, fun wp hw c hc => by
-      simp only [P1.LawfulStore.nodeBase, hks]; rw [hB] at hw; exact J.nodeB wp hw c hc,
-    R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
-    R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
-    hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext, hlv, hzD, hcy⟩
-
-
-set_option maxHeartbeats 1000000 in
-/-- `add_frameB` over `JAtZB`, no `JExt` asked (mmuAD gen 42b21, in place; the `JAtZ` lemma is its corollary,
-`JAtZB.toJAtZ` with `hext`). -/
-theorem JAtZB.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {Z' : XSets} {H' : P1.Heap} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} {Ac' : Set U64}
-    {Lst' : U64 → List U64} {D' : Set U64}
-    (hth : Z'.th = Z.th) (hC : Z'.C = Z.C) (hks : L.ksb s' = L.ksb s)
-    (hnB : ∀ wp ∈ Z'.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ wp.1.val)
-    (hX : XTopAt (L := L) AR Z' s' a' σ') (hCs : JCs (L := L) Z' s' σ') (R : JRest (L := L) arI Z' H' Cs Ac' Lst' D' s' σ')
-    (hKs : KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s')) (hthT : ∀ t, Z'.th t = some .tcb → t ∈ Z'.T)
-    (hIp : IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
-    (hnk : ∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val)
-    (hcov : Sched.SpecCover H' σ') (hobj : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ')
-    (hzH : (∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
-      (∀ n ∈ Z'.N, H' n = some .ntfn))
-    (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
-      (∀ r, H' r = some .reply → r ∈ Z'.R))
-    (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
-    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
-    (hbf : JBuf (L := L) Z' s' σ')
-    (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
-    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
-    JAtZB (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
-  have hTe : Z'.T = P1.Heap.tcbs H' := by
-    obtain ⟨Tr, Cq, hJ⟩ := R.jpl
-    exact Set.ext fun t => ⟨fun h => hzH.1 t h, fun h => hthT t ((hJ.tcb t).2 h)⟩
-  have hRe : Z'.R = P1.Heap.replies H' := Set.ext fun r => ⟨fun h => hzH.2.2.1 r h, fun h => hset.2.2 r h⟩
-  have hc0 : ∀ q ∈ Z'.C, q ≠ 0#u64 := by rw [hC]; exact J.c0
-  have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX hTe hobj R.blk hset.2.1 R.jpl hc0
-  exact ⟨hX, R.call, R.rfree, R.rrecv, R.yld, R.mcp, R.buf, hKs, hthT, by rw [hth]; exact J.thk, hIp, R.rp, R.apart,
-    hnk, hnB,
-    R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
-    R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
-    hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hlv, hzD, hcy⟩
+    JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' :=
+  (JAtZB.add_frame J.toB hth hC hB hks hX hCs R hKs hthT hIp hnk hcov hobj hzH hset hscC hvc hbf hlv hzD hcy).toJAtZ hext
 
 
 /-- **`JAtZ.add_frame` with `B` changed** (the frame retype, UtFrameAdd): the

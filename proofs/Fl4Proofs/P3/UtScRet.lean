@@ -81,10 +81,9 @@ theorem cscW_of_sched {N T C C' : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spe
   rw [hna] at h1
   rw [← h1, ← h2, hcsc]
 
-/-- DeadKeep's `JAtZ.kern_keep` with the scheduler relation after at any SC
-set `C'`. -/
-theorem JAtZ.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+/-- `kern_keepC` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.kern_keepC` is its corollary). -/
+theorem JAtZB.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
     {D' C' : Set U64}
     (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hS' : Sched.SchedRel st Z.N Z.T C' Z.c s' σ')
@@ -121,10 +120,25 @@ theorem JAtZ.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
     K.csLt, K.cs0, K.csN, K.tdx.frame hpl⟩
   rw [hna, hDbg]; exact K.head
 
-/-- ScJointRest's `JAtZ.idleW_keep` with the scheduler relation after at any
-SC set `C'`. -/
-theorem JAtZ.idleW_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {C' : Set U64}
+
+/-- DeadKeep's `JAtZ.kern_keep` with the scheduler relation after at any SC
+set `C'`. -/
+theorem JAtZ.kern_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    {D' C' : Set U64}
+    (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
+    (hS' : Sched.SchedRel st Z.N Z.T C' Z.c s' σ')
+    (hct : σ'.curThread = σ.curThread) (hcsc : σ'.curSc = σ.curSc)
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
+    (hgp : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat))
+    (hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao))
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    JKern (L := L) arI H Cs D' Z.th s' σ' :=
+  JAtZB.kern_keepC J.toB hks hcpu hS' hct hcsc horig hgp hao hDbg
+
+/-- `idleW_keepC` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.idleW_keepC` is its corollary). -/
+theorem JAtZB.idleW_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {C' : Set U64}
     (hS' : Sched.SchedRel st Z.N Z.T C' Z.c s' σ') (hid : σ'.idleThread = σ.idleThread)
     (hisc : σ'.idleSc = σ.idleSc) : Sched.IdleKeep (L := L) s s' := by
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -141,11 +155,19 @@ theorem JAtZ.idleW_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
     unfold nodeW at h1 h2
     rw [hc'.cur, hc.cur, h1, h2, hisc]
 
+
+/-- ScJointRest's `JAtZ.idleW_keep` with the scheduler relation after at any
+SC set `C'`. -/
+theorem JAtZ.idleW_keepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {C' : Set U64}
+    (hS' : Sched.SchedRel st Z.N Z.T C' Z.c s' σ') (hid : σ'.idleThread = σ.idleThread)
+    (hisc : σ'.idleSc = σ.idleSc) : Sched.IdleKeep (L := L) s s' :=
+  JAtZB.idleW_keepC J.toB hS' hid hisc
+
 set_option maxHeartbeats 2000000 in
-/-- **`JRest`'s scheduler-side fields at `C ∪ Wc`** across fresh SCs, a
-CNode-only step and FL4's slot writes (module docstring). -/
-theorem JAtZ.scRest {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th))
+/-- `scRest` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.scRest` is its corollary). -/
+theorem JAtZB.scRest {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th))
     {σB σ' : Fl4Spec.State Unit} {Wc : Set U64} {n : Nat}
     (hA : SpecAdd σ σB (SWc Wc) (fun _ => .schedContext Fl4Spec.defaultSchedContext n)) (hcn : CnK σB σ')
     (hrep0 : ∀ sc ∈ Wc, L.mem s (scReplyA sc) = 0#u64)
@@ -164,7 +186,7 @@ theorem JAtZ.scRest {s : S} {a : A} {σ : Fl4Spec.State Unit}
     SlotsApart (st := st) Z.th Z.T Z.N (Z.C ∪ Wc) Z.R Z.c s' σ' := by
   have hC := CnStep.of_cnK hcn
   have hS := J.xtop.fin.1.1.1
-  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keeps arI J hw
+  obtain ⟨k1, k2, kb, k3, k4⟩ := inSlot_keepsB arI J hw
   have ck := cnCKeep hC
   -- reply placement at `C ∪ Wc` before the CNode step
   have hRPB : RPlaced st Z.N Z.T (Z.C ∪ Wc) Z.R Z.c s σB := by
@@ -194,11 +216,32 @@ theorem JAtZ.scRest {s : S} {a : A} {σ : Fl4Spec.State Unit}
   · obtain ⟨-, rfl⟩ := hA.scNew hsc hyB
     exact hSoff x hx sc hsc
 
+
+/-- **`JRest`'s scheduler-side fields at `C ∪ Wc`** across fresh SCs, a
+CNode-only step and FL4's slot writes (module docstring). -/
+theorem JAtZ.scRest {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {σB σ' : Fl4Spec.State Unit} {Wc : Set U64} {n : Nat}
+    (hA : SpecAdd σ σB (SWc Wc) (fun _ => .schedContext Fl4Spec.defaultSchedContext n)) (hcn : CnK σB σ')
+    (hrep0 : ∀ sc ∈ Wc, L.mem s (scReplyA sc) = 0#u64)
+    (hrepK : ∀ sc ∈ Wc, L.mem s' (scReplyA sc) = L.mem s (scReplyA sc))
+    (hRoff : ∀ r ∈ Z.R, ∀ sc ∈ Wc, r.val + 32 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ r.val)
+    (hSoff : ∀ x, IsSlot Z.th x → ∀ sc ∈ Wc,
+      x.val + 32 ≤ sc.val ∨ sc.val + 2 ^ (n + Fl4Spec.minSchedContextBits) ≤ x.val)
+    (hcs : ∀ sc ∈ Wc, sc.bv ≠ σ.curSc)
+    (hts : ∀ t x scp, σ.kheap t = some (.tcb x) → x.tcbSchedContext = some scp → ∀ sc ∈ Wc, sc.bv ≠ scp) :
+    CallRel (L.mem s') Z.R (Z.C ∪ Wc) σ' (LstC Z.C Lst) ∧ RPlaced st Z.N Z.T (Z.C ∪ Wc) Z.R Z.c s' σ' ∧
+    RFree (L.mem s') Z.R (Z.C ∪ Wc) σ' (LstC Z.C Lst) ∧
+    RRecv (L.mem s') Z.R σ' ∧ YieldRel Z.T (Z.C ∪ Wc) (L.mem s') σ' ∧ McpRel Z.T (L.mem s') σ' ∧
+    BufWordRel Z.T (L.mem s') σ' ∧ NSC Z.N (Z.C ∪ Wc) σ' ∧ Inv σ' ∧
+    (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T (Z.C ∪ Wc) σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
+    BlockedScActive σ' ∧ IpcSorted σ' ∧ CurRunM σ' ∧
+    SlotsApart (st := st) Z.th Z.T Z.N (Z.C ∪ Wc) Z.R Z.c s' σ' :=
+  JAtZB.scRest J.toB hw hA hcn hrep0 hrepK hRoff hSoff hcs hts
+
 set_option maxHeartbeats 2000000 in
-/-- **The cover and heap fields at `C ∪ Wc` over `HOut`** with the window's
-new `sc` objects (module docstring): the spec's objects after are the old
-ones, changed CNodes or the window's new SCs. -/
-theorem JAtZ.addSetsC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- `addSetsC` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.addSetsC` is its corollary). -/
+theorem JAtZB.addSetsC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {lo hi : Nat} (hfree : RegionFree Z.th lo hi)
     (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
     (harch : ArchFitHyp H σ) {A0 k w : Nat} (hlo : lo ≤ A0) (hhi : A0 + w * k ≤ hi) (hk1 : 1 ≤ k) (hA0 : 0 < A0)
@@ -300,6 +343,27 @@ theorem JAtZ.addSetsC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     · exact Or.inr hna
     · exact Or.inl (J.hscC c z' h)
 
+
+
+/-- **The cover and heap fields at `C ∪ Wc` over `HOut`** with the window's
+new `sc` objects (module docstring): the spec's objects after are the old
+ones, changed CNodes or the window's new SCs. -/
+theorem JAtZ.addSetsC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {lo hi : Nat} (hfree : RegionFree Z.th lo hi)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (harch : ArchFitHyp H σ) {A0 k w : Nat} (hlo : lo ≤ A0) (hhi : A0 + w * k ≤ hi) (hk1 : 1 ≤ k) (hA0 : 0 < A0)
+    {z : Nat} {H' : Heap} (hout : HOut H H' A0 (A0 + w * k) A0 k w (some (.sc z))) {σ' : Fl4Spec.State Unit}
+    {m : Nat}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+      (∃ q, NewAt A0 k w q ∧ q.bv = o ∧ ko = .schedContext Fl4Spec.defaultSchedContext m)) :
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z.N Z.T Z.E Z.R (Z.C ∪ winSet A0 k w) σ' ∧
+    ((∀ t ∈ Z.T, H' t = some .tcb) ∧ (∀ e ∈ Z.E, H' e = some .ep) ∧ (∀ r ∈ Z.R, H' r = some .reply) ∧
+      (∀ n ∈ Z.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z.C ∪ winSet A0 k w) :=
+  JAtZB.addSetsC J.toB hfree hspec harch hlo hhi hk1 hA0 hout hback
 
 variable (arI) in
 /-- **The outcome of a retype body at `J`** (handoff/utj.md Round 13): the
@@ -429,13 +493,9 @@ theorem UtBodyPostB.toPost {th : TypedHeap} {G : MdbGhost} {H : P1.Heap} {s : S}
   exact ⟨σ', hrun, hok, hrel, Z', H', Cs', Ac', Lst', D', J.toJAtZ (hx hn E), hvx⟩
 
 set_option maxHeartbeats 16000000 in
-/-- **The body of `JAtZ.utScJ`: the retype of SCs without a reset from a
-`JAtZ` state** (handoff/utj.md Round 13; as UtEpRet's `JAtZ.utEpBodyJ`):
-from the state itself (after the restart, or after the restart and the
-reset), the arguments' `RetCtx` there (any `reset` flag, `fiv = fi`),
-`Entered`, and the kept references to a range of the cap's free part (`hRU`),
-FL4's `untyped::retype` without a reset ends in `UtBodyPost`. -/
-theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+/-- `utScBodyJ` over `JAtZB` (mmuAD gen 42b24, in place; `JAtZ.utScBodyJ` is its corollary): the post `UtBodyPostB`
+with `RetWin`, `JExt` carried from the entry. -/
+theorem JAtZB.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZB (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
@@ -446,7 +506,7 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
         ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
-      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+      UtBodyPostB (L := L) arI AR Z.th Z.G H s σ nt.val (fun _ _ _ _ _ => True) (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -480,7 +540,7 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hRPN := RetPostB.toNB hRP
   obtain ⟨hok, har, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
     hE, hbr, hRFu⟩ := hRP
-  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
+  rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, huu, hcj⟩, hdsC,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
   rw [capsOf_native (n := n0) (by rw [objTypeOf_inj hn0 hty, hnt]; decide)] at hcj
@@ -1099,17 +1159,53 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have JZ := J.add_frameC (Z' := { Z with G := G', C := Z.C ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hW0 rfl hwI.1 hX' hCs hJR (by rw [hwI.1]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hwI.1]; exact J.nk n hn) hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+    hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout0 fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
       (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTB.new _ _)) hvnR)
-  refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
+  have htV : t ≠ .archObject .vcpuObj := by rw [ht]; exact fun h => by cases h
+  refine ⟨σ', (VirtR7.fl4InvokeUntypedV_run _ _ _ _ _ _ _ _ htV σ).trans hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
   · rw [har]
-    exact ⟨_, H', Cs, Ac', LstC Z.C Lst, _, JZ, inferInstance⟩
+    refine ⟨_, H', Cs, Ac', LstC Z.C Lst, _, JZ, inferInstance, trivial, fun _ hx =>
+      ⟨hx.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _),
+        hx.vkeep (J.vkeep_slot hwI)⟩, fun _ _ _ _ _ _ _ _ he => ?_⟩
+    cases he
+    exact RetWin.intro (dslot := dslot) (cj := cj) (σB := σB) rfl (by rw [← eA]; exact hAk)
+      ⟨uu, huu, by rw [capsOf_native (Or.inl (by omega)), hcj, eA]⟩ (by rw [hlen]; exact hdsC) hw
+      (by rw [hlen, ← eA]; exact hThX) hSt (by rw [hlen, ← eA]; exact hE) hM hM' (by rw [hlen, ← eA]; exact hout0)
+      (hA.congrW (fun q => by simp only [hb]; exact ⟨fun h => ⟨h, htU⟩, fun h => h.1⟩) fun _ _ => rfl) hcnk hkc
+      (capV_of_capAt hcap) (by rw [← eA]; exact hA1) (by rw [hlen, ← eA]; exact hA3)
+      (fun _ a ha g1 g2 => hU.zero hnd a ha (by rw [← eA] at g1; omega) (by rw [hlen, ← eA] at g2; omega))
+
+/-- **The body of `JAtZ.utScJ`: the retype of SCs without a reset from a
+`JAtZ` state** (handoff/utj.md Round 13; as UtEpRet's `JAtZ.utEpBodyJ`):
+from the state itself (after the restart, or after the restart and the
+reset), the arguments' `RetCtx` there (any `reset` flag, `fiv = fi`),
+`Entered`, and the kept references to a range of the cap's free part (`hRU`),
+FL4's `untyped::retype` without a reset ends in `UtBodyPost`. -/
+theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) [VxE Z]
+    (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
+    (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
+    (hnt : nt.val = 5) (hc0 : Z.c = 0#u64)
+    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv) (hfiv : fiv = fi)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
+        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
+        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
+        res ⦄ :=
+  WP.spec_mono (JAtZB.utScBodyJ J.toB hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU)
+    fun _ h => h.toPost (by omega)
+    (fun _ _ _ _ _ _ _ _ he => by
+      cases he; intro e; rw [e] at hctx; have := hctx.ty; rw [hnt] at this
+      simp [objTypeOf, Fl4Spec.archDataToObjType] at this) J.ext
 
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype of SCs at `J`** (module docstring; one core,
